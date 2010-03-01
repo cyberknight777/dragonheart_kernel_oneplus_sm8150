@@ -1267,11 +1267,14 @@ void __init tsc_init(void)
 {
 	u64 lpj, cyc;
 	int cpu;
+	u64 initial_tsc;
 
 	if (!boot_cpu_has(X86_FEATURE_TSC)) {
 		setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 		return;
 	}
+
+	rdtscll(initial_tsc);
 
 	cpu_khz = x86_platform.calibrate_cpu();
 	tsc_khz = x86_platform.calibrate_tsc();
@@ -1291,6 +1294,10 @@ void __init tsc_init(void)
 		setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 		return;
 	}
+
+	do_div(initial_tsc, cpu_khz / 1000);
+	pr_info("Initial usec timer %llu\n",
+		(unsigned long long)initial_tsc);
 
 	pr_info("Detected %lu.%03lu MHz processor\n",
 		(unsigned long)cpu_khz / 1000,
