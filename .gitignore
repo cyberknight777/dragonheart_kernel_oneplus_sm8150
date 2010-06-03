@@ -77,6 +77,9 @@ include/config
 include/generated
 arch/*/include/generated
 
+# kernelconfig build directory
+/build/
+
 # stgit generated dirs
 patches-*
 
