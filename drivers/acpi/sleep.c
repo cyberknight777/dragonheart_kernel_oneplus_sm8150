@@ -533,6 +533,7 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
 	acpi_status status = AE_OK;
 	u32 acpi_state = acpi_target_sleep_state;
 	int error;
+	u64 tsc;
 
 	ACPI_FLUSH_CPU_CACHE();
 
@@ -549,6 +550,9 @@ static int acpi_suspend_enter(suspend_state_t pm_state)
 		error = acpi_suspend_lowlevel();
 		if (error)
 			return error;
+		rdtscll(tsc);
+		printk(KERN_INFO "TSC at resume: %llu\n",
+				(unsigned long long)tsc);
 		pr_info(PREFIX "Low-level resume complete\n");
 		pm_set_resume_via_firmware();
 		break;
