@@ -155,6 +155,11 @@ int vm_swappiness = 60;
  */
 unsigned long vm_total_pages;
 
+/*
+ * Low watermark used to prevent fscache thrashing during low memory.
+ */
+int min_filelist_kbytes;
+
 static LIST_HEAD(shrinker_list);
 static DECLARE_RWSEM(shrinker_rwsem);
 
@@ -221,11 +226,16 @@ unsigned long zone_reclaimable_pages(struct zone *zone)
 
 unsigned long pgdat_reclaimable_pages(struct pglist_data *pgdat)
 {
+	unsigned long pages_min;
 	unsigned long nr;
 
 	nr = node_page_state_snapshot(pgdat, NR_ACTIVE_FILE) +
 	     node_page_state_snapshot(pgdat, NR_INACTIVE_FILE) +
 	     node_page_state_snapshot(pgdat, NR_ISOLATED_FILE);
+
+	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	if (nr < pages_min)
+		nr = 0;
 
 	if (get_nr_swap_pages() > 0)
 		nr += node_page_state_snapshot(pgdat, NR_ACTIVE_ANON) +
@@ -2146,10 +2156,34 @@ static bool inactive_list_is_low(struct lruvec *lruvec, bool file,
 	return inactive * inactive_ratio < active;
 }
 
+/*
+ * Check low watermark used to prevent fscache thrashing during low memory.
+ */
+static int file_is_low(struct lruvec *lruvec, struct scan_control *sc)
+{
+	unsigned long pages_min, active, inactive;
+	enum lru_list inactive_lru = LRU_FILE;
+	enum lru_list active_lru = LRU_FILE + LRU_ACTIVE;
+
+	if (!mem_cgroup_disabled())
+		return false;
+
+	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	inactive = lruvec_lru_size(lruvec, inactive_lru, sc->reclaim_idx);
+	active = lruvec_lru_size(lruvec, active_lru, sc->reclaim_idx);
+
+	return ((active + inactive) < pages_min);
+}
+
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct mem_cgroup *memcg,
 				 struct scan_control *sc)
 {
+	int file = is_file_lru(lru);
+
+	if (file && file_is_low(lruvec, sc))
+		return 0;
+
 	if (is_active_lru(lru)) {
 		if (inactive_list_is_low(lruvec, is_file_lru(lru),
 					 memcg, sc, true))
