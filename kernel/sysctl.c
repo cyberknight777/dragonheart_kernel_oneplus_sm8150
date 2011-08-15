@@ -1567,6 +1567,15 @@ static struct ctl_table vm_table[] = {
 		.mode		= 0644,
 		.proc_handler	= mmap_min_addr_handler,
 	},
+	{
+		.procname	= "mmap_noexec_taint",
+		.data		= &sysctl_mmap_noexec_taint,
+		.maxlen		= sizeof(sysctl_mmap_noexec_taint),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
 #endif
 #ifdef CONFIG_NUMA
 	{
