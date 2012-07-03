@@ -24,6 +24,7 @@
 #include <asm/hypervisor.h>
 #include <asm/processor.h>
 #include <asm/tlbflush.h>
+#include <asm/virtext.h>
 #include <asm/debugreg.h>
 #include <asm/sections.h>
 #include <asm/vsyscall.h>
@@ -1465,6 +1466,85 @@ static void dbg_restore_debug_regs(void)
 #define dbg_restore_debug_regs()
 #endif /* ! CONFIG_KGDB */
 
+#ifdef CONFIG_CHROMEOS
+static int disablevmx = 1;
+static int __init dodisablevmx(char *value)
+{
+	if (!value)
+		return 0;
+	if (!strncmp(value, "on", 2))
+		return 0;
+	if (!strncmp(value, "off", 3)) {
+		disablevmx = 0;
+		return 0;
+	}
+	return 1;
+}
+early_param("disablevmx", dodisablevmx);
+
+void cpu_control_vmx(int cpu)
+{
+	int ret;
+	u64 msr;
+	u64 bits;
+	/* ChromeOS currently requires a disablevmx option
+	 * in the cmdline that will make a reasonable
+	 * attempt to set the IA32 FEATURE register to
+	 * 1, meaning vmx disabled and locked out.
+	 */
+	if (!cpu_has_vmx())
+		return;
+
+	rdmsrl(MSR_IA32_FEATURE_CONTROL, msr);
+
+	bits = msr;
+
+	if (disablevmx)
+		bits &= ~(FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
+			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX);
+	else
+		bits |= FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
+			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX;
+	bits |= FEATURE_CONTROL_LOCKED;
+
+	/* If nothing to do, do nothing. */
+	if (msr == bits)
+		return;
+
+	/* if it's locked, there's really nothing we can do. */
+	if ((msr & FEATURE_CONTROL_LOCKED) && (msr != bits)) {
+		/* But only warn them if it's not what we want. */
+		 pr_warn("can not %s VMX on CPU%d (already locked)\n",
+		    disablevmx ? "disable" : "enable", cpu);
+		return;
+	}
+
+	pr_info("%s VMX on cpu %d\n",
+			disablevmx ? "Disabling" : "Enabling", cpu);
+	ret = wrmsrl_safe(MSR_IA32_FEATURE_CONTROL, bits);
+	if (!ret)
+		return;
+
+	pr_warn("wrmsrl_safe (MSR_IA32_FEATURE_CONTROL, %08llx) failed error %d\n",
+		bits, ret);
+
+	/* Not all CPUs support FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX
+	 * even if they support FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX.
+	 * If setting both options fails, clear the
+	 * FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX option and try again.
+	 * If the second wrmsr fails, there's nothing more we can do.
+	 */
+	bits &= ~FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX;
+
+	ret = wrmsrl_safe(MSR_IA32_FEATURE_CONTROL, bits);
+	if (!ret)
+		return;
+
+	pr_warn("wrmsrl_safe (MSR_IA32_FEATURE_CONTROL, %08llx) failed error %d\n",
+		bits, ret);
+}
+#endif
+
 static void wait_for_master_cpu(int cpu)
 {
 #ifdef CONFIG_SMP
@@ -1587,6 +1667,8 @@ void cpu_init(void)
 
 	setup_fixmap_gdt(cpu);
 	load_fixmap_gdt(cpu);
+
+	cpu_control_vmx(cpu);
 }
 
 #else
@@ -1646,6 +1728,8 @@ void cpu_init(void)
 
 	setup_fixmap_gdt(cpu);
 	load_fixmap_gdt(cpu);
+
+	cpu_control_vmx(cpu);
 }
 #endif
 
