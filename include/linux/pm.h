@@ -569,6 +569,7 @@ struct dev_pm_info {
 	bool			wakeup_path:1;
 	bool			syscore:1;
 	bool			no_pm_callbacks:1;	/* Owned by the PM core */
+	bool			use_dark_resume:1;
 #else
 	unsigned int		should_wakeup:1;
 #endif
