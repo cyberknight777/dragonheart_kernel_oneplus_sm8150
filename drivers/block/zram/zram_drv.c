@@ -1430,23 +1430,55 @@ static ssize_t reset_store(struct device *dev,
 	return len;
 }
 
-static int zram_open(struct block_device *bdev, fmode_t mode)
+int zram_open(struct block_device *bdev, fmode_t mode)
 {
-	int ret = 0;
 	struct zram *zram;
+	int open_count;
 
 	WARN_ON(!mutex_is_locked(&bdev->bd_mutex));
 
 	zram = bdev->bd_disk->private_data;
 	/* zram was claimed to reset so open request fails */
 	if (zram->claim)
-		ret = -EBUSY;
+		goto out_busy;
 
-	return ret;
+	/*
+	 * Chromium OS specific behavior:
+	 * sys_swapon opens the device once to populate its swapinfo->swap_file
+	 * and once when it claims the block device (blkdev_get).  By limiting
+	 * the maximum number of opens to 2, we ensure there are no prior open
+	 * references before swap is enabled.
+	 * (Note, kzalloc ensures nr_opens starts at 0.)
+	 */
+	open_count = atomic_inc_return(&zram->nr_opens);
+	if (open_count > 2)
+		goto out_busy_dec_nr_opens;
+	/*
+	 * swapon(2) claims the block device after setup.  If a zram is claimed
+	 * then open attempts are rejected. This is belt-and-suspenders as the
+	 * the block device and swap_file will both hold open nr_opens until
+	 * swapoff(2) is called.
+	 */
+	if (bdev->bd_holder != NULL)
+		goto out_busy_dec_nr_opens;
+
+	return 0;
+
+out_busy_dec_nr_opens:
+	atomic_dec(&zram->nr_opens);
+out_busy:
+	return -EBUSY;
+}
+
+void zram_release(struct gendisk *disk, fmode_t mode)
+{
+	struct zram *zram = disk->private_data;
+	atomic_dec(&zram->nr_opens);
 }
 
 static const struct block_device_operations zram_devops = {
 	.open = zram_open,
+	.release = zram_release,
 	.swap_slot_free_notify = zram_slot_free_notify,
 	.rw_page = zram_rw_page,
 	.owner = THIS_MODULE
