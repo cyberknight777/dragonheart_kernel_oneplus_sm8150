@@ -35,6 +35,7 @@
 #include <linux/anon_inodes.h>
 #include <linux/device.h>
 #include <linux/uaccess.h>
+#include <linux/freezer.h>
 #include <asm/io.h>
 #include <asm/mman.h>
 #include <linux/atomic.h>
@@ -1826,7 +1827,8 @@ fetch_events:
 			}
 
 			spin_unlock_irqrestore(&ep->lock, flags);
-			if (!schedule_hrtimeout_range(to, slack, HRTIMER_MODE_ABS))
+			if (!freezable_schedule_hrtimeout_range(to, slack,
+								HRTIMER_MODE_ABS))
 				timed_out = 1;
 
 			spin_lock_irqsave(&ep->lock, flags);
