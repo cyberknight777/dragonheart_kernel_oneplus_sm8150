@@ -949,6 +949,9 @@ out_unlock:
 	return err;
 }
 
+/* When set to true, allow set/drop master ioctls as normal user */
+bool drm_master_relax;
+
 static const struct file_operations drm_stub_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_stub_open,
@@ -958,7 +961,7 @@ static const struct file_operations drm_stub_fops = {
 static void drm_core_exit(void)
 {
 	unregister_chrdev(DRM_MAJOR, "drm");
-	debugfs_remove(drm_debugfs_root);
+	debugfs_remove_recursive(drm_debugfs_root);
 	drm_sysfs_destroy();
 	idr_destroy(&drm_minors_idr);
 	drm_connector_ida_destroy();
@@ -984,6 +987,12 @@ static int __init drm_core_init(void)
 		ret = -ENOMEM;
 		DRM_ERROR("Cannot create debugfs-root: %d\n", ret);
 		goto error;
+	}
+
+	if (!debugfs_create_bool("drm_master_relax", S_IRUSR | S_IWUSR,
+				drm_debugfs_root, &drm_master_relax)) {
+		DRM_ERROR(
+			  "Cannot create /sys/kernel/debug/dri/drm_master_relax\n");
 	}
 
 	ret = register_chrdev(DRM_MAJOR, "drm", &drm_stub_fops);
