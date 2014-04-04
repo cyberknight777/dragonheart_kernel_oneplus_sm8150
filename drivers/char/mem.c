@@ -28,6 +28,7 @@
 #include <linux/export.h>
 #include <linux/io.h>
 #include <linux/uio.h>
+#include <linux/low-mem-notify.h>
 
 #include <linux/uaccess.h>
 
@@ -852,6 +853,9 @@ static const struct memdev {
 	 [9] = { "urandom", 0666, &urandom_fops, 0 },
 #ifdef CONFIG_PRINTK
 	[11] = { "kmsg", 0644, &kmsg_fops, 0 },
+#endif
+#ifdef CONFIG_LOW_MEM_NOTIFY
+	[12] = { "chromeos-low-mem", 0666, &low_mem_notify_fops, 0 },
 #endif
 };
 
