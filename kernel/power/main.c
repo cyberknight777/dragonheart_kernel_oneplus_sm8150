@@ -17,6 +17,7 @@
 #include <linux/seq_file.h>
 #include <linux/pm.h>
 #include <linux/pm_dark_resume.h>
+#include <linux/pm_wakeup.h>
 
 #include "power.h"
 
@@ -585,6 +586,54 @@ static ssize_t wakeup_count_store(struct kobject *kobj,
 
 power_attr(wakeup_count);
 
+static const char * const unknown = "unknown";
+static const char * const automatic = "automatic";
+static const char * const user = "user";
+static const char * const invalid = "invalid";
+
+static ssize_t wakeup_type_show(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				char *buf)
+{
+	enum pm_wakeup_type type = pm_get_wakeup_source_type();
+
+	/*
+	 * Hack to support dark_resume_always with wakeup_type until we can get
+	 * rid of dark_resume_always.
+	 */
+	if (pm_dark_resume_active())
+		return sprintf(buf, "%s\n", automatic);
+
+	switch (type) {
+	case WAKEUP_UNKNOWN:
+		return sprintf(buf, "%s\n", unknown);
+	case WAKEUP_AUTOMATIC:
+		return sprintf(buf, "%s\n", automatic);
+	case WAKEUP_USER:
+		return sprintf(buf, "%s\n", user);
+	default:
+		return sprintf(buf, "%s\n", invalid);
+	}
+}
+
+static ssize_t wakeup_type_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t n)
+{
+	/*
+	 * Just the funcionality to set wakeup_type to "unknown" from userspace
+	 * is supported and is all that's needed.
+	 */
+	if (sysfs_streq(unknown, buf)) {
+		pm_set_wakeup_type(WAKEUP_UNKNOWN);
+		return n;
+	}
+
+	return -EINVAL;
+}
+
+power_attr(wakeup_type);
+
 #ifdef CONFIG_PM_AUTOSLEEP
 static ssize_t autosleep_show(struct kobject *kobj,
 			      struct kobj_attribute *attr,
@@ -768,6 +817,7 @@ static struct attribute * g[] = {
 #ifdef CONFIG_SUSPEND
 	&mem_sleep_attr.attr,
 #endif
+	&wakeup_type_attr.attr,
 #ifdef CONFIG_PM_AUTOSLEEP
 	&autosleep_attr.attr,
 #endif

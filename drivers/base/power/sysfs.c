@@ -341,6 +341,11 @@ static DEVICE_ATTR(pm_qos_remote_wakeup, 0644,
 static const char _enabled[] = "enabled";
 static const char _disabled[] = "disabled";
 
+static const char unknown[] = "unknown";
+static const char invalid[] = "invalid";
+static const char automatic[] = "automatic";
+static const char user[] = "user";
+
 static ssize_t
 wake_show(struct device * dev, struct device_attribute *attr, char * buf)
 {
@@ -513,6 +518,45 @@ static ssize_t wakeup_last_time_show(struct device *dev,
 
 static DEVICE_ATTR(wakeup_last_time_ms, 0444, wakeup_last_time_show, NULL);
 
+static ssize_t wakeup_type_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	switch (dev->power.wakeup_source_type) {
+	case WAKEUP_UNKNOWN:
+		return sprintf(buf, "%s\n", unknown);
+	case WAKEUP_AUTOMATIC:
+		return sprintf(buf, "%s\n", automatic);
+	case WAKEUP_USER:
+		return sprintf(buf, "%s\n", user);
+	default:
+		return sprintf(buf, "%s\n", invalid);
+	}
+}
+
+static ssize_t wakeup_type_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t n)
+{
+	enum pm_wakeup_type type;
+
+	if (sysfs_streq(unknown, buf))
+		type = WAKEUP_UNKNOWN;
+	else if (sysfs_streq(automatic, buf))
+		type = WAKEUP_AUTOMATIC;
+	else if (sysfs_streq(user, buf))
+		type = WAKEUP_USER;
+	else
+		return -EINVAL;
+
+	if (device_set_wakeup_type(dev, type))
+		return -EINVAL;
+
+	return n;
+}
+
+static DEVICE_ATTR(wakeup_type, 0644, wakeup_type_show,
+		   wakeup_type_store);
+
 #ifdef CONFIG_PM_AUTOSLEEP
 static ssize_t wakeup_prevent_sleep_time_show(struct device *dev,
 					      struct device_attribute *attr,
@@ -650,6 +694,7 @@ static struct attribute *wakeup_attrs[] = {
 	&dev_attr_wakeup_total_time_ms.attr,
 	&dev_attr_wakeup_max_time_ms.attr,
 	&dev_attr_wakeup_last_time_ms.attr,
+	&dev_attr_wakeup_type.attr,
 #ifdef CONFIG_PM_AUTOSLEEP
 	&dev_attr_wakeup_prevent_sleep_time_ms.attr,
 #endif
