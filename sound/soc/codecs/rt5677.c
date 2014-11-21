@@ -5027,6 +5027,12 @@ static void rt5677_read_device_properties(struct rt5677_priv *rt5677,
 				      rt5677->pdata.gpio_config,
 				      RT5677_GPIO_NUM);
 
+	if (!device_property_read_u32(dev, "MB1", &val) ||
+	    !device_property_read_u32(dev, "realtek,micbias1", &val))
+		rt5677->pdata.micbias1_vdd_3v3 =
+			!!(val & (RT5677_MICBIAS1_CTRL_VDD_3_3V >>
+				  RT5677_MICBIAS1_CTRL_VDD_SFT));
+
 	if (!device_property_read_u32(dev, "DCLK", &val) ||
 	    !device_property_read_u32(dev, "realtek,dmic2_clk_pin", &val))
 		rt5677->pdata.dmic2_clk_pin = val;
