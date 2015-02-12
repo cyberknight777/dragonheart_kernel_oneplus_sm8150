@@ -13,6 +13,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
 #include "udl_drv.h"
+#include "udl_cursor.h"
 
 /* -BULK_SIZE as per usb-skeleton. Can we get full page and avoid overhead? */
 #define BULK_SIZE 512
@@ -334,6 +335,10 @@ int udl_init(struct udl_device *udl)
 	}
 
 	DRM_DEBUG("\n");
+	ret = udl_cursor_alloc(&udl->cursor);
+	if (ret)
+		goto err;
+
 	ret = udl_modeset_init(dev);
 	if (ret)
 		goto err;
@@ -354,6 +359,8 @@ err_fb:
 err:
 	if (udl->urbs.count)
 		udl_free_urb_list(dev);
+	if (udl->cursor)
+		udl_cursor_free(udl->cursor);
 	DRM_ERROR("%d\n", ret);
 	return ret;
 }
@@ -372,6 +379,9 @@ void udl_fini(struct drm_device *dev)
 
 	if (udl->urbs.count)
 		udl_free_urb_list(dev);
+
+	if (udl->cursor)
+		udl_cursor_free(udl->cursor);
 
 	udl_fbdev_cleanup(dev);
 }
