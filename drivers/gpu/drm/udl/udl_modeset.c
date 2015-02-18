@@ -358,14 +358,23 @@ static void udl_crtc_destroy(struct drm_crtc *crtc)
 	kfree(crtc);
 }
 
-static int udl_crtc_page_flip(struct drm_crtc *crtc,
-			      struct drm_framebuffer *fb,
-			      struct drm_pending_vblank_event *event,
-			      uint32_t page_flip_flags,
-			      struct drm_modeset_acquire_ctx *ctx)
+struct udl_page_flip_work {
+	struct work_struct work;
+	struct drm_crtc *crtc;
+	struct drm_framebuffer *fb;
+	struct drm_pending_vblank_event *event;
+};
+
+static void udl_sched_page_flip(struct work_struct *work)
 {
+	struct udl_page_flip_work *flip_work =
+		container_of(work, struct udl_page_flip_work, work);
+	struct drm_crtc *crtc = flip_work->crtc;
+	struct drm_framebuffer *fb = flip_work->fb;
+	struct drm_pending_vblank_event *event = flip_work->event;
 	struct udl_framebuffer *ufb = to_udl_fb(fb);
 	struct drm_device *dev = crtc->dev;
+	struct udl_device *udl = dev->dev_private;
 	unsigned long flags;
 
 	struct drm_framebuffer *old_fb = crtc->primary->fb;
@@ -383,6 +392,42 @@ static int udl_crtc_page_flip(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 	crtc->primary->fb = fb;
 
+	BUG_ON(atomic_read(&udl->flip_work_count) == 0);
+	atomic_dec(&udl->flip_work_count);
+
+	kfree(flip_work);
+}
+
+static int udl_crtc_page_flip(struct drm_crtc *crtc,
+			      struct drm_framebuffer *fb,
+			      struct drm_pending_vblank_event *event,
+			      uint32_t page_flip_flags,
+			      struct drm_modeset_acquire_ctx *ctx)
+{
+	struct drm_device *dev = crtc->dev;
+	struct udl_device *udl = dev->dev_private;
+	struct udl_page_flip_work *flip_work;
+
+	if (!udl->flip_wq) {
+		DRM_ERROR("Uninitialized page flip workqueue\n");
+		return -ENOMEM;
+	}
+
+	flip_work = kzalloc(sizeof(*flip_work), GFP_KERNEL);
+	if (!flip_work) {
+		DRM_ERROR("Failed to alloc flip_work\n");
+		return -ENOMEM;
+	}
+
+	if (atomic_add_return(1, &udl->flip_work_count) > 2)
+		flush_workqueue(udl->flip_wq);
+
+	flip_work->crtc = crtc;
+	flip_work->fb = fb;
+	flip_work->event = event;
+
+	INIT_WORK(&flip_work->work, udl_sched_page_flip);
+	queue_work(udl->flip_wq, &flip_work->work);
 	return 0;
 }
 
@@ -423,6 +468,21 @@ static int udl_crtc_init(struct drm_device *dev)
 	return 0;
 }
 
+static void udl_flip_workqueue_init(struct drm_device *dev)
+{
+	struct udl_device *udl = dev->dev_private;
+	udl->flip_wq = create_singlethread_workqueue("flip");
+	BUG_ON(!udl->flip_wq);
+	atomic_set(&udl->flip_work_count, 0);
+}
+
+static void udl_flip_workqueue_cleanup(struct drm_device *dev)
+{
+	struct udl_device *udl = dev->dev_private;
+	flush_workqueue(udl->flip_wq);
+	destroy_workqueue(udl->flip_wq);
+}
+
 static const struct drm_mode_config_funcs udl_mode_funcs = {
 	.fb_create = udl_fb_user_fb_create,
 	.output_poll_changed = NULL,
@@ -450,6 +510,8 @@ int udl_modeset_init(struct drm_device *dev)
 
 	udl_connector_init(dev, encoder);
 
+	udl_flip_workqueue_init(dev);
+
 	return 0;
 }
 
@@ -467,5 +529,6 @@ void udl_modeset_restore(struct drm_device *dev)
 
 void udl_modeset_cleanup(struct drm_device *dev)
 {
+	udl_flip_workqueue_cleanup(dev);
 	drm_mode_config_cleanup(dev);
 }
