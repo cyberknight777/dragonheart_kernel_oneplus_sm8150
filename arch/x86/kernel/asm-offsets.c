@@ -38,6 +38,15 @@ void common(void) {
 	OFFSET(TASK_TI_flags, task_struct, thread_info.flags);
 	OFFSET(TASK_addr_limit, task_struct, thread.addr_limit);
 
+#ifdef CONFIG_ALT_SYSCALL
+	OFFSET(TASK_TI_nr_syscalls, task_struct, thread_info.nr_syscalls);
+	OFFSET(TASK_TI_sys_call_table, task_struct, thread_info.sys_call_table);
+# ifdef CONFIG_IA32_EMULATION
+	OFFSET(TASK_TI_ia32_nr_syscalls, task_struct, thread_info.ia32_nr_syscalls);
+	OFFSET(TASK_TI_ia32_sys_call_table, task_struct, thread_info.ia32_sys_call_table);
+# endif
+#endif
+
 	BLANK();
 	OFFSET(crypto_tfm_ctx_offset, crypto_tfm, __crt_ctx);
 

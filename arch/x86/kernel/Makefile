@@ -131,6 +131,8 @@ obj-$(CONFIG_ORC_UNWINDER)		+= unwind_orc.o
 obj-$(CONFIG_FRAME_POINTER_UNWINDER)	+= unwind_frame.o
 obj-$(CONFIG_GUESS_UNWINDER)		+= unwind_guess.o
 
+obj-$(CONFIG_ALT_SYSCALL)		+= alt-syscall.o
+
 ###
 # 64 bit specific files
 ifeq ($(CONFIG_X86_64),y)

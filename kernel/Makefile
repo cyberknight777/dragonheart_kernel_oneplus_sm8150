@@ -41,6 +41,8 @@ obj-y += irq/
 obj-y += rcu/
 obj-y += livepatch/
 
+obj-$(CONFIG_ALT_SYSCALL) += alt-syscall.o
+
 obj-$(CONFIG_CHECKPOINT_RESTORE) += kcmp.o
 obj-$(CONFIG_FREEZER) += freezer.o
 obj-$(CONFIG_PROFILING) += profile.o
