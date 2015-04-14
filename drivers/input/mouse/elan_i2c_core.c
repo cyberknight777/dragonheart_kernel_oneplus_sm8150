@@ -307,6 +307,73 @@ static int elan_initialize(struct elan_tp_data *data)
 	return error;
 }
 
+/*
+ * Reactivate touchpad after suspend or inhibit.
+ */
+static int elan_reactivate(struct elan_tp_data *data)
+{
+	struct device *dev = &data->client->dev;
+	int ret;
+
+	ret = elan_enable_power(data);
+	if (ret)
+		dev_err(dev, "failed to restore power: %d\n", ret);
+
+	ret = elan_initialize(data);
+	if (ret)
+		dev_err(dev, "failed to re-initialize touchpad: %d\n", ret);
+
+	return ret;
+}
+
+static int elan_inhibit(struct input_dev *input_dev)
+{
+	struct elan_tp_data *data = input_get_drvdata(input_dev);
+	struct i2c_client *client = data->client;
+	int ret;
+
+	dev_dbg(&client->dev, "inhibiting\n");
+
+	/*
+	 * We are taking the mutex to make sure sysfs operations are
+	 * complete before we attempt to bring the device into low[er]
+	 * power mode.
+	 */
+	ret = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (ret)
+		return ret;
+
+	disable_irq(client->irq);
+
+	ret = elan_disable_power(data);
+	if (ret)
+		enable_irq(client->irq);
+
+	mutex_unlock(&data->sysfs_mutex);
+	return ret;
+}
+
+static int elan_uninhibit(struct input_dev *input_dev)
+{
+	struct elan_tp_data *data = input_get_drvdata(input_dev);
+	struct i2c_client *client = data->client;
+	int ret;
+
+	dev_dbg(&client->dev, "uninhibiting\n");
+
+	ret = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (ret)
+		return ret;
+
+	ret = elan_reactivate(data);
+	if (ret == 0)
+		enable_irq(client->irq);
+
+	mutex_unlock(&data->sysfs_mutex);
+	return ret;
+}
+
+
 static int elan_query_device_info(struct elan_tp_data *data)
 {
 	int error;
@@ -984,6 +1051,9 @@ static int elan_setup_input_device(struct elan_tp_data *data)
 	input->id.product = data->product_id;
 	input_set_drvdata(input, data);
 
+	input->inhibit = elan_inhibit;
+	input->uninhibit = elan_uninhibit;
+
 	error = input_mt_init_slots(input, ETP_MAX_FINGERS,
 				    INPUT_MT_POINTER | INPUT_MT_DROP_UNUSED);
 	if (error) {
@@ -1199,14 +1269,17 @@ static int __maybe_unused elan_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	disable_irq(client->irq);
+	if (!data->input->inhibited) {
 
-	if (device_may_wakeup(dev)) {
-		ret = elan_sleep(data);
-		/* Enable wake from IRQ */
-		data->irq_wake = (enable_irq_wake(client->irq) == 0);
-	} else {
-		ret = elan_disable_power(data);
+		disable_irq(client->irq);
+
+		if (device_may_wakeup(dev)) {
+			ret = elan_sleep(data);
+			/* Enable wake from IRQ */
+			data->irq_wake = (enable_irq_wake(client->irq) == 0);
+		} else {
+			ret = elan_disable_power(data);
+		}
 	}
 
 	mutex_unlock(&data->sysfs_mutex);
@@ -1217,26 +1290,21 @@ static int __maybe_unused elan_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elan_tp_data *data = i2c_get_clientdata(client);
-	int error;
+	int ret = 0;
 
-	if (device_may_wakeup(dev) && data->irq_wake) {
-		disable_irq_wake(client->irq);
-		data->irq_wake = false;
+	/* Defer activation if inhibited */
+	if (!data->input->inhibited) {
+
+		if (data->irq_wake) {
+			disable_irq_wake(client->irq);
+			data->irq_wake = false;
+		}
+
+		ret = elan_reactivate(data);
+		enable_irq(client->irq);
 	}
 
-	error = elan_enable_power(data);
-	if (error) {
-		dev_err(dev, "power up when resuming failed: %d\n", error);
-		goto err;
-	}
-
-	error = elan_initialize(data);
-	if (error)
-		dev_err(dev, "initialize when resuming failed: %d\n", error);
-
-err:
-	enable_irq(data->client->irq);
-	return error;
+	return ret;
 }
 
 static SIMPLE_DEV_PM_OPS(elan_pm_ops, elan_suspend, elan_resume);
