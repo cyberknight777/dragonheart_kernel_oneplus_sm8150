@@ -27,6 +27,8 @@
 
 #include "i915_drv.h"
 #include "intel_drv.h"
+#include "linux/dmi.h"
+#include "linux/mfd/cros_ec_pd_update.h"
 
 struct ddi_buf_trans {
 	u32 trans1;	/* balance leg enable, de-emph level */
@@ -2155,6 +2157,32 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 	mutex_unlock(&dev_priv->dpll_lock);
 }
 
+static int intel_ddi_is_reversed(int dp_port)
+{
+	int polarity = 0;
+
+#ifdef CONFIG_MFD_CROS_EC_PD_UPDATE
+	const char *dmi_product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
+	const char *dmi_sys_vendor = dmi_get_system_info(DMI_SYS_VENDOR);
+	/*
+	 * TODO(crbug.com/488161) Find more elegant way to plumb polarity into
+	 * GPU for USB type-C devices which take advantage of built-in DP lane
+	 * reversal functionality.
+	 */
+	if ((strstr(dmi_sys_vendor, "GOOGLE") &&
+	     strstr(dmi_product_name, "Samus"))) {
+		int rv = cros_ec_pd_get_polarity(dp_port - 1, &polarity);
+		if (rv < 0)
+			DRM_ERROR("Getting DP Port%d polarity (err:%d)\n",
+				  dp_port, rv);
+	}
+#endif
+
+	DRM_INFO("DP Port%d lanes %sreversed\n", dp_port,
+		 polarity ? "" : "not ");
+	return polarity;
+}
+
 static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 				    int link_rate, uint32_t lane_count,
 				    struct intel_shared_dpll *pll,
@@ -2185,6 +2213,12 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 		intel_prepare_dp_ddi_buffers(encoder);
 
 	intel_ddi_init_dp_buf_reg(encoder);
+
+	if (intel_ddi_is_reversed(port))
+		intel_dp->DP |= DDI_BUF_PORT_REVERSAL;
+	else
+		intel_dp->DP &= ~DDI_BUF_PORT_REVERSAL;
+
 	intel_dp_sink_dpms(intel_dp, DRM_MODE_DPMS_ON);
 	intel_dp_start_link_train(intel_dp);
 	if (port != PORT_A || INTEL_GEN(dev_priv) >= 9)
