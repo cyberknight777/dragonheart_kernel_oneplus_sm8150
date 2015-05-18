@@ -16,7 +16,7 @@ die() {
 
 usage() {
 	cat <<-EOF
-	Usage: ${0##*/} [options] <oldconfig|editconfig|genconfig>
+	Usage: ${0##*/} [options] <oldconfig|olddefconfig|editconfig|genconfig>
 
 	Options:
 	  -f filter   Only attempt to edit configs which match filter.
@@ -64,10 +64,10 @@ build_one() {
 			> "${O}/.config"
 		# Call oldconfig or menuconfig
 		case ${mode} in
-		oldconfig)
+		oldconfig|olddefconfig)
 			# Weed out incorrect config parameters
-			echo "* Run oldconfig on ${arch}/${config} ..."
-			make -j O="${O}" ARCH=${kernarch} oldconfig
+			echo "* Run ${mode} on ${arch}/${config} ..."
+			make -j O="${O}" ARCH=${kernarch} "${mode}"
 			;;
 		editconfig)
 			# Interactively edit config parameters
@@ -161,7 +161,7 @@ main() {
 	# Process the remaining args.
 	local mode=$1
 	case ${mode} in
-	oldconfig)  ;; # All is good
+	oldconfig|olddefconfig)  ;; # All is good
 	editconfig) ;; # All is good
 	genconfig)  ;; # All is good
 	*) usage "invalid/missing mode: ${mode}" ;;
