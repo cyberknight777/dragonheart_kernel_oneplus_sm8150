@@ -17,6 +17,7 @@
 #include <linux/file.h>
 #include <linux/inetdevice.h>
 #include <linux/module.h>
+#include <net/netfilter/nf_socket.h>
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter/xt_qtaguid.h>
 #include <linux/ratelimit.h>
@@ -1588,10 +1589,10 @@ static struct sock *qtaguid_find_sk(const struct sk_buff *skb,
 
 	switch (par->family) {
 	case NFPROTO_IPV6:
-		sk = xt_socket_get6_sk(skb, par);
+		sk = nf_sk_lookup_slow_v6(xt_net(par), skb, xt_in(par));
 		break;
 	case NFPROTO_IPV4:
-		sk = xt_socket_get4_sk(skb, par);
+		sk = nf_sk_lookup_slow_v4(xt_net(par), skb, xt_in(par));
 		break;
 	default:
 		return NULL;
