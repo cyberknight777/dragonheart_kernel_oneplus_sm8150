@@ -1428,14 +1428,32 @@ static int hidinput_open(struct input_dev *dev)
 {
 	struct hid_device *hid = input_get_drvdata(dev);
 
-	return hid_hw_open(hid);
+	return !dev->inhibited ? hid_hw_open(hid) : 0;
 }
 
 static void hidinput_close(struct input_dev *dev)
 {
 	struct hid_device *hid = input_get_drvdata(dev);
 
-	hid_hw_close(hid);
+	if (!dev->inhibited)
+		hid_hw_close(hid);
+}
+
+static int hidinput_inhibit(struct input_dev *dev)
+{
+	struct hid_device *hid = input_get_drvdata(dev);
+
+	if (dev->users)
+		hid_hw_close(hid);
+
+	return 0;
+}
+
+static int hidinput_uninhibit(struct input_dev *dev)
+{
+	struct hid_device *hid = input_get_drvdata(dev);
+
+	return dev->users ? hid_hw_open(hid) : 0;
 }
 
 static void report_features(struct hid_device *hid)
@@ -1482,6 +1500,8 @@ static struct hid_input *hidinput_allocate(struct hid_device *hid)
 	input_dev->event = hidinput_input_event;
 	input_dev->open = hidinput_open;
 	input_dev->close = hidinput_close;
+	input_dev->inhibit = hidinput_inhibit;
+	input_dev->uninhibit = hidinput_uninhibit;
 	input_dev->setkeycode = hidinput_setkeycode;
 	input_dev->getkeycode = hidinput_getkeycode;
 
