@@ -1197,16 +1197,18 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 
 	switch (status) {
 	case GO2001_STATUS_NEW_PICTURE_SIZE: {
-		struct v4l2_event ev;
+		static const struct v4l2_event ev_src_ch = {
+			.type = V4L2_EVENT_SOURCE_CHANGE,
+			.u.src_change.changes =
+				V4L2_EVENT_SRC_CH_RESOLUTION,
+		};
 		struct go2001_empty_buffer_dec_reply *dec_reply =
 							msg_to_param(msg);
 		WARN_ON(ctx->state != NEED_HEADER_INFO
 				&& ctx->state != RUNNING);
 
 		go2001_handle_new_info(ctx, &dec_reply->info);
-		memset(&ev, 0, sizeof(struct v4l2_event));
-		ev.type = V4L2_EVENT_RESOLUTION_CHANGE;
-		v4l2_event_queue_fh(&ctx->v4l2_fh, &ev);
+		v4l2_event_queue_fh(&ctx->v4l2_fh, &ev_src_ch);
 		go2001_set_ctx_state(ctx, RES_CHANGE);
 		/* Fallthrough */
 	}
@@ -2213,7 +2215,7 @@ static int go2001_subscribe_event(struct v4l2_fh *fh,
 	switch (sub->type) {
 	case V4L2_EVENT_EOS:
 		return v4l2_event_subscribe(fh, sub, 2, NULL);
-	case V4L2_EVENT_RESOLUTION_CHANGE:
+	case V4L2_EVENT_SOURCE_CHANGE:
 		return v4l2_event_subscribe(fh, sub, 2, NULL);
 	default:
 		return -EINVAL;
