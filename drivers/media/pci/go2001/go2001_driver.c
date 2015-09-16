@@ -653,6 +653,8 @@ static int go2001_init_vb2_queue(struct vb2_queue *q, struct go2001_ctx *ctx,
 	q->drv_priv = ctx;
 	q->buf_struct_size = sizeof(struct go2001_buffer);
 	q->timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	if (ctx->codec_mode == CODEC_MODE_DECODER && V4L2_TYPE_IS_OUTPUT(type))
+		q->allow_zero_bytesused = 1;
 
 	return vb2_queue_init(q);
 }
