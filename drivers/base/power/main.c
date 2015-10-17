@@ -1483,7 +1483,12 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 		goto Complete;
 
 	if (dev->power.direct_complete) {
-		if (pm_runtime_status_suspended(dev)) {
+		/*
+		 * Check if we're runtime suspended. If not, try to runtime
+		 * suspend for autosuspend cases.
+		 */
+		if (pm_runtime_status_suspended(dev) ||
+		    !pm_runtime_suspend(dev)) {
 			pm_runtime_disable(dev);
 			if (pm_runtime_status_suspended(dev))
 				goto Complete;
