@@ -39,6 +39,14 @@ int main(void)
   DEFINE(TSK_TI_FLAGS,		offsetof(struct task_struct, thread_info.flags));
   DEFINE(TSK_TI_PREEMPT,	offsetof(struct task_struct, thread_info.preempt_count));
   DEFINE(TSK_TI_ADDR_LIMIT,	offsetof(struct task_struct, thread_info.addr_limit));
+#ifdef CONFIG_ALT_SYSCALL
+  DEFINE(TSK_TI_NR_SYSCALLS,	offsetof(struct thread_info, nr_syscalls));
+  DEFINE(TSK_TI_SYS_CALL_TABLE,	offsetof(struct thread_info, sys_call_table));
+#ifdef CONFIG_COMPAT
+  DEFINE(TSK_TI_COMPAT_NR_SYSCALLS,	offsetof(struct thread_info, compat_nr_syscalls));
+  DEFINE(TSK_TI_COMPAT_SYS_CALL_TABLE,	offsetof(struct thread_info, compat_sys_call_table));
+#endif
+#endif
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
   DEFINE(TSK_TI_TTBR0,		offsetof(struct task_struct, thread_info.ttbr0));
 #endif
