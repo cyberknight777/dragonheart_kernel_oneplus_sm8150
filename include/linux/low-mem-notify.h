@@ -46,7 +46,7 @@ static inline bool _is_low_mem_situation(void)
 	 * ram_vs_swap_weight.
 	 */
 	const int ram_vs_swap_weight = 4;
-	long _nr_swap_pages = atomic_long_read(&nr_swap_pages);
+	long _nr_swap_pages = get_nr_swap_pages();
 	unsigned long available_mem = get_available_mem(lru_base) +
 		_nr_swap_pages / ram_vs_swap_weight;
 	bool is_low_mem = available_mem < low_mem_minfree;
