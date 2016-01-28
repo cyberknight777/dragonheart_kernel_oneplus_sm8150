@@ -236,15 +236,20 @@ static int udl_crtc_write_mode_to_hw(struct drm_crtc *crtc)
 	char *buf;
 	int retval;
 
+	mutex_lock(&udl->transfer_lock);
 	urb = udl_get_urb(dev);
-	if (!urb)
+	if (!urb) {
+		mutex_unlock(&udl->transfer_lock);
 		return -ENOMEM;
+	}
 
 	buf = (char *)urb->transfer_buffer;
 
 	memcpy(buf, udl->mode_buf, udl->mode_buf_len);
 	retval = udl_submit_urb(dev, urb, udl->mode_buf_len);
 	DRM_INFO("write mode info %d\n", udl->mode_buf_len);
+	mutex_unlock(&udl->transfer_lock);
+
 	return retval;
 }
 
@@ -258,9 +263,12 @@ static void udl_crtc_dpms(struct drm_crtc *crtc, int mode)
 	if (mode == DRM_MODE_DPMS_OFF) {
 		char *buf;
 		struct urb *urb;
+		mutex_lock(&udl->transfer_lock);
 		urb = udl_get_urb(dev);
-		if (!urb)
+		if (!urb) {
+			mutex_unlock(&udl->transfer_lock);
 			return;
+		}
 
 		buf = (char *)urb->transfer_buffer;
 		buf = udl_vidreg_lock(buf);
@@ -270,6 +278,7 @@ static void udl_crtc_dpms(struct drm_crtc *crtc, int mode)
 		buf = udl_dummy_render(buf);
 		retval = udl_submit_urb(dev, urb, buf - (char *)
 					urb->transfer_buffer);
+		mutex_unlock(&udl->transfer_lock);
 	} else {
 		if (udl->mode_buf_len == 0) {
 			DRM_ERROR("Trying to enable DPMS with no mode\n");
