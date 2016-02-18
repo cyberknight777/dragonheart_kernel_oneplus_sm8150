@@ -243,7 +243,7 @@ static int go2001_querycap(struct file *file, void *priv,
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s",
 			pci_name(gdev->pdev));
 
-	cap->device_caps = V4L2_CAP_VIDEO_M2M | V4L2_CAP_STREAMING
+	cap->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING
 			 | V4L2_CAP_VIDEO_CAPTURE_MPLANE
 			 | V4L2_CAP_VIDEO_OUTPUT_MPLANE;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
