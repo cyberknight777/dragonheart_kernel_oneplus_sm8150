@@ -180,31 +180,10 @@ static struct go2001_ctrl go2001_enc_ctrls[] = {
 		.def = GO2001_DEF_BITRATE,
 	},
 	{
-		.id = V4L2_CID_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE,
-		.name = "Force frame type",
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_DISABLED,
-		.max = V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_I_FRAME,
-		.def = V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_DISABLED,
-		.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+		.id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
+		.type = V4L2_CTRL_TYPE_BUTTON,
 	},
 };
-
-static const char * const *go2001_get_qmenu(u32 ctrl_id) {
-	static const char * const mfc51_video_force_frame[] = {
-		"Disabled",
-		"I Frame",
-		"Not Coded",
-		NULL,
-	};
-
-	switch (ctrl_id) {
-	case V4L2_CID_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE:
-		return mfc51_video_force_frame;
-	default:
-		return NULL;
-	}
-}
 
 static struct go2001_fmt *go2001_find_fmt(struct go2001_ctx *ctx,
 						__u32 pixelformat)
@@ -681,17 +660,12 @@ static int go2001_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 				ctx->pending_rt_params.enc_params.bitrate);
 		break;
 
-	case V4L2_CID_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE: {
-		bool keyframe = (ctrl->val ==
-			V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_I_FRAME);
-		ctx->pending_rt_params.enc_params.request_keyframe = keyframe;
-		if (keyframe) {
-			set_bit(GO2001_KEYFRAME_REQUESTED,
-					ctx->pending_rt_params.changed_mask);
-			go2001_dbg(ctx->gdev, 2, "Keyframe requested.\n");
-		}
+	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
+		set_bit(GO2001_KEYFRAME_REQUESTED,
+				ctx->pending_rt_params.changed_mask);
+		ctx->pending_rt_params.enc_params.request_keyframe = true;
+		go2001_dbg(ctx->gdev, 2, "Keyframe requested.\n");
 		break;
-	}
 
 	default:
 		go2001_dbg(ctx->gdev, 1,
@@ -748,13 +722,8 @@ static int go2001_init_ctrl_handler(struct go2001_ctx *ctx)
 			cfg.max = ctrl->max;
 			cfg.def = ctrl->def;
 			cfg.step = ctrl->step;
-			if (cfg.type == V4L2_CTRL_TYPE_MENU)
-				cfg.qmenu = go2001_get_qmenu(ctrl->id);
 			cfg.flags = ctrl->flags;
 			v4l2_ctrl_new_custom(hdl, &cfg, NULL);
-		} else if (ctrl->type == V4L2_CTRL_TYPE_MENU) {
-			v4l2_ctrl_new_std_menu(hdl, ops, ctrl->id, ctrl->max,
-						0, ctrl->def);
 		} else {
 			v4l2_ctrl_new_std(hdl, ops, ctrl->id, ctrl->min,
 					ctrl->max, ctrl->step, ctrl->def);
