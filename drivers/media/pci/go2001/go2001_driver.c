@@ -150,14 +150,6 @@ static struct go2001_fmt formats[] = {
 		.hw_format = GO2001_FMT_VP8,
 		.codec_modes = CODEC_MODE_DECODER | CODEC_MODE_ENCODER,
 	},
-	{
-		.type = FMT_TYPE_CODED,
-		.desc = "VP9 raw stream",
-		.pixelformat = V4L2_PIX_FMT_VP9,
-		.num_planes = 1,
-		.hw_format = GO2001_FMT_VP9,
-		.codec_modes = CODEC_MODE_DECODER,
-	},
 };
 
 static struct go2001_ctrl go2001_dec_ctrls[] = {
