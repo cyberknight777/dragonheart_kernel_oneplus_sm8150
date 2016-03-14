@@ -22,50 +22,45 @@
  * Authors: Andreas Pokorny
  */
 
+#include <drm/ttm/ttm_page_alloc.h>
 #include "virtgpu_drv.h"
 
-/* Empty Implementations as there should not be any other driver for a virtual
- * device that might share buffers with virtgpu */
-
-int virtgpu_gem_prime_pin(struct drm_gem_object *obj)
+struct sg_table *virtgpu_gem_prime_get_sg_table(struct drm_gem_object *gobj)
 {
-	WARN_ONCE(1, "not implemented");
-	return -ENODEV;
+	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
+	unsigned long npages = obj->tbo.num_pages;
+
+	return drm_prime_pages_to_sg(obj->tbo.ttm->pages, npages);
 }
 
-void virtgpu_gem_prime_unpin(struct drm_gem_object *obj)
+void *virtgpu_gem_prime_vmap(struct drm_gem_object *gobj)
 {
-	WARN_ONCE(1, "not implemented");
+	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
+	int ret;
+
+	ret = ttm_bo_kmap(&obj->tbo, 0, obj->tbo.num_pages,
+			  &obj->dma_buf_vmap);
+	if (ret)
+		return ERR_PTR(ret);
+
+	return obj->dma_buf_vmap.virtual;
 }
 
-
-struct sg_table *virtgpu_gem_prime_get_sg_table(struct drm_gem_object *obj)
+void virtgpu_gem_prime_vunmap(struct drm_gem_object *gobj, void *vaddr)
 {
-	WARN_ONCE(1, "not implemented");
-	return ERR_PTR(-ENODEV);
+	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
+
+	ttm_bo_kunmap(&obj->dma_buf_vmap);
 }
 
-struct drm_gem_object *virtgpu_gem_prime_import_sg_table(
-	struct drm_device *dev, struct dma_buf_attachment *attach,
-	struct sg_table *table)
+int virtgpu_gem_prime_mmap(struct drm_gem_object *gobj,
+			   struct vm_area_struct *vma)
 {
-	WARN_ONCE(1, "not implemented");
-	return ERR_PTR(-ENODEV);
-}
+	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
+	int ret = 0;
 
-void *virtgpu_gem_prime_vmap(struct drm_gem_object *obj)
-{
-	WARN_ONCE(1, "not implemented");
-	return ERR_PTR(-ENODEV);
-}
+	ret = ttm_fbdev_mmap(vma, &obj->tbo);
+	vma->vm_pgoff = drm_vma_node_start(&obj->tbo.vma_node);
 
-void virtgpu_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
-{
-	WARN_ONCE(1, "not implemented");
-}
-
-int virtgpu_gem_prime_mmap(struct drm_gem_object *obj,
-		       struct vm_area_struct *area)
-{
-	return -ENODEV;
+	return ret;
 }
