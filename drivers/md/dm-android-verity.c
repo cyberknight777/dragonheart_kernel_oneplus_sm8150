@@ -572,21 +572,15 @@ static inline bool test_mult_overflow(sector_t a, u32 b)
 static int add_as_linear_device(struct dm_target *ti, char *dev)
 {
 	/*Move to linear mapping defines*/
-	char *linear_table_args[DM_LINEAR_ARGS];
-	char offset[]  = "0";
+	char *linear_table_args[DM_LINEAR_ARGS] = {dev,
+					DM_LINEAR_TARGET_OFFSET};
 	int err = 0;
 
-	linear_table_args[0] = dev;
-	linear_table_args[1] = offset;
-
-	android_verity_target.dtr = linear_target.dtr;
-	android_verity_target.map = linear_target.map;
-	android_verity_target.status = linear_target.status;
-	android_verity_target.prepare_ioctl = linear_target.prepare_ioctl;
-	android_verity_target.iterate_devices = linear_target.iterate_devices;
-	android_verity_target.direct_access = linear_target.direct_access;
-	android_verity_target.dax_copy_from_iter =
-					linear_target.dax_copy_from_iter;
+	android_verity_target.dtr = linear_target.dtr,
+	android_verity_target.map = linear_target.map,
+	android_verity_target.status = linear_target.status,
+	android_verity_target.prepare_ioctl = linear_target.prepare_ioctl,
+	android_verity_target.iterate_devices = linear_target.iterate_devices,
 	android_verity_target.io_hints = NULL;
 
 	err = linear_target.ctr(ti, DM_LINEAR_ARGS, linear_table_args);
