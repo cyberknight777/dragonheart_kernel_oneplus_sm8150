@@ -60,6 +60,7 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/cgroup-defs.h>
+// #include <linux/user_namespace.h>
 
 #include <linux/filter.h>
 #include <linux/rculist_nulls.h>
@@ -2365,6 +2366,7 @@ bool sk_ns_capable(const struct sock *sk,
 		   struct user_namespace *user_ns, int cap);
 bool sk_capable(const struct sock *sk, int cap);
 bool sk_net_capable(const struct sock *sk, int cap);
+bool inet_sk_allowed(struct net *net, gid_t gid);
 
 void sk_get_meminfo(const struct sock *sk, u32 *meminfo);
 

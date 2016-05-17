@@ -9,6 +9,7 @@ struct netns_core {
 	struct ctl_table_header	*sysctl_hdr;
 
 	int	sysctl_somaxconn;
+	int	sysctl_android_paranoid;
 
 	struct prot_inuse __percpu *inuse;
 };

@@ -472,12 +472,23 @@ static struct ctl_table netns_core_table[] = {
 		.extra1		= &zero,
 		.proc_handler	= proc_dointvec_minmax
 	},
+	{
+		.procname	= "android_paranoid",
+		.data		= &init_net.core.sysctl_android_paranoid,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.extra1		= &zero,
+		.extra2		= &one,
+		.proc_handler	= proc_dointvec_minmax
+	},
 	{ }
 };
 
 static __net_init int sysctl_core_net_init(struct net *net)
 {
 	struct ctl_table *tbl;
+
+	net->core.sysctl_android_paranoid = 0;
 
 	tbl = netns_core_table;
 	if (!net_eq(net, &init_net)) {
@@ -486,6 +497,7 @@ static __net_init int sysctl_core_net_init(struct net *net)
 			goto err_dup;
 
 		tbl[0].data = &net->core.sysctl_somaxconn;
+		tbl[1].data = &net->core.sysctl_android_paranoid;
 
 		/* Don't export any sysctls to unprivileged users */
 		if (net->user_ns != &init_user_ns) {

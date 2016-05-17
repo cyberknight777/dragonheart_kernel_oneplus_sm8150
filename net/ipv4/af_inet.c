@@ -90,6 +90,7 @@
 #include <linux/random.h>
 #include <linux/slab.h>
 #include <linux/netfilter/xt_qtaguid.h>
+#include <linux/android_aid.h>
 
 #include <linux/uaccess.h>
 
@@ -121,7 +122,6 @@
 #include <linux/mroute.h>
 #endif
 #include <net/l3mdev.h>
-
 
 /* The inetsw table contains everything that inet_create needs to
  * build a new socket.
@@ -255,6 +255,9 @@ static int inet_create(struct net *net, struct socket *sock, int protocol,
 
 	if (protocol < 0 || protocol >= IPPROTO_MAX)
 		return -EINVAL;
+
+	if (!inet_sk_allowed(net, AID_INET))
+		return -EACCES;
 
 	sock->state = SS_UNCONNECTED;
 
