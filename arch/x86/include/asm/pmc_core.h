@@ -22,6 +22,10 @@
 #define _ASM_PMC_CORE_H
 
 /* API to read SLP_S0_RESIDENCY counter */
-int intel_pmc_slp_s0_counter_read(u32 *data);
+#ifdef CONFIG_INTEL_PMC_CORE
+extern int intel_pmc_slp_s0_counter_read(u32 *data);
+#else
+static inline int intel_pmc_slp_s0_counter_read(u32 *data) { return -EPERM; }
+#endif
 
 #endif /* _ASM_PMC_CORE_H */
