@@ -407,6 +407,21 @@ static struct syscall_whitelist_entry read_write_test_whitelist[] = {
 #endif
 };
 
+/*
+ * Syscall overrides for android.
+ */
+
+/* Make sure nothing sets a nice value more favorable than -10. */
+long android_setpriority(int which, int who, int niceval)
+{
+	if (niceval < 0) {
+		if (niceval < -20)
+			niceval = -20;
+		niceval = niceval / 2;
+	}
+	return sys_setpriority(which, who, niceval);
+}
+
 static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(capget),
@@ -531,7 +546,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(setitimer),
 	SYSCALL_ENTRY(setns),
 	SYSCALL_ENTRY(setpgid),
-	SYSCALL_ENTRY(setpriority),
+	SYSCALL_ENTRY_ALT(setpriority, android_setpriority),
 	SYSCALL_ENTRY(setrlimit),
 	SYSCALL_ENTRY(setsid),
 	SYSCALL_ENTRY(settimeofday),
@@ -884,7 +899,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(setitimer),
 	COMPAT_SYSCALL_ENTRY(setns),
 	COMPAT_SYSCALL_ENTRY(setpgid),
-	COMPAT_SYSCALL_ENTRY(setpriority),
+	COMPAT_SYSCALL_ENTRY_ALT(setpriority, android_setpriority),
 	COMPAT_SYSCALL_ENTRY(setrlimit),
 	COMPAT_SYSCALL_ENTRY(setsid),
 	COMPAT_SYSCALL_ENTRY(settimeofday),
