@@ -422,6 +422,50 @@ long android_setpriority(int which, int who, int niceval)
 	return sys_setpriority(which, who, niceval);
 }
 
+int android_sched_setscheduler(pid_t pid, int policy,
+			       const struct sched_param *param)
+{
+	struct sched_param lparam;
+	struct task_struct *p;
+	int retval;
+
+	/* negative values for policy are not valid */
+	if (policy < 0)
+		return -EINVAL;
+	if (!param || pid < 0)
+		return -EINVAL;
+	if (copy_from_user(&lparam, param, sizeof(struct sched_param)))
+		return -EFAULT;
+
+	rcu_read_lock();
+	retval = -ESRCH;
+	p = pid ? find_task_by_vpid(pid) : current;
+	if (p != NULL) {
+		const struct cred *cred = current_cred();
+		kuid_t android_root_uid, android_system_uid;
+
+		/*
+		 * Allow root(0) and system(1000) processes to set RT scheduler.
+		 *
+		 * The system_server process run under system provides
+		 * SchedulingPolicyService which is used by audioflinger and
+		 * other services to boost their threads, so allow it to set RT
+		 * scheduler for other threads.
+		 */
+		android_root_uid = make_kuid(cred->user_ns, 0);
+		android_system_uid = make_kuid(cred->user_ns, 1000);
+		if ((uid_eq(cred->euid, android_root_uid) ||
+		     uid_eq(cred->euid, android_system_uid)) &&
+		    ns_capable(cred->user_ns, CAP_SYS_NICE))
+			retval = sched_setscheduler_nocheck(p, policy, &lparam);
+		else
+			retval = sched_setscheduler(p, policy, &lparam);
+	}
+	rcu_read_unlock();
+
+	return retval;
+}
+
 static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(capget),
@@ -537,7 +581,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(sched_getparam),
 	SYSCALL_ENTRY(sched_getscheduler),
 	SYSCALL_ENTRY(sched_setaffinity),
-	SYSCALL_ENTRY(sched_setscheduler),
+	SYSCALL_ENTRY_ALT(sched_setscheduler, android_sched_setscheduler),
 	SYSCALL_ENTRY(sched_yield),
 	SYSCALL_ENTRY(seccomp),
 	SYSCALL_ENTRY(sendfile),
@@ -889,7 +933,8 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(sched_getparam),
 	COMPAT_SYSCALL_ENTRY(sched_getscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_setaffinity),
-	COMPAT_SYSCALL_ENTRY(sched_setscheduler),
+	COMPAT_SYSCALL_ENTRY_ALT(sched_setscheduler,
+				 android_sched_setscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_yield),
 	COMPAT_SYSCALL_ENTRY(seccomp),
 	COMPAT_SYSCALL_ENTRY(sendfile),
