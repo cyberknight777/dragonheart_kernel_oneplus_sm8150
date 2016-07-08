@@ -102,6 +102,15 @@ config TCG_ATMEL
 	  will be accessible from within Linux.  To compile this driver 
 	  as a module, choose M here; the module will be called tpm_atmel.
 
+config TCG_CR50_SPI
+	tristate "TCG PTP FIFO Interface over SPI - Chips with Cr50 Firmware"
+	depends on SPI
+	select TCG_TIS_CORE
+	---help---
+	  If you have a chip running Cr50 firmware on SPI bus, say Yes and it
+	  will be accessible from within Linux. To compile this driver as a
+	  module, choose M here; the module will be called cr50_spi.
+
 config TCG_INFINEON
 	tristate "Infineon Technologies TPM Interface"
 	depends on PNP
