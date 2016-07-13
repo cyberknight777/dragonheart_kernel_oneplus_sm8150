@@ -9,12 +9,14 @@
  */
 
 #include <linux/alt-syscall.h>
+#include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/prctl.h>
 #include <linux/sched/types.h>
 #include <linux/slab.h>
+#include <linux/stat.h>
 #include <linux/syscalls.h>
 
 #include <asm/unistd.h>
@@ -466,6 +468,54 @@ int android_sched_setscheduler(pid_t pid, int policy,
 	return retval;
 }
 
+static int android_fallocate(int fd, int mode, loff_t offset, loff_t len)
+{
+	int retval;
+	struct kstat st;
+
+	retval = sys_fallocate(fd, mode, offset, len);
+	if (retval != -EOPNOTSUPP || mode != 0)
+		return retval;
+
+	/* Emulate fallocate by ftruncate and fstat. */
+	retval = vfs_fstat(fd, &st);
+	if (retval < 0)
+		return -EOPNOTSUPP; /* Do not expose errno from fstat. */
+
+	len += offset;
+	if (len <= st.size) {
+		/*
+		 * When the file size is already larger than requested, do a
+		 * no-op ftruncate by specifying the current file size. In this
+		 * way, this function will return -1 appropriately when |fd| is
+		 * opened for reading.
+		 */
+		len = st.size;
+	}
+
+	return sys_ftruncate(fd, len);
+}
+
+/*
+ * The 64 bit values are passed by using two 32 bit registers. Its order
+ * depends on the endian.
+ */
+#ifdef CONFIG_CPU_BIG_ENDIGAN
+#define PACK64(hi, lo) (((u64)(hi) << 32) | (lo))
+#else
+#define PACK64(lo, hi) (((u64)(hi) << 32) | (lo))
+#endif
+
+static int android_fallocate32(int fd, int mode,
+			       unsigned long offset1, unsigned long offset2,
+			       unsigned long len1, unsigned long len2)
+{
+	return android_fallocate(fd, mode, (loff_t) PACK64(offset1, offset2),
+				 (loff_t) PACK64(len1, len2));
+}
+
+#undef PACK64
+
 static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(capget),
@@ -487,7 +537,6 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(exit),
 	SYSCALL_ENTRY(exit_group),
 	SYSCALL_ENTRY(faccessat),
-	SYSCALL_ENTRY(fallocate),
 	SYSCALL_ENTRY(fchdir),
 	SYSCALL_ENTRY(fchmod),
 	SYSCALL_ENTRY(fchmodat),
@@ -699,6 +748,13 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 #endif
 #endif
 
+	/* Inject fallocate. */
+#if defined(CONFIG_X86_64) || defined(CONFIG_ARM64)
+	SYSCALL_ENTRY_ALT(fallocate, android_fallocate),
+#else
+	SYSCALL_ENTRY_ALT(fallocate, android_fallocate32),
+#endif
+
 	/*
 	 * posix_fadvise(2) and sync_file_range(2) have ARM-specific wrappers
 	 * to deal with register alignment.
@@ -825,7 +881,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(exit),
 	COMPAT_SYSCALL_ENTRY(exit_group),
 	COMPAT_SYSCALL_ENTRY(faccessat),
-	COMPAT_SYSCALL_ENTRY(fallocate),
+	COMPAT_SYSCALL_ENTRY_ALT(fallocate, android_fallocate32),
 	COMPAT_SYSCALL_ENTRY(fchdir),
 	COMPAT_SYSCALL_ENTRY(fchmod),
 	COMPAT_SYSCALL_ENTRY(fchmodat),
