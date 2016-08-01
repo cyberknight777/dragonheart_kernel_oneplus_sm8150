@@ -1645,10 +1645,51 @@ static void account_for_uid(const struct sk_buff *skb,
 	}
 }
 
+/* This function is based on xt_owner.c:owner_check(). */
+static int qtaguid_check(const struct xt_mtchk_param *par)
+{
+	struct xt_qtaguid_match_info *info = par->matchinfo;
+	struct net *net = par->net;
+
+	/* Only allow the common case where the userns of the writer
+	 * matches the userns of the network namespace.
+	 */
+	if ((info->match & (XT_QTAGUID_UID | XT_QTAGUID_GID)) &&
+	    (current_user_ns() != net->user_ns))
+		return -EINVAL;
+
+	/* Ensure the uids are valid */
+	if (info->match & XT_QTAGUID_UID) {
+		kuid_t uid_min = make_kuid(net->user_ns, info->uid_min);
+		kuid_t uid_max = make_kuid(net->user_ns, info->uid_max);
+
+		if (!uid_valid(uid_min) || !uid_valid(uid_max) ||
+		    (info->uid_max < info->uid_min) ||
+		    uid_lt(uid_max, uid_min)) {
+			return -EINVAL;
+		}
+	}
+
+	/* Ensure the gids are valid */
+	if (info->match & XT_QTAGUID_GID) {
+		kgid_t gid_min = make_kgid(net->user_ns, info->gid_min);
+		kgid_t gid_max = make_kgid(net->user_ns, info->gid_max);
+
+		if (!gid_valid(gid_min) || !gid_valid(gid_max) ||
+		    (info->gid_max < info->gid_min) ||
+		    gid_lt(gid_max, gid_min)) {
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	const struct xt_qtaguid_match_info *info = par->matchinfo;
 	const struct file *filp;
+	const struct net *net;
 	bool got_sock = false;
 	struct sock *sk;
 	kuid_t sock_uid;
@@ -1758,8 +1799,11 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	 * TODO: unhack how to force just accounting.
 	 * For now we only do iface stats when the uid-owner is not requested
 	 */
-	if (!(info->match & XT_QTAGUID_UID))
-		account_for_uid(skb, sk, from_kuid(&init_user_ns, sock_uid), par);
+	net = sock_net(sk);
+	if (!(info->match & XT_QTAGUID_UID)) {
+		account_for_uid(skb, sk,
+				from_kuid(net->user_ns, sock_uid), par);
+	}
 
 	/*
 	 * The following two tests fail the match when:
@@ -1768,8 +1812,8 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	 * Thus (!a && b) || (a && !b) == a ^ b
 	 */
 	if (info->match & XT_QTAGUID_UID) {
-		kuid_t uid_min = make_kuid(&init_user_ns, info->uid_min);
-		kuid_t uid_max = make_kuid(&init_user_ns, info->uid_max);
+		kuid_t uid_min = make_kuid(net->user_ns, info->uid_min);
+		kuid_t uid_max = make_kuid(net->user_ns, info->uid_max);
 
 		if ((uid_gte(filp->f_cred->fsuid, uid_min) &&
 		     uid_lte(filp->f_cred->fsuid, uid_max)) ^
@@ -1781,8 +1825,8 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		}
 	}
 	if (info->match & XT_QTAGUID_GID) {
-		kgid_t gid_min = make_kgid(&init_user_ns, info->gid_min);
-		kgid_t gid_max = make_kgid(&init_user_ns, info->gid_max);
+		kgid_t gid_min = make_kgid(net->user_ns, info->gid_min);
+		kgid_t gid_max = make_kgid(net->user_ns, info->gid_max);
 
 		if ((gid_gte(filp->f_cred->fsgid, gid_min) &&
 				gid_lte(filp->f_cred->fsgid, gid_max)) ^
@@ -2999,6 +3043,7 @@ static struct xt_match qtaguid_mt_reg __read_mostly = {
 	.name       = "owner",
 	.revision   = 1,
 	.family     = NFPROTO_UNSPEC,
+	.checkentry = qtaguid_check,
 	.match      = qtaguid_mt,
 	.matchsize  = sizeof(struct xt_qtaguid_match_info),
 	.me         = THIS_MODULE,
