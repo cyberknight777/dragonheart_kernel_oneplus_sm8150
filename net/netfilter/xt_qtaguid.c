@@ -153,10 +153,9 @@ static bool can_manipulate_uids(const struct net *net)
 
 	/* root pwnd */
 	return in_egroup_p(qtaguid_net->ctrl_file->gid) ||
-	       unlikely(!from_kuid(&init_user_ns, current_fsuid())) ||
+	       unlikely(!from_kuid(net->user_ns, current_fsuid())) ||
 	       unlikely(!proc_ctrl_write_limited) ||
-	       unlikely(uid_eq(current_fsuid(),
-			       qtaguid_net->ctrl_file->uid));
+	       unlikely(uid_eq(current_fsuid(), qtaguid_net->ctrl_file->uid));
 }
 
 static bool can_impersonate_uid(const struct net *net, kuid_t uid)
@@ -170,7 +169,7 @@ static bool can_read_other_uid_stats(const struct net *net, kuid_t uid)
 
 	/* root pwnd */
 	return in_egroup_p(qtaguid_net->stats_file->gid) ||
-	       unlikely(!from_kuid(&init_user_ns, current_fsuid())) ||
+	       unlikely(!from_kuid(net->user_ns, current_fsuid())) ||
 	       uid_eq(uid, current_fsuid()) ||
 	       unlikely(!proc_stats_readall_limited) ||
 	       unlikely(uid_eq(current_fsuid(),
@@ -563,7 +562,8 @@ static void put_utd_entry(const struct net *net,
 			 "erase utd_entry=%p uid=%u "
 			 "by pid=%u tgid=%u uid=%u\n", __func__,
 			 utd_entry, utd_entry->uid,
-			 current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+			 current->pid, current->tgid,
+			 from_kuid(net->user_ns, current_fsuid()));
 		BUG_ON(utd_entry->num_active_tags);
 		rb_erase(&utd_entry->node, &qtaguid_net->uid_tag_data_tree);
 		kfree(utd_entry);
@@ -775,7 +775,8 @@ static int iface_stat_fmt_proc_show(struct seq_file *m, void *v)
 
 
 	CT_DEBUG("qtaguid:proc iface_stat_fmt pid=%u tgid=%u uid=%u\n",
-		 current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+		 current->pid, current->tgid,
+		 from_kuid(p->net->user_ns, current_fsuid()));
 
 	iface_entry = list_entry(v, struct iface_stat, list);
 
@@ -1765,7 +1766,8 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			sk->sk_socket ? sk->sk_socket->file : (void *)-1LL);
 		filp = sk->sk_socket ? sk->sk_socket->file : NULL;
 		MT_DEBUG("qtaguid[%d]: filp...uid=%u\n",
-			xt_hooknum(par), filp ? from_kuid(&init_user_ns, filp->f_cred->fsuid) : -1);
+			xt_hooknum(par), filp ?
+			from_kuid(net->user_ns, filp->f_cred->fsuid) : -1);
 	}
 
 	if (sk == NULL || sk->sk_socket == NULL) {
@@ -1985,7 +1987,8 @@ static int qtaguid_ctrl_proc_show(struct seq_file *m, void *v)
 	uid_t uid;
 
 	CT_DEBUG("qtaguid: proc ctrl pid=%u tgid=%u uid=%u\n",
-		 current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+		 current->pid, current->tgid,
+		 from_kuid(pcpi->net->user_ns, current_fsuid()));
 
 	if (sock_tag_entry != SEQ_START_TOKEN) {
 		int sk_ref_count;
@@ -2076,7 +2079,7 @@ static int ctrl_cmd_delete(struct net *net, const char *input)
 	struct uid_tag_data *utd_entry;
 
 	argc = sscanf(input, "%c %llu %u", &cmd, &acct_tag, &uid_int);
-	uid = make_kuid(&init_user_ns, uid_int);
+	uid = make_kuid(net->user_ns, uid_int);
 	CT_DEBUG("qtaguid: ctrl_delete(%s): argc=%d cmd=%c "
 		 "user_tag=0x%llx uid=%u\n", input, argc, cmd,
 		 acct_tag, uid_int);
@@ -2091,11 +2094,12 @@ static int ctrl_cmd_delete(struct net *net, const char *input)
 	}
 	if (argc < 3) {
 		uid = current_fsuid();
-		uid_int = from_kuid(&init_user_ns, uid);
+		uid_int = from_kuid(net->user_ns, uid);
 	} else if (!can_impersonate_uid(net, uid)) {
 		pr_info("qtaguid: ctrl_delete(%s): "
 			"insufficient priv from pid=%u tgid=%u uid=%u\n",
-			input, current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+			input, current->pid, current->tgid,
+			from_kuid(net->user_ns, current_fsuid()));
 		res = -EPERM;
 		goto err;
 	}
@@ -2251,7 +2255,8 @@ static int ctrl_cmd_counter_set(struct net *net, const char *input)
 	if (!can_manipulate_uids(net)) {
 		pr_info("qtaguid: ctrl_counterset(%s): "
 			"insufficient priv from pid=%u tgid=%u uid=%u\n",
-			input, current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+			input, current->pid, current->tgid,
+			from_kuid(net->user_ns, current_fsuid()));
 		res = -EPERM;
 		goto err;
 	}
@@ -2304,7 +2309,7 @@ static int ctrl_cmd_tag(struct net *net, const char *input)
 
 	/* Unassigned args will get defaulted later. */
 	argc = sscanf(input, "%c %d %llu %u", &cmd, &sock_fd, &acct_tag, &uid_int);
-	uid = make_kuid(&init_user_ns, uid_int);
+	uid = make_kuid(net->user_ns, uid_int);
 	CT_DEBUG("qtaguid: ctrl_tag(%s): argc=%d cmd=%c sock_fd=%d "
 		 "acct_tag=0x%llx uid=%u\n", input, argc, cmd, sock_fd,
 		 acct_tag, uid_int);
@@ -2317,7 +2322,7 @@ static int ctrl_cmd_tag(struct net *net, const char *input)
 		pr_info("qtaguid: ctrl_tag(%s): failed to lookup"
 			" sock_fd=%d err=%d pid=%u tgid=%u uid=%u\n",
 			input, sock_fd, res, current->pid, current->tgid,
-			from_kuid(&init_user_ns, current_fsuid()));
+			from_kuid(net->user_ns, current_fsuid()));
 		goto err;
 	}
 	CT_DEBUG("qtaguid: ctrl_tag(%s): socket->...->sk_refcnt=%d ->sk=%p\n",
@@ -2332,19 +2337,19 @@ static int ctrl_cmd_tag(struct net *net, const char *input)
 	}
 	CT_DEBUG("qtaguid: ctrl_tag(%s): pid=%u tgid=%u uid=%u euid=%u fsuid=%u ctrl.gid=%u in_group()=%d in_egroup()=%d\n",
 		 input, current->pid, current->tgid,
-		 from_kuid(&init_user_ns, current_uid()),
-		 from_kuid(&init_user_ns, current_euid()),
-		 from_kuid(&init_user_ns, current_fsuid()),
-		 from_kgid(&init_user_ns, qtaguid_net->ctrl_file->gid),
+		 from_kuid(net->user_ns, current_uid()),
+		 from_kuid(net->user_ns, current_euid()),
+		 from_kuid(net->user_ns, current_fsuid()),
+		 from_kgid(net->user_ns, qtaguid_net->ctrl_file->gid),
 		 in_group_p(qtaguid_net->ctrl_file->gid),
 		 in_egroup_p(qtaguid_net->ctrl_file->gid));
 	if (argc < 4) {
 		uid = current_fsuid();
-		uid_int = from_kuid(&init_user_ns, uid);
+		uid_int = from_kuid(net->user_ns, uid);
 	} else if (!can_impersonate_uid(net, uid)) {
 		pr_info("qtaguid: ctrl_tag(%s): insufficient priv from pid=%u tgid=%u uid=%u\n",
 			input, current->pid, current->tgid,
-			from_kuid(&init_user_ns, current_fsuid()));
+			from_kuid(net->user_ns, current_fsuid()));
 		res = -EPERM;
 		goto err_put;
 	}
@@ -2408,7 +2413,7 @@ static int ctrl_cmd_tag(struct net *net, const char *input)
 				"User space forgot to open /dev/xt_qtaguid? "
 				"pid=%u tgid=%u uid=%u\n", __func__,
 				current->pid, current->tgid,
-				from_kuid(&init_user_ns, current_fsuid()));
+				from_kuid(net->user_ns, current_fsuid()));
 		else
 			list_add(&sock_tag_entry->list,
 				 &pqd_entry->sock_tag_list);
@@ -2461,7 +2466,7 @@ static int ctrl_cmd_untag(struct net *net, const char *input)
 		pr_info("qtaguid: ctrl_untag(%s): failed to lookup"
 			" sock_fd=%d err=%d pid=%u tgid=%u uid=%u\n",
 			input, sock_fd, res, current->pid, current->tgid,
-			from_kuid(&init_user_ns, current_fsuid()));
+			from_kuid(net->user_ns, current_fsuid()));
 		return res;
 	}
 	CT_DEBUG("qtaguid: ctrl_untag(%s): socket->...->f_count=%ld ->sk=%p\n",
@@ -2518,7 +2523,7 @@ int qtaguid_untag(struct socket *el_socket, bool kernel)
 			     "User space forgot to open /dev/xt_qtaguid? "
 			     "pid=%u tgid=%u sk_pid=%u, uid=%u\n", __func__,
 			     current->pid, current->tgid, sock_tag_entry->pid,
-			     from_kuid(&init_user_ns, current_fsuid()));
+			     from_kuid(net->user_ns, current_fsuid()));
 	} else {
 		list_del(&sock_tag_entry->list);
 	}
@@ -2551,7 +2556,8 @@ static ssize_t qtaguid_ctrl_parse(struct net *net,
 	ssize_t res;
 
 	CT_DEBUG("qtaguid: ctrl(%s): pid=%u tgid=%u uid=%u\n",
-		 input, current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+		 input, current->pid, current->tgid,
+		 from_kuid(net->user_ns, current_fsuid()));
 
 	cmd = input[0];
 	/* Collect params for commands */
@@ -2637,15 +2643,15 @@ static int pp_stats_line(struct seq_file *m, struct tag_stat *ts_entry,
 
 	/* Detailed tags are not available to everybody */
 	if (!can_read_other_uid_stats(ppi->net,
-				      make_kuid(&init_user_ns,stat_uid))) {
+				      make_kuid(ppi->net->user_ns, stat_uid))) {
 		CT_DEBUG("qtaguid: stats line: "
 			 "%s 0x%llx %u: insufficient priv "
 			 "from pid=%u tgid=%u uid=%u stats.gid=%u\n",
 			 ppi->iface_entry->ifname,
 			 get_atag_from_tag(tag), stat_uid,
 			 current->pid, current->tgid,
-			 from_kuid(&init_user_ns, current_fsuid()),
-			 from_kgid(&init_user_ns,
+			 from_kuid(ppi->net->user_ns, current_fsuid()),
+			 from_kgid(ppi->net->user_ns,
 				   qtaguid_net->stats_file->gid));
 		return 0;
 	}
@@ -2859,13 +2865,14 @@ static int qtudev_open(struct inode *inode, struct file *file)
 		return 0;
 
 	DR_DEBUG("qtaguid: qtudev_open(): pid=%u tgid=%u uid=%u\n",
-		 current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+		 current->pid, current->tgid,
+		 from_kuid(net->user_ns, current_fsuid()));
 
 	spin_lock_bh(&qtaguid_net->uid_tag_data_tree_lock);
 
 	/* Look for existing uid data, or alloc one. */
 	utd_entry = get_uid_data(qtaguid_net,
-				 from_kuid(&init_user_ns, current_fsuid()),
+				 from_kuid(net->user_ns, current_fsuid()),
 				 &utd_entry_found);
 	if (IS_ERR_OR_NULL(utd_entry)) {
 		res = PTR_ERR(utd_entry);
@@ -2878,7 +2885,8 @@ static int qtudev_open(struct inode *inode, struct file *file)
 	if (pqd_entry) {
 		pr_err("qtaguid: qtudev_open(): %u/%u %u "
 		       "%s already opened\n",
-		       current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()),
+		       current->pid, current->tgid,
+		       from_kuid(net->user_ns, current_fsuid()),
 		       QTU_DEV_NAME);
 		res = -EBUSY;
 		goto err_unlock_free_utd;
@@ -2888,7 +2896,8 @@ static int qtudev_open(struct inode *inode, struct file *file)
 	if (!new_pqd_entry) {
 		pr_err("qtaguid: qtudev_open(): %u/%u %u: "
 		       "proc data alloc failed\n",
-		       current->pid, current->tgid, from_kuid(&init_user_ns, current_fsuid()));
+		       current->pid, current->tgid,
+		       from_kuid(net->user_ns, current_fsuid()));
 		res = -ENOMEM;
 		goto err_unlock_free_utd;
 	}
@@ -2903,7 +2912,7 @@ static int qtudev_open(struct inode *inode, struct file *file)
 
 	spin_unlock_bh(&qtaguid_net->uid_tag_data_tree_lock);
 	DR_DEBUG("qtaguid: tracking data for uid=%u in pqd=%p\n",
-		 from_kuid(&init_user_ns, current_fsuid()), new_pqd_entry);
+		 from_kuid(net->user_ns, current_fsuid()), new_pqd_entry);
 	file->private_data = new_pqd_entry;
 	return 0;
 
