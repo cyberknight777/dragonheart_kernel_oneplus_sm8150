@@ -249,6 +249,19 @@ static struct tag_stat *tag_stat_tree_search(struct rb_root *root, tag_t tag)
 	return rb_entry(&node->node, struct tag_stat, tn.node);
 }
 
+static void tag_stat_tree_erase(struct rb_root *root)
+{
+	struct rb_node *node;
+
+	for (node = rb_first(root); node; ) {
+		struct tag_stat *entry =
+			rb_entry(node, struct tag_stat, tn.node);
+		node = rb_next(node);
+		rb_erase(&entry->tn.node, root);
+		kfree(entry);
+	}
+}
+
 static void tag_counter_set_tree_insert(struct tag_counter_set *data,
 					struct rb_root *root)
 {
@@ -265,6 +278,19 @@ static struct tag_counter_set *tag_counter_set_tree_search(struct rb_root *root,
 
 }
 
+static void tag_counter_set_tree_erase(struct rb_root *root)
+{
+	struct rb_node *node;
+
+	for (node = rb_first(root); node; ) {
+		struct tag_counter_set *entry =
+			rb_entry(node, struct tag_counter_set, tn.node);
+		node = rb_next(node);
+		rb_erase(&entry->tn.node, root);
+		kfree(entry);
+	}
+}
+
 static void tag_ref_tree_insert(struct tag_ref *data, struct rb_root *root)
 {
 	tag_node_tree_insert(&data->tn, root);
@@ -276,6 +302,19 @@ static struct tag_ref *tag_ref_tree_search(struct rb_root *root, tag_t tag)
 	if (!node)
 		return NULL;
 	return rb_entry(&node->node, struct tag_ref, tn.node);
+}
+
+static void tag_ref_set_tree_erase(struct rb_root *root)
+{
+	struct rb_node *node;
+
+	for (node = rb_first(root); node; ) {
+		struct tag_ref *entry =
+			rb_entry(node, struct tag_ref, tn.node);
+		node = rb_next(node);
+		rb_erase(&entry->tn.node, root);
+		kfree(entry);
+	}
 }
 
 static struct sock_tag *sock_tag_tree_search(struct rb_root *root,
@@ -422,6 +461,20 @@ static struct uid_tag_data *uid_tag_data_tree_search(struct rb_root *root,
 			return data;
 	}
 	return NULL;
+}
+
+static void uid_tag_data_tree_erase(struct rb_root *root)
+{
+	struct rb_node *node;
+
+	for (node = rb_first(root); node; ) {
+		struct uid_tag_data *entry =
+			rb_entry(node, struct uid_tag_data, node);
+		node = rb_next(node);
+		tag_ref_set_tree_erase(&entry->tag_ref_tree);
+		rb_erase(&entry->node, root);
+		kfree(entry);
+	}
 }
 
 /*
@@ -855,6 +908,22 @@ static void iface_create_proc_worker(struct work_struct *work)
 	IF_DEBUG("qtaguid: iface_stat: create_proc(): done "
 		 "entry=%p dev=%s\n", new_iface, new_iface->ifname);
 	kfree(isw);
+}
+
+static void iface_delete_proc(struct qtaguid_net *qtaguid_net,
+			      struct iface_stat *iface_entry)
+{
+	struct proc_dir_entry *proc_entry = iface_entry->proc_ptr;
+
+	if (!proc_entry)
+		return;
+
+	remove_proc_entry("active", proc_entry);
+	remove_proc_entry("rx_packets", proc_entry);
+	remove_proc_entry("tx_packets", proc_entry);
+	remove_proc_entry("rx_bytes", proc_entry);
+	remove_proc_entry("tx_bytes", proc_entry);
+	remove_proc_entry(iface_entry->ifname, qtaguid_net->iface_stat_procdir);
 }
 
 /*
@@ -3160,6 +3229,30 @@ static int __net_init qtaguid_net_init(struct net *net)
 
 static void __net_exit qtaguid_net_exit(struct net *net)
 {
+	struct qtaguid_net *qtaguid_net = qtaguid_pernet(net);
+	struct iface_stat *iface_entry, *tmp;
+
+	list_for_each_entry_safe(iface_entry, tmp,
+				 &qtaguid_net->iface_stat_list, list) {
+		iface_delete_proc(qtaguid_net, iface_entry);
+		tag_stat_tree_erase(&iface_entry->tag_stat_tree);
+		kfree(iface_entry);
+	}
+
+	remove_proc_entry("iface_stat_fmt", qtaguid_net->procdir);
+	remove_proc_entry("iface_stat_all", qtaguid_net->procdir);
+	remove_proc_entry("iface_stat", qtaguid_net->procdir);
+	remove_proc_entry("stats", qtaguid_net->procdir);
+	remove_proc_entry("ctrl", qtaguid_net->procdir);
+	remove_proc_entry("xt_qtaguid", net->proc_net);
+
+	sock_tag_tree_erase(&qtaguid_net->sock_tag_tree);
+	tag_counter_set_tree_erase(&qtaguid_net->tag_counter_set_tree);
+	uid_tag_data_tree_erase(&qtaguid_net->uid_tag_data_tree);
+	/* proc_qtu_data_tree should be empty already because the
+	 * netns won't be destroyed until all open file descriptors
+	 * for /dev/xt_qtaguid are closed.
+	 */
 }
 
 static struct xt_match qtaguid_mt_reg __read_mostly = {
