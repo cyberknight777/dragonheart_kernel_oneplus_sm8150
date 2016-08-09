@@ -61,6 +61,7 @@ static struct target_type android_verity_target = {
 	.dtr                    = verity_dtr,
 	.map                    = verity_map,
 	.status                 = verity_status,
+	.prepare_ioctl          = verity_prepare_ioctl,
 	.iterate_devices        = verity_iterate_devices,
 	.io_hints               = verity_io_hints,
 };
@@ -675,7 +676,7 @@ static int android_verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	struct fec_ecc_metadata uninitialized_var(ecc);
 	char buf[FEC_ARG_LENGTH], *buf_ptr;
 	unsigned long long tmpll;
-	u64 device_size;
+	u64  uninitialized_var(device_size);
 
 	if (argc == 1) {
 		/* Use the default keyid */
@@ -895,7 +896,7 @@ static int __init dm_android_verity_init(void)
 	}
 
 	file = debugfs_create_bool("target_added", S_IRUGO, debug_dir,
-				(u32 *)&target_added);
+				&target_added);
 
 	if (IS_ERR_OR_NULL(file)) {
 		DMERR("Cannot create android_verity debugfs directory: %ld",
@@ -905,7 +906,7 @@ static int __init dm_android_verity_init(void)
 	}
 
 	file = debugfs_create_bool("verity_enabled", S_IRUGO, debug_dir,
-				(u32 *)&verity_enabled);
+				&verity_enabled);
 
 	if (IS_ERR_OR_NULL(file)) {
 		DMERR("Cannot create android_verity debugfs directory: %ld",
