@@ -176,6 +176,17 @@ struct adv_info {
 #define HCI_MAX_ADV_INSTANCES		5
 #define HCI_DEFAULT_ADV_DURATION	2
 
+/*
+ * Refer to BLUETOOTH SPECIFICATION Version 4.2 [Vol 2, Part E]
+ * Section 7.8.5 about
+ * - the default min/max intervals, and
+ * - the valid range of min/max intervals.
+ */
+#define HCI_DEFAULT_LE_ADV_MIN_INTERVAL	0x0800
+#define HCI_DEFAULT_LE_ADV_MAX_INTERVAL	0x0800
+#define HCI_VALID_LE_ADV_MIN_INTERVAL	0x0020
+#define HCI_VALID_LE_ADV_MAX_INTERVAL	0x4000
+
 #define HCI_MAX_SHORT_NAME_LENGTH	10
 
 /* Default LE RPA expiry time, 15 minutes */

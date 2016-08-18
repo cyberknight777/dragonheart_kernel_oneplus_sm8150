@@ -106,6 +106,7 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_START_LIMITED_DISCOVERY,
 	MGMT_OP_READ_EXT_INFO,
 	MGMT_OP_SET_APPEARANCE,
+	MGMT_OP_SET_ADVERTISING_INTERVALS,
 };
 
 static const u16 mgmt_events[] = {
@@ -648,6 +649,7 @@ static u32 get_supported_settings(struct hci_dev *hdev)
 		settings |= MGMT_SETTING_SECURE_CONN;
 		settings |= MGMT_SETTING_PRIVACY;
 		settings |= MGMT_SETTING_STATIC_ADDRESS;
+		settings |= MGMT_SETTING_ADVERTISING_INTERVALS;
 	}
 
 	if (test_bit(HCI_QUIRK_EXTERNAL_CONFIG, &hdev->quirks) ||
@@ -721,6 +723,9 @@ static u32 get_current_settings(struct hci_dev *hdev)
 		if (bacmp(&hdev->static_addr, BDADDR_ANY))
 			settings |= MGMT_SETTING_STATIC_ADDRESS;
 	}
+
+	if (hci_dev_test_flag(hdev, HCI_ADVERTISING_INTERVALS))
+		settings |= MGMT_SETTING_ADVERTISING_INTERVALS;
 
 	return settings;
 }
@@ -4252,6 +4257,147 @@ unlock:
 	return err;
 }
 
+static void set_advertising_intervals_complete(struct hci_dev *hdev,
+					       u8 status, u16 opcode)
+{
+	struct cmd_lookup match = { NULL, hdev };
+	struct hci_request req;
+	u8 instance;
+	struct adv_info *adv_instance;
+	int err;
+
+	hci_dev_lock(hdev);
+
+	if (status) {
+		u8 mgmt_err = mgmt_status(status);
+
+		mgmt_pending_foreach(MGMT_OP_SET_ADVERTISING_INTERVALS, hdev,
+				     cmd_status_rsp, &mgmt_err);
+		goto unlock;
+	}
+
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+		hci_dev_set_flag(hdev, HCI_ADVERTISING);
+	else
+		hci_dev_clear_flag(hdev, HCI_ADVERTISING);
+
+	mgmt_pending_foreach(MGMT_OP_SET_ADVERTISING_INTERVALS, hdev,
+			     settings_rsp, &match);
+
+	new_settings(hdev, match.sk);
+
+	if (match.sk)
+		sock_put(match.sk);
+
+	/* If "Set Advertising" was just disabled and instance advertising was
+	 * set up earlier, then re-enable multi-instance advertising.
+	 */
+	if (hci_dev_test_flag(hdev, HCI_ADVERTISING) ||
+	    list_empty(&hdev->adv_instances))
+		goto unlock;
+
+	instance = hdev->cur_adv_instance;
+	if (!instance) {
+		adv_instance = list_first_entry_or_null(&hdev->adv_instances,
+							struct adv_info, list);
+		if (!adv_instance)
+			goto unlock;
+
+		instance = adv_instance->instance;
+	}
+
+	hci_req_init(&req, hdev);
+
+	err = __hci_req_schedule_adv_instance(&req, instance, true);
+	if (!err)
+		err = hci_req_run(&req, enable_advertising_instance);
+	else
+		BT_ERR("Failed to re-configure advertising intervals");
+
+unlock:
+	hci_dev_unlock(hdev);
+}
+
+static int _reenable_advertising(struct sock *sk, struct hci_dev *hdev,
+				 void *data, u16 len)
+{
+	struct mgmt_pending_cmd *cmd;
+	struct hci_request req;
+	int err;
+
+	if (pending_find(MGMT_OP_SET_ADVERTISING_INTERVALS, hdev)) {
+		return mgmt_cmd_status(sk, hdev->id,
+				       MGMT_OP_SET_ADVERTISING_INTERVALS,
+				       MGMT_STATUS_BUSY);
+	}
+
+	cmd = mgmt_pending_add(sk, MGMT_OP_SET_ADVERTISING_INTERVALS, hdev,
+			       data, len);
+	if (!cmd)
+		return -ENOMEM;
+
+	hci_req_init(&req, hdev);
+	cancel_adv_timeout(hdev);
+
+	/* Switch to instance "0" for the Set Advertising setting.
+	 * We cannot use update_[adv|scan_rsp]_data() here as the
+	 * HCI_ADVERTISING flag is not yet set.
+	 */
+	hdev->cur_adv_instance = 0x00;
+	/* This function disables advertising before enabling it. */
+	__hci_req_enable_advertising(&req);
+
+	err = hci_req_run(&req, set_advertising_intervals_complete);
+	if (err < 0)
+		mgmt_pending_remove(cmd);
+
+	return err;
+}
+
+static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
+				     void *data, u16 len)
+{
+	struct mgmt_cp_set_advertising_intervals *cp = data;
+	int err;
+
+	BT_DBG("%s", hdev->name);
+
+	/* This method is intended for LE devices only.*/
+	if (!hci_dev_test_flag(hdev, HCI_LE_ENABLED))
+		return mgmt_cmd_status(sk, hdev->id,
+				       MGMT_OP_SET_ADVERTISING_INTERVALS,
+				       MGMT_STATUS_REJECTED);
+
+	/* Check the validity of the intervals. */
+	if (cp->min_interval < HCI_VALID_LE_ADV_MIN_INTERVAL ||
+	    cp->max_interval > HCI_VALID_LE_ADV_MAX_INTERVAL ||
+	    cp->min_interval > cp->max_interval) {
+		return mgmt_cmd_status(sk, hdev->id,
+				       MGMT_OP_SET_ADVERTISING_INTERVALS,
+				       MGMT_STATUS_INVALID_PARAMS);
+	}
+
+	hci_dev_lock(hdev);
+
+	hci_dev_set_flag(hdev, HCI_ADVERTISING_INTERVALS);
+	hdev->le_adv_min_interval = cp->min_interval;
+	hdev->le_adv_max_interval = cp->max_interval;
+
+	/* Re-enable advertising only when it is already on. */
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
+		err = _reenable_advertising(sk, hdev, data, len);
+		goto unlock;
+	}
+
+	err = send_settings_rsp(sk, MGMT_OP_SET_ADVERTISING_INTERVALS, hdev);
+	new_settings(hdev, sk);
+
+unlock:
+	hci_dev_unlock(hdev);
+
+	return err;
+}
+
 static void set_bredr_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 {
 	struct mgmt_pending_cmd *cmd;
@@ -6538,6 +6684,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ read_ext_controller_info,MGMT_READ_EXT_INFO_SIZE,
 						HCI_MGMT_UNTRUSTED },
 	{ set_appearance,	   MGMT_SET_APPEARANCE_SIZE },
+	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
 };
 
 void mgmt_index_added(struct hci_dev *hdev)
