@@ -150,6 +150,9 @@ static int devfreq_cooling_set_cur_state(struct thermal_cooling_device *cdev,
 
 	dfc->cooling_state = state;
 
+	dev_info(dev, "Cooling state set to %lu. New max freq = %u\n",
+		 state, dfc->freq_table[state]);
+
 	return 0;
 }
 

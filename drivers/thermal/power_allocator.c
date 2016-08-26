@@ -443,6 +443,14 @@ static int allocate_power(struct thermal_zone_device *tz,
 				      max_allocatable_power, tz->temperature,
 				      control_temp - tz->temperature);
 
+	if (total_granted_power < total_req_power) {
+		dev_info(&tz->device, "Controlling power: control_temp=%d "
+			 "last_temp=%d, curr_temp=%d total_requested_power=%d "
+			 "total_granted_power=%d\n", control_temp,
+			 tz->last_temperature, tz->temperature,
+			 total_req_power, total_granted_power);
+	}
+
 	kfree(req_power);
 unlock:
 	mutex_unlock(&tz->lock);
