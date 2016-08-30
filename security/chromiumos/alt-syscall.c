@@ -414,6 +414,60 @@ static struct syscall_whitelist_entry read_write_test_whitelist[] = {
  * Syscall overrides for android.
  */
 
+/* Thread priority used by Android. */
+#define ANDROID_PRIORITY_FOREGROUND     -2
+#define ANDROID_PRIORITY_DISPLAY        -4
+#define ANDROID_PRIORITY_URGENT_DISPLAY -8
+#define ANDROID_PRIORITY_AUDIO         -16
+#define ANDROID_PRIORITY_URGENT_AUDIO  -19
+#define ANDROID_PRIORITY_HIGHEST       -20
+
+/* Reduced priority when running inside container. */
+#define CONTAINER_PRIORITY_FOREGROUND     -1
+#define CONTAINER_PRIORITY_DISPLAY        -2
+#define CONTAINER_PRIORITY_URGENT_DISPLAY -4
+#define CONTAINER_PRIORITY_AUDIO          -8
+#define CONTAINER_PRIORITY_URGENT_AUDIO   -9
+#define CONTAINER_PRIORITY_HIGHEST       -10
+
+/*
+ * Reflect the priority adjustment done by android_setpriority.
+ * Note that the prio returned by getpriority has been offset by 20.
+ * (returns 40..1 instead of -20..19)
+ */
+int android_getpriority(int which, int who)
+{
+	int prio, nice;
+
+	prio = sys_getpriority(which, who);
+	if (prio <= 20)
+		return prio;
+
+	nice = -(prio - 20);
+	switch (nice) {
+	case CONTAINER_PRIORITY_FOREGROUND:
+		nice = ANDROID_PRIORITY_FOREGROUND;
+		break;
+	case CONTAINER_PRIORITY_DISPLAY:
+		nice = ANDROID_PRIORITY_DISPLAY;
+		break;
+	case CONTAINER_PRIORITY_URGENT_DISPLAY:
+		nice = ANDROID_PRIORITY_URGENT_DISPLAY;
+		break;
+	case CONTAINER_PRIORITY_AUDIO:
+		nice = ANDROID_PRIORITY_AUDIO;
+		break;
+	case CONTAINER_PRIORITY_URGENT_AUDIO:
+		nice = ANDROID_PRIORITY_URGENT_AUDIO;
+		break;
+	case CONTAINER_PRIORITY_HIGHEST:
+		nice = ANDROID_PRIORITY_HIGHEST;
+		break;
+	}
+
+	return -nice + 20;
+}
+
 /* Make sure nothing sets a nice value more favorable than -10. */
 long android_setpriority(int which, int who, int niceval)
 {
@@ -559,7 +613,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(getpgid),
 	SYSCALL_ENTRY(getpid),
 	SYSCALL_ENTRY(getppid),
-	SYSCALL_ENTRY(getpriority),
+	SYSCALL_ENTRY_ALT(getpriority, android_getpriority),
 	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getrusage),
 	SYSCALL_ENTRY(getsid),
@@ -1033,7 +1087,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(getpgrp),
 	COMPAT_SYSCALL_ENTRY(getpid),
 	COMPAT_SYSCALL_ENTRY(getppid),
-	COMPAT_SYSCALL_ENTRY(getpriority),
+	COMPAT_SYSCALL_ENTRY_ALT(getpriority, android_getpriority),
 	COMPAT_SYSCALL_ENTRY(getrusage),
 	COMPAT_SYSCALL_ENTRY(getsid),
 	COMPAT_SYSCALL_ENTRY(gettid),
