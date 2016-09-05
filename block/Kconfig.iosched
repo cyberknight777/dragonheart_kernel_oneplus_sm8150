@@ -6,12 +6,7 @@ menu "IO Schedulers"
 config IOSCHED_NOOP
 	bool
 	default y
-	---help---
-	  The no-op I/O scheduler is a minimal scheduler that does basic merging
-	  and sorting. Its main uses include non-disk based block devices like
-	  memory devices, and specialised software or hardware environments
-	  that do their own scheduling and require only minimal assistance from
-	  the kernel.
+
 
 config IOSCHED_DEADLINE
 	tristate "Deadline I/O scheduler"
@@ -40,10 +35,17 @@ config CFQ_GROUP_IOSCHED
 	---help---
 	  Enable group IO scheduling in CFQ.
 
+config IOSCHED_ZEN
+	tristate "Zen I/O scheduler"
+	default y
+	---help---
+	  FCFS, dispatches are back-inserted, deadlines ensure fairness.
+	  Should work best with devices where there is no travel delay.
+
 choice
 
 	prompt "Default I/O scheduler"
-	default DEFAULT_CFQ
+	default DEFAULT_ZEN
 	help
 	  Select the I/O scheduler which will be used by default for all
 	  block devices.
@@ -57,6 +59,9 @@ choice
 	config DEFAULT_NOOP
 		bool "No-op"
 
+	config DEFAULT_ZEN
+		bool "ZEN" if IOSCHED_ZEN=y
+
 endchoice
 
 config DEFAULT_IOSCHED
@@ -64,6 +69,7 @@ config DEFAULT_IOSCHED
 	default "deadline" if DEFAULT_DEADLINE
 	default "cfq" if DEFAULT_CFQ
 	default "noop" if DEFAULT_NOOP
+	default "zen" if DEFAULT_ZEN
 
 config MQ_IOSCHED_DEADLINE
 	tristate "MQ deadline I/O scheduler"
