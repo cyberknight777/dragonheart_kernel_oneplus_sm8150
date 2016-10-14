@@ -2742,7 +2742,7 @@ int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 	adv_instance->remaining_time = timeout;
 
 	if (duration == 0)
-		adv_instance->duration = HCI_DEFAULT_ADV_DURATION;
+		adv_instance->duration = hdev->le_adv_duration;
 	else
 		adv_instance->duration = duration;
 
@@ -2997,6 +2997,7 @@ struct hci_dev *hci_alloc_dev(void)
 	hdev->le_adv_channel_map = 0x07;
 	hdev->le_adv_min_interval = HCI_DEFAULT_LE_ADV_MIN_INTERVAL;
 	hdev->le_adv_max_interval = HCI_DEFAULT_LE_ADV_MAX_INTERVAL;
+	hdev->le_adv_duration = HCI_DEFAULT_ADV_DURATION;
 	hdev->le_scan_interval = 0x0060;
 	hdev->le_scan_window = 0x0030;
 	hdev->le_conn_min_interval = 0x0018;

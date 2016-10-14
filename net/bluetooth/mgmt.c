@@ -4359,6 +4359,7 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 {
 	struct mgmt_cp_set_advertising_intervals *cp = data;
 	int err;
+	u16 max_interval_ms, grace_period;
 	/* If both min_interval and max_interval are 0, use default values. */
 	bool use_default = cp->min_interval == 0 && cp->max_interval == 0;
 
@@ -4385,10 +4386,17 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 		hci_dev_clear_flag(hdev, HCI_ADVERTISING_INTERVALS);
 		hdev->le_adv_min_interval = HCI_DEFAULT_LE_ADV_MIN_INTERVAL;
 		hdev->le_adv_max_interval = HCI_DEFAULT_LE_ADV_MAX_INTERVAL;
+		hdev->le_adv_duration = HCI_DEFAULT_ADV_DURATION;
 	} else {
 		hci_dev_set_flag(hdev, HCI_ADVERTISING_INTERVALS);
 		hdev->le_adv_min_interval = cp->min_interval;
 		hdev->le_adv_max_interval = cp->max_interval;
+
+		max_interval_ms = CONVERT_TO_ADV_INTERVAL_MS(cp->max_interval);
+		grace_period = ADV_DURATION_GRACE_PERIOD(max_interval_ms);
+		if (grace_period < ADV_DURATION_MIN_GRACE_PERIOD)
+			grace_period = ADV_DURATION_MIN_GRACE_PERIOD;
+		hdev->le_adv_duration = max_interval_ms + grace_period;
 	}
 
 	/* Re-enable advertising only when it is already on. */
