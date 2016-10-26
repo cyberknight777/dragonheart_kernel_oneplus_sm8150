@@ -311,6 +311,7 @@ static __maybe_unused int ec_device_suspend(struct device *dev)
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
 
 	lb_suspend(ec);
+	cros_ec_debugfs_suspend(ec);
 
 	return 0;
 }
@@ -320,6 +321,8 @@ static __maybe_unused int ec_device_resume(struct device *dev)
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
 
 	lb_resume(ec);
+
+	cros_ec_debugfs_resume(ec);
 
 	return 0;
 }
