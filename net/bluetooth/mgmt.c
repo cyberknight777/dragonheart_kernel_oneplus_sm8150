@@ -4257,103 +4257,6 @@ unlock:
 	return err;
 }
 
-static void set_advertising_intervals_complete(struct hci_dev *hdev,
-					       u8 status, u16 opcode)
-{
-	struct cmd_lookup match = { NULL, hdev };
-	struct hci_request req;
-	u8 instance;
-	struct adv_info *adv_instance;
-	int err;
-
-	hci_dev_lock(hdev);
-
-	if (status) {
-		u8 mgmt_err = mgmt_status(status);
-
-		mgmt_pending_foreach(MGMT_OP_SET_ADVERTISING_INTERVALS, hdev,
-				     cmd_status_rsp, &mgmt_err);
-		goto unlock;
-	}
-
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-		hci_dev_set_flag(hdev, HCI_ADVERTISING);
-	else
-		hci_dev_clear_flag(hdev, HCI_ADVERTISING);
-
-	mgmt_pending_foreach(MGMT_OP_SET_ADVERTISING_INTERVALS, hdev,
-			     settings_rsp, &match);
-
-	new_settings(hdev, match.sk);
-
-	if (match.sk)
-		sock_put(match.sk);
-
-	/* If "Set Advertising" was just disabled and instance advertising was
-	 * set up earlier, then re-enable multi-instance advertising.
-	 */
-	if (hci_dev_test_flag(hdev, HCI_ADVERTISING) ||
-	    list_empty(&hdev->adv_instances))
-		goto unlock;
-
-	instance = hdev->cur_adv_instance;
-	if (!instance) {
-		adv_instance = list_first_entry_or_null(&hdev->adv_instances,
-							struct adv_info, list);
-		if (!adv_instance)
-			goto unlock;
-
-		instance = adv_instance->instance;
-	}
-
-	hci_req_init(&req, hdev);
-
-	err = __hci_req_schedule_adv_instance(&req, instance, true);
-	if (!err)
-		err = hci_req_run(&req, enable_advertising_instance);
-	else
-		BT_ERR("Failed to re-configure advertising intervals");
-
-unlock:
-	hci_dev_unlock(hdev);
-}
-
-static int _reenable_advertising(struct sock *sk, struct hci_dev *hdev,
-				 void *data, u16 len)
-{
-	struct mgmt_pending_cmd *cmd;
-	struct hci_request req;
-	int err;
-
-	if (pending_find(MGMT_OP_SET_ADVERTISING_INTERVALS, hdev)) {
-		return mgmt_cmd_status(sk, hdev->id,
-				       MGMT_OP_SET_ADVERTISING_INTERVALS,
-				       MGMT_STATUS_BUSY);
-	}
-
-	cmd = mgmt_pending_add(sk, MGMT_OP_SET_ADVERTISING_INTERVALS, hdev,
-			       data, len);
-	if (!cmd)
-		return -ENOMEM;
-
-	hci_req_init(&req, hdev);
-	cancel_adv_timeout(hdev);
-
-	/* Switch to instance "0" for the Set Advertising setting.
-	 * We cannot use update_[adv|scan_rsp]_data() here as the
-	 * HCI_ADVERTISING flag is not yet set.
-	 */
-	hdev->cur_adv_instance = 0x00;
-	/* This function disables advertising before enabling it. */
-	__hci_req_enable_advertising(&req);
-
-	err = hci_req_run(&req, set_advertising_intervals_complete);
-	if (err < 0)
-		mgmt_pending_remove(cmd);
-
-	return err;
-}
-
 static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 				     void *data, u16 len)
 {
@@ -4362,6 +4265,8 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 	u16 max_interval_ms, grace_period;
 	/* If both min_interval and max_interval are 0, use default values. */
 	bool use_default = cp->min_interval == 0 && cp->max_interval == 0;
+	struct adv_info *adv_instance;
+	int instance;
 
 	BT_DBG("%s", hdev->name);
 
@@ -4399,16 +4304,26 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 		hdev->le_adv_duration = max_interval_ms + grace_period;
 	}
 
-	/* Re-enable advertising only when it is already on. */
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
-		err = _reenable_advertising(sk, hdev, data, len);
-		goto unlock;
+	/* hdev->le_adv_duration would be copied to adv instances created
+	 * hereafter. However, for any existing adv instance of which the
+	 * individual_duration_flag is false, we should modify its duration.
+	 */
+	for (instance = 1;  instance <= HCI_MAX_ADV_INSTANCES; instance++) {
+		adv_instance = hci_find_adv_instance(hdev, instance);
+		if (adv_instance && !adv_instance->individual_duration_flag)
+			adv_instance->duration = hdev->le_adv_duration;
 	}
 
+	/* If advertising is not enabled, the new parameters will take effect
+	 * when advertising is enabled.
+	 * If advertising has been enabled, the new parameters will take effect
+	 * when next adv instance is scheduled by
+	 * __hci_req_schedule_adv_instance().
+	 * Hence, it is ok to send settings response now.
+	 */
 	err = send_settings_rsp(sk, MGMT_OP_SET_ADVERTISING_INTERVALS, hdev);
 	new_settings(hdev, sk);
 
-unlock:
 	hci_dev_unlock(hdev);
 
 	return err;
