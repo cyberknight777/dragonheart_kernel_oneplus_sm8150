@@ -320,6 +320,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_tee		__NR_ia32_tee
 #define __NR_compat_tgkill	__NR_ia32_tgkill
 #define __NR_compat_tkill	__NR_ia32_tkill
+#define __NR_compat_time	__NR_ia32_time
 #define __NR_compat_timer_create	__NR_ia32_timer_create
 #define __NR_compat_timer_delete	__NR_ia32_timer_delete
 #define __NR_compat_timer_getoverrun	__NR_ia32_timer_getoverrun
@@ -759,6 +760,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(rmdir),
 	SYSCALL_ENTRY(stat),
 	SYSCALL_ENTRY(symlink),
+	SYSCALL_ENTRY(time),
 	SYSCALL_ENTRY(unlink),
 	SYSCALL_ENTRY(ustat),
 	SYSCALL_ENTRY(utimes),
@@ -1305,11 +1307,12 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 #endif
 
 	/*
-	 * getrlimit(2) is deprecated and not wired in the ARM compat table
-	 * on ARM64.
+	 * getrlimit(2) and time(2) are deprecated and not wired in the ARM
+	 * compat table on ARM64.
 	 */
 #ifndef CONFIG_ARM64
 	COMPAT_SYSCALL_ENTRY(getrlimit),
+	COMPAT_SYSCALL_ENTRY(time),
 #endif
 
 	/* x86-specific syscalls. */
