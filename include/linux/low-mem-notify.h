@@ -19,11 +19,17 @@ extern const unsigned long low_mem_anon_mem_delta;
  */
 static inline unsigned long get_available_mem(int lru_base)
 {
+	/* min_free_kbytes is reserved for emergency allocation like when
+	 * PF_MEMALLOC is set. In general it's not usable in normal page
+	 * allocation process.
+	 */
+	unsigned long min_free_pages = min_free_kbytes >> (PAGE_SHIFT - 10);
 	/* free_mem is completely unallocated; clean file-backed memory
 	 * (file_mem - dirty_mem) is easy to reclaim, except for the last
 	 * min_filelist_kbytes.
 	 */
-	unsigned long free_mem = global_page_state(NR_FREE_PAGES);
+	unsigned long free_mem =
+			global_page_state(NR_FREE_PAGES) - min_free_pages;
 	unsigned long file_mem =
 			global_page_state(lru_base + LRU_ACTIVE_FILE) +
 			global_page_state(lru_base + LRU_INACTIVE_FILE);
