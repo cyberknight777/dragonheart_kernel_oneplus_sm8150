@@ -68,7 +68,7 @@ static void report_load(const char *origin, struct path *path, char *operation)
 			if (IS_ERR(pathname))
 				pathname = "<too_long>";
 			else {
-				pathname = printable(pathname);
+				pathname = printable(pathname, PATH_MAX+11);
 				kfree(alloced);
 				alloced = pathname;
 			}

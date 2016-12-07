@@ -24,7 +24,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 
-char *printable(char *source);
+char *printable(char *source, size_t max_len);
 char *printable_cmdline(struct task_struct *task);
 
 #endif /* _SECURITY_CHROMIUMOS_UTILS_H */

@@ -69,7 +69,7 @@ static char *quoted_printable(const char *source, size_t len)
 		return NULL;
 
 	dest[0] = '"';
-	strcpy(dest + 1, source);
+	strncpy(dest + 1, source, len);
 	dest[len + 1] = '"';
 	dest[len + 2] = '\0';
 	return dest;
@@ -78,14 +78,14 @@ static char *quoted_printable(const char *source, size_t len)
 /* Return a string that has been sanitized and is safe to log. It is either
  * in double-quotes, or is a series of hex digits.
  */
-char *printable(char *source)
+char *printable(char *source, size_t max_len)
 {
 	size_t len;
 
 	if (!source)
 		return NULL;
 
-	len = strlen(source);
+	len = strnlen(source, max_len);
 	if (contains_unprintable(source, len))
 		return hex_printable(source, len);
 	else
@@ -139,12 +139,15 @@ char *printable_cmdline(struct task_struct *task)
 				len = PAGE_SIZE - res;
 			res += access_process_vm(task, mm->env_start,
 						 buffer+res, len, 0);
-			res = strnlen(buffer, res);
 		}
 	}
 
+	/* Make sure the buffer is always NULL-terminated. */
+	len = max_t(int, PAGE_SIZE-1, res);
+	buffer[len] = 0;
+
 	/* Make sure result is printable. */
-	sanitized = printable(buffer);
+	sanitized = printable(buffer, res);
 	kfree(buffer);
 	buffer = sanitized;
 
