@@ -17,6 +17,14 @@ config SECURITY_CHROMIUMOS_NO_SYMLINK_MOUNT
 	  When enabled mount() syscall will return ELOOP whenever target path
 	  contains any symlinks.
 
+config SECURITY_CHROMIUMOS_DEVICE_JAIL
+	bool "Chromium OS Security: device jail sandbox"
+	depends on USB=y
+	default y
+	help
+	  When enabled, the kernel device_jail interface will be enabled,
+	  allowing further sandboxing of USB devices.
+
 config ALT_SYSCALL_CHROMIUMOS
 	bool "Chromium OS Alt-Syscall Tables"
 	depends on ALT_SYSCALL
