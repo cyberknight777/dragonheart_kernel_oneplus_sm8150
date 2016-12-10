@@ -271,6 +271,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_open	__NR_ia32_open
 #define __NR_compat_open_by_handle_at	__NR_ia32_open_by_handle_at
 #define __NR_compat_openat	__NR_ia32_openat
+#define __NR_compat_perf_event_open	__NR_ia32_perf_event_open
 #define __NR_compat_personality	__NR_ia32_personality
 #define __NR_compat_pipe	__NR_ia32_pipe
 #define __NR_compat_pipe2	__NR_ia32_pipe2
@@ -600,6 +601,16 @@ static int android_fallocate32(int fd, int mode,
 
 #undef PACK64
 
+static int android_perf_event_open(struct perf_event_attr __user *attr_uptr,
+				   pid_t pid, int cpu, int group_fd,
+				   unsigned long flags)
+{
+	if (!allow_devmode_syscalls)
+		return -EACCES;
+
+	return sys_perf_event_open(attr_uptr, pid, cpu, group_fd, flags);
+}
+
 static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(capget),
@@ -679,6 +690,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(nanosleep),
 	SYSCALL_ENTRY(open_by_handle_at),
 	SYSCALL_ENTRY(openat),
+	SYSCALL_ENTRY_ALT(perf_event_open, android_perf_event_open),
 	SYSCALL_ENTRY(personality),
 	SYSCALL_ENTRY(pipe2),
 	SYSCALL_ENTRY(ppoll),
@@ -1160,6 +1172,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(open),
 	COMPAT_SYSCALL_ENTRY(open_by_handle_at),
 	COMPAT_SYSCALL_ENTRY(openat),
+	COMPAT_SYSCALL_ENTRY_ALT(perf_event_open, android_perf_event_open),
 	COMPAT_SYSCALL_ENTRY(personality),
 	COMPAT_SYSCALL_ENTRY(pipe),
 	COMPAT_SYSCALL_ENTRY(pipe2),
