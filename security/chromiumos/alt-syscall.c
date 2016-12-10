@@ -21,6 +21,33 @@
 
 #include <asm/unistd.h>
 
+static int allow_devmode_syscalls;
+
+#ifdef CONFIG_SYSCTL
+static int zero;
+static int one = 1;
+
+static struct ctl_path chromiumos_sysctl_path[] = {
+	{ .procname = "kernel", },
+	{ .procname = "chromiumos", },
+	{ .procname = "alt_syscall", },
+	{ }
+};
+
+static struct ctl_table chromiumos_sysctl_table[] = {
+	{
+		.procname       = "allow_devmode_syscalls",
+		.data           = &allow_devmode_syscalls,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &one,
+	},
+	{ }
+};
+#endif
+
 struct syscall_whitelist_entry {
 	unsigned int nr;
 	sys_call_ptr_t alt;
@@ -1537,6 +1564,12 @@ static int chromiumos_alt_syscall_init(void)
 {
 	unsigned int i;
 	int err;
+
+#ifdef CONFIG_SYSCTL
+	if (!register_sysctl_paths(chromiumos_sysctl_path,
+				   chromiumos_sysctl_table))
+		pr_warn("Failed to register sysctl\n");
+#endif
 
 	err = arch_dup_sys_call_table(&default_table);
 	if (err)
