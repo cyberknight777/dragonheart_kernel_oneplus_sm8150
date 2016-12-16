@@ -863,7 +863,6 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 {
 	struct vb2_queue *q = vb->vb2_queue;
 	unsigned long flags;
-	unsigned int plane;
 
 	if (WARN_ON(vb->state != VB2_BUF_STATE_ACTIVE))
 		return;
@@ -883,10 +882,6 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 #endif
 	dprintk(4, "done processing on buffer %d, state: %d\n",
 			vb->index, state);
-
-	/* sync buffers */
-	for (plane = 0; plane < vb->num_planes; ++plane)
-		call_void_memop(vb, finish, vb->planes[plane].mem_priv);
 
 	spin_lock_irqsave(&q->done_lock, flags);
 	if (state == VB2_BUF_STATE_QUEUED ||
@@ -1518,6 +1513,10 @@ static void __vb2_dqbuf(struct vb2_buffer *vb)
 		return;
 
 	vb->state = VB2_BUF_STATE_DEQUEUED;
+
+	/* sync buffers */
+	for (i = 0; i < vb->num_planes; ++i)
+		call_void_memop(vb, finish, vb->planes[i].mem_priv);
 
 	if (q->memory == VB2_MEMORY_USERPTR) {
 		call_void_vb_qop(vb, buf_cleanup, vb);
