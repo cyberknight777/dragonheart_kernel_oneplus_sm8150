@@ -1733,7 +1733,7 @@ static void set_hdr_static_info_packet(
 		struct core_stream *stream,
 		struct hw_info_packet *info_packet)
 {
-	uint16_t i;
+	uint16_t i = 0;
 	enum signal_type signal = stream->signal;
 	struct dc_hdr_static_metadata hdr_metadata;
 	uint32_t data;
@@ -1741,8 +1741,7 @@ static void set_hdr_static_info_packet(
 	if (!surface)
 		return;
 
-	hdr_metadata =
-			surface->public.hdr_static_ctx;
+	hdr_metadata = surface->public.hdr_static_ctx;
 
 	if (dc_is_hdmi_signal(signal)) {
 		info_packet->valid = true;
