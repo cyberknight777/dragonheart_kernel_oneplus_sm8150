@@ -281,6 +281,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_rt_tgsigqueueinfo	__NR_ia32_rt_tgsigqueueinfo
 #define __NR_compat_sched_get_priority_max	__NR_ia32_sched_get_priority_max
 #define __NR_compat_sched_get_priority_min	__NR_ia32_sched_get_priority_min
+#define __NR_compat_sched_getaffinity	__NR_ia32_sched_getaffinity
 #define __NR_compat_sched_getparam	__NR_ia32_sched_getparam
 #define __NR_compat_sched_getscheduler	__NR_ia32_sched_getscheduler
 #define __NR_compat_sched_setaffinity	__NR_ia32_sched_setaffinity
@@ -683,6 +684,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(rt_tgsigqueueinfo),
 	SYSCALL_ENTRY(sched_get_priority_max),
 	SYSCALL_ENTRY(sched_get_priority_min),
+	SYSCALL_ENTRY(sched_getaffinity),
 	SYSCALL_ENTRY(sched_getparam),
 	SYSCALL_ENTRY(sched_getscheduler),
 	SYSCALL_ENTRY(sched_setaffinity),
@@ -1168,6 +1170,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(rt_tgsigqueueinfo),
 	COMPAT_SYSCALL_ENTRY(sched_get_priority_max),
 	COMPAT_SYSCALL_ENTRY(sched_get_priority_min),
+	COMPAT_SYSCALL_ENTRY(sched_getaffinity),
 	COMPAT_SYSCALL_ENTRY(sched_getparam),
 	COMPAT_SYSCALL_ENTRY(sched_getscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_setaffinity),
