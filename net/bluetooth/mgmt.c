@@ -4303,6 +4303,7 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 			grace_period = ADV_DURATION_MIN_GRACE_PERIOD;
 		hdev->le_adv_duration = max_interval_ms + grace_period;
 	}
+	hdev->le_adv_param_changed = true;
 
 	/* hdev->le_adv_duration would be copied to adv instances created
 	 * hereafter. However, for any existing adv instance of which the

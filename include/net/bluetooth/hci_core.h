@@ -264,6 +264,7 @@ struct hci_dev {
 	__u16		le_adv_min_interval;
 	__u16		le_adv_max_interval;
 	__u16		le_adv_duration;
+	__u8		le_adv_param_changed;
 	__u8		le_scan_type;
 	__u16		le_scan_interval;
 	__u16		le_scan_window;
