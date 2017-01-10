@@ -119,6 +119,10 @@ static const struct cros_ec_bs_map cros_ec_keyb_bs[] = {
 	},
 };
 
+typedef void (*cros_ec_keyb_work_fn)(struct cros_ec_keyb *ckdev,
+				     const struct cros_ec_bs_map *map,
+				     u32 mask);
+
 /*
  * Returns true when there is at least one combination of pressed keys that
  * results in ghosting.
@@ -206,7 +210,30 @@ static void cros_ec_keyb_process(struct cros_ec_keyb *ckdev,
 }
 
 /**
- * cros_ec_keyb_report_bs - Report non-matrixed buttons or switches
+ * cros_ec_keyb_bs_event - Report a given button switch event
+ */
+void cros_ec_keyb_bs_event(struct cros_ec_keyb *ckdev,
+			   const struct cros_ec_bs_map *map,
+			   u32 mask)
+{
+	input_event(ckdev->bs_idev, map->ev_type, map->code,
+		    !!(mask & BIT(map->bit)) ^ map->inverted);
+}
+
+
+/**
+ * cros_ec_keyb_bs_set - Set capability for a given button switch
+ */
+void cros_ec_keyb_bs_set(struct cros_ec_keyb *ckdev,
+			 const struct cros_ec_bs_map *map,
+			 u32 mask)
+{
+	if (mask & BIT(map->bit))
+		input_set_capability(ckdev->bs_idev, map->ev_type, map->code);
+}
+
+/**
+ * cros_ec_keyb_walker_bs - Report non-matrixed buttons or switches
  *
  * This takes a bitmap of buttons or switches from the EC and reports events,
  * syncing at the end.
@@ -215,11 +242,11 @@ static void cros_ec_keyb_process(struct cros_ec_keyb *ckdev,
  * @ev_type: The input event type (e.g., EV_KEY).
  * @mask: A bitmap of buttons from the EC.
  */
-static void cros_ec_keyb_report_bs(struct cros_ec_keyb *ckdev,
-				   unsigned int ev_type, u32 mask)
+static void cros_ec_keyb_walker_bs(struct cros_ec_keyb *ckdev,
+				   unsigned int ev_type, u32 mask,
+				   cros_ec_keyb_work_fn work_fn)
 
 {
-	struct input_dev *idev = ckdev->bs_idev;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(cros_ec_keyb_bs); i++) {
@@ -227,11 +254,9 @@ static void cros_ec_keyb_report_bs(struct cros_ec_keyb *ckdev,
 
 		if (map->ev_type != ev_type)
 			continue;
-
-		input_event(idev, ev_type, map->code,
-			    !!(mask & BIT(map->bit)) ^ map->inverted);
+		work_fn(ckdev, map, mask);
 	}
-	input_sync(idev);
+	input_sync(ckdev->bs_idev);
 }
 
 static int cros_ec_keyb_work(struct notifier_block *nb,
@@ -286,7 +311,8 @@ static int cros_ec_keyb_work(struct notifier_block *nb,
 					&ckdev->ec->event_data.data.switches);
 			ev_type = EV_SW;
 		}
-		cros_ec_keyb_report_bs(ckdev, ev_type, val);
+		cros_ec_keyb_walker_bs(ckdev, ev_type, val,
+				       cros_ec_keyb_bs_event);
 		break;
 
 	default:
@@ -410,8 +436,9 @@ static int cros_ec_keyb_query_switches(struct cros_ec_keyb *ckdev)
 	if (ret)
 		return ret;
 
-	cros_ec_keyb_report_bs(ckdev, EV_SW,
-			       get_unaligned_le32(&event_data.switches));
+	cros_ec_keyb_walker_bs(ckdev, EV_SW,
+			       get_unaligned_le32(&event_data.switches),
+			       cros_ec_keyb_bs_event);
 
 	return 0;
 }
@@ -459,7 +486,6 @@ static int cros_ec_keyb_register_bs(struct cros_ec_keyb *ckdev)
 	u32 buttons;
 	u32 switches;
 	int ret;
-	int i;
 
 	ret = cros_ec_keyb_info(ec_dev, EC_MKBP_INFO_SUPPORTED,
 				EC_MKBP_EVENT_BUTTON, &event_data,
@@ -503,12 +529,7 @@ static int cros_ec_keyb_register_bs(struct cros_ec_keyb *ckdev)
 	input_set_drvdata(idev, ckdev);
 	ckdev->bs_idev = idev;
 
-	for (i = 0; i < ARRAY_SIZE(cros_ec_keyb_bs); i++) {
-		const struct cros_ec_bs_map *map = &cros_ec_keyb_bs[i];
-
-		if (buttons & BIT(map->bit))
-			input_set_capability(idev, map->ev_type, map->code);
-	}
+	cros_ec_keyb_walker_bs(ckdev, EV_KEY, buttons, cros_ec_keyb_bs_set);
 
 	ret = cros_ec_keyb_query_switches(ckdev);
 	if (ret) {
@@ -521,7 +542,6 @@ static int cros_ec_keyb_register_bs(struct cros_ec_keyb *ckdev)
 		dev_err(dev, "cannot register input device\n");
 		return ret;
 	}
-
 	return 0;
 }
 
