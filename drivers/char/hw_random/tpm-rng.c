@@ -31,13 +31,14 @@ static int tpm_rng_read(struct hwrng *rng, void *data, size_t max, bool wait)
 static struct hwrng tpm_rng = {
 	.name = MODULE_NAME,
 	.read = tpm_rng_read,
+	.quality = 1000,
 };
 
 static int __init rng_init(void)
 {
 	return hwrng_register(&tpm_rng);
 }
-module_init(rng_init);
+late_initcall(rng_init);
 
 static void __exit rng_exit(void)
 {
