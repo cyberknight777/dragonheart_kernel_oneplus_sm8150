@@ -382,6 +382,7 @@ static int cr50_spi_probe(struct spi_device *dev)
 			       NULL);
 	if (rc < 0)
 		return rc;
+	dev_info(&dev->dev, "registered shutdown handler [gentle shutdown]\n");
 
 	cr50_get_fw_version(&phy->priv, fw_ver);
 	dev_info(&dev->dev, "Cr50 firmware version: %s\n", fw_ver);
@@ -408,12 +409,18 @@ static int cr50_spi_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(cr50_spi_pm, cr50_suspend, cr50_spi_resume);
 
-static int cr50_spi_remove(struct spi_device *dev)
+static void cr50_spi_shutdown(struct spi_device *dev)
 {
 	struct tpm_chip *chip = spi_get_drvdata(dev);
 
 	tpm_chip_unregister(chip);
 	tpm_tis_remove(chip);
+	dev_info(&dev->dev, "gentle shutdown done\n");
+}
+
+static int cr50_spi_remove(struct spi_device *dev)
+{
+	cr50_spi_shutdown(dev);
 	return 0;
 }
 
@@ -439,6 +446,7 @@ static struct spi_driver cr50_spi_driver = {
 	},
 	.probe = cr50_spi_probe,
 	.remove = cr50_spi_remove,
+	.shutdown = cr50_spi_shutdown,
 	.id_table = cr50_spi_id,
 };
 module_spi_driver(cr50_spi_driver);
