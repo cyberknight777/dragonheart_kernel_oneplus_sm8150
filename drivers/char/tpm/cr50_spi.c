@@ -13,13 +13,11 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
-#include <linux/wait.h>
 #include <linux/of.h>
-
-#include <linux/module.h>
+#include <linux/pm.h>
 #include <linux/spi/spi.h>
-#include <linux/tpm.h>
-#include "tpm.h"
+#include <linux/wait.h>
+#include "cr50.h"
 #include "tpm_tis_core.h"
 
 /*
@@ -350,15 +348,19 @@ static int cr50_spi_probe(struct spi_device *dev)
 	cr50_get_fw_version(&phy->priv, fw_ver);
 	dev_info(&dev->dev, "Cr50 firmware version: %s\n", fw_ver);
 
+	/* Disable deep-sleep, ignore if command failed. */
+	cr50_control_deep_sleep(spi_get_drvdata(dev), 0);
+
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(cr50_pm, tpm_pm_suspend, tpm_tis_resume);
+static SIMPLE_DEV_PM_OPS(cr50_spi_pm, cr50_suspend, cr50_resume);
 
 static int cr50_spi_remove(struct spi_device *dev)
 {
 	struct tpm_chip *chip = spi_get_drvdata(dev);
 
+	cr50_control_deep_sleep(chip, 1);
 	tpm_chip_unregister(chip);
 	tpm_tis_remove(chip);
 	return 0;
@@ -381,7 +383,7 @@ MODULE_DEVICE_TABLE(of, of_cr50_spi_match);
 static struct spi_driver cr50_spi_driver = {
 	.driver = {
 		.name = "cr50_spi",
-		.pm = &cr50_pm,
+		.pm = &cr50_spi_pm,
 		.of_match_table = of_match_ptr(of_cr50_spi_match),
 	},
 	.probe = cr50_spi_probe,

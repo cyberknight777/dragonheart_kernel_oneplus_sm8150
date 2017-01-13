@@ -102,9 +102,16 @@ config TCG_ATMEL
 	  will be accessible from within Linux.  To compile this driver 
 	  as a module, choose M here; the module will be called tpm_atmel.
 
+config TCG_CR50
+	boolean
+	select TCG_TIS_CORE
+	---help---
+	  Common routines shared by drivers for Cr50 devices on SPI and I2C.
+
 config TCG_CR50_I2C
 	bool "TPM Interface Specification 2.0 Interface (I2C - CR50)"
 	depends on I2C=y
+	select TCG_CR50
 	---help---
 	  This is a driver for the Google cr50 I2C TPM interface which is a
 	  custom microcontroller and requires a custom i2c protocol interface
@@ -115,6 +122,7 @@ config TCG_CR50_SPI
 	tristate "TCG PTP FIFO Interface over SPI - Chips with Cr50 Firmware"
 	depends on SPI
 	select TCG_TIS_CORE
+	select TCG_CR50
 	---help---
 	  If you have a chip running Cr50 firmware on SPI bus, say Yes and it
 	  will be accessible from within Linux. To compile this driver as a
