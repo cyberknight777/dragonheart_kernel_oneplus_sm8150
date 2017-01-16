@@ -9,6 +9,7 @@
  */
 
 #include <linux/alt-syscall.h>
+#include <linux/compat.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -18,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/syscalls.h>
+#include <linux/timex.h>
 
 #include <asm/unistd.h>
 
@@ -169,13 +171,15 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #ifdef CONFIG_COMPAT
 #ifdef CONFIG_X86_64
 #define __NR_compat_access	__NR_ia32_access
+#define __NR_compat_adjtimex	__NR_ia32_adjtimex
 #define __NR_compat_brk	__NR_ia32_brk
 #define __NR_compat_capget	__NR_ia32_capget
 #define __NR_compat_capset	__NR_ia32_capset
 #define __NR_compat_chdir	__NR_ia32_chdir
 #define __NR_compat_chmod	__NR_ia32_chmod
-#define __NR_compat_clock_gettime	__NR_ia32_clock_gettime
+#define __NR_compat_clock_adjtime	__NR_ia32_clock_adjtime
 #define __NR_compat_clock_getres	__NR_ia32_clock_getres
+#define __NR_compat_clock_gettime	__NR_ia32_clock_gettime
 #define __NR_compat_clock_nanosleep	__NR_ia32_clock_nanosleep
 #define __NR_compat_clock_settime	__NR_ia32_clock_settime
 #define __NR_compat_clone	__NR_ia32_clone
@@ -611,13 +615,40 @@ static int android_perf_event_open(struct perf_event_attr __user *attr_uptr,
 	return sys_perf_event_open(attr_uptr, pid, cpu, group_fd, flags);
 }
 
+static asmlinkage long android_adjtimex(struct timex __user *buf)
+{
+	struct timex kbuf;
+
+	/* adjtimex() is allowed only for read. */
+	if (copy_from_user(&kbuf, buf, sizeof(struct timex)))
+		return -EFAULT;
+	if (kbuf.modes != 0)
+		return -EPERM;
+	return sys_adjtimex(buf);
+}
+
+static asmlinkage long android_clock_adjtime(const clockid_t which_clock,
+					     struct timex __user *buf)
+{
+	struct timex kbuf;
+
+	/* clock_adjtime() is allowed only for read. */
+	if (copy_from_user(&kbuf, buf, sizeof(struct timex)))
+		return -EFAULT;
+	if (kbuf.modes != 0)
+		return -EPERM;
+	return sys_clock_adjtime(which_clock, buf);
+}
+
 static struct syscall_whitelist_entry android_whitelist[] = {
+	SYSCALL_ENTRY_ALT(adjtimex, android_adjtimex),
 	SYSCALL_ENTRY(brk),
 	SYSCALL_ENTRY(capget),
 	SYSCALL_ENTRY(capset),
 	SYSCALL_ENTRY(chdir),
-	SYSCALL_ENTRY(clock_gettime),
+	SYSCALL_ENTRY_ALT(clock_adjtime, android_clock_adjtime),
 	SYSCALL_ENTRY(clock_getres),
+	SYSCALL_ENTRY(clock_gettime),
 	SYSCALL_ENTRY(clock_nanosleep),
 	SYSCALL_ENTRY(clock_settime),
 	SYSCALL_ENTRY(clone),
@@ -1076,15 +1107,43 @@ static struct syscall_whitelist_entry read_write_test_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY_ALT(prctl, alt_sys_prctl),
 };
 
+static asmlinkage long android_compat_adjtimex(struct compat_timex __user *buf)
+{
+	struct compat_timex kbuf;
+
+	/* adjtimex() is allowed only for read. */
+	if (copy_from_user(&kbuf, buf, sizeof(struct compat_timex)))
+		return -EFAULT;
+	if (kbuf.modes != 0)
+		return -EPERM;
+	return compat_sys_adjtimex(buf);
+}
+
+static asmlinkage long
+android_compat_clock_adjtime(const clockid_t which_clock,
+			     struct compat_timex __user *buf)
+{
+	struct compat_timex kbuf;
+
+	/* clock_adjtime() is allowed only for read. */
+	if (copy_from_user(&kbuf, buf, sizeof(struct compat_timex)))
+		return -EFAULT;
+	if (kbuf.modes != 0)
+		return -EPERM;
+	return compat_sys_clock_adjtime(which_clock, buf);
+}
+
 static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(access),
+	COMPAT_SYSCALL_ENTRY_ALT(adjtimex, android_compat_adjtimex),
 	COMPAT_SYSCALL_ENTRY(brk),
 	COMPAT_SYSCALL_ENTRY(capget),
 	COMPAT_SYSCALL_ENTRY(capset),
 	COMPAT_SYSCALL_ENTRY(chdir),
 	COMPAT_SYSCALL_ENTRY(chmod),
-	COMPAT_SYSCALL_ENTRY(clock_gettime),
+	COMPAT_SYSCALL_ENTRY_ALT(clock_adjtime, android_compat_clock_adjtime),
 	COMPAT_SYSCALL_ENTRY(clock_getres),
+	COMPAT_SYSCALL_ENTRY(clock_gettime),
 	COMPAT_SYSCALL_ENTRY(clock_nanosleep),
 	COMPAT_SYSCALL_ENTRY(clock_settime),
 	COMPAT_SYSCALL_ENTRY(clone),
