@@ -2120,7 +2120,6 @@ static void max98090_pll_work(struct work_struct *work)
 	/* Toggle shutdown OFF then ON */
 	snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, 0);
-	msleep(10);
 	snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, M98090_SHDNN_MASK);
 
