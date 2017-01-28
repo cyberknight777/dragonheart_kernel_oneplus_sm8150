@@ -54,6 +54,7 @@
 
 #include <linux/nsproxy.h>
 #include <net/net_namespace.h>
+#include <net/sock.h>
 #include <net/netns/generic.h>
 
 #define PPP_VERSION	"2.4.2"
@@ -389,7 +390,7 @@ static int ppp_open(struct inode *inode, struct file *file)
 	/*
 	 * This could (should?) be enforced by the permissions on /dev/ppp.
 	 */
-	if (!capable(CAP_NET_ADMIN))
+	if (!android_ns_capable(current->nsproxy->net_ns, CAP_NET_ADMIN))
 		return -EPERM;
 	return 0;
 }
