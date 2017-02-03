@@ -136,4 +136,11 @@ config BT_ENFORCE_CLASSIC_SECURITY
 	  Key Size command to prevent BT classic connection with very short
 	  encryption key.
 
+config BT_HCI_LE_SPLITTER
+	bool "Split LE out for separate userspace stack"
+	depends on BT
+	help
+	  Creates a char device to allow a userspace stack to handle LE
+	  comms. Bluez will only see an EDR chip and will act accordingly.
+
 source "drivers/bluetooth/Kconfig"
