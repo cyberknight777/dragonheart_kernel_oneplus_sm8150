@@ -22,22 +22,18 @@
 
 #define JAIL_CONTROL_NAME "jail-control"
 
-static int add_device(struct jail_control_add_dev __user *arg)
+static int add_device(const char __user *path, u32 __user *devnum)
 {
-	struct jail_control_add_dev karg;
 	dev_t dev;
 	u32 dev_encoded;
 	int ret;
 
-	if (copy_from_user(&karg, arg, sizeof(karg)))
-		return -EFAULT;
-
-	ret = add_jail_device(karg.path, &dev);
+	ret = add_jail_device(path, &dev);
 	if (ret < 0 && ret != -EEXIST)
 		return ret;
 
 	dev_encoded = new_encode_dev(dev);
-	if (copy_to_user(&arg->devnum, &dev_encoded, sizeof(arg->devnum)))
+	if (copy_to_user(devnum, &dev_encoded, sizeof(*devnum)))
 		return -EFAULT;
 
 	return ret;
@@ -57,8 +53,43 @@ static long jail_control_ioctl(struct file *file, unsigned int cmd,
 			       unsigned long arg)
 {
 	switch (cmd) {
-	case JAIL_CONTROL_ADD_DEVICE:
-		return add_device((struct jail_control_add_dev __user *) arg);
+	case JAIL_CONTROL_ADD_DEVICE: {
+		struct jail_control_add_dev karg;
+		struct jail_control_add_dev __user *uarg =
+			(struct jail_control_add_dev __user *) arg;
+		if (copy_from_user(&karg, uarg, sizeof(karg)))
+			return -EFAULT;
+
+		return add_device(karg.path, &uarg->devnum);
+	}
+	case JAIL_CONTROL_REMOVE_DEVICE:
+		return remove_device((u32 __user *) arg);
+	default:
+		return -ENOTTY;
+	}
+}
+
+/* for compat_ioctl */
+struct jail_control_add_dev32 {
+	__u32 path;	/* pointer */
+	__u32 devnum;
+};
+#define JAIL_CONTROL_ADD_DEVICE32 _IOWR('C', 0, struct jail_control_add_dev32)
+
+static long jail_control_compat_ioctl(struct file *file, unsigned int cmd,
+				      unsigned long arg)
+{
+	switch (cmd) {
+	case JAIL_CONTROL_ADD_DEVICE32: {
+		struct jail_control_add_dev32 karg;
+		struct jail_control_add_dev32 __user *uarg =
+			(struct jail_control_add_dev32 __user *) arg;
+		if (copy_from_user(&karg, uarg, sizeof(karg)))
+			return -EFAULT;
+
+		return add_device((const char __user *) (uintptr_t) karg.path,
+				  &uarg->devnum);
+	}
 	case JAIL_CONTROL_REMOVE_DEVICE:
 		return remove_device((u32 __user *) arg);
 	default:
@@ -69,6 +100,7 @@ static long jail_control_ioctl(struct file *file, unsigned int cmd,
 static const struct file_operations jail_control_fops = {
 	.owner			= THIS_MODULE,
 	.open			= simple_open,
+	.compat_ioctl		= jail_control_compat_ioctl,
 	.unlocked_ioctl		= jail_control_ioctl,
 	.llseek			= noop_llseek,
 };
