@@ -246,6 +246,7 @@ struct iface_stat {
 struct iface_stat_work {
 	struct work_struct iface_work;
 	struct iface_stat *iface_entry;
+	struct net *net;
 };
 
 /*

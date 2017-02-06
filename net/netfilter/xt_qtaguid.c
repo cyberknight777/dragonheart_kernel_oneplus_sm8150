@@ -876,8 +876,7 @@ static void iface_create_proc_worker(struct work_struct *work)
 	struct iface_stat_work *isw = container_of(work, struct iface_stat_work,
 						   iface_work);
 	struct iface_stat *new_iface  = isw->iface_entry;
-	struct qtaguid_net *qtaguid_net =
-		qtaguid_pernet(dev_net(new_iface->net_dev));
+	struct qtaguid_net *qtaguid_net = qtaguid_pernet(isw->net);
 
 	/* iface_entries are not deleted, so safe to manipulate. */
 	proc_entry = proc_mkdir(new_iface->ifname,
@@ -907,6 +906,7 @@ static void iface_create_proc_worker(struct work_struct *work)
 
 	IF_DEBUG("qtaguid: iface_stat: create_proc(): done "
 		 "entry=%p dev=%s\n", new_iface, new_iface->ifname);
+	put_net(isw->net);
 	kfree(isw);
 }
 
@@ -990,6 +990,7 @@ static struct iface_stat *iface_alloc(struct net_device *net_dev)
 		return NULL;
 	}
 	isw->iface_entry = new_iface;
+	isw->net = get_net(dev_net(net_dev));
 	INIT_WORK(&isw->iface_work, iface_create_proc_worker);
 	schedule_work(&isw->iface_work);
 	list_add(&new_iface->list, &qtaguid_net->iface_stat_list);
