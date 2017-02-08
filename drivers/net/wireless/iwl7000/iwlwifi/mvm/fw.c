@@ -1093,6 +1093,42 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 	if (ret < 0)
 		IWL_DEBUG_RADIO(mvm, "failed to send TAS_CONFIG (%d)\n", ret);
 }
+
+static int iwl_mvm_eval_dsm_indonesia_5g2(struct iwl_mvm *mvm)
+{
+	int ret = iwl_acpi_get_dsm_value((&mvm->fwrt)->dev, 0,
+					 DSM_FUNC_ENABLE_INDONESIA_5G2);
+
+	IWL_DEBUG_RADIO(mvm,
+			"Evaluated DSM function ENABLE_INDONESIA_5G2, ret=%d\n",
+			ret);
+
+	return ret == 1 ? 1 : 0;
+}
+
+static void iwl_mvm_lari_cfg(struct iwl_mvm *mvm)
+{
+	int ret;
+	struct iwl_lari_config_change_cmd cmd = {};
+
+	if (iwl_mvm_eval_dsm_indonesia_5g2(mvm))
+		cmd.config_bitmap |=
+			cpu_to_le32(LARI_CONFIG_ENABLE_5G2_IN_INDONESIA_MSK);
+
+	/* apply more config masks here */
+
+	if (cmd.config_bitmap) {
+		IWL_DEBUG_RADIO(mvm, "sending LARI_CONFIG_CHANGE\n");
+		ret = iwl_mvm_send_cmd_pdu(mvm,
+					   WIDE_ID(REGULATORY_AND_NVM_GROUP,
+						   LARI_CONFIG_CHANGE),
+					   0, sizeof(cmd), &cmd);
+		if (ret < 0)
+			IWL_DEBUG_RADIO(mvm,
+					"Failed to send LARI_CONFIG_CHANGE (%d)\n",
+					ret);
+	}
+}
 #else /* CONFIG_ACPI */
 
 inline int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm,
@@ -1122,6 +1158,10 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 }
 
 static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
+{
+}
+
+static void iwl_mvm_lari_cfg(struct iwl_mvm *mvm)
 {
 }
 #endif /* CONFIG_ACPI */
@@ -1496,6 +1536,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		goto error;
 
 	iwl_mvm_tas_init(mvm);
+	iwl_mvm_lari_cfg(mvm);
 	iwl_mvm_leds_sync(mvm);
 
 	iwl_mvm_ftm_initiator_smooth_config(mvm);
