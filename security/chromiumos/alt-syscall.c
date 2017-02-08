@@ -231,6 +231,8 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_getpid	__NR_ia32_getpid
 #define __NR_compat_getppid	__NR_ia32_getppid
 #define __NR_compat_getpriority	__NR_ia32_getpriority
+#define __NR_compat_getresgid	__NR_ia32_getresgid
+#define __NR_compat_getresuid	__NR_ia32_getresuid
 #define __NR_compat_getrlimit	__NR_ia32_getrlimit
 #define __NR_compat_getrusage	__NR_ia32_getrusage
 #define __NR_compat_getsid	__NR_ia32_getsid
@@ -392,6 +394,8 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_getegid32	__NR_ia32_getegid32
 #define __NR_compat_geteuid32	__NR_ia32_geteuid32
 #define __NR_compat_getgid32	__NR_ia32_getgid32
+#define __NR_compat_getresgid32	__NR_ia32_getresgid32
+#define __NR_compat_getresuid32	__NR_ia32_getresuid32
 #define __NR_compat_getuid32	__NR_ia32_getuid32
 #define __NR_compat_lchown32	__NR_ia32_lchown32
 #define __NR_compat_lstat64	__NR_ia32_lstat64
@@ -908,6 +912,8 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(geteuid),
 	SYSCALL_ENTRY(getgid),
 	SYSCALL_ENTRY(getgroups),
+	SYSCALL_ENTRY(getresgid),
+	SYSCALL_ENTRY(getresuid),
 	SYSCALL_ENTRY(getuid),
 	SYSCALL_ENTRY(newfstatat),
 	SYSCALL_ENTRY(mmap),
@@ -942,6 +948,8 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(geteuid32),
 	SYSCALL_ENTRY(getgid32),
 	SYSCALL_ENTRY(getgroups32),
+	SYSCALL_ENTRY(getresgid32),
+	SYSCALL_ENTRY(getresuid32),
 	SYSCALL_ENTRY(getuid32),
 	SYSCALL_ENTRY(lchown32),
 	SYSCALL_ENTRY(lstat64),
@@ -1341,6 +1349,8 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(getgid),
 	COMPAT_SYSCALL_ENTRY(getgid32),
 	COMPAT_SYSCALL_ENTRY(getgroups32),
+	COMPAT_SYSCALL_ENTRY(getresgid32),
+	COMPAT_SYSCALL_ENTRY(getresuid32),
 	COMPAT_SYSCALL_ENTRY(getuid),
 	COMPAT_SYSCALL_ENTRY(getuid32),
 	COMPAT_SYSCALL_ENTRY(lchown32),
