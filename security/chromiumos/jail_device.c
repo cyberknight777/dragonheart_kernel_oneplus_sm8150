@@ -14,8 +14,9 @@
 #include <linux/err.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-#include <linux/namei.h>
+#include <linux/kernel.h>
 #include <linux/mutex.h>
+#include <linux/namei.h>
 #include <linux/path.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
@@ -42,8 +43,9 @@ struct jail_device {
 };
 
 struct jail_file_data {
-	bool detached;
 	struct file *inner_file;
+	int num_ifs_detached;
+	int ifnums_to_reattach[USB_MAXINTERFACES];
 };
 
 /* Indexed by minor number. */
@@ -77,11 +79,13 @@ static int jail_lockdown(struct file *file)
 	return file->f_op->unlocked_ioctl(file, USBDEVFS_DROP_PRIVILEGES, 0);
 }
 
-static int jail_detach(struct jail_device *jail)
+static int jail_detach(struct jail_device *jail, struct jail_file_data *jfile)
 {
-	struct usb_interface *intf;
-	struct usb_driver *driver;
 	struct device *dev;
+	struct usb_device *usbdev;
+	struct usb_host_config *config;
+	int i;
+	int num_intfs;
 	dev_t devt = jail->inner_path.dentry->d_inode->i_rdev;
 
 	dev = bus_find_device(&usb_bus_type, NULL, &devt,
@@ -89,27 +93,46 @@ static int jail_detach(struct jail_device *jail)
 	if (!dev)
 		return -EINVAL;
 
-	/* check if it's already detached */
-	if (!dev->driver)
-		goto detached;
+	usbdev = to_usb_device(dev);
+	usb_lock_device(usbdev);
 
-	/*
-	 * Since we got this from a filesystem path this USB device must
-	 * be an interface.
-	 */
-	intf = to_usb_interface(dev);
-	driver = to_usb_driver(dev->driver);
-	dev_info(&jail->dev, "detaching driver %s\n", driver->name);
-	usb_driver_release_interface(driver, intf);
-detached:
+	/* Look for all interfaces in the active configuration. */
+	config = usbdev->actconfig;
+	if (!config)
+		goto no_config;
+
+	num_intfs = min_t(int, config->desc.bNumInterfaces, USB_MAXINTERFACES);
+	for (i = 0; i < num_intfs; i++) {
+		struct usb_driver *driver;
+		struct usb_interface *intf = config->interface[i];
+
+		if (!intf)
+			continue;
+
+		/* Check if this interface is already detached. */
+		if (!intf->dev.driver)
+			continue;
+		driver = to_usb_driver(intf->dev.driver);
+
+		dev_info(&jail->dev, "detaching driver %s\n", driver->name);
+		usb_driver_release_interface(driver, intf);
+
+		jfile->ifnums_to_reattach[jfile->num_ifs_detached++] =
+			intf->altsetting[0].desc.bInterfaceNumber;
+	}
+
+no_config:
+	usb_unlock_device(usbdev);
 	put_device(dev);
 	return 0;
 }
 
-static int jail_attach(struct jail_device *jail)
+static int jail_attach(struct jail_device *jail, struct jail_file_data *jfile)
 {
 	struct device *dev;
+	struct usb_device *usbdev;
 	dev_t devt = jail->inner_path.dentry->d_inode->i_rdev;
+	int i;
 	int ret;
 
 	dev = bus_find_device(&usb_bus_type, NULL, &devt,
@@ -117,10 +140,32 @@ static int jail_attach(struct jail_device *jail)
 	if (!dev)
 		return 0;
 
-	dev_info(&jail->dev, "attempting to reattach\n");
-	mutex_lock(&dev->parent->mutex);
-	ret = device_attach(dev);
-	mutex_unlock(&dev->parent->mutex);
+	usbdev = to_usb_device(dev);
+	usb_lock_device(usbdev);
+
+	for (i = 0; i < jfile->num_ifs_detached; i++) {
+		int ifnum = jfile->ifnums_to_reattach[i];
+		struct usb_interface *intf = usb_ifnum_to_if(usbdev, ifnum);
+
+		if (!intf) {
+			dev_warn(&jail->dev, "failed to find interface %d\n",
+				 ifnum);
+			continue;
+		}
+
+		ret = device_attach(&intf->dev);
+		if (ret < 0) {
+			dev_err(&jail->dev,
+				"failed to reattach driver for interface %d\n",
+				ifnum);
+			break;
+		}
+
+		dev_info(&jail->dev, "reattached driver for interface %d\n",
+			 ifnum);
+	}
+
+	usb_unlock_device(usbdev);
 	put_device(dev);
 	return ret;
 }
@@ -166,7 +211,7 @@ static int jail_open(struct inode *inode, struct file *file)
 		ret = PTR_ERR(jfile->inner_file);
 		goto err_open_inner;
 	}
-	jfile->detached = false;
+	jfile->num_ifs_detached = 0;
 
 	ret = -EACCES;
 	switch (request_access(jail->inner_name)) {
@@ -176,10 +221,9 @@ static int jail_open(struct inode *inode, struct file *file)
 		jail_lockdown(jfile->inner_file);
 		break;
 	case JAIL_REQUEST_ALLOW_WITH_DETACH:
-		ret = jail_detach(jail);
+		ret = jail_detach(jail, jfile);
 		if (ret < 0)
 			goto err_request_access;
-		jfile->detached = true;
 		break;
 	case JAIL_REQUEST_DENY:
 		goto err_request_access;
@@ -206,8 +250,8 @@ static int jail_release(struct inode *inode, struct file *file)
 	struct jail_device *jail = container_of(cdev, struct jail_device, cdev);
 	struct jail_file_data *jfile = file->private_data;
 
-	if (jfile->detached)
-		jail_attach(jail);
+	if (jfile->num_ifs_detached)
+		jail_attach(jail, jfile);
 
 	fput(jfile->inner_file);
 	kfree(jfile);
