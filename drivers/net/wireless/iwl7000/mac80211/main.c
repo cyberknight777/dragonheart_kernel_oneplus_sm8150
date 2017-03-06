@@ -1165,6 +1165,51 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		goto fail_rate;
 	}
 
+	if (local->rate_ctrl) {
+		clear_bit(IEEE80211_HW_SUPPORTS_VHT_EXT_NSS_BW, hw->flags);
+		if (local->rate_ctrl->ops->capa & RATE_CTRL_CAPA_VHT_EXT_NSS_BW)
+			ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
+	}
+
+	/*
+	 * If the VHT capabilities don't have IEEE80211_VHT_EXT_NSS_BW_CAPABLE,
+	 * or have it when we don't, copy the sband structure and set/clear it.
+	 * This is necessary because rate scaling algorithms could be switched
+	 * and have different support values.
+	 * Print a message so that in the common case the reallocation can be
+	 * avoided.
+	 */
+	BUILD_BUG_ON(NUM_NL80211_BANDS > 8 * sizeof(local->sband_allocated));
+	for (band = 0; band < NUM_NL80211_BANDS; band++) {
+		struct ieee80211_supported_band *sband;
+		bool local_cap, ie_cap;
+
+		local_cap = ieee80211_hw_check(hw, SUPPORTS_VHT_EXT_NSS_BW);
+
+		sband = local->hw.wiphy->bands[band];
+		if (!sband || !sband->vht_cap.vht_supported)
+			continue;
+
+		ie_cap = !!(sband->vht_cap.vht_mcs.tx_highest &
+			    cpu_to_le16(IEEE80211_VHT_EXT_NSS_BW_CAPABLE));
+
+		if (local_cap == ie_cap)
+			continue;
+
+		sband = kmemdup(sband, sizeof(*sband), GFP_KERNEL);
+		if (!sband)
+			goto fail_rate;
+
+		wiphy_dbg(hw->wiphy, "copying sband (band %d) due to VHT EXT NSS BW flag\n",
+			  band);
+
+		sband->vht_cap.vht_mcs.tx_highest ^=
+			cpu_to_le16(IEEE80211_VHT_EXT_NSS_BW_CAPABLE);
+
+		local->hw.wiphy->bands[band] = sband;
+		local->sband_allocated |= BIT(band);
+	}
+
 	/* add one default STA interface if supported */
 	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_STATION) &&
 	    !ieee80211_hw_check(hw, NO_AUTO_VIF)) {
@@ -1291,6 +1336,7 @@ static int ieee80211_free_ack_frame(int id, void *p, void *data)
 void ieee80211_free_hw(struct ieee80211_hw *hw)
 {
 	struct ieee80211_local *local = hw_to_local(hw);
+	enum nl80211_band band;
 
 	mutex_destroy(&local->iflist_mtx);
 	mutex_destroy(&local->mtx);
@@ -1307,6 +1353,12 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
 	ieee80211_free_led_names(local);
 
 	kfree(rcu_access_pointer(local->uapsd_black_list));
+
+	for (band = 0; band < NUM_NL80211_BANDS; band++) {
+		if (!(local->sband_allocated & BIT(band)))
+			continue;
+		kfree(local->hw.wiphy->bands[band]);
+	}
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
 	intel_regulatory_deregister(local);

@@ -330,6 +330,7 @@ static const char *hw_flag_names[] = {
 	FLAG(SUPPORTS_TDLS_BUFFER_STA),
 	FLAG(DEAUTH_NEED_MGD_TX_PREP),
 	FLAG(BUFF_MMPDU_TXQ),
+	FLAG(SUPPORTS_VHT_EXT_NSS_BW),
 #undef FLAG
 };
 
