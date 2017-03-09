@@ -1081,23 +1081,22 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 	param->bits_per_sec = ctx->enc_params.bitrate;
 	ctx->enc_params.bitrate = 0;
 
-	if (!ctx->enc_params.multi_ref_frame_mode ||
-	    ctx->enc_params.frames_since_intra % 4 == 0) {
-		/* Frame controls for temporal layer 0. */
+	/* TODO(pbos): When VEA supports temporal layers, set those up here. */
+	if (ctx->enc_params.multi_ref_frame_mode) {
+		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+		param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+	} else {
+		/*
+		 * TODO(pbos): Consider removing multi_ref_frame_mode or to use
+		 * it for 1080p as well. This is bad for quality.
+		 */
+		/* Only reference/refresh one layer. */
 		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
 		param->grf_frame_ctrl = GO2001_FRM_CTRL_NO_REFRESH;
 		param->arf_frame_ctrl = GO2001_FRM_CTRL_NO_REFRESH;
-	} else if (ctx->enc_params.frames_since_intra % 2 == 0) {
-		/* Frame controls for temporal layer 1. */
-		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
-		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
-		param->arf_frame_ctrl = GO2001_FRM_CTRL_NO_REFRESH;
-	} else {
-		/* Frame controls for temporal layer 2. */
-		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
-		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
-		param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
 	}
+
 	ctx->enc_params.frames_since_intra++;
 
 	return 0;
