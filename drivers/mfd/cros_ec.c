@@ -34,6 +34,11 @@ static struct cros_ec_platform ec_p = {
 	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_EC_INDEX),
 };
 
+static struct cros_ec_platform ec_fp_p = {
+	.ec_name = CROS_EC_DEV_FP_NAME,
+	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_EC_INDEX),
+};
+
 static struct cros_ec_platform pd_p = {
 	.ec_name = CROS_EC_DEV_PD_NAME,
 	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_PD_INDEX),
@@ -43,6 +48,12 @@ static const struct mfd_cell ec_cell = {
 	.name = "cros-ec-ctl",
 	.platform_data = &ec_p,
 	.pdata_size = sizeof(ec_p),
+};
+
+static const struct mfd_cell ec_fp_cell = {
+	.name = "cros-ec-ctl",
+	.platform_data = &ec_fp_p,
+	.pdata_size = sizeof(ec_fp_p),
 };
 
 static const struct mfd_cell ec_pd_cell = {
@@ -324,6 +335,7 @@ static void cros_ec_accel_legacy_register(struct cros_ec_device *ec_dev)
 
 int cros_ec_register(struct cros_ec_device *ec_dev)
 {
+	const struct mfd_cell *cell = &ec_cell;
 	struct device *dev = ec_dev->dev;
 	int err = 0;
 
@@ -362,7 +374,13 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		}
 	}
 
-	err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, &ec_cell, 1,
+	/* check whether this is actually a Fingerprint MCU rather than an EC */
+	if (cros_ec_check_features(ec_dev, EC_FEATURE_FINGERPRINT)) {
+		dev_info(dev, "Fingerprint MCU detected.\n");
+		cell = &ec_fp_cell;
+	}
+
+	err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, cell, 1,
 			      NULL, ec_dev->irq, NULL);
 	if (err) {
 		dev_err(dev,
