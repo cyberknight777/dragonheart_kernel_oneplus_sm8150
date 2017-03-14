@@ -219,6 +219,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_ftruncate	__NR_ia32_ftruncate
 #define __NR_compat_futex	__NR_ia32_futex
 #define __NR_compat_futimesat	__NR_ia32_futimesat
+#define __NR_compat_getcpu	__NR_ia32_getcpu
 #define __NR_compat_getcwd	__NR_ia32_getcwd
 #define __NR_compat_getdents	__NR_ia32_getdents
 #define __NR_compat_getdents64	__NR_ia32_getdents64
@@ -232,6 +233,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_getppid	__NR_ia32_getppid
 #define __NR_compat_getpriority	__NR_ia32_getpriority
 #define __NR_compat_getresgid	__NR_ia32_getresgid
+#define __NR_compat_getrandom	__NR_ia32_getrandom
 #define __NR_compat_getresuid	__NR_ia32_getresuid
 #define __NR_compat_getrlimit	__NR_ia32_getrlimit
 #define __NR_compat_getrusage	__NR_ia32_getrusage
@@ -646,6 +648,15 @@ static asmlinkage long android_clock_adjtime(const clockid_t which_clock,
 	return sys_clock_adjtime(which_clock, buf);
 }
 
+static asmlinkage long android_getcpu(unsigned __user *cpu,
+				      unsigned __user *node,
+				      struct getcpu_cache __user *tcache)
+{
+	if (node || tcache)
+		return -EPERM;
+	return sys_getcpu(cpu, node, tcache);
+}
+
 static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY_ALT(adjtimex, android_adjtimex),
 	SYSCALL_ENTRY(brk),
@@ -685,12 +696,14 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(fsync),
 	SYSCALL_ENTRY(ftruncate),
 	SYSCALL_ENTRY(futex),
+	SYSCALL_ENTRY_ALT(getcpu, android_getcpu),
 	SYSCALL_ENTRY(getcwd),
 	SYSCALL_ENTRY(getdents64),
 	SYSCALL_ENTRY(getpgid),
 	SYSCALL_ENTRY(getpid),
 	SYSCALL_ENTRY(getppid),
 	SYSCALL_ENTRY_ALT(getpriority, android_getpriority),
+	SYSCALL_ENTRY(getrandom),
 	SYSCALL_ENTRY(getrlimit),
 	SYSCALL_ENTRY(getrusage),
 	SYSCALL_ENTRY(getsid),
@@ -1192,6 +1205,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(ftruncate),
 	COMPAT_SYSCALL_ENTRY(futex),
 	COMPAT_SYSCALL_ENTRY(futimesat),
+	COMPAT_SYSCALL_ENTRY_ALT(getcpu, android_getcpu),
 	COMPAT_SYSCALL_ENTRY(getcwd),
 	COMPAT_SYSCALL_ENTRY(getdents),
 	COMPAT_SYSCALL_ENTRY(getdents64),
@@ -1200,6 +1214,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(getpid),
 	COMPAT_SYSCALL_ENTRY(getppid),
 	COMPAT_SYSCALL_ENTRY_ALT(getpriority, android_getpriority),
+	COMPAT_SYSCALL_ENTRY(getrandom),
 	COMPAT_SYSCALL_ENTRY(getrusage),
 	COMPAT_SYSCALL_ENTRY(getsid),
 	COMPAT_SYSCALL_ENTRY(gettid),
