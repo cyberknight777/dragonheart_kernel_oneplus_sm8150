@@ -782,7 +782,7 @@ static int go2001_s_ctrl(struct go2001_ctx *ctx, enum go2001_hw_ctrl_type type,
 	return go2001_queue_msg_and_wait(ctx, msg);
 }
 
-static int go2001_set_def_encoder_ctrls(struct go2001_ctx *ctx)
+static int go2001_set_def_encoder_coding_ctrl(struct go2001_ctx *ctx)
 {
 	union go2001_hw_ctrl hw_ctrl;
 	struct go2001_enc_coding_ctrl *ctrl = &hw_ctrl.coding_ctrl;
@@ -801,6 +801,32 @@ static int go2001_set_def_encoder_ctrls(struct go2001_ctx *ctx)
 	ctrl->quality_metric = GO2001_CODING_CTRL_QM_SSIM;
 
 	return go2001_s_ctrl(ctx, GO2001_HW_CTRL_TYPE_CODING, &hw_ctrl);
+}
+
+static int go2001_set_def_encoder_rate_ctrl(struct go2001_ctx *ctx)
+{
+	union go2001_hw_ctrl hw_ctrl;
+	struct go2001_enc_rate_ctrl *ctrl = &hw_ctrl.rate_ctrl;
+
+	memset(&hw_ctrl, 0, sizeof(hw_ctrl));
+
+	/* TODO(pbos): Consider propagating QP thresholds. */
+	ctrl->qp_min = 2;
+	ctrl->qp_max = 106;
+	/* Disable periodic refreshing. */
+	ctrl->intra_picture_rate = 0;
+	ctrl->golden_picture_rate = 0;
+	ctrl->altref_picture_rate = 0;
+	/* This matches the default settings. */
+	ctrl->picture_rc = 1;
+	ctrl->picture_skip = 0;
+	ctrl->qp_hdr = -1;
+	ctrl->bitrate_window = 150;
+	/* TODO(pbos): Disable this when turning on temporal layers. */
+	ctrl->adaptive_golden_update = 1;
+	ctrl->adaptive_golden_boost = 15;
+
+	return go2001_s_ctrl(ctx, GO2001_HW_CTRL_TYPE_RATE, &hw_ctrl);
 }
 
 static int go2001_init_encoder(struct go2001_ctx *ctx)
@@ -845,7 +871,10 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 		return ret ? ret : -EIO;
 	}
 
-	return go2001_set_def_encoder_ctrls(ctx);
+	ret = go2001_set_def_encoder_coding_ctrl(ctx);
+	if (ret)
+		return ret;
+	return go2001_set_def_encoder_rate_ctrl(ctx);
 }
 
 void go2001_release_codec(struct go2001_ctx *ctx)

@@ -208,6 +208,23 @@ struct go2001_enc_coding_ctrl {
 } __attribute__((packed));
 
 struct go2001_enc_rate_ctrl {
+	u32 picture_rc;
+	u32 picture_skip;
+	s32 qp_hdr;
+	u32 qp_min;
+	u32 qp_max;
+	u32 bits_per_second;
+	u32 layer_bits_per_second[4];
+	u32 layer_frame_rate_denom[4];
+	u32 bitrate_window;
+	s32 intra_qp_delta;
+	u32 fixed_intra_qp;
+	u32 intra_picture_rate;
+	u32 golden_picture_rate;
+	u32 altref_picture_rate;
+	u32 golden_picture_boost;
+	u32 adaptive_golden_boost;
+	u32 adaptive_golden_update;
 } __attribute__((packed));
 
 struct go2001_enc_preprocess_ctrl {
