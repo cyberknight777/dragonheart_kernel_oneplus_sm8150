@@ -193,8 +193,8 @@ static void cros_ec_sensors_register(struct cros_ec_device *ec_dev)
 
 	resp = (struct ec_response_motion_sense *)msg->data;
 	sensor_num = resp->dump.sensor_count;
-	/* Allocate 2 extra sensors in case lid angle or FIFO are needed */
-	sensor_cells = kzalloc(sizeof(struct mfd_cell) * (sensor_num + 2),
+	/* Allocate 2 extra sensors in case a FIFO is needed */
+	sensor_cells = kzalloc(sizeof(struct mfd_cell) * (sensor_num + 1),
 			       GFP_KERNEL);
 	if (sensor_cells == NULL)
 		goto error;
@@ -252,17 +252,8 @@ static void cros_ec_sensors_register(struct cros_ec_device *ec_dev)
 		sensor_type[resp->info.type]++;
 		id++;
 	}
-	if (sensor_type[MOTIONSENSE_TYPE_ACCEL] >= 2) {
-		sensor_platforms[id].sensor_num = sensor_num;
-
-		sensor_cells[id].name = "cros-ec-angle";
-		sensor_cells[id].id = 0;
-		sensor_cells[id].platform_data = &sensor_platforms[id];
-		sensor_cells[id].pdata_size =
-			sizeof(struct cros_ec_sensor_platform);
-		id++;
-	}
-
+	if (sensor_type[MOTIONSENSE_TYPE_ACCEL] >= 2)
+		ec_dev->has_kb_wake_angle = true;
 	ret = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, sensor_cells,
 			      id, NULL, 0, NULL);
 	if (ret)
@@ -289,7 +280,8 @@ static void cros_ec_usb_pd_charger_register(struct cros_ec_device *ec_dev)
 {
 	int ret;
 
-	ret = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, &ec_usb_pd_charger_cell,
+	ret = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO,
+			      &ec_usb_pd_charger_cell,
 			      1, NULL, 0, NULL);
 	if (ret)
 		dev_err(ec_dev->dev, "failed to add usb-pd-charger\n");
@@ -397,15 +389,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		cell = &ec_tp_cell;
 	}
 
-	err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, cell, 1,
-			      NULL, ec_dev->irq, NULL);
-	if (err) {
-		dev_err(dev,
-			"Failed to register Embedded Controller subdevice %d\n",
-			err);
-		goto fail_mfd;
-	}
-
 	/* Check whether this EC is a sensor hub. */
 	if (cros_ec_check_features(ec_dev, EC_FEATURE_MOTION_SENSE))
 		cros_ec_sensors_register(ec_dev);
@@ -420,6 +403,15 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	/* Check whether this EC has the PD charger manager */
 	if (cros_ec_check_features(ec_dev, EC_FEATURE_USB_PD))
 		cros_ec_usb_pd_charger_register(ec_dev);
+
+	/* Create the generic device for the main EC */
+	err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, cell, 1,
+			      NULL, ec_dev->irq, NULL);
+	if (err) {
+		dev_err(dev,
+			"Failed to register Embedded Controller subdevice %d\n",
+			err);
+	}
 
 	if (ec_dev->max_passthru) {
 		/*
