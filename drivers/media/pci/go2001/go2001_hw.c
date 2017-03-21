@@ -1084,8 +1084,8 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 	/* TODO(pbos): When VEA supports temporal layers, set those up here. */
 	if (ctx->enc_params.multi_ref_frame_mode) {
 		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
-		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
-		param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
+		param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
 	} else {
 		/*
 		 * TODO(pbos): Consider removing multi_ref_frame_mode or to use
