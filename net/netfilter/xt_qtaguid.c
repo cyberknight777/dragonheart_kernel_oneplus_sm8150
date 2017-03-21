@@ -3237,6 +3237,7 @@ static void __net_exit qtaguid_net_exit(struct net *net)
 				 &qtaguid_net->iface_stat_list, list) {
 		iface_delete_proc(qtaguid_net, iface_entry);
 		tag_stat_tree_erase(&iface_entry->tag_stat_tree);
+		kfree(iface_entry->ifname);
 		kfree(iface_entry);
 	}
 
