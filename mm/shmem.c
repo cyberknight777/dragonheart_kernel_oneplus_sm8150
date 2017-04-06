@@ -1683,8 +1683,8 @@ repeat:
 			/* Or update major stats only when swapin succeeds?? */
 			if (fault_type) {
 				*fault_type |= VM_FAULT_MAJOR;
-				count_vm_event(PGMAJFAULT);
-				count_memcg_event_mm(charge_mm, PGMAJFAULT);
+				count_vm_event(PGMAJFAULT_S);
+				count_memcg_event_mm(charge_mm, PGMAJFAULT_S);
 			}
 			/* Here we actually start the io */
 			page = shmem_swapin(swap, gfp, info, index);

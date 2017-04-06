@@ -2940,8 +2940,8 @@ int do_swap_page(struct vm_fault *vmf)
 
 		/* Had to read the page from swap area: Major fault */
 		ret = VM_FAULT_MAJOR;
-		count_vm_event(PGMAJFAULT);
-		count_memcg_event_mm(vma->vm_mm, PGMAJFAULT);
+		count_vm_event(PGMAJFAULT_A);
+		count_memcg_event_mm(vma->vm_mm, PGMAJFAULT_A);
 	} else if (PageHWPoison(page)) {
 		/*
 		 * hwpoisoned dirty swapcache pages are kept for killing

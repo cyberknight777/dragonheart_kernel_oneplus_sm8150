@@ -1114,6 +1114,9 @@ const char * const vmstat_text[] = {
 
 	"pgfault",
 	"pgmajfault",
+	"pgmajfault_s",
+	"pgmajfault_a",
+	"pgmajfault_f",
 	"pglazyfreed",
 
 	"pgrefill",
@@ -1655,6 +1658,8 @@ static void *vmstat_start(struct seq_file *m, loff_t *pos)
 	all_vm_events(v);
 	v[PGPGIN] /= 2;		/* sectors -> kbytes */
 	v[PGPGOUT] /= 2;
+	/* Add up page faults */
+	v[PGMAJFAULT] = v[PGMAJFAULT_S] + v[PGMAJFAULT_A] + v[PGMAJFAULT_F];
 #endif
 	return (unsigned long *)m->private + *pos;
 }

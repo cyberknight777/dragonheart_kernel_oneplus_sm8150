@@ -2406,8 +2406,8 @@ int filemap_fault(struct vm_fault *vmf)
 	} else if (!page) {
 		/* No page in the page cache at all */
 		do_sync_mmap_readahead(vmf->vma, ra, file, offset);
-		count_vm_event(PGMAJFAULT);
-		count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT);
+		count_vm_event(PGMAJFAULT_F);
+		count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT_F);
 		ret = VM_FAULT_MAJOR;
 retry_find:
 		page = find_get_page(mapping, offset);

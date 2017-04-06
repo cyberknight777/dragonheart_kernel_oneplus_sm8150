@@ -89,8 +89,8 @@ static int ncp_file_mmap_fault(struct vm_fault *vmf)
 	 * fetches from the network, here the analogue of disk.
 	 * -- nyc
 	 */
-	count_vm_event(PGMAJFAULT);
-	count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT);
+	count_vm_event(PGMAJFAULT_F);
+	count_memcg_event_mm(vmf->vma->vm_mm, PGMAJFAULT_F);
 	return VM_FAULT_MAJOR;
 }
 
