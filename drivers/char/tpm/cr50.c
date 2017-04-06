@@ -65,6 +65,8 @@ int cr50_resume(struct device *dev)
 {
 	struct tpm_chip *chip = dev_get_drvdata(dev);
 
+	clear_bit(0, &chip->is_suspended);
+
 	/* Disable deep-sleep, ignore if command failed. */
 	cr50_control_deep_sleep(chip, 0);
 
@@ -97,6 +99,7 @@ int cr50_suspend(struct device *dev)
 		 * on the tpm side.
 		 */
 		cr50_control_deep_sleep(chip, 0);
+		set_bit(0, &chip->is_suspended);
 		return 0;
 	}
 }
