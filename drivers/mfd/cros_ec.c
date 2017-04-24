@@ -39,6 +39,11 @@ static struct cros_ec_platform ec_fp_p = {
 	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_EC_INDEX),
 };
 
+static struct cros_ec_platform ec_tp_p = {
+	.ec_name = CROS_EC_DEV_TP_NAME,
+	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_EC_INDEX),
+};
+
 static struct cros_ec_platform pd_p = {
 	.ec_name = CROS_EC_DEV_PD_NAME,
 	.cmd_offset = EC_CMD_PASSTHRU_OFFSET(CROS_EC_DEV_PD_INDEX),
@@ -54,6 +59,12 @@ static const struct mfd_cell ec_fp_cell = {
 	.name = "cros-ec-ctl",
 	.platform_data = &ec_fp_p,
 	.pdata_size = sizeof(ec_fp_p),
+};
+
+static const struct mfd_cell ec_tp_cell = {
+	.name = "cros-ec-ctl",
+	.platform_data = &ec_tp_p,
+	.pdata_size = sizeof(ec_tp_p),
 };
 
 static const struct mfd_cell ec_pd_cell = {
@@ -378,6 +389,12 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	if (cros_ec_check_features(ec_dev, EC_FEATURE_FINGERPRINT)) {
 		dev_info(dev, "Fingerprint MCU detected.\n");
 		cell = &ec_fp_cell;
+	}
+
+	/* check whether this is actually a Touchpad MCU rather than an EC */
+	if (cros_ec_check_features(ec_dev, EC_FEATURE_TOUCHPAD)) {
+		dev_info(dev, "Touchpad MCU detected.\n");
+		cell = &ec_tp_cell;
 	}
 
 	err = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, cell, 1,
