@@ -77,6 +77,13 @@ struct cros_ec_sensors_core_state {
 				    unsigned long scan_mask, s16 *data);
 
 	int curr_sampl_freq;
+
+	/* Min and Max Sampling Frequency in mHz */
+	u32 min_freq;
+	u32 max_freq;
+
+	/* event fifo size represented in number of events */
+	u32 fifo_max_event_count;
 };
 
 /**

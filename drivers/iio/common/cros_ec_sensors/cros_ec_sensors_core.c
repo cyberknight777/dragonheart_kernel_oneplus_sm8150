@@ -35,6 +35,70 @@ static char *cros_ec_loc[] = {
 	[MOTIONSENSE_LOC_MAX] = "unknown",
 };
 
+static void get_default_min_max_freq_and_fifo_size(enum motionsensor_type type,
+	uint32_t *min_freq, uint32_t *max_freq, uint32_t *max_fifo_events)
+{
+	/* we don't know size of fifo, so default to smallest size */
+	*max_fifo_events = 128;
+	switch (type) {
+	case MOTIONSENSE_TYPE_ACCEL:
+	case MOTIONSENSE_TYPE_GYRO:
+		*min_freq = 12500;
+		*max_freq = 100000;
+		break;
+	case MOTIONSENSE_TYPE_MAG:
+		*min_freq = 5000;
+		*max_freq = 25000;
+		break;
+	case MOTIONSENSE_TYPE_PROX:
+	case MOTIONSENSE_TYPE_LIGHT:
+		*min_freq = 100;
+		*max_freq = 50000;
+		break;
+	case MOTIONSENSE_TYPE_BARO:
+		*min_freq = 250;
+		*max_freq = 20000;
+		break;
+	case MOTIONSENSE_TYPE_ACTIVITY:
+	default:
+		*max_fifo_events = 0;
+		*min_freq = 0;
+		*max_freq = 0;
+		break;
+	}
+}
+
+static int cros_ec_get_host_cmd_version_mask(struct cros_ec_device *ec_dev,
+					     u16 cmd_offset, u16 cmd, u32 *mask)
+{
+	struct {
+		struct cros_ec_command msg;
+		union {
+			struct ec_params_get_cmd_versions params;
+			struct ec_response_get_cmd_versions resp;
+		};
+	} __packed buf;
+	struct ec_params_get_cmd_versions *params = &buf.params;
+	struct ec_response_get_cmd_versions *resp = &buf.resp;
+	struct cros_ec_command *msg = &buf.msg;
+	int ret;
+
+	memset(&buf, 0, sizeof(buf));
+	msg->version = 0;
+	msg->command = EC_CMD_GET_CMD_VERSIONS + cmd_offset;
+	msg->insize = sizeof(*resp);
+	msg->outsize = sizeof(*params);
+	params->cmd = cmd;
+	ret = cros_ec_cmd_xfer_status(ec_dev, msg);
+	if (ret >= 0) {
+		if (msg->result == EC_RES_SUCCESS)
+			*mask = resp->version_mask;
+		else
+			*mask = 0;
+	}
+	return ret;
+}
+
 int cros_ec_sensors_core_init(struct platform_device *pdev,
 			      struct iio_dev *indio_dev,
 			      bool physical_device)
@@ -43,6 +107,8 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 	struct cros_ec_sensors_core_state *state = iio_priv(indio_dev);
 	struct cros_ec_device *ec_dev = dev_get_drvdata(pdev->dev.parent);
 	struct cros_ec_sensor_platform *sensor_platform = dev_get_platdata(dev);
+	u32 ver_mask = 0;
+	int ret = 0;
 
 	platform_set_drvdata(pdev, indio_dev);
 
@@ -58,8 +124,18 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 
 	mutex_init(&state->cmd_lock);
 
+	/* determine what version of MOTIONSENSE CMD EC has */
+	ret = cros_ec_get_host_cmd_version_mask(ec_dev,
+						sensor_platform->cmd_offset,
+						EC_CMD_MOTION_SENSE_CMD,
+						&ver_mask);
+	if (ret < 0 || ver_mask == 0) {
+		dev_warn(dev, "Motionsense cmd version too old, aborting...\n");
+		return -ENODEV;
+	}
+
 	/* Set up the host command structure. */
-	state->msg->version = 2;
+	state->msg->version = fls(ver_mask) - 1;
 	state->msg->command = EC_CMD_MOTION_SENSE_CMD +
 				sensor_platform->cmd_offset;
 	state->msg->outsize = sizeof(struct ec_params_motion_sense);
@@ -78,6 +154,20 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 		}
 		state->type = state->resp->info.type;
 		state->loc = state->resp->info.location;
+		if (state->msg->version < 3) {
+			get_default_min_max_freq_and_fifo_size(
+					state->resp->info.type,
+					&state->min_freq,
+					&state->max_freq,
+					&state->fifo_max_event_count);
+		} else {
+			state->min_freq =
+				state->resp->info_3.min_frequency;
+			state->max_freq =
+				state->resp->info_3.max_frequency;
+			state->fifo_max_event_count =
+				state->resp->info_3.fifo_max_event_count;
+		}
 	}
 
 	return 0;
@@ -160,15 +250,6 @@ static ssize_t cros_ec_sensors_calibrate(struct iio_dev *indio_dev,
 	return ret ? ret : len;
 }
 
-static ssize_t cros_ec_sensors_id(struct iio_dev *indio_dev,
-		uintptr_t private, const struct iio_chan_spec *chan,
-		char *buf)
-{
-	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
-
-	return sprintf(buf, "%d\n", st->param.info.sensor_num);
-}
-
 static ssize_t cros_ec_sensors_loc(struct iio_dev *indio_dev,
 		uintptr_t private, const struct iio_chan_spec *chan,
 		char *buf)
@@ -177,6 +258,20 @@ static ssize_t cros_ec_sensors_loc(struct iio_dev *indio_dev,
 
 	return snprintf(buf, PAGE_SIZE, "%s\n", cros_ec_loc[st->loc]);
 }
+
+#define DEVICE_STATE_INT_ATTR(_name, _var) \
+static ssize_t cros_ec_sensors_##_name(struct iio_dev *indio_dev, \
+		uintptr_t private, const struct iio_chan_spec *chan, \
+		char *buf) \
+{ \
+	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev); \
+	return sprintf(buf, "%d\n", st->_var); \
+}
+
+DEVICE_STATE_INT_ATTR(id, param.info.sensor_num);
+DEVICE_STATE_INT_ATTR(min_freq, min_freq);
+DEVICE_STATE_INT_ATTR(max_freq, max_freq);
+DEVICE_STATE_INT_ATTR(max_events, fifo_max_event_count);
 
 const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
 #if IS_ENABLED(CONFIG_IIO_CROS_EC_SENSORS_RING)
@@ -195,6 +290,21 @@ const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
 		.name = "location",
 		.shared = IIO_SHARED_BY_ALL,
 		.read = cros_ec_sensors_loc
+	},
+	{
+		.name = "min_frequency",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_min_freq
+	},
+	{
+		.name = "max_frequency",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_max_freq
+	},
+	{
+		.name = "max_events",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_max_events
 	},
 	{ },
 };
