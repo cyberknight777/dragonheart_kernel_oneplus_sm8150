@@ -993,7 +993,12 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(modify_ldt),
 	SYSCALL_ENTRY(set_thread_area),
 #endif
-};
+
+#ifdef CONFIG_X86_64
+	SYSCALL_ENTRY(arch_prctl),
+#endif
+
+}; /* end android whitelist */
 
 static struct syscall_whitelist_entry third_party_whitelist[] = {
 	SYSCALL_ENTRY(brk),
