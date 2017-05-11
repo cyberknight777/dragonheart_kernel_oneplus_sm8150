@@ -1371,6 +1371,17 @@ static u16 iwl_mvm_scan_umac_flags(struct iwl_mvm *mvm,
 	    params->type != IWL_SCAN_TYPE_FRAGMENTED)
 		flags |= IWL_UMAC_SCAN_GEN_FLAGS_EXTENDED_DWELL;
 
+	if (iwl_mvm_is_oce_supported(mvm)) {
+		if ((params->flags &
+		     NL80211_SCAN_FLAG_OCE_PROBE_REQ_HIGH_TX_RATE))
+			flags |= IWL_UMAC_SCAN_GEN_FLAGS_PROB_REQ_HIGH_TX_RATE;
+		if ((params->flags &
+		     NL80211_SCAN_FLAG_OCE_PROBE_REQ_DEFERRAL_SUPPRESSION))
+			flags |= IWL_UMAC_SCAN_GEN_FLAGS_PROB_REQ_DEFER_SUPP;
+		if ((params->flags & NL80211_SCAN_FLAG_FILS_MAX_CHANNEL_TIME))
+			flags |= IWL_UMAC_SCAN_GEN_FLAGS_MAX_CHNL_TIME;
+	}
+
 	return flags;
 }
 
