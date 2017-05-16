@@ -157,8 +157,21 @@ static ssize_t low_mem_margin_store(struct kobject *kobj,
 }
 LOW_MEM_ATTR(margin);
 
+static ssize_t low_mem_available_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	const int lru_base = NR_LRU_BASE - LRU_BASE;
+	unsigned long available_mb =
+		get_available_mem(lru_base) * PAGE_SIZE / 1024 / 1024;
+	return sprintf(buf, "%lu\n", available_mb);
+}
+
+static struct kobj_attribute low_mem_available_attr =
+	__ATTR(available, 0444, low_mem_available_show, NULL);
+
 static struct attribute *low_mem_attrs[] = {
 	&low_mem_margin_attr.attr,
+	&low_mem_available_attr.attr,
 	NULL,
 };
 

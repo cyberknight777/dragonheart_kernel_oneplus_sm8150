@@ -37,7 +37,11 @@ static inline unsigned long get_available_mem(int lru_base)
 	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
 	unsigned long available_file_mem = file_mem - dirty_mem - min_file_mem;
 	unsigned long available_mem = free_mem + available_file_mem;
-	return available_mem;
+	const int ram_vs_swap_weight = 4;
+	long _nr_swap_pages = get_nr_swap_pages();
+	unsigned long available_mem_adj = available_mem +
+		_nr_swap_pages / ram_vs_swap_weight;
+	return available_mem_adj;
 }
 
 /*
@@ -51,10 +55,7 @@ static inline bool _is_low_mem_situation(void)
 	 * space is low.  The contribution of swap is reduced by a factor of
 	 * ram_vs_swap_weight.
 	 */
-	const int ram_vs_swap_weight = 4;
-	long _nr_swap_pages = get_nr_swap_pages();
-	unsigned long available_mem = get_available_mem(lru_base) +
-		_nr_swap_pages / ram_vs_swap_weight;
+	unsigned long available_mem = get_available_mem(lru_base);
 	bool is_low_mem = available_mem < low_mem_minfree;
 
 	if (unlikely(is_low_mem && !was_low_mem)) {
@@ -62,8 +63,9 @@ static inline bool _is_low_mem_situation(void)
 			global_page_state(lru_base + LRU_ACTIVE_ANON) +
 			global_page_state(lru_base + LRU_INACTIVE_ANON);
 		if (anon_mem < low_mem_lowest_seen_anon_mem) {
+			long _nr_swap_pages = get_nr_swap_pages();
 			printk(KERN_INFO "entering low_mem "
-			       "(avail RAM = %lu kB, avail swap %lu kB) "
+			       "(avail RAM indicator %lu kB, avail swap %lu kB) "
 			       "with lowest seen anon mem: %lu kB\n",
 			       available_mem * PAGE_SIZE / 1024,
 			       _nr_swap_pages * PAGE_SIZE / 1024,
