@@ -3670,6 +3670,22 @@ static struct dmi_system_id dmi_platform_minix_z83_4[] = {
 	{ }
 };
 
+static struct rt5645_platform_data kahlee_platform_data = {
+	.dmic1_data_pin = RT5645_DMIC_DATA_GPIO5,
+	.dmic2_data_pin = RT5645_DMIC_DATA_IN2P,
+	.jd_mode = 3,
+};
+
+static struct dmi_system_id dmi_platform_amd_stoney[] = {
+	{
+		.ident = "Chrome Kahlee",
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Kahlee"),
+		},
+	},
+	{ }
+};
+
 static bool rt5645_check_dp(struct device *dev)
 {
 	if (device_property_present(dev, "realtek,in2-differential") ||
@@ -3726,6 +3742,8 @@ static int rt5645_i2c_probe(struct i2c_client *i2c,
 		rt5645->pdata = general_platform_data2;
 	else if (dmi_check_system(dmi_platform_minix_z83_4))
 		rt5645->pdata = minix_z83_4_platform_data;
+	else if (dmi_check_system(dmi_platform_amd_stoney))
+		rt5645->pdata = kahlee_platform_data;
 
 	if (quirk != -1) {
 		rt5645->pdata.in2_diff = QUIRK_IN2_DIFF(quirk);
