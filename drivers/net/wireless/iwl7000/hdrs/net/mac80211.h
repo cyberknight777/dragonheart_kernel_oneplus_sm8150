@@ -1178,6 +1178,14 @@ enum mac80211_rx_encoding {
 	RX_ENC_HE,
 };
 
+enum ieee80211_he_format {
+	IEEE80211_HE_FORMAT_UNKNOWN,
+	IEEE80211_HE_FORMAT_SU,
+	IEEE80211_HE_FORMAT_EXT_SU,
+	IEEE80211_HE_FORMAT_MU,
+	IEEE80211_HE_FORMAT_TRIG,
+};
+
 /**
  * struct ieee80211_rx_status - receive status
  *
@@ -1213,6 +1221,10 @@ enum mac80211_rx_encoding {
  * @he_ru: HE RU, from &enum nl80211_he_ru_alloc
  * @he_gi: HE GI, from &enum nl80211_he_gi
  * @he_dcm: HE DCM value
+ * @he_format: HE format (taken from &enum ieee80211_he_format)
+ * @he_ltf: LTF value - 1, valid LTF values are 1, 2, 4 so the corresponding
+ *	values in this field are 0, 1, 3.
+ *	(only used for radiotap)
  * @rx_flags: internal RX flags for mac80211
  * @ampdu_reference: A-MPDU reference number, must be a different value for
  *	each A-MPDU but the same for each subframe within one A-MPDU
@@ -1227,7 +1239,7 @@ struct ieee80211_rx_status {
 	u16 freq;
 	u8 enc_flags;
 	u8 encoding:2, bw:3, he_ru:3;
-	u8 he_gi:2, he_dcm:1;
+	u8 he_gi:2, he_dcm:1, he_format:3, he_ltf:2;
 	u8 rate_idx;
 	u8 nss;
 	u8 rx_flags;
@@ -2242,6 +2254,8 @@ struct ieee80211_tx_thrshld_md {
  *	the default is _GI | _BANDWIDTH.
  *	Use the %IEEE80211_RADIOTAP_VHT_KNOWN_\* values.
  *
+ * @radiotap_he: HE radiotap validity flags
+ *
  * @radiotap_timestamp: Information for the radiotap timestamp field; if the
  *	'units_pos' member is set to a non-negative value it must be set to
  *	a combination of a IEEE80211_RADIOTAP_TIMESTAMP_UNIT_* and a
@@ -2299,6 +2313,11 @@ struct ieee80211_hw {
 		int units_pos;
 		s16 accuracy;
 	} radiotap_timestamp;
+	struct {
+		struct {
+			u16 a1_known, a2_known;
+		} su, mu, trig;
+	} radiotap_he;
 	netdev_features_t netdev_features;
 	u8 uapsd_queues;
 	u8 uapsd_max_sp_len;
