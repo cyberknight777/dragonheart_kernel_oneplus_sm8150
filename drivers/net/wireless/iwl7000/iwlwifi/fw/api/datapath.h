@@ -83,6 +83,22 @@ enum iwl_data_path_subcmd_ids {
 	TRIGGER_RX_QUEUES_NOTIF_CMD = 0x2,
 
 	/**
+	 * @AX_SOFTAP_TESTMODE_DL_BASIC: &struct ax_softap_testmode_dl_basic_cmd
+	 */
+	 AX_SOFTAP_TESTMODE_DL_BASIC = 0x9,
+
+	/**
+	 * @AX_SOFTAP_TESTMODE_DL_MU_BAR:
+	 *  &struct ax_softap_testmode_dl_mu_bar_cmd
+	 */
+	AX_SOFTAP_TESTMODE_DL_MU_BAR = 0xA,
+
+	/**
+	 * @AX_SOFTAP_TESTMODE_UL: &struct ax_softap_testmode_ul_cmd
+	 */
+	AX_SOFTAP_TESTMODE_UL = 0xB,
+
+	/**
 	 * @STA_PM_NOTIF: &struct iwl_mvm_pm_state_notification
 	 */
 	STA_PM_NOTIF = 0xFD,

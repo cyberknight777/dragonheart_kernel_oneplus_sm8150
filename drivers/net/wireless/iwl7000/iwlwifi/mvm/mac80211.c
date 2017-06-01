@@ -4716,4 +4716,7 @@ const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.stop_nan = iwl_mvm_stop_nan,
 	.add_nan_func = iwl_mvm_add_nan_func,
 	.del_nan_func = iwl_mvm_del_nan_func,
+#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
+	.sta_add_debugfs = iwl_mvm_ax_softap_testmode_sta_add_debugfs,
+#endif
 };
