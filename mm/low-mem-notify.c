@@ -35,6 +35,8 @@ static atomic_t low_mem_state = ATOMIC_INIT(0);
 unsigned low_mem_margin_mb = 50;
 bool low_mem_margin_enabled = true;
 unsigned long low_mem_minfree;
+unsigned int low_mem_ram_vs_swap_weight = 4;
+
 /*
  * We're interested in worst-case anon memory usage when the low-memory
  * notification fires.  To contain logging, we limit our interest to
@@ -131,12 +133,12 @@ static ssize_t low_mem_margin_store(struct kobject *kobj,
 	 * on this too.
 	 */
 	if (strncmp("off", buf, 3) == 0) {
-		printk(KERN_INFO "low_mem: disabling notifier\n");
+		pr_info("low_mem: disabling notifier\n");
 		low_mem_margin_enabled = false;
 		return count;
 	}
 	if (strncmp("on", buf, 2) == 0) {
-		printk(KERN_INFO "low_mem: enabling notifier\n");
+		pr_info("low_mem: enabling notifier\n");
 		low_mem_margin_enabled = true;
 		return count;
 	}
@@ -151,26 +153,60 @@ static ssize_t low_mem_margin_store(struct kobject *kobj,
 	low_mem_margin_mb = (unsigned int) margin;
 	/* Convert to pages outside the allocator fast path. */
 	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_mb);
-	printk(KERN_INFO "low_mem: setting minfree to %lu kB\n",
-	       low_mem_minfree * (PAGE_SIZE / 1024));
+	pr_info("low_mem: setting minfree to %lu kB\n",
+		low_mem_minfree * (PAGE_SIZE / 1024));
 	return count;
 }
 LOW_MEM_ATTR(margin);
 
-static ssize_t low_mem_available_show(struct kobject *kobj,
-				  struct kobj_attribute *attr, char *buf)
+static ssize_t low_mem_ram_vs_swap_weight_show(struct kobject *kobj,
+					       struct kobj_attribute *attr,
+					       char *buf)
 {
-	const int lru_base = NR_LRU_BASE - LRU_BASE;
-	unsigned long available_mb =
-		get_available_mem(lru_base) * PAGE_SIZE / 1024 / 1024;
-	return sprintf(buf, "%lu\n", available_mb);
+	return sprintf(buf, "%u\n", low_mem_ram_vs_swap_weight);
 }
 
-static struct kobj_attribute low_mem_available_attr =
-	__ATTR(available, 0444, low_mem_available_show, NULL);
+static ssize_t low_mem_ram_vs_swap_weight_store(struct kobject *kobj,
+						struct kobj_attribute *attr,
+						const char *buf, size_t count)
+{
+	unsigned long weight;
+	int err;
+
+	err = kstrtoul(buf, 10, &weight);
+	if (err)
+		return -EINVAL;
+	/* The special value 0 represents infinity. */
+	low_mem_ram_vs_swap_weight = weight == 0 ?
+		-1U : (unsigned int) weight;
+	pr_info("low_mem: setting ram weight to %u\n",
+		low_mem_ram_vs_swap_weight);
+	return count;
+}
+LOW_MEM_ATTR(ram_vs_swap_weight);
+
+static ssize_t low_mem_available_show(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      char *buf)
+{
+	const int lru_base = NR_LRU_BASE - LRU_BASE;
+	unsigned long available_mem = get_available_mem_adj(lru_base);
+
+	return sprintf(buf, "%lu\n",
+		       available_mem / (1024 * 1024 / PAGE_SIZE));
+}
+
+static ssize_t low_mem_available_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	return -EINVAL;
+}
+LOW_MEM_ATTR(available);
 
 static struct attribute *low_mem_attrs[] = {
 	&low_mem_margin_attr.attr,
+	&low_mem_ram_vs_swap_weight_attr.attr,
 	&low_mem_available_attr.attr,
 	NULL,
 };
@@ -184,7 +220,7 @@ static int __init low_mem_init(void)
 {
 	int err = sysfs_create_group(mm_kobj, &low_mem_attr_group);
 	if (err)
-		printk(KERN_ERR "low_mem: register sysfs failed\n");
+		pr_err("low_mem: register sysfs failed\n");
 	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_mb);
 	low_mem_lowest_seen_anon_mem = totalram_pages;
 	return err;
