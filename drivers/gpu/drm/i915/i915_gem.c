@@ -2218,6 +2218,9 @@ void __i915_gem_object_invalidate(struct drm_i915_gem_object *obj)
 	invalidate_mapping_pages(mapping, 0, (loff_t)-1);
 }
 
+extern void mlock_vma_page(struct page *page);
+extern unsigned int munlock_vma_page(struct page *page);
+
 static void
 i915_gem_object_put_pages_gtt(struct drm_i915_gem_object *obj,
 			      struct sg_table *pages)
@@ -2238,6 +2241,10 @@ i915_gem_object_put_pages_gtt(struct drm_i915_gem_object *obj,
 
 		if (obj->mm.madv == I915_MADV_WILLNEED)
 			mark_page_accessed(page);
+
+		lock_page(page);
+		munlock_vma_page(page);
+		unlock_page(page);
 
 		put_page(page);
 	}
@@ -2433,6 +2440,10 @@ rebuild_st:
 		}
 		last_pfn = page_to_pfn(page);
 
+		lock_page(page);
+		mlock_vma_page(page);
+		unlock_page(page);
+
 		/* Check that the i965g/gm workaround works. */
 		WARN_ON((gfp & __GFP_DMA32) && (last_pfn >= 0x00100000UL));
 	}
@@ -2471,8 +2482,12 @@ rebuild_st:
 err_sg:
 	sg_mark_end(sg);
 err_pages:
-	for_each_sgt_page(page, sgt_iter, st)
+	for_each_sgt_page(page, sgt_iter, st) {
+		lock_page(page);
+		munlock_vma_page(page);
+		unlock_page(page);
 		put_page(page);
+	}
 	sg_free_table(st);
 	kfree(st);
 
