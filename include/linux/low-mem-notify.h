@@ -15,6 +15,23 @@ extern const unsigned long low_mem_anon_mem_delta;
 extern unsigned int low_mem_ram_vs_swap_weight;
 
 /*
+ * Compute available memory used by files that can be reclaimed quickly.
+ */
+static inline unsigned long get_available_file_mem(int lru_base)
+{
+	unsigned long file_mem =
+			global_zone_page_state(lru_base + LRU_ACTIVE_FILE) +
+			global_zone_page_state(lru_base + LRU_INACTIVE_FILE);
+	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
+	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	unsigned long clean_file_mem = file_mem - dirty_mem;
+	/* Conservatively estimate the amount of available_file_mem */
+	unsigned long available_file_mem = (clean_file_mem > min_file_mem) ?
+	    (clean_file_mem - min_file_mem) : 0;
+	return available_file_mem;
+}
+
+/*
  * Compute "available" memory, that is either free memory or memory that can be
  * reclaimed quickly, adjusted for the presence of swap.
  */
@@ -30,14 +47,9 @@ static inline unsigned long get_available_mem_adj(int lru_base)
 	 * min_filelist_kbytes.
 	 */
 	unsigned long free_mem =
-			global_page_state(NR_FREE_PAGES) - min_free_pages;
-	unsigned long file_mem =
-			global_page_state(lru_base + LRU_ACTIVE_FILE) +
-			global_page_state(lru_base + LRU_INACTIVE_FILE);
-	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
-	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	unsigned long available_file_mem = file_mem - dirty_mem - min_file_mem;
-	unsigned long available_mem = free_mem + available_file_mem;
+			global_zone_page_state(NR_FREE_PAGES) - min_free_pages;
+	unsigned long available_mem = free_mem +
+	    get_available_file_mem(lru_base);
 	long _nr_swap_pages = get_nr_swap_pages();
 	/*
 	 * The contribution of swap is reduced by a factor of
@@ -64,14 +76,17 @@ static inline bool _is_low_mem_situation(void)
 
 	if (unlikely(is_low_mem && !was_low_mem)) {
 		unsigned long anon_mem =
-			global_page_state(lru_base + LRU_ACTIVE_ANON) +
-			global_page_state(lru_base + LRU_INACTIVE_ANON);
+			global_zone_page_state(lru_base + LRU_ACTIVE_ANON) +
+			global_zone_page_state(lru_base + LRU_INACTIVE_ANON);
 		if (unlikely(anon_mem < low_mem_lowest_seen_anon_mem)) {
 			printk(KERN_INFO "entering low_mem "
-			       "(avail RAM indicator %lu kB, avail swap %lu kB) "
+			       "(avail RAM = %lu kB, avail swap %lu kB, "
+			       "avail file %lu kB) "
 			       "with lowest seen anon mem: %lu kB\n",
 			       available_mem * PAGE_SIZE / 1024,
 			       get_nr_swap_pages() * PAGE_SIZE / 1024,
+			       get_available_file_mem(lru_base) * PAGE_SIZE /
+				  1024,
 			       anon_mem * PAGE_SIZE / 1024);
 			low_mem_lowest_seen_anon_mem = anon_mem -
 				low_mem_anon_mem_delta;
