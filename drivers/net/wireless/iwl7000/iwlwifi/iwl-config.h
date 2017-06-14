@@ -420,6 +420,7 @@ extern const struct iwl_cfg iwla000_2ac_cfg_hr;
 extern const struct iwl_cfg iwla000_2ac_cfg_hr_cdb;
 extern const struct iwl_cfg iwla000_2ac_cfg_jf;
 extern const struct iwl_cfg iwla000_2ax_cfg_hr;
+extern const struct iwl_cfg iwla000_2ax_cfg_qnj_hr;
 #endif /* CPTCFG_IWLMVM */
 
 #endif /* __IWL_CONFIG_H__ */
