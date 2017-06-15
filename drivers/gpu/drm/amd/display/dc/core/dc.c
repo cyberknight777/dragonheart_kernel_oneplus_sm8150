@@ -1817,7 +1817,6 @@ void dc_link_remove_remote_sink(const struct dc_link *link, const struct dc_sink
 	}
 }
 
-#if defined(CONFIG_DRM_AMD_DC_DCE12_0)
 bool dc_init_dchub(struct dc *dc, struct dchub_init_data *dh_data)
 {
 	int i;
@@ -1844,5 +1843,4 @@ bool dc_init_dchub(struct dc *dc, struct dchub_init_data *dh_data)
 	return true;
 
 }
-#endif
 
