@@ -108,6 +108,29 @@ int cros_ec_motion_send_host_cmd(struct cros_ec_sensors_core_state *state,
 }
 EXPORT_SYMBOL_GPL(cros_ec_motion_send_host_cmd);
 
+static ssize_t __maybe_unused cros_ec_sensors_flush(struct iio_dev *indio_dev,
+		uintptr_t private, const struct iio_chan_spec *chan,
+		const char *buf, size_t len)
+{
+	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
+	int ret = 0;
+	bool flush;
+
+	ret = strtobool(buf, &flush);
+	if (ret < 0)
+		return ret;
+	if (!flush)
+		return -EINVAL;
+
+	mutex_lock(&st->cmd_lock);
+	st->param.cmd = MOTIONSENSE_CMD_FIFO_FLUSH;
+	ret = cros_ec_motion_send_host_cmd(st, 0);
+	if (ret != 0)
+		dev_warn(&indio_dev->dev, "Unable to flush sensor\n");
+	mutex_unlock(&st->cmd_lock);
+	return ret ? ret : len;
+}
+
 static ssize_t cros_ec_sensors_calibrate(struct iio_dev *indio_dev,
 		uintptr_t private, const struct iio_chan_spec *chan,
 		const char *buf, size_t len)
@@ -147,6 +170,13 @@ static ssize_t cros_ec_sensors_loc(struct iio_dev *indio_dev,
 }
 
 const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
+#if IS_ENABLED(CONFIG_IIO_CROS_EC_SENSORS_RING)
+	{
+		.name = "flush",
+		.shared = IIO_SHARED_BY_ALL,
+		.write = cros_ec_sensors_flush
+	},
+#endif
 	{
 		.name = "calibrate",
 		.shared = IIO_SHARED_BY_ALL,

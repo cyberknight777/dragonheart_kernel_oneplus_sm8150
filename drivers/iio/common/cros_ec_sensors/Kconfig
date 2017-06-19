@@ -20,3 +20,13 @@ config IIO_CROS_EC_SENSORS
 	  Accelerometers, Gyroscope and Magnetometer that are
 	  presented by the ChromeOS EC Sensor hub.
 	  Creates an IIO device for each functions.
+
+config IIO_CROS_EC_SENSORS_RING
+	tristate "ChromeOS EC Sensors Ring"
+	depends on IIO_CROS_EC_SENSORS || IIO_CROS_EC_LIGHT_PROX
+	help
+	  Add support for handling sensor events FIFO produced by
+	  the sensor hub.
+	  A single device with a buffer will collect all samples produced
+	  by the sensors managed by the CroEC sensor hub.
+

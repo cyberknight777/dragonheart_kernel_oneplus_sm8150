@@ -1449,6 +1449,22 @@ enum motionsense_command {
 	MOTIONSENSE_CMD_DATA = 6,
 
 	/*
+	 * Return sensor fifo info.
+	 */
+	MOTIONSENSE_CMD_FIFO_INFO = 7,
+
+	/*
+	 * Insert a flush element in the fifo and return sensor fifo info.
+	 * The host can use that element to synchronize its operation.
+	 */
+	MOTIONSENSE_CMD_FIFO_FLUSH = 8,
+
+	/*
+	 * Return a portion of the fifo.
+	 */
+	MOTIONSENSE_CMD_FIFO_READ = 9,
+
+	/*
 	 * Perform low level calibration.. On sensors that support it, ask to
 	 * do offset calibration.
 	 */
@@ -1460,6 +1476,13 @@ enum motionsense_command {
 	 * PERFORM_CALIB command.
 	 */
 	MOTIONSENSE_CMD_SENSOR_OFFSET = 11,
+
+	/*
+	 * Allow the FIFO to trigger interrupt via MKBP events.
+	 * By default the FIFO does not send interrupt to process the FIFO
+	 * until the AP is ready or it is coming from a wakeup sensor.
+	 */
+	MOTIONSENSE_CMD_FIFO_INT_ENABLE = 15,
 
 	/* Number of motionsense sub-commands. */
 	MOTIONSENSE_NUM_CMDS
@@ -1499,6 +1522,45 @@ enum motionsensor_location {
 /* List of motion sensor chips. */
 enum motionsensor_chip {
 	MOTIONSENSE_CHIP_KXCJ9 = 0,
+	MOTIONSENSE_CHIP_LSM6DS0 = 1,
+	MOTIONSENSE_CHIP_BMI160 = 2,
+	MOTIONSENSE_CHIP_SI1141 = 3,
+	MOTIONSENSE_CHIP_SI1142 = 4,
+	MOTIONSENSE_CHIP_SI1143 = 5,
+	MOTIONSENSE_CHIP_KX022 = 6,
+	MOTIONSENSE_CHIP_L3GD20H = 7,
+	MOTIONSENSE_CHIP_BMA255 = 8,
+	MOTIONSENSE_CHIP_BMP280 = 9,
+	MOTIONSENSE_CHIP_OPT3001 = 10,
+};
+
+/* Note: used in ec_response_get_next_data */
+struct __packed ec_response_motion_sense_fifo_info {
+	/* Size of the fifo */
+	uint16_t size;
+	/* Amount of space used in the fifo */
+	uint16_t count;
+	/* Timestamp recorded in us */
+	uint32_t timestamp;
+	/* Total amount of vector lost */
+	uint16_t total_lost;
+	/* Lost events since the last fifo_info, per sensors */
+	uint16_t lost[0];
+};
+
+/* List supported activity recognition */
+enum motionsensor_activity {
+	MOTIONSENSE_ACTIVITY_RESERVED = 0,
+	MOTIONSENSE_ACTIVITY_SIG_MOTION = 1,
+	MOTIONSENSE_ACTIVITY_DOUBLE_TAP = 2,
+};
+
+struct ec_motion_sense_activity {
+	uint8_t sensor_num;
+	uint8_t activity; /* one of enum motionsensor_activity */
+	uint8_t enable;   /* 1: enable, 0: disable */
+	uint8_t reserved;
+	uint16_t parameters[3]; /* activity dependent parameters */
 };
 
 /* Module flag masks used for the dump sub-command. */
@@ -1506,6 +1568,15 @@ enum motionsensor_chip {
 
 /* Sensor flag masks used for the dump sub-command. */
 #define MOTIONSENSE_SENSOR_FLAG_PRESENT (1<<0)
+
+/*
+ * Flush entry for synchronization.
+ * data contains time stamp
+ */
+#define MOTIONSENSE_SENSOR_FLAG_FLUSH (1<<0)
+#define MOTIONSENSE_SENSOR_FLAG_TIMESTAMP (1<<1)
+#define MOTIONSENSE_SENSOR_FLAG_WAKEUP (1<<2)
+#define MOTIONSENSE_SENSOR_FLAG_TABLET_MODE (1<<3)
 
 /*
  * Send this value for the data element to only perform a read. If you
@@ -1538,6 +1609,11 @@ struct ec_response_motion_sensor_data {
 		};
 	};
 } __packed;
+
+struct __packed ec_response_motion_sense_fifo_data {
+	uint32_t number_data;
+	struct ec_response_motion_sensor_data data[0];
+};
 
 struct ec_params_motion_sense {
 	uint8_t cmd;
@@ -1590,6 +1666,19 @@ struct ec_params_motion_sense {
 			uint8_t sensor_num;
 		} info;
 
+		/* Used for MOTIONSENSE_CMD_FIFO_INFO */
+		struct {
+		} fifo_info;
+
+		/* Used for MOTIONSENSE_CMD_FIFO_READ */
+		struct {
+			/*
+			 * Number of expected vector to return.
+			 * EC may return less or 0 if none available.
+			 */
+			uint32_t max_data_vector;
+		} fifo_read;
+
 		/*
 		 * Used for MOTIONSENSE_CMD_SENSOR_ODR and
 		 * MOTIONSENSE_CMD_SENSOR_RANGE.
@@ -1606,6 +1695,15 @@ struct ec_params_motion_sense {
 			/* Data to set or EC_MOTION_SENSE_NO_VALUE to read. */
 			int32_t data;
 		} sensor_odr, sensor_range;
+
+		/* Used for MOTIONSENSE_CMD_FIFO_INT_ENABLE */
+		struct __ec_todo_unpacked {
+			/*
+			 * 1: enable, 0 disable fifo,
+			 * EC_MOTION_SENSE_NO_VALUE return value.
+			 */
+			int8_t enable;
+		} fifo_int_enable;
 	};
 } __packed;
 
@@ -1649,13 +1747,17 @@ struct ec_response_motion_sense {
 		struct {
 			/* Current value of the parameter queried. */
 			int32_t ret;
-		} ec_rate, sensor_odr, sensor_range, kb_wake_angle;
+		} ec_rate, sensor_odr, sensor_range, kb_wake_angle, fifo_int_enable;
 
 		/* Used for MOTIONSENSE_CMD_SENSOR_OFFSET */
 		struct {
 			int16_t temp;
 			int16_t offset[3];
 		} sensor_offset, perform_calib;
+
+		struct ec_response_motion_sense_fifo_info fifo_info, fifo_flush;
+
+		struct ec_response_motion_sense_fifo_data fifo_read;
 	};
 } __packed;
 
@@ -2100,6 +2202,12 @@ union ec_response_get_next_data {
 
 	/* Unaligned */
 	uint32_t  host_event;
+
+	struct {
+		/* For aligning the fifo_info */
+		uint8_t rsvd[3];
+		struct ec_response_motion_sense_fifo_info info;
+	} sensor_fifo;
 
 	uint32_t   buttons;
 	uint32_t   switches;
