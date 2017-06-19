@@ -160,6 +160,15 @@ static ssize_t cros_ec_sensors_calibrate(struct iio_dev *indio_dev,
 	return ret ? ret : len;
 }
 
+static ssize_t cros_ec_sensors_id(struct iio_dev *indio_dev,
+		uintptr_t private, const struct iio_chan_spec *chan,
+		char *buf)
+{
+	struct cros_ec_sensors_core_state *st = iio_priv(indio_dev);
+
+	return sprintf(buf, "%d\n", st->param.info.sensor_num);
+}
+
 static ssize_t cros_ec_sensors_loc(struct iio_dev *indio_dev,
 		uintptr_t private, const struct iio_chan_spec *chan,
 		char *buf)
@@ -190,6 +199,21 @@ const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
 	{ },
 };
 EXPORT_SYMBOL_GPL(cros_ec_sensors_ext_info);
+
+const struct iio_chan_spec_ext_info cros_ec_sensors_limited_info[] = {
+	{
+		.name = "id",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_id
+	},
+	{
+		.name = "location",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_loc
+	},
+	{ },
+};
+EXPORT_SYMBOL_GPL(cros_ec_sensors_limited_info);
 
 /**
  * cros_ec_sensors_idx_to_reg - convert index into offset in shared memory

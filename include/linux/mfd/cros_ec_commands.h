@@ -1478,6 +1478,18 @@ enum motionsense_command {
 	MOTIONSENSE_CMD_SENSOR_OFFSET = 11,
 
 	/*
+	 * List available activities for a MOTION sensor.
+	 * Indicates if they are enabled or disabled.
+	 */
+	MOTIONSENSE_CMD_LIST_ACTIVITIES = 12,
+
+	/*
+	 * Activity management
+	 * Enable/Disable activity recognition.
+	 */
+	MOTIONSENSE_CMD_SET_ACTIVITY = 13,
+
+	/*
 	 * Allow the FIFO to trigger interrupt via MKBP events.
 	 * By default the FIFO does not send interrupt to process the FIFO
 	 * until the AP is ready or it is coming from a wakeup sensor.
@@ -1679,6 +1691,8 @@ struct ec_params_motion_sense {
 			uint32_t max_data_vector;
 		} fifo_read;
 
+		struct ec_motion_sense_activity set_activity;
+
 		/*
 		 * Used for MOTIONSENSE_CMD_SENSOR_ODR and
 		 * MOTIONSENSE_CMD_SENSOR_RANGE.
@@ -1758,6 +1772,15 @@ struct ec_response_motion_sense {
 		struct ec_response_motion_sense_fifo_info fifo_info, fifo_flush;
 
 		struct ec_response_motion_sense_fifo_data fifo_read;
+
+		struct {
+			uint16_t reserved;
+			uint32_t enabled;
+			uint32_t disabled;
+		} __packed list_activities;
+
+		struct {
+		} set_activity;
 	};
 } __packed;
 
