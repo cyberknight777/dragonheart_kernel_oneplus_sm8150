@@ -21,6 +21,7 @@
 #include <linux/notifier.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mutex.h>
+#include <linux/power_supply.h>
 
 #define CROS_EC_DEV_NAME "cros_ec"
 #define CROS_EC_DEV_PD_NAME "cros_pd"
@@ -143,6 +144,7 @@ struct cros_ec_device {
 			struct cros_ec_command *msg);
 	int (*pkt_xfer)(struct cros_ec_device *ec,
 			struct cros_ec_command *msg);
+	struct power_supply *charger;
 	struct mutex lock;
 	bool mkbp_event_supported;
 	struct blocking_notifier_head event_notifier;
@@ -323,6 +325,7 @@ u32 cros_ec_get_host_event(struct cros_ec_device *ec_dev);
 extern struct attribute_group cros_ec_attr_group;
 extern struct attribute_group cros_ec_lightbar_attr_group;
 extern struct attribute_group cros_ec_vbc_attr_group;
+extern struct attribute_group cros_ec_pd_attr_group;
 
 /* debugfs stuff */
 int cros_ec_debugfs_init(struct cros_ec_dev *ec);

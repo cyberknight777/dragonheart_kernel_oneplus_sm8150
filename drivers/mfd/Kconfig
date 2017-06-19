@@ -222,6 +222,17 @@ config MFD_CROS_EC_SPI
 	  response time cannot be guaranteed, we support ignoring
 	  'pre-amble' bytes before the response actually starts.
 
+config MFD_CROS_EC_PD_UPDATE
+	tristate "ChromeOS Embedded Controller PD device update driver"
+	depends on MFD_CROS_EC
+
+	help
+	  If you say Y here, you get support for updating ChromeOS
+	  PD device firmware.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called cros_ec_pd_update.
+
 config MFD_CROS_EC_CHARDEV
         tristate "Chrome OS Embedded Controller userspace device interface"
         depends on MFD_CROS_EC
