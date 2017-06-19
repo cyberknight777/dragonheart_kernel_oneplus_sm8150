@@ -57,7 +57,7 @@ config CHROMEOS_PSTORE
 
 config CROS_EC_CHARDEV
         tristate "Chrome OS Embedded Controller userspace device interface"
-        depends on MFD_CROS_EC
+        depends on MFD_CROS_EC && MFD_CROS_EC_PD_UPDATE
         ---help---
           This driver adds support to talk with the ChromeOS EC from userspace.
 
