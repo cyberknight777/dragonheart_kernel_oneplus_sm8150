@@ -55,6 +55,10 @@ static const struct mfd_cell ec_rtc_cell = {
 	.name = "cros-ec-rtc",
 };
 
+static const struct mfd_cell ec_usb_pd_charger_cell = {
+	.name = "cros-usb-pd-charger",
+};
+
 static irqreturn_t ec_irq_thread(int irq, void *data)
 {
 	struct cros_ec_device *ec_dev = data;
@@ -259,6 +263,16 @@ static void cros_ec_rtc_register(struct cros_ec_device *ec_dev)
 		dev_err(ec_dev->dev, "failed to add EC RTC\n");
 }
 
+static void cros_ec_usb_pd_charger_register(struct cros_ec_device *ec_dev)
+{
+	int ret;
+
+	ret = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, &ec_usb_pd_charger_cell,
+			      1, NULL, 0, NULL);
+	if (ret)
+		dev_err(ec_dev->dev, "failed to add usb-pd-charger\n");
+}
+
 int cros_ec_register(struct cros_ec_device *ec_dev)
 {
 	struct device *dev = ec_dev->dev;
@@ -311,6 +325,10 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	/* Check whether this EC has RTC support */
 	if (cros_ec_check_features(ec_dev, EC_FEATURE_RTC))
 		cros_ec_rtc_register(ec_dev);
+
+	/* Check whether this EC has the PD charger manager */
+	if (cros_ec_check_features(ec_dev, EC_FEATURE_USB_PD))
+		cros_ec_usb_pd_charger_register(ec_dev);
 
 	if (ec_dev->max_passthru) {
 		/*
