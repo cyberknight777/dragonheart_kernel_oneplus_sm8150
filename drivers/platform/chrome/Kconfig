@@ -4,7 +4,6 @@
 
 menuconfig CHROME_PLATFORMS
 	bool "Platform support for Chrome hardware"
-	depends on X86 || ARM || ARM64 || COMPILE_TEST
 	---help---
 	  Say Y here to get to see options for platform support for
 	  various Chromebooks and Chromeboxes. This option alone does
@@ -13,6 +12,14 @@ menuconfig CHROME_PLATFORMS
 	  If you say N, all options in this submenu will be skipped and disabled.
 
 if CHROME_PLATFORMS
+
+config CHROMEOS
+	bool
+	depends on NVRAM && ACPI_CHROMEOS
+	---help---
+	  Provides abstracted interfaces to the firmware features provided on
+	  ChromeOS devices. It depends on a lowlevel driver to implement the
+	  firmware interface on the platform.
 
 config CHROMEOS_LAPTOP
 	tristate "Chrome OS Laptop"
