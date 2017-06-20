@@ -2912,15 +2912,32 @@ enum usb_pd_control_mux {
 	USB_PD_CTRL_MUX_AUTO = 5,
 };
 
+enum usb_pd_control_swap {
+	USB_PD_CTRL_SWAP_NONE = 0,
+	USB_PD_CTRL_SWAP_DATA = 1,
+	USB_PD_CTRL_SWAP_POWER = 2,
+	USB_PD_CTRL_SWAP_VCONN = 3,
+	USB_PD_CTRL_SWAP_COUNT
+};
+
 struct ec_params_usb_pd_control {
 	uint8_t port;
 	uint8_t role;
 	uint8_t mux;
+	uint8_t swap;
 } __packed;
 
 #define PD_CTRL_RESP_ENABLED_COMMS      (1 << 0) /* Communication enabled */
 #define PD_CTRL_RESP_ENABLED_CONNECTED  (1 << 1) /* Device connected */
 #define PD_CTRL_RESP_ENABLED_PD_CAPABLE (1 << 2) /* Partner is PD capable */
+
+#define PD_CTRL_RESP_ROLE_POWER         (1 << 0) /* 0=SNK/1=SRC */
+#define PD_CTRL_RESP_ROLE_DATA          (1 << 1) /* 0=UFP/1=DFP */
+#define PD_CTRL_RESP_ROLE_VCONN         (1 << 2) /* Vconn status */
+#define PD_CTRL_RESP_ROLE_DR_POWER      (1 << 3) /* Partner is dualrole power */
+#define PD_CTRL_RESP_ROLE_DR_DATA       (1 << 4) /* Partner is dualrole data */
+#define PD_CTRL_RESP_ROLE_USB_COMM      (1 << 5) /* Partner USB comm capable */
+#define PD_CTRL_RESP_ROLE_EXT_POWERED   (1 << 6) /* Partner externally powerd */
 
 struct ec_response_usb_pd_control_v1 {
 	uint8_t enabled;
