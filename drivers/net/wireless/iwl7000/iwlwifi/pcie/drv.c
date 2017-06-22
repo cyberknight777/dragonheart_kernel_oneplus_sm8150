@@ -369,6 +369,8 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 
 /* a000 Series */
 	{IWL_PCI_DEVICE(0x2720, 0x0A10, iwla000_2ac_cfg_hr_cdb)},
+	/* TODO: remove this entry */
+	{IWL_PCI_DEVICE(0x0000, 0x0000, iwla000_2ac_cfg_hr_cdb)},
 	{IWL_PCI_DEVICE(0x34F0, 0x0310, iwla000_2ac_cfg_jf)},
 	{IWL_PCI_DEVICE(0x2720, 0x0000, iwla000_2ax_cfg_hr)},
 	{IWL_PCI_DEVICE(0x34F0, 0x0070, iwla000_2ax_cfg_hr)},
@@ -513,11 +515,12 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	if (iwl_trans->cfg->rf_id && cfg == &iwla000_2ac_cfg_hr_cdb) {
+		/* TODO: remove the != 0x0000 from the else if */
 		if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_JF)
 			cfg = &iwla000_2ac_cfg_jf;
-		else if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_HR)
+		else if (ent->device != 0x0000 &&
+			 iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_HR)
 			cfg = &iwla000_2ac_cfg_hr;
-
 		iwl_trans->cfg = cfg;
 	}
 #endif
