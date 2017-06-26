@@ -268,9 +268,23 @@ enum {
 #define RATE_MCS_BF_MSK			(1 << RATE_MCS_BF_POS)
 
 /*
- * Bit 20-21: HE guard interval and LTF type.
- * (0) 1xLTF+0.8us, (1) 2xLTF+0.8us,
- * (2) 2xLTF+1.6us, (3) 4xLTF+3.2us
+ * Bit 20-21: HE LTF type and guard interval
+ * HE (ext) SU:
+ *	0			1xLTF+0.8us
+ *	1			2xLTF+0.8us
+ *	2			2xLTF+1.6us
+ *	3 & SGI (bit 13) clear	4xLTF+3.2us
+ *	3 & SGI (bit 13) set	4xLTF+0.8us
+ * HE MU:
+ *	0			4xLTF+0.8us
+ *	1			2xLTF+0.8us
+ *	2			2xLTF+1.6us
+ *	3			4xLTF+3.2us
+ * HE TRIG:
+ *	0			1xLTF+1.6us
+ *	1			2xLTF+1.6us
+ *	2			4xLTF+3.2us
+ *	3			(does not occur)
  */
 #define RATE_MCS_HE_GI_LTF_POS		20
 #define RATE_MCS_HE_GI_LTF_MSK		(3 << RATE_MCS_HE_GI_LTF_POS)

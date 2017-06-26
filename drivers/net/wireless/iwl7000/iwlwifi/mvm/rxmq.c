@@ -1048,7 +1048,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			rx_status->he_gi = NL80211_RATE_INFO_HE_GI_1_6;
 			break;
 		case 3:
-			rx_status->he_gi = NL80211_RATE_INFO_HE_GI_3_2;
+			if (rate_n_flags & RATE_MCS_SGI_MSK)
+				rx_status->he_gi = NL80211_RATE_INFO_HE_GI_0_8;
+			else
+				rx_status->he_gi = NL80211_RATE_INFO_HE_GI_3_2;
 			break;
 		}
 	} else {
