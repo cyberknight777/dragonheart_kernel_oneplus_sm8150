@@ -1038,16 +1038,37 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->he_dcm =
 			!!(rate_n_flags & RATE_HE_DUAL_CARRIER_MODE_MSK);
 
+#define CHECK_TYPE(F) \
+	BUILD_BUG_ON(RATE_MCS_HE_TYPE_ ## F == \
+		     IEEE80211_HE_FORMAT_ ## F << RATE_MCS_HE_TYPE_POS)
+
+		CHECK_TYPE(SU);
+		CHECK_TYPE(EXT_SU);
+		CHECK_TYPE(MU);
+		CHECK_TYPE(TRIG);
+
+		rx_status->he_format = (rate_n_flags & RATE_MCS_HE_TYPE_MSK) >>
+						RATE_MCS_HE_TYPE_POS;
+
 		switch ((rate_n_flags & RATE_MCS_HE_GI_LTF_MSK) >>
 			RATE_MCS_HE_GI_LTF_POS) {
 		case 0:
+			if (rx_status->he_format == IEEE80211_HE_FORMAT_MU)
+				rx_status->he_ltf = 4 - 1;
+			else
+				rx_status->he_ltf = 1 - 1;
+			rx_status->he_gi = NL80211_RATE_INFO_HE_GI_0_8;
+			break;
 		case 1:
+			rx_status->he_ltf = 2 - 1;
 			rx_status->he_gi = NL80211_RATE_INFO_HE_GI_0_8;
 			break;
 		case 2:
+			rx_status->he_ltf = 2 - 1;
 			rx_status->he_gi = NL80211_RATE_INFO_HE_GI_1_6;
 			break;
 		case 3:
+			rx_status->he_ltf = 4 - 1;
 			if (rate_n_flags & RATE_MCS_SGI_MSK)
 				rx_status->he_gi = NL80211_RATE_INFO_HE_GI_0_8;
 			else

@@ -530,6 +530,23 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	/* this is the case for CCK frames, it's better (only 8) for OFDM */
 	hw->radiotap_timestamp.accuracy = 22;
 
+	/*
+	 * mac80211 doesn't support more right now
+	 *
+	 * TODO:
+	 * - add MU, TRIG formats
+	 *
+	 * These values are given by the radiotap spec.
+	 */
+	hw->radiotap_he.su.a1_known = 0x0001 | /* format */
+				      0x0008 | /* MCS */
+				      0x0010 | /* DCM */
+				      0x0100 | /* bandwidth */
+				      0x0200 | /* GI+LTF size */
+				      0x0400;  /* NSTS */
+	hw->radiotap_he.su.a2_known = 0x0002 | /* coding */
+				      0x0008; /* STBC */
+
 	hw->rate_control_algorithm = "iwl-mvm-rs";
 	hw->uapsd_queues = IWL_MVM_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IWL_UAPSD_MAX_SP;

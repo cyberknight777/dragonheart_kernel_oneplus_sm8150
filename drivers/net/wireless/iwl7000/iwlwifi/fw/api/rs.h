@@ -291,8 +291,10 @@ enum {
 
 /* Bit 22-23: HE type. (0) SU, (1) SU_EXT, (2) MU, (3) trigger based */
 #define RATE_MCS_HE_TYPE_POS		22
-#define RATE_MCS_HE_TYPE_SU_EXT		(1 << RATE_MCS_HE_TYPE_POS)
+#define RATE_MCS_HE_TYPE_SU		(0 << RATE_MCS_HE_TYPE_POS)
+#define RATE_MCS_HE_TYPE_EXT_SU		(1 << RATE_MCS_HE_TYPE_POS)
 #define RATE_MCS_HE_TYPE_MU		(2 << RATE_MCS_HE_TYPE_POS)
+#define RATE_MCS_HE_TYPE_TRIG		(3 << RATE_MCS_HE_TYPE_POS)
 #define RATE_MCS_HE_TYPE_MSK		(3 << RATE_MCS_HE_TYPE_POS)
 
 /* Bit 24-25: (0) 20MHz (no dup), (1) 2x20MHz, (2) 4x20MHz, 3 8x20MHz */
