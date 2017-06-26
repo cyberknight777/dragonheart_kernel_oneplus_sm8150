@@ -91,9 +91,12 @@ static inline long ktime_get_seconds(void)
 #define S16_MIN		((s16)(-S16_MAX - 1))
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,5,0)
+#if LINUX_VERSION_IS_LESS(4,5,0)
 void *memdup_user_nul(const void __user *src, size_t len);
-#endif
+
+/* we don't have wext */
+static inline void wireless_nlevent_flush(void) {}
+#endif /* LINUX_VERSION_IS_LESS(4,5,0) */
 
 #ifndef SHASH_DESC_ON_STACK
 #define SHASH_DESC_ON_STACK(shash, ctx)				 \
@@ -141,6 +144,3 @@ static inline struct net *possible_read_pnet(const possible_net_t *pnet)
 #define possible_write_pnet(pnet, net) write_pnet(pnet, net)
 #define possible_read_pnet(pnet) read_pnet(pnet)
 #endif /* LINUX_VERSION_IS_LESS(4,1,0) */
-
-/* we don't have wext */
-static inline void wireless_nlevent_flush(void) {}
