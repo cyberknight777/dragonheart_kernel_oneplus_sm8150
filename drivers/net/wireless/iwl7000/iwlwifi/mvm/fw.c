@@ -769,14 +769,12 @@ static union acpi_object *iwl_mvm_sar_find_wifi_pkg(struct iwl_mvm *mvm,
 		domain = &wifi_pkg->package.elements[0];
 		if (domain->type == ACPI_TYPE_INTEGER &&
 		    domain->integer.value == ACPI_WIFI_DOMAIN)
-			break;
-
-		wifi_pkg = NULL;
+			goto found;
 	}
 
-	if (!wifi_pkg)
-		return ERR_PTR(-ENOENT);
+	return ERR_PTR(-ENOENT);
 
+found:
 	return wifi_pkg;
 }
 
