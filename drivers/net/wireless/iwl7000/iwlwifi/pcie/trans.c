@@ -243,7 +243,8 @@ void iwl_pcie_apm_config(struct iwl_trans *trans)
  */
 static int iwl_pcie_apm_init(struct iwl_trans *trans)
 {
-	int ret = 0;
+	int ret;
+
 	IWL_DEBUG_INFO(trans, "Init card's basic functions\n");
 
 	/*
@@ -294,8 +295,8 @@ static int iwl_pcie_apm_init(struct iwl_trans *trans)
 			   CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY,
 			   CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY, 25000);
 	if (ret < 0) {
-		IWL_DEBUG_INFO(trans, "Failed to init the card\n");
-		goto out;
+		IWL_ERR(trans, "Failed to init the card\n");
+		return ret;
 	}
 
 	if (trans->cfg->host_interrupt_operation_mode) {
@@ -343,8 +344,7 @@ static int iwl_pcie_apm_init(struct iwl_trans *trans)
 
 	set_bit(STATUS_DEVICE_ENABLED, &trans->status);
 
-out:
-	return ret;
+	return 0;
 }
 
 /*
@@ -521,12 +521,15 @@ static void iwl_pcie_apm_stop(struct iwl_trans *trans, bool op_mode_leave)
 static int iwl_pcie_nic_init(struct iwl_trans *trans)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
+	int ret;
 
 	/* nic_init */
 	spin_lock(&trans_pcie->irq_lock);
-	iwl_pcie_apm_init(trans);
-
+	ret = iwl_pcie_apm_init(trans);
 	spin_unlock(&trans_pcie->irq_lock);
+
+	if (ret)
+		return ret;
 
 	iwl_pcie_set_pwr(trans, false);
 
@@ -1774,7 +1777,9 @@ static int _iwl_trans_pcie_start_hw(struct iwl_trans *trans, bool low_power)
 	iwl_write32(trans, CSR_RESET, CSR_RESET_REG_FLAG_SW_RESET);
 	usleep_range(1000, 2000);
 
-	iwl_pcie_apm_init(trans);
+	err = iwl_pcie_apm_init(trans);
+	if (err)
+		return err;
 
 	iwl_pcie_init_msix(trans_pcie);
 
