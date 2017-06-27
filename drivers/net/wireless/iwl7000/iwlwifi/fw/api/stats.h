@@ -95,14 +95,14 @@ struct mvm_statistics_div {
  * @interference_data_flag: flag for interference data availability. 1 when data
  *	is available.
  * @channel_load: counts RX Enable time in uSec
- * @beacon_rssi_a:
- * @beacon_rssi_b:
- * @beacon_rssi_c:
- * @beacon_energy_a:
- * @beacon_energy_b:
- * @beacon_energy_c:
- * @num_bt_kills:
- * @mac_id:
+ * @beacon_rssi_a: beacon RSSI on anntena A
+ * @beacon_rssi_b: beacon RSSI on antenna B
+ * @beacon_rssi_c: beacon RSSI on antenna C
+ * @beacon_energy_a: beacon energy on antenna A
+ * @beacon_energy_b: beacon energy on antenna B
+ * @beacon_energy_c: beacon energy on antenna C
+ * @num_bt_kills: number of BT "kills" (frame TX aborts)
+ * @mac_id: mac ID
  */
 struct mvm_statistics_rx_non_phy {
 	__le32 bogus_cts;
