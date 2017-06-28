@@ -267,7 +267,7 @@ struct iwl_tof_range_req_ext_cmd {
 
 /**
  * enum iwl_tof_location_query - values for query bitmap
- *@IWL_TOF_LOC_LCI: query LCI
+ * @IWL_TOF_LOC_LCI: query LCI
  * @IWL_TOF_LOC_CIVIC: query civic
  */
 enum iwl_tof_location_query {
