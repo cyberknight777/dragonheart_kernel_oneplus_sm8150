@@ -430,6 +430,8 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_CIVIC] = { .type = NLA_BINARY },
 	[NL80211_ATTR_HE_CAPABILITY] = { .type = NLA_BINARY,
 					 .len = NL80211_HE_MAX_CAPABILITY_LEN },
+	[NL80211_ATTR_NAN_CDW_2G] = { .type = NLA_U8 },
+	[NL80211_ATTR_NAN_CDW_5G] = { .type = NLA_U8 },
 };
 
 /* policy for the key attributes */
@@ -11280,6 +11282,19 @@ static int nl80211_start_nan(struct sk_buff *skb, struct genl_info *info)
 		conf.bands = bands;
 	}
 
+	if (info->attrs[NL80211_ATTR_NAN_CDW_2G])
+		conf.cdw_2g = nla_get_u8(info->attrs[NL80211_ATTR_NAN_CDW_2G]);
+	else
+		conf.cdw_2g = 1;
+
+	if (info->attrs[NL80211_ATTR_NAN_CDW_5G])
+		conf.cdw_5g = nla_get_u8(info->attrs[NL80211_ATTR_NAN_CDW_2G]);
+	else
+		conf.cdw_5g = 1;
+
+	if (!conf.cdw_2g || conf.cdw_2g > 5 || conf.cdw_5g > 5)
+		return -EINVAL;
+
 	err = rdev_start_nan(rdev, wdev, &conf);
 	if (err)
 		return err;
@@ -11781,6 +11796,24 @@ static int nl80211_nan_change_config(struct sk_buff *skb,
 
 		conf.bands = bands;
 		changed |= CFG80211_NAN_CONF_CHANGED_BANDS;
+	}
+
+	if (info->attrs[NL80211_ATTR_NAN_CDW_2G]) {
+		conf.cdw_2g = nla_get_u8(info->attrs[NL80211_ATTR_NAN_CDW_2G]);
+
+		if (!conf.cdw_2g || conf.cdw_2g > 5)
+			return -EINVAL;
+
+		changed |= CFG80211_NAN_CONF_CHANGED_CDW_2G;
+	}
+
+	if (info->attrs[NL80211_ATTR_NAN_CDW_5G]) {
+		conf.cdw_5g = nla_get_u8(info->attrs[NL80211_ATTR_NAN_CDW_2G]);
+
+		if (conf.cdw_5g > 5)
+			return -EINVAL;
+
+		changed |= CFG80211_NAN_CONF_CHANGED_CDW_5G;
 	}
 
 	if (!changed)

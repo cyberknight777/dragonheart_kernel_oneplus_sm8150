@@ -2829,10 +2829,14 @@ struct cfg80211_ftm_responder_stats {
  * @bands: operating bands, a bitmap of &enum nl80211_band values.
  *	For instance, for NL80211_BAND_2GHZ, bit 0 would be set
  *	(i.e. BIT(NL80211_BAND_2GHZ)).
+ * @cdw_2g: Committed DW on 2.4GHz
+ * @cdw_5g: Committed DW on 5.2GHz
  */
 struct cfg80211_nan_conf {
 	u8 master_pref;
 	u8 bands;
+	u8 cdw_2g;
+	u8 cdw_5g;
 };
 
 /**
@@ -2841,10 +2845,14 @@ struct cfg80211_nan_conf {
  *
  * @CFG80211_NAN_CONF_CHANGED_PREF: master preference
  * @CFG80211_NAN_CONF_CHANGED_BANDS: operating bands
+ * @CFG80211_NAN_CONF_CHANGED_CDW_2G: committed DW on 2.4GHz
+ * @CFG80211_NAN_CONF_CHANGED_CDW_5G: committed DW on 5.2GHz
  */
 enum cfg80211_nan_conf_changes {
 	CFG80211_NAN_CONF_CHANGED_PREF = BIT(0),
 	CFG80211_NAN_CONF_CHANGED_BANDS = BIT(1),
+	CFG80211_NAN_CONF_CHANGED_CDW_2G = BIT(2),
+	CFG80211_NAN_CONF_CHANGED_CDW_5G = BIT(3),
 };
 
 /**

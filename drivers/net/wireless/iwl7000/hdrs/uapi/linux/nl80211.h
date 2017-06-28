@@ -911,7 +911,8 @@
  *	has been started, the NAN interface will create or join a
  *	cluster. This command must have a valid
  *	%NL80211_ATTR_NAN_MASTER_PREF attribute and optional
- *	%NL80211_ATTR_BANDS attributes.  If %NL80211_ATTR_BANDS is
+ *	%NL80211_ATTR_BANDS, %NL80211_ATTR_NAN_CDW_2G and
+ *	%NL80211_ATTR_NAN_CDW_5G attributes. If %NL80211_ATTR_BANDS is
  *	omitted or set to 0, it means don't-care and the device will
  *	decide what to use.  After this command NAN functions can be
  *	added.
@@ -939,10 +940,9 @@
  *	configuration. NAN must be operational (%NL80211_CMD_START_NAN
  *	was executed).  It must contain at least one of the following
  *	attributes: %NL80211_ATTR_NAN_MASTER_PREF,
- *	%NL80211_ATTR_BANDS.  If %NL80211_ATTR_BANDS is omitted, the
- *	current configuration is not changed.  If it is present but
- *	set to zero, the configuration is changed to don't-care
- *	(i.e. the device can decide what to do).
+ *	%NL80211_ATTR_BANDS, %NL80211_ATTR_NAN_CDW_2G, %NL80211_ATTR_NAN_CDW_5G.
+ *	If %NL80211_ATTR_BANDS is present but set to zero, the configuration is
+ *	changed to don't-care (i.e. the device can decide what to do).
  * @NL80211_CMD_NAN_FUNC_MATCH: Notification sent when a match is reported.
  *	This will contain a %NL80211_ATTR_NAN_MATCH nested attribute and
  *	%NL80211_ATTR_COOKIE.
@@ -2168,6 +2168,14 @@ enum nl80211_commands {
  * @NL80211_ATTR_HE_CAPABILITY: HE Capability information element (from
  *	association request when used with NL80211_CMD_NEW_STATION). Can be set
  *	only if &NL80211_STA_FLAG_WME is set.
+ * @NL80211_ATTR_NAN_CDW_2G: defines the NAN device committed DW on 2.4GHz.
+ *      This is a u8, where valid values are 1..5. The device must wake for at
+ *      least every 2^(val-1) DW on 2.4GHz. When using %NL80211_CMD_START_NAN,
+ *      if the attribute is not specified, the default committed DW is 1.
+ * @NL80211_ATTR_NAN_CDW_5G: defines the NAN device committed DW on 5.2GHz.
+ *      This is a u8, where valid values are 0..5. If the value is 0, then there
+ *      are no wake ups on 5.2GHz DWs. When using %NL80211_CMD_START_NAN,
+ *      if the attribute is not specified, the default committed DW is 1.
  *
  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
  * @NL80211_ATTR_MAX: highest attribute number currently defined
@@ -2610,6 +2618,9 @@ enum nl80211_attrs {
 	NL80211_ATTR_CONNECTION_AUTHORIZED,
 
 	NL80211_ATTR_HE_CAPABILITY,
+
+	NL80211_ATTR_NAN_CDW_2G,
+	NL80211_ATTR_NAN_CDW_5G,
 
 	/* add attributes here, update the policy in nl80211.c */
 
