@@ -1011,11 +1011,8 @@ int tpm1_auto_startup(struct tpm_chip *chip)
 	rc = tpm_get_timeouts(chip);
 	if (rc)
 		goto out;
-	rc = tpm_do_selftest(chip);
-	if (rc) {
-		dev_err(&chip->dev, "TPM self test failed\n");
-		goto out;
-	}
+	if (tpm_do_selftest(chip))
+		dev_err(&chip->dev, "TPM self test failed - ignoring\n");
 
 	return rc;
 out:
