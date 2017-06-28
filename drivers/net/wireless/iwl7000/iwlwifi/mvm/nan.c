@@ -173,9 +173,7 @@ int iwl_mvm_start_nan(struct ieee80211_hw *hw,
 		}
 
 		tb_cfg->chan24 = NAN_CHANNEL_24;
-
-		/* available on each DW in on 2.4GHZ */
-		cdw |= 1;
+		cdw |= conf->cdw_2g;
 	}
 
 	if (conf->bands & BIT(NL80211_BAND_5GHZ)) {
@@ -187,9 +185,7 @@ int iwl_mvm_start_nan(struct ieee80211_hw *hw,
 		}
 
 		tb_cfg->chan52 = NAN_CHANNEL_52;
-
-		/* available on each dw on 5GHZ */
-		cdw |= 1 << 3;
+		cdw |= conf->cdw_5g << 3;
 	}
 
 	tb_cfg->warmup_timer = cpu_to_le32(NAN_WARMUP_TIMEOUT_USEC);
