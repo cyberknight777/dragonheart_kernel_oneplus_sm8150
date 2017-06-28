@@ -254,6 +254,12 @@ static int ieee80211_nan_change_conf(struct wiphy *wiphy,
 	if (changes & CFG80211_NAN_CONF_CHANGED_BANDS)
 		new_conf.bands = conf->bands;
 
+	if (changes & CFG80211_NAN_CONF_CHANGED_CDW_2G)
+		new_conf.cdw_2g = conf->cdw_2g;
+
+	if (changes & CFG80211_NAN_CONF_CHANGED_CDW_5G)
+		new_conf.cdw_5g = conf->cdw_5g;
+
 	ret = drv_nan_change_conf(sdata->local, sdata, &new_conf, changes);
 	if (!ret)
 		sdata->u.nan.conf = new_conf;
