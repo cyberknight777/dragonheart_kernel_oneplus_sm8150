@@ -1220,6 +1220,7 @@ extern void pagefault_out_of_memory(void);
 #define SHOW_MEM_FILTER_NODES		(0x0001u)	/* disallowed nodes */
 
 extern void show_free_areas(unsigned int flags, nodemask_t *nodemask);
+extern void shmem_set_file(struct vm_area_struct *vma, struct file *file);
 
 extern bool can_do_mlock(void);
 extern int user_shm_lock(size_t, struct user_struct *);
