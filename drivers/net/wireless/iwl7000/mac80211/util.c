@@ -1490,7 +1490,27 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 						 sband->vht_cap.cap);
 	}
 
-	/* TODO: Take care of IE order and do a split of IEs */
+	/* insert custom IEs that go before HE */
+	if (ie && ie_len) {
+		static const u8 before_he[] = {
+			/*
+			 * no need to list the ones split off before VHT
+			 * or generated here
+			 */
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FILS_REQ_PARAMS,
+			WLAN_EID_AP_CSN,
+			/* TODO: add 11ah/11aj/11ak elements */
+		};
+		noffset = ieee80211_ie_split(ie, ie_len,
+					     before_he, ARRAY_SIZE(before_he),
+					     *offset);
+		if (end - pos < noffset - *offset)
+			goto out_err;
+		memcpy(pos, ie + *offset, noffset - *offset);
+		pos += noffset - *offset;
+		*offset = noffset;
+	}
+
 	he_cap = ieee80211_get_he_sta_cap(sband);
 	if (he_cap) {
 		pos = ieee80211_ie_build_he_cap(pos, he_cap, end);

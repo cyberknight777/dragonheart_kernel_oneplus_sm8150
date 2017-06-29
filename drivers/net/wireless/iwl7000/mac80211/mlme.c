@@ -863,15 +863,41 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 		offset = noffset;
 	}
 
+	/* if present, add any custom IEs that go before HE */
+	if (assoc_data->ie_len) {
+		static const u8 before_he[] = {
+			/*
+			 * no need to list the ones split off before VHT
+			 * or generated here
+			 */
+			WLAN_EID_OPMODE_NOTIF,
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FUTURE_CHAN_GUIDANCE,
+			/* 11ai elements */
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FILS_SESSION,
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FILS_PUBLIC_KEY,
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FILS_KEY_CONFIRM,
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FILS_HLP_CONTAINER,
+			WLAN_EID_EXTENSION, WLAN_EID_EXT_FILS_IP_ADDR_ASSIGN,
+			/* TODO: add 11ah/11aj/11ak elements */
+		};
+
+		/* RIC already taken above, so no need to handle here anymore */
+		noffset = ieee80211_ie_split(assoc_data->ie, assoc_data->ie_len,
+					     before_he, ARRAY_SIZE(before_he),
+					     offset);
+		pos = skb_put(skb, noffset - offset);
+		memcpy(pos, assoc_data->ie + offset, noffset - offset);
+		offset = noffset;
+	}
+
 	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 		ieee80211_add_vht_ie(sdata, skb, sband,
 				     &assoc_data->ap_vht_cap);
 
-	/* TODO: disable/enable HE according to resp from AP */
 	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
 		ieee80211_add_he_ie(sdata, skb, sband);
 
-	/* if present, add any custom non-vendor IEs that go after HT */
+	/* if present, add any custom non-vendor IEs that go after HE */
 	if (assoc_data->ie_len) {
 		noffset = ieee80211_ie_split_vendor(assoc_data->ie,
 						    assoc_data->ie_len,
