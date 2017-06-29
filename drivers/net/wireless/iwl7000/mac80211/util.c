@@ -1095,17 +1095,32 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 				elems->max_idle_period_ie = (void *)pos;
 			break;
 		case WLAN_EID_EXTENSION:
-			/* TODO: move to final place */
-			/* TODO: parse the rest of the elements */
 			if (pos[0] == WLAN_EID_EXT_HE_MU_EDCA &&
-			    elen >= sizeof(*elems->mu_edca_param_set)) {
+			    elen >= (sizeof(*elems->mu_edca_param_set) + 1)) {
 				elems->mu_edca_param_set = (void *)&pos[1];
 			} else if (pos[0] == WLAN_EID_EXT_HE_CAPABILITY) {
 				elems->he_cap = (void *)&pos[1];
 				elems->he_cap_len = elen - 1;
 			} else if (pos[0] == WLAN_EID_EXT_HE_OPERATION &&
 				   elen >= sizeof(*elems->he_operation)) {
+				u8 oper_len = sizeof(*elems->he_operation);
+
 				elems->he_operation = (void *)&pos[1];
+
+				/* Make sure length is OK */
+				if (elems->he_operation->he_oper_params &
+				    IEEE80211_HE_OPERATION_VHT_OPER_INFO)
+					oper_len += 3;
+				if (elems->he_operation->he_oper_params &
+				    IEEE80211_HE_OPERATION_MULTI_BSSID_AP)
+					oper_len++;
+
+				/*
+				 * Don't count the additional EXT byte when
+				 * validating size
+				 */
+				if (elen < (oper_len + 1))
+					elems->he_operation = NULL;
 			}
 			break;
 		default:
@@ -2450,8 +2465,8 @@ u8 *ieee80211_ie_build_he_cap(u8 *pos,
 	}
 
 	/* Check if PPE Threshold should be present */
-	if ((he_cap->he_cap_elem.phy_cap_info[7] &
-	     IEEE80211_HE_PHY_CAP8_PPE_THRESHOLD_PRESENT) == 0)
+	if ((he_cap->he_cap_elem.phy_cap_info[6] &
+	     IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) == 0)
 		goto end;
 
 	/*

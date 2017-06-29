@@ -53,8 +53,8 @@ ieee80211_he_cap_ie_to_sta_he_cap(struct ieee80211_sub_if_data *sdata,
 	pos += n;
 
 	/* Check if there are (optional) PPE Thresholds */
-	if (!(he_cap->he_cap_elem.phy_cap_info[7] &
-	      IEEE80211_HE_PHY_CAP8_PPE_THRESHOLD_PRESENT)) {
+	if (!(he_cap->he_cap_elem.phy_cap_info[6] &
+	      IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT)) {
 		he_cap->has_he = true;
 		return;
 	}
