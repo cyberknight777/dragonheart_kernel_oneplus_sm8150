@@ -11417,7 +11417,8 @@ static int nl80211_nan_set_security(struct cfg80211_registered_device *rdev,
 			&sec->ctx_ids[sec->n_ctx_ids];
 
 		ret = nla_parse_nested(attr, NL80211_NAN_SEC_CTX_MAX,
-				       sec_attr, nl80211_nan_sec_ctx_policy);
+				       sec_attr, nl80211_nan_sec_ctx_policy,
+				       NULL);
 		if (ret)
 			goto out;
 
@@ -12678,7 +12679,7 @@ static int nl80211_parse_ftm_target(struct cfg80211_registered_device *rdev,
 	int err;
 
 	err = nla_parse_nested(tb, NL80211_FTM_TARGET_ATTR_MAX, ftm_target_attr,
-			       nl80211_ftm_target_policy);
+			       nl80211_ftm_target_policy, NULL);
 	if (err)
 		return err;
 
@@ -12788,7 +12789,7 @@ static int nl80211_parse_ftm_request(struct cfg80211_registered_device *rdev,
 		return -ENOTSUPP;
 
 	err = nla_parse_nested(tb, NL80211_FTM_REQ_ATTR_MAX, ftm_attr,
-			       nl80211_ftm_request_policy);
+			       nl80211_ftm_request_policy, NULL);
 	if (err)
 		return err;
 

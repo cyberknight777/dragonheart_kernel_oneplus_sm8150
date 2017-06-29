@@ -984,7 +984,7 @@ static int iwl_tm_gnl_dump(struct sk_buff *skb, struct netlink_callback *cb)
 		 */
 		ret = nlmsg_parse(cb->nlh, GENL_HDRLEN, attrs,
 				  IWL_TM_GNL_MSG_ATTR_MAX - 1,
-				  iwl_tm_gnl_msg_policy);
+				  iwl_tm_gnl_msg_policy, NULL);
 		if (ret)
 			return ret;
 
