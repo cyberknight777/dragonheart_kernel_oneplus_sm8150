@@ -70,16 +70,21 @@
 
 static void iwl_mvm_send_led_fw_cmd(struct iwl_mvm *mvm, bool on)
 {
-	struct iwl_led_cmd cmd = {
+	struct iwl_led_cmd led_cmd = {
 		.status = cpu_to_le32(on),
+	};
+	struct iwl_host_cmd cmd = {
+		.id = WIDE_ID(LONG_GROUP, LEDS_CMD),
+		.len = { sizeof(led_cmd), },
+		.data = { &led_cmd, },
+		.flags = CMD_ASYNC,
 	};
 	int err;
 
 	if (!iwl_mvm_firmware_running(mvm))
 		return;
 
-	err = iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(LONG_GROUP, LEDS_CMD),
-				   0, sizeof(cmd), &cmd);
+	err = iwl_mvm_send_cmd(mvm, &cmd);
 
 	if (err)
 		IWL_WARN(mvm, "LED command failed: %d\n", err);
