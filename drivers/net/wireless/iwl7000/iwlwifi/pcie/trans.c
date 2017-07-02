@@ -3263,6 +3263,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		iwl_set_bit(trans, CSR_HOST_CHICKEN,
 			    CSR_HOST_CHICKEN_PM_IDLE_SRC_DIS_SB_PME);
 
+#if IS_ENABLED(CPTCFG_IWLMVM)
 	trans->hw_rf_id = iwl_read32(trans, CSR_HW_RF_ID);
 	if (trans->hw_rf_id == CSR_HW_RF_ID_TYPE_HR) {
 		u32 hw_status;
@@ -3273,6 +3274,8 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		else
 			trans->cfg = &iwla000_2ac_cfg_hr;
 	}
+#endif
+
 	/*
 	 * The RF_ID is set to zero in blank OTP so read version
 	 * to extract the RF_ID.
