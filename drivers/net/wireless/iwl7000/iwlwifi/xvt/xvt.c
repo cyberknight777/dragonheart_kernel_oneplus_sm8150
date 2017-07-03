@@ -76,6 +76,8 @@
 #include "user-infc.h"
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
+#include "iwl-io.h"
+#include "iwl-prph.h"
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
@@ -366,18 +368,63 @@ static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 static void iwl_xvt_nic_config(struct iwl_op_mode *op_mode)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+	u8 radio_cfg_type, radio_cfg_step, radio_cfg_dash;
+	u32 reg_val = 0;
+
+	radio_cfg_type = (xvt->fw->phy_config & FW_PHY_CFG_RADIO_TYPE) >>
+			 FW_PHY_CFG_RADIO_TYPE_POS;
+	radio_cfg_step = (xvt->fw->phy_config & FW_PHY_CFG_RADIO_STEP) >>
+			 FW_PHY_CFG_RADIO_STEP_POS;
+	radio_cfg_dash = (xvt->fw->phy_config & FW_PHY_CFG_RADIO_DASH) >>
+			 FW_PHY_CFG_RADIO_DASH_POS;
+
+	/* SKU control */
+	reg_val |= CSR_HW_REV_STEP(xvt->trans->hw_rev) <<
+				CSR_HW_IF_CONFIG_REG_POS_MAC_STEP;
+	reg_val |= CSR_HW_REV_DASH(xvt->trans->hw_rev) <<
+				CSR_HW_IF_CONFIG_REG_POS_MAC_DASH;
+
+	/* radio configuration */
+	reg_val |= radio_cfg_type << CSR_HW_IF_CONFIG_REG_POS_PHY_TYPE;
+	reg_val |= radio_cfg_step << CSR_HW_IF_CONFIG_REG_POS_PHY_STEP;
+	reg_val |= radio_cfg_dash << CSR_HW_IF_CONFIG_REG_POS_PHY_DASH;
+
+	WARN_ON((radio_cfg_type << CSR_HW_IF_CONFIG_REG_POS_PHY_TYPE) &
+		 ~CSR_HW_IF_CONFIG_REG_MSK_PHY_TYPE);
+
 	/*
-	 * TODO: Define NIC configuration flow
-	 *
-	 * Handle is required for operational flow,
-	 * so in order to avoid problems, at the
-	 * meanwhile this callback is implemented
-	 * as a stub.
+	 * TODO: Bits 7-8 of CSR in 8000 HW family and higher set the ADC
+	 * sampling, and shouldn't be set to any non-zero value.
+	 * The same is supposed to be true of the other HW, but unsetting
+	 * them (such as the 7260) causes automatic tests to fail on seemingly
+	 * unrelated errors. Need to further investigate this, but for now
+	 * we'll separate cases.
 	 */
-	iwl_trans_set_bits_mask(xvt->trans,
-				CSR_HW_IF_CONFIG_REG,
+	if (xvt->trans->cfg->device_family < IWL_DEVICE_FAMILY_8000)
+		reg_val |= CSR_HW_IF_CONFIG_REG_BIT_RADIO_SI;
+
+	iwl_trans_set_bits_mask(xvt->trans, CSR_HW_IF_CONFIG_REG,
+				CSR_HW_IF_CONFIG_REG_MSK_MAC_DASH |
+				CSR_HW_IF_CONFIG_REG_MSK_MAC_STEP |
+				CSR_HW_IF_CONFIG_REG_MSK_PHY_TYPE |
+				CSR_HW_IF_CONFIG_REG_MSK_PHY_STEP |
+				CSR_HW_IF_CONFIG_REG_MSK_PHY_DASH |
+				CSR_HW_IF_CONFIG_REG_BIT_RADIO_SI |
 				CSR_HW_IF_CONFIG_REG_BIT_MAC_SI,
-				CSR_HW_IF_CONFIG_REG_BIT_MAC_SI);
+				reg_val);
+
+	IWL_DEBUG_INFO(xvt, "Radio type=0x%x-0x%x-0x%x\n", radio_cfg_type,
+		       radio_cfg_step, radio_cfg_dash);
+
+	/*
+	 * W/A : NIC is stuck in a reset state after Early PCIe power off
+	 * (PCIe power is lost before PERST# is asserted), causing ME FW
+	 * to lose ownership and not being able to obtain it back.
+	 */
+	if (!xvt->trans->cfg->apmg_not_supported)
+		iwl_set_bits_mask_prph(xvt->trans, APMG_PS_CTRL_REG,
+				       APMG_PS_CTRL_EARLY_PWR_OFF_RESET_DIS,
+				       ~APMG_PS_CTRL_EARLY_PWR_OFF_RESET_DIS);
 }
 
 static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
