@@ -306,9 +306,9 @@ static void monitor_thermal_zone(struct thermal_zone_device *tz)
 {
 	mutex_lock(&tz->lock);
 
-	if (tz->passive)
+	if (tz->mode == THERMAL_DEVICE_ENABLED && tz->passive)
 		thermal_zone_device_set_polling(tz, tz->passive_delay);
-	else if (tz->polling_delay)
+	else if (tz->mode == THERMAL_DEVICE_ENABLED && tz->polling_delay)
 		thermal_zone_device_set_polling(tz, tz->polling_delay);
 	else
 		thermal_zone_device_set_polling(tz, 0);
@@ -464,10 +464,34 @@ static void thermal_zone_device_reset(struct thermal_zone_device *tz)
 		pos->initialized = false;
 }
 
+int thermal_zone_set_mode(struct thermal_zone_device *tz,
+				 enum thermal_device_mode mode)
+{
+	int result;
+
+	if (!tz->ops->set_mode)
+		return -EPERM;
+
+	result = tz->ops->set_mode(tz, mode);
+	if (result)
+		return result;
+
+	if (tz->mode != mode) {
+		tz->mode = mode;
+		monitor_thermal_zone(tz);
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(thermal_zone_set_mode);
+
 void thermal_zone_device_update(struct thermal_zone_device *tz,
 				enum thermal_notify_event event)
 {
 	int count;
+
+	/* Do nothing if the thermal zone is disabled */
+	if (tz->mode == THERMAL_DEVICE_DISABLED)
+		return;
 
 	if (atomic_read(&in_suspend))
 		return;
@@ -1278,6 +1302,15 @@ thermal_zone_device_register(const char *type, int trips, int mask,
 	INIT_DELAYED_WORK(&tz->poll_queue, thermal_zone_device_check);
 
 	thermal_zone_device_reset(tz);
+
+	if (tz->ops->get_mode) {
+		enum thermal_device_mode mode;
+
+		result = tz->ops->get_mode(tz, &mode);
+		tz->mode = result ? THERMAL_DEVICE_ENABLED : mode;
+	} else
+		tz->mode = THERMAL_DEVICE_ENABLED;
+
 	/* Update the new thermal zone and mark it as already updated. */
 	if (atomic_cmpxchg(&tz->need_update, 1, 0))
 		thermal_zone_device_update(tz, THERMAL_EVENT_UNSPECIFIED);
