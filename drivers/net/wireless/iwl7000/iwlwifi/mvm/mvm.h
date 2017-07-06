@@ -955,7 +955,6 @@ struct iwl_mvm {
 
 	/* -1 for always, 0 for never, >0 for that many times */
 	s8 fw_restart;
-	struct delayed_work fw_dump_wk;
 
 #ifdef CPTCFG_IWLWIFI_LEDS
 	struct led_classdev led;
