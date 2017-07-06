@@ -1740,7 +1740,6 @@ static void iwl_mvm_tx_reclaim(struct iwl_mvm *mvm, int sta_id, int tid,
 		/* this is the first skb we deliver in this batch */
 		/* put the rate scaling data there */
 		if (freed == 1) {
-			info->flags |= IEEE80211_TX_STAT_AMPDU;
 			memcpy(&info->status, &ba_info->status,
 			       sizeof(ba_info->status));
 			iwl_mvm_hwrate_to_tx_status(rate, info);
@@ -1787,6 +1786,8 @@ void iwl_mvm_rx_ba_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 	struct iwl_mvm_ba_notif *ba_notif;
 	struct iwl_mvm_tid_data *tid_data;
 	struct iwl_mvm_sta *mvmsta;
+
+	ba_info.flags = IEEE80211_TX_STAT_AMPDU;
 
 	if (iwl_mvm_has_new_tx_api(mvm)) {
 		struct iwl_mvm_compressed_ba_notif *ba_res =
