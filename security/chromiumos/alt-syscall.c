@@ -259,6 +259,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_lsetxattr	__NR_ia32_lsetxattr
 #define __NR_compat_lstat	__NR_ia32_lstat
 #define __NR_compat_madvise	__NR_ia32_madvise
+#define __NR_compat_memfd_create	__NR_ia32_memfd_create
 #define __NR_compat_mincore	__NR_ia32_mincore
 #define __NR_compat_mkdir	__NR_ia32_mkdir
 #define __NR_compat_mkdirat	__NR_ia32_mkdirat
@@ -344,6 +345,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_settimeofday	__NR_ia32_settimeofday
 #define __NR_compat_setuid	__NR_ia32_setuid
 #define __NR_compat_setxattr	__NR_ia32_setxattr
+#define __NR_compat_signalfd4	__NR_ia32_signalfd4
 #define __NR_compat_sigaltstack	__NR_ia32_sigaltstack
 #define __NR_compat_socketcall	__NR_ia32_socketcall
 #define __NR_compat_splice	__NR_ia32_splice
@@ -724,6 +726,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(lseek),
 	SYSCALL_ENTRY(lsetxattr),
 	SYSCALL_ENTRY(madvise),
+	SYSCALL_ENTRY(memfd_create),
 	SYSCALL_ENTRY(mincore),
 	SYSCALL_ENTRY(mkdirat),
 	SYSCALL_ENTRY(mknodat),
@@ -791,6 +794,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(setsid),
 	SYSCALL_ENTRY(settimeofday),
 	SYSCALL_ENTRY(setxattr),
+	SYSCALL_ENTRY(signalfd4),
 	SYSCALL_ENTRY(sigaltstack),
 	SYSCALL_ENTRY(splice),
 	SYSCALL_ENTRY(statfs),
@@ -1025,6 +1029,7 @@ static struct syscall_whitelist_entry third_party_whitelist[] = {
 	SYSCALL_ENTRY(ioctl),
 	SYSCALL_ENTRY(lseek),
 	SYSCALL_ENTRY(madvise),
+	SYSCALL_ENTRY(memfd_create),
 	SYSCALL_ENTRY(mprotect),
 	SYSCALL_ENTRY(munmap),
 	SYSCALL_ENTRY(nanosleep),
@@ -1242,6 +1247,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(lsetxattr),
 	COMPAT_SYSCALL_ENTRY(lstat),
 	COMPAT_SYSCALL_ENTRY(madvise),
+	COMPAT_SYSCALL_ENTRY(memfd_create),
 	COMPAT_SYSCALL_ENTRY(mincore),
 	COMPAT_SYSCALL_ENTRY(mkdir),
 	COMPAT_SYSCALL_ENTRY(mkdirat),
@@ -1319,6 +1325,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(setsid),
 	COMPAT_SYSCALL_ENTRY(settimeofday),
 	COMPAT_SYSCALL_ENTRY(setxattr),
+	COMPAT_SYSCALL_ENTRY(signalfd4),
 	COMPAT_SYSCALL_ENTRY(sigaltstack),
 	COMPAT_SYSCALL_ENTRY(splice),
 	COMPAT_SYSCALL_ENTRY(stat),
@@ -1496,6 +1503,7 @@ static struct syscall_whitelist_entry third_party_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(lstat),
 	COMPAT_SYSCALL_ENTRY(lstat64),
 	COMPAT_SYSCALL_ENTRY(madvise),
+	COMPAT_SYSCALL_ENTRY(memfd_create),
 	COMPAT_SYSCALL_ENTRY(mkdir),
 	COMPAT_SYSCALL_ENTRY(mmap2),
 	COMPAT_SYSCALL_ENTRY(mprotect),
