@@ -1372,6 +1372,8 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 		goto done;
 	}
 
+	hci_le_splitter_init_start(hdev);
+
 	set_bit(HCI_RUNNING, &hdev->flags);
 	hci_sock_dev_event(hdev, HCI_DEV_OPEN);
 

@@ -126,7 +126,7 @@ static bool hci_le_splitter_is_our_dev(struct hci_dev *hdev)
 	return cur_dev == hdev;
 }
 
-int hci_le_splitter_init_done(struct hci_dev *hdev)
+void hci_le_splitter_init_start(struct hci_dev *hdev)
 {
 	mutex_lock(&hci_state_lock);
 
@@ -142,6 +142,11 @@ int hci_le_splitter_init_done(struct hci_dev *hdev)
 	}
 
 	mutex_unlock(&hci_state_lock);
+}
+
+int hci_le_splitter_init_done(struct hci_dev *hdev)
+{
+	//nothing to do for now
 
 	return 0;
 }

@@ -33,6 +33,7 @@ struct sk_buff;
 
 #ifdef CONFIG_BT_HCI_LE_SPLITTER
 
+void hci_le_splitter_init_start(struct hci_dev *hdev);
 int hci_le_splitter_init_done(struct hci_dev *hdev);
 void hci_le_splitter_init_fail(struct hci_dev *hdev);
 int hci_le_splitter_deinit(struct hci_dev *hdev);
@@ -69,6 +70,11 @@ static inline bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, s
 static inline bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	return true;
+}
+
+static inline void hci_le_splitter_init_start(struct hci_dev *hdev)
+{
+
 }
 
 #endif
