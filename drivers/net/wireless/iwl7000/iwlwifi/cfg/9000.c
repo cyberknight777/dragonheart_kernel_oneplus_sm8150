@@ -72,12 +72,15 @@
 #define IWL9000_SMEM_OFFSET		0x400000
 #define IWL9000_SMEM_LEN		0x68000
 
-#define  IWL9000_FW_PRE "iwlwifi-9000-pu-a0-jf-a0-"
+#define  IWL9000A_FW_PRE "iwlwifi-9000-pu-a0-jf-a0-"
+#define  IWL9000B_FW_PRE "iwlwifi-9000-pu-b0-jf-b0-"
 #define  IWL9000RFB_FW_PRE "iwlwifi-9000-pu-a0-jf-b0-"
 #define  IWL9260A_FW_PRE "iwlwifi-9260-th-a0-jf-a0-"
 #define  IWL9260B_FW_PRE "iwlwifi-9260-th-b0-jf-b0-"
-#define IWL9000_MODULE_FIRMWARE(api) \
-	IWL9000_FW_PRE "-" __stringify(api) ".ucode"
+#define IWL9000A_MODULE_FIRMWARE(api) \
+	IWL9000A_FW_PRE "-" __stringify(api) ".ucode"
+#define IWL9000B_MODULE_FIRMWARE(api) \
+	IWL9000B_FW_PRE "-" __stringify(api) ".ucode"
 #define IWL9000RFB_MODULE_FIRMWARE(api) \
 	IWL9000RFB_FW_PRE "-" __stringify(api) ".ucode"
 #define IWL9260A_MODULE_FIRMWARE(api) \
@@ -186,7 +189,19 @@ const struct iwl_cfg iwl9270_2ac_cfg = {
 
 const struct iwl_cfg iwl9460_2ac_cfg = {
 	.name = "Intel(R) Dual Band Wireless AC 9460",
-	.fw_name_pre = IWL9000_FW_PRE,
+	.fw_name_pre = IWL9260A_FW_PRE,
+	.fw_name_pre_next_step = IWL9260B_FW_PRE,
+	IWL_DEVICE_9000,
+	.ht_params = &iwl9000_ht_params,
+	.nvm_ver = IWL9000_NVM_VERSION,
+	.nvm_calib_ver = IWL9000_TX_POWER_VERSION,
+	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
+};
+
+const struct iwl_cfg iwl9460_2ac_cfg_soc = {
+	.name = "Intel(R) Dual Band Wireless AC 9460",
+	.fw_name_pre = IWL9000A_FW_PRE,
+	.fw_name_pre_next_step = IWL9000B_FW_PRE,
 	.fw_name_pre_rf_next_step = IWL9000RFB_FW_PRE,
 	IWL_DEVICE_9000,
 	.ht_params = &iwl9000_ht_params,
@@ -199,7 +214,19 @@ const struct iwl_cfg iwl9460_2ac_cfg = {
 
 const struct iwl_cfg iwl9560_2ac_cfg = {
 	.name = "Intel(R) Dual Band Wireless AC 9560",
-	.fw_name_pre = IWL9000_FW_PRE,
+	.fw_name_pre = IWL9260A_FW_PRE,
+	.fw_name_pre_next_step = IWL9260B_FW_PRE,
+	IWL_DEVICE_9000,
+	.ht_params = &iwl9000_ht_params,
+	.nvm_ver = IWL9000_NVM_VERSION,
+	.nvm_calib_ver = IWL9000_TX_POWER_VERSION,
+	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
+};
+
+const struct iwl_cfg iwl9560_2ac_cfg_soc = {
+	.name = "Intel(R) Dual Band Wireless AC 9560",
+	.fw_name_pre = IWL9000A_FW_PRE,
+	.fw_name_pre_next_step = IWL9000B_FW_PRE,
 	.fw_name_pre_rf_next_step = IWL9000RFB_FW_PRE,
 	IWL_DEVICE_9000,
 	.ht_params = &iwl9000_ht_params,
@@ -209,8 +236,8 @@ const struct iwl_cfg iwl9560_2ac_cfg = {
 	.integrated = true,
 	.soc_latency = 5000,
 };
-
-MODULE_FIRMWARE(IWL9000_MODULE_FIRMWARE(IWL9000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL9000A_MODULE_FIRMWARE(IWL9000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL9000B_MODULE_FIRMWARE(IWL9000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL9000RFB_MODULE_FIRMWARE(IWL9000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL9260A_MODULE_FIRMWARE(IWL9000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL9260B_MODULE_FIRMWARE(IWL9000_UCODE_API_MAX));
