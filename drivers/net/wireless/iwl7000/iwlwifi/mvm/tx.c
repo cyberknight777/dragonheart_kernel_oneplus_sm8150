@@ -1740,6 +1740,7 @@ static void iwl_mvm_tx_reclaim(struct iwl_mvm *mvm, int sta_id, int tid,
 		/* this is the first skb we deliver in this batch */
 		/* put the rate scaling data there */
 		if (freed == 1) {
+			info->flags |= IEEE80211_TX_STAT_AMPDU;
 			memcpy(&info->status, &ba_info->status,
 			       sizeof(ba_info->status));
 			iwl_mvm_hwrate_to_tx_status(rate, info);
