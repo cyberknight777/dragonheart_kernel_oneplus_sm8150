@@ -221,16 +221,23 @@ void ieee80211_scan_rx(struct ieee80211_local *local, struct sk_buff *skb)
 	if (ieee80211_is_probe_resp(mgmt->frame_control)) {
 		struct cfg80211_scan_request *scan_req;
 		struct cfg80211_sched_scan_request *sched_scan_req;
+		u32 scan_req_flags = 0, sched_scan_req_flags = 0;
 
 		scan_req = rcu_dereference(local->scan_req);
 		sched_scan_req = rcu_dereference(local->sched_scan_req);
 
+		if (scan_req)
+			scan_req_flags = scan_req->flags;
+
+		if (sched_scan_req)
+			sched_scan_req_flags = sched_scan_req->flags;
+
 		/* ignore ProbeResp to foreign address or non-bcast (OCE)
 		 * unless scanning with randomised address
 		 */
-		if (!ieee80211_scan_accept_presp(sdata1, scan_req->flags,
+		if (!ieee80211_scan_accept_presp(sdata1, scan_req_flags,
 						 mgmt->da) &&
-		    !ieee80211_scan_accept_presp(sdata2, sched_scan_req->flags,
+		    !ieee80211_scan_accept_presp(sdata2, sched_scan_req_flags,
 						 mgmt->da))
 			return;
 
