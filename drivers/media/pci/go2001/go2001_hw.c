@@ -1131,23 +1131,6 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 	return 0;
 }
 
-static void go2001_flush(struct go2001_ctx *ctx, struct go2001_buffer *src_buf)
-{
-	assert_spin_locked(&ctx->qlock);
-
-	go2001_dbg(ctx->gdev, 4, "Flushing at src_buf ts=%ld.%06ld\n",
-			src_buf->vb.v4l2_buf.timestamp.tv_sec,
-			src_buf->vb.v4l2_buf.timestamp.tv_usec);
-
-	/*
-	 * Since VPX has no frame reordering and buffers are returned as
-	 * soon as they are decoded, there is no need trigger anything on the
-	 * destination queue. Just return the flush buffer to userspace.
-	 */
-	list_del(&src_buf->list);
-	vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
-}
-
 int go2001_prepare_gbuf(struct go2001_ctx *ctx, struct go2001_buffer *gbuf,
 			bool is_src)
 {
@@ -1199,7 +1182,6 @@ int go2001_schedule_frames(struct go2001_ctx *ctx)
 	BUG_ON(job->dst_buf);
 
 	go2001_dbg(gdev, 5, "State: %d\n", ctx->state);
-again:
 	src_buf = NULL;
 	dst_buf = NULL;
 
@@ -1229,21 +1211,30 @@ again:
 	if (!src_buf)
 		goto out;
 
+	if (ctx->codec_mode == CODEC_MODE_DECODER &&
+	    src_buf->vb.v4l2_buf.index == GO2001_DUMMY_FLUSH_BUF_INDEX) {
+		/* Flush buffer */
+		int i;
+
+		list_del_init(&src_buf->list);
+		list_del(&dst_buf->list);
+		for (i = 0; i < dst_buf->vb.num_planes; ++i)
+			vb2_set_plane_payload(&dst_buf->vb, i, 0);
+		dst_buf->vb.v4l2_buf.flags |= V4L2_BUF_FLAG_LAST;
+		dst_buf->vb.v4l2_buf.bytesused = 0;
+		vb2_buffer_done(&dst_buf->vb, VB2_BUF_STATE_DONE);
+		goto out;
+	}
+
 	msg = src_buf->msg;
 	if (WARN_ON(!msg))
 		goto out;
 
-	if (ctx->codec_mode == CODEC_MODE_DECODER) {
-		if (vb2_get_plane_payload(&src_buf->vb, 0) == 0) {
-			/* Flush buffer */
-			go2001_flush(ctx, src_buf);
-			goto again;
-		}
-
+	if (ctx->codec_mode == CODEC_MODE_DECODER)
 		ret = go2001_build_dec_msg(ctx, msg, src_buf, dst_buf);
-	} else {
+	else
 		ret = go2001_build_enc_msg(ctx, msg, src_buf, dst_buf);
-	}
+
 	if (ret)
 		goto out;
 

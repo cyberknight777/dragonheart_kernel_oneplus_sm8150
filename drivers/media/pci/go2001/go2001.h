@@ -260,6 +260,8 @@ struct go2001_ctx {
 	struct go2001_enc_params enc_params;
 	/* Will be applied to the next source buffer queued. */
 	struct go2001_runtime_enc_params pending_rt_params;
+	/* A dummy output buffer that indicates flush. */
+	struct go2001_buffer dummy_flush_buf;
 
 	bool need_resume;
 };
@@ -325,6 +327,7 @@ static inline void go2001_set_ctx_state(struct go2001_ctx *ctx,
 #define GO2001_MAX_FPS				30
 #define GO2001_DEF_RC_ENABLE			1
 #define GO2001_VPX_MACROBLOCK_SIZE		16
+#define GO2001_DUMMY_FLUSH_BUF_INDEX		VIDEO_MAX_FRAME
 
 #endif /* _MEDIA_PCI_GO2001_GO2001_H_ */
 
