@@ -210,7 +210,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	iwl_fw_runtime_init(&xvt->fwrt, trans, fw, NULL, NULL);
 
 	mutex_init(&xvt->mutex);
-	mutex_init(&xvt->notif_mtx);
+	spin_lock_init(&xvt->notif_lock);
 
 	/*
 	 * Populate the state variables that the
@@ -354,7 +354,7 @@ static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 
-	mutex_lock(&xvt->notif_mtx);
+	spin_lock(&xvt->notif_lock);
 	iwl_notification_wait_notify(&xvt->notif_wait, pkt);
 	IWL_DEBUG_INFO(xvt, "rx dispatch got notification\n");
 
@@ -362,7 +362,7 @@ static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 		iwl_xvt_rx_tx_cmd_handler(xvt, pkt);
 
 	iwl_xvt_send_user_rx_notif(xvt, rxb);
-	mutex_unlock(&xvt->notif_mtx);
+	spin_unlock(&xvt->notif_lock);
 }
 
 static void iwl_xvt_nic_config(struct iwl_op_mode *op_mode)

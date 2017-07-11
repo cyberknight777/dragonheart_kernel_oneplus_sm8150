@@ -65,6 +65,7 @@
 #ifndef __iwl_xvt_h__
 #define __iwl_xvt_h__
 
+#include <linux/spinlock.h>
 #include <linux/if_ether.h>
 #include "iwl-drv.h"
 #include "iwl-trans.h"
@@ -281,7 +282,7 @@ struct iwl_xvt {
 	struct device *dev;
 
 	struct mutex mutex;	/* Protects access to xVT struct */
-	struct mutex notif_mtx;	/* Protects notifications processing */
+	spinlock_t notif_lock;;	/* Protects notifications processing */
 	enum iwl_xvt_state state;
 	bool fw_error;
 
