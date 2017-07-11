@@ -749,6 +749,9 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 	chain_a = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE]);
 	chain_b = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE]);
 
+	mvm->sar_chain_a_profile = chain_a;
+	mvm->sar_chain_b_profile = chain_b;
+
 	if (mvm->sar_chain_a_profile == chain_a &&
 	    mvm->sar_chain_b_profile == chain_b)
 		return 0;
@@ -970,8 +973,7 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 			.vendor_id = INTEL_OUI,
 			.subcmd = IWL_MVM_VENDOR_CMD_SET_SAR_PROFILE,
 		},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
 		.doit = iwl_mvm_vendor_set_dynamic_txp_profile,
 	},
 	{
