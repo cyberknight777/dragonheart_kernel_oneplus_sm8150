@@ -354,8 +354,7 @@ static int cros_ec_ring_event(struct notifier_block *nb,
 	if (queued_during_suspend)
 		return NOTIFY_OK;
 
-	memcpy(&state->fifo_info.info, &ec->event_data.data.sensor_fifo.info,
-	       ec->event_size);
+	state->fifo_info.info = ec->event_data.data.sensor_fifo.info;
 	state->fifo_timestamp[NEW_TS] = cros_ec_get_time_ns();
 	cros_ec_ring_handler(state);
 	return NOTIFY_OK;
