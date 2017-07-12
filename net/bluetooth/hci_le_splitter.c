@@ -389,7 +389,7 @@ static struct miscdevice mdev = {
 	.fops  = &hci_le_splitter_fops
 };
 
-int hci_le_splitter_deinit(struct hci_dev *hdev)
+void hci_le_splitter_deinit(struct hci_dev *hdev)
 {
 	mutex_lock(&hci_state_lock);
 	mutex_lock(&usr_msg_q_lock);
@@ -405,8 +405,6 @@ int hci_le_splitter_deinit(struct hci_dev *hdev)
 	}
 	mutex_unlock(&usr_msg_q_lock);
 	mutex_unlock(&hci_state_lock);
-
-	return 0;
 }
 
 void hci_le_splitter_init_fail(struct hci_dev *hdev)
