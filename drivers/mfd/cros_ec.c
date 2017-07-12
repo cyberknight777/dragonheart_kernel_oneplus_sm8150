@@ -51,6 +51,10 @@ static const struct mfd_cell ec_pd_cell = {
 	.pdata_size = sizeof(pd_p),
 };
 
+static const struct mfd_cell ec_rtc_cell = {
+	.name = "cros-ec-rtc",
+};
+
 static irqreturn_t ec_irq_thread(int irq, void *data)
 {
 	struct cros_ec_device *ec_dev = data;
@@ -245,6 +249,16 @@ error:
 	kfree(msg);
 }
 
+static void cros_ec_rtc_register(struct cros_ec_device *ec_dev)
+{
+	int ret;
+
+	ret = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, &ec_rtc_cell,
+			      1, NULL, 0, NULL);
+	if (ret)
+		dev_err(ec_dev->dev, "failed to add EC RTC\n");
+}
+
 int cros_ec_register(struct cros_ec_device *ec_dev)
 {
 	struct device *dev = ec_dev->dev;
@@ -293,6 +307,10 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	/* Check whether this EC is a sensor hub. */
 	if (cros_ec_check_features(ec_dev, EC_FEATURE_MOTION_SENSE))
 		cros_ec_sensors_register(ec_dev);
+
+	/* Check whether this EC has RTC support */
+	if (cros_ec_check_features(ec_dev, EC_FEATURE_RTC))
+		cros_ec_rtc_register(ec_dev);
 
 	if (ec_dev->max_passthru) {
 		/*
