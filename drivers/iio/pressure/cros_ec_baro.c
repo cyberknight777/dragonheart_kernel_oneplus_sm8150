@@ -126,18 +126,10 @@ static const struct iio_info cros_ec_baro_info = {
 static int cros_ec_baro_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct cros_ec_dev *ec_dev = dev_get_drvdata(dev->parent);
-	struct cros_ec_device *ec_device;
 	struct iio_dev *indio_dev;
 	struct cros_ec_baro_state *state;
 	struct iio_chan_spec *channel;
 	int ret;
-
-	if (!ec_dev || !ec_dev->ec_dev) {
-		dev_warn(dev, "No CROS EC device found.\n");
-		return -EINVAL;
-	}
-	ec_device = ec_dev->ec_dev;
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*state));
 	if (!indio_dev)

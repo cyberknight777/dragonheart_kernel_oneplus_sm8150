@@ -115,6 +115,7 @@ struct cros_ec_command {
  * @event_notifier: interrupt event notifier for transport devices.
  * @event_data: raw payload transferred with the MKBP event.
  * @event_size: size in bytes of the event data.
+ * @features: stores the EC features.
  */
 struct cros_ec_device {
 
@@ -150,15 +151,19 @@ struct cros_ec_device {
 	struct ec_response_get_next_event event_data;
 	int event_size;
 	u32 host_event_wake_mask;
+	u32 features[2];
 };
 
 /**
  * struct cros_ec_sensor_platform - ChromeOS EC sensor platform information
  *
  * @sensor_num: Id of the sensor, as reported by the EC.
+ * @cmd_offset: offset to apply for each command. Set when
+ * registering a devicde behind another one.
  */
 struct cros_ec_sensor_platform {
 	u8 sensor_num;
+	u16 cmd_offset;
 };
 
 /* struct cros_ec_platform - ChromeOS EC platform information
@@ -192,7 +197,6 @@ struct cros_ec_dev {
 	struct device *dev;
 	struct cros_ec_debugfs *debug_info;
 	u16 cmd_offset;
-	u32 features[2];
 };
 
 /**

@@ -41,12 +41,13 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 {
 	struct device *dev = &pdev->dev;
 	struct cros_ec_sensors_core_state *state = iio_priv(indio_dev);
-	struct cros_ec_dev *ec = dev_get_drvdata(pdev->dev.parent);
+	struct cros_ec_device *ec_dev = dev_get_drvdata(pdev->dev.parent);
 	struct cros_ec_sensor_platform *sensor_platform = dev_get_platdata(dev);
 
 	platform_set_drvdata(pdev, indio_dev);
 
-	state->ec = ec->ec_dev;
+	state->ec = ec_dev;
+
 	state->msg = devm_kzalloc(&pdev->dev,
 				max((u16)sizeof(struct ec_params_motion_sense),
 				state->ec->max_response), GFP_KERNEL);
@@ -59,7 +60,8 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 
 	/* Set up the host command structure. */
 	state->msg->version = 2;
-	state->msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
+	state->msg->command = EC_CMD_MOTION_SENSE_CMD +
+				sensor_platform->cmd_offset;
 	state->msg->outsize = sizeof(struct ec_params_motion_sense);
 
 	indio_dev->dev.parent = &pdev->dev;
