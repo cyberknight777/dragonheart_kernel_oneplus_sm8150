@@ -516,10 +516,20 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	if (iwl_trans->cfg->rf_id && cfg == &iwla000_2ac_cfg_hr_cdb) {
 		/* TODO: remove the != 0x0000 from the else if */
-		if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_JF)
+		if (ent->device == 0x0000)
+			if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_JF)
+				cfg = &iwla000_2ax_cfg_qnj_jf_b0;
+			else if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_HR)
+				/*
+				 * cdb cards have blank otp and read HR RF ID
+				 * instead of HRCDB RF ID.
+				 */
+				cfg = &iwla000_2ac_cfg_hr_cdb;
+			else
+				cfg = &iwla000_2ax_cfg_qnj_hr_a0;
+		else if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_JF)
 			cfg = &iwla000_2ac_cfg_jf;
-		else if (ent->device != 0x0000 &&
-			 iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_HR)
+		else if (iwl_trans->hw_rf_id == CSR_HW_RF_ID_TYPE_HR)
 			cfg = &iwla000_2ac_cfg_hr;
 		iwl_trans->cfg = cfg;
 	}
