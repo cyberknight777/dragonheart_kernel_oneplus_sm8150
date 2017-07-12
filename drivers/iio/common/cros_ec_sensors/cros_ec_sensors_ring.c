@@ -87,6 +87,7 @@ struct cros_ec_sensors_ring_state {
 
 	s64    fifo_timestamp[ALL_TS];
 	struct cros_ec_fifo_info fifo_info;
+	int    fifo_size;
 };
 
 static const struct iio_info ec_sensors_info = {
@@ -114,7 +115,8 @@ static s64 cros_ec_get_time_ns(void)
  * in: incoming FIFO event from EC
  * out: outgoing event to user space.
  */
-bool cros_ec_ring_process_event(const struct cros_ec_fifo_info *fifo_info,
+static bool cros_ec_ring_process_event(
+				const struct cros_ec_fifo_info *fifo_info,
 				const s64 fifo_timestamp,
 				s64 *current_timestamp,
 				struct ec_response_motion_sensor_data *in,
@@ -189,6 +191,15 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 		       sizeof(*fifo_info));
 		fifo_timestamp = cros_ec_get_time_ns();
 	}
+	if (fifo_info->info.count > state->fifo_size ||
+	    fifo_info->info.size != state->fifo_size) {
+		dev_warn(&indio_dev->dev,
+			 "Mismatch EC data: count %d, size %d - expected %d",
+			 fifo_info->info.count, fifo_info->info.size,
+			 state->fifo_size);
+		mutex_unlock(&state->core.cmd_lock);
+		return;
+	}
 
 	current_timestamp = state->fifo_timestamp[LAST_TS];
 	out = state->ring;
@@ -209,11 +220,21 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 		if (number_data == 0) {
 			dev_dbg(&indio_dev->dev, "Unexpected empty FIFO\n");
 			break;
+		} else if (number_data > fifo_info->info.count - i) {
+			dev_warn(&indio_dev->dev,
+				 "Invalid EC data: too many entry received: %d, expected %d",
+				 number_data, fifo_info->info.count - i);
+			break;
+		} else if (out + number_data >
+			   state->ring + fifo_info->info.count) {
+			dev_warn(&indio_dev->dev,
+				 "Too many samples: %d (%ld data) to %d entries for expected %d entries",
+				 i, out - state->ring, i + number_data,
+				 fifo_info->info.count);
+			break;
 		}
-
 		for (in = state->core.resp->fifo_read.data, j = 0;
 		     j < number_data; j++, in++) {
-			BUG_ON(out >= state->ring + fifo_info->info.size);
 			if (cros_ec_ring_process_event(
 					fifo_info, fifo_timestamp,
 					&current_timestamp, in, out)) {
@@ -457,8 +478,8 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 	/* Allocate the full fifo.
 	 * We need to copy the whole FIFO to set timestamps properly *
 	 */
-	state->ring = devm_kcalloc(&pdev->dev,
-			state->core.resp->fifo_info.size,
+	state->fifo_size = state->core.resp->fifo_info.size;
+	state->ring = devm_kcalloc(&pdev->dev, state->fifo_size,
 			sizeof(*state->ring), GFP_KERNEL);
 	if (!state->ring)
 		return -ENOMEM;
