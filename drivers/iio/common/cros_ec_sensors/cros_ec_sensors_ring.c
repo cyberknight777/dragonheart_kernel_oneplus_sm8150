@@ -176,8 +176,8 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 	struct cros_ec_sensors_ring_sample *out, *last_out;
 
 
+	mutex_lock(&state->core.cmd_lock);
 	/* Get FIFO information */
-
 	fifo_timestamp = state->fifo_timestamp[NEW_TS];
 	/* Copy elements in the main fifo */
 	if (fifo_info->info.total_lost) {
@@ -222,6 +222,7 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 			}
 		}
 	}
+	mutex_unlock(&state->core.cmd_lock);
 	last_out = out;
 
 	if (out == state->ring)
@@ -370,10 +371,14 @@ static int __maybe_unused cros_ec_ring_prepare(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
 	struct cros_ec_sensors_ring_state *state = iio_priv(indio_dev);
+	int ret;
 
+	mutex_lock(&state->core.cmd_lock);
 	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
 	state->core.param.fifo_int_enable.enable = 0;
-	return cros_ec_motion_send_host_cmd(&state->core, 0);
+	ret = cros_ec_motion_send_host_cmd(&state->core, 0);
+	mutex_unlock(&state->core.cmd_lock);
+	return ret;
 }
 
 static void __maybe_unused cros_ec_ring_complete(struct device *dev)
@@ -382,9 +387,11 @@ static void __maybe_unused cros_ec_ring_complete(struct device *dev)
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
 	struct cros_ec_sensors_ring_state *state = iio_priv(indio_dev);
 
+	mutex_lock(&state->core.cmd_lock);
 	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
 	state->core.param.fifo_int_enable.enable = 1;
 	cros_ec_motion_send_host_cmd(&state->core, 0);
+	mutex_unlock(&state->core.cmd_lock);
 }
 
 #define CROS_EC_RING_ID(_id, _name)		\
