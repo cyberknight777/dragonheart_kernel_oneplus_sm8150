@@ -1111,7 +1111,9 @@ static int iwl_mvm_mac_ctxt_send_beacon(struct iwl_mvm *mvm,
 			 IWL_UCODE_TLV_CAPA_CSA_AND_TBTT_OFFLOAD))
 		return iwl_mvm_mac_ctxt_send_beacon_v6(mvm, vif, beacon);
 
-	if (fw_has_api(&mvm->fw->ucode_capa,
+	/* TODO: remove first condition once FW merge new TLV */
+	if (iwl_mvm_has_new_tx_api(mvm) ||
+	    fw_has_api(&mvm->fw->ucode_capa,
 		       IWL_UCODE_TLV_API_NEW_BEACON_TEMPLATE))
 		return iwl_mvm_mac_ctxt_send_beacon_v9(mvm, vif, beacon);
 
