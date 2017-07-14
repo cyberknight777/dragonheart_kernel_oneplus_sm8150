@@ -749,12 +749,12 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 	chain_a = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE]);
 	chain_b = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE]);
 
-	mvm->sar_chain_a_profile = chain_a;
-	mvm->sar_chain_b_profile = chain_b;
-
 	if (mvm->sar_chain_a_profile == chain_a &&
 	    mvm->sar_chain_b_profile == chain_b)
 		return 0;
+
+	mvm->sar_chain_a_profile = chain_a;
+	mvm->sar_chain_b_profile = chain_b;
 
 	return iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
 }
