@@ -3084,6 +3084,14 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 	if (elems.he_operation && !(ifmgd->flags & IEEE80211_STA_DISABLE_HE)) {
 		bss_conf->bss_color = elems.he_operation->he_oper_params &
 				      IEEE80211_HE_OPERATION_BSS_COLOR_MASK;
+		bss_conf->htc_trig_based_pkt_ext =
+			(elems.he_operation->he_oper_params &
+			 IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK) <<
+			IEEE80211_HE_OPERATION_DFLT_PE_DURATION_OFFSET;
+		bss_conf->frame_time_rts_th =
+			(elems.he_operation->he_oper_params &
+			 IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK) <<
+			IEEE80211_HE_OPERATION_RTS_THRESHOLD_OFFSET;
 
 		/* TODO: OPEN: what happens if BSS color disable is set? */
 
@@ -3091,6 +3099,8 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 						  elems.he_cap,
 						  elems.he_cap_len,
 						  sta);
+
+		bss_conf->he_support = sta->sta.he_cap.has_he;
 	}
 
 	/*

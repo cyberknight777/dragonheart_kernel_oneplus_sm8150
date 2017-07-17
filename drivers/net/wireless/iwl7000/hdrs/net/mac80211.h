@@ -466,6 +466,9 @@ struct ieee80211_mu_group_data {
  * to that BSS) that can change during the lifetime of the BSS.
  *
  * @bss_color: 6-bit value to mark inter-BSS frame, if BSS supports HE
+ * @htc_trig_based_pkt_ext: default PE in 4us units, if BSS supports HE
+ * @frame_time_rts_th: HE duration RTS threshold, in units of 32us
+ * @he_support: does this BSS support HE
  * @assoc: association status
  * @ibss_joined: indicates whether this station is part of an IBSS
  *	or not
@@ -554,6 +557,9 @@ struct ieee80211_mu_group_data {
 struct ieee80211_bss_conf {
 	const u8 *bssid;
 	u8 bss_color;
+	u8 htc_trig_based_pkt_ext;
+	u16 frame_time_rts_th;
+	bool he_support;
 	/* association related data */
 	bool assoc, ibss_joined;
 	bool ibss_creator;
