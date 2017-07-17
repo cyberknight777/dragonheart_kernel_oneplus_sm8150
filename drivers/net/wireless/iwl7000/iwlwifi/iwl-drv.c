@@ -389,6 +389,7 @@ static void iwl_dealloc_ucode(struct iwl_drv *drv)
 	for (i = 0; i < ARRAY_SIZE(drv->fw.dbg_trigger_tlv); i++)
 		kfree(drv->fw.dbg_trigger_tlv[i]);
 	kfree(drv->fw.dbg_mem_tlv);
+	kfree(drv->fw.iml);
 
 	for (i = 0; i < IWL_UCODE_TYPE_MAX; i++)
 		iwl_free_fw_img(drv, drv->fw.img + i);
@@ -1366,6 +1367,13 @@ fw_dbg_conf:
 			pieces->dbg_mem_tlv = n;
 			pieces->dbg_mem_tlv[pieces->n_dbg_mem_tlv] = *dbg_mem;
 			pieces->n_dbg_mem_tlv++;
+			break;
+			}
+		case IWL_UCODE_TLV_IML: {
+			drv->fw.iml_len = tlv_len;
+			drv->fw.iml = kmemdup(tlv_data, tlv_len, GFP_KERNEL);
+			if (!drv->fw.iml)
+				return -ENOMEM;
 			break;
 			}
 		default:
