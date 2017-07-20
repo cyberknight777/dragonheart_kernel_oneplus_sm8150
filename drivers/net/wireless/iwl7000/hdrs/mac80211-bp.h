@@ -30,6 +30,34 @@
 })
 #endif /* netdev_alloc_pcpu_stats */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
+/* consider properly backporting this? */
+static inline int crypto_memneq(const void *a, const void *b, size_t size)
+{
+	unsigned long neq = 0;
+
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+	while (size >= sizeof(unsigned long)) {
+		neq |= *(unsigned long *)a ^ *(unsigned long *)b;
+		/* OPTIMIZER_HIDE_VAR(neq); */
+		barrier();
+		a += sizeof(unsigned long);
+		b += sizeof(unsigned long);
+		size -= sizeof(unsigned long);
+	}
+#endif /* CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS */
+	while (size > 0) {
+		neq |= *(unsigned char *)a ^ *(unsigned char *)b;
+		/* OPTIMIZER_HIDE_VAR(neq); */
+		barrier();
+		a += 1;
+		b += 1;
+		size -= 1;
+	}
+	return neq != 0UL ? 1 : 0;
+}
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
 #include "u64_stats_sync.h"
 
@@ -144,3 +172,16 @@ static inline struct net *possible_read_pnet(const possible_net_t *pnet)
 #define possible_write_pnet(pnet, net) write_pnet(pnet, net)
 #define possible_read_pnet(pnet) read_pnet(pnet)
 #endif /* LINUX_VERSION_IS_LESS(4,1,0) */
+
+#if LINUX_VERSION_IS_LESS(4,12,0)
+#define netdev_set_priv_destructor(_dev, _destructor) \
+	(_dev)->destructor = __ ## _destructor
+#define netdev_set_def_destructor(_dev) \
+	(_dev)->destructor = free_netdev
+#else
+#define netdev_set_priv_destructor(_dev, _destructor) \
+	(_dev)->needs_free_netdev = true; \
+	(_dev)->priv_destructor = (_destructor);
+#define netdev_set_def_destructor(_dev) \
+	(_dev)->needs_free_netdev = true;
+#endif
