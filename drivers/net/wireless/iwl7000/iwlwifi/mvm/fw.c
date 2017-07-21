@@ -1144,7 +1144,7 @@ static int iwl_mvm_sar_init(struct iwl_mvm *mvm)
 				"EWRD SAR BIOS table invalid or unavailable. (%d)\n",
 				ret);
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+#if defined(CPTCFG_IWLMVM_VENDOR_CMDS) && defined(CONFIG_ACPI)
 	/*
 	 * if no profile was chosen by the user yet, choose profile 1 (WRDS) as
 	 * default for both chains
