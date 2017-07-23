@@ -1629,7 +1629,9 @@ static void iwl_mvm_mac_remove_interface(struct ieee80211_hw *hw,
 	}
 
 #ifdef CPTCFG_IWLMVM_TCM
-	iwl_mvm_tcm_rm_vif(mvm, vif);
+	if (!(vif->type == NL80211_IFTYPE_AP ||
+	      vif->type == NL80211_IFTYPE_ADHOC))
+		iwl_mvm_tcm_rm_vif(mvm, vif);
 #endif
 
 	mutex_lock(&mvm->mutex);
