@@ -707,8 +707,8 @@ void iwl_fw_error_dump(struct iwl_fw_runtime *fwrt)
 
 	/* If we only want a monitor dump, reset the file length */
 	if (monitor_dump_only) {
-		file_len = sizeof(*dump_file) + sizeof(*dump_data) +
-			   sizeof(*dump_info);
+		file_len = sizeof(*dump_file) + sizeof(*dump_data) * 2 +
+			   sizeof(*dump_info) + sizeof(*dump_smem_cfg);
 	}
 
 	if (fwrt->dump.desc)
