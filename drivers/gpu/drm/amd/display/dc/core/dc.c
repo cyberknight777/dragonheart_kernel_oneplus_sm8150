@@ -1610,12 +1610,10 @@ void dc_update_surfaces_and_stream(struct dc *dc,
 			if (!pipe_ctx->surface || pipe_ctx->top_pipe)
 				continue;
 
-			if (!pipe_ctx->tg->funcs->is_blanked(pipe_ctx->tg)) {
-				core_dc->hwss.pipe_control_lock(
-						core_dc,
-						pipe_ctx,
-						true);
-			}
+			core_dc->hwss.pipe_control_lock(
+					core_dc,
+					pipe_ctx,
+					true);
 		}
 		if (update_type == UPDATE_TYPE_FULL)
 			break;
@@ -1698,12 +1696,11 @@ void dc_update_surfaces_and_stream(struct dc *dc,
 			if (!pipe_ctx->surface || pipe_ctx->top_pipe)
 				continue;
 
-			if (!pipe_ctx->tg->funcs->is_blanked(pipe_ctx->tg)) {
-				core_dc->hwss.pipe_control_lock(
-						core_dc,
-						pipe_ctx,
-						false);
-			}
+			core_dc->hwss.pipe_control_lock(
+					core_dc,
+					pipe_ctx,
+					false);
+
 			break;
 		}
 	}
