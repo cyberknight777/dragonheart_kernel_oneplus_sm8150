@@ -480,7 +480,7 @@ static void *vb2_dc_get_userptr(struct device *dev, unsigned long vaddr,
 {
 	struct vb2_dc_buf *buf;
 	struct frame_vector *vec;
-	unsigned long offset;
+	unsigned int offset;
 	int n_pages, i;
 	int ret = 0;
 	struct sg_table *sgt;
@@ -508,7 +508,7 @@ static void *vb2_dc_get_userptr(struct device *dev, unsigned long vaddr,
 	buf->dev = dev;
 	buf->dma_dir = dma_dir;
 
-	offset = vaddr & ~PAGE_MASK;
+	offset = lower_32_bits(offset_in_page(vaddr));
 	vec = vb2_create_framevec(vaddr, size, dma_dir == DMA_FROM_DEVICE ||
 					       dma_dir == DMA_BIDIRECTIONAL);
 	if (IS_ERR(vec)) {
