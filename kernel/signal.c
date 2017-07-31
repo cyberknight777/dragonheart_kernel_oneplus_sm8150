@@ -2745,8 +2745,6 @@ enum siginfo_layout siginfo_layout(unsigned sig, int si_code)
 	return layout;
 }
 
-#ifndef HAVE_ARCH_COPY_SIGINFO_TO_USER
-
 int copy_siginfo_to_user(siginfo_t __user *to, const siginfo_t *from)
 {
 	int err;
@@ -2784,6 +2782,11 @@ int copy_siginfo_to_user(siginfo_t __user *to, const siginfo_t *from)
 		err |= __put_user(from->si_addr, &to->si_addr);
 #ifdef __ARCH_SI_TRAPNO
 		err |= __put_user(from->si_trapno, &to->si_trapno);
+#endif
+#ifdef __ia64__
+		err |= __put_user(from->si_imm, &to->si_imm);
+		err |= __put_user(from->si_flags, &to->si_flags);
+		err |= __put_user(from->si_isr, &to->si_isr);
 #endif
 #ifdef BUS_MCEERR_AO
 		/*
@@ -2827,8 +2830,6 @@ int copy_siginfo_to_user(siginfo_t __user *to, const siginfo_t *from)
 	}
 	return err;
 }
-
-#endif
 
 /**
  *  do_sigtimedwait - wait for queued signals specified in @which
