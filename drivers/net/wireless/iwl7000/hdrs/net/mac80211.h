@@ -5600,7 +5600,7 @@ static inline void ieee80211_stop_rx_ba_session_offl(struct ieee80211_vif *vif,
  * @tid: the rx tid
  */
 void ieee80211_rx_ba_timer_expired(struct ieee80211_vif *vif,
-				   const u8 *addr, unsigned int bit);
+				   const u8 *addr, unsigned int tid);
 
 /* Rate control API */
 
