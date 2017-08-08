@@ -728,8 +728,21 @@ void iwl_mvm_stop_session_protection(struct iwl_mvm *mvm,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_time_event_data *te_data = &mvmvif->time_event_data;
+	u32 id;
 
 	lockdep_assert_held(&mvm->mutex);
+
+	spin_lock_bh(&mvm->time_event_lock);
+	id = te_data->id;
+	spin_unlock_bh(&mvm->time_event_lock);
+
+	if (id != TE_BSS_STA_AGGRESSIVE_ASSOC) {
+		IWL_DEBUG_TE(mvm,
+			     "don't remove TE with id=%u (not session protection)\n",
+			     id);
+		return;
+	}
+
 	iwl_mvm_remove_time_event(mvm, mvmvif, te_data);
 }
 
