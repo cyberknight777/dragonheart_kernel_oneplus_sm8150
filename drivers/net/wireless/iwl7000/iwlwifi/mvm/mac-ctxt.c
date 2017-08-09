@@ -1075,7 +1075,7 @@ static int iwl_mvm_mac_ctxt_send_beacon_v9(struct iwl_mvm *mvm,
 
 	flags = iwl_mvm_mac80211_idx_to_hwrate(rate);
 
-	if (flags == IWL_FIRST_CCK_RATE)
+	if (rate == IWL_FIRST_CCK_RATE)
 		flags |= IWL_MAC_BEACON_CCK;
 
 	beacon_cmd.flags = cpu_to_le16(flags);
