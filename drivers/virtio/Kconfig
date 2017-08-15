@@ -79,4 +79,12 @@ config VIRTIO_MMIO_CMDLINE_DEVICES
 
 	 If unsure, say 'N'.
 
+config VIRTIO_WL
+	bool "Virtio Wayland driver"
+	depends on VIRTIO
+	---help---
+	 This driver supports proxying of a wayland socket from host to guest.
+
+	 If unsure, say 'N'.
+
 endmenu
