@@ -150,6 +150,7 @@
 #define IWL_MVM_RS_SR_NO_DECREASE		85	/* percent */
 #define IWL_MVM_RS_AGG_TIME_LIMIT	        4000    /* 4 msecs. valid 100-8000 */
 #define IWL_MVM_RS_AGG_DISABLE_START	        3
+#define IWL_MVM_RS_AGG_START_THRESHOLD	        10	/* num frames per second */
 #define IWL_MVM_RS_TPC_SR_FORCE_INCREASE	75	/* percent */
 #define IWL_MVM_RS_TPC_SR_NO_INCREASE		85	/* percent */
 #define IWL_MVM_RS_TPC_TX_POWER_STEP		3
@@ -228,6 +229,7 @@
 #define IWL_MVM_RS_SR_NO_DECREASE		(mvm->trans->dbg_cfg.MVM_RS_SR_NO_DECREASE)
 #define IWL_MVM_RS_AGG_TIME_LIMIT	        (mvm->trans->dbg_cfg.MVM_RS_AGG_TIME_LIMIT)
 #define IWL_MVM_RS_AGG_DISABLE_START	        (mvm->trans->dbg_cfg.MVM_RS_AGG_DISABLE_START)
+#define IWL_MVM_RS_AGG_START_THRESHOLD	        (mvm->trans->dbg_cfg.MVM_RS_AGG_START_THRESHOLD)
 #define IWL_MVM_RS_TPC_SR_FORCE_INCREASE	(mvm->trans->dbg_cfg.MVM_RS_TPC_SR_FORCE_INCREASE)
 #define IWL_MVM_RS_TPC_SR_NO_INCREASE		(mvm->trans->dbg_cfg.MVM_RS_TPC_SR_NO_INCREASE)
 #define IWL_MVM_RS_TPC_TX_POWER_STEP		(mvm->trans->dbg_cfg.MVM_RS_TPC_TX_POWER_STEP)
