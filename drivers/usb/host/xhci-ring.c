@@ -1680,9 +1680,14 @@ static void handle_port_status(struct xhci_hcd *xhci,
 			bus_state->resume_done[faked_port_index] = jiffies +
 				msecs_to_jiffies(USB_RESUME_TIMEOUT);
 			set_bit(faked_port_index, &bus_state->resuming_ports);
+			/* Do the rest in GetPortStatus after resume time delay.
+			 * Avoid calling usb_hcd_poll_rh_status before that,so
+			 * an usb port can auto-resume after resume time delay.
+			 */
+			set_bit(HCD_FLAG_POLL_RH, &hcd->flags);
 			mod_timer(&hcd->rh_timer,
 				  bus_state->resume_done[faked_port_index]);
-			/* Do the rest in GetPortStatus */
+			bogus_port_status = true;
 		}
 	}
 
