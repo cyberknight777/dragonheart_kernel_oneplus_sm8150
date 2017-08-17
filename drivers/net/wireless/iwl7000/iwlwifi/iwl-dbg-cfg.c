@@ -67,7 +67,6 @@
 #include <linux/types.h>
 #include <linux/export.h>
 #include <linux/slab.h>
-#include <linux/debugfs.h>
 #include <linux/firmware.h>
 #include "iwl-dbg-cfg.h"
 #include "iwl-modparams.h"

@@ -73,7 +73,6 @@
  */
 #ifndef DBG_CFG_REINCLUDE
 #include <linux/types.h>
-#include <linux/debugfs.h>
 
 struct iwl_dbg_cfg_bin {
 	const void *data;
