@@ -993,8 +993,8 @@ static void intel_hdmi_get_config(struct intel_encoder *encoder,
 }
 
 static void intel_enable_hdmi_audio(struct intel_encoder *encoder,
-				    struct intel_crtc_state *pipe_config,
-				    struct drm_connector_state *conn_state)
+				    const struct intel_crtc_state *pipe_config,
+				    const struct drm_connector_state *conn_state)
 {
 	struct intel_crtc *crtc = to_intel_crtc(pipe_config->base.crtc);
 
@@ -1005,8 +1005,8 @@ static void intel_enable_hdmi_audio(struct intel_encoder *encoder,
 }
 
 static void g4x_enable_hdmi(struct intel_encoder *encoder,
-			    struct intel_crtc_state *pipe_config,
-			    struct drm_connector_state *conn_state)
+			    const struct intel_crtc_state *pipe_config,
+			    const struct drm_connector_state *conn_state)
 {
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -1027,8 +1027,8 @@ static void g4x_enable_hdmi(struct intel_encoder *encoder,
 }
 
 static void ibx_enable_hdmi(struct intel_encoder *encoder,
-			    struct intel_crtc_state *pipe_config,
-			    struct drm_connector_state *conn_state)
+			    const struct intel_crtc_state *pipe_config,
+			    const struct drm_connector_state *conn_state)
 {
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -1077,8 +1077,8 @@ static void ibx_enable_hdmi(struct intel_encoder *encoder,
 }
 
 static void cpt_enable_hdmi(struct intel_encoder *encoder,
-			    struct intel_crtc_state *pipe_config,
-			    struct drm_connector_state *conn_state)
+			    const struct intel_crtc_state *pipe_config,
+			    const struct drm_connector_state *conn_state)
 {
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -1132,14 +1132,14 @@ static void cpt_enable_hdmi(struct intel_encoder *encoder,
 }
 
 static void vlv_enable_hdmi(struct intel_encoder *encoder,
-			    struct intel_crtc_state *pipe_config,
-			    struct drm_connector_state *conn_state)
+			    const struct intel_crtc_state *pipe_config,
+			    const struct drm_connector_state *conn_state)
 {
 }
 
 static void intel_disable_hdmi(struct intel_encoder *encoder,
-			       struct intel_crtc_state *old_crtc_state,
-			       struct drm_connector_state *old_conn_state)
+			       const struct intel_crtc_state *old_crtc_state,
+			       const struct drm_connector_state *old_conn_state)
 {
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -1195,8 +1195,8 @@ static void intel_disable_hdmi(struct intel_encoder *encoder,
 }
 
 static void g4x_disable_hdmi(struct intel_encoder *encoder,
-			     struct intel_crtc_state *old_crtc_state,
-			     struct drm_connector_state *old_conn_state)
+			     const struct intel_crtc_state *old_crtc_state,
+			     const struct drm_connector_state *old_conn_state)
 {
 	if (old_crtc_state->has_audio)
 		intel_audio_codec_disable(encoder);
@@ -1205,16 +1205,16 @@ static void g4x_disable_hdmi(struct intel_encoder *encoder,
 }
 
 static void pch_disable_hdmi(struct intel_encoder *encoder,
-			     struct intel_crtc_state *old_crtc_state,
-			     struct drm_connector_state *old_conn_state)
+			     const struct intel_crtc_state *old_crtc_state,
+			     const struct drm_connector_state *old_conn_state)
 {
 	if (old_crtc_state->has_audio)
 		intel_audio_codec_disable(encoder);
 }
 
 static void pch_post_disable_hdmi(struct intel_encoder *encoder,
-				  struct intel_crtc_state *old_crtc_state,
-				  struct drm_connector_state *old_conn_state)
+				  const struct intel_crtc_state *old_crtc_state,
+				  const struct drm_connector_state *old_conn_state)
 {
 	intel_disable_hdmi(encoder, old_crtc_state, old_conn_state);
 }
@@ -1319,7 +1319,7 @@ intel_hdmi_mode_valid(struct drm_connector *connector,
 	return status;
 }
 
-static bool hdmi_12bpc_possible(struct intel_crtc_state *crtc_state)
+static bool hdmi_12bpc_possible(const struct intel_crtc_state *crtc_state)
 {
 	struct drm_i915_private *dev_priv =
 		to_i915(crtc_state->base.crtc->dev);
@@ -1647,8 +1647,8 @@ static int intel_hdmi_get_modes(struct drm_connector *connector)
 }
 
 static void intel_hdmi_pre_enable(struct intel_encoder *encoder,
-				  struct intel_crtc_state *pipe_config,
-				  struct drm_connector_state *conn_state)
+				  const struct intel_crtc_state *pipe_config,
+				  const struct drm_connector_state *conn_state)
 {
 	struct intel_digital_port *intel_dig_port =
 		enc_to_dig_port(&encoder->base);
@@ -1661,8 +1661,8 @@ static void intel_hdmi_pre_enable(struct intel_encoder *encoder,
 }
 
 static void vlv_hdmi_pre_enable(struct intel_encoder *encoder,
-				struct intel_crtc_state *pipe_config,
-				struct drm_connector_state *conn_state)
+				const struct intel_crtc_state *pipe_config,
+				const struct drm_connector_state *conn_state)
 {
 	struct intel_digital_port *dport = enc_to_dig_port(&encoder->base);
 	struct drm_device *dev = encoder->base.dev;
@@ -1684,8 +1684,8 @@ static void vlv_hdmi_pre_enable(struct intel_encoder *encoder,
 }
 
 static void vlv_hdmi_pre_pll_enable(struct intel_encoder *encoder,
-				    struct intel_crtc_state *pipe_config,
-				    struct drm_connector_state *conn_state)
+				    const struct intel_crtc_state *pipe_config,
+				    const struct drm_connector_state *conn_state)
 {
 	intel_hdmi_prepare(encoder, pipe_config);
 
@@ -1693,8 +1693,8 @@ static void vlv_hdmi_pre_pll_enable(struct intel_encoder *encoder,
 }
 
 static void chv_hdmi_pre_pll_enable(struct intel_encoder *encoder,
-				    struct intel_crtc_state *pipe_config,
-				    struct drm_connector_state *conn_state)
+				    const struct intel_crtc_state *pipe_config,
+				    const struct drm_connector_state *conn_state)
 {
 	intel_hdmi_prepare(encoder, pipe_config);
 
@@ -1702,23 +1702,23 @@ static void chv_hdmi_pre_pll_enable(struct intel_encoder *encoder,
 }
 
 static void chv_hdmi_post_pll_disable(struct intel_encoder *encoder,
-				      struct intel_crtc_state *old_crtc_state,
-				      struct drm_connector_state *old_conn_state)
+				      const struct intel_crtc_state *old_crtc_state,
+				      const struct drm_connector_state *old_conn_state)
 {
 	chv_phy_post_pll_disable(encoder);
 }
 
 static void vlv_hdmi_post_disable(struct intel_encoder *encoder,
-				  struct intel_crtc_state *old_crtc_state,
-				  struct drm_connector_state *old_conn_state)
+				  const struct intel_crtc_state *old_crtc_state,
+				  const struct drm_connector_state *old_conn_state)
 {
 	/* Reset lanes to avoid HDMI flicker (VLV w/a) */
 	vlv_phy_reset_lanes(encoder);
 }
 
 static void chv_hdmi_post_disable(struct intel_encoder *encoder,
-				  struct intel_crtc_state *old_crtc_state,
-				  struct drm_connector_state *old_conn_state)
+				  const struct intel_crtc_state *old_crtc_state,
+				  const struct drm_connector_state *old_conn_state)
 {
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -1732,8 +1732,8 @@ static void chv_hdmi_post_disable(struct intel_encoder *encoder,
 }
 
 static void chv_hdmi_pre_enable(struct intel_encoder *encoder,
-				struct intel_crtc_state *pipe_config,
-				struct drm_connector_state *conn_state)
+				const struct intel_crtc_state *pipe_config,
+				const struct drm_connector_state *conn_state)
 {
 	struct intel_digital_port *dport = enc_to_dig_port(&encoder->base);
 	struct drm_device *dev = encoder->base.dev;
