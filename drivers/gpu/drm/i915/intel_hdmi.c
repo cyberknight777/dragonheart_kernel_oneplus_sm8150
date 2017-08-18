@@ -1651,7 +1651,7 @@ static void intel_hdmi_pre_enable(struct intel_encoder *encoder,
 	intel_hdmi_prepare(encoder, pipe_config);
 
 	intel_hdmi->set_infoframes(&encoder->base,
-				   pipe_config->has_hdmi_sink,
+				   pipe_config->has_infoframe,
 				   pipe_config, conn_state);
 }
 
@@ -1671,7 +1671,7 @@ static void vlv_hdmi_pre_enable(struct intel_encoder *encoder,
 				 0x2b247878);
 
 	intel_hdmi->set_infoframes(&encoder->base,
-				   pipe_config->has_hdmi_sink,
+				   pipe_config->has_infoframe,
 				   pipe_config, conn_state);
 
 	g4x_enable_hdmi(encoder, pipe_config, conn_state);
@@ -1743,7 +1743,7 @@ static void chv_hdmi_pre_enable(struct intel_encoder *encoder,
 	chv_set_phy_signal_level(encoder, 128, 102, false);
 
 	intel_hdmi->set_infoframes(&encoder->base,
-				   pipe_config->has_hdmi_sink,
+				   pipe_config->has_infoframe,
 				   pipe_config, conn_state);
 
 	g4x_enable_hdmi(encoder, pipe_config, conn_state);
