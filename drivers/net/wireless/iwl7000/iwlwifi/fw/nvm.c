@@ -143,8 +143,6 @@ struct iwl_nvm_data *iwl_fw_get_nvm(struct iwl_fw_runtime *fwrt)
 		!!(mac_flags & NVM_MAC_SKU_FLAGS_802_11AC_ENABLED);
 	nvm->sku_cap_11n_enable =
 		!!(mac_flags & NVM_MAC_SKU_FLAGS_802_11N_ENABLED);
-	nvm->sku_cap_11ax_enable =
-		!!(mac_flags & NVM_MAC_SKU_FLAGS_802_11AX_ENABLED);
 	nvm->sku_cap_band_24ghz_enable =
 		!!(mac_flags & NVM_MAC_SKU_FLAGS_BAND_2_4_ENABLED);
 	nvm->sku_cap_band_52ghz_enable =

@@ -485,11 +485,6 @@ static const struct iwl_hcmd_names iwl_mvm_data_path_names[] = {
 	HCMD_NAME(DQA_ENABLE_CMD),
 	HCMD_NAME(UPDATE_MU_GROUPS_CMD),
 	HCMD_NAME(TRIGGER_RX_QUEUES_NOTIF_CMD),
-	HCMD_NAME(STA_HE_CTXT_CMD),
-	HCMD_NAME(AX_SOFTAP_TESTMODE_DL_BASIC),
-	HCMD_NAME(AX_SOFTAP_TESTMODE_DL_MU_BAR),
-	HCMD_NAME(AX_SOFTAP_TESTMODE_UL),
-	HCMD_NAME(AX_SOFTAP_CLIENT_TESTMODE),
 	HCMD_NAME(STA_PM_NOTIF),
 	HCMD_NAME(MU_GROUP_MGMT_NOTIF),
 	HCMD_NAME(RX_QUEUES_NOTIFICATION),
@@ -916,10 +911,6 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	iwl_mvm_init_modparams(mvm);
-#endif
-
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-	mvm->is_bar_enabled = true;
 #endif
 
 	return op_mode;

@@ -73,9 +73,6 @@
 #include "iwl-io.h"
 #include "debugfs.h"
 #include "fw/error-dump.h"
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-#include "fw/api/ax-softap-testmode.h"
-#endif
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
 static ssize_t iwl_dbgfs_tt_tx_backoff_write(struct iwl_mvm *mvm, char *buf,
@@ -545,53 +542,6 @@ static ssize_t iwl_dbgfs_disable_power_off_write(struct iwl_mvm *mvm, char *buf,
 
 	return ret ?: count;
 }
-
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-static ssize_t iwl_dbgfs_ax_softap_client_testmode_write(struct iwl_mvm *mvm,
-							 char *buf,
-							 size_t count,
-							 loff_t *ppos)
-{
-	u32 status;
-	int ret;
-	bool is_enabled;
-	struct ax_softap_client_testmode_cmd cmd;
-
-	if (!iwl_mvm_firmware_running(mvm))
-		return -EIO;
-
-	ret = kstrtobool(buf, &is_enabled);
-	if (ret) {
-		IWL_ERR(mvm, "Invalid softap client debugfs value (%d)\n", ret);
-		return ret;
-	}
-
-	cmd.enable = is_enabled ? 1 : 0;
-
-	mutex_lock(&mvm->mutex);
-
-	ret = iwl_mvm_send_cmd_pdu_status(mvm,
-					  iwl_cmd_id(AX_SOFTAP_CLIENT_TESTMODE,
-						     DATA_PATH_GROUP, 0),
-					  sizeof(cmd), &cmd, &status);
-
-	mutex_unlock(&mvm->mutex);
-
-	if (ret) {
-		IWL_ERR(mvm, "Failed to send softap client cmd (%d)\n", ret);
-		return ret;
-	}
-
-	if (status) {
-		IWL_ERR(mvm, "softap client cmd failed (%d)\n", status);
-		return -EIO;
-	}
-
-	mvm->is_bar_enabled = cmd.enable ? false : true;
-
-	return ret ?: count;
-}
-#endif
 
 static
 int iwl_mvm_coex_dump_mbox(struct iwl_mvm *mvm,
@@ -1911,10 +1861,6 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(d3_sram, 8);
 MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
 
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-MVM_DEBUGFS_WRITE_FILE_OPS(ax_softap_client_testmode, 8);
-#endif /* CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE */
-
 static ssize_t iwl_dbgfs_mem_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
 {
@@ -2099,10 +2045,6 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 #endif
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, S_IRUSR);
-#endif
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-	MVM_DEBUGFS_ADD_FILE(ax_softap_client_testmode,
-			     mvm->debugfs_dir, S_IWUSR);
 #endif
 
 	if (!debugfs_create_bool("enable_scan_iteration_notif",

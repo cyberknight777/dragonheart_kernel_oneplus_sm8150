@@ -1138,9 +1138,6 @@ struct iwl_mvm {
 	struct iwl_mvm_geo_profile geo_profiles[IWL_NUM_GEO_PROFILES];
 #endif
 
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-	bool is_bar_enabled;
-#endif
 };
 
 /* Extract MVM priv from op_mode and _hw */
@@ -2070,11 +2067,4 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b);
 int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm);
 
 /* 11ax Softap Test Mode */
-#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
-void
-iwl_mvm_ax_softap_testmode_sta_add_debugfs(struct ieee80211_hw *hw,
-					   struct ieee80211_vif *vif,
-					   struct ieee80211_sta *sta,
-					   struct dentry *dir);
-#endif
 #endif /* __IWL_MVM_H__ */
