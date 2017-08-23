@@ -1104,14 +1104,17 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 			} else if (pos[0] == WLAN_EID_EXT_HE_OPERATION &&
 				   elen >= sizeof(*elems->he_operation)) {
 				u8 oper_len = sizeof(*elems->he_operation);
+				u32 he_oper_params;
 
 				elems->he_operation = (void *)&pos[1];
 
 				/* Make sure length is OK */
-				if (elems->he_operation->he_oper_params &
+				he_oper_params =
+					le32_to_cpu(elems->he_operation->he_oper_params);
+				if (he_oper_params &
 				    IEEE80211_HE_OPERATION_VHT_OPER_INFO)
 					oper_len += 3;
-				if (elems->he_operation->he_oper_params &
+				if (he_oper_params &
 				    IEEE80211_HE_OPERATION_MULTI_BSSID_AP)
 					oper_len++;
 
@@ -2444,9 +2447,9 @@ u8 *ieee80211_ie_build_he_cap(u8 *pos,
 	if (!he_cap)
 		return orig_pos;
 
+	n = ieee80211_he_mcs_nss_size(&he_cap->he_cap_elem);
 	ie_len = 2 + 1 +
-		 sizeof(he_cap->he_cap_elem) +
-		 ieee80211_he_mcs_nss_size(he_cap->he_mcs_nss_supp.mcs_hdr) +
+		 sizeof(he_cap->he_cap_elem) + n +
 		 ieee80211_he_ppe_size(he_cap->ppe_thres[0],
 				       he_cap->he_cap_elem.phy_cap_info);
 
@@ -2461,31 +2464,8 @@ u8 *ieee80211_ie_build_he_cap(u8 *pos,
 	memcpy(pos, &he_cap->he_cap_elem, sizeof(he_cap->he_cap_elem));
 	pos += sizeof(he_cap->he_cap_elem);
 
-	/*
-	 * There is a NSS desc per bit turned on in either tx_bw_bitmap
-	 * or rx_bw_bitmap, so get all turned on bits and copy in accordingly.
-	 * This data is optional, so it might not appear at all.
-	 */
-	n = hweight16(le16_to_cpu(he_cap->he_mcs_nss_supp.mcs_hdr) &
-		      IEEE80211_TX_RX_MCS_NSS_SUPP_TX_BITMAP_MASK);
-
-	/* Add in header first */
-	put_unaligned_le16(le16_to_cpu(he_cap->he_mcs_nss_supp.mcs_hdr),
-			   pos);
-	pos += 2;
-
-	if (n > 0) {
-		memcpy(pos, &he_cap->he_mcs_nss_supp.nss_tx_desc[0], n);
-		pos += n;
-	}
-
-	n = hweight16(le16_to_cpu(he_cap->he_mcs_nss_supp.mcs_hdr) &
-		      IEEE80211_TX_RX_MCS_NSS_SUPP_RX_BITMAP_MASK);
-
-	if (n > 0) {
-		memcpy(pos, &he_cap->he_mcs_nss_supp.nss_rx_desc[0], n);
-		pos += n;
-	}
+	memcpy(pos, &he_cap->he_mcs_nss_supp, n);
+	pos += n;
 
 	/* Check if PPE Threshold should be present */
 	if ((he_cap->he_cap_elem.phy_cap_info[6] &

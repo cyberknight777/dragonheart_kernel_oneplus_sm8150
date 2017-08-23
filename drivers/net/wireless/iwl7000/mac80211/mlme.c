@@ -600,7 +600,7 @@ static void ieee80211_add_he_ie(struct ieee80211_sub_if_data *sdata,
 	 */
 	he_cap_size =
 		2 + 1 + sizeof(he_cap->he_cap_elem) +
-		ieee80211_he_mcs_nss_size(he_cap->he_mcs_nss_supp.mcs_hdr) +
+		ieee80211_he_mcs_nss_size(&he_cap->he_cap_elem) +
 		ieee80211_he_ppe_size(he_cap->ppe_thres[0],
 				      he_cap->he_cap_elem.phy_cap_info);
 	pos = skb_put(skb, he_cap_size);
@@ -3074,14 +3074,17 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 						    elems.vht_cap_elem, sta);
 
 	if (elems.he_operation && !(ifmgd->flags & IEEE80211_STA_DISABLE_HE)) {
-		bss_conf->bss_color = elems.he_operation->he_oper_params &
+		u32 he_oper_params =
+			le32_to_cpu(elems.he_operation->he_oper_params);
+
+		bss_conf->bss_color = he_oper_params &
 				      IEEE80211_HE_OPERATION_BSS_COLOR_MASK;
 		bss_conf->htc_trig_based_pkt_ext =
-			(elems.he_operation->he_oper_params &
+			(he_oper_params &
 			 IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK) <<
 			IEEE80211_HE_OPERATION_DFLT_PE_DURATION_OFFSET;
 		bss_conf->frame_time_rts_th =
-			(elems.he_operation->he_oper_params &
+			(he_oper_params &
 			 IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK) <<
 			IEEE80211_HE_OPERATION_RTS_THRESHOLD_OFFSET;
 

@@ -1544,7 +1544,7 @@ struct ieee80211_vht_operation {
  * struct ieee80211_he_cap_elem - HE capabilities element
  *
  * This structure is the "HE capabilities element" fixed fields as
- * described in P802.11ax_D1.0 section 9.4.2.218
+ * described in P802.11ax_D1.4 section 9.4.2.237.1
  */
 struct ieee80211_he_cap_elem {
 	u8 mac_cap_info[5];
@@ -1554,39 +1554,63 @@ struct ieee80211_he_cap_elem {
 #define IEEE80211_TX_RX_MCS_NSS_DESC_MAX_LEN	5
 
 /**
+ * enum ieee80211_he_mcs_support - HE MCS support definitions
+ * @IEEE80211_HE_MCS_SUPPORT_0_7: MCSes 0-7 are supported for the
+ *	number of streams
+ * @IEEE80211_HE_MCS_SUPPORT_0_9: MCSes 0-9 are supported
+ * @IEEE80211_HE_MCS_SUPPORT_0_11: MCSes 0-11 are supported
+ * @IEEE80211_HE_MCS_NOT_SUPPORTED: This number of streams isn't supported
+ *
+ * These definitions are used in each 2-bit subfield of the rx_mcs_*
+ * and tx_mcs_* fields of &struct ieee80211_he_mcs_nss_supp, which are
+ * both split into 8 subfields by number of streams. These values indicate
+ * which MCSes are supported for the number of streams the value appears
+ * for.
+ */
+enum ieee80211_he_mcs_support {
+	IEEE80211_HE_MCS_SUPPORT_0_7	= 0,
+	IEEE80211_HE_MCS_SUPPORT_0_9	= 1,
+	IEEE80211_HE_MCS_SUPPORT_0_11	= 2,
+	IEEE80211_HE_MCS_NOT_SUPPORTED	= 3,
+};
+
+/**
  * struct ieee80211_he_mcs_nss_supp - HE Tx/Rx HE MCS NSS Support Field
  *
  * This structure holds the data required for the Tx/Rx HE MCS NSS Support Field
- * described in P802.11ax_D1.0 section 9.4.2.218.4
+ * described in P802.11ax_D1.4 section 9.4.2.237.4
  *
- * @mcs_hdr: As defined in the spec.
- * @nss_tx_desc: the Tx/Rx MCS NSS Descriptors optional part for TX. Note that
- *     the descriptors are optional and their presence is defined by
- *     %tx_bw_bitmap.
- * @nss_rx_desc: the Tx/Rx MCS NSS Descriptors optional part for RX. Note that
- *     the descriptors are optional and their presence is defined by
- *     %rx_bw_bitmap.
- *
- * The above specification version does not allow to deterministically get the
- * actual size of the supported NSS/MCS as it allows to totally drop
- * tx_bw_bitmap and rx_bw_bitmap. This is going to be fixed in future versions
- * of the spec. For now assume that these fields are always given.
+ * @rx_msc_80: Rx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     widths less than 80MHz.
+ * @tx_msc_80: Tx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     widths less than 80MHz.
+ * @rx_msc_160: Rx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     width 160MHz.
+ * @tx_msc_160: Tx MCS map 2 bits for each stream, total 8 streams, for channel
+ *     width 160MHz.
+ * @rx_msc_80p80: Rx MCS map 2 bits for each stream, total 8 streams, for
+ *     channel width 80p80MHz.
+ * @tx_msc_80p80: Tx MCS map 2 bits for each stream, total 8 streams, for
+ *     channel width 80p80MHz.
  */
 struct ieee80211_he_mcs_nss_supp {
-	__le16 mcs_hdr;
-	u8 nss_tx_desc[IEEE80211_TX_RX_MCS_NSS_DESC_MAX_LEN];
-	u8 nss_rx_desc[IEEE80211_TX_RX_MCS_NSS_DESC_MAX_LEN];
+	__le16 rx_msc_80;
+	__le16 tx_msc_80;
+	__le16 rx_msc_160;
+	__le16 tx_msc_160;
+	__le16 rx_msc_80p80;
+	__le16 tx_msc_80p80;
 } __packed;
 
 /**
  * struct ieee80211_he_operation - HE capabilities element
  *
  * This structure is the "HE operation element" fields as
- * described in P802.11ax_D1.0 section 9.4.2.219
+ * described in P802.11ax_D1.4 section 9.4.2.238
  */
 struct ieee80211_he_operation {
-	u32 he_oper_params;
-	u8 he_mcs_nss_set[3];
+	__le32 he_oper_params;
+	u8 he_mcs_nss_set[2];
 	/* Optional 0,1,3 or 4 bytes: depends on %he_oper_params */
 	u8 optional[0];
 } __packed;
@@ -1595,7 +1619,7 @@ struct ieee80211_he_operation {
  * struct ieee80211_he_mu_edca_param_ac_rec - MU AC Parameter Record field
  *
  * This structure is the "MU AC Parameter Record" fields as
- * described in P802.11ax_D1.0 section 9.4.2.221
+ * described in P802.11ax_D1.4 section 9.4.2.240
  */
 struct ieee80211_he_mu_edca_param_ac_rec {
 	u8 aifsn;
@@ -1607,7 +1631,7 @@ struct ieee80211_he_mu_edca_param_ac_rec {
  * struct ieee80211_mu_edca_param_set - MU EDCA Parameter Set element
  *
  * This structure is the "MU EDCA Parameter Set element" fields as
- * described in P802.11ax_D1.0 section 9.4.2.221
+ * described in P802.11ax_D1.4 section 9.4.2.240
  */
 struct ieee80211_mu_edca_param_set {
 	u8 mu_qos_info;
@@ -1707,7 +1731,7 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_MAC_CAP2_BSR				0x08
 #define IEEE80211_HE_MAC_CAP2_BCAST_TWT				0x10
 #define IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP			0x20
-#define IEEE80211_HE_MAC_CAP2_MU_CASCADE			0x40
+#define IEEE80211_HE_MAC_CAP2_MU_CASCADING			0x40
 #define IEEE80211_HE_MAC_CAP2_ACK_EN_MULTI_TID_ADD		0x80
 
 #define IEEE80211_HE_MAC_CAP3_GRP_ADDR_MULTI_STA_BA_DL_MU	0x01
@@ -1850,6 +1874,9 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_PHY_CAP7_STBC_RX_ABOVE_80MHZ			0x80
 
 #define IEEE80211_HE_PHY_CAP8_HE_ER_SU_PPDU_4XLTF_AND_08_US_GI		0x01
+#define IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G		0x02
+#define IEEE80211_HE_PHY_CAP8_20MHZ_IN_160MHZ_HE_PPDU			0x04
+#define IEEE80211_HE_PHY_CAP8_80MHZ_IN_160MHZ_HE_PPDU			0x08
 
 /* 802.11ax HE TX/RX MCS NSS Support  */
 #define IEEE80211_TX_RX_MCS_NSS_SUPP_HIGHEST_MCS_POS			(3)
@@ -1869,13 +1896,19 @@ enum ieee80211_he_highest_mcs_supported_subfield_enc {
 
 /* Calculate 802.11ax HE capabilities IE Tx/Rx HE MCS NSS Support Field size */
 static inline u8
-ieee80211_he_mcs_nss_size(__le16 mcs_hdr)
+ieee80211_he_mcs_nss_size(const struct ieee80211_he_cap_elem *he_cap)
 {
-	return sizeof(mcs_hdr) +
-	       hweight16(le16_to_cpu(mcs_hdr) &
-			 IEEE80211_TX_RX_MCS_NSS_SUPP_TX_BITMAP_MASK) +
-	       hweight16(le16_to_cpu(mcs_hdr) &
-			 IEEE80211_TX_RX_MCS_NSS_SUPP_RX_BITMAP_MASK);
+	u8 count = 4;
+
+	if (he_cap->phy_cap_info[0] &
+	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G)
+		count += 4;
+
+	if (he_cap->phy_cap_info[0] &
+	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G)
+		count += 4;
+
+	return count;
 }
 
 /* 802.11ax HE PPE Thresholds */
