@@ -56,7 +56,7 @@
 #include "iwl-config.h"
 
 /* Highest firmware API version supported */
-#define IWL9000_UCODE_API_MAX	38
+#define IWL9000_UCODE_API_MAX	39
 
 /* Lowest firmware API version supported */
 #define IWL9000_UCODE_API_MIN	30
