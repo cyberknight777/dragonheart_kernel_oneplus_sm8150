@@ -476,9 +476,9 @@ struct iwl_tm_mod_tx_request {
  * @tx_req:	  pointer to data of transmission request
  */
 struct iwl_xvt_tx_mod_task_data {
+	__u8 lmac_id;
 	struct iwl_xvt *xvt;
 	struct iwl_tm_mod_tx_request tx_req;
-	__u8 lmac_id;
 } __packed __aligned(4);
 
 /**
