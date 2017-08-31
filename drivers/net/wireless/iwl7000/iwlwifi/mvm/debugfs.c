@@ -587,6 +587,8 @@ static ssize_t iwl_dbgfs_ax_softap_client_testmode_write(struct iwl_mvm *mvm,
 		return -EIO;
 	}
 
+	mvm->is_bar_enabled = cmd.enable ? false : true;
+
 	return ret ?: count;
 }
 #endif

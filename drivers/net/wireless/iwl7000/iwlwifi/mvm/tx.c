@@ -1410,7 +1410,12 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 		/* Single frame failure in an AMPDU queue => send BAR */
 		if (info->flags & IEEE80211_TX_CTL_AMPDU &&
 		    !(info->flags & IEEE80211_TX_STAT_ACK) &&
-		    !(info->flags & IEEE80211_TX_STAT_TX_FILTERED) && !flushed)
+		    !(info->flags & IEEE80211_TX_STAT_TX_FILTERED) &&
+#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
+		    !flushed && mvm->is_bar_enabled)
+#else
+		    !flushed)
+#endif
 			info->flags |= IEEE80211_TX_STAT_AMPDU_NO_BACK;
 		info->flags &= ~IEEE80211_TX_CTL_AMPDU;
 

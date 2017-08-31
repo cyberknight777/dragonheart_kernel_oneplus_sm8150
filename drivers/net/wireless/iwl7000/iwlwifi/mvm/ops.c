@@ -918,6 +918,10 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	iwl_mvm_init_modparams(mvm);
 #endif
 
+#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
+	mvm->is_bar_enabled = true;
+#endif
+
 	return op_mode;
 
  out_unregister:

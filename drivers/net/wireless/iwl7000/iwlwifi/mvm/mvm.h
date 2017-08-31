@@ -1132,6 +1132,10 @@ struct iwl_mvm {
 #endif
 	struct iwl_mvm_geo_profile geo_profiles[IWL_NUM_GEO_PROFILES];
 #endif
+
+#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
+	bool is_bar_enabled;
+#endif
 };
 
 /* Extract MVM priv from op_mode and _hw */
