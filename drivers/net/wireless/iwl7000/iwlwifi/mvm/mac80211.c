@@ -1569,20 +1569,6 @@ static int iwl_mvm_mac_add_interface(struct ieee80211_hw *hw,
 	iwl_mvm_tcm_add_vif(mvm, vif);
 #endif
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	/*
-	 * lqm_active on a new interface means that we had a FW restart
-	 * inform the CAM.
-	 */
-	if (mvmvif->lqm_active) {
-		struct iwl_link_qual_msrmnt_notif empty_lqm_notif = {
-			.mac_id = cpu_to_le32(mvmvif->id),
-			.status = cpu_to_le32(LQM_STATUS_ABORT),
-		};
-		iwl_mvm_lqm_notif_iterator(&empty_lqm_notif, vif->addr, vif);
-	}
-#endif
-
 	iwl_mvm_vif_dbgfs_register(mvm, vif);
 	goto out_unlock;
 
@@ -2244,11 +2230,6 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 
 		iwl_mvm_mac_ctxt_recalc_tsf_id(mvm, vif);
 	}
-
-	if (changes & BSS_CHANGED_ASSOC && !bss_conf->assoc &&
-	    mvmvif->lqm_active)
-		iwl_mvm_send_lqm_cmd(vif, LQM_CMD_OPERATION_STOP_MEASUREMENT,
-				     0, 0);
 
 	/*
 	 * If we're not associated yet, take the (new) BSSID before associating
@@ -4306,11 +4287,6 @@ static int iwl_mvm_pre_channel_switch(struct ieee80211_hw *hw,
 
 		break;
 	case NL80211_IFTYPE_STATION:
-		if (mvmvif->lqm_active)
-			iwl_mvm_send_lqm_cmd(vif,
-					     LQM_CMD_OPERATION_STOP_MEASUREMENT,
-					     0, 0);
-
 		/* Schedule the time event to a bit before beacon 1,
 		 * to make sure we're in the new channel when the
 		 * GO/AP arrives. In case count <= 1 immediately schedule the

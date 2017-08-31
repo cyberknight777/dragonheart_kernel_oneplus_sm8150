@@ -442,57 +442,6 @@ enum iwl_mvm_vendor_rxfilter_op {
 	IWL_MVM_VENDOR_RXFILTER_OP_DROP,
 };
 
-/**
- * enum iwl_mvm_vendor_lqm_status - status of a link quality measurement
- * @IWL_MVM_VENDOR_LQM_STATUS_SUCCESS: measurement succeeded for the
- *	requested time
- * @IWL_MVM_VENDOR_LQM_STATUS_TIMEOUT: measurement succeeded but was stopped
- *	earlier than expected because of a timeout
- * @IWL_MVM_VENDOR_LQM_STATUS_UNBOUND: measurement succeeded but was stopped
- *	earlier than expected because of a deassociation
- * @IWL_MVM_VENDOR_LQM_STATUS_ABORT_CHAN_SWITCH: measurement failed because
- *	of a channel switch
- */
-enum iwl_mvm_vendor_lqm_status {
-	IWL_MVM_VENDOR_LQM_STATUS_SUCCESS,
-	IWL_MVM_VENDOR_LQM_STATUS_TIMEOUT,
-	IWL_MVM_VENDOR_LQM_STATUS_ABORT,
-};
-
-/**
- * enum iwl_mvm_vendor_lqm_result - the result of a link quality measurement
- * @IWL_MVM_VENDOR_ATTR_LQM_INVALID: invalid attribute for compatibility
- *	purpose.
- * @IWL_MVM_VENDOR_ATTR_LQM_ACTIVE_STA_AIR_TIME: the air time for the most
- *	active stations during the measurement. This is a nested attribute
- *	which is an array of u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_OTHER_STA: the air time consumed by the stations
- *	not included in %IWL_MVM_VENDOR_ATTR_LQM_ACTIVE_STA_AIR_TIME. This is a
- *	u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_MEAS_TIME: the length (in msec) of the measurement.
- *	This can be shorter than the requested
- *	%IWL_MVM_VENDOR_ATTR_LQM_DURATION in case the measurement was cut
- *	short. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_RETRY_LIMIT: the number of frames that were dropped
- *	due to retry limit during the measurement. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_MEAS_STATUS: the measurement status.
- *	One of &enum iwl_mvm_vendor_lqm_status. This is a u32.
- * @NUM_IWL_MVM_VENDOR_LQM_RESULT: num of link quality measurement attributes
- * @MAX_IWL_MVM_VENDOR_LQM_RESULT: highest link quality measurement attribute
- *	number.
- */
-enum iwl_mvm_vendor_lqm_result {
-	IWL_MVM_VENDOR_ATTR_LQM_INVALID,
-	IWL_MVM_VENDOR_ATTR_LQM_ACTIVE_STA_AIR_TIME,
-	IWL_MVM_VENDOR_ATTR_LQM_OTHER_STA,
-	IWL_MVM_VENDOR_ATTR_LQM_MEAS_TIME,
-	IWL_MVM_VENDOR_ATTR_LQM_RETRY_LIMIT,
-	IWL_MVM_VENDOR_ATTR_LQM_MEAS_STATUS,
-
-	NUM_IWL_MVM_VENDOR_LQM_RESULT,
-	MAX_IWL_MVM_VENDOR_LQM_RESULT = NUM_IWL_MVM_VENDOR_LQM_RESULT - 1,
-};
-
 /*
  * enum iwl_mvm_vendor_nr_chan_width - channel width definitions
  *

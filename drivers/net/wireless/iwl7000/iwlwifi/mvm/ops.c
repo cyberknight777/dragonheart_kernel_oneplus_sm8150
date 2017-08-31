@@ -339,8 +339,6 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 		       iwl_mvm_nan_de_term_notif, RX_HANDLER_SYNC),
 	RX_HANDLER_GRP(NAN_GROUP, NAN_DISCOVERY_EVENT_NOTIF,
 		       iwl_mvm_nan_match, RX_HANDLER_SYNC),
-	RX_HANDLER_GRP(MAC_CONF_GROUP, LINK_QUALITY_MEASUREMENT_COMPLETE_NOTIF,
-		       iwl_mvm_vendor_lqm_notif, RX_HANDLER_SYNC),
 	RX_HANDLER_GRP(MAC_CONF_GROUP, CHANNEL_SWITCH_NOA_NOTIF,
 		       iwl_mvm_channel_switch_noa_notif,
 		       RX_HANDLER_SYNC),
@@ -465,8 +463,6 @@ static const struct iwl_hcmd_names iwl_mvm_system_names[] = {
  * Access is done through binary search
  */
 static const struct iwl_hcmd_names iwl_mvm_mac_conf_names[] = {
-	HCMD_NAME(LINK_QUALITY_MEASUREMENT_CMD),
-	HCMD_NAME(LINK_QUALITY_MEASUREMENT_COMPLETE_NOTIF),
 	HCMD_NAME(CHANNEL_SWITCH_NOA_NOTIF),
 };
 
