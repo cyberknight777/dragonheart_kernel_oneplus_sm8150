@@ -326,4 +326,17 @@ struct ax_softap_testmode_ul_cmd {
 	struct trig_frame_ax_softap_ul frame;
 } __packed; /* AX_SOFTAP_TESTMODE_UL_API_S_VER_1 */
 
+/**
+ * struct ax_softap_client_testmode_cmd
+ *
+ * @enable: enable or disable this test mode
+ * @reserved1: reserved for DW alignment
+ * @reserved2: reserved for DW alignment
+ */
+struct ax_softap_client_testmode_cmd {
+	u8 enable;
+	u8 reserved1;
+	__le16 reserved2;
+} __packed; /* AX_SOFTAP_CLIENT_TESTMODE_API_S_VER_1 */
+
 #endif /* __fw_api_ax_softap_testmode_h__ */

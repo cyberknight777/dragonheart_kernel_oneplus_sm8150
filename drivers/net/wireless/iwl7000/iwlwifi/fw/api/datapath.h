@@ -104,6 +104,11 @@ enum iwl_data_path_subcmd_ids {
 	AX_SOFTAP_TESTMODE_UL = 0xB,
 
 	/**
+	 * @AX_SOFTAP_CLIENT_TESTMODE: &struct ax_softap_client_testmode_cmd
+	 */
+	AX_SOFTAP_CLIENT_TESTMODE = 0xC,
+
+	/**
 	 * @STA_PM_NOTIF: &struct iwl_mvm_pm_state_notification
 	 */
 	STA_PM_NOTIF = 0xFD,
