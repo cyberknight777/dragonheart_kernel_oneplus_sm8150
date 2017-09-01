@@ -1811,6 +1811,12 @@ static void iwl_mvm_configure_filter(struct ieee80211_hw *hw,
 	if (!cmd)
 		goto out;
 
+	if (changed_flags & FIF_ALLMULTI)
+		cmd->pass_all = !!(*total_flags & FIF_ALLMULTI);
+
+	if (cmd->pass_all)
+		cmd->count = 0;
+
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	iwl_mvm_active_rx_filters(mvm);
 #endif
