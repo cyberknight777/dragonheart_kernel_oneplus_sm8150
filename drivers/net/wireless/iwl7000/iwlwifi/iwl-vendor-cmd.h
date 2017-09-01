@@ -120,10 +120,6 @@
  *	set to %IWL_MVM_VENDOR_GSCAN_REPORT_BUFFER_COMPLETE_RESULTS.
  * @IWL_MVM_VENDOR_CMD_DBG_COLLECT: collect debug data
  * @IWL_MVM_VENDOR_CMD_NAN_FAW_CONF: Configure post NAN further availability.
- * @IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS: Starts Link Quality Measurements.
- *	Must include %IWL_MVM_VENDOR_ATTR_LQM_DURATION and
- *	%IWL_MVM_VENDOR_ATTR_LQM_TIMEOUT. The results will be notified with
- *	this same command.
  * @IWL_MVM_VENDOR_CMD_SET_SAR_PROFILE: set the NIC's tx power limits
  *	according to the specified tx power profiles. In this command
  *	%IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE and
@@ -171,7 +167,6 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_GSCAN_BEACON_EVENT,
 	IWL_MVM_VENDOR_CMD_DBG_COLLECT,
 	IWL_MVM_VENDOR_CMD_NAN_FAW_CONF,
-	IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS,
 	IWL_MVM_VENDOR_CMD_SET_SAR_PROFILE,
 	IWL_MVM_VENDOR_CMD_GET_SAR_PROFILE_INFO,
 	IWL_MVM_VENDOR_CMD_NEIGHBOR_REPORT_REQUEST,
@@ -635,14 +630,6 @@ enum iwl_vendor_sar_per_chain_geo_table {
  *	channel, used for anything but 20 MHz bandwidth.
  * @IWL_MVM_VENDOR_ATTR_CENTER_FREQ2: Center frequency of the second part of
  *	the channel, used only for 80+80 MHz bandwidth.
- * @IWL_MVM_VENDOR_ATTR_LQM_DURATION: the duration in msecs of the Link
- *	Quality Measurement. Required for
- *	&IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_TIMEOUT: the maximal time in msecs that the
- *	measurement can take. Required for
- *	&IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_RESULT: result of the measurement. Nested attribute
- *	see &enum iwl_mvm_vendor_lqm_result.
  * @IWL_MVM_VENDOR_ATTR_GSCAN_REPORT_THRESHOLD_NUM: report that scan results
  *	are available when buffer is that much full. In number of scans.
  * @IWL_MVM_VENDOR_ATTR_GSCAN_CACHED_RESULTS: array of gscan cached results.
@@ -721,9 +708,6 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_CHANNEL_WIDTH,
 	IWL_MVM_VENDOR_ATTR_CENTER_FREQ1,
 	IWL_MVM_VENDOR_ATTR_CENTER_FREQ2,
-	IWL_MVM_VENDOR_ATTR_LQM_DURATION,
-	IWL_MVM_VENDOR_ATTR_LQM_TIMEOUT,
-	IWL_MVM_VENDOR_ATTR_LQM_RESULT,
 	IWL_MVM_VENDOR_ATTR_GSCAN_REPORT_THRESHOLD_NUM,
 	IWL_MVM_VENDOR_ATTR_GSCAN_CACHED_RESULTS,
 	IWL_MVM_VENDOR_ATTR_LAST_MSG,
