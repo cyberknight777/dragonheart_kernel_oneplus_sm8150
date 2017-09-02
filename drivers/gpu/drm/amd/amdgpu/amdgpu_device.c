@@ -2177,6 +2177,7 @@ bool amdgpu_device_asic_has_dc_support(enum amd_asic_type asic_type)
 	case CHIP_TONGA:
 	case CHIP_FIJI:
 	case CHIP_VEGA10:
+	case CHIP_VEGA12:
 #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
 	case CHIP_RAVEN:
 #endif
