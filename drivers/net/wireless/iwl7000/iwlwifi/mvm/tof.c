@@ -706,6 +706,7 @@ int iwl_mvm_tof_range_request_cmd(struct iwl_mvm *mvm)
 
 	iwl_mvm_debug_range_req(mvm);
 
+	status = 0;
 	err = iwl_mvm_send_cmd_status(mvm, &cmd, &status);
 	if (err) {
 		IWL_ERR(mvm, "Failed to send ToF cmd! err: %d\n", err);
