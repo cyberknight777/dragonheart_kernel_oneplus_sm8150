@@ -573,8 +573,9 @@ static int iwl_mvm_get_ctrl_vif_queue(struct iwl_mvm *mvm,
 		 * Also, disassociate frames might happen, particular with
 		 * reason 7 ("Class 3 frame received from nonassociated STA").
 		 */
-		if (!ieee80211_is_bufferable_mmpdu(fc) ||
-		    ieee80211_is_deauth(fc) || ieee80211_is_disassoc(fc))
+		if (ieee80211_is_mgmt(fc) &&
+		    (!ieee80211_is_bufferable_mmpdu(fc) ||
+		     ieee80211_is_deauth(fc) || ieee80211_is_disassoc(fc)))
 			return mvm->probe_queue;
 		if (info->hw_queue == info->control.vif->cab_queue)
 			return mvmvif->cab_queue;
