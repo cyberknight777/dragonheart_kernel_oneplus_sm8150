@@ -1962,6 +1962,38 @@ ieee80211_he_ppe_size(u8 ppe_thres_hdr, const u8 *phy_cap_info)
 #define IEEE80211_HE_OPERATION_TX_BSSID_INDICATOR		0x20000000
 #define IEEE80211_HE_OPERATION_BSS_COLOR_DISABLED		0x40000000
 
+/*
+ * ieee80211_he_oper_size - calculate 802.11ax HE Operations IE size
+ * @he_oper_ie: byte data of the He Operations IE, stating from the the byte
+ *	after the ext ID byte. It is assumed that he_oper_ie has at least
+ *	sizeof(struct ieee80211_he_operation) bytes, checked already in
+ *	ieee802_11_parse_elems_crc()
+ * @return the actual size of the IE data (not including header), or 0 on error
+ */
+static inline u8
+ieee80211_he_oper_size(const u8 *he_oper_ie)
+{
+	struct ieee80211_he_operation *he_oper = (void *)he_oper_ie;
+	u8 oper_len = sizeof(struct ieee80211_he_operation);
+	u32 he_oper_params;
+
+	/* Make sure the input is not NULL */
+	if (!he_oper_ie)
+		return 0;
+
+	/* Calc required length */
+	he_oper_params = le32_to_cpu(he_oper->he_oper_params);
+	if (he_oper_params & IEEE80211_HE_OPERATION_VHT_OPER_INFO)
+		oper_len += 3;
+	if (he_oper_params & IEEE80211_HE_OPERATION_MULTI_BSSID_AP)
+		oper_len++;
+
+	/* Add the first byte (extension ID) to the total length */
+	oper_len++;
+
+	return oper_len;
+}
+
 /* Authentication algorithms */
 #define WLAN_AUTH_OPEN 0
 #define WLAN_AUTH_SHARED_KEY 1

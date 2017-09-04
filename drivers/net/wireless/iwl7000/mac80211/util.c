@@ -1102,28 +1102,9 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 				elems->he_cap = (void *)&pos[1];
 				elems->he_cap_len = elen - 1;
 			} else if (pos[0] == WLAN_EID_EXT_HE_OPERATION &&
-				   elen >= sizeof(*elems->he_operation)) {
-				u8 oper_len = sizeof(*elems->he_operation);
-				u32 he_oper_params;
-
+				   elen >= sizeof(*elems->he_operation) &&
+				   elen >= ieee80211_he_oper_size(&pos[1])) {
 				elems->he_operation = (void *)&pos[1];
-
-				/* Make sure length is OK */
-				he_oper_params =
-					le32_to_cpu(elems->he_operation->he_oper_params);
-				if (he_oper_params &
-				    IEEE80211_HE_OPERATION_VHT_OPER_INFO)
-					oper_len += 3;
-				if (he_oper_params &
-				    IEEE80211_HE_OPERATION_MULTI_BSSID_AP)
-					oper_len++;
-
-				/*
-				 * Don't count the additional EXT byte when
-				 * validating size
-				 */
-				if (elen < (oper_len + 1))
-					elems->he_operation = NULL;
 			} else if (pos[0] == WLAN_EID_EXT_UORA && elen >= 1) {
 				elems->uora_element = (void *)&pos[1];
 			}

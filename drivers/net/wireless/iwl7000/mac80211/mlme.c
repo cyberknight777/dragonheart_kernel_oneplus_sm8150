@@ -147,6 +147,7 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 			     struct ieee80211_channel *channel,
 			     const struct ieee80211_ht_operation *ht_oper,
 			     const struct ieee80211_vht_operation *vht_oper,
+			     const struct ieee80211_he_operation *he_oper,
 			     struct cfg80211_chan_def *chandef, bool tracking)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
@@ -205,7 +206,27 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 	}
 
 	vht_chandef = *chandef;
-	if (!ieee80211_chandef_vht_oper(vht_oper, &vht_chandef)) {
+	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE) && he_oper &&
+	    (le32_to_cpu(he_oper->he_oper_params) &
+	     IEEE80211_HE_OPERATION_VHT_OPER_INFO)) {
+		struct ieee80211_vht_operation he_oper_vht_cap;
+
+		/*
+		 * Set only first 3 bytes (other 2 aren't used in
+		 * ieee80211_chandef_vht_oper() anyway)
+		 */
+		memcpy(&he_oper_vht_cap, he_oper->optional, 3);
+		he_oper_vht_cap.basic_mcs_set = cpu_to_le16(0);
+
+		if (!ieee80211_chandef_vht_oper(&he_oper_vht_cap,
+						&vht_chandef)) {
+			if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
+				sdata_info(sdata,
+					   "HE AP VHT information is invalid, disable HE\n");
+			ret = IEEE80211_STA_DISABLE_HE;
+			goto out;
+		}
+	} else if (!ieee80211_chandef_vht_oper(vht_oper, &vht_chandef)) {
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information is invalid, disable VHT\n");
@@ -298,6 +319,7 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 			       const struct ieee80211_ht_cap *ht_cap,
 			       const struct ieee80211_ht_operation *ht_oper,
 			       const struct ieee80211_vht_operation *vht_oper,
+			       const struct ieee80211_he_operation *he_oper,
 			       const u8 *bssid, u32 *changed)
 {
 	struct ieee80211_local *local = sdata->local;
@@ -318,6 +340,11 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 	if (ifmgd->flags & IEEE80211_STA_DISABLE_VHT)
 		vht_oper = NULL;
 
+	/* don't check HE if we associated as non-HE station */
+	if (ifmgd->flags & IEEE80211_STA_DISABLE_HE ||
+	    !ieee80211_get_he_sta_cap(sband))
+		he_oper = NULL;
+
 	if (WARN_ON_ONCE(!sta))
 		return -EINVAL;
 
@@ -334,9 +361,9 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 	chan = sdata->vif.bss_conf.chandef.chan;
 	sband = local->hw.wiphy->bands[chan->band];
 
-	/* calculate new channel (type) based on HT/VHT operation IEs */
+	/* calculate new channel (type) based on HT/VHT/HE operation IEs */
 	flags = ieee80211_determine_chantype(sdata, sband, chan,
-					     ht_oper, vht_oper,
+					     ht_oper, vht_oper, he_oper,
 					     &chandef, true);
 
 	/*
@@ -3073,7 +3100,19 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 		ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
 						    elems.vht_cap_elem, sta);
 
-	if (elems.he_operation && !(ifmgd->flags & IEEE80211_STA_DISABLE_HE)) {
+	if (elems.he_operation && !(ifmgd->flags & IEEE80211_STA_DISABLE_HE) &&
+	    elems.he_cap) {
+		ieee80211_he_cap_ie_to_sta_he_cap(sdata, sband,
+						  elems.he_cap,
+						  elems.he_cap_len,
+						  sta);
+
+		bss_conf->he_support = sta->sta.he_cap.has_he;
+	} else {
+		bss_conf->he_support = false;
+	}
+
+	if (bss_conf->he_support) {
 		u32 he_oper_params =
 			le32_to_cpu(elems.he_operation->he_oper_params);
 
@@ -3101,13 +3140,6 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 			bss_conf->uora_ocw_range = elems.uora_element[0];
 
 		/* TODO: OPEN: what happens if BSS color disable is set? */
-
-		ieee80211_he_cap_ie_to_sta_he_cap(sdata, sband,
-						  elems.he_cap,
-						  elems.he_cap_len,
-						  sta);
-
-		bss_conf->he_support = sta->sta.he_cap.has_he;
 	}
 
 	/*
@@ -3712,7 +3744,8 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 
 	if (ieee80211_config_bw(sdata, sta,
 				elems.ht_cap_elem, elems.ht_operation,
-				elems.vht_operation, bssid, &changed)) {
+				elems.vht_operation, elems.he_operation,
+				bssid, &changed)) {
 		mutex_unlock(&local->sta_mtx);
 		sdata_info(sdata,
 			   "failed to follow AP %pM bandwidth change, disconnect\n",
@@ -4346,6 +4379,7 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 	const struct ieee80211_ht_cap *ht_cap = NULL;
 	const struct ieee80211_ht_operation *ht_oper = NULL;
 	const struct ieee80211_vht_operation *vht_oper = NULL;
+	const struct ieee80211_he_operation *he_oper = NULL;
 	struct ieee80211_supported_band *sband;
 	struct cfg80211_chan_def chandef;
 	int ret;
@@ -4401,6 +4435,23 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		}
 	}
 
+	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE) &&
+	    ieee80211_get_he_sta_cap(sband)) {
+		const struct cfg80211_bss_ies *ies;
+		const u8 *he_oper_ie;
+
+		ies = rcu_dereference(cbss->ies);
+		he_oper_ie = cfg80211_find_ext_ie(WLAN_EID_EXT_HE_OPERATION,
+						  ies->data, ies->len);
+		if (he_oper_ie &&
+		    he_oper_ie[1] == ieee80211_he_oper_size(&he_oper_ie[3])) {
+			he_oper = (void *)(he_oper_ie + 3);
+		} else {
+			ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+			he_oper = NULL;
+		}
+	}
+
 	/* Allow VHT if at least one channel on the sband supports 80 MHz */
 	have_80mhz = false;
 	for (i = 0; i < sband->n_channels; i++) {
@@ -4417,7 +4468,7 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 
 	ifmgd->flags |= ieee80211_determine_chantype(sdata, sband,
 						     cbss->channel,
-						     ht_oper, vht_oper,
+						     ht_oper, vht_oper, he_oper,
 						     &chandef, false);
 
 	sdata->needed_rx_chains = min(ieee80211_ht_vht_rx_chains(sdata, cbss),
