@@ -635,14 +635,6 @@ enum iwl_vendor_sar_per_chain_geo_table {
  * @IWL_MVM_VENDOR_ATTR_GSCAN_CACHED_RESULTS: array of gscan cached results.
  *	Each result is a nested attribute of
  *	&enum iwl_mvm_vendor_gscan_cached_scan_res.
- * @IWL_MVM_VENDOR_ATTR_SSID: SSID (binary attribute, 0..32 octets)
- * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_LCI: Flag attribute specifying that the
- *	neighbor request shall query for LCI information.
- * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_CIVIC: Flag attribute specifying that the
- *	neighbor request shall query for CIVIC information.
- * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_REPORT: A list of neighbor APs as received in a
- *	neighbor report frame. Each AP is a nested attribute of
- *	&enum iwl_mvm_vendor_neighbor_report.
  * @IWL_MVM_VENDOR_ATTR_LAST_MSG: Indicates that this message is the last one
  *	in the series of messages. (flag)
  * @IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE: SAR table idx for chain A.
@@ -651,6 +643,14 @@ enum iwl_vendor_sar_per_chain_geo_table {
  *	This is a u8.
  * @IWL_MVM_VENDOR_ATTR_SAR_ENABLED_PROFILE_NUM: number of enabled SAR profile
  *	This is a u8.
+ * @IWL_MVM_VENDOR_ATTR_SSID: SSID (binary attribute, 0..32 octets)
+ * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_LCI: Flag attribute specifying that the
+ *	neighbor request shall query for LCI information.
+ * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_CIVIC: Flag attribute specifying that the
+ *	neighbor request shall query for CIVIC information.
+ * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_REPORT: A list of neighbor APs as received in a
+ *	neighbor report frame. Each AP is a nested attribute of
+ *	&enum iwl_mvm_vendor_neighbor_report.
  * @IWL_MVM_VENDOR_ATTR_SAR_GEO_PROFILE: geo profile info.
  *	see &enum iwl_vendor_sar_per_chain_geo_table.
  *
