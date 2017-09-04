@@ -77,7 +77,7 @@
 #include "iwl-csr.h"
 
 /* NVM offsets (in words) definitions */
-enum wkp_nvm_offsets {
+enum nvm_offsets {
 	/* NVM HW-Section offset (in words) definitions */
 	SUBSYSTEM_ID = 0x0A,
 	HW_ADDR = 0x15,
@@ -89,6 +89,9 @@ enum wkp_nvm_offsets {
 	SKU = 2,
 	N_HW_ADDRS = 3,
 	NVM_CHANNELS = 0x1E0 - NVM_SW_SECTION,
+
+	/* NVM REGULATORY -Section offset (in words) definitions */
+	NVM_CHANNELS_SDP = 0,
 };
 
 enum ext_nvm_offsets {
@@ -239,7 +242,7 @@ static u32 iwl_get_channel_flags(u8 ch_num, int ch_idx, bool is_5ghz,
 	u32 flags = IEEE80211_CHAN_NO_HT40;
 	u32 last_5ghz_ht = LAST_5GHZ_HT;
 
-	if (cfg->ext_nvm)
+	if (cfg->nvm_type == IWL_NVM_EXT)
 		last_5ghz_ht = LAST_5GHZ_HT_FAMILY_8000;
 
 	if (!is_5ghz && (nvm_flags & NVM_CHANNEL_40MHZ)) {
@@ -292,7 +295,7 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 	int num_of_ch, num_2ghz_channels;
 	const u8 *nvm_chan;
 
-	if (!cfg->ext_nvm) {
+	if (cfg->nvm_type != IWL_NVM_EXT) {
 		num_of_ch = IWL_NUM_CHANNELS;
 		nvm_chan = &iwl_nvm_channels[0];
 		num_2ghz_channels = NUM_2GHZ_CHANNELS;
@@ -488,7 +491,7 @@ IWL_EXPORT_SYMBOL(iwl_init_sbands);
 static int iwl_get_sku(const struct iwl_cfg *cfg, const __le16 *nvm_sw,
 		       const __le16 *phy_sku)
 {
-	if (!cfg->ext_nvm)
+	if (cfg->nvm_type != IWL_NVM_EXT)
 		return le16_to_cpup(nvm_sw + SKU);
 
 	return le32_to_cpup((__le32 *)(phy_sku + SKU_FAMILY_8000));
@@ -496,7 +499,7 @@ static int iwl_get_sku(const struct iwl_cfg *cfg, const __le16 *nvm_sw,
 
 static int iwl_get_nvm_version(const struct iwl_cfg *cfg, const __le16 *nvm_sw)
 {
-	if (!cfg->ext_nvm)
+	if (cfg->nvm_type != IWL_NVM_EXT)
 		return le16_to_cpup(nvm_sw + NVM_VERSION);
 	else
 		return le32_to_cpup((__le32 *)(nvm_sw +
@@ -506,7 +509,7 @@ static int iwl_get_nvm_version(const struct iwl_cfg *cfg, const __le16 *nvm_sw)
 static int iwl_get_radio_cfg(const struct iwl_cfg *cfg, const __le16 *nvm_sw,
 			     const __le16 *phy_sku)
 {
-	if (!cfg->ext_nvm)
+	if (cfg->nvm_type != IWL_NVM_EXT)
 		return le16_to_cpup(nvm_sw + RADIO_CFG);
 
 	return le32_to_cpup((__le32 *)(phy_sku + RADIO_CFG_FAMILY_EXT_NVM));
@@ -517,7 +520,7 @@ static int iwl_get_n_hw_addrs(const struct iwl_cfg *cfg, const __le16 *nvm_sw)
 {
 	int n_hw_addr;
 
-	if (!cfg->ext_nvm)
+	if (cfg->nvm_type != IWL_NVM_EXT)
 		return le16_to_cpup(nvm_sw + N_HW_ADDRS);
 
 	n_hw_addr = le32_to_cpup((__le32 *)(nvm_sw + N_HW_ADDRS_FAMILY_8000));
@@ -529,7 +532,7 @@ static void iwl_set_radio_cfg(const struct iwl_cfg *cfg,
 			      struct iwl_nvm_data *data,
 			      u32 radio_cfg)
 {
-	if (!cfg->ext_nvm) {
+	if (cfg->nvm_type != IWL_NVM_EXT) {
 		data->radio_cfg_type = NVM_RF_CFG_TYPE_MSK(radio_cfg);
 		data->radio_cfg_step = NVM_RF_CFG_STEP_MSK(radio_cfg);
 		data->radio_cfg_dash = NVM_RF_CFG_DASH_MSK(radio_cfg);
@@ -651,7 +654,7 @@ static int iwl_set_hw_address(struct iwl_trans *trans,
 #endif
 	if (cfg->mac_addr_from_csr) {
 		iwl_set_hw_address_from_csr(trans, data);
-	} else if (!cfg->ext_nvm) {
+	} else if (cfg->nvm_type != IWL_NVM_EXT) {
 		const u8 *hw_addr = (const u8 *)(nvm_hw + HW_ADDR);
 
 		/* The byte order is little endian 16 bit, meaning 214365 */
@@ -723,7 +726,7 @@ iwl_parse_nvm_data(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	u16 lar_config;
 	const __le16 *ch_section;
 
-	if (!cfg->ext_nvm)
+	if (cfg->nvm_type != IWL_NVM_EXT)
 		data = kzalloc(sizeof(*data) +
 			       sizeof(struct ieee80211_channel) *
 			       IWL_NUM_CHANNELS,
@@ -767,7 +770,7 @@ iwl_parse_nvm_data(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	data->n_hw_addrs = iwl_get_n_hw_addrs(cfg, nvm_sw);
 
-	if (!cfg->ext_nvm) {
+	if (cfg->nvm_type != IWL_NVM_EXT) {
 		/* Checking for required sections */
 		if (!nvm_calib) {
 			IWL_ERR(trans,
@@ -775,8 +778,12 @@ iwl_parse_nvm_data(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 			kfree(data);
 			return NULL;
 		}
+
+		ch_section = cfg->nvm_type == IWL_NVM_SDP ?
+			     &regulatory[NVM_CHANNELS_SDP] :
+			     &nvm_sw[NVM_CHANNELS];
+
 		lar_enabled = true;
-		ch_section = &nvm_sw[NVM_CHANNELS];
 	} else {
 		u16 lar_offset = data->nvm_version < 0xE39 ?
 				 NVM_LAR_OFFSET_OLD :
@@ -816,7 +823,7 @@ static u32 iwl_nvm_get_regdom_bw_flags(const u8 *nvm_chan,
 	u32 flags = NL80211_RRF_NO_HT40;
 	u32 last_5ghz_ht = LAST_5GHZ_HT;
 
-	if (cfg->ext_nvm)
+	if (cfg->nvm_type == IWL_NVM_EXT)
 		last_5ghz_ht = LAST_5GHZ_HT_FAMILY_8000;
 
 	if (ch_idx < NUM_2GHZ_CHANNELS &&
@@ -864,7 +871,7 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	int ch_idx;
 	u16 ch_flags;
 	u32 reg_rule_flags, prev_reg_rule_flags = 0;
-	const u8 *nvm_chan = cfg->ext_nvm ?
+	const u8 *nvm_chan = cfg->nvm_type == IWL_NVM_EXT ?
 			     iwl_ext_nvm_channels : iwl_nvm_channels;
 	struct ieee80211_regdomain *regd;
 	int size_of_regd;
@@ -873,7 +880,7 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	int center_freq, prev_center_freq = 0;
 	int valid_rules = 0;
 	bool new_rule;
-	int max_num_ch = cfg->ext_nvm ?
+	int max_num_ch = cfg->nvm_type == IWL_NVM_EXT ?
 			 IWL_NUM_CHANNELS_EXT : IWL_NUM_CHANNELS;
 
 	if (WARN_ON_ONCE(num_of_ch > NL80211_MAX_SUPP_REG_RULES))
