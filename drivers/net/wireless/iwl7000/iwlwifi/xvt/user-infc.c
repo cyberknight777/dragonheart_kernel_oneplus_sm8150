@@ -1408,7 +1408,7 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 	if (!mac_addr_info)
 		return -ENOMEM;
 
-	if (!xvt->cfg->ext_nvm) {
+	if (xvt->cfg->nvm_type != IWL_NVM_EXT) {
 		memcpy(mac_addr_info->mac_addr, xvt->nvm_hw_addr,
 		       sizeof(mac_addr_info->mac_addr));
 	} else {

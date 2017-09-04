@@ -239,7 +239,7 @@ static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 			break;
 		}
 
-		if (!xvt->trans->cfg->ext_nvm) {
+		if (xvt->trans->cfg->nvm_type != IWL_NVM_EXT) {
 			section_size =
 				2 * NVM_WORD1_LEN(le16_to_cpu(file_sec->word1));
 			section_id = NVM_WORD2_ID(le16_to_cpu(file_sec->word2));
