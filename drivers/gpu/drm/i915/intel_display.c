@@ -13052,7 +13052,7 @@ intel_legacy_cursor_update(struct drm_plane *plane,
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	struct drm_framebuffer *old_fb;
 	struct drm_crtc_state *crtc_state = crtc->state;
-	struct i915_vma *old_vma, *vma;
+	struct i915_vma *old_vma;
 
 	/*
 	 * When crtc is inactive or there is a modeset pending,
@@ -13063,6 +13063,14 @@ intel_legacy_cursor_update(struct drm_plane *plane,
 		goto slow;
 
 	old_plane_state = plane->state;
+	/*
+	 * Don't do an async update if there is an outstanding commit modifying
+	 * the plane.  This prevents our async update's changes from getting
+	 * overridden by a previous synchronous update's state.
+	 */
+	if (old_plane_state->commit &&
+	    !try_wait_for_completion(&old_plane_state->commit->hw_done))
+		goto slow;
 
 	/*
 	 * If any parameters change that may affect watermarks,
@@ -13110,6 +13118,8 @@ intel_legacy_cursor_update(struct drm_plane *plane,
 			goto out_unlock;
 		}
 	} else {
+		struct i915_vma *vma;
+
 		vma = intel_pin_and_fence_fb_obj(fb, new_plane_state->rotation);
 		if (IS_ERR(vma)) {
 			DRM_DEBUG_KMS("failed to pin object\n");
@@ -13122,19 +13132,12 @@ intel_legacy_cursor_update(struct drm_plane *plane,
 	}
 
 	old_fb = old_plane_state->fb;
-	old_vma = to_intel_plane_state(old_plane_state)->vma;
 
 	i915_gem_track_fb(intel_fb_obj(old_fb), intel_fb_obj(fb),
 			  intel_plane->frontbuffer_bit);
 
 	/* Swap plane state */
-	new_plane_state->fence = old_plane_state->fence;
-	new_plane_state->commit = old_plane_state->commit;
-	*to_intel_plane_state(old_plane_state) = *to_intel_plane_state(new_plane_state);
-	new_plane_state->fence = NULL;
-	new_plane_state->commit = NULL;
-	new_plane_state->fb = old_fb;
-	to_intel_plane_state(new_plane_state)->vma = NULL;
+	plane->state = new_plane_state;
 
 	if (plane->state->visible) {
 		trace_intel_update_plane(plane, to_intel_crtc(crtc));
@@ -13146,13 +13149,17 @@ intel_legacy_cursor_update(struct drm_plane *plane,
 		intel_plane->disable_plane(intel_plane, to_intel_crtc(crtc));
 	}
 
+	old_vma = fetch_and_zero(&to_intel_plane_state(old_plane_state)->vma);
 	if (old_vma)
 		intel_unpin_fb_vma(old_vma);
 
 out_unlock:
 	mutex_unlock(&dev_priv->drm.struct_mutex);
 out_free:
-	intel_plane_destroy_state(plane, new_plane_state);
+	if (ret)
+		intel_plane_destroy_state(plane, new_plane_state);
+	else
+		intel_plane_destroy_state(plane, old_plane_state);
 	return ret;
 
 slow:
