@@ -1507,15 +1507,15 @@ static void reg_process_ht_flags_channel(struct wiphy *wiphy,
 			channel_after = c;
 	}
 
+	flags = 0;
 	regd = get_wiphy_regdom(wiphy);
 	if (regd) {
 		const struct ieee80211_reg_rule *reg_rule =
 			freq_reg_info_regd(MHZ_TO_KHZ(channel->center_freq),
 					   regd, MHZ_TO_KHZ(20));
 
-		flags = reg_rule->flags;
-	} else {
-		flags = 0;
+		if (!IS_ERR(reg_rule))
+			flags = reg_rule->flags;
 	}
 
 	/*
