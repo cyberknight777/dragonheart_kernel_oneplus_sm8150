@@ -356,6 +356,7 @@ struct hid_item {
 #define HID_GROUP_MULTITOUCH			0x0002
 #define HID_GROUP_SENSOR_HUB			0x0003
 #define HID_GROUP_MULTITOUCH_WIN_8		0x0004
+#define HID_GROUP_GENERIC_OVERRIDE		0x0005
 
 /*
  * Vendor specific HID device groups
