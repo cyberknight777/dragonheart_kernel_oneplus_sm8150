@@ -3085,6 +3085,18 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 			 IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK) <<
 			IEEE80211_HE_OPERATION_RTS_THRESHOLD_OFFSET;
 
+		bss_conf->multi_sta_back_32bit =
+			sta->sta.he_cap.he_cap_elem.mac_cap_info[2] &
+			IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP;
+
+		bss_conf->ack_enabled_multitid =
+			sta->sta.he_cap.he_cap_elem.mac_cap_info[2] &
+			IEEE80211_HE_MAC_CAP2_ACK_EN_MULTI_TID_ADD;
+
+		bss_conf->uora_exists = !!elems.uora_element;
+		if (elems.uora_element)
+			bss_conf->uora_ocw_range = elems.uora_element[0];
+
 		/* TODO: OPEN: what happens if BSS color disable is set? */
 
 		ieee80211_he_cap_ie_to_sta_he_cap(sdata, sband,

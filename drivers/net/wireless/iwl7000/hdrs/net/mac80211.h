@@ -467,6 +467,11 @@ struct ieee80211_mu_group_data {
  *
  * @bss_color: 6-bit value to mark inter-BSS frame, if BSS supports HE
  * @htc_trig_based_pkt_ext: default PE in 4us units, if BSS supports HE
+ * @multi_sta_back_32bit: supports BA bitmap of 32-bits in Multi-STA BACK
+ * @uora_exists: is the UORA element advertised by AP
+ * @ack_enabled_multitid: indicates support to receive a multi-TID that solicits
+ *	either ACK, BACK or both
+ * @uora_ocw_range: UORA element's OCW Range field
  * @frame_time_rts_th: HE duration RTS threshold, in units of 32us
  * @he_support: does this BSS support HE
  * @assoc: association status
@@ -558,6 +563,10 @@ struct ieee80211_bss_conf {
 	const u8 *bssid;
 	u8 bss_color;
 	u8 htc_trig_based_pkt_ext;
+	bool multi_sta_back_32bit;
+	bool uora_exists;
+	bool ack_enabled_multitid;
+	u8 uora_ocw_range;
 	u16 frame_time_rts_th;
 	bool he_support;
 	/* association related data */

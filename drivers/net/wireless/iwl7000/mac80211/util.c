@@ -1121,6 +1121,8 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 				 */
 				if (elen < (oper_len + 1))
 					elems->he_operation = NULL;
+			} else if (pos[0] == WLAN_EID_EXT_UORA && elen >= 1) {
+				elems->uora_element = (void *)&pos[1];
 			}
 			break;
 		default:
