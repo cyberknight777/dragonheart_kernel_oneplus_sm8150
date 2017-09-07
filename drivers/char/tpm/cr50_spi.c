@@ -161,7 +161,7 @@ static int cr50_spi_flow_control(struct cr50_spi_phy *phy)
 }
 
 static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
-			       u16 len, u8 *buf, bool do_write)
+			       u16 len, const u8 *tx, u8 *rx)
 {
 	struct cr50_spi_phy *phy = to_cr50_spi_phy(data);
 	struct spi_message m;
@@ -184,7 +184,7 @@ static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
 	cr50_ensure_access_delay(phy);
 	cr50_wake_if_needed(phy);
 
-	phy->tx_buf[0] = (do_write ? 0x00 : 0x80) | (len - 1);
+	phy->tx_buf[0] = (tx ? 0x00 : 0x80) | (len - 1);
 	phy->tx_buf[1] = 0xD4;
 	phy->tx_buf[2] = (addr >> 8) & 0xFF;
 	phy->tx_buf[3] = addr & 0xFF;
@@ -203,8 +203,8 @@ static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
 
 	spi_xfer.cs_change = 0;
 	spi_xfer.len = len;
-	if (do_write) {
-		memcpy(phy->tx_buf, buf, len);
+	if (tx) {
+		memcpy(phy->tx_buf, tx, len);
 		spi_xfer.rx_buf = NULL;
 	} else {
 		spi_xfer.tx_buf = NULL;
@@ -214,8 +214,8 @@ static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
 	spi_message_add_tail(&spi_xfer, &m);
 	reinit_completion(&phy->tpm_ready);
 	ret = spi_sync_locked(phy->spi_device, &m);
-	if (!do_write)
-		memcpy(buf, phy->rx_buf, len);
+	if (rx)
+		memcpy(rx, phy->rx_buf, len);
 
 exit:
 	spi_bus_unlock(phy->spi_device->master);
@@ -228,13 +228,13 @@ exit:
 static int cr50_spi_read_bytes(struct tpm_tis_data *data, u32 addr,
 			       u16 len, u8 *result)
 {
-	return cr50_spi_xfer_bytes(data, addr, len, result, false);
+	return cr50_spi_xfer_bytes(data, addr, len, NULL, result);
 }
 
 static int cr50_spi_write_bytes(struct tpm_tis_data *data, u32 addr,
-				u16 len, u8 *value)
+				u16 len, const u8 *value)
 {
-	return cr50_spi_xfer_bytes(data, addr, len, value, true);
+	return cr50_spi_xfer_bytes(data, addr, len, value, NULL);
 }
 
 static int cr50_spi_read16(struct tpm_tis_data *data, u32 addr, u16 *result)
