@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 4.4.64 Kernel Configuration
+# Linux/x86 4.4.79 Kernel Configuration
 #
 CONFIG_64BIT=y
 CONFIG_X86_64=y
@@ -1533,6 +1533,11 @@ CONFIG_BCMA_POSSIBLE=y
 # CONFIG_DRM is not set
 
 #
+# ACP Configuration
+#
+# CONFIG_DRM_AMD_ACP is not set
+
+#
 # ARM GPU Configuration
 #
 
@@ -1603,6 +1608,11 @@ CONFIG_RTC_DRV_CMOS=y
 # HID Sensor RTC drivers
 #
 # CONFIG_DMADEVICES is not set
+
+#
+# DMABUF options
+#
+# CONFIG_SYNC_FILE is not set
 # CONFIG_AUXDISPLAY is not set
 # CONFIG_UIO is not set
 # CONFIG_VIRT_DRIVERS is not set
@@ -1616,6 +1626,7 @@ CONFIG_VIRTIO_PCI_LEGACY=y
 CONFIG_VIRTIO_BALLOON=y
 CONFIG_VIRTIO_MMIO=y
 CONFIG_VIRTIO_MMIO_CMDLINE_DEVICES=y
+CONFIG_VIRTIO_WL=y
 
 #
 # Microsoft Hyper-V guest support
@@ -1639,6 +1650,7 @@ CONFIG_STAGING=y
 # CONFIG_UNISYSSPAR is not set
 # CONFIG_MOST is not set
 CONFIG_X86_PLATFORM_DEVICES=y
+# CONFIG_INTEL_PMC_CORE is not set
 # CONFIG_IBM_RTL is not set
 # CONFIG_INTEL_PUNIT_IPC is not set
 # CONFIG_CHROME_PLATFORMS is not set
