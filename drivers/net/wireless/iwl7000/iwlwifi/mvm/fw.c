@@ -281,29 +281,9 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	enum iwl_ucode_type old_type = mvm->fwrt.cur_fw_img;
 	static const u16 alive_cmd[] = { MVM_ALIVE };
 	struct iwl_sf_region st_fwrd_space;
-	bool ini_usniffer = false;
-
-#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-	/* Check if ini config requests usniffer */
-	ini_usniffer = mvm->trans->dbg_cfg.d0_is_usniffer;
-
-	/* Check if ini config requests upload mode and verify it's supported */
-	if (WARN(mvm->trans->dbg_cfg.use_upload_ucode &&
-		 !(fw_has_capa(&mvm->fw->ucode_capa,
-			       IWL_UCODE_TLV_CAPA_UMAC_UPLOAD) &&
-		   fw_has_capa(&mvm->fw->ucode_capa,
-			       IWL_UCODE_TLV_CAPA_LMAC_UPLOAD)),
-		 "Conflict in config and ucode capabilities:\n"
-		 "\tConfig sets upload and ucode doesn't support it.\n"
-		 ))
-		return -EINVAL;
-#endif
-#endif
 
 	if (ucode_type == IWL_UCODE_REGULAR &&
-	    (iwl_fw_dbg_conf_usniffer(mvm->fw, FW_DBG_START_FROM_ALIVE) ||
-	     ini_usniffer) &&
+	    iwl_fw_dbg_conf_usniffer(mvm->fw, FW_DBG_START_FROM_ALIVE) &&
 	    !(fw_has_capa(&mvm->fw->ucode_capa,
 			  IWL_UCODE_TLV_CAPA_USNIFFER_UNIFIED)))
 		fw = iwl_get_ucode_image(mvm->fw, IWL_UCODE_REGULAR_USNIFFER);

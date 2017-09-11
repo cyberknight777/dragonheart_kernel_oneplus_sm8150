@@ -483,16 +483,13 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 		 fw_pre_name, tag);
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-	/* check if upload firmware code is required */
-	if (drv->trans->dbg_cfg.use_upload_ucode) {
-		snprintf(fw_name_temp, sizeof(fw_name_temp), "upload-%s",
-			 drv->firmware_name);
+	if (drv->trans->dbg_cfg.fw_file_pre) {
+		snprintf(fw_name_temp, sizeof(fw_name_temp), "%s%s",
+			 drv->trans->dbg_cfg.fw_file_pre, drv->firmware_name);
 		strncpy(drv->firmware_name, fw_name_temp,
 			sizeof(drv->firmware_name));
 	}
-#endif
-#endif
+#endif /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
 
 	IWL_DEBUG_INFO(drv, "attempting to load firmware '%s'\n",
 		       drv->firmware_name);
