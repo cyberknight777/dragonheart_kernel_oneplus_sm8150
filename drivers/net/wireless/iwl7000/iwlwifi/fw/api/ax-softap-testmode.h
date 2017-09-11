@@ -233,6 +233,7 @@ struct trig_frame_bar_tid_ax_softap_testmode_dl_mu_bar {
  * @tid_count: the number of TIDs configured in this mu bar trigger frame
  *	       per user section
  * @reserved: reserved for DW alignment
+ * @per_tid: MU-BAR trigger frame configuration per TID
  */
 struct trig_frame_bar_ax_softap_testmode_dl_mu_bar {
 	u8 block_ack_policy;
