@@ -136,8 +136,9 @@ static int cr50_i2c_transfer(struct device *dev, struct i2c_adapter *adapter,
 		rc = __i2c_transfer(adapter, msgs, num);
 		if (rc > 0)
 			break;
-		dev_warn(dev, "i2c transfer failed (attempt %d/%d): %d\n",
-			 try+1, CR50_I2C_MAX_RETRIES, rc);
+		if (try)
+			dev_warn(dev, "i2c transfer failed (attempt %d/%d): %d\n",
+				 try+1, CR50_I2C_MAX_RETRIES, rc);
 		usleep_range(CR50_I2C_RETRY_DELAY_LO, CR50_I2C_RETRY_DELAY_HI);
 	}
 
