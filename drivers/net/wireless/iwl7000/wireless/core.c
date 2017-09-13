@@ -1158,6 +1158,10 @@ void __cfg80211_leave(struct cfg80211_registered_device *rdev,
 	case NL80211_IFTYPE_WDS:
 		/* must be handled by mac80211/driver, has no APIs */
 		break;
+	case NL80211_IFTYPE_NAN_DATA:
+		/* TODO: Need to add low level APIs */
+		WARN_ON(1);
+		break;
 	case NL80211_IFTYPE_P2P_DEVICE:
 	case NL80211_IFTYPE_NAN:
 		/* cannot happen, has no netdev */

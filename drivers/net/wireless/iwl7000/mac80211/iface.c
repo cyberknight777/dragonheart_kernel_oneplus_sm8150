@@ -547,6 +547,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NUM_NL80211_IFTYPES:
 	case NL80211_IFTYPE_P2P_CLIENT:
 	case NL80211_IFTYPE_P2P_GO:
+	case NL80211_IFTYPE_NAN_DATA:
 		/* cannot happen */
 		WARN_ON(1);
 		break;
@@ -1561,6 +1562,7 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NUM_NL80211_IFTYPES:
+	case NL80211_IFTYPE_NAN_DATA:
 		WARN_ON(1);
 		break;
 	}

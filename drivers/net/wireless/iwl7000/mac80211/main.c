@@ -952,6 +952,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 			             IEEE80211_HT_CAP_SM_PS_SHIFT;
 	}
 
+	/* TODO: Add support for NAN Data interfaces */
+	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_NAN_DATA))
+		return -EINVAL;
+
 	/* if low-level driver supports AP, we also support VLAN */
 	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_AP)) {
 		hw->wiphy->interface_modes |= BIT(NL80211_IFTYPE_AP_VLAN);

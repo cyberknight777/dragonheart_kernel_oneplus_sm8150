@@ -989,6 +989,7 @@ static int nl80211_key_allowed(struct wireless_dev *wdev)
 	case NL80211_IFTYPE_MONITOR:
 	case NL80211_IFTYPE_NAN:
 	case NL80211_IFTYPE_P2P_DEVICE:
+	case NL80211_IFTYPE_NAN_DATA:
 	case NL80211_IFTYPE_WDS:
 	case NUM_NL80211_IFTYPES:
 		return -EINVAL;
