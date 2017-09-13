@@ -1128,6 +1128,9 @@ struct iwl_mvm {
 	bool drop_bcn_ap_mode;
 
 	struct delayed_work cs_tx_unblock_dwork;
+
+	/* does a monitor vif exist (only one can exist hence bool) */
+	bool monitor_on;
 #ifdef CONFIG_ACPI
 	struct iwl_mvm_sar_profile sar_profiles[IWL_MVM_SAR_PROFILE_NUM];
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
