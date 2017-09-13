@@ -138,10 +138,14 @@
  *	information: Per band tx power offset for chain A and chain B as well as
  *	maximum allowed tx power on this band.
  * @IWL_MVM_VENDOR_CMD_TEST_FIPS: request the output of a certain function for
- *	the specified test vector. The result output is sent back in
- *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT attribute. In case the function
- *	failed to produce an output for the requested test vector,
- *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT is not set.
+ *	the specified test vector. The test vector is specified with one of:
+ *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_SHA,
+ *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC, or
+ *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF. Only one test vector shall be
+ *	specified per test command.
+ *	The result output is sent back in &IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT
+ *	attribute. In case the function failed to produce an output for the
+ *	requested test vector, &IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT is not set.
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -538,19 +542,6 @@ enum iwl_vendor_sar_per_chain_geo_table {
 };
 
 /**
- * enum iwl_vendor_fips_test_type - FIPS test types
- *
- * @IWL_VENDOR_FIPS_TYPE_SHA: message digest produced by a SHA function.
- * @IWL_VENDOR_FIPS_TYPE_HMAC: message digest produced by a HMAC-SHA function.
- * @IWL_VENDOR_FIPS_TYPE_KDF: MAC produced by a KDF function.
- */
-enum iwl_vendor_fips_test_type {
-	IWL_VENDOR_FIPS_TYPE_SHA,
-	IWL_VENDOR_FIPS_TYPE_HMAC,
-	IWL_VENDOR_FIPS_TYPE_KDF,
-};
-
-/**
  * enum iwl_vendor_fips_test_vector_sha_type - SHA types for FIPS tests
  *
  * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA1: SHA1
@@ -735,10 +726,11 @@ enum iwl_vendor_fips_test_vector_hmac_kdf {
  *	&enum iwl_mvm_vendor_neighbor_report.
  * @IWL_MVM_VENDOR_ATTR_SAR_GEO_PROFILE: geo profile info.
  *	see &enum iwl_vendor_sar_per_chain_geo_table.
- * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_TYPE: FIPS test type. One of
- *	&enum iwl_vendor_fips_test_type.
- * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR: data vector for FIPS test.
- *	&enum iwl_vendor_fips_test_vector_sha or
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_SHA: data vector for FIPS SHA test.
+ *	&enum iwl_vendor_fips_test_vector_sha.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC: data vector for FIPS HMAC test.
+ *	&enum iwl_vendor_fips_test_vector_hmac_kdf.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF: data vector for FIPS KDF test.
  *	&enum iwl_vendor_fips_test_vector_hmac_kdf.
  * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT: FIPS test result. Contains the
  *	output of the requested function.
@@ -808,8 +800,9 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_NEIGHBOR_CIVIC,
 	IWL_MVM_VENDOR_ATTR_NEIGHBOR_REPORT,
 	IWL_MVM_VENDOR_ATTR_SAR_GEO_PROFILE,
-	IWL_MVM_VENDOR_ATTR_FIPS_TEST_TYPE,
-	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_SHA,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF,
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
