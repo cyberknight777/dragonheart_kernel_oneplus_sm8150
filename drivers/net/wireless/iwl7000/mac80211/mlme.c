@@ -625,7 +625,7 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 	u8 *pos, qos_info;
 	size_t offset = 0, noffset;
 	int i, count, rates_len, supp_rates_len, shift;
-	u16 capab;
+	u16 capab = 0;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_chanctx_conf *chanctx_conf;
 	struct ieee80211_channel *chan;
@@ -684,8 +684,6 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 		return;
 
 	skb_reserve(skb, local->hw.extra_tx_headroom);
-
-	capab = WLAN_CAPABILITY_ESS;
 
 	if (sband->band == NL80211_BAND_2GHZ) {
 		capab |= WLAN_CAPABILITY_SHORT_SLOT_TIME;
