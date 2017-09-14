@@ -3758,6 +3758,7 @@ static int __iwl_mvm_add_chanctx(struct iwl_mvm *mvm,
 	u16 *phy_ctxt_id = (u16 *)ctx->drv_priv;
 	struct iwl_mvm_phy_ctxt *phy_ctxt;
 	bool responder = iwl_mvm_is_ftm_responder_chanctx(mvm, ctx);
+	struct cfg80211_chan_def *def = responder ? &ctx->def : &ctx->min_def;
 	int ret;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -3770,8 +3771,7 @@ static int __iwl_mvm_add_chanctx(struct iwl_mvm *mvm,
 		goto out;
 	}
 
-	ret = iwl_mvm_phy_ctxt_changed(mvm, phy_ctxt,
-				       responder ? &ctx->def : &ctx->min_def,
+	ret = iwl_mvm_phy_ctxt_changed(mvm, phy_ctxt, def,
 				       ctx->rx_chains_static,
 				       ctx->rx_chains_dynamic);
 	if (ret) {
@@ -3828,6 +3828,7 @@ static void iwl_mvm_change_chanctx(struct ieee80211_hw *hw,
 	u16 *phy_ctxt_id = (u16 *)ctx->drv_priv;
 	struct iwl_mvm_phy_ctxt *phy_ctxt = &mvm->phy_ctxts[*phy_ctxt_id];
 	bool responder = iwl_mvm_is_ftm_responder_chanctx(mvm, ctx);
+	struct cfg80211_chan_def *def = responder ? &ctx->def : &ctx->min_def;
 
 	if (WARN_ONCE((phy_ctxt->ref > 1) &&
 		      (changed & ~(IEEE80211_CHANCTX_CHANGE_WIDTH |
@@ -3839,11 +3840,24 @@ static void iwl_mvm_change_chanctx(struct ieee80211_hw *hw,
 		return;
 
 	mutex_lock(&mvm->mutex);
+
+	/* we are only changing the min_width, may be a noop */
+	if (changed == IEEE80211_CHANCTX_CHANGE_MIN_WIDTH) {
+		if (phy_ctxt->width == def->width)
+			goto out_unlock;
+
+		/* we are just toggling between 20_NOHT and 20 */
+		if (phy_ctxt->width <= NL80211_CHAN_WIDTH_20 &&
+		    def->width <= NL80211_CHAN_WIDTH_20)
+			goto out_unlock;
+	}
+
 	iwl_mvm_bt_coex_vif_change(mvm);
-	iwl_mvm_phy_ctxt_changed(mvm, phy_ctxt,
-				 responder ? &ctx->def : &ctx->min_def,
+	iwl_mvm_phy_ctxt_changed(mvm, phy_ctxt, def,
 				 ctx->rx_chains_static,
 				 ctx->rx_chains_dynamic);
+
+out_unlock:
 	mutex_unlock(&mvm->mutex);
 }
 
