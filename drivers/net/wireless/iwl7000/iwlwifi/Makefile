@@ -13,6 +13,8 @@ IWLFWRT = fw/paging.o fw/smem.o fw/init.o fw/dbg.o fw/common_rx.o fw/nvm.o
 iwlwifi-$(CPTCFG_IWLMVM)	+= $(IWLFWRT)
 iwlwifi-$(CPTCFG_IWLXVT)	+= fw/init.o
 
+iwlwifi-$(CONFIG_ACPI)	+= fw/acpi.o
+
 # Bus
 iwlwifi-$(CPTCFG_IWLWIFI_PCIE)	+= pcie/drv.o pcie/rx.o pcie/tx.o pcie/trans.o
 iwlwifi-$(CPTCFG_IWLWIFI_PCIE)	+= pcie/ctxt-info.o pcie/trans-gen2.o pcie/tx-gen2.o
