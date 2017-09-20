@@ -753,6 +753,9 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	SET_IEEE80211_DEV(mvm->hw, mvm->trans->dev);
 
 #ifdef CPTCFG_IWLMVM_TCM
+	pm_qos_add_request(&mvm->pm_qos_req, PM_QOS_CPU_DMA_LATENCY,
+			   PM_QOS_DEFAULT_VALUE);
+
 	spin_lock_init(&mvm->tcm.lock);
 	INIT_DELAYED_WORK(&mvm->tcm.work, iwl_mvm_tcm_work);
 	mvm->tcm.ts = jiffies;
@@ -987,6 +990,7 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 
 #ifdef CPTCFG_IWLMVM_TCM
 	cancel_delayed_work_sync(&mvm->tcm.work);
+	pm_qos_remove_request(&mvm->pm_qos_req);
 #endif
 
 #ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
