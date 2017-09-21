@@ -91,6 +91,7 @@
 #include "tof.h"
 #include "fw/runtime.h"
 #include "fw/dbg.h"
+#include "fw/acpi.h"
 
 #ifdef CPTCFG_IWLMVM_TCM
 #include <linux/average.h>
@@ -760,17 +761,13 @@ enum iwl_mvm_queue_status {
 #define IWL_MVM_NUM_CIPHERS             10
 
 #ifdef CONFIG_ACPI
-#define IWL_MVM_SAR_TABLE_SIZE		10
-#define IWL_MVM_SAR_PROFILE_NUM		4
-#define IWL_MVM_GEO_TABLE_SIZE		6
-
 struct iwl_mvm_sar_profile {
 	bool enabled;
-	u8 table[IWL_MVM_SAR_TABLE_SIZE];
+	u8 table[ACPI_SAR_TABLE_SIZE];
 };
 
 struct iwl_mvm_geo_profile {
-	u8 values[IWL_MVM_GEO_TABLE_SIZE];
+	u8 values[ACPI_GEO_TABLE_SIZE];
 };
 #endif
 
@@ -1131,12 +1128,12 @@ struct iwl_mvm {
 	/* does a monitor vif exist (only one can exist hence bool) */
 	bool monitor_on;
 #ifdef CONFIG_ACPI
-	struct iwl_mvm_sar_profile sar_profiles[IWL_MVM_SAR_PROFILE_NUM];
+	struct iwl_mvm_sar_profile sar_profiles[ACPI_SAR_PROFILE_NUM];
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	u8 sar_chain_a_profile;
 	u8 sar_chain_b_profile;
 #endif
-	struct iwl_mvm_geo_profile geo_profiles[IWL_NUM_GEO_PROFILES];
+	struct iwl_mvm_geo_profile geo_profiles[ACPI_NUM_GEO_PROFILES];
 #endif
 
 	/* PM QOS request handle */

@@ -727,7 +727,7 @@ static int iwl_mvm_vendor_get_sar_profile_info(struct wiphy *wiphy,
 	int i;
 	u32 n_profiles = 0;
 
-	for (i = 0; i < IWL_MVM_SAR_PROFILE_NUM; i++) {
+	for (i = 0; i < ACPI_SAR_PROFILE_NUM; i++) {
 		if (mvm->sar_profiles[i].enabled)
 			n_profiles++;
 	}
@@ -780,7 +780,7 @@ static int iwl_mvm_vendor_get_geo_profile_info(struct wiphy *wiphy,
 	for (i = 0; i < IWL_MVM_SAR_GEO_NUM_BANDS; i++) {
 		u8 *value;
 		struct nlattr *nl_chain = nla_nest_start(skb, i + 1);
-		int idx = i * IWL_GEO_PER_CHAIN_SIZE;
+		int idx = i * ACPI_GEO_PER_CHAIN_SIZE;
 
 		if (!nl_chain) {
 			kfree_skb(skb);
