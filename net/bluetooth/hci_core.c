@@ -4325,13 +4325,77 @@ static void hci_rx_work(struct work_struct *work)
 	}
 }
 
+#ifdef CONFIG_BT_EVE_HACKS
+/* This is a conditional HCI command. The HCI command
+ * would be executed only when the run-time condition
+ * is met.
+ */
+static bool skip_conditional_cmd(struct work_struct *work, struct sk_buff *skb)
+{
+	struct hci_dev *hdev = container_of(work, struct hci_dev, cmd_work);
+	bool cur_enabled, cur_changing, desired_enabled, conditional_cmd = false;
+	unsigned bit_num_cur_ena, bit_num_cur_chng;
+	bool ret = false;
+
+	hci_dev_lock(hdev);
+
+	if (hci_skb_pkt_type(skb) == HCI_COMMAND_PKT) {
+		if (hci_skb_opcode(skb) == HCI_OP_LE_SET_ADV_ENABLE) {
+			desired_enabled = !!*(skb_tail_pointer(skb) - 1);
+			bit_num_cur_ena = HCI_LE_ADV;
+			bit_num_cur_chng = HCI_LE_ADV_CHANGE_IN_PROGRESS;
+			conditional_cmd = true;
+		} else if (hci_skb_opcode(skb) == HCI_OP_LE_SET_SCAN_ENABLE) {
+			desired_enabled = !!*(skb_tail_pointer(skb) - 2);
+			bit_num_cur_ena = HCI_LE_SCAN;
+			bit_num_cur_chng = HCI_LE_SCAN_CHANGE_IN_PROGRESS;
+			conditional_cmd = true;
+			BT_DBG("BT_DBG_DG: set scan enable tx: desired=%d\n",
+			       desired_enabled);
+		}
+	}
+
+	if (conditional_cmd) {
+
+		cur_enabled = hci_dev_test_flag(hdev, bit_num_cur_ena);
+		cur_changing = hci_dev_test_flag(hdev, bit_num_cur_chng);
+
+		BT_DBG("COND opcode=%d, wanted=%d, on=%d, chngn=%d",
+			hci_skb_opcode(skb), desired_enabled, cur_enabled, cur_changing);
+
+		/* No need to enable/disable anything if it is already in that state or
+		 * about to be
+		 */
+		if (cur_enabled == desired_enabled || cur_changing) {
+			skb_orphan(skb);
+			kfree_skb(skb);
+
+			BT_INFO("  COND LE cmd is already %d (chg %d), skip transition to %d",
+			        cur_enabled, cur_changing, desired_enabled);
+			/* See if there are more commands to do in cmd_q. */
+			atomic_set(&hdev->cmd_cnt, 1);
+			if (!skb_queue_empty(&hdev->cmd_q)) {
+				BT_INFO("  COND call queue_work.");
+				queue_work(hdev->workqueue, &hdev->cmd_work);
+			} else {
+				BT_INFO("  COND no more cmd in queue.");
+			}
+			ret = true;
+			goto out;
+		}
+		hci_dev_set_flag(hdev, bit_num_cur_chng);
+	}
+
+out:
+	hci_dev_unlock(hdev);
+	return ret;
+}
+#endif
+
 static void hci_cmd_work(struct work_struct *work)
 {
 	struct hci_dev *hdev = container_of(work, struct hci_dev, cmd_work);
 	struct sk_buff *skb;
-
-	BT_DBG("%s cmd_cnt %d cmd queued %d", hdev->name,
-	       atomic_read(&hdev->cmd_cnt), skb_queue_len(&hdev->cmd_q));
 
 	/* Send queued commands */
 	if (atomic_read(&hdev->cmd_cnt)) {
@@ -4344,6 +4408,13 @@ static void hci_cmd_work(struct work_struct *work)
 		hdev->sent_cmd = skb_clone(skb, GFP_KERNEL);
 		if (hdev->sent_cmd) {
 			atomic_dec(&hdev->cmd_cnt);
+
+#ifdef CONFIG_BT_EVE_HACKS
+			/* Check if the command could be skipped. */
+			if (skip_conditional_cmd(work, skb))
+				return;
+#endif
+
 			hci_send_frame(hdev, skb);
 			if (test_bit(HCI_RESET, &hdev->flags))
 				cancel_delayed_work(&hdev->cmd_timer);

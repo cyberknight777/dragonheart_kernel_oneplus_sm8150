@@ -143,4 +143,15 @@ config BT_HCI_LE_SPLITTER
 	  Creates a char device to allow a userspace stack to handle LE
 	  comms. Bluez will only see an EDR chip and will act accordingly.
 
+config BT_EVE_HACKS
+	bool "Enable Special kernel hacks for EVE launch (do not ask)"
+	depends on BT
+	default n
+	help
+	  Eve needed hacks. Testing them on all other devices needs time.
+	  I have no time to get to this, nor does anyone else, so...
+	  this option will be on for eve and off for every other device
+	  for now. Yes, this is beyond ugly. Accepting patches :)
+
+
 source "drivers/bluetooth/Kconfig"
