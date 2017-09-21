@@ -3234,7 +3234,14 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag_mfg;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
+
+#ifdef CONFIG_BT_EVE_HACKS
+		/* HCI_QUIRK_STRICT_DUPLICATE_FILTER is removed due to the
+		 * conflict of intention within BlueZ kernel.
+		 */
+#else
 		set_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks);
+#endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
 	}
@@ -3247,7 +3254,14 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
+
+#ifdef CONFIG_BT_EVE_HACKS
+		/* HCI_QUIRK_STRICT_DUPLICATE_FILTER is removed due to the
+		 * conflict of intention within BlueZ kernel.
+		 */
+#else
 		set_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks);
+#endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
 	}
