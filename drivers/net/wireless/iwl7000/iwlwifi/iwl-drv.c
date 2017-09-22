@@ -422,8 +422,7 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 	const struct iwl_cfg *cfg = drv->trans->cfg;
 	char tag[8];
 	const char *fw_pre_name;
-#if defined(CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES) && \
-	defined(CPTCFG_IWLWIFI_DEVICE_TESTMODE)
+#if defined(CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES)
 	char fw_name_temp[64];
 #endif
 
