@@ -132,6 +132,7 @@ dbg_cfg_load_ ## _type(const char *name, const char *val,			\
 DBG_CFG_LOADER(u8)
 DBG_CFG_LOADER(u16)
 DBG_CFG_LOADER(u32)
+DBG_CFG_LOADER(s32)
 DBG_CFG_LOADER(int)
 DBG_CFG_LOADER(uint)
 

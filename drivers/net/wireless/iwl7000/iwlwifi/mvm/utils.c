@@ -1692,7 +1692,8 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 	}
 
 	if (load == IWL_MVM_VENDOR_LOAD_HIGH)
-		pm_qos_update_request(&mvm->pm_qos_req, 60);
+		pm_qos_update_request(&mvm->pm_qos_req,
+				      IWL_MVM_PM_QOS_CPU_DMA_LATENCY);
 	else
 		pm_qos_update_request(&mvm->pm_qos_req, PM_QOS_DEFAULT_VALUE);
 
