@@ -101,6 +101,9 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_GSCAN_REPORT_THRESHOLD_NUM] = { .type = NLA_U32 },
 	[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE] = { .type = NLA_U8 },
+	[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM] = { .type = NLA_NESTED },
+	[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM] = { .type = NLA_NESTED },
+	[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES] = { .type = NLA_NESTED },
 };
 
 static int iwl_mvm_parse_vendor_data(struct nlattr **tb,
@@ -812,6 +815,236 @@ out:
 }
 #endif
 
+static const struct nla_policy
+iwl_mvm_vendor_fips_hw_policy[NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW] = {
+	[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY] = { .type = NLA_BINARY },
+	[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE] = { .type = NLA_BINARY },
+	[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD] = { .type = NLA_BINARY },
+	[IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD] = { .type = NLA_BINARY },
+	[IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS] = { .type = NLA_U8 },
+};
+
+static int iwl_mvm_vendor_validate_ccm_vector(struct nlattr **tb)
+{
+	if (!tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY] ||
+	    !tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE] ||
+	    !tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD] ||
+	    nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]) !=
+	    FIPS_KEY_LEN_128 ||
+	    nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE]) !=
+	    FIPS_CCM_NONCE_LEN)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int iwl_mvm_vendor_validate_gcm_vector(struct nlattr **tb)
+{
+	if (!tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY] ||
+	    !tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE] ||
+	    !tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD] ||
+	    (nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]) !=
+	     FIPS_KEY_LEN_128 &&
+	     nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]) !=
+	     FIPS_KEY_LEN_256) ||
+	    nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE]) !=
+	    FIPS_GCM_NONCE_LEN)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int iwl_mvm_vendor_validate_aes_vector(struct nlattr **tb)
+{
+	if (!tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY] ||
+	    (nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]) !=
+	     FIPS_KEY_LEN_128 &&
+	     nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]) !=
+	     FIPS_KEY_LEN_256))
+		return -EINVAL;
+
+	return 0;
+}
+
+/**
+ * iwl_mvm_vendor_build_vector - build FIPS test vector for AES/CCM/GCM tests
+ *
+ * @cmd_buf: the command buffer is returned by this pointer in case of success.
+ * @vector: test vector attributes.
+ * @flags: specifies which encryption algorithm to use. One of
+ *	&IWL_FIPS_TEST_VECTOR_FLAGS_CCM, &IWL_FIPS_TEST_VECTOR_FLAGS_GCM and
+ *	&IWL_FIPS_TEST_VECTOR_FLAGS_AES.
+ *
+ * This function returns the length of the command buffer (in bytes) in case of
+ * success, or a negative error code on failure.
+ */
+static int iwl_mvm_vendor_build_vector(u8 **cmd_buf, struct nlattr *vector,
+				       u8 flags)
+{
+	struct nlattr *tb[NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW];
+	struct iwl_fips_test_cmd *cmd;
+	int err;
+	int payload_len = 0;
+	u8 *buf;
+
+	err = nla_parse_nested(tb, MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HW,
+			       vector, iwl_mvm_vendor_fips_hw_policy, NULL);
+	if (err)
+		return err;
+
+	switch (flags) {
+	case IWL_FIPS_TEST_VECTOR_FLAGS_CCM:
+		err = iwl_mvm_vendor_validate_ccm_vector(tb);
+		break;
+	case IWL_FIPS_TEST_VECTOR_FLAGS_GCM:
+		err = iwl_mvm_vendor_validate_gcm_vector(tb);
+		break;
+	case IWL_FIPS_TEST_VECTOR_FLAGS_AES:
+		err = iwl_mvm_vendor_validate_aes_vector(tb);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (err)
+		return err;
+
+	if (tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD] &&
+	    nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD]) > FIPS_MAX_AAD_LEN)
+		return -EINVAL;
+
+	if (tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD])
+		payload_len =
+			nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD]);
+
+	buf = kzalloc(sizeof(*cmd) + payload_len, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	cmd = (void *)buf;
+
+	cmd->flags = cpu_to_le32(flags);
+
+	memcpy(cmd->key, nla_data(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]),
+	       nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]));
+
+	if (nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY]) == FIPS_KEY_LEN_256)
+		cmd->flags |= cpu_to_le32(IWL_FIPS_TEST_VECTOR_FLAGS_KEY_256);
+
+	if (tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE])
+		memcpy(cmd->nonce,
+		       nla_data(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE]),
+		       nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE]));
+
+	if (tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD]) {
+		memcpy(cmd->aad,
+		       nla_data(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD]),
+		       nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD]));
+		cmd->aad_len =
+			cpu_to_le32(nla_len(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD]));
+	}
+
+	if (payload_len) {
+		memcpy(cmd->payload,
+		       nla_data(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD]),
+		       payload_len);
+		cmd->payload_len = cpu_to_le32(payload_len);
+	}
+
+	if (tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS]) {
+		u8 hw_flags =
+			nla_get_u8(tb[IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS]);
+
+		if (hw_flags & IWL_VENDOR_FIPS_TEST_VECTOR_FLAGS_ENCRYPT)
+			cmd->flags |=
+				cpu_to_le32(IWL_FIPS_TEST_VECTOR_FLAGS_ENC);
+	}
+
+	*cmd_buf = buf;
+	return sizeof(*cmd) + payload_len;
+}
+
+static int iwl_mvm_vendor_test_fips_send_resp(struct wiphy *wiphy,
+					      struct iwl_fips_test_resp *resp)
+{
+	struct sk_buff *skb;
+	u32 resp_len = le32_to_cpu(resp->len);
+	u32 *status = (void *)(resp->payload + resp_len);
+
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(*resp));
+	if (!skb)
+		return -ENOMEM;
+
+	if ((*status) == IWL_FIPS_TEST_STATUS_SUCCESS &&
+	    nla_put(skb, IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT, resp_len,
+		    resp->payload)) {
+		kfree_skb(skb);
+		return -ENOBUFS;
+	}
+
+	return cfg80211_vendor_cmd_reply(skb);
+}
+
+static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
+				    struct wireless_dev *wdev,
+				    const void *data, int data_len)
+{
+	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_host_cmd hcmd = {
+		.id = iwl_cmd_id(FIPS_TEST_VECTOR_CMD, LEGACY_GROUP, 0),
+		.flags = CMD_WANT_SKB,
+		.dataflags = { IWL_HCMD_DFL_NOCOPY },
+	};
+	struct iwl_rx_packet *pkt;
+	struct iwl_fips_test_resp *resp;
+	struct nlattr *vector;
+	u8 flags;
+	u8 *buf = NULL;
+	int ret;
+
+	ret = iwl_mvm_parse_vendor_data(tb, data, data_len);
+	if (ret)
+		return ret;
+
+	if (tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM]) {
+		vector = tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM];
+		flags = IWL_FIPS_TEST_VECTOR_FLAGS_CCM;
+	} else if (tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM]) {
+		vector = tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM];
+		flags = IWL_FIPS_TEST_VECTOR_FLAGS_GCM;
+	} else if (tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES]) {
+		vector = tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES];
+		flags = IWL_FIPS_TEST_VECTOR_FLAGS_AES;
+	} else {
+		return -EINVAL;
+	}
+
+	ret = iwl_mvm_vendor_build_vector(&buf, vector, flags);
+	if (ret <= 0)
+		return ret;
+
+	hcmd.data[0] = buf;
+	hcmd.len[0] = ret;
+
+	mutex_lock(&mvm->mutex);
+	ret = iwl_mvm_send_cmd(mvm, &hcmd);
+	mutex_unlock(&mvm->mutex);
+
+	if (ret)
+		return ret;
+
+	pkt = hcmd.resp_pkt;
+	resp = (void *)pkt->data;
+
+	iwl_mvm_vendor_test_fips_send_resp(wiphy, resp);
+	iwl_free_resp(&hcmd);
+
+	kfree(buf);
+	return 0;
+}
+
 static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 	{
 		.info = {
@@ -951,6 +1184,15 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = iwl_mvm_vendor_get_geo_profile_info,
+	},
+	{
+		.info = {
+			.vendor_id = INTEL_OUI,
+			.subcmd = IWL_MVM_VENDOR_CMD_TEST_FIPS,
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.doit = iwl_mvm_vendor_test_fips,
 	},
 #endif
 };

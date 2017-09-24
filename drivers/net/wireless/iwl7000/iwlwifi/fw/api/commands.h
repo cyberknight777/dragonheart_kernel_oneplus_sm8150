@@ -282,6 +282,11 @@ enum iwl_legacy_cmds {
 	NON_QOS_TX_COUNTER_CMD = 0x2d,
 
 	/**
+	 * @FIPS_TEST_VECTOR_CMD: command is &struct iwl_fips_test_cmd
+	 */
+	FIPS_TEST_VECTOR_CMD = 0x3b,
+
+	/**
 	 * @LEDS_CMD: command is &struct iwl_led_cmd
 	 */
 	LEDS_CMD = 0x48,

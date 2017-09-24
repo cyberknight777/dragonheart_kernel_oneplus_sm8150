@@ -97,5 +97,6 @@
 #include "fw/api/stats.h"
 #include "fw/api/tof.h"
 #include "fw/api/tx.h"
+#include "fw/api/testing.h"
 
 #endif /* __fw_api_h__ */

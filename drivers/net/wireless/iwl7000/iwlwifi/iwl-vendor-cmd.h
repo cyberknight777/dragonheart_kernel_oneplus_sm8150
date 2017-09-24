@@ -605,6 +605,46 @@ enum iwl_vendor_fips_test_vector_hmac_kdf {
 };
 
 /**
+ * enum iwl_vendor_fips_test_vector_flags - flags for FIPS HW test vector
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_FLAGS_ENCRYPT: if this is set, the requested
+ *	operation is encryption. Otherwise the requested operation is
+ *	decryption.
+ */
+enum iwl_vendor_fips_test_vector_flags {
+	IWL_VENDOR_FIPS_TEST_VECTOR_FLAGS_ENCRYPT = BIT(0),
+};
+
+/**
+ * enum iwl_vendor_fips_test_vector_hw - test vector for FIPS HW tests
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_INVALID: attribute number 0 is reserved.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY: the key to use for
+ *	encryption/decryption. For CCM, only 128-bit key is supported.
+ *	For AES and GCM, 128-bit and 256-bit keys are supported.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE: for CCM use 13 bytes, for GCM only 12
+ *	bytes. Not valid for AES tests.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD: adata. maximum supported size is 30
+ *	bytes. Not valid for AES tests.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD: for encryption, this is the
+ *	plaintext to encrypt. For decryption, this is the ciphertext + MIC (8
+ *	bytes of MIC for CCM, 16 bytes for GCM).
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS: &enum iwl_vendor_fips_test_vector_flags.
+ * @NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW: number of hw test vector attributes.
+ * @MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HW: highest hw test vector attribute.
+ */
+enum iwl_vendor_fips_test_vector_hw {
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_INVALID,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS,
+
+	NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW,
+	MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HW =
+		NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW - 1,
+};
+
+/**
  * enum iwl_mvm_vendor_attr - attributes used in vendor commands
  * @__IWL_MVM_VENDOR_ATTR_INVALID: attribute 0 is invalid
  * @IWL_MVM_VENDOR_ATTR_LOW_LATENCY: low-latency flag attribute
@@ -734,7 +774,12 @@ enum iwl_vendor_fips_test_vector_hmac_kdf {
  *	&enum iwl_vendor_fips_test_vector_hmac_kdf.
  * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT: FIPS test result. Contains the
  *	output of the requested function.
- *
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES: data vector for FIPS AES HW
+ *	test. &enum iwl_vendor_fips_test_vector_hw.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM: data vector for FIPS CCM HW
+ *	test. &enum iwl_vendor_fips_test_vector_hw.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM: data vector for FIPS GCM HW
+ *	test. &enum iwl_vendor_fips_test_vector_hw.
  */
 enum iwl_mvm_vendor_attr {
 	__IWL_MVM_VENDOR_ATTR_INVALID,
@@ -804,6 +849,9 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC,
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF,
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,
