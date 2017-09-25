@@ -142,7 +142,7 @@ int virtio_gpu_gem_object_open(struct drm_gem_object *obj,
 	struct virtio_gpu_object *qobj = gem_to_virtio_gpu_obj(obj);
 	int r;
 
-	if (!vgdev->has_virgl_3d)
+	if (!vgdev->has_virgl_3d || !qobj->hw_res_handle)
 		return 0;
 
 	r = virtio_gpu_object_reserve(qobj, false);
