@@ -1,3 +1,8 @@
+/*
+* Portions of this file
+* Copyright(c) 2016-2017 Intel Deutschland GmbH
+*/
+
 #ifndef __CFG80211_RDEV_OPS
 #define __CFG80211_RDEV_OPS
 
@@ -1244,5 +1249,27 @@ static inline int rdev_del_pmk(struct cfg80211_registered_device *rdev,
 		ret = rdev->ops->del_pmk(&rdev->wiphy, dev, aa);
 	trace_rdev_return_int(&rdev->wiphy, ret);
 	return ret;
+}
+
+static inline int rdev_nan_ndp(struct cfg80211_registered_device *rdev,
+			       struct wireless_dev *wdev,
+			       struct cfg80211_nan_ndp_params *params)
+{
+	int ret = -EOPNOTSUPP;
+
+	trace_rdev_nan_ndp(&rdev->wiphy, wdev, params);
+	if (rdev->ops->nan_ndp)
+		ret = rdev->ops->nan_ndp(&rdev->wiphy, wdev, params);
+	trace_rdev_return_int(&rdev->wiphy, ret);
+	return ret;
+}
+
+static inline void rdev_nan_data_stop(struct cfg80211_registered_device *rdev,
+				      struct net_device *dev)
+{
+	trace_rdev_nan_data_stop(&rdev->wiphy, dev);
+	if (rdev->ops->nan_data_stop)
+		rdev->ops->nan_data_stop(&rdev->wiphy, dev);
+	trace_rdev_return_void(&rdev->wiphy);
 }
 #endif /* __CFG80211_RDEV_OPS */

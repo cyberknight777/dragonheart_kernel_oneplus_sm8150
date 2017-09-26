@@ -1,3 +1,8 @@
+/*
+* Portions of this file
+* Copyright(c) 2016-2017 Intel Deutschland GmbH
+*/
+
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM cfg80211
 
@@ -3315,6 +3320,63 @@ TRACE_EVENT(cfg80211_measurement_response,
 	TP_printk(WIPHY_PR_FMT ", cookie %llu, type %d, status %d",
 		  WIPHY_PR_ARG, __entry->cookie, __entry->type, __entry->status)
 );
+
+DECLARE_EVENT_CLASS(nan_ndp_handle,
+		    TP_PROTO(struct wiphy *wiphy, struct wireless_dev *wdev,
+			     const struct cfg80211_nan_ndp_params *params),
+	TP_ARGS(wiphy, wdev, params),
+	TP_STRUCT__entry(
+		WIPHY_ENTRY
+		WDEV_ENTRY
+		__field(enum nl80211_nan_ndp_oper, oper)
+		MAC_ENTRY(peer_nmi)
+		__field(u8, pub_inst_id)
+		MAC_ENTRY(init_ndi)
+		MAC_ENTRY(resp_ndi)
+		__field(u8, ndp_id)
+		__field(bool, rejected)
+		__field(u8, reason_code)
+	),
+	TP_fast_assign(
+		WIPHY_ASSIGN;
+		WDEV_ASSIGN;
+		__entry->oper = params->oper;
+		MAC_ASSIGN(peer_nmi, params->peer_nmi);
+		__entry->pub_inst_id = params->pub_inst_id;
+		MAC_ASSIGN(init_ndi, params->init_ndi);
+		MAC_ASSIGN(resp_ndi, params->resp_ndi);
+		__entry->ndp_id = params->ndp_id;
+		__entry->rejected = params->rejected;
+		__entry->reason_code = params->reason_code;
+
+	),
+	TP_printk(WIPHY_PR_FMT ", " WDEV_PR_FMT ", oper=%u, peer_nmi="
+		  MAC_PR_FMT ", pub_inst_id=%u, init_ndi=" MAC_PR_FMT
+		  ", resp_ndi=" MAC_PR_FMT
+		  ", ndp_id=%u, rejected=%u, reason_code=%u",
+		  WIPHY_PR_ARG, WDEV_PR_ARG, __entry->oper,
+		  MAC_PR_ARG(peer_nmi), __entry->pub_inst_id,
+		  MAC_PR_ARG(init_ndi), MAC_PR_ARG(resp_ndi),
+		  __entry->ndp_id, __entry->rejected, __entry->reason_code)
+);
+
+DEFINE_EVENT(nan_ndp_handle, rdev_nan_ndp,
+	     TP_PROTO(struct wiphy *wiphy, struct wireless_dev *wdev,
+		      const struct cfg80211_nan_ndp_params *params),
+	     TP_ARGS(wiphy, wdev, params)
+);
+
+DEFINE_EVENT(nan_ndp_handle, cfg80211_nan_ndp_notify,
+	     TP_PROTO(struct wiphy *wiphy, struct wireless_dev *wdev,
+		      const struct cfg80211_nan_ndp_params *params),
+	     TP_ARGS(wiphy, wdev, params)
+);
+
+DEFINE_EVENT(wiphy_netdev_evt, rdev_nan_data_stop,
+	     TP_PROTO(struct wiphy *wiphy, struct net_device *dev),
+	     TP_ARGS(wiphy, dev)
+);
+
 #endif /* !__RDEV_OPS_TRACE || TRACE_HEADER_MULTI_READ */
 
 #undef TRACE_INCLUDE_PATH

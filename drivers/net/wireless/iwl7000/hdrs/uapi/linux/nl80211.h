@@ -988,6 +988,15 @@
  *	&NL80211_CMD_CONNECT or &NL80211_CMD_ROAM. If the 4 way handshake failed
  *	&NL80211_CMD_DISCONNECT should be indicated instead.
  *
+ * @NL80211_CMD_NAN_NDP: Request/Respond/Terminate NAN Data Path (NDP) session
+ *      with a NAN peer. Can also be used as an event to notify about an NDP
+ *      request/response/terminate from a NAN peer. All NDPs are uniquely
+ *      identified by the initiator's NAN Data Interface (NDI) address and an
+ *      NDP identifier pair, so %NL80211_ATTR_NDP_INIT and NL80211_ATTR_NDP_ID
+ *      must be provided in all cases (nested in %NL80211_ATTR_NAN_NDP_PARAMS)
+ *      with the exception that a request to start an NDP with a peer would not
+ *      include these attributes and the NDP identifier would be returned
+ *      (with %NL80211_ATTR_NDP_ID).
  * @NL80211_CMD_MAX: highest used command number
  * @__NL80211_CMD_AFTER_LAST: internal use
  */
@@ -1200,6 +1209,8 @@ enum nl80211_commands {
 	NL80211_CMD_DEL_PMK,
 
 	NL80211_CMD_PORT_AUTHORIZED,
+
+	NL80211_CMD_NAN_NDP,
 
 	/* add new commands above here */
 
@@ -2184,6 +2195,8 @@ enum nl80211_commands {
  *      This is a u8, where valid values are 0..5. If the value is 0, then there
  *      are no wake ups on 5.2GHz DWs. When using %NL80211_CMD_START_NAN,
  *      if the attribute is not specified, the default committed DW is 1.
+ * @NL80211_ATTR_NAN_NDP_PARAMS: NAN Data Path (NDP) parameters. See &enum
+ *      nl80211_nan_ndp_attributes for description of this nested attribute.
  *
  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
  * @NL80211_ATTR_MAX: highest attribute number currently defined
@@ -2627,6 +2640,8 @@ enum nl80211_attrs {
 
 	NL80211_ATTR_NAN_CDW_2G,
 	NL80211_ATTR_NAN_CDW_5G,
+
+	NL80211_ATTR_NAN_NDP_PARAMS,
 
 	/* add attributes here, update the policy in nl80211.c */
 
@@ -6102,6 +6117,90 @@ enum nl80211_ftm_responder_stats {
 	/* keep last */
 	__NL80211_FTM_STATS_AFTER_LAST,
 	NL80211_FTM_STATS_MAX = __NL80211_FTM_STATS_AFTER_LAST - 1
+};
+
+/**
+ * enum nl80211_nan_ndp_oper - NAN Data Path (NDP) operation
+ *
+ * @__NL80211_NAN_NDP_OPER_INVALID: attribute number 0 is reserved
+ * @NL80211_NAN_NDP_OPER_REQ: NAN Data Path request
+ * @NL80211_NAN_NDP_OPER_RES: NAN Data path response
+ * @NL80211_NAN_NDP_OPER_TERM: NAN Data path termination request
+ * @__NL80211_NAN_NDP_OPER_AFTER_LAST: Internal
+ * @NL80211_NAN_NDP_OPER_MAX: highest possible NAN Data Path operation attribute
+ */
+enum nl80211_nan_ndp_oper {
+	__NL80211_NAN_NDP_OPER_INVALID,
+	NL80211_NAN_NDP_OPER_REQ,
+	NL80211_NAN_NDP_OPER_RES,
+	NL80211_NAN_NDP_OPER_TERM,
+
+	/* keep last */
+	__NL80211_NAN_NDP_OPER_AFTER_LAST,
+	NL80211_NAN_NDP_OPER_MAX = __NL80211_NAN_NDP_OPER_AFTER_LAST - 1
+};
+
+#define NL80211_NAN_QOS_MIN_SLOTS_NO_PREF	0x0
+#define NL80211_NAN_QOS_MAX_LATENCY_NO_PREF	0xffff
+
+/**
+ * enum nl80211_nan_ndp_attributes - NAN NDP attributes
+ * @__NL80211_NAN_NDP_INVALID: invalid
+ * @NL80211_NAN_NDP_OPER: The requested operation. Must be one of
+ *     NL80211_NAN_NDP_OPER_REQ, NL80211_NAN_NDP_OPER_RES,
+ *     NL80211_NAN_NDP_OPER_TERM.
+ * @NL80211_NAN_NDP_PEER_NMI: The Peer's NAN Management Interface (NMI) address
+ * @NL80211_NAN_NDP_PUB_INST_ID: The identifier for the instance of the
+ *     publisher function associated with the data path setup request. Required
+ *     for NDP request (u8)
+ * @NL80211_NAN_NDP_INIT_NDI: The initiator's NAN Data Interface (NDI) address
+ * @NL80211_NAN_NDP_RESP_NDI: The responder's NAN Data Interface (NDI) address.
+ *     Required for NDP response.
+ * @NL80211_NAN_NDP_ID: The NDP identifier (u8)
+ * @NL80211_NAN_NDP_REJECTED: FLAG attribute indicating if an NDP request was
+ *     rejected
+ * @NL80211_NAN_NDP_REASON: The reject reason (u8). Required iff
+ *     NL80211_NAN_NDP_REJECTED is set
+ * @NL80211_NAN_NDP_QOS_MIN_SLOTS: The number of minimum further availability
+ *     NAN slots required for each DW interval (u8). Optional for NDP request
+ *     and NDP response
+ * @NL80211_NAN_NDP_QOS_MAX_LATENCY: The maximal number of NAN slots between
+ *     every two non-contiguous NAN Data Link (NDL) Common Resource Blocks
+ *     (CRBs) (u16). Optional for NDP request and NDP response
+ * @NL80211_NAN_NDP_SECURITY_CIPHER_SUITES: A bit specifying the cipher
+ *     suite identifier of the cipher suite requested for the NDP. See &enum
+ *     nl80211_nan_cs_id. Optional for NDP request and NDP response
+ * @NL80211_NAN_NDP_SECURITY_CTX_IDS: This is a set of security context
+ *     identifiers that may be used to set up a secured NDP (each one is a
+ *     nested attribute). see &enum nl80211_nan_sec_ctx_id. Optional for NDP
+ *     request and NDP response.
+ * @NL80211_NAN_NDP_SECURITY_PMK: PMK for the establishing a secure NDP. 32
+ *     octets. Optional for NDP request and NDP response
+ * @NL80211_NAN_NDP_SSI: Opaque Service Specific Information (SSI). Variable
+ *     length. Optional for NDP request or NDP response
+ * @NUM_NL80211_NAN_NDP_ATTR: internal
+ * @NL80211_NAN_NDP_ATTR_MAX: highest NAN NDP attribute
+ */
+enum nl80211_nan_ndp_attributes {
+	__NL80211_NAN_NDP_INVALID,
+	NL80211_NAN_NDP_OPER,
+	NL80211_NAN_NDP_PEER_NMI,
+	NL80211_NAN_NDP_PUB_INST_ID,
+	NL80211_NAN_NDP_INIT_NDI,
+	NL80211_NAN_NDP_RESP_NDI,
+	NL80211_NAN_NDP_ID,
+	NL80211_NAN_NDP_REJECTED,
+	NL80211_NAN_NDP_REASON,
+	NL80211_NAN_NDP_QOS_MIN_SLOTS,
+	NL80211_NAN_NDP_QOS_MAX_LATENCY,
+	NL80211_NAN_NDP_SECURITY_CIPHER_SUITES,
+	NL80211_NAN_NDP_SECURITY_CTX_IDS,
+	NL80211_NAN_NDP_SECURITY_PMK,
+	NL80211_NAN_NDP_SSI,
+
+	/* keep last */
+	NUM_NL80211_NAN_NDP_ATTR,
+	NL80211_NAN_NDP_MAX = NUM_NL80211_NAN_NDP_ATTR - 1
 };
 
 #endif /* __LINUX_NL80211_H */

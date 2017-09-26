@@ -2996,6 +2996,63 @@ struct cfg80211_pmk_conf {
 };
 
 /**
+ * struct cfg80211_nan_qos - NAN Data Path QoS parameters
+ *
+ * @min_slots: Indicate the minimum number of further available NAN Slots needed
+ *     per DW interval (512 TU). Set to 0 if no preference.
+ * @max_latency: Indicate the maximum allowed NAN Slots between every two
+ *     non-contiguous NDL CRBs. Set to 0xffff if no preference.
+ */
+struct cfg80211_nan_qos {
+	u8 min_slots;
+	u16 max_latency;
+};
+
+#define CFG80211_NAN_PMK_LEN 32
+
+/**
+ * struct cfg80211_nan_ndp_params - NAN Data Path (NDP) parameters
+ *
+ * @oper: The NDP operation. See &enum nl80211_nan_ndp_oper
+ * @peer_nmi: The peer's NAN Management Interface (NMI) address
+ * @pub_inst_id:  The identifier for the instance of the publisher function
+ *     associated with the data path setup request. Valid only for NDP request.
+ * @init_ndi: The initiator's NAN Data Interface (NDI).
+ * @resp_ndi: The responder's NAN Data Interface (NDI). Valid only for an NDP
+ *     response.
+ * @ndp_id: The NDP ID. Together with the NDP initiator NDI uniquely identifies
+ *     the NDP.
+ * @rejected: Valid only for an NDP response. True iff the corresponding
+ *     response is rejected.
+ * @reason_code: Valid only for NDP response when %rejected is True. Identifies
+ *     the reason for the reject status.
+ * @qos: The NDP QoS parameters as defined in &struct cfg80211_nan_qos. Valid
+ *     only for an NDP request or an NDP response.
+ * @sec: The NDP security parameters as defined in &struct cfg80211_nan_sec.
+ *     Valid only for an NDP request or an NDP response.
+ * @pmk: The PMK used for the establishment of a secure NDP
+ * @serv_spec_info_len: The length in octets of the service specific
+ *     information. Valid only for an NDP request or an NDP response.
+ * @serv_spec_info: Opaque Service specific information. Valid only for an NDP
+ *     request or an NDP response.
+ */
+struct cfg80211_nan_ndp_params {
+	enum nl80211_nan_ndp_oper oper;
+	u8 peer_nmi[ETH_ALEN];
+	u8 pub_inst_id;
+	u8 init_ndi[ETH_ALEN];
+	u8 resp_ndi[ETH_ALEN];
+	u8 ndp_id;
+	bool rejected;
+	u8 reason_code;
+	struct cfg80211_nan_qos qos;
+	struct cfg80211_nan_sec sec;
+	u8 pmk[CFG80211_NAN_PMK_LEN];
+	u16 serv_spec_info_len;
+	const u8 *serv_spec_info;
+};
+
+/**
  * struct cfg80211_ops - backend description for wireless configuration
  *
  * This struct is registered by fullmac card drivers and/or wireless stacks
@@ -3323,6 +3380,11 @@ struct cfg80211_pmk_conf {
  *	(invoked with the wireless_dev mutex held)
  * @del_pmk: delete the previously configured PMK for the given authenticator.
  *	(invoked with the wireless_dev mutex held)
+ * @nan_ndp: Request a NAN Data Path (NDP) operation with a peer
+ * @nan_data_stop: Stop all NAN data path functionality, including tear-down of
+ *      established NDPs and stopping the establishment of new NDPs. The driver
+ *      should call cfg80211_nan_ndp_notify() to notify the termination of each
+ *      NDP.
  */
 struct cfg80211_ops {
 	int	(*suspend)(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
@@ -3627,6 +3689,10 @@ struct cfg80211_ops {
 			   const struct cfg80211_pmk_conf *conf);
 	int	(*del_pmk)(struct wiphy *wiphy, struct net_device *dev,
 			   const u8 *aa);
+	int	(*nan_ndp)(struct wiphy *wiphy, struct wireless_dev *wdev,
+			   struct cfg80211_nan_ndp_params *params);
+	void	(*nan_data_stop)(struct wiphy *wiphy,
+				 struct net_device *dev);
 };
 
 /*
@@ -6706,6 +6772,18 @@ void cfg80211_nan_func_terminated(struct wireless_dev *wdev,
 				  u8 inst_id,
 				  enum nl80211_nan_func_term_reason reason,
 				  u64 cookie, gfp_t gfp);
+
+/**
+ * cfg80211_nan_ndp_notify - notify about NAN NDP event
+ *
+ * @wdev: the wireless device reporting the event. Should be the NAN Device
+ *     interface.
+ * @params: the NAN NDP parameters
+ * @gfp: allocation flags
+ */
+void cfg80211_nan_ndp_notify(struct wireless_dev *wdev,
+			     const struct cfg80211_nan_ndp_params *params,
+			     gfp_t gfp);
 
 /* ethtool helper */
 void cfg80211_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info);

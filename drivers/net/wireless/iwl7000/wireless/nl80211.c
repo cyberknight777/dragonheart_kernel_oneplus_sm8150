@@ -432,6 +432,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 					 .len = NL80211_HE_MAX_CAPABILITY_LEN },
 	[NL80211_ATTR_NAN_CDW_2G] = { .type = NLA_U8 },
 	[NL80211_ATTR_NAN_CDW_5G] = { .type = NLA_U8 },
+	[NL80211_ATTR_NAN_NDP_PARAMS] = { .type = NLA_NESTED },
 };
 
 /* policy for the key attributes */
@@ -567,6 +568,25 @@ static const struct nla_policy
 nl80211_nan_sec_ctx_policy[NL80211_NAN_SEC_CTX_MAX + 1] = {
 	[NL80211_NAN_SEC_CTX_ID_TYPE] = { .type = NLA_U32 },
 	[NL80211_NAN_SEC_CTX_ID_DATA] = { .type = NLA_BINARY },
+};
+
+/* policy for NAN NDP attributes */
+static const struct nla_policy
+nl80211_nan_ndp_policy[NL80211_NAN_NDP_MAX + 1] = {
+	[NL80211_NAN_NDP_OPER] = { .type = NLA_U32 },
+	[NL80211_NAN_NDP_PEER_NMI] = { .len = ETH_ALEN },
+	[NL80211_NAN_NDP_PUB_INST_ID] = { .type = NLA_U8 },
+	[NL80211_NAN_NDP_INIT_NDI] = { .len = ETH_ALEN },
+	[NL80211_NAN_NDP_RESP_NDI] = { .len = ETH_ALEN },
+	[NL80211_NAN_NDP_ID] = { .type = NLA_U8 },
+	[NL80211_NAN_NDP_REJECTED] = { .type = NLA_FLAG},
+	[NL80211_NAN_NDP_REASON] = { .type = NLA_U8},
+	[NL80211_NAN_NDP_QOS_MIN_SLOTS] = { .type = NLA_U8 },
+	[NL80211_NAN_NDP_QOS_MAX_LATENCY] = { .type = NLA_U16 },
+	[NL80211_NAN_NDP_SECURITY_CIPHER_SUITES] = { .type = NLA_U32 },
+	[NL80211_NAN_NDP_SECURITY_CTX_IDS] = { .type = NLA_NESTED },
+	[NL80211_NAN_NDP_SECURITY_PMK] = { .len = CFG80211_NAN_PMK_LEN },
+	[NL80211_NAN_NDP_SSI] = { .type = NLA_BINARY },
 };
 
 static int nl80211_prepare_wdev_dump(struct sk_buff *skb,
@@ -11436,25 +11456,34 @@ static bool nl80211_nan_sec_ctx_id_valid(struct cfg80211_nan_sec_ctx_id *id)
 
 static int nl80211_nan_set_security(struct cfg80211_registered_device *rdev,
 				    struct nlattr **tb,
-				    struct cfg80211_nan_sec *sec)
+				    struct cfg80211_nan_sec *sec,
+				    bool is_func)
 {
 	int rem, ret, i, n_ctx_ids = 0;
+	u32 csid_attr, ctx_attr;
 	struct nlattr *sec_attr;
 
-	if (!tb[NL80211_NAN_FUNC_SECURITY_CIPHER_SUITES])
+	if (is_func) {
+		csid_attr = NL80211_NAN_FUNC_SECURITY_CIPHER_SUITES;
+		ctx_attr = NL80211_NAN_FUNC_SECURITY_CTX_IDS;
+	} else {
+		csid_attr = NL80211_NAN_NDP_SECURITY_CIPHER_SUITES;
+		ctx_attr = NL80211_NAN_NDP_SECURITY_CTX_IDS;
+	}
+
+	if (!tb[csid_attr])
 		return 0;
 
 	sec->cipher_suite_ids =
-		nla_get_u32(tb[NL80211_NAN_FUNC_SECURITY_CIPHER_SUITES]);
+		nla_get_u32(tb[csid_attr]);
 	if (!nl80211_nan_cipher_suites_valid(&rdev->wiphy,
 					     sec->cipher_suite_ids))
 		return -EINVAL;
 
-	if (!tb[NL80211_NAN_FUNC_SECURITY_CTX_IDS])
+	if (!tb[ctx_attr])
 		return 0;
 
-	nla_for_each_nested(sec_attr, tb[NL80211_NAN_FUNC_SECURITY_CTX_IDS],
-			    rem)
+	nla_for_each_nested(sec_attr, tb[ctx_attr], rem)
 		n_ctx_ids++;
 
 	if (n_ctx_ids > NL80211_MAX_NR_NAN_SEC_CTX_IDS)
@@ -11464,8 +11493,7 @@ static int nl80211_nan_set_security(struct cfg80211_registered_device *rdev,
 	if (!sec->ctx_ids)
 		return -ENOMEM;
 
-	nla_for_each_nested(sec_attr, tb[NL80211_NAN_FUNC_SECURITY_CTX_IDS],
-			    rem) {
+	nla_for_each_nested(sec_attr, tb[ctx_attr], rem) {
 		struct nlattr *attr[NL80211_NAN_SEC_CTX_MAX + 1];
 		struct cfg80211_nan_sec_ctx_id *id =
 			&sec->ctx_ids[sec->n_ctx_ids];
@@ -11597,7 +11625,7 @@ static int nl80211_nan_add_func(struct sk_buff *skb,
 			goto out;
 		}
 
-		err = nl80211_nan_set_security(rdev, tb, &func->sec);
+		err = nl80211_nan_set_security(rdev, tb, &func->sec, true);
 		if (err)
 			goto out;
 
@@ -11862,22 +11890,31 @@ static int nl80211_nan_change_config(struct sk_buff *skb,
 }
 
 static int nl80211_nan_put_security(struct sk_buff *msg,
-				    struct cfg80211_nan_sec *sec)
+				    const struct cfg80211_nan_sec *sec,
+				    bool match_event)
 {
 	struct nlattr *ctx_ids, *ctx_id;
+	u32 csid_attr, ctx_attr;
 	u8 i;
 
 	if (!sec->cipher_suite_ids)
 		return 0;
 
-	if (nla_put_u32(msg, NL80211_NAN_FUNC_SECURITY_CIPHER_SUITES,
-			sec->cipher_suite_ids))
+	if (match_event) {
+		csid_attr = NL80211_NAN_FUNC_SECURITY_CIPHER_SUITES;
+		ctx_attr = NL80211_NAN_FUNC_SECURITY_CTX_IDS;
+	} else {
+		csid_attr = NL80211_NAN_NDP_SECURITY_CIPHER_SUITES;
+		ctx_attr = NL80211_NAN_NDP_SECURITY_CTX_IDS;
+	}
+
+	if (nla_put_u32(msg, csid_attr, sec->cipher_suite_ids))
 		return -ENOBUFS;
 
 	if (!sec->n_ctx_ids)
 		return 0;
 
-	ctx_ids = nla_nest_start(msg, NL80211_NAN_FUNC_SECURITY_CTX_IDS);
+	ctx_ids = nla_nest_start(msg, ctx_attr);
 	if (!ctx_ids)
 		return -ENOBUFS;
 
@@ -11978,7 +12015,7 @@ void cfg80211_nan_match(struct wireless_dev *wdev,
 		goto nla_put_failure;
 
 	if (match->type == NL80211_NAN_FUNC_PUBLISH) {
-		if (nl80211_nan_put_security(msg, &match->sec))
+		if (nl80211_nan_put_security(msg, &match->sec, true))
 			goto nla_put_failure;
 
 		if (match->fsd_required &&
@@ -12078,6 +12115,120 @@ nla_put_failure:
 	nlmsg_free(msg);
 }
 EXPORT_SYMBOL(cfg80211_nan_func_terminated);
+
+void cfg80211_nan_ndp_notify(struct wireless_dev *wdev,
+			     const struct cfg80211_nan_ndp_params *params,
+			     gfp_t gfp)
+{
+	struct wiphy *wiphy = wdev->wiphy;
+	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+	struct sk_buff *msg;
+	struct nlattr *nested;
+	void *hdr;
+
+	if (WARN_ON(!params))
+		return;
+
+	switch (params->oper) {
+	case NL80211_NAN_NDP_OPER_REQ:
+	case NL80211_NAN_NDP_OPER_RES:
+	case NL80211_NAN_NDP_OPER_TERM:
+		break;
+	default:
+		WARN_ON(1);
+		return;
+	};
+
+	trace_cfg80211_nan_ndp_notify(wiphy, wdev, params);
+
+	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, gfp);
+	if (!msg)
+		return;
+
+	hdr = nl80211hdr_put(msg, 0, 0, 0, NL80211_CMD_NAN_NDP);
+	if (!hdr) {
+		nlmsg_free(msg);
+		return;
+	}
+
+	if (nla_put_u32(msg, NL80211_ATTR_WIPHY, rdev->wiphy_idx) ||
+	    nla_put_u64_64bit(msg, NL80211_ATTR_WDEV, wdev_id(wdev),
+			      NL80211_ATTR_PAD))
+		goto nla_put_failure;
+
+	nested = nla_nest_start(msg, NL80211_ATTR_NAN_NDP_PARAMS);
+
+	/* set common attributes */
+	if (nla_put_u32(msg, NL80211_NAN_NDP_OPER, params->oper) ||
+	    nla_put(msg, NL80211_NAN_NDP_PEER_NMI, ETH_ALEN,
+		    params->peer_nmi) ||
+	    nla_put(msg, NL80211_NAN_NDP_INIT_NDI, ETH_ALEN,
+		    params->init_ndi) ||
+	    nla_put_u8(msg, NL80211_NAN_NDP_ID,
+		       params->ndp_id))
+		goto nla_put_failure;
+
+	switch (params->oper) {
+	case NL80211_NAN_NDP_OPER_REQ:
+		if (nla_put_u8(msg, NL80211_NAN_NDP_PUB_INST_ID,
+			       params->pub_inst_id))
+			goto nla_put_failure;
+		break;
+	case NL80211_NAN_NDP_OPER_RES:
+		if (params->rejected) {
+			if (nla_put_flag(msg, NL80211_NAN_NDP_REJECTED) ||
+			    nla_put_u8(msg, NL80211_NAN_NDP_REASON,
+				       params->reason_code))
+				goto nla_put_failure;
+
+			goto nan_ndp_notify_done;
+		}
+
+		if (nla_put(msg, NL80211_NAN_NDP_RESP_NDI, ETH_ALEN,
+			    params->resp_ndi))
+			goto nla_put_failure;
+		break;
+	case NL80211_NAN_NDP_OPER_TERM:
+		/* the other attributes are irrelevant for terminate */
+		goto nan_ndp_notify_done;
+	default:
+		goto nla_put_failure;
+	}
+
+	/* following attributes are common to NDP request and response and are
+	 * optional
+	 */
+	if (nl80211_nan_put_security(msg, &params->sec, false))
+		goto nla_put_failure;
+
+	if ((params->qos.min_slots != NL80211_NAN_QOS_MIN_SLOTS_NO_PREF &&
+	     nla_put_u8(msg, NL80211_NAN_NDP_QOS_MIN_SLOTS,
+			params->qos.min_slots)) ||
+	    (params->qos.max_latency != NL80211_NAN_QOS_MAX_LATENCY_NO_PREF &&
+	     nla_put_u16(msg, NL80211_NAN_NDP_QOS_MAX_LATENCY,
+			 params->qos.max_latency)))
+		goto nla_put_failure;
+
+	if (params->serv_spec_info && params->serv_spec_info_len &&
+	    nla_put(msg, NL80211_NAN_NDP_SSI, params->serv_spec_info_len,
+		    params->serv_spec_info))
+		goto nla_put_failure;
+
+nan_ndp_notify_done:
+	nla_nest_end(msg, nested);
+	genlmsg_end(msg, hdr);
+
+	if (!wdev->owner_nlportid)
+		genlmsg_multicast_netns(&nl80211_fam, wiphy_net(&rdev->wiphy),
+					msg, 0, NL80211_MCGRP_NAN, gfp);
+	else
+		genlmsg_unicast(wiphy_net(&rdev->wiphy), msg,
+				wdev->owner_nlportid);
+	return;
+nla_put_failure:
+	nlmsg_free(msg);
+}
+EXPORT_SYMBOL(cfg80211_nan_ndp_notify);
 
 static int nl80211_get_protocol_features(struct sk_buff *skb,
 					 struct genl_info *info)
@@ -13197,6 +13348,189 @@ static int nl80211_del_pmk(struct sk_buff *skb, struct genl_info *info)
 	return ret;
 }
 
+static int nl80211_nan_ndp(struct sk_buff *skb, struct genl_info *info)
+{
+	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+	struct wireless_dev *wdev = info->user_ptr[1];
+	struct nlattr *tb[NUM_NL80211_NAN_NDP_ATTR];
+	struct cfg80211_nan_ndp_params params = {};
+	struct sk_buff *msg = NULL;
+	void *hdr = NULL;
+	int err = 0;
+
+	if (!wdev_running(wdev))
+		return -ENOTCONN;
+
+	if (!info->attrs[NL80211_ATTR_NAN_NDP_PARAMS])
+		return -EINVAL;
+
+	err = nla_parse_nested(tb, NL80211_NAN_NDP_MAX,
+			       info->attrs[NL80211_ATTR_NAN_NDP_PARAMS],
+			       nl80211_nan_ndp_policy,
+			       genl_info_extack(info));
+	if (err)
+		return err;
+
+	if (!tb[NL80211_NAN_NDP_OPER] || !tb[NL80211_NAN_NDP_PEER_NMI])
+		return -EINVAL;
+
+	params.oper = nla_get_u32(tb[NL80211_NAN_NDP_OPER]);
+	if (params.oper > NL80211_NAN_NDP_OPER_MAX)
+		return -EINVAL;
+
+	nla_memcpy(params.peer_nmi, tb[NL80211_NAN_NDP_PEER_NMI],
+		   ETH_ALEN);
+
+	if (params.oper == NL80211_NAN_NDP_OPER_REQ) {
+		if (!tb[NL80211_NAN_NDP_PUB_INST_ID])
+			return -EINVAL;
+
+		params.pub_inst_id =
+			nla_get_u8(tb[NL80211_NAN_NDP_PUB_INST_ID]);
+
+		/* request must be issued on a NAN data interface */
+		if (wdev->iftype != NL80211_IFTYPE_NAN_DATA)
+			return -EINVAL;
+
+		memcpy(params.init_ndi, wdev_address(wdev), ETH_ALEN);
+
+		/* prepare message propagate NDP ID to user space */
+		msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
+		if (WARN_ON(!msg))
+			return -ENOMEM;
+
+		hdr = nl80211hdr_put(msg, genl_info_snd_portid(info),
+				     info->snd_seq, 0, NL80211_CMD_NAN_NDP);
+		if (WARN_ON(!hdr)) {
+			nlmsg_free(msg);
+			return -ENOMEM;
+		}
+	} else {
+		if (!tb[NL80211_NAN_NDP_ID] || !tb[NL80211_NAN_NDP_INIT_NDI])
+			return -EINVAL;
+
+		params.ndp_id = nla_get_u8(tb[NL80211_NAN_NDP_ID]);
+		nla_memcpy(params.init_ndi, tb[NL80211_NAN_NDP_INIT_NDI],
+			   ETH_ALEN);
+
+		if (params.oper == NL80211_NAN_NDP_OPER_TERM) {
+			/* NDP termination must be handled on the NAN device */
+			if (wdev->iftype != NL80211_IFTYPE_NAN)
+				return -EINVAL;
+
+			/* should not be specified for termination */
+			if (tb[NL80211_NAN_NDP_QOS_MIN_SLOTS] ||
+			    tb[NL80211_NAN_NDP_QOS_MAX_LATENCY] ||
+			    tb[NL80211_NAN_NDP_SECURITY_PMK] ||
+			    tb[NL80211_NAN_NDP_SECURITY_CIPHER_SUITES] ||
+			    tb[NL80211_NAN_NDP_SECURITY_CTX_IDS] ||
+			    tb[NL80211_NAN_NDP_SSI])
+				return -EINVAL;
+
+			goto call_rdev;
+		}
+
+		params.rejected =
+			nla_get_flag(tb[NL80211_NAN_NDP_REJECTED]);
+
+		if (params.rejected) {
+			/* NDP rejection must be handled on the NAN device */
+			if (wdev->iftype != NL80211_IFTYPE_NAN)
+				return -EINVAL;
+
+			if (!tb[NL80211_NAN_NDP_REASON])
+				return -EINVAL;
+
+			params.reason_code =
+				nla_get_u8(tb[NL80211_NAN_NDP_REASON]);
+
+			/* should not be specified for rejection */
+			if (tb[NL80211_NAN_NDP_QOS_MIN_SLOTS] ||
+			    tb[NL80211_NAN_NDP_QOS_MAX_LATENCY] ||
+			    tb[NL80211_NAN_NDP_SECURITY_PMK] ||
+			    tb[NL80211_NAN_NDP_SECURITY_CIPHER_SUITES] ||
+			    tb[NL80211_NAN_NDP_SECURITY_CTX_IDS] ||
+			    tb[NL80211_NAN_NDP_SSI])
+				return -EINVAL;
+
+			goto call_rdev;
+		}
+
+		/* Non rejected response must be issued on a NAN data
+		 * interface
+		 */
+		if (wdev->iftype != NL80211_IFTYPE_NAN_DATA)
+			return -EINVAL;
+
+		memcpy(params.resp_ndi, wdev_address(wdev), ETH_ALEN);
+	}
+
+	/* handle QoS parameters */
+	if (tb[NL80211_NAN_NDP_QOS_MIN_SLOTS])
+		params.qos.min_slots =
+			nla_get_u8(tb[NL80211_NAN_NDP_QOS_MIN_SLOTS]);
+	else
+		params.qos.min_slots = NL80211_NAN_QOS_MIN_SLOTS_NO_PREF;
+
+	if (tb[NL80211_NAN_NDP_QOS_MAX_LATENCY])
+		params.qos.max_latency =
+			nla_get_u16(tb[NL80211_NAN_NDP_QOS_MAX_LATENCY]);
+	else
+		params.qos.max_latency = NL80211_NAN_QOS_MAX_LATENCY_NO_PREF;
+
+	/* handle security parameters */
+	err = nl80211_nan_set_security(rdev, tb, &params.sec, false);
+	if (err)
+		goto fail;
+
+	/* security configuration mandates a PMK and a single cipher suite
+	 * identifier
+	 */
+	if (tb[NL80211_NAN_NDP_SECURITY_PMK]) {
+		if (hweight32(params.sec.cipher_suite_ids) != 1) {
+			err = -EINVAL;
+			goto fail;
+		}
+
+		memcpy(params.pmk, nla_data(tb[NL80211_NAN_NDP_SECURITY_PMK]),
+		       CFG80211_NAN_PMK_LEN);
+	} else if (params.sec.cipher_suite_ids) {
+		err = -EINVAL;
+		goto fail;
+	}
+
+	if (tb[NL80211_NAN_NDP_SSI]) {
+		params.serv_spec_info_len = nla_len(tb[NL80211_NAN_NDP_SSI]);
+		params.serv_spec_info = nla_memdup(tb[NL80211_NAN_NDP_SSI],
+						   GFP_KERNEL);
+
+		if (!params.serv_spec_info) {
+			err = -EINVAL;
+			goto fail;
+		}
+	}
+
+call_rdev:
+	err = rdev_nan_ndp(rdev, wdev, &params);
+	kfree(params.sec.ctx_ids);
+	kfree(params.serv_spec_info);
+
+	if (err < 0 || params.oper != NL80211_NAN_NDP_OPER_REQ)
+		return err;
+
+	WARN_ON(nla_put_u8(msg, NL80211_NAN_NDP_ID, params.ndp_id) ||
+		nla_put(msg, NL80211_NAN_NDP_INIT_NDI, ETH_ALEN,
+			params.init_ndi));
+
+	genlmsg_end(msg, hdr);
+	return genlmsg_reply(msg, info);
+fail:
+	kfree(params.sec.ctx_ids);
+	kfree(params.serv_spec_info);
+	nlmsg_free(msg);
+	return err;
+}
+
 #define NL80211_FLAG_NEED_WIPHY		0x01
 #define NL80211_FLAG_NEED_NETDEV	0x02
 #define NL80211_FLAG_NEED_RTNL		0x04
@@ -14114,6 +14448,14 @@ static __genl_const struct genl_ops nl80211_ops[] = {
 		.doit = nl80211_del_pmk,
 		.policy = nl80211_policy,
 		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
+				  NL80211_FLAG_NEED_RTNL,
+	},
+	{
+		.cmd = NL80211_CMD_NAN_NDP,
+		.doit = nl80211_nan_ndp,
+		.policy = nl80211_policy,
+		.flags = GENL_ADMIN_PERM,
+		.internal_flags = NL80211_FLAG_NEED_WDEV_UP |
 				  NL80211_FLAG_NEED_RTNL,
 	},
 };

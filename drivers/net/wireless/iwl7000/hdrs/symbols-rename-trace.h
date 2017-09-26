@@ -25,6 +25,7 @@
 #undef cfg80211_ready_on_channel
 #undef cfg80211_michael_mic_failure
 #undef cfg80211_tx_mlme_mgmt
+#undef cfg80211_nan_ndp_notify
 #undef cfg80211_sched_scan_results
 #undef cfg80211_sched_scan_stopped
 #undef cfg80211_gtk_rekey_notify
@@ -60,6 +61,7 @@
 #define cfg80211_ready_on_channel __iwl7000_cfg80211_ready_on_channel
 #define cfg80211_michael_mic_failure __iwl7000_cfg80211_michael_mic_failure
 #define cfg80211_tx_mlme_mgmt __iwl7000_cfg80211_tx_mlme_mgmt
+#define cfg80211_nan_ndp_notify __iwl7000_cfg80211_nan_ndp_notify
 #define cfg80211_sched_scan_results __iwl7000_cfg80211_sched_scan_results
 #define cfg80211_sched_scan_stopped __iwl7000_cfg80211_sched_scan_stopped
 #define cfg80211_gtk_rekey_notify __iwl7000_cfg80211_gtk_rekey_notify
