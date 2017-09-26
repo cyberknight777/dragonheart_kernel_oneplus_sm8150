@@ -164,7 +164,7 @@ struct tid_ampdu_tx {
 	u8 dialog_token;
 	u8 stop_initiator;
 	bool tx_stop;
-	u8 buf_size;
+	u16 buf_size;
 
 	u16 failed_bar_ssn;
 	bool bar_pending;

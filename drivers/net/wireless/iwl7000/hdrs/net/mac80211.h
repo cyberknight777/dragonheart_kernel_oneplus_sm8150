@@ -1845,7 +1845,7 @@ struct ieee80211_sta {
 	struct ieee80211_sta_ht_cap ht_cap;
 	struct ieee80211_sta_vht_cap vht_cap;
 	struct ieee80211_sta_he_cap he_cap;
-	u8 max_rx_aggregation_subframes;
+	u16 max_rx_aggregation_subframes;
 	bool wme;
 	u8 uapsd_queues;
 	u8 max_sp;
@@ -2240,10 +2240,11 @@ struct ieee80211_tx_thrshld_md {
  *	it shouldn't be set.
  *
  * @max_tx_aggregation_subframes: maximum number of subframes in an
- *	aggregate an HT driver will transmit. Though ADDBA will advertise
- *	a constant value of 64 as some older APs can crash if the window
- *	size is smaller (an example is LinkSys WRT120N with FW v1.0.07
- *	build 002 Jun 18 2012).
+ *	aggregate an HT/HE device will transmit. In HT AddBA we'll
+ *	advertise a constant value of 64 as some older APs crash if
+ *	the window size is smaller (an example is LinkSys WRT120N
+ *	with FW v1.0.07 build 002 Jun 18 2012).
+ *	For AddBA to HE capable peers this value will be used.
  *
  * @max_tx_fragments: maximum number of tx buffers per (A)-MSDU, sum
  *	of 1 + skb_shinfo(skb)->nr_frags for each skb in the frag_list.
@@ -2309,8 +2310,8 @@ struct ieee80211_hw {
 	u8 max_rates;
 	u8 max_report_rates;
 	u8 max_rate_tries;
-	u8 max_rx_aggregation_subframes;
-	u8 max_tx_aggregation_subframes;
+	u16 max_rx_aggregation_subframes;
+	u16 max_tx_aggregation_subframes;
 	u8 max_tx_fragments;
 	u8 offchannel_tx_hw_queue;
 	u8 radiotap_mcs_details;
@@ -2955,7 +2956,7 @@ struct ieee80211_ampdu_params {
 	struct ieee80211_sta *sta;
 	u16 tid;
 	u16 ssn;
-	u8 buf_size;
+	u16 buf_size;
 	bool amsdu;
 	u16 timeout;
 };

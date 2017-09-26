@@ -300,8 +300,12 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
 		goto end_no_lock;
 	}
 	/* determine default buffer size */
-	if (buf_size == 0)
-		buf_size = IEEE80211_MAX_AMPDU_BUF;
+	if (buf_size == 0) {
+		if (sta->sta.he_cap.has_he)
+			buf_size = IEEE80211_MAX_AMPDU_BUF;
+		else
+			buf_size = IEEE80211_MAX_AMPDU_BUF_HT;
+	}
 
 	/* make sure the size doesn't exceed the maximum supported by the hw */
 	if (buf_size > sta->sta.max_rx_aggregation_subframes)
