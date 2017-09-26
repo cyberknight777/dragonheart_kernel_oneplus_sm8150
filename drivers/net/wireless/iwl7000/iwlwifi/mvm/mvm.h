@@ -1718,8 +1718,6 @@ int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd_idx,
 
 void iwl_tm_mvm_send_rx(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
 
-int iwl_mvm_testmode_send_cmd(struct iwl_op_mode *op_mode,
-			      struct iwl_host_cmd *cmd);
 bool iwl_mvm_testmode_valid_hw_addr(u32 addr);
 u32 iwl_mvm_testmode_get_fw_ver(struct iwl_op_mode *op_mode);
 struct sk_buff *iwl_mvm_testmode_alloc_reply(struct iwl_op_mode *op_mode,

@@ -73,13 +73,6 @@
 #include "iwl-tm-infc.h"
 #include "iwl-tm-gnl.h"
 
-int iwl_mvm_testmode_send_cmd(struct iwl_op_mode *op_mode,
-			      struct iwl_host_cmd *cmd)
-{
-	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
-	return iwl_mvm_send_cmd(mvm, cmd);
-}
-
 bool iwl_mvm_testmode_valid_hw_addr(u32 addr)
 {
 	/* TODO need to implement */

@@ -1842,7 +1842,6 @@ int iwl_mvm_exit_d0i3(struct iwl_op_mode *op_mode)
 #define IWL_MVM_COMMON_TEST_OPS					\
 	.test_ops = {						\
 		.cmd_execute = iwl_mvm_tm_cmd_execute,		\
-		.send_cmd = iwl_mvm_testmode_send_cmd,		\
 		.valid_hw_addr = iwl_mvm_testmode_valid_hw_addr,\
 		.get_fw_ver = iwl_mvm_testmode_get_fw_ver,	\
 	},

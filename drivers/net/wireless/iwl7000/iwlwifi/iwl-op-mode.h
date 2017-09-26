@@ -108,8 +108,6 @@ struct iwl_tm_data;
 /**
  * struct iwl_test_ops: callback to the op mode
  * @cmd_execute: Handler that is used to execute user's test-mode commands.
- * @send_cmd: handler that is used by the test object to request the
- *	op_mode to send a command to the fw.
  * @valid_hw_addr: handler that is used by the test object to request the
  *	op_mode to check if the given address is a valid address.
  * @get_fw_ver: handler used to get the FW version.
@@ -123,8 +121,6 @@ struct iwl_test_ops {
 			   struct iwl_tm_data *data_in,
 			   struct iwl_tm_data *data_out);
 
-	int (*send_cmd)(struct iwl_op_mode *op_modes,
-			struct iwl_host_cmd *cmd);
 	bool (*valid_hw_addr)(u32 addr);
 	u32 (*get_fw_ver)(struct iwl_op_mode *op_mode);
 };
