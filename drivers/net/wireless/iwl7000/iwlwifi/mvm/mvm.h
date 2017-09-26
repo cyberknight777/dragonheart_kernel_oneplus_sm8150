@@ -678,7 +678,7 @@ struct iwl_mvm_tdls_peer_counter {
 struct iwl_mvm_reorder_buffer {
 	u16 head_sn;
 	u16 num_stored;
-	u8 buf_size;
+	u16 buf_size;
 	u8 sta_id;
 	int queue;
 	u16 last_amsdu;
