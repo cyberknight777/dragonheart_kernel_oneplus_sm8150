@@ -209,7 +209,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	xvt->trans = trans;
 	xvt->dev = trans->dev;
 
-	iwl_fw_runtime_init(&xvt->fwrt, trans, fw, NULL, NULL);
+	iwl_fw_runtime_init(&xvt->fwrt, trans, fw, NULL, NULL, dbgfs_dir);
 
 	mutex_init(&xvt->mutex);
 	spin_lock_init(&xvt->notif_lock);
@@ -293,6 +293,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	return op_mode;
 
 out_free:
+	iwl_fw_runtime_exit(&xvt->fwrt);
 	kfree(op_mode);
 
 	return NULL;
@@ -313,6 +314,7 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 	iwl_phy_db_free(xvt->phy_db);
 	xvt->phy_db = NULL;
 	iwl_dnt_free(xvt->trans);
+	iwl_fw_runtime_exit(&xvt->fwrt);
 	kfree(op_mode);
 }
 
