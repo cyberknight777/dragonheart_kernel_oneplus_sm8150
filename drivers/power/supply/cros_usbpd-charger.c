@@ -262,6 +262,7 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 		else
 			port->psy_type = POWER_SUPPLY_TYPE_USB;
 		break;
+	case USB_CHG_TYPE_OTHER:
 	case USB_CHG_TYPE_PROPRIETARY:
 		port->psy_type = POWER_SUPPLY_TYPE_MAINS;
 		break;
