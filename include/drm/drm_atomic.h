@@ -843,8 +843,7 @@ void drm_state_dump(struct drm_device *dev, struct drm_printer *p);
 		     ((obj) = (__state)->private_objs[__i].ptr, \
 		      (old_obj_state) = (__state)->private_objs[__i].old_state,	\
 		      (new_obj_state) = (__state)->private_objs[__i].new_state, 1); \
-	     (__i)++) \
-		for_each_if (obj)
+	     (__i)++)
 
 /**
  * for_each_old_private_obj_in_state - iterate over all private objects in an atomic update
@@ -862,8 +861,7 @@ void drm_state_dump(struct drm_device *dev, struct drm_printer *p);
 	     (__i) < (__state)->num_private_objs && \
 		     ((obj) = (__state)->private_objs[__i].ptr, \
 		      (old_obj_state) = (__state)->private_objs[__i].old_state, 1); \
-	     (__i)++) \
-		for_each_if (obj)
+	     (__i)++)
 
 /**
  * for_each_new_private_obj_in_state - iterate over all private objects in an atomic update
@@ -881,8 +879,7 @@ void drm_state_dump(struct drm_device *dev, struct drm_printer *p);
 	     (__i) < (__state)->num_private_objs && \
 		     ((obj) = (__state)->private_objs[__i].ptr, \
 		      (new_obj_state) = (__state)->private_objs[__i].new_state, 1); \
-	     (__i)++) \
-		for_each_if (obj)
+	     (__i)++)
 
 /**
  * drm_atomic_crtc_needs_modeset - compute combined modeset need
