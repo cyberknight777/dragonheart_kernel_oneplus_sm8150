@@ -88,6 +88,8 @@
 #include "fw-api.h"
 #include "fw/api/scan.h"
 #include "fw/api/nan.h"
+#include "fw/acpi.h"
+
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
@@ -558,18 +560,21 @@ static const struct iwl_hcmd_arr iwl_mvm_groups[] = {
 static void iwl_mvm_async_handlers_wk(struct work_struct *wk);
 static void iwl_mvm_d0i3_exit_work(struct work_struct *wk);
 
-static u32 calc_min_backoff(struct iwl_trans *trans, const struct iwl_cfg *cfg)
+static u32 iwl_mvm_min_backoff(struct iwl_mvm *mvm)
 {
-	const struct iwl_pwr_tx_backoff *pwr_tx_backoff = cfg->pwr_tx_backoffs;
+	const struct iwl_pwr_tx_backoff *backoff = mvm->cfg->pwr_tx_backoffs;
+	u64 dflt_pwr_limit;
 
-	if (!pwr_tx_backoff)
+	if (!backoff)
 		return 0;
 
-	while (pwr_tx_backoff->pwr) {
-		if (trans->dflt_pwr_limit >= pwr_tx_backoff->pwr)
-			return pwr_tx_backoff->backoff;
+	dflt_pwr_limit = iwl_acpi_get_pwr_limit(mvm->dev);
 
-		pwr_tx_backoff++;
+	while (backoff->pwr) {
+		if (dflt_pwr_limit >= backoff->pwr)
+			return backoff->backoff;
+
+		backoff++;
 	}
 
 	return 0;
@@ -892,7 +897,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		goto out_free;
 	mvm->hw_registered = true;
 
-	min_backoff = calc_min_backoff(trans, cfg);
+	min_backoff = iwl_mvm_min_backoff(mvm);
 	iwl_mvm_thermal_initialize(mvm, min_backoff);
 
 	err = iwl_mvm_dbgfs_register(mvm, dbgfs_dir);

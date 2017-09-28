@@ -766,8 +766,6 @@ struct iwl_trans {
 	struct iwl_dbg_cfg dbg_cfg;
 #endif
 
-	u64 dflt_pwr_limit;
-
 	const struct iwl_fw_dbg_dest_tlv *dbg_dest_tlv;
 	const struct iwl_fw_dbg_conf_tlv *dbg_conf_tlv[FW_DBG_CONF_MAX];
 	struct iwl_fw_dbg_trigger_tlv * const *dbg_trigger_tlv;
