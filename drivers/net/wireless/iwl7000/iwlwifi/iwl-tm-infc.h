@@ -162,6 +162,7 @@ enum {
 	IWL_XVT_CMD_GET_MAC_ADDR_INFO,
 	IWL_XVT_CMD_MOD_TX_STOP,
 	IWL_XVT_CMD_TX_QUEUE_CFG,
+	IWL_XVT_CMD_DRIVER_CMD,
 
 	/* Driver notifications */
 	IWL_XVT_CMD_SEND_REPLY_ALIVE = XVT_CMD_NOTIF_BASE,
@@ -591,4 +592,28 @@ struct iwl_xvt_tx_queue_cfg {
 	__u8 operation;
 } __packed __aligned(4);
 
+/**
+ * iwl_xvt_driver_command_req - wrapper for general driver command that are sent
+ * by IWL_XVT_CMD_DRIVER_CMD
+ * @ command_id: sub comamnd ID
+ * @ max_out_length: max size in bytes of the sub command's expected response
+ * @ input_data: place holder for the sub command's input structure
+ */
+struct iwl_xvt_driver_command_req {
+	__u32 command_id;
+	__u32 max_out_length;
+	__u8 input_data[0];
+} __packed __aligned(4);
+
+/**
+ * iwl_xvt_driver_command_resp - response of IWL_XVT_CMD_DRIVER_CMD
+ * @ command_id: sub command ID
+ * @ length: resp_data length in bytes
+ * @ resp_data: place holder for the sub command's rseponse data
+ */
+struct iwl_xvt_driver_command_resp {
+	__u32 command_id;
+	__u32 length;
+	__u8 resp_data[0];
+} __packed __aligned(4);
 #endif

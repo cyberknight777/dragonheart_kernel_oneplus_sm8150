@@ -1444,6 +1444,52 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
+				     struct iwl_tm_data *data_in,
+				     struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_driver_command_req *req = data_in->data;
+	struct iwl_xvt_driver_command_resp *resp = NULL;
+	__u32 cmd_id = req->command_id;
+	int err = 0;
+
+	if (req->max_out_length > 0) {
+		resp = kzalloc(sizeof(*resp) + req->max_out_length, GFP_KERNEL);
+		if (!resp)
+			return -ENOMEM;
+	}
+
+	/* resp->length and resp->resp_data should be set in command handler */
+	switch (cmd_id) {
+	default:
+		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
+			cmd_id);
+		err = -EOPNOTSUPP;
+	}
+
+	if (err)
+		goto out_free;
+
+	if (req->max_out_length > 0) {
+		if (WARN_ONCE(resp->length == 0,
+			      "response was not set correctly\n")) {
+			err = -ENODATA;
+			goto out_free;
+		}
+
+		resp->command_id = cmd_id;
+		data_out->len = resp->length +
+			sizeof(struct iwl_xvt_driver_command_resp);
+		data_out->data = resp;
+
+		return err;
+	}
+
+out_free:
+	kfree(resp);
+	return err;
+}
+
 int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out)
@@ -1551,6 +1597,9 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	case IWL_XVT_CMD_TX_QUEUE_CFG:
 		ret = iwl_xvt_tx_queue_cfg(xvt, data_in);
+		break;
+	case IWL_XVT_CMD_DRIVER_CMD:
+		ret = iwl_xvt_handle_driver_cmd(xvt, data_in, data_out);
 		break;
 
 	default:
