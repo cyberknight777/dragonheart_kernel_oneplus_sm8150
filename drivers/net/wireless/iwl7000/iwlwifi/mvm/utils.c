@@ -1691,11 +1691,6 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 		mvm->tcm.result.band_load[i] = band_load;
 	}
 
-	if (load == IWL_MVM_VENDOR_LOAD_HIGH)
-		pm_qos_update_request(&mvm->pm_qos_req, 60);
-	else
-		pm_qos_update_request(&mvm->pm_qos_req, PM_QOS_DEFAULT_VALUE);
-
 	/*
 	 * If the current load isn't low we need to force re-evaluation
 	 * in the TCM period, so that we can return to low load if there
