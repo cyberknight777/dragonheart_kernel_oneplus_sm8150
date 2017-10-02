@@ -204,6 +204,7 @@ static inline struct net *possible_read_pnet(const possible_net_t *pnet)
 	!LINUX_VERSION_IN_RANGE(4,4,37, 4,5,0) &&	\
 	!LINUX_VERSION_IN_RANGE(4,8,13, 4,9,0)
 
+#define pcie_find_root_port iwl7000_pcie_find_root_port
 static inline struct pci_dev *pcie_find_root_port(struct pci_dev *dev)
 {
 	while (1) {
