@@ -11326,7 +11326,7 @@ static int nl80211_start_nan(struct sk_buff *skb, struct genl_info *info)
 		conf.cdw_2g = 1;
 
 	if (info->attrs[NL80211_ATTR_NAN_CDW_5G])
-		conf.cdw_5g = nla_get_u8(info->attrs[NL80211_ATTR_NAN_CDW_2G]);
+		conf.cdw_5g = nla_get_u8(info->attrs[NL80211_ATTR_NAN_CDW_5G]);
 	else
 		conf.cdw_5g = 1;
 
