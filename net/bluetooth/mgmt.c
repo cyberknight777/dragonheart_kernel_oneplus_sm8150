@@ -6464,6 +6464,8 @@ static int add_advertising(struct sock *sk, struct hci_dev *hdev,
 
 	hci_req_init(&req, hdev);
 
+	hci_req_add(&req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
+
 	err = __hci_req_schedule_adv_instance(&req, schedule_instance, true);
 
 	if (!err)
