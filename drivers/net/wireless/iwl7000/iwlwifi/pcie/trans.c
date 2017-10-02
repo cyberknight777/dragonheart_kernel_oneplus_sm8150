@@ -126,7 +126,7 @@ static void iwl_trans_pcie_err_dump(struct iwl_trans *trans)
 	IWL_ERR(trans, "iwlwifi device config registers:\n");
 	for (i = 0, ptr = buf; i < PCI_DUMP_SIZE; i += 4, ptr++)
 		if (pci_read_config_dword(pdev, i, ptr))
-			goto err_out;
+			goto err_read;
 	print_hex_dump(KERN_ERR, prefix, DUMP_PREFIX_OFFSET, 32, 4, buf, i, 0);
 
 	IWL_ERR(trans, "iwlwifi device memory mapped registers:\n");
@@ -139,12 +139,15 @@ static void iwl_trans_pcie_err_dump(struct iwl_trans *trans)
 		IWL_ERR(trans, "iwlwifi device AER capability structure:\n");
 		for (i = 0, ptr = buf; i < PCI_ERR_ROOT_COMMAND; i += 4, ptr++)
 			if (pci_read_config_dword(pdev, pos + i, ptr))
-				goto err_out;
+				goto err_read;
 		print_hex_dump(KERN_ERR, prefix, DUMP_PREFIX_OFFSET,
 			       32, 4, buf, i, 0);
 	}
 
 	/* Print parent device registers next */
+	if (!pdev->bus->self)
+		goto out;
+
 	pdev = pdev->bus->self;
 	sprintf(prefix, "iwlwifi %s: ", pci_name(pdev));
 
@@ -152,7 +155,7 @@ static void iwl_trans_pcie_err_dump(struct iwl_trans *trans)
 		pci_name(pdev));
 	for (i = 0, ptr = buf; i < PCI_DUMP_SIZE; i += 4, ptr++)
 		if (pci_read_config_dword(pdev, i, ptr))
-			goto err_out;
+			goto err_read;
 	print_hex_dump(KERN_ERR, prefix, DUMP_PREFIX_OFFSET, 32, 4, buf, i, 0);
 
 	/* Print root port AER registers */
@@ -166,18 +169,16 @@ static void iwl_trans_pcie_err_dump(struct iwl_trans *trans)
 		sprintf(prefix, "iwlwifi %s: ", pci_name(pdev));
 		for (i = 0, ptr = buf; i <= PCI_ERR_ROOT_ERR_SRC; i += 4, ptr++)
 			if (pci_read_config_dword(pdev, pos + i, ptr))
-				goto err_out;
+				goto err_read;
 		print_hex_dump(KERN_ERR, prefix, DUMP_PREFIX_OFFSET, 32,
 			       4, buf, i, 0);
 	}
 
-	trans_pcie->pcie_dbg_dumped_once = 1;
-	kfree(buf);
-	return;
-
-err_out:
+err_read:
 	print_hex_dump(KERN_ERR, prefix, DUMP_PREFIX_OFFSET, 32, 4, buf, i, 0);
 	IWL_ERR(trans, "Read failed at 0x%X\n", i);
+out:
+	trans_pcie->pcie_dbg_dumped_once = 1;
 	kfree(buf);
 }
 
