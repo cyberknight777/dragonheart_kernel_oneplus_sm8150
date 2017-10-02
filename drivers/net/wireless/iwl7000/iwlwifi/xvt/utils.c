@@ -253,7 +253,7 @@ void iwl_xvt_get_umac_error_log(struct iwl_xvt *xvt,
 
 	base = xvt->umac_error_event_table;
 
-	if (base < 0x800000) {
+	if (base < trans->cfg->min_umac_error_event_table) {
 		IWL_ERR(xvt,
 			"Not valid error log pointer 0x%08X for %s uCode\n",
 			base,
