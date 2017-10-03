@@ -425,6 +425,7 @@ static const struct intel_device_info intel_cherryview_info = {
 	.has_logical_ring_preemption = 1, \
 	.has_csr = 1, \
 	.has_guc = 1, \
+	.has_ipc = 1, \
 	.ddb_size = 896
 
 #define SKL_PLATFORM \
