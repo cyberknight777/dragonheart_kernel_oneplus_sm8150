@@ -1270,6 +1270,11 @@ static int cnl_init_workarounds(struct intel_engine_cs *engine)
 		WA_SET_BIT_MASKED(COMMON_SLICE_CHICKEN2,
 				  GEN8_CSC2_SBE_VUE_CACHE_CONSERVATIVE);
 
+	/* WaDisableGatherAtSetShaderCommonSlice:cnl */
+	/* WaSendPushConstantsFromMMIO:cnl */
+	WA_CLR_BIT_MASKED(COMMON_SLICE_CHICKEN2,
+			  GEN9_DISABLE_GATHER_AT_SET_SHADER_COMMON_SLICE);
+
 	/* WaInPlaceDecompressionHang:cnl */
 	I915_WRITE(GEN9_GAMT_ECO_REG_RW_IA,
 		   (I915_READ(GEN9_GAMT_ECO_REG_RW_IA) |
