@@ -1291,9 +1291,6 @@ static const struct fscrypt_operations ext4_cryptops = {
 	.empty_dir		= ext4_empty_dir,
 	.max_namelen		= ext4_max_namelen,
 };
-#else
-static const struct fscrypt_operations ext4_cryptops = {
-};
 #endif
 
 #ifdef CONFIG_QUOTA
@@ -4189,7 +4186,9 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op = &ext4_sops;
 	sb->s_export_op = &ext4_export_ops;
 	sb->s_xattr = ext4_xattr_handlers;
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
 	sb->s_cop = &ext4_cryptops;
+#endif
 #ifdef CONFIG_FS_VERITY
 	sb->s_vop = &ext4_verityops;
 #endif
