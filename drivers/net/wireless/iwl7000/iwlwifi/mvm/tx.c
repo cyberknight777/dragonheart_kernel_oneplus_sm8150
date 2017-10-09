@@ -1798,6 +1798,7 @@ void iwl_mvm_rx_ba_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 	if (iwl_mvm_has_new_tx_api(mvm)) {
 		struct iwl_mvm_compressed_ba_notif *ba_res =
 			(void *)pkt->data;
+		u8 lq_color = TX_RES_RATE_TABLE_COL_GET(ba_res->tlc_rate_info);
 		int i;
 
 		sta_id = ba_res->sta_id;
@@ -1806,7 +1807,7 @@ void iwl_mvm_rx_ba_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 		ba_info.status.tx_time =
 			(u16)le32_to_cpu(ba_res->wireless_time);
 		ba_info.status.status_driver_data[0] =
-			(void *)(uintptr_t)ba_res->reduced_txp;
+			RS_DRV_DATA_PACK(lq_color, ba_res->reduced_txp);
 
 		if (!le16_to_cpu(ba_res->tfd_cnt))
 			goto out;
