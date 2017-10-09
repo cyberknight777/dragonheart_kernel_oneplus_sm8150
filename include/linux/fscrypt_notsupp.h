@@ -4,12 +4,15 @@
  *
  * This stubs out the fscrypt functions for filesystems configured without
  * encryption support.
+ *
+ * Do not include this file directly. Use fscrypt.h instead!
  */
+#ifndef _LINUX_FSCRYPT_H
+#error "Incorrect include of linux/fscrypt_notsupp.h!"
+#endif
 
 #ifndef _LINUX_FSCRYPT_NOTSUPP_H
 #define _LINUX_FSCRYPT_NOTSUPP_H
-
-#include <linux/fscrypt_common.h>
 
 /* crypto.c */
 static inline void fscrypt_enqueue_decrypt_work(struct work_struct *work)
