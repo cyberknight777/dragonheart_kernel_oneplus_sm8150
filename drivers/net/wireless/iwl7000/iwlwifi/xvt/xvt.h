@@ -88,6 +88,7 @@ enum iwl_xvt_state {
 #define IWL_XVT_LOAD_MASK_RUNTIME BIT(1)
 
 #define NUM_OF_LMACS	(2)
+#define IWL_XVT_DBG_FLAGS_NO_DEFAULT_TXQ (BIT(2))
 
 /**
  * tx_meta_data - Holds data and member needed for tx
