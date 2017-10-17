@@ -76,11 +76,6 @@
 
 #include "fw/acpi.h"
 
-#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
-#include <linux/device.h>
-#include <linux/platform_device.h>
-#include <linux/platform_data/iwlwifi.h>
-#endif /* CPTCFG_IWLWIFI_PLATFORM_DATA */
 #include "iwl-trans.h"
 #include "iwl-drv.h"
 #include "internal.h"
@@ -417,10 +412,6 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	const struct iwl_cfg *cfg_7265d __maybe_unused = NULL;
 	struct iwl_trans *iwl_trans;
 	int ret;
-#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
-	struct device *dev;
-	struct platform_device *plat_dev;
-#endif
 
 	iwl_trans = iwl_trans_pcie_alloc(pdev, ent, cfg);
 	if (IS_ERR(iwl_trans))
@@ -479,22 +470,6 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	ret = iwl_trans_pcie_dbgfs_register(iwl_trans);
 	if (ret)
 		goto out_free_drv;
-
-#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
-	dev = bus_find_device_by_name(&platform_bus_type, NULL,
-				      IWLWIFI_PLATFORM_NAME);
-	if (dev) {
-		struct iwl_trans_pcie *trans_pcie =
-			IWL_TRANS_GET_PCIE_TRANS(iwl_trans);
-
-		plat_dev = to_platform_device(dev);
-		if (plat_dev && plat_dev->dev.platform_data) {
-			IWL_DEBUG_INFO(iwl_trans,
-				       "Platform device found\n");
-			trans_pcie->platform_ops = plat_dev->dev.platform_data;
-		}
-	}
-#endif /* CPTCFG_IWLWIFI_PLATFORM_DATA */
 
 	/* if RTPM is in use, enable it in our device */
 	if (iwl_trans->runtime_pm_mode != IWL_PLAT_PM_MODE_DISABLED) {

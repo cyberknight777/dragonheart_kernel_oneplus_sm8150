@@ -218,12 +218,6 @@ void _iwl_trans_pcie_gen2_stop_device(struct iwl_trans *trans, bool low_power)
 	 */
 	iwl_enable_rfkill_int(trans);
 
-#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
-	if (low_power && !iwl_trans_pcie_power_device_off(trans_pcie)) {
-		/* card is off, no need to re-take ownership */
-		return;
-	}
-#endif /* CPTCFG_IWLWIFI_PLATFORM_DATA */
 	/* re-take ownership to prevent other users from stealing the device */
 	iwl_pcie_prepare_card_hw(trans);
 }
