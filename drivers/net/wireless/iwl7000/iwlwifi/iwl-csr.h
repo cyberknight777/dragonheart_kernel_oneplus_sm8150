@@ -167,9 +167,6 @@
 #define CSR_MONITOR_STATUS_REG		(CSR_BASE+0x228)
 #define CSR_MONITOR_XTAL_RESOURCES	(0x00000010)
 
-/* SDIO read optimization depends on the SDTM CSR register */
-#define CSR_SDTM_REG		(CSR_BASE+0x21C)
-
 /*
  * CSR Hardware Revision Workaround Register.  Indicates hardware rev;
  * "step" determines CCK backoff for txpower calculation.
@@ -182,8 +179,6 @@
 
 #define CSR_DBG_HPET_MEM_REG		(CSR_BASE+0x240)
 #define CSR_DBG_LINK_PWR_MGMT_REG	(CSR_BASE+0x250)
-
-#define CSR_SDIO_WAKE			(CSR_BASE+0x254)
 
 /* Bits for CSR_HW_IF_CONFIG_REG */
 #define CSR_HW_IF_CONFIG_REG_MSK_MAC_DASH	(0x00000003)
@@ -223,7 +218,6 @@
 #define CSR_INT_BIT_FH_TX        (1 << 27) /* Tx DMA FH_INT[1:0] */
 #define CSR_INT_BIT_SCD          (1 << 26) /* TXQ pointer advanced */
 #define CSR_INT_BIT_SW_ERR       (1 << 25) /* uCode error */
-#define CSR_INT_BIT_PAGING       (1 << 24) /* SDIO PAGING */
 #define CSR_INT_BIT_RF_KILL      (1 << 7)  /* HW RFKILL switch GP_CNTRL[27] toggled */
 #define CSR_INT_BIT_CT_KILL      (1 << 6)  /* Critical temp (chip too hot) rfkill */
 #define CSR_INT_BIT_SW_RX        (1 << 3)  /* Rx, command responses */
@@ -234,7 +228,6 @@
 				 CSR_INT_BIT_HW_ERR  | \
 				 CSR_INT_BIT_FH_TX   | \
 				 CSR_INT_BIT_SW_ERR  | \
-				 CSR_INT_BIT_PAGING  | \
 				 CSR_INT_BIT_RF_KILL | \
 				 CSR_INT_BIT_SW_RX   | \
 				 CSR_INT_BIT_WAKEUP  | \

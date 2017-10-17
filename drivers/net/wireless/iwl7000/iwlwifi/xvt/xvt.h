@@ -291,7 +291,6 @@ struct iwl_xvt {
 
 	u32 error_event_table[2];
 	bool fw_running;
-	struct iwl_sf_region sf_space;
 	u32 fw_major_ver;
 	u32 fw_minor_ver;
 	u32 umac_error_event_table;

@@ -117,8 +117,6 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		xvt->error_event_table[0] =
 			le32_to_cpu(palive2->error_event_table_ptr);
 		alive_data->scd_base_addr = le32_to_cpu(palive2->scd_base_ptr);
-		xvt->sf_space.addr = le32_to_cpu(palive2->st_fwrd_addr);
-		xvt->sf_space.size = le32_to_cpu(palive2->st_fwrd_size);
 
 		alive_data->valid = le16_to_cpu(palive2->status) ==
 				    IWL_ALIVE_STATUS_OK;
@@ -167,8 +165,6 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		xvt->error_event_table[0] =
 			le32_to_cpu(lmac1->error_event_table_ptr);
 		alive_data->scd_base_addr = le32_to_cpu(lmac1->scd_base_ptr);
-		xvt->sf_space.addr = le32_to_cpu(lmac1->st_fwrd_addr);
-		xvt->sf_space.size = le32_to_cpu(lmac1->st_fwrd_size);
 		xvt->fw_major_ver = le32_to_cpu(lmac1->ucode_major);
 		xvt->fw_minor_ver = le32_to_cpu(lmac1->ucode_minor);
 		xvt->umac_error_event_table =
@@ -247,12 +243,6 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 
 	/* fresh firmware was loaded */
 	xvt->fw_error = false;
-
-	/*
-	 * update the sdio allocation according to the pointer we get in the
-	 * alive notification.
-	 */
-	ret = iwl_trans_update_sf(xvt->trans, &xvt->sf_space);
 
 	iwl_trans_fw_alive(xvt->trans, alive_data.scd_base_addr);
 
