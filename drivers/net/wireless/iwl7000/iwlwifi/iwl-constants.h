@@ -65,20 +65,6 @@
 #ifndef __IWL_CONSTANTS_H
 #define __IWL_CONSTANTS_H
 
-/**
- * enum iwl_wakelock_modes - iwlwifi wakelock management mode
- * @IWL_WAKELOCK_MODE_IDLE: take wakelocks while the driver is
- *	doing some activity, and release when it's idle.
- * @IWL_WAKELOCK_MODE_OFF: don't take any wakelock.
- * @IWL_WAKELOCK_MODE_ALWAYS_ON: wake wakelock while driver is up
- *	and started (there is interface up).
- */
-enum iwl_wakelock_mode {
-	IWL_WAKELOCK_MODE_IDLE		= 0,
-	IWL_WAKELOCK_MODE_OFF		= 1,
-	IWL_WAKELOCK_MODE_ALWAYS_ON	= 2,
-};
-
 enum {
 	IWL_D0I3_DBG_KEEP_BUS		= BIT(0),
 	IWL_D0I3_DBG_KEEP_WAKE_LOCK	= BIT(1),
