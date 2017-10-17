@@ -1953,41 +1953,6 @@ void iwl_opmode_deregister(const char *name)
 }
 IWL_EXPORT_SYMBOL(iwl_opmode_deregister);
 
-/*
- * Register all supported buses.
- * Return 0 if all of the bus registrations were successful.
- */
-static int iwl_register_bus_drivers(void)
-{
-	int ret;
-
-	ret = iwl_pci_register_driver();
-	if (ret)
-		return ret;
-
-	ret = iwl_slv_register_drivers();
-	if (ret)
-		goto unregister_pci_driver;
-
-	return 0;
-
-unregister_pci_driver:
-	iwl_pci_unregister_driver();
-	return ret;
-}
-
-/*
- * Unregisters all registered bus drivers.
- *
- * These bus drivers must be already registered since if their
- * registration failed the driver will not be loaded.
- */
-static void iwl_unregister_bus_drivers(void)
-{
-	iwl_pci_unregister_driver();
-	iwl_slv_unregister_drivers();
-}
-
 static int __init iwl_drv_init(void)
 {
 	int i;
@@ -2019,13 +1984,13 @@ static int __init iwl_drv_init(void)
 		return -EFAULT;
 #endif
 
-	return iwl_register_bus_drivers();
+	return iwl_pci_register_driver();
 }
 module_init(iwl_drv_init);
 
 static void __exit iwl_drv_exit(void)
 {
-	iwl_unregister_bus_drivers();
+	iwl_pci_unregister_driver();
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	debugfs_remove_recursive(iwl_dbgfs_root);

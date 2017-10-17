@@ -1235,20 +1235,7 @@ void iwl_trans_unref(struct iwl_trans *trans);
 * driver (transport) register/unregister functions
 ******************************************************/
 /* PCI */
-#ifdef CPTCFG_IWLWIFI_PCIE
 int __must_check iwl_pci_register_driver(void);
 void iwl_pci_unregister_driver(void);
-
-#else
-
-static inline int __must_check iwl_pci_register_driver(void)
-{ return 0; }
-static inline void iwl_pci_unregister_driver(void)
-{}
-
-#endif /* CPTCFG_IWLWIFI_PCIE */
-
-static inline int __must_check iwl_slv_register_drivers(void) { return 0; }
-static inline void iwl_slv_unregister_drivers(void) {}
 
 #endif /* __iwl_trans_h__ */
