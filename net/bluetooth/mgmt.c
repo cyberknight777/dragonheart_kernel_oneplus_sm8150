@@ -1016,12 +1016,7 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 
 	hci_req_clear_adv_instance(hdev, NULL, NULL, 0x00, false);
 
-#ifdef CONFIG_BT_EVE_HACKS
 	__hci_req_disable_advertising(&req);
-#else
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-		__hci_req_disable_advertising(&req);
-#endif
 
 	discov_stopped = hci_req_stop_discovery(&req);
 
@@ -1832,12 +1827,7 @@ static int set_le(struct sock *sk, struct hci_dev *hdev, void *data, u16 len)
 		hci_cp.le = val;
 		hci_cp.simul = 0x00;
 	} else {
-#ifdef CONFIG_BT_EVE_HACKS
 		__hci_req_disable_advertising(&req);
-#else
-		if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-			__hci_req_disable_advertising(&req);
-#endif
 	}
 
 	hci_req_add(&req, HCI_OP_WRITE_LE_HOST_SUPPORTED, sizeof(hci_cp),
@@ -4146,7 +4136,6 @@ static int set_scan_params(struct sock *sk, struct hci_dev *hdev,
 	err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_SCAN_PARAMS, 0,
 				NULL, 0);
 
-#ifdef CONFIG_BT_EVE_HACKS
 	/* If background scan is running (and not in progress of stopping
 	 * already), restart it so new parameters are
 	 * loaded.
@@ -4154,13 +4143,7 @@ static int set_scan_params(struct sock *sk, struct hci_dev *hdev,
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
 	    !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS) &&
 	    hdev->discovery.state == DISCOVERY_STOPPED) {
-#else
-	/* If background scan is running, restart it so new parameters are
-	 * loaded.
-	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
-	    hdev->discovery.state == DISCOVERY_STOPPED) {
-#endif
+
 		struct hci_request req;
 
 		hci_req_init(&req, hdev);
