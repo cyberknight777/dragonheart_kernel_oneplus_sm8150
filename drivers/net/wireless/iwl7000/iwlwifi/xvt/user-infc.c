@@ -1444,6 +1444,64 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
+			      struct iwl_xvt_driver_command_req *req,
+			      struct iwl_xvt_driver_command_resp *resp)
+{
+	struct iwl_xvt_txq_config *conf =
+		(struct iwl_xvt_txq_config *)req->input_data;
+	struct iwl_xvt_txq_config_resp txq_resp;
+	int queue_id = conf->scd_queue, ret;
+
+	struct iwl_scd_txq_cfg_cmd cmd = {
+		.sta_id = conf->sta_id,
+		.tid = conf->tid,
+		.scd_queue = conf->scd_queue,
+		.action = conf->action,
+		.aggregate = conf->aggregate,
+		.tx_fifo = conf->tx_fifo,
+		.window = conf->window,
+		.ssn = cpu_to_le16(conf->ssn),
+	};
+
+	if (req->max_out_length < sizeof(txq_resp))
+		return -ENOBUFS;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		/*TODO: add support for second lmac*/
+		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
+				.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+				.sta_id = conf->sta_id,
+				.tid = conf->tid
+		};
+
+		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
+					       SCD_QUEUE_CFG, 0);
+		if (queue_id < 0)
+			return queue_id;
+	} else {
+		iwl_trans_txq_enable_cfg(xvt->trans, queue_id, conf->ssn,
+					 NULL, 0);
+
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0, sizeof(cmd),
+					   &cmd);
+		if (ret) {
+			IWL_ERR(xvt, "Failed to config queue %d on FIFO %d\n",
+				conf->scd_queue, conf->tx_fifo);
+			return ret;
+		}
+	}
+
+	xvt->tx_meta_data[XVT_LMAC_0_ID].queue = queue_id;
+	txq_resp.scd_queue = queue_id;
+	txq_resp.sta_id = conf->sta_id;
+	txq_resp.tid = conf->tid;
+	memcpy(resp->resp_data, &txq_resp, sizeof(txq_resp));
+	resp->length = sizeof(txq_resp);
+
+	return 0;
+}
+
 static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_in,
 				     struct iwl_tm_data *data_out)
@@ -1461,6 +1519,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 
 	/* resp->length and resp->resp_data should be set in command handler */
 	switch (cmd_id) {
+	case IWL_DRV_CMD_CONFIG_TX_QUEUE:
+		err = iwl_xvt_config_txq(xvt, req, resp);
+		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
 			cmd_id);

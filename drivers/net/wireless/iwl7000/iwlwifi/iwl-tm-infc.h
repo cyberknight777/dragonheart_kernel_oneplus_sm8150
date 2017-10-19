@@ -181,6 +181,14 @@ enum {
 	IWL_TM_USER_CMD_SV_RD_WR_BUFFER,
 };
 
+/**
+ * User space - driver interface command. These commands will be sent as
+ * sub-commands through IWL_XVT_CMD_DRIVER_CMD.
+ */
+enum {
+	IWL_DRV_CMD_CONFIG_TX_QUEUE = 0,
+};
+
 enum {
 	NOTIFICATIONS_DISABLE = 0,
 	NOTIFICATIONS_ENABLE = 1,
@@ -616,4 +624,43 @@ struct iwl_xvt_driver_command_resp {
 	__u32 length;
 	__u8 resp_data[0];
 } __packed __aligned(4);
+
+/**
+ * iwl_xvt_txq_config - add tx queue. Input for IWL_DRV_CMD_CONFIG_TX_QUEUE
+ * @sta_id: station id
+ * @tid: TID
+ * @scd_queue: scheduler queue to configure
+ * @action: 1 queue enable, 0 queue disable, 2 change txq's tid owner
+ *	Value is one of &enum iwl_scd_cfg_actions options
+ * @aggregate: 1 aggregated queue, 0 otherwise
+ * @tx_fifo: &enum iwl_mvm_tx_fifo
+ * @window: BA window size
+ * @ssn: SSN for the BA agreement
+ */
+struct iwl_xvt_txq_config {
+	u8 sta_id;
+	u8 tid;
+	u8 scd_queue;
+	u8 action;
+	u8 aggregate;
+	u8 tx_fifo;
+	u8 window;
+	u8 reserved;
+	u16 ssn;
+} __packed __aligned(4);
+
+/**
+ * iwl_xvt_txq_config_resp - response from IWL_DRV_CMD_CONFIG_TX_QUEUE
+ * @sta_id: taken from command
+ * @tid: taken from command
+ * @scd_queue: queue number assigned to this RA -TID
+ * @reserved: for alignment
+ */
+struct iwl_xvt_txq_config_resp {
+	u8 sta_id;
+	u8 tid;
+	u8 scd_queue;
+	u8 reserved;
+} __packed __aligned(4);
+
 #endif
