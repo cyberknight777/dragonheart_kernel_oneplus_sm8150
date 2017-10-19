@@ -149,9 +149,18 @@ static void esdfs_d_release(struct dentry *dentry)
 	esdfs_free_dentry_private_data(dentry);
 }
 
+static void esdfs_canonical_path(const struct path *path,
+					struct path *actual_path) {
+	if (ESDFS_DENTRY_HAS_STUB(path->dentry))
+		esdfs_get_lower_stub_path(path->dentry, actual_path);
+	else
+		esdfs_get_lower_path(path->dentry, actual_path);
+}
+
 const struct dentry_operations esdfs_dops = {
 	.d_revalidate	= esdfs_d_revalidate,
 	.d_hash		= esdfs_d_hash,
 	.d_compare	= esdfs_d_compare,
 	.d_release	= esdfs_d_release,
+	.d_canonical_path = esdfs_canonical_path,
 };
