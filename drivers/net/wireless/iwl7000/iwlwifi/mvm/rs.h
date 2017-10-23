@@ -186,12 +186,8 @@ struct rs_rate {
 #define is_type_ht_mimo2(type) ((type) == LQ_HT_MIMO2)
 #define is_type_vht_siso(type) ((type) == LQ_VHT_SISO)
 #define is_type_vht_mimo2(type) ((type) == LQ_VHT_MIMO2)
-#define is_type_he_siso(type) ((type) == LQ_HE_SISO)
-#define is_type_he_mimo2(type) ((type) == LQ_HE_MIMO2)
-#define is_type_siso(type) (is_type_ht_siso(type) || is_type_vht_siso(type) || \
-			    is_type_he_siso(type))
-#define is_type_mimo2(type) (is_type_ht_mimo2(type) || \
-			     is_type_vht_mimo2(type) || is_type_he_mimo2(type))
+#define is_type_siso(type) (is_type_ht_siso(type) || is_type_vht_siso(type))
+#define is_type_mimo2(type) (is_type_ht_mimo2(type) || is_type_vht_mimo2(type))
 #define is_type_mimo(type) (is_type_mimo2(type))
 #define is_type_ht(type) (is_type_ht_siso(type) || is_type_ht_mimo2(type))
 #define is_type_vht(type) (is_type_vht_siso(type) || is_type_vht_mimo2(type))
