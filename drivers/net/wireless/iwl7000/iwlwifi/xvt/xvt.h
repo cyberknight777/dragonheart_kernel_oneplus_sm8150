@@ -390,6 +390,12 @@ static inline u32 iwl_xvt_get_scd_ssn(struct iwl_xvt *xvt,
 			    tx_resp->frame_count) & 0xfff;
 }
 
+static inline bool iwl_xvt_has_default_txq(struct iwl_xvt *xvt)
+{
+	return !(xvt->sw_stack_cfg.fw_dbg_flags &
+		 IWL_XVT_DBG_FLAGS_NO_DEFAULT_TXQ);
+}
+
 void iwl_xvt_free_tx_queue(struct iwl_xvt *xvt, u8 lmac_id);
 
 int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,

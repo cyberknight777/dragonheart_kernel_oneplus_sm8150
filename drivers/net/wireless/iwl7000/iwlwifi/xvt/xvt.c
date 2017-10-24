@@ -582,6 +582,8 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 
 void iwl_xvt_txq_disable(struct iwl_xvt *xvt)
 {
+	if (!iwl_xvt_has_default_txq(xvt))
+		return;
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		iwl_xvt_free_tx_queue(xvt, XVT_LMAC_0_ID);
 		iwl_xvt_free_tx_queue(xvt, XVT_LMAC_1_ID);
