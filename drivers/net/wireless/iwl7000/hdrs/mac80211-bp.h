@@ -220,3 +220,19 @@ static inline struct pci_dev *pcie_find_root_port(struct pci_dev *dev)
 }
 
 #endif/* <4.9.0 but not >= 3.12.69, 4.4.37, 4.8.13 */
+
+#ifndef from_timer
+#define TIMER_DATA_TYPE          unsigned long
+#define TIMER_FUNC_TYPE          void (*)(TIMER_DATA_TYPE)
+
+static inline void timer_setup(struct timer_list *timer,
+			       void (*callback) (struct timer_list *),
+			       unsigned int flags)
+{
+	__setup_timer(timer, (TIMER_FUNC_TYPE) callback,
+		      (TIMER_DATA_TYPE) timer, flags);
+}
+
+#define from_timer(var, callback_timer, timer_fieldname) \
+	container_of(callback_timer, typeof(*var), timer_fieldname)
+#endif
