@@ -115,6 +115,8 @@ struct mt_device {
 	struct mt_fields *fields;	/* temporary placeholder for storing the
 					   multitouch fields */
 	unsigned long mt_io_flags;	/* mt flags (MT_IO_FLAGS_*) */
+	unsigned long *pending_palm_slots; /* slots where we reported palm
+						and need to release */
 	int cc_index;	/* contact count field index in the report */
 	int cc_value_index;	/* contact count value index in the field */
 	unsigned last_slot_field;	/* the last field of a slot */
@@ -542,9 +544,13 @@ static int mt_touch_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 			return 1;
 		case HID_DG_CONFIDENCE:
 			if ((cls->name == MT_CLS_WIN_8 ||
-				cls->name == MT_CLS_WIN_8_DUAL) &&
-				field->application == HID_DG_TOUCHPAD)
+			    cls->name == MT_CLS_WIN_8_DUAL) &&
+			    field->application == HID_DG_TOUCHPAD) {
 				cls->quirks |= MT_QUIRK_CONFIDENCE;
+				input_set_abs_params(hi->input,
+					ABS_MT_TOOL_TYPE,
+					MT_TOOL_FINGER, MT_TOOL_PALM, 0, 0);
+			}
 			mt_store_field(usage, td, hi);
 			return 1;
 		case HID_DG_TIPSWITCH:
@@ -657,6 +663,7 @@ static void mt_complete_slot(struct mt_device *td, struct input_dev *input)
 
 	if (td->curvalid || (td->mtclass.quirks & MT_QUIRK_ALWAYS_VALID)) {
 		int active;
+		int tool;
 		int slotnum = mt_compute_slot(td, input);
 		struct mt_slot *s = &td->curdata;
 		struct input_mt *mt = input->mt;
@@ -671,24 +678,56 @@ static void mt_complete_slot(struct mt_device *td, struct input_dev *input)
 				return;
 		}
 
+		active = s->touch_state || s->inrange_state;
+
 		if (!(td->mtclass.quirks & MT_QUIRK_CONFIDENCE))
 			s->confidence_state = 1;
-		active = (s->touch_state || s->inrange_state) &&
-							s->confidence_state;
+
+		if (likely(s->confidence_state)) {
+			tool = MT_TOOL_FINGER;
+		} else {
+			tool = MT_TOOL_PALM;
+			if (!active &&
+			    input_mt_is_active(&mt->slots[slotnum])) {
+				/*
+				 * The non-confidence was reported for
+				 * previously valid contact that is also no
+				 * longer valid. We can't simply report
+				 * lift-off as userspace will not be aware
+				 * of non-confidence, so we need to split
+				 * it into 2 events: active MT_TOOL_PALM
+				 * and a separate liftoff.
+				 */
+				active = true;
+				set_bit(slotnum, td->pending_palm_slots);
+			}
+		}
 
 		input_mt_slot(input, slotnum);
-		input_mt_report_slot_state(input, MT_TOOL_FINGER, active);
+		input_mt_report_slot_state(input, tool, active);
 		if (active) {
 			/* this finger is in proximity of the sensor */
 			int wide = (s->w > s->h);
 			int major = max(s->w, s->h);
 			int minor = min(s->w, s->h);
 
-			/*
-			 * divided by two to match visual scale of touch
-			 * for devices with this quirk
-			 */
-			if (td->mtclass.quirks & MT_QUIRK_TOUCH_SIZE_SCALING) {
+			if (unlikely(!s->confidence_state)) {
+				/*
+				 * When reporting palm, set contact to maximum
+				 * size to help userspace that does not
+				 * recognize MT_TOOL_PALM to reject contacts
+				 * that are too large.
+				 */
+				major = input_abs_get_max(input,
+							  ABS_MT_TOUCH_MAJOR);
+				minor = input_abs_get_max(input,
+							  ABS_MT_TOUCH_MINOR);
+			} else if (td->mtclass.quirks &
+					MT_QUIRK_TOUCH_SIZE_SCALING) {
+				/*
+				 * divided by two to match visual scale of touch
+				 * for devices with this quirk
+				 */
 				major = major >> 1;
 				minor = minor >> 1;
 			}
@@ -711,6 +750,27 @@ static void mt_complete_slot(struct mt_device *td, struct input_dev *input)
 	td->num_received++;
 }
 
+static void mt_release_pending_palms(struct mt_device *td,
+				     struct input_dev *input)
+{
+	int slotnum;
+	bool need_sync = false;
+
+	for_each_set_bit(slotnum, td->pending_palm_slots, td->maxcontacts) {
+		clear_bit(slotnum, td->pending_palm_slots);
+
+		input_mt_slot(input, slotnum);
+		input_mt_report_slot_state(input, MT_TOOL_PALM, false);
+
+		need_sync = true;
+	}
+
+	if (need_sync) {
+		input_mt_sync_frame(input);
+		input_sync(input);
+	}
+}
+
 /*
  * this function is called when a whole packet has been received and processed,
  * so that it can decide what to send to the input layer.
@@ -719,6 +779,9 @@ static void mt_sync_frame(struct mt_device *td, struct input_dev *input)
 {
 	input_mt_sync_frame(input);
 	input_sync(input);
+
+	mt_release_pending_palms(td, input);
+
 	td->num_received = 0;
 	if (test_bit(MT_IO_FLAGS_ACTIVE_SLOTS, &td->mt_io_flags))
 		set_bit(MT_IO_FLAGS_PENDING_SLOTS, &td->mt_io_flags);
@@ -902,6 +965,13 @@ static int mt_touch_input_configured(struct hid_device *hdev,
 
 	if (td->is_buttonpad)
 		__set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
+
+	td->pending_palm_slots = devm_kcalloc(&hi->input->dev,
+					      BITS_TO_LONGS(td->maxcontacts),
+					      sizeof(long),
+					      GFP_KERNEL);
+	if (!td->pending_palm_slots)
+		return -ENOMEM;
 
 	ret = input_mt_init_slots(input, td->maxcontacts, td->mt_flags);
 	if (ret)
