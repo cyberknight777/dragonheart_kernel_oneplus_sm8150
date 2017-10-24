@@ -4440,14 +4440,18 @@ out_unlock:
 static void iwl_mvm_flush_no_vif(struct iwl_mvm *mvm, u32 queues, bool drop)
 {
 	if (drop) {
-		if (iwl_mvm_has_new_tx_api(mvm))
+		if (iwl_mvm_has_new_tx_api(mvm)) {
 			/* TODO new tx api */
 			WARN_ONCE(1,
 				  "Need to implement flush TX queue\n");
-		else
+		} else {
+			mutex_lock(&mvm->mutex);
 			iwl_mvm_flush_tx_path(mvm,
 				iwl_mvm_flushable_queues(mvm) & queues,
 				0);
+			mutex_unlock(&mvm->mutex);
+		}
+
 	} else {
 		if (iwl_mvm_has_new_tx_api(mvm)) {
 			struct ieee80211_sta *sta;
