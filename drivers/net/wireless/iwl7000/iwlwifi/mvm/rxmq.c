@@ -1101,6 +1101,8 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->he_format = (rate_n_flags & RATE_MCS_HE_TYPE_MSK) >>
 						RATE_MCS_HE_TYPE_POS;
 
+		rx_status->he_txbf = !!(rate_n_flags & RATE_MCS_BF_POS);
+
 		switch ((rate_n_flags & RATE_MCS_HE_GI_LTF_MSK) >>
 			RATE_MCS_HE_GI_LTF_POS) {
 		case 0:

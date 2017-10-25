@@ -179,7 +179,7 @@ ieee80211_rx_radiotap_hdrlen(struct ieee80211_local *local,
 
 	if (status->encoding == RX_ENC_HE &&
 	    status->he_format != IEEE80211_HE_FORMAT_UNKNOWN) {
-		len = ALIGN(len, 4);
+		len = ALIGN(len, 2);
 		len += 12;
 	}
 
@@ -526,135 +526,97 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 
 	if (status->encoding == RX_ENC_HE &&
 	    status->he_format != IEEE80211_HE_FORMAT_UNKNOWN) {
-		u32 a1, a2, bw;
-		u16 a1_known, a2_known;
+		struct {
+			__le16 data1, data2, data3, data4, data5, data6;
+		} he = {
+			.data1 = local->hw.radiotap_he.data1,
+			.data2 = local->hw.radiotap_he.data2,
+		};
+
+		BUILD_BUG_ON(sizeof(he) != 12);
+
+#define HE_PREP(f, val)	cpu_to_le16(FIELD_PREP(IEEE80211_RADIOTAP_HE_##f, val))
 
 #define CHECK_HE_FORMAT(F) \
-	BUILD_BUG_ON((IEEE80211_HE_FORMAT_ ## F - 1) << 30 != IEEE80211_RADIOTAP_HE_FORMAT_ ## F)
+	BUILD_BUG_ON((IEEE80211_HE_FORMAT_ ## F - 1) != \
+		     IEEE80211_RADIOTAP_HE_DATA1_FORMAT_ ## F)
 
 		CHECK_HE_FORMAT(SU);
 		CHECK_HE_FORMAT(EXT_SU);
 		CHECK_HE_FORMAT(MU);
 		CHECK_HE_FORMAT(TRIG);
 
-		a1 = (status->he_format - 1) << 30;
-		a2 = 0;
+		he.data1 |= cpu_to_le16(status->he_format - 1);
+
+		if (status->enc_flags & RX_ENC_FLAG_STBC_MASK) {
+			he.data6 |= HE_PREP(DATA6_NSTS,
+					    FIELD_GET(RX_ENC_FLAG_STBC_MASK,
+						      status->enc_flags));
+			he.data3 |= HE_PREP(DATA3_STBC, 1);
+		} else {
+			he.data6 |= HE_PREP(DATA6_NSTS, status->nss);
+		}
+
+#define CHECK_GI(s) \
+	BUILD_BUG_ON(IEEE80211_RADIOTAP_HE_DATA5_GI_##s != \
+		     (int)NL80211_RATE_INFO_HE_GI_##s)
+
+		CHECK_GI(0_8);
+		CHECK_GI(1_6);
+		CHECK_GI(3_2);
+
+		he.data3 |= HE_PREP(DATA3_DATA_MCS, status->rate_idx);
+		he.data3 |= HE_PREP(DATA3_DATA_DCM, status->he_dcm);
+		he.data3 |= HE_PREP(DATA3_CODING,
+				    !!(status->enc_flags & RX_ENC_FLAG_LDPC));
+
+		he.data5 |= HE_PREP(DATA5_GI, status->he_gi);
+		he.data5 |= HE_PREP(DATA5_LTF_SYMS, status->he_ltf);
+		he.data5 |= HE_PREP(DATA5_TXBF, status->he_txbf);
 
 		switch (status->he_format) {
 		case IEEE80211_HE_FORMAT_SU:
 			switch (status->bw) {
 			case RATE_INFO_BW_20:
-				bw = 0;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_20MHZ);
 				break;
 			case RATE_INFO_BW_40:
-				bw = 1;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_40MHZ);
 				break;
 			case RATE_INFO_BW_80:
-				bw = 2;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_80MHZ);
 				break;
 			case RATE_INFO_BW_160:
-				bw = 3;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_160MHZ);
 				break;
 			default:
 				WARN_ONCE(1, "Invalid SU BW %d\n", status->bw);
-				bw = 0;
 			}
 			break;
 		case IEEE80211_HE_FORMAT_EXT_SU:
-			if (status->he_ru == NL80211_RATE_INFO_HE_RU_ALLOC_242)
-				bw = 0;
-			else /* TODO - check validity? */
-				bw = 1;
+#define CHECK_RU_ALLOC(s) \
+	BUILD_BUG_ON(IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_##s##T != \
+		     NL80211_RATE_INFO_HE_RU_ALLOC_##s + 4)
+
+			CHECK_RU_ALLOC(26);
+			CHECK_RU_ALLOC(52);
+			CHECK_RU_ALLOC(106);
+			CHECK_RU_ALLOC(242);
+			CHECK_RU_ALLOC(484);
+			CHECK_RU_ALLOC(996);
+			CHECK_RU_ALLOC(2x996);
+
+			he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+					    status->he_ru + 4);
 			break;
 		}
 
-		switch (status->he_format) {
-		case IEEE80211_HE_FORMAT_SU:
-		case IEEE80211_HE_FORMAT_EXT_SU: {
-			u8 nsts = status->nss - 1;
-
-			a1_known = local->hw.radiotap_he.su.a1_known;
-			a2_known = local->hw.radiotap_he.su.a2_known;
-
-			a1 |= 1;
-			a1 |= status->rate_idx << 3;
-			a1 |= status->he_dcm << 7;
-			a1 |= bw << 19;
-			switch (status->he_ltf) {
-			case 0:
-				WARN_ON(status->he_gi != NL80211_RATE_INFO_HE_GI_0_8);
-				a1 |= 0 << 21;
-				break;
-			case 1:
-				switch (status->he_gi) {
-				case NL80211_RATE_INFO_HE_GI_0_8:
-					a1 |= 1 << 21;
-					break;
-				case NL80211_RATE_INFO_HE_GI_1_6:
-					a1 |= 2 << 21;
-					break;
-				case NL80211_RATE_INFO_HE_GI_3_2:
-					WARN_ON(1);
-					break;
-				}
-				break;
-			case 3:
-				a1 |= 3 << 21;
-
-				switch (status->he_gi) {
-				case NL80211_RATE_INFO_HE_GI_0_8:
-					/* also set DCM ... */
-					a1 |= 1 << 7;
-					a1_known |= 1 << 7;
-					/* ... and STBC bits */
-					a2 |= 1 << 9;
-					a2_known |= 1 << 9;
-					break;
-				case NL80211_RATE_INFO_HE_GI_1_6:
-					WARN_ON(1);
-					break;
-				case NL80211_RATE_INFO_HE_GI_3_2:
-					/* nothing else */
-					break;
-				}
-				break;
-			default:
-				WARN_ON(1);
-				break;
-			}
-
-			if (status->enc_flags & RX_ENC_FLAG_STBC_MASK)
-				nsts = ((status->enc_flags &
-						RX_ENC_FLAG_STBC_MASK) >>
-					RX_ENC_FLAG_STBC_SHIFT) - 1;
-			a1 |= nsts << 23;
-
-			a2 |= !!(status->enc_flags & RX_ENC_FLAG_LDPC) << 7;
-			a2 |= !!(status->enc_flags & RX_ENC_FLAG_STBC_MASK) << 9;
-			break;
-			}
-		case IEEE80211_HE_FORMAT_MU:
-			/* TODO */
-			a1_known = local->hw.radiotap_he.mu.a1_known;
-			a2_known = local->hw.radiotap_he.mu.a2_known;
-			break;
-		case IEEE80211_HE_FORMAT_TRIG:
-			/* TODO */
-			a1_known = local->hw.radiotap_he.trig.a1_known;
-			a2_known = local->hw.radiotap_he.trig.a2_known;
-			break;
-		default:
-			a1_known = 0;
-			a2_known = 0;
-		}
-		put_unaligned_le32(a1, pos);
-		pos += sizeof(u32);
-		put_unaligned_le32(a2, pos);
-		pos += sizeof(u32);
-		put_unaligned_le32(a1_known, pos);
-		pos += sizeof(u32);
-		put_unaligned_le32(a2_known, pos);
-		pos += sizeof(u32);
+		memcpy(pos, &he, sizeof(he));
+		pos += sizeof(he);
 	}
 
 	for_each_set_bit(chain, &chains, IEEE80211_MAX_CHAINS) {
