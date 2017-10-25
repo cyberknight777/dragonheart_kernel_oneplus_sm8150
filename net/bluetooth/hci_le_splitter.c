@@ -5,6 +5,7 @@
 #include <linux/miscdevice.h>
 #include <linux/semaphore.h>
 #include <asm/atomic.h>
+#include <asm/ioctls.h>
 
 
 /* RXed bytes we'll queue before giving up on userspace. picked arbitrarily */
@@ -146,7 +147,7 @@ void hci_le_splitter_init_start(struct hci_dev *hdev)
 
 int hci_le_splitter_init_done(struct hci_dev *hdev)
 {
-	//nothing to do for now
+	/* nothing to do for now */
 
 	return 0;
 }
@@ -155,6 +156,7 @@ static ssize_t hci_le_splitter_read(struct file *file, char __user *userbuf,
 				    size_t bytes, loff_t *off)
 {
 	struct sk_buff *skb;
+	u8 packet_typ;
 	ssize_t ret;
 
 
@@ -179,17 +181,19 @@ static ssize_t hci_le_splitter_read(struct file *file, char __user *userbuf,
 
 	} while (!skb);
 
-	if (bytes > skb->len)
-		bytes = skb->len;
+	/* one byte for hci packet type */
+	packet_typ = hci_skb_pkt_type(skb);
 
-	if (skb->len > bytes) {
-		ret = -ETOOSMALL;
-	} else if (copy_to_user(userbuf, skb->data, bytes)) {
+	if (skb->len + sizeof(packet_typ) > bytes) {
+		ret = -ENOMEM;
+	} else if (put_user(packet_typ, userbuf) ||
+			copy_to_user(userbuf + sizeof(packet_typ),
+							skb->data, skb->len)) {
 		ret = -EFAULT;
 	} else {
-		usr_msg_q_len -= bytes;
+		usr_msg_q_len -= skb->len;
+		ret = (ssize_t)skb->len + 1;
 		kfree_skb(skb);
-		ret = (ssize_t)bytes;
 	}
 
 	if (ret < 0)
@@ -208,6 +212,7 @@ static ssize_t hci_le_splitter_write(struct file *file,
 {
 	struct hci_acl_hdr acl_hdr;
 	struct sk_buff *skb;
+	u16 cmd_val = 0;
 	u8 pkt_typ;
 
 	if (bytes < 1)
@@ -247,6 +252,8 @@ static ssize_t hci_le_splitter_write(struct file *file,
 		if (bytes - cmd_hdr.plen - HCI_COMMAND_HDR_SIZE)
 			return -EINVAL;
 
+		cmd_val = __le16_to_cpu(cmd_hdr.opcode);
+
 	} else {
 		return -EINVAL;
 	}
@@ -256,7 +263,7 @@ static ssize_t hci_le_splitter_write(struct file *file,
 		return -ENOMEM;
 
 	hci_skb_pkt_type(skb) = pkt_typ;
-	if (copy_from_user(skb->data, userbuf, bytes)) {
+	if (copy_from_user(skb_put(skb, bytes), userbuf, bytes)) {
 		kfree_skb(skb);
 		return -EFAULT;
 	}
@@ -293,6 +300,9 @@ static ssize_t hci_le_splitter_write(struct file *file,
 	/* perform the actual transmission */
 	__net_timestamp(skb);
 	mutex_lock(&hci_state_lock);
+	if (pkt_typ == HCI_COMMAND_PKT)
+		le_waiting_on_opcode = cmd_val;
+
 	hci_send_to_monitor(cur_dev, skb);
 	skb_orphan(skb);
 	if (cur_dev->send(cur_dev, skb) < 0) {
@@ -338,39 +348,54 @@ static int hci_le_splitter_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&usr_msg_q_lock);
 	hci_le_splitter_usr_purge_rx_q();
-	hci_le_splitter_usr_queue_reset_message(atomic_read(&chip_ready_for_second_stack) != 0);
 	mutex_unlock(&usr_msg_q_lock);
+	hci_le_splitter_usr_queue_reset_message(atomic_read(&chip_ready_for_second_stack) != 0);
 
 	return ret;
 }
 
 static int hci_le_splitter_release(struct inode *inode, struct file *file)
 {
+	int32_t dev_id = -1;
+
 	mutex_lock(&usr_msg_q_lock);
 	hci_le_splitter_usr_purge_rx_q();
 
-	if (!atomic_cmpxchg(&chip_ready_for_second_stack, 1, 0)) {
-
+	if (atomic_cmpxchg(&usr_connected, 1, 0)) {
 		/* file close while chip was being used - we must reset it */
-		struct sk_buff *skb = bt_skb_alloc(HCI_COMMAND_HDR_SIZE, GFP_KERNEL);
-		if (skb) {
-			struct hci_command_hdr *cmd = (struct hci_command_hdr *)skb->data;
-
-			cmd->opcode = __cpu_to_le16(HCI_OP_RESET);
-			cmd->plen = 0;
-			hci_skb_pkt_type(skb) = HCI_COMMAND_PKT;
-
-			hci_send_to_monitor(cur_dev, skb);
-			skb_orphan(skb);
-			if (!cur_dev || !cur_dev->send || cur_dev->send(cur_dev, skb))
-				kfree_skb(skb);
-		}
+		if (cur_dev)
+			dev_id = cur_dev->id;
+		pr_info("reset queued\n");
 	}
 
-	atomic_set(&usr_connected, 0);
+	atomic_set(&chip_ready_for_second_stack, 0);
 	mutex_unlock(&usr_msg_q_lock);
 
+	if (dev_id >= 0) {
+		int ret;
+		ret = hci_dev_reset(dev_id);
+		/* none of this matters - we must restart bluetoothd to regain ability to run */
+	}
+
 	return 0;
+}
+
+static long hci_le_splitter_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	struct sk_buff *skb;
+	int readable_sz;
+
+	switch (cmd) {
+	case FIONREAD:		/* if we had multiple readers, this would be bad */
+		mutex_lock(&usr_msg_q_lock);
+		skb = skb_peek(&usr_msg_q);
+		readable_sz = skb ? skb->len + 1 : 0;
+		mutex_unlock(&usr_msg_q_lock);
+		return put_user(readable_sz, (int __user *)arg);
+
+	default:
+		return -EINVAL;
+	}
 }
 
 static const struct file_operations hci_le_splitter_fops = {
@@ -380,6 +405,7 @@ static const struct file_operations hci_le_splitter_fops = {
 	.open	        = hci_le_splitter_open,
 	.poll	        = hci_le_splitter_poll,
 	.release	= hci_le_splitter_release,
+	.unlocked_ioctl	= hci_le_splitter_ioctl,
 };
 
 static struct miscdevice mdev = {
@@ -392,8 +418,8 @@ static struct miscdevice mdev = {
 void hci_le_splitter_deinit(struct hci_dev *hdev)
 {
 	mutex_lock(&hci_state_lock);
-	mutex_lock(&usr_msg_q_lock);
 	if (hci_le_splitter_is_our_dev(hdev)) {
+		mutex_lock(&usr_msg_q_lock);
 		cur_dev = NULL;
 		pr_info("HCI splitter unregistered\n");
 
@@ -401,9 +427,9 @@ void hci_le_splitter_deinit(struct hci_dev *hdev)
 		wake_up_interruptible(&usr_msg_wait_q);
 		wake_up_interruptible(&tx_has_room_wait_q);
 		atomic_set(&chip_ready_for_second_stack, 0);
+		mutex_unlock(&usr_msg_q_lock);
 		hci_le_splitter_usr_queue_reset_message(false);
 	}
-	mutex_unlock(&usr_msg_q_lock);
 	mutex_unlock(&hci_state_lock);
 }
 
@@ -415,11 +441,6 @@ void hci_le_splitter_init_fail(struct hci_dev *hdev)
 bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	bool ret = true, skipsem = true;
-
-
-	pr_debug("**** tx type = %u, op=0x%04X count=%u\n", bt_cb(skb)->pkt_type,
-	     bt_cb(skb)->pkt_type == HCI_COMMAND_PKT ? hci_skb_opcode(skb) : 0,
-	     cmd_sem.count);
 
 	mutex_lock(&hci_state_lock);
 
@@ -472,7 +493,7 @@ bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff 
 				pr_info("EDR stack unmasked some events unexpectedly - OK, just weird\n");
 			mask |= evtsLE;
 			*mask_loc = __cpu_to_le64(mask);
-			pr_debug("modified event mask 0x%016llX -> 0x%016llX\n",
+			pr_info("modified event mask 0x%016llX -> 0x%016llX\n",
 				(unsigned long long)oldmask,
 				(unsigned long long)mask);
 
@@ -510,6 +531,7 @@ static bool cid_is_le_conn(u16 cid)
 	return !!cid_find_le_conn(cid);
 }
 
+/* always takes ownership of skb */
 static void hci_le_splitter_enq_packet(struct sk_buff *skb)
 {
 	mutex_lock(&usr_msg_q_lock);
@@ -540,8 +562,8 @@ static void hci_le_splitter_usr_queue_reset_message(bool allow_commands)
 	if (!skb)
 		return;
 
-	ev = (struct hci_event_hdr *)skb->data;
-	cc = (struct hci_ev_cmd_complete *)(ev + 1);
+	ev = (struct hci_event_hdr *)skb_put(skb, HCI_EVENT_HDR_SIZE);
+	cc = (struct hci_ev_cmd_complete *)skb_put(skb, sizeof(struct hci_ev_cmd_complete));
 
 	hci_skb_pkt_type(skb) = HCI_EVENT_PKT;
 	ev->evt = HCI_EV_CMD_COMPLETE;
@@ -798,9 +820,9 @@ static bool hci_le_splitter_filter_num_comp_pkt(struct hci_ev_num_comp_pkts *evt
 						      plen, GFP_KERNEL);
 		if (le_evt) {	/* if this fails, you have bigger problems */
 
-			struct hci_event_hdr *new_hdr = (void *) le_evt->data;
+			struct hci_event_hdr *new_hdr = (struct hci_event_hdr*)skb_put(le_evt, HCI_EVENT_HDR_SIZE);
 			struct hci_ev_num_comp_pkts *new_evt = (struct hci_ev_num_comp_pkts *)
-				(((u8 *) le_evt->data) + HCI_EVENT_HDR_SIZE);
+				skb_put(le_evt, sizeof(struct hci_ev_num_comp_pkts) + sizeof(struct hci_comp_pkts_info) * le_nonzero_conns);
 
 			hci_skb_pkt_type(le_evt) = HCI_EVENT_PKT;
 			new_hdr->evt = HCI_EV_NUM_COMP_PKTS;
@@ -846,15 +868,21 @@ static bool hci_le_splitter_filter_num_comp_pkt(struct hci_ev_num_comp_pkts *evt
 		evt->num_hndl = j;
 	}
 
-	/* if any LE packets got freed, signal user */
+	/* if any LE buffers got freed, signal user */
 	if (le_pkts)
 		wake_up_interruptible(&tx_has_room_wait_q);
 
-	/* if any EDR packets left in the event, it is not ours to claim */
+    /* if any EDR packets left in the event, it is not ours to claim */
+	if (evt->num_hndl)
+        return false;
+
+    /* but if no EDR handles left, we need to free the skb */
+    
+
 	return !evt->num_hndl;
 }
 
-/* called with lock held, return true to let bluez have the event */
+/* called with lock held, return true to let bluez have the event. if we return false, WE must free packet */
 static bool hci_le_splitter_should_allow_bluez_rx_evt(struct sk_buff *skb)
 {
 	struct hci_event_hdr *hdr = (void *) skb->data;
@@ -868,8 +896,6 @@ static bool hci_le_splitter_should_allow_bluez_rx_evt(struct sk_buff *skb)
 	struct hci_ev_key_refresh_complete *key_refr = evt_data;
 	bool isours = false, enq_if_ours = true;
 	int len_chng = 0;
-
-	pr_debug("**** rx evt 0x%04X count=%u\n", hdr->evt, cmd_sem.count);
 
 	switch (hdr->evt) {
 	case HCI_EV_DISCONN_COMPLETE:
@@ -899,23 +925,27 @@ static bool hci_le_splitter_should_allow_bluez_rx_evt(struct sk_buff *skb)
 	case HCI_EV_LE_META:
 		isours = hci_le_splitter_filter_le_meta(le_meta);
 		break;
+	case HCI_EV_VENDOR:
+		/* always ours */
+		isours = true;
+		break;
 	}
 
 	skb->len += len_chng;
 
 	if (isours && enq_if_ours)
 		hci_le_splitter_enq_packet(skb);
+	else if (isours) /* we still own it, so free it */
+		kfree_skb(skb);
 
 	return !isours;
 }
 
-/* return true to let bluez have the packet */
+/* return true to let bluez have the packet. if we return false, WE must free packet */
 bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	u16 acl_handle, acl_flags;
 	bool ret = true;
-
-	pr_debug("**** rx %u count=%u\n", hci_skb_pkt_type(skb), cmd_sem.count);
 
 	mutex_lock(&hci_state_lock);
 	if (hci_le_splitter_is_our_dev(hdev)) {
