@@ -355,7 +355,7 @@ static void unwind_wa_tail(struct drm_i915_gem_request *rq)
 	assert_ring_tail_valid(rq->ring, rq->tail);
 }
 
-static void unwind_incomplete_requests(struct intel_engine_cs *engine)
+static void __unwind_incomplete_requests(struct intel_engine_cs *engine)
 {
 	struct drm_i915_gem_request *rq, *rn;
 
@@ -378,6 +378,17 @@ static void unwind_incomplete_requests(struct intel_engine_cs *engine)
 		list_add(&rq->priotree.link,
 			 &ptr_mask_bits(p, 1)->requests);
 	}
+}
+
+static void
+execlists_unwind_incomplete_requests(struct intel_engine_execlists *execlists)
+{
+	struct intel_engine_cs *engine =
+		container_of(execlists, typeof(*engine), execlists);
+
+	spin_lock_irq(&engine->timeline->lock);
+	__unwind_incomplete_requests(engine);
+	spin_unlock_irq(&engine->timeline->lock);
 }
 
 static inline void
@@ -510,11 +521,6 @@ static void inject_preempt_context(struct intel_engine_cs *engine)
 	elsp_write(ce->lrc_desc, elsp);
 }
 
-static bool can_preempt(struct intel_engine_cs *engine)
-{
-	return INTEL_INFO(engine->i915)->has_logical_ring_preemption;
-}
-
 static void execlists_dequeue(struct intel_engine_cs *engine)
 {
 	struct intel_engine_execlists * const execlists = &engine->execlists;
@@ -562,7 +568,7 @@ static void execlists_dequeue(struct intel_engine_cs *engine)
 		if (port_count(&port[0]) > 1)
 			goto unlock;
 
-		if (can_preempt(engine) &&
+		if (HAS_LOGICAL_RING_PREEMPTION(engine->i915) &&
 		    rb_entry(rb, struct i915_priolist, node)->priority >
 		    max(last->priotree.priority, 0)) {
 			/*
@@ -688,7 +694,7 @@ unlock:
 }
 
 static void
-execlist_cancel_port_requests(struct intel_engine_execlists *execlists)
+execlists_cancel_port_requests(struct intel_engine_execlists * const execlists)
 {
 	struct execlist_port *port = execlists->port;
 	unsigned int num_ports = execlists_num_ports(execlists);
@@ -715,7 +721,7 @@ static void execlists_cancel_requests(struct intel_engine_cs *engine)
 	spin_lock_irqsave(&engine->timeline->lock, flags);
 
 	/* Cancel the requests on the HW and clear the ELSP tracker. */
-	execlist_cancel_port_requests(execlists);
+	execlists_cancel_port_requests(execlists);
 
 	/* Mark all executing requests as skipped. */
 	list_for_each_entry(rq, &engine->timeline->requests, link) {
@@ -857,11 +863,8 @@ static void intel_lrc_irq_handler(unsigned long data)
 
 			if (status & GEN8_CTX_STATUS_ACTIVE_IDLE &&
 			    buf[2*head + 1] == PREEMPT_ID) {
-				execlist_cancel_port_requests(execlists);
-
-				spin_lock_irq(&engine->timeline->lock);
-				unwind_incomplete_requests(engine);
-				spin_unlock_irq(&engine->timeline->lock);
+				execlists_cancel_port_requests(execlists);
+				execlists_unwind_incomplete_requests(execlists);
 
 				GEM_BUG_ON(!execlists_is_active(execlists,
 								EXECLISTS_ACTIVE_PREEMPT));
@@ -1537,10 +1540,10 @@ static void reset_common_ring(struct intel_engine_cs *engine,
 	 * guessing the missed context-switch events by looking at what
 	 * requests were completed.
 	 */
-	execlist_cancel_port_requests(execlists);
+	execlists_cancel_port_requests(execlists);
 
 	/* Push back any incomplete requests for replay after the reset. */
-	unwind_incomplete_requests(engine);
+	__unwind_incomplete_requests(engine);
 
 	spin_unlock_irqrestore(&engine->timeline->lock, flags);
 
