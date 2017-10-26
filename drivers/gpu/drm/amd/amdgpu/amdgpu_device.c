@@ -2038,8 +2038,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 			dev_err(adev->dev, "gpu post error!\n");
 			goto failed;
 		}
-	} else {
-		DRM_INFO("GPU post is not needed\n");
 	}
 
 	if (adev->is_atom_fw) {
