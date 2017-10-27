@@ -408,7 +408,7 @@ static void virtwl_vfd_remove(struct virtwl_vfd *vfd)
 	virtwl_vfd_lock_unlink(vfd);
 
 	mutex_lock(vq_lock);
-	list_for_each_entry_safe(next, qentry, &vfd->in_queue, list) {
+	list_for_each_entry_safe(qentry, next, &vfd->in_queue, list) {
 		vq_return_inbuf_locked(vq, qentry->hdr);
 		list_del(&qentry->list);
 		kfree(qentry);
