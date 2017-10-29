@@ -1726,8 +1726,8 @@ static void iwl_mvm_tx_reclaim(struct iwl_mvm *mvm, int sta_id, int tid,
 
 		if (ieee80211_is_data_qos(hdr->frame_control))
 			freed++;
-		else if (tid != IWL_MAX_TID_COUNT)
-			WARN_ON_ONCE(1);
+		else
+			WARN_ON_ONCE(tid != IWL_MAX_TID_COUNT);
 
 		iwl_trans_free_tx_cmd(mvm->trans, info->driver_data[1]);
 
