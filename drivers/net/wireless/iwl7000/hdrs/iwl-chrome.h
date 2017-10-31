@@ -217,10 +217,6 @@ _genl_register_family_with_ops_grps(struct genl_family *family,
 
 	return 0;
 }
-#define genl_register_family_with_ops_groups(family, ops, grps)		\
-	_genl_register_family_with_ops_grps((family),			\
-					    (ops), ARRAY_SIZE(ops),	\
-					    (grps), ARRAY_SIZE(grps))
 #else
 #define __genl_const const
 #endif
@@ -643,10 +639,6 @@ _genl_register_family_with_ops_grps(struct genl_family *family,
 	_genl_register_family_with_ops_grps((family),			\
 					    (ops), ARRAY_SIZE(ops),	\
 					    NULL, 0)
-#define genl_register_family_with_ops_groups(family, ops, grps)		\
-	_genl_register_family_with_ops_grps((family),			\
-					    (ops), ARRAY_SIZE(ops),	\
-					    (grps), ARRAY_SIZE(grps))
 
 #define genl_unregister_family backport_genl_unregister_family
 int genl_unregister_family(struct genl_family *family);
