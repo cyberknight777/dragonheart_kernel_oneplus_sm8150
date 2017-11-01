@@ -188,7 +188,6 @@ static int dm_connector_update_modes(struct drm_connector *connector,
 	int ret;
 
 	ret = drm_add_edid_modes(connector, edid);
-	drm_edid_to_eld(connector, edid);
 
 	return ret;
 }
