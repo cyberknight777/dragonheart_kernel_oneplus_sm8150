@@ -460,7 +460,7 @@ void rs_free(void *mvm_rate);
 void rs_free_sta(void *mvm_r, struct ieee80211_sta *sta, void *mvm_sta);
 void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		     enum nl80211_band band);
-
 int rs_fw_register_ops(void);
 void rs_fw_unregister_ops(void);
+void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt);
 #endif /* __rs__ */
