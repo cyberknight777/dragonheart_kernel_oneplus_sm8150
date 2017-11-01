@@ -359,9 +359,61 @@ static void rs_fw_mac80211_tx_status(void *mvm_r,
 }
 
 #ifdef CPTCFG_MAC80211_DEBUGFS
+
+static ssize_t rs_fw_sta_dbgfs_rs_data_read(struct file *file,
+					    char __user *user_buf,
+					    size_t count, loff_t *ppos)
+{
+	struct iwl_lq_sta_rs_fw *lq_sta = file->private_data;
+	char *buff;
+	int desc = 0;
+	ssize_t ret;
+	struct iwl_mvm *mvm;
+
+	mvm = lq_sta->pers.drv;
+	buff = kmalloc(2048, GFP_KERNEL);
+	if (!buff)
+		return -ENOMEM;
+
+	desc += sprintf(buff + desc, "sta_id %d\n", lq_sta->pers.sta_id);
+	desc += sprintf(buff + desc, "fixed rate 0x%X\n",
+			lq_sta->pers.dbg_fixed_rate);
+	desc += sprintf(buff + desc, "A-MPDU size limit %d\n",
+			lq_sta->pers.dbg_agg_frame_count_lim);
+
+	desc += sprintf(buff + desc, "valid_tx_ant %s%s%s\n",
+	    (iwl_mvm_get_valid_tx_ant(mvm) & ANT_A) ? "ANT_A," : "",
+	    (iwl_mvm_get_valid_tx_ant(mvm) & ANT_B) ? "ANT_B," : "",
+	    (iwl_mvm_get_valid_tx_ant(mvm) & ANT_C) ? "ANT_C" : "");
+	desc += sprintf(buff + desc, "last tx rate=0x%X ",
+			lq_sta->last_rate_n_flags);
+
+	desc += rs_pretty_print_rate(buff + desc, lq_sta->last_rate_n_flags);
+
+	ret = simple_read_from_buffer(user_buf, count, ppos, buff, desc);
+	kfree(buff);
+	return ret;
+}
+
+static const struct file_operations rs_fw_sta_dbgfs_rs_data_ops = {
+	.read = rs_fw_sta_dbgfs_rs_data_read,
+	.open = simple_open,
+	.llseek = default_llseek,
+};
+
 static void rs_fw_add_sta_debugfs(void *mvm_rate, void *priv_sta,
 				  struct dentry *dir)
 {
+	struct iwl_lq_sta_rs_fw *lq_sta = priv_sta;
+	struct iwl_mvm_sta *mvmsta;
+
+	mvmsta = container_of(lq_sta, struct iwl_mvm_sta, lq_sta.rs_fw);
+
+	if (!mvmsta->vif)
+		return;
+
+	debugfs_create_file("rs_data", S_IRUSR, dir,
+			    lq_sta, &rs_fw_sta_dbgfs_rs_data_ops);
 }
 #endif
 
