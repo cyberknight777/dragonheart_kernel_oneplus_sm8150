@@ -1816,7 +1816,7 @@ int drm_atomic_debugfs_init(struct drm_minor *minor)
 #endif
 
 /*
- * The big monstor ioctl
+ * The big monster ioctl
  */
 
 static struct drm_pending_vblank_event *create_vblank_event(
