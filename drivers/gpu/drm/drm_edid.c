@@ -4659,13 +4659,17 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 	u32 quirks;
 
 	if (edid == NULL) {
+		clear_eld(connector);
 		return 0;
 	}
 	if (!drm_edid_is_valid(edid)) {
+		clear_eld(connector);
 		dev_warn(connector->dev->dev, "%s: EDID invalid.\n",
 			 connector->name);
 		return 0;
 	}
+
+	drm_edid_to_eld(connector, edid);
 
 	/*
 	 * CEA-861-F adds ycbcr capability map block, for HDMI 2.0 sinks.
