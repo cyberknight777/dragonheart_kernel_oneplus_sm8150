@@ -199,8 +199,16 @@ static inline struct net *possible_read_pnet(const possible_net_t *pnet)
 	(_dev)->needs_free_netdev = true;
 #endif
 
+/*
+ * ChromeOS cherry-picked this in 3.8, 3.14 and 3.18.  And it is also
+ * in 4.4 (inherited from stable).  Let's keep the check for 4.8 check
+ * still here for the unlikely case that they branch out before
+ * 4.8.13 and don't cherry-pick it.
+ */
 #if LINUX_VERSION_IS_LESS(4,9,0) &&			\
-	!LINUX_VERSION_IN_RANGE(3,12,69, 3,13,0) &&	\
+	!LINUX_VERSION_IN_RANGE(3,8,0, 3,9,0) &&	\
+	!LINUX_VERSION_IN_RANGE(3,14,0, 3,15,0) &&	\
+	!LINUX_VERSION_IN_RANGE(3,18,0, 3,19,0) &&	\
 	!LINUX_VERSION_IN_RANGE(4,4,37, 4,5,0) &&	\
 	!LINUX_VERSION_IN_RANGE(4,8,13, 4,9,0)
 
@@ -217,5 +225,4 @@ static inline struct pci_dev *pcie_find_root_port(struct pci_dev *dev)
 	}
 	return NULL;
 }
-
-#endif/* <4.9.0 but not >= 3.12.69, 4.4.37, 4.8.13 */
+#endif
