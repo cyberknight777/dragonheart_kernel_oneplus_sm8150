@@ -1162,9 +1162,14 @@ fw_dbg_conf:
 			minor = le32_to_cpup(ptr++);
 			local_comp = le32_to_cpup(ptr);
 
-			snprintf(drv->fw.fw_version,
-				 sizeof(drv->fw.fw_version), "%u.%u.%u",
-				 major, minor, local_comp);
+			if (major >= 35)
+				snprintf(drv->fw.fw_version,
+					 sizeof(drv->fw.fw_version),
+					"%u.%08x.%u", major, minor, local_comp);
+			else
+				snprintf(drv->fw.fw_version,
+					 sizeof(drv->fw.fw_version),
+					"%u.%u.%u", major, minor, local_comp);
 			break;
 			}
 		case IWL_UCODE_TLV_FW_DBG_DEST: {
