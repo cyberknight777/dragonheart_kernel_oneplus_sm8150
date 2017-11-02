@@ -246,6 +246,24 @@ void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
 	}
 }
 
+/* TODO: remove this command handler when API changes */
+static void rs_fw_agg_mgr_config(struct iwl_mvm *mvm)
+{
+	u32 cmd_id = iwl_cmd_id(AGG_MNG_CONFIG_CMD, DATA_PATH_GROUP, 0);
+	struct iwl_agg_mng_config_cmd cfg_cmd = {
+		.agg_time_limit = cpu_to_le16(IWL_MVM_RS_AGG_TIME_LIMIT),
+		.ba_timeout = cpu_to_le16(IWL_MVM_TXAGG_TIMEOUT),
+		.ba_streams = IEEE80211_NUM_TIDS,
+		.ba_policy = IWL_AGG_MNG_BA_POLICY_IMMEDIATE,
+	};
+	int ret;
+
+	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, sizeof(cfg_cmd), &cfg_cmd);
+	if (ret)
+		IWL_ERR(mvm, "Failed to send AGG Manager config command: %d\n",
+			ret);
+}
+
 void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		     enum nl80211_band band)
 {
@@ -278,6 +296,7 @@ void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		IWL_ERR(mvm, "Failed to send rate scale config (%d)\n", ret);
 
 	rs_fw_tlc_mng_notif_req_config(mvm, cfg_cmd.sta_id);
+	rs_fw_agg_mgr_config(mvm);
 }
 
 static void rs_fw_get_rate(void *mvm_r, struct ieee80211_sta *sta,
