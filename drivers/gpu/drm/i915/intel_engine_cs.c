@@ -1311,6 +1311,9 @@ static int cnl_init_workarounds(struct intel_engine_cs *engine)
 	WA_SET_FIELD_MASKED(GEN8_CS_CHICKEN1, GEN9_PREEMPT_GPGPU_LEVEL_MASK,
 			    GEN9_PREEMPT_GPGPU_COMMAND_LEVEL);
 
+	/* ReadHitWriteOnlyDisable: cnl */
+	WA_SET_BIT_MASKED(SLICE_UNIT_LEVEL_CLKGATE, RCCUNIT_CLKGATE_DIS);
+
 	/* WaEnablePreemptionGranularityControlByUMD:cnl */
 	ret= wa_ring_whitelist_reg(engine, GEN8_CS_CHICKEN1);
 	if (ret)
