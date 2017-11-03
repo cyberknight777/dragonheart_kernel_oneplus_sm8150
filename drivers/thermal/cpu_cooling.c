@@ -35,9 +35,9 @@
 
 #include <trace/events/thermal.h>
 
-DEFINE_RATELIMIT_STATE(cpu_cooling_ratelimit_state, 30 * HZ, 1);
+static DEFINE_RATELIMIT_STATE(cpu_cooling_ratelimit_state, 30 * HZ, 1);
 
-int cpu_cooling_ratelimit(void)
+static int cpu_cooling_ratelimit(void)
 {
 	return __ratelimit(&cpu_cooling_ratelimit_state);
 }

@@ -33,9 +33,9 @@
 
 static DEFINE_IDA(devfreq_ida);
 
-DEFINE_RATELIMIT_STATE(devfreq_cooling_ratelimit_state, 30 * HZ, 1);
+static DEFINE_RATELIMIT_STATE(devfreq_cooling_ratelimit_state, 30 * HZ, 1);
 
-int devfreq_cooling_ratelimit(void)
+static int devfreq_cooling_ratelimit(void)
 {
 	return __ratelimit(&devfreq_cooling_ratelimit_state);
 }
