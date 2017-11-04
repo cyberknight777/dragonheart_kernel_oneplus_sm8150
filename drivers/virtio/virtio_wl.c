@@ -487,6 +487,7 @@ static ssize_t vfd_out_locked(struct virtwl_vfd *vfd, char __user *buffer,
 	return read_count;
 }
 
+/* must hold both vfd->lock and vi->vfds_lock */
 static size_t vfd_out_vfds_locked(struct virtwl_vfd *vfd,
 				  struct virtwl_vfd **vfds, size_t count)
 {
@@ -515,17 +516,7 @@ static size_t vfd_out_vfds_locked(struct virtwl_vfd *vfd,
 
 		for (i = 0; i < vfds_to_read; i++) {
 			uint32_t vfd_id = le32_to_cpu(vfds_le[i]);
-			/*
-			 * This is an inversion of the typical locking order
-			 * (vi->vfds_lock before vfd->lock). The reason this is
-			 * safe from deadlocks is because the lock held as a
-			 * precondition of this function call is always for a
-			 * different vfd than the one received on this vfd's
-			 * queue.
-			 */
-			mutex_lock(&vi->vfds_lock);
 			vfds[read_count] = idr_find(&vi->vfds, vfd_id);
-			mutex_unlock(&vi->vfds_lock);
 			if (vfds[read_count]) {
 				read_count++;
 			} else {
@@ -586,14 +577,17 @@ static ssize_t virtwl_vfd_recv(struct file *filp, char __user *buffer,
 			       size_t *vfd_count)
 {
 	struct virtwl_vfd *vfd = filp->private_data;
+	struct virtwl_info *vi = vfd->vi;
 	ssize_t read_count = 0;
 	size_t vfd_read_count = 0;
 
+	mutex_lock(&vi->vfds_lock);
 	mutex_lock(&vfd->lock);
 
 	while (read_count == 0 && vfd_read_count == 0) {
 		while (list_empty(&vfd->in_queue)) {
 			mutex_unlock(&vfd->lock);
+			mutex_unlock(&vi->vfds_lock);
 			if (filp->f_flags & O_NONBLOCK)
 				return -EAGAIN;
 
@@ -601,6 +595,7 @@ static ssize_t virtwl_vfd_recv(struct file *filp, char __user *buffer,
 				!list_empty(&vfd->in_queue)))
 				return -ERESTARTSYS;
 
+			mutex_lock(&vi->vfds_lock);
 			mutex_lock(&vfd->lock);
 		}
 
@@ -616,6 +611,7 @@ static ssize_t virtwl_vfd_recv(struct file *filp, char __user *buffer,
 
 out_unlock:
 	mutex_unlock(&vfd->lock);
+	mutex_unlock(&vi->vfds_lock);
 	return read_count;
 }
 
