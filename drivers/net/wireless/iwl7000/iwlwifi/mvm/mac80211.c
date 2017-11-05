@@ -519,7 +519,11 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			    IEEE80211_RADIOTAP_HE_DATA2_LTF_SYMS_KNOWN |
 			    IEEE80211_RADIOTAP_HE_DATA2_TXBF_KNOWN);
 
-	hw->rate_control_algorithm = "iwl-mvm-rs";
+	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD))
+		hw->rate_control_algorithm = RS_NAME_FW;
+	else
+		hw->rate_control_algorithm = RS_NAME_DRV;
+
 	hw->uapsd_queues = IWL_MVM_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IWL_UAPSD_MAX_SP;
 

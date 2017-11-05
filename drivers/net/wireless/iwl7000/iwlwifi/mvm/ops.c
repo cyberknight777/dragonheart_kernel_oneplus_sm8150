@@ -140,18 +140,9 @@ static int __init iwl_mvm_init(void)
 {
 	int ret;
 
-	ret = iwl_mvm_rate_control_register();
-	if (ret) {
-		pr_err("Unable to register rate control algorithm: %d\n", ret);
-		return ret;
-	}
-
 	ret = iwl_opmode_register("iwlmvm", &iwl_mvm_ops);
-
-	if (ret) {
+	if (ret)
 		pr_err("Unable to register MVM op_mode: %d\n", ret);
-		iwl_mvm_rate_control_unregister();
-	}
 
 	return ret;
 }
@@ -160,7 +151,6 @@ module_init(iwl_mvm_init);
 static void __exit iwl_mvm_exit(void)
 {
 	iwl_opmode_deregister("iwlmvm");
-	iwl_mvm_rate_control_unregister();
 }
 module_exit(iwl_mvm_exit);
 
@@ -864,9 +854,16 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		IWL_DEBUG_EEPROM(mvm->trans->dev,
 				 "working without external nvm file\n");
 
+	err = iwl_mvm_rate_control_register(fw);
+	if (err) {
+		IWL_ERR(mvm,  "Unable to register rate control algorithm: %d\n",
+			err);
+		goto out_free;
+	}
+
 	err = iwl_trans_start_hw(mvm->trans);
 	if (err)
-		goto out_free;
+		goto out_unregister_rs;
 
 	mutex_lock(&mvm->mutex);
 	iwl_mvm_ref(mvm, IWL_MVM_REF_INIT_UCODE);
@@ -877,21 +874,21 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	mutex_unlock(&mvm->mutex);
 	if (err < 0) {
 		IWL_ERR(mvm, "Failed to run INIT ucode: %d\n", err);
-		goto out_free;
+		goto out_unregister_rs;
 	}
 
 	scan_size = iwl_mvm_scan_size(mvm);
 
 	mvm->scan_cmd = kmalloc(scan_size, GFP_KERNEL);
 	if (!mvm->scan_cmd)
-		goto out_free;
+		goto out_unregister_rs;
 
 	/* Set EBS as successful as long as not stated otherwise by the FW. */
 	mvm->last_ebs_successful = true;
 
 	err = iwl_mvm_mac_setup_register(mvm);
 	if (err)
-		goto out_free;
+		goto out_unregister_rs;
 	mvm->hw_registered = true;
 
 	min_backoff = iwl_mvm_min_backoff(mvm);
@@ -928,6 +925,8 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	mvm->hw_registered = false;
 	iwl_mvm_leds_exit(mvm);
 	iwl_mvm_thermal_exit(mvm);
+ out_unregister_rs:
+	iwl_mvm_rate_control_unregister(fw);
  out_free:
 	iwl_fw_flush_dump(&mvm->fwrt);
 
@@ -964,6 +963,8 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 		ieee80211_unregister_hw(mvm->hw);
 		mvm->init_status &= ~IWL_MVM_INIT_STATUS_REG_HW_INIT_COMPLETE;
 	}
+
+	iwl_mvm_rate_control_unregister(mvm->fw);
 
 	kfree(mvm->scan_cmd);
 	kfree(mvm->mcast_filter_cmd);
