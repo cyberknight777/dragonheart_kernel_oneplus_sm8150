@@ -626,7 +626,7 @@ struct iwl_xvt_driver_command_resp {
 } __packed __aligned(4);
 
 /**
- * iwl_xvt_txq_config - add tx queue. Input for IWL_DRV_CMD_CONFIG_TX_QUEUE
+ * iwl_xvt_txq_config - add/remove tx queue. IWL_DRV_CMD_CONFIG_TX_QUEUE input.
  * @sta_id: station id
  * @tid: TID
  * @scd_queue: scheduler queue to configure

@@ -1444,6 +1444,61 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
+			   struct iwl_scd_txq_cfg_cmd *cmd,
+			   u16 ssn)
+{
+	int queue_id = cmd->scd_queue, ret;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		/*TODO: add support for second lmac*/
+		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
+			.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+			.sta_id = cmd->sta_id,
+			.tid = cmd->tid
+		};
+
+		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
+					       SCD_QUEUE_CFG, 0);
+		if (queue_id < 0)
+			return queue_id;
+	} else {
+		iwl_trans_txq_enable_cfg(xvt->trans, queue_id, ssn, NULL, 0);
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0, sizeof(*cmd),
+					   cmd);
+		if (ret) {
+			IWL_ERR(xvt, "Failed to config queue %d on FIFO %d\n",
+				cmd->scd_queue, cmd->tx_fifo);
+			return ret;
+		}
+	}
+
+	xvt->tx_meta_data[XVT_LMAC_0_ID].queue = queue_id;
+
+	return queue_id;
+}
+
+static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
+			      struct iwl_scd_txq_cfg_cmd *cmd)
+{
+	int ret = 0;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		iwl_trans_txq_free(xvt->trans, cmd->scd_queue);
+	} else {
+		iwl_trans_txq_disable(xvt->trans, cmd->scd_queue, false);
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0,
+					   sizeof(*cmd), cmd);
+	}
+
+	if (WARN(ret, "failed to send SCD_QUEUE_CFG"))
+		return ret;
+
+	xvt->tx_meta_data[XVT_LMAC_0_ID].queue = -1;
+
+	return 0;
+}
+
 static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 			      struct iwl_xvt_driver_command_req *req,
 			      struct iwl_xvt_driver_command_resp *resp)
@@ -1451,7 +1506,7 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 	struct iwl_xvt_txq_config *conf =
 		(struct iwl_xvt_txq_config *)req->input_data;
 	struct iwl_xvt_txq_config_resp txq_resp;
-	int queue_id = conf->scd_queue, ret;
+	int queue_id = conf->scd_queue, error;
 
 	struct iwl_scd_txq_cfg_cmd cmd = {
 		.sta_id = conf->sta_id,
@@ -1467,32 +1522,16 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 	if (req->max_out_length < sizeof(txq_resp))
 		return -ENOBUFS;
 
-	if (iwl_xvt_is_unified_fw(xvt)) {
-		/*TODO: add support for second lmac*/
-		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
-				.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-				.sta_id = conf->sta_id,
-				.tid = conf->tid
-		};
-
-		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
-					       SCD_QUEUE_CFG, 0);
+	if (conf->action == TX_QUEUE_CFG_REMOVE) {
+		error = iwl_xvt_remove_txq(xvt, &cmd);
+		if (WARN(error, "failed to remove queue"))
+			return error;
+	} else {
+		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn);
 		if (queue_id < 0)
 			return queue_id;
-	} else {
-		iwl_trans_txq_enable_cfg(xvt->trans, queue_id, conf->ssn,
-					 NULL, 0);
-
-		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0, sizeof(cmd),
-					   &cmd);
-		if (ret) {
-			IWL_ERR(xvt, "Failed to config queue %d on FIFO %d\n",
-				conf->scd_queue, conf->tx_fifo);
-			return ret;
-		}
 	}
 
-	xvt->tx_meta_data[XVT_LMAC_0_ID].queue = queue_id;
 	txq_resp.scd_queue = queue_id;
 	txq_resp.sta_id = conf->sta_id;
 	txq_resp.tid = conf->tid;
