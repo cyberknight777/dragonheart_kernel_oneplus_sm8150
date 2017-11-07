@@ -78,6 +78,21 @@ struct gpio_irq_chip {
 	 * interrupt.
 	 */
 	void *parent_handler_data;
+
+	/**
+	 * @num_parents:
+	 *
+	 * The number of interrupt parents of a GPIO chip.
+	 */
+	unsigned int num_parents;
+
+	/**
+	 * @parents:
+	 *
+	 * A list of interrupt parents of a GPIO chip. This is owned by the
+	 * driver, so the core will only reference this list, not modify it.
+	 */
+	unsigned int *parents;
 };
 
 static inline struct gpio_irq_chip *to_gpio_irq_chip(struct irq_chip *chip)
@@ -147,9 +162,6 @@ static inline struct gpio_irq_chip *to_gpio_irq_chip(struct irq_chip *chip)
  *	safely.
  * @bgpio_dir: shadowed direction register for generic GPIO to clear/set
  *	direction safely.
- * @irq_chained_parent: GPIO IRQ chip parent/bank linux irq number,
- *	provided by GPIO driver for chained interrupt (not for nested
- *	interrupts).
  * @irq_nested: True if set the interrupt handling is nested.
  * @irq_need_valid_mask: If set core allocates @irq_valid_mask with all
  *	bits set to one
@@ -222,7 +234,6 @@ struct gpio_chip {
 	 * With CONFIG_GPIOLIB_IRQCHIP we get an irqchip inside the gpiolib
 	 * to handle IRQs for most practical cases.
 	 */
-	unsigned int		irq_chained_parent;
 	bool			irq_nested;
 	bool			irq_need_valid_mask;
 	unsigned long		*irq_valid_mask;
