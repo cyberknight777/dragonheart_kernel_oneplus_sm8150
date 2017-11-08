@@ -570,7 +570,7 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
 {
 	struct drm_device *dev;
 	unsigned long flags = ent->driver_data;
-	int ret;
+	int ret, retry = 0;
 	bool supports_atomic = false;
 
 	if (!amdgpu_virtual_display &&
@@ -615,8 +615,14 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
 
 	pci_set_drvdata(pdev, dev);
 
+retry_init:
 	ret = drm_dev_register(dev, ent->driver_data);
-	if (ret)
+	if (ret == -EAGAIN && ++retry <= 3) {
+		DRM_INFO("retry init %d\n", retry);
+		/* Don't request EX mode too frequently which is attacking */
+		msleep(5000);
+		goto retry_init;
+	} else if (ret)
 		goto err_pci;
 
 	return 0;
