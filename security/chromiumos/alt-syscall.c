@@ -72,7 +72,7 @@ static asmlinkage long block_syscall(void)
 	struct task_struct *task = current;
 	struct pt_regs *regs = task_pt_regs(task);
 
-	pr_warn("[%d] %s: blocked syscall %d\n", task_pid_nr(task),
+	pr_warn_ratelimited("[%d] %s: blocked syscall %d\n", task_pid_nr(task),
 		task->comm, syscall_get_nr(task, regs));
 
 	return -ENOSYS;
