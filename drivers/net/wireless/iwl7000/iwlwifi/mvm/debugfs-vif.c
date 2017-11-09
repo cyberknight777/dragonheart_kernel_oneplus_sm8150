@@ -861,6 +861,24 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 		goto out;
 	}
 
+	data = iwl_dbgfs_is_match("common_calib=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.range_req.common_calib =
+				cpu_to_le16(value);
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("specific_calib=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.range_req.specific_calib =
+				cpu_to_le16(value);
+		goto out;
+	}
+
 	data = iwl_dbgfs_is_match("ap=", buf);
 	if (data) {
 		struct iwl_tof_range_req_ap_entry ap = {};
@@ -944,6 +962,10 @@ static ssize_t iwl_dbgfs_tof_range_request_read(struct file *file,
 			 cmd->macaddr_template);
 	pos += scnprintf(buf + pos, bufsz - pos, "macaddr_mask= %pM\n",
 			 cmd->macaddr_mask);
+	pos += scnprintf(buf + pos, bufsz - pos, "common_calib= %d\n",
+			 le16_to_cpu(cmd->common_calib));
+	pos += scnprintf(buf + pos, bufsz - pos, "specific_calib= %d\n",
+			 le16_to_cpu(cmd->specific_calib));
 	pos += scnprintf(buf + pos, bufsz - pos, "num_of_ap= %d\n",
 			 cmd->num_of_ap);
 	for (i = 0; i < cmd->num_of_ap; i++) {
