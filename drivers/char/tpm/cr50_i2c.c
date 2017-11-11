@@ -423,6 +423,13 @@ static int cr50_i2c_tis_recv(struct tpm_chip *chip, u8 *buf, size_t buf_len)
 	if (rc < 0)
 		goto out_err;
 
+	if (burstcnt > buf_len) {
+		dev_err(&chip->dev, "Burstcnt too large: %zu > %zu\n",
+			burstcnt, buf_len);
+		rc = -EIO;
+		goto out_err;
+	}
+
 	/* Read first chunk of burstcnt bytes */
 	rc = cr50_i2c_read(chip, addr, buf, burstcnt);
 	if (rc < 0) {
