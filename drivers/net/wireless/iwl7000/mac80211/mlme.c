@@ -3138,9 +3138,9 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 			sta->sta.he_cap.he_cap_elem.mac_cap_info[2] &
 			IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP;
 
-		bss_conf->ack_enabled_multitid =
+		bss_conf->ack_enabled =
 			sta->sta.he_cap.he_cap_elem.mac_cap_info[2] &
-			IEEE80211_HE_MAC_CAP2_ACK_EN_MULTI_TID_ADD;
+			IEEE80211_HE_MAC_CAP2_ACK_EN;
 
 		bss_conf->uora_exists = !!elems.uora_element;
 		if (elems.uora_element)

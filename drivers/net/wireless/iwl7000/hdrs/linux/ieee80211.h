@@ -1544,7 +1544,7 @@ struct ieee80211_vht_operation {
  * struct ieee80211_he_cap_elem - HE capabilities element
  *
  * This structure is the "HE capabilities element" fixed fields as
- * described in P802.11ax_D1.4 section 9.4.2.237.1
+ * described in P802.11ax_D2.0 section 9.4.2.237.2 and 9.4.2.237.3
  */
 struct ieee80211_he_cap_elem {
 	u8 mac_cap_info[5];
@@ -1578,7 +1578,7 @@ enum ieee80211_he_mcs_support {
  * struct ieee80211_he_mcs_nss_supp - HE Tx/Rx HE MCS NSS Support Field
  *
  * This structure holds the data required for the Tx/Rx HE MCS NSS Support Field
- * described in P802.11ax_D1.4 section 9.4.2.237.4
+ * described in P802.11ax_D2.0 section 9.4.2.237.4
  *
  * @rx_msc_80: Rx MCS map 2 bits for each stream, total 8 streams, for channel
  *     widths less than 80MHz.
@@ -1606,7 +1606,7 @@ struct ieee80211_he_mcs_nss_supp {
  * struct ieee80211_he_operation - HE capabilities element
  *
  * This structure is the "HE operation element" fields as
- * described in P802.11ax_D1.4 section 9.4.2.238
+ * described in P802.11ax_D2.0 section 9.4.2.238
  */
 struct ieee80211_he_operation {
 	__le32 he_oper_params;
@@ -1619,7 +1619,7 @@ struct ieee80211_he_operation {
  * struct ieee80211_he_mu_edca_param_ac_rec - MU AC Parameter Record field
  *
  * This structure is the "MU AC Parameter Record" fields as
- * described in P802.11ax_D1.4 section 9.4.2.240
+ * described in P802.11ax_D2.0 section 9.4.2.240
  */
 struct ieee80211_he_mu_edca_param_ac_rec {
 	u8 aifsn;
@@ -1631,7 +1631,7 @@ struct ieee80211_he_mu_edca_param_ac_rec {
  * struct ieee80211_mu_edca_param_set - MU EDCA Parameter Set element
  *
  * This structure is the "MU EDCA Parameter Set element" fields as
- * described in P802.11ax_D1.4 section 9.4.2.240
+ * described in P802.11ax_D2.0 section 9.4.2.240
  */
 struct ieee80211_mu_edca_param_set {
 	u8 mu_qos_info;
@@ -1732,7 +1732,7 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_MAC_CAP2_BCAST_TWT				0x10
 #define IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP			0x20
 #define IEEE80211_HE_MAC_CAP2_MU_CASCADING			0x40
-#define IEEE80211_HE_MAC_CAP2_ACK_EN_MULTI_TID_ADD		0x80
+#define IEEE80211_HE_MAC_CAP2_ACK_EN				0x80
 
 #define IEEE80211_HE_MAC_CAP3_GRP_ADDR_MULTI_STA_BA_DL_MU	0x01
 #define IEEE80211_HE_MAC_CAP3_OMI_CONTROL			0x02
@@ -1751,12 +1751,13 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_MAC_CAP3_FLEX_TWT_SCHED			0x40
 #define IEEE80211_HE_MAC_CAP3_RX_CTRL_FRAME_TO_MULTIBSS		0x80
 
-#define IEEE80211_HE_MAC_CAP4_BSRP_A_MPDU_AGG			0x01
+#define IEEE80211_HE_MAC_CAP4_BSRP_BQRP_A_MPDU_AGG		0x01
 #define IEEE80211_HE_MAC_CAP4_QTP				0x02
 #define IEEE80211_HE_MAC_CAP4_BQR				0x04
 #define IEEE80211_HE_MAC_CAP4_SR_RESP				0x08
 #define IEEE80211_HE_MAC_CAP4_NDP_FB_REP			0x10
 #define IEEE80211_HE_MAC_CAP4_OPS				0x20
+#define IEEE80211_HE_MAC_CAP4_AMDSU_IN_AMPDU			0x40
 
 /* 802.11ax HE PHY capabilities */
 #define IEEE80211_HE_PHY_CAP0_DUAL_BAND					0x01
@@ -1776,8 +1777,10 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_PHY_CAP1_DEVICE_CLASS_A				0x10
 #define IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD			0x20
 #define IEEE80211_HE_PHY_CAP1_HE_LTF_AND_GI_FOR_HE_PPDUS_0_8US		0x40
-/* Bit 7 of CAP1 is reserved, as well as bit 0 of CAP2 */
+/* Midamble RX Max NSTS is split between byte #2 and byte #3 */
+#define IEEE80211_HE_PHY_CAP1_MIDAMBLE_RX_MAX_NSTS			0x80
 
+#define IEEE80211_HE_PHY_CAP2_MIDAMBLE_RX_MAX_NSTS			0x01
 #define IEEE80211_HE_PHY_CAP2_NDP_4x_LTF_AND_3_2US			0x02
 #define IEEE80211_HE_PHY_CAP2_STBC_TX_UNDER_80MHZ			0x04
 #define IEEE80211_HE_PHY_CAP2_STBC_RX_UNDER_80MHZ			0x08
@@ -1805,7 +1808,7 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_MASK			0x18
 #define IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1				0x00
 #define IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_2				0x20
-#define IEEE80211_HE_PHY_CAP3_UL_HE_MU_PPDU				0x40
+#define IEEE80211_HE_PHY_CAP3_RX_HE_MU_PPDU_FROM_NON_AP_STA		0x40
 #define IEEE80211_HE_PHY_CAP3_SU_BEAMFORMER				0x80
 
 #define IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE				0x01
@@ -1877,6 +1880,8 @@ struct ieee80211_mu_edca_param_set {
 #define IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G		0x02
 #define IEEE80211_HE_PHY_CAP8_20MHZ_IN_160MHZ_HE_PPDU			0x04
 #define IEEE80211_HE_PHY_CAP8_80MHZ_IN_160MHZ_HE_PPDU			0x08
+#define IEEE80211_HE_PHY_CAP8_HE_ER_SU_1XLTF_AND_08_US_GI		0x10
+#define IEEE80211_HE_PHY_CAP8_MIDAMBLE_RX_2X_AND_1XLTF			0x20
 
 /* 802.11ax HE TX/RX MCS NSS Support  */
 #define IEEE80211_TX_RX_MCS_NSS_SUPP_HIGHEST_MCS_POS			(3)
@@ -1912,9 +1917,9 @@ ieee80211_he_mcs_nss_size(const struct ieee80211_he_cap_elem *he_cap)
 }
 
 /* 802.11ax HE PPE Thresholds */
-#define IEEE80211_PPE_THRES_NSS_M1_SUPPORT_2NSS			(1)
-#define IEEE80211_PPE_THRES_NSS_M1_POS				(0)
-#define IEEE80211_PPE_THRES_NSS_M1_MASK				(7)
+#define IEEE80211_PPE_THRES_NSS_SUPPORT_2NSS			(1)
+#define IEEE80211_PPE_THRES_NSS_POS				(0)
+#define IEEE80211_PPE_THRES_NSS_MASK				(7)
 #define IEEE80211_PPE_THRES_RU_INDEX_BITMASK_2x966_AND_966_RU	\
 	(BIT(5) | BIT(6))
 #define IEEE80211_PPE_THRES_RU_INDEX_BITMASK_MASK		0x78
@@ -1936,8 +1941,8 @@ ieee80211_he_ppe_size(u8 ppe_thres_hdr, const u8 *phy_cap_info)
 
 	n = hweight8(ppe_thres_hdr &
 		     IEEE80211_PPE_THRES_RU_INDEX_BITMASK_MASK);
-	n *= (1 + ((ppe_thres_hdr & IEEE80211_PPE_THRES_NSS_M1_MASK) >>
-		   IEEE80211_PPE_THRES_NSS_M1_POS));
+	n *= (1 + ((ppe_thres_hdr & IEEE80211_PPE_THRES_NSS_MASK) >>
+		   IEEE80211_PPE_THRES_NSS_POS));
 
 	/*
 	 * Each pair is 6 bits, and we need to add the 7 "header" bits to the

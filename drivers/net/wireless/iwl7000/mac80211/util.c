@@ -2458,8 +2458,8 @@ u8 *ieee80211_ie_build_he_cap(u8 *pos,
 	 */
 	n = hweight8(he_cap->ppe_thres[0] &
 		     IEEE80211_PPE_THRES_RU_INDEX_BITMASK_MASK);
-	n *= (1 + ((he_cap->ppe_thres[0] & IEEE80211_PPE_THRES_NSS_M1_MASK) >>
-		   IEEE80211_PPE_THRES_NSS_M1_POS));
+	n *= (1 + ((he_cap->ppe_thres[0] & IEEE80211_PPE_THRES_NSS_MASK) >>
+		   IEEE80211_PPE_THRES_NSS_POS));
 
 	/*
 	 * Each pair is 6 bits, and we need to add the 7 "header" bits to the
