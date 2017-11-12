@@ -281,6 +281,7 @@ struct iwl_xvt {
 	struct iwl_phy_db *phy_db;
 	const struct iwl_fw *fw;
 	struct device *dev;
+	struct dentry *debugfs_dir;
 
 	struct mutex mutex;	/* Protects access to xVT struct */
 	spinlock_t notif_lock;;	/* Protects notifications processing */
@@ -402,5 +403,16 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 			      u8 lmac_id);
 
 void iwl_xvt_txq_disable(struct iwl_xvt *xvt);
+
+/* XVT debugfs */
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+int iwl_xvt_dbgfs_register(struct iwl_xvt *xvt, struct dentry *dbgfs_dir);
+#else
+static inline int iwl_xvt_dbgfs_register(struct iwl_xvt *xvt,
+					 struct dentry *dbgfs_dir)
+{
+	return 0;
+}
+#endif /* CPTCFG_IWLWIFI_DEBUGFS */
 
 #endif

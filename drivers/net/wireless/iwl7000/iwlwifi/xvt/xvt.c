@@ -78,6 +78,7 @@
 #include "iwl-dnt-dispatch.h"
 #include "iwl-io.h"
 #include "iwl-prph.h"
+#include "fw/dbg.h"
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
@@ -193,6 +194,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 		TX_CMD,
 	};
 	u8 i, num_of_lmacs;
+	int err;
 
 	op_mode = kzalloc(sizeof(struct iwl_op_mode) +
 			  sizeof(struct iwl_xvt), GFP_KERNEL);
@@ -275,8 +277,18 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 		xvt->tx_meta_data[i].txq_full = false;
 	};
 
+	trans->dbg_dest_tlv = xvt->fw->dbg_dest_tlv;
+	trans->dbg_dest_reg_num = xvt->fw->dbg_dest_reg_num;
+	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg_conf_tlv,
+	       sizeof(trans->dbg_conf_tlv));
+	trans->dbg_trigger_tlv = xvt->fw->dbg_trigger_tlv;
+
 	IWL_INFO(xvt, "Detected %s, REV=0x%X, xVT operation mode\n",
 		 xvt->cfg->name, xvt->trans->hw_rev);
+
+	err = iwl_xvt_dbgfs_register(xvt, dbgfs_dir);
+	if (err)
+		IWL_ERR(xvt, "failed register xvt debugfs folder (%d)\n", err);
 
 	return op_mode;
 
@@ -474,6 +486,7 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 		kfree(p_table_umac);
 	}
 
+	iwl_fw_dbg_collect_desc(&xvt->fwrt, &iwl_dump_desc_assert, NULL);
 }
 
 static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)

@@ -69,6 +69,7 @@
 
 #include "xvt.h"
 #include "iwl-dnt-cfg.h"
+#include "fw/dbg.h"
 
 #define XVT_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 
@@ -344,6 +345,12 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 		}
 	}
 	iwl_dnt_start(xvt->trans);
+
+	xvt->fwrt.dump.conf = FW_DBG_INVALID;
+	/* if we have a destination, assume EARLY START */
+	if (xvt->fw->dbg_dest_tlv)
+		xvt->fwrt.dump.conf = FW_DBG_START_FROM_ALIVE;
+	iwl_fw_start_dbg_conf(&xvt->fwrt, FW_DBG_START_FROM_ALIVE);
 
 	return ret;
 }
