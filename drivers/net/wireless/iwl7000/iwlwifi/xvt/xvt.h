@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -33,6 +34,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -280,6 +282,7 @@ struct iwl_xvt {
 	struct iwl_phy_db *phy_db;
 	const struct iwl_fw *fw;
 	struct device *dev;
+	struct dentry *debugfs_dir;
 
 	struct mutex mutex;	/* Protects access to xVT struct */
 	spinlock_t notif_lock;;	/* Protects notifications processing */
@@ -396,5 +399,16 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 			      u8 lmac_id);
 
 void iwl_xvt_txq_disable(struct iwl_xvt *xvt);
+
+/* XVT debugfs */
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+int iwl_xvt_dbgfs_register(struct iwl_xvt *xvt, struct dentry *dbgfs_dir);
+#else
+static inline int iwl_xvt_dbgfs_register(struct iwl_xvt *xvt,
+					 struct dentry *dbgfs_dir)
+{
+	return 0;
+}
+#endif /* CPTCFG_IWLWIFI_DEBUGFS */
 
 #endif
