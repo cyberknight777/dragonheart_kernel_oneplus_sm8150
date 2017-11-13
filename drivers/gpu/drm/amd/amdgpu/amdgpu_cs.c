@@ -788,7 +788,7 @@ static int amdgpu_bo_vm_update_pte(struct amdgpu_cs_parser *p)
 		return r;
 
 	r = amdgpu_sync_fence(adev, &p->job->sync,
-			      fpriv->prt_va->last_pt_update);
+			      fpriv->prt_va->last_pt_update, false);
 	if (r)
 		return r;
 
@@ -802,7 +802,7 @@ static int amdgpu_bo_vm_update_pte(struct amdgpu_cs_parser *p)
 			return r;
 
 		f = bo_va->last_pt_update;
-		r = amdgpu_sync_fence(adev, &p->job->sync, f);
+		r = amdgpu_sync_fence(adev, &p->job->sync, f, false);
 		if (r)
 			return r;
 	}
@@ -825,7 +825,7 @@ static int amdgpu_bo_vm_update_pte(struct amdgpu_cs_parser *p)
 				return r;
 
 			f = bo_va->last_pt_update;
-			r = amdgpu_sync_fence(adev, &p->job->sync, f);
+			r = amdgpu_sync_fence(adev, &p->job->sync, f, false);
 			if (r)
 				return r;
 		}
@@ -836,7 +836,7 @@ static int amdgpu_bo_vm_update_pte(struct amdgpu_cs_parser *p)
 	if (r)
 		return r;
 
-	r = amdgpu_sync_fence(adev, &p->job->sync, vm->last_update);
+	r = amdgpu_sync_fence(adev, &p->job->sync, vm->last_update, false);
 	if (r)
 		return r;
 
@@ -1040,8 +1040,8 @@ static int amdgpu_cs_process_fence_dep(struct amdgpu_cs_parser *p,
 			amdgpu_ctx_put(ctx);
 			return r;
 		} else if (fence) {
-			r = amdgpu_sync_fence(p->adev, &p->job->dep_sync,
-					      fence);
+			r = amdgpu_sync_fence(p->adev, &p->job->sync, fence,
+					true);
 			dma_fence_put(fence);
 			amdgpu_ctx_put(ctx);
 			if (r)
@@ -1060,7 +1060,7 @@ static int amdgpu_syncobj_lookup_and_add_to_sync(struct amdgpu_cs_parser *p,
 	if (r)
 		return r;
 
-	r = amdgpu_sync_fence(p->adev, &p->job->dep_sync, fence);
+	r = amdgpu_sync_fence(p->adev, &p->job->sync, fence, true);
 	dma_fence_put(fence);
 
 	return r;
