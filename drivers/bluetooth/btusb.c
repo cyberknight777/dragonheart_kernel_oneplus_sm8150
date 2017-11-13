@@ -44,6 +44,7 @@
 
 static bool disable_scofix;
 static bool force_scofix;
+static bool enable_autosuspend = IS_ENABLED(CONFIG_BT_HCIBTUSB_AUTOSUSPEND);
 
 static bool reset = true;
 
@@ -3434,6 +3435,9 @@ static int btusb_probe(struct usb_interface *intf,
 	}
 #endif
 
+	if (enable_autosuspend)
+		usb_enable_autosuspend(data->udev);
+
 	err = hci_register_dev(hdev);
 	if (err < 0)
 		goto out_free_dev;
@@ -3645,6 +3649,9 @@ MODULE_PARM_DESC(disable_scofix, "Disable fixup of wrong SCO buffer size");
 
 module_param(force_scofix, bool, 0644);
 MODULE_PARM_DESC(force_scofix, "Force fixup of wrong SCO buffers size");
+
+module_param(enable_autosuspend, bool, 0644);
+MODULE_PARM_DESC(enable_autosuspend, "Enable USB autosuspend by default");
 
 module_param(reset, bool, 0644);
 MODULE_PARM_DESC(reset, "Send HCI reset command on initialization");
