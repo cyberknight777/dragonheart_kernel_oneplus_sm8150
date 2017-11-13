@@ -979,6 +979,16 @@ static struct usb_device *usbdev_lookup_by_devt(dev_t devt)
 	return to_usb_device(dev);
 }
 
+void usb_file_drop_privileges(struct file *file)
+{
+	struct usb_dev_state *ps = file->private_data;
+	struct usb_device *dev = ps->dev;
+
+	usb_lock_device(dev);
+	ps->privileges_dropped = true;
+	usb_unlock_device(dev);
+}
+
 /*
  * file operations
  */

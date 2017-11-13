@@ -72,13 +72,6 @@ static int match_device_by_devt(struct device *dev, const void *data)
  * Sandboxing functions. For now these only have an effect on USB devices,
  * and fail harmlessly for other classes of devices.
  */
-static int jail_lockdown(struct file *file)
-{
-	if (!file->f_op->unlocked_ioctl)
-		return -ENOTTY;
-	return file->f_op->unlocked_ioctl(file, USBDEVFS_DROP_PRIVILEGES, 0);
-}
-
 static int jail_detach(struct jail_device *jail, struct jail_file_data *jfile)
 {
 	struct device *dev;
@@ -218,7 +211,7 @@ static int jail_open(struct inode *inode, struct file *file)
 	case JAIL_REQUEST_ALLOW:
 		break;
 	case JAIL_REQUEST_ALLOW_WITH_LOCKDOWN:
-		jail_lockdown(jfile->inner_file);
+		usb_file_drop_privileges(jfile->inner_file);
 		break;
 	case JAIL_REQUEST_ALLOW_WITH_DETACH:
 		ret = jail_detach(jail, jfile);

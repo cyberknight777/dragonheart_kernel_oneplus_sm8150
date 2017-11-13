@@ -1938,6 +1938,10 @@ usb_maxpacket(struct usb_device *udev, int pipe, int is_out)
 
 /* ----------------------------------------------------------------------- */
 
+extern void usb_file_drop_privileges(struct file *file);
+
+/* ----------------------------------------------------------------------- */
+
 /* translate USB error codes to codes user space understands */
 static inline int usb_translate_errors(int error_code)
 {
