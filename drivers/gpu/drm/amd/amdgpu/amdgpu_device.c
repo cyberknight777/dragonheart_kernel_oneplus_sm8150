@@ -2201,7 +2201,6 @@ void amdgpu_device_fini(struct amdgpu_device *adev)
 		drm_crtc_force_disable_all(adev->ddev);
 
 	amdgpu_ib_pool_fini(adev);
-	amdgpu_fw_reserve_vram_fini(adev);
 	amdgpu_fence_driver_fini(adev);
 	amdgpu_fbdev_fini(adev);
 	r = amdgpu_device_ip_fini(adev);
