@@ -4759,9 +4759,9 @@ void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 
 	lockdep_assert_held(&mvm->mutex);
 
-	/* TODO - remove a000 disablement when we have RXQ config API */
+	/* TODO - remove 22000 disablement when we have RXQ config API */
 	if (!iwl_mvm_has_new_rx_api(mvm) ||
-	    mvm->trans->cfg->device_family == IWL_DEVICE_FAMILY_A000)
+	    mvm->trans->cfg->device_family == IWL_DEVICE_FAMILY_22000)
 		return;
 
 	notif->cookie = mvm->queue_sync_cookie;
