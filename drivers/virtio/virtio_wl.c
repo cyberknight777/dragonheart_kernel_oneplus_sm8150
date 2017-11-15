@@ -882,13 +882,13 @@ free_ctrl_new:
 static long virtwl_ioctl_send(struct file *filp, unsigned long arg)
 {
 	struct virtwl_vfd *vfd = filp->private_data;
-	struct virtwl_ioctl_send ioctl_send;
+	struct virtwl_ioctl_txn ioctl_send;
 	void __user *user_data = (void __user *)arg +
-				 sizeof(struct virtwl_ioctl_send);
+				 sizeof(struct virtwl_ioctl_txn);
 	int ret;
 
 	ret = copy_from_user(&ioctl_send, (void __user *)arg,
-			     sizeof(struct virtwl_ioctl_send));
+			     sizeof(struct virtwl_ioctl_txn));
 	if (ret)
 		return -EFAULT;
 
@@ -903,9 +903,9 @@ static long virtwl_ioctl_send(struct file *filp, unsigned long arg)
 
 static long virtwl_ioctl_recv(struct file *filp, unsigned long arg)
 {
-	struct virtwl_ioctl_recv ioctl_recv;
+	struct virtwl_ioctl_txn ioctl_recv;
 	void __user *user_data = (void __user *)arg +
-				 sizeof(struct virtwl_ioctl_recv);
+				 sizeof(struct virtwl_ioctl_txn);
 	int __user *user_fds = (int __user *)arg;
 	size_t vfd_count = VIRTWL_SEND_MAX_ALLOCS;
 	struct virtwl_vfd *vfds[VIRTWL_SEND_MAX_ALLOCS] = { 0 };
@@ -918,7 +918,7 @@ static long virtwl_ioctl_recv(struct file *filp, unsigned long arg)
 		fds[i] = -1;
 
 	ret = copy_from_user(&ioctl_recv, (void __user *)arg,
-			     sizeof(struct virtwl_ioctl_recv));
+			     sizeof(struct virtwl_ioctl_txn));
 	if (ret)
 		return -EFAULT;
 
@@ -932,7 +932,7 @@ static long virtwl_ioctl_recv(struct file *filp, unsigned long arg)
 	if (ret < 0)
 		return ret;
 
-	ret = copy_to_user(&((struct virtwl_ioctl_recv __user *)arg)->len, &ret,
+	ret = copy_to_user(&((struct virtwl_ioctl_txn __user *)arg)->len, &ret,
 			   sizeof(ioctl_recv.len));
 	if (ret) {
 		ret = -EFAULT;
