@@ -55,45 +55,45 @@
 #include "iwl-agn-hw.h"
 
 /* Highest firmware API version supported */
-#define IWL_A000_UCODE_API_MAX	36
+#define IWL_22000_UCODE_API_MAX	36
 
 /* Lowest firmware API version supported */
-#define IWL_A000_UCODE_API_MIN	24
+#define IWL_22000_UCODE_API_MIN	24
 
 /* NVM versions */
-#define IWL_A000_NVM_VERSION		0x0a1d
-#define IWL_A000_TX_POWER_VERSION	0xffff /* meaningless */
+#define IWL_22000_NVM_VERSION		0x0a1d
+#define IWL_22000_TX_POWER_VERSION	0xffff /* meaningless */
 
 /* Memory offsets and lengths */
-#define IWL_A000_DCCM_OFFSET		0x800000 /* LMAC1 */
-#define IWL_A000_DCCM_LEN		0x10000 /* LMAC1 */
-#define IWL_A000_DCCM2_OFFSET		0x880000
-#define IWL_A000_DCCM2_LEN		0x8000
-#define IWL_A000_SMEM_OFFSET		0x400000
-#define IWL_A000_SMEM_LEN		0xD0000
+#define IWL_22000_DCCM_OFFSET		0x800000 /* LMAC1 */
+#define IWL_22000_DCCM_LEN		0x10000 /* LMAC1 */
+#define IWL_22000_DCCM2_OFFSET		0x880000
+#define IWL_22000_DCCM2_LEN		0x8000
+#define IWL_22000_SMEM_OFFSET		0x400000
+#define IWL_22000_SMEM_LEN		0xD0000
 
-#define IWL_A000_JF_FW_PRE	"iwlwifi-Qu-a0-jf-b0-"
-#define IWL_A000_HR_FW_PRE	"iwlwifi-Qu-a0-hr-a0-"
-#define IWL_A000_HR_CDB_FW_PRE	"iwlwifi-QuIcp-z0-hrcdb-a0-"
-#define IWL_A000_HR_F0_FW_PRE	"iwlwifi-QuQnj-f0-hr-a0-"
-#define IWL_A000_JF_B0_FW_PRE	"iwlwifi-QuQnj-a0-jf-b0-"
-#define IWL_A000_HR_A0_FW_PRE	"iwlwifi-QuQnj-a0-hr-a0-"
+#define IWL_22000_JF_FW_PRE	"iwlwifi-Qu-a0-jf-b0-"
+#define IWL_22000_HR_FW_PRE	"iwlwifi-Qu-a0-hr-a0-"
+#define IWL_22000_HR_CDB_FW_PRE	"iwlwifi-QuIcp-z0-hrcdb-a0-"
+#define IWL_22000_HR_F0_FW_PRE	"iwlwifi-QuQnj-f0-hr-a0-"
+#define IWL_22000_JF_B0_FW_PRE	"iwlwifi-QuQnj-a0-jf-b0-"
+#define IWL_22000_HR_A0_FW_PRE	"iwlwifi-QuQnj-a0-hr-a0-"
 
-#define IWL_A000_HR_MODULE_FIRMWARE(api) \
-	IWL_A000_HR_FW_PRE __stringify(api) ".ucode"
-#define IWL_A000_JF_MODULE_FIRMWARE(api) \
-	IWL_A000_JF_FW_PRE __stringify(api) ".ucode"
-#define IWL_A000_HR_F0_QNJ_MODULE_FIRMWARE(api) \
-	IWL_A000_HR_F0_FW_PRE __stringify(api) ".ucode"
-#define IWL_A000_JF_B0_QNJ_MODULE_FIRMWARE(api) \
-	IWL_A000_JF_B0_FW_PRE __stringify(api) ".ucode"
-#define IWL_A000_HR_A0_QNJ_MODULE_FIRMWARE(api) \
-	IWL_A000_HR_A0_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_HR_MODULE_FIRMWARE(api) \
+	IWL_22000_HR_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_JF_MODULE_FIRMWARE(api) \
+	IWL_22000_JF_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_HR_F0_QNJ_MODULE_FIRMWARE(api) \
+	IWL_22000_HR_F0_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_JF_B0_QNJ_MODULE_FIRMWARE(api) \
+	IWL_22000_JF_B0_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_HR_A0_QNJ_MODULE_FIRMWARE(api) \
+	IWL_22000_HR_A0_FW_PRE __stringify(api) ".ucode"
 
-#define NVM_HW_SECTION_NUM_FAMILY_A000		10
+#define NVM_HW_SECTION_NUM_FAMILY_22000		10
 
-static const struct iwl_base_params iwl_a000_base_params = {
-	.eeprom_size = OTP_LOW_IMAGE_SIZE_FAMILY_A000,
+static const struct iwl_base_params iwl_22000_base_params = {
+	.eeprom_size = OTP_LOW_IMAGE_SIZE_FAMILY_22000,
 	.num_of_queues = 512,
 	.shadow_ram_support = true,
 	.led_compensation = 57,
@@ -103,28 +103,28 @@ static const struct iwl_base_params iwl_a000_base_params = {
 	.pcie_l1_allowed = true,
 };
 
-static const struct iwl_ht_params iwl_a000_ht_params = {
+static const struct iwl_ht_params iwl_22000_ht_params = {
 	.stbc = true,
 	.ldpc = true,
 	.ht40_bands = BIT(NL80211_BAND_2GHZ) | BIT(NL80211_BAND_5GHZ),
 };
 
-#define IWL_DEVICE_A000							\
-	.ucode_api_max = IWL_A000_UCODE_API_MAX,			\
-	.ucode_api_min = IWL_A000_UCODE_API_MIN,			\
-	.device_family = IWL_DEVICE_FAMILY_A000,			\
+#define IWL_DEVICE_22000						\
+	.ucode_api_max = IWL_22000_UCODE_API_MAX,			\
+	.ucode_api_min = IWL_22000_UCODE_API_MIN,			\
+	.device_family = IWL_DEVICE_FAMILY_22000,			\
 	.max_inst_size = IWL60_RTC_INST_SIZE,				\
 	.max_data_size = IWL60_RTC_DATA_SIZE,				\
-	.base_params = &iwl_a000_base_params,				\
+	.base_params = &iwl_22000_base_params,				\
 	.led_mode = IWL_LED_RF_STATE,					\
-	.nvm_hw_section_num = NVM_HW_SECTION_NUM_FAMILY_A000,		\
+	.nvm_hw_section_num = NVM_HW_SECTION_NUM_FAMILY_22000,		\
 	.non_shared_ant = ANT_A,					\
-	.dccm_offset = IWL_A000_DCCM_OFFSET,				\
-	.dccm_len = IWL_A000_DCCM_LEN,					\
-	.dccm2_offset = IWL_A000_DCCM2_OFFSET,				\
-	.dccm2_len = IWL_A000_DCCM2_LEN,				\
-	.smem_offset = IWL_A000_SMEM_OFFSET,				\
-	.smem_len = IWL_A000_SMEM_LEN,					\
+	.dccm_offset = IWL_22000_DCCM_OFFSET,				\
+	.dccm_len = IWL_22000_DCCM_LEN,					\
+	.dccm2_offset = IWL_22000_DCCM2_OFFSET,				\
+	.dccm2_len = IWL_22000_DCCM2_LEN,				\
+	.smem_offset = IWL_22000_SMEM_OFFSET,				\
+	.smem_len = IWL_22000_SMEM_LEN,					\
 	.features = IWL_TX_CSUM_NETIF_FLAGS | NETIF_F_RXCSUM,		\
 	.apmg_not_supported = true,					\
 	.mq_rx_supported = true,					\
@@ -138,60 +138,44 @@ static const struct iwl_ht_params iwl_a000_ht_params = {
 	.tx_cmd_queue_size = 32,					\
 	.min_umac_error_event_table = 0x400000
 
-const struct iwl_cfg iwla000_2ac_cfg_hr = {
-	.name = "Intel(R) Dual Band Wireless AC a000",
-	.fw_name_pre = IWL_A000_HR_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
+const struct iwl_cfg iwl22000_2ac_cfg_hr = {
+	.name = "Intel(R) Dual Band Wireless AC 22000",
+	.fw_name_pre = IWL_22000_HR_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 };
 
-const struct iwl_cfg iwla000_2ac_cfg_hr_cdb = {
-	.name = "Intel(R) Dual Band Wireless AC a000",
-	.fw_name_pre = IWL_A000_HR_CDB_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
+const struct iwl_cfg iwl22000_2ac_cfg_hr_cdb = {
+	.name = "Intel(R) Dual Band Wireless AC 22000",
+	.fw_name_pre = IWL_22000_HR_CDB_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 	.cdb = true,
 };
 
-const struct iwl_cfg iwla000_2ac_cfg_jf = {
-	.name = "Intel(R) Dual Band Wireless AC a000",
-	.fw_name_pre = IWL_A000_JF_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
+const struct iwl_cfg iwl22000_2ac_cfg_jf = {
+	.name = "Intel(R) Dual Band Wireless AC 22000",
+	.fw_name_pre = IWL_22000_JF_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 };
 
-const struct iwl_cfg iwla000_2ax_cfg_hr = {
-	.name = "Intel(R) Dual Band Wireless AX a000",
-	.fw_name_pre = IWL_A000_HR_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
-	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
-	/*
-	 * This device doesn't support receiving BlockAck with a large bitmap
-	 * so we need to restrict the size of transmitted aggregation to the
-	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
-	 */
-	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
-};
-
-const struct iwl_cfg iwla000_2ax_cfg_qnj_hr_f0 = {
-	.name = "Intel(R) Dual Band Wireless AX a000",
-	.fw_name_pre = IWL_A000_HR_F0_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
+const struct iwl_cfg iwl22000_2ax_cfg_hr = {
+	.name = "Intel(R) Dual Band Wireless AX 22000",
+	.fw_name_pre = IWL_22000_HR_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 	/*
 	 * This device doesn't support receiving BlockAck with a large bitmap
@@ -201,13 +185,13 @@ const struct iwl_cfg iwla000_2ax_cfg_qnj_hr_f0 = {
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
 };
 
-const struct iwl_cfg iwla000_2ax_cfg_qnj_jf_b0 = {
-	.name = "Intel(R) Dual Band Wireless AX a000",
-	.fw_name_pre = IWL_A000_JF_B0_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
+const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_f0 = {
+	.name = "Intel(R) Dual Band Wireless AX 22000",
+	.fw_name_pre = IWL_22000_HR_F0_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 	/*
 	 * This device doesn't support receiving BlockAck with a large bitmap
@@ -217,13 +201,13 @@ const struct iwl_cfg iwla000_2ax_cfg_qnj_jf_b0 = {
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
 };
 
-const struct iwl_cfg iwla000_2ax_cfg_qnj_hr_a0 = {
-	.name = "Intel(R) Dual Band Wireless AX a000",
-	.fw_name_pre = IWL_A000_HR_A0_FW_PRE,
-	IWL_DEVICE_A000,
-	.ht_params = &iwl_a000_ht_params,
-	.nvm_ver = IWL_A000_NVM_VERSION,
-	.nvm_calib_ver = IWL_A000_TX_POWER_VERSION,
+const struct iwl_cfg iwl22000_2ax_cfg_qnj_jf_b0 = {
+	.name = "Intel(R) Dual Band Wireless AX 22000",
+	.fw_name_pre = IWL_22000_JF_B0_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 	/*
 	 * This device doesn't support receiving BlockAck with a large bitmap
@@ -233,8 +217,24 @@ const struct iwl_cfg iwla000_2ax_cfg_qnj_hr_a0 = {
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
 };
 
-MODULE_FIRMWARE(IWL_A000_HR_MODULE_FIRMWARE(IWL_A000_UCODE_API_MAX));
-MODULE_FIRMWARE(IWL_A000_JF_MODULE_FIRMWARE(IWL_A000_UCODE_API_MAX));
-MODULE_FIRMWARE(IWL_A000_HR_F0_QNJ_MODULE_FIRMWARE(IWL_A000_UCODE_API_MAX));
-MODULE_FIRMWARE(IWL_A000_JF_B0_QNJ_MODULE_FIRMWARE(IWL_A000_UCODE_API_MAX));
-MODULE_FIRMWARE(IWL_A000_HR_A0_QNJ_MODULE_FIRMWARE(IWL_A000_UCODE_API_MAX));
+const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_a0 = {
+	.name = "Intel(R) Dual Band Wireless AX 22000",
+	.fw_name_pre = IWL_22000_HR_A0_FW_PRE,
+	IWL_DEVICE_22000,
+	.ht_params = &iwl_22000_ht_params,
+	.nvm_ver = IWL_22000_NVM_VERSION,
+	.nvm_calib_ver = IWL_22000_TX_POWER_VERSION,
+	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
+	/*
+	 * This device doesn't support receiving BlockAck with a large bitmap
+	 * so we need to restrict the size of transmitted aggregation to the
+	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
+	 */
+	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
+};
+
+MODULE_FIRMWARE(IWL_22000_HR_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_JF_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_HR_F0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_JF_B0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_HR_A0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));

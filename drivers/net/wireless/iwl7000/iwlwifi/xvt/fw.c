@@ -256,7 +256,7 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 			return ret;
 	}
 	/*
-	 * Starting from A000 tx queue allocation must be done after add
+	 * Starting from 22000 tx queue allocation must be done after add
 	 * station, so it is not part of the init flow.
 	 */
 	if (!iwl_xvt_is_unified_fw(xvt) &&
