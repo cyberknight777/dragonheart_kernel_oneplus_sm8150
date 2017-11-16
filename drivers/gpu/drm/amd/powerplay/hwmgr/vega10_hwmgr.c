@@ -546,8 +546,7 @@ static void vega10_patch_with_vdd_leakage(struct pp_hwmgr *hwmgr,
 	}
 
 	if (*voltage > ATOM_VIRTUAL_VOLTAGE_ID0)
-		pr_info("Voltage value looks like a Leakage ID \
-				but it's not patched\n");
+		pr_info("Voltage value looks like a Leakage ID but it's not patched\n");
 }
 
 /**
@@ -701,18 +700,14 @@ static int vega10_set_private_data_based_on_pptable(struct pp_hwmgr *hwmgr)
 			table_info->vdd_dep_on_mclk;
 
 	PP_ASSERT_WITH_CODE(allowed_sclk_vdd_table,
-		"VDD dependency on SCLK table is missing. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on SCLK table is missing. This table is mandatory", return -EINVAL);
 	PP_ASSERT_WITH_CODE(allowed_sclk_vdd_table->count >= 1,
-		"VDD dependency on SCLK table is empty. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on SCLK table is empty. This table is mandatory", return -EINVAL);
 
 	PP_ASSERT_WITH_CODE(allowed_mclk_vdd_table,
-		"VDD dependency on MCLK table is missing. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on MCLK table is missing.  This table is mandatory", return -EINVAL);
 	PP_ASSERT_WITH_CODE(allowed_mclk_vdd_table->count >= 1,
-		"VDD dependency on MCLK table is empty. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on MCLK table is empty.  This table is mandatory", return -EINVAL);
 
 	table_info->max_clock_voltage_on_ac.sclk =
 		allowed_sclk_vdd_table->entries[allowed_sclk_vdd_table->count - 1].clk;
@@ -3419,8 +3414,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 					DPMTABLE_OD_UPDATE_SCLK)) {
 			result = vega10_populate_all_graphic_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate SCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate SCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 
@@ -3429,8 +3423,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 					DPMTABLE_OD_UPDATE_MCLK)){
 			result = vega10_populate_all_memory_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate MCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate MCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 	} else {
@@ -3547,8 +3540,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 			data->apply_optimized_settings) {
 			result = vega10_populate_all_graphic_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate SCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate SCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 
@@ -3556,8 +3548,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 				(DPMTABLE_OD_UPDATE_MCLK + DPMTABLE_UPDATE_MCLK)) {
 			result = vega10_populate_all_memory_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate MCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate MCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 	}
