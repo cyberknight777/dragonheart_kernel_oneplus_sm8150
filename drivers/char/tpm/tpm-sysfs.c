@@ -390,15 +390,24 @@ static ssize_t tpm2_prop_flag_show(struct device *dev,
 {
 	struct tpm2_prop_flag_dev_attribute *pa =
 		container_of(attr, struct tpm2_prop_flag_dev_attribute, attr);
+	struct tpm_chip *chip = to_tpm_chip(dev);
 	u32 flags;
 	ssize_t rc;
 
-	rc = tpm2_get_tpm_pt(to_tpm_chip(dev), pa->property_id, &flags,
-			     "reading property");
+	rc = tpm_try_get_ops(chip);
 	if (rc)
-		return 0;
+		return rc;
 
-	return sprintf(buf, "%d\n", !!(flags & pa->flag_mask));
+	rc = tpm2_get_tpm_pt(chip, pa->property_id, &flags, "reading property");
+	if (rc) {
+		rc = 0;
+		goto error;
+	}
+
+	rc = sprintf(buf, "%d\n", !!(flags & pa->flag_mask));
+error:
+	tpm_put_ops(chip);
+	return rc;
 }
 
 static ssize_t tpm2_prop_u32_show(struct device *dev,
@@ -407,15 +416,24 @@ static ssize_t tpm2_prop_u32_show(struct device *dev,
 {
 	struct tpm2_prop_u32_dev_attribute *pa =
 		container_of(attr, struct tpm2_prop_u32_dev_attribute, attr);
+	struct tpm_chip *chip = to_tpm_chip(dev);
 	u32 value;
 	ssize_t rc;
 
-	rc = tpm2_get_tpm_pt(to_tpm_chip(dev), pa->property_id, &value,
-			     "reading property");
+	rc = tpm_try_get_ops(chip);
 	if (rc)
-		return 0;
+		return rc;
 
-	return sprintf(buf, "%u\n", value);
+	rc = tpm2_get_tpm_pt(chip, pa->property_id, &value, "reading property");
+	if (rc) {
+		rc = 0;
+		goto error;
+	}
+
+	rc = sprintf(buf, "%u\n", value);
+error:
+	tpm_put_ops(chip);
+	return rc;
 }
 
 #define TPM2_PROP_FLAG_ATTR(_name, _property_id, _flag_mask)           \
