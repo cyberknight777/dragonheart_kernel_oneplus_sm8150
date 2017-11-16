@@ -254,6 +254,17 @@ static void cros_ec_sensors_register(struct cros_ec_device *ec_dev)
 	}
 	if (sensor_type[MOTIONSENSE_TYPE_ACCEL] >= 2)
 		ec_dev->has_kb_wake_angle = true;
+	if (cros_ec_check_features(ec_dev, EC_FEATURE_MOTION_SENSE_FIFO)) {
+		sensor_platforms[id].sensor_num = 0;
+		sensor_platforms[id].cmd_offset = ec_p.cmd_offset;
+		sensor_cells[id].name = "cros-ec-ring";
+		sensor_cells[id].id = 0;
+		sensor_cells[id].platform_data = &sensor_platforms[id];
+		sensor_cells[id].pdata_size =
+			sizeof(struct cros_ec_sensor_platform);
+		id++;
+	}
+
 	ret = mfd_add_devices(ec_dev->dev, PLATFORM_DEVID_AUTO, sensor_cells,
 			      id, NULL, 0, NULL);
 	if (ret)

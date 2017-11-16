@@ -425,25 +425,14 @@ static const struct iio_chan_spec cros_ec_ring_channels[] = {
 
 static int cros_ec_ring_probe(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
-	struct cros_ec_dev *ec_dev = dev_get_drvdata(dev->parent);
-	struct cros_ec_device *ec_device;
 	struct iio_dev *indio_dev;
 	struct iio_buffer *buffer;
 	struct cros_ec_sensors_ring_state *state;
 	int ret;
 
-	if (!ec_dev || !ec_dev->ec_dev) {
-		dev_warn(&pdev->dev, "No CROS EC device found.\n");
-		return -EINVAL;
-	}
-	ec_device = ec_dev->ec_dev;
-
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*state));
 	if (!indio_dev)
 		return -ENOMEM;
-
-	platform_set_drvdata(pdev, indio_dev);
 
 	ret = cros_ec_sensors_core_init(pdev, indio_dev, false);
 	if (ret)
@@ -487,7 +476,7 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 
 	/* register the notifier that will act as a top half interrupt. */
 	state->notifier.notifier_call = cros_ec_ring_event;
-	ret = blocking_notifier_chain_register(&ec_device->event_notifier,
+	ret = blocking_notifier_chain_register(&state->core.ec->event_notifier,
 					       &state->notifier);
 	if (ret < 0) {
 		dev_warn(&indio_dev->dev, "failed to register notifier\n");
