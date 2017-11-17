@@ -8056,6 +8056,13 @@ static __init int tracer_init_tracefs(void)
 	trace_create_file("saved_tgids", 0444, d_tracer,
 			NULL, &tracing_saved_tgids_fops);
 
+	/* OJN: Provide the legacy name since ureadahead currently relies
+	 * on it. We'll fix userspace separately and this can be dropped
+	 * in the future.
+	 */
+	trace_create_file("tracing_enabled", 0644, d_tracer,
+			    &global_trace, &rb_simple_fops);
+
 	trace_eval_init();
 
 	trace_create_eval_file(d_tracer);

@@ -1941,6 +1941,14 @@ config BUG_ON_DATA_CORRUPTION
 
 	  If unsure, say N.
 
+config TEST_MODULE
+	tristate "Test module loading with 'hello world' module"
+	depends on m
+	help
+	  This builds the "test_module" module that emits "Hello, world"
+	  on printk when loaded. It is designed to be used for basic
+	  evaluation of the module loading subsystem.
+
 source "samples/Kconfig"
 
 source "lib/Kconfig.kgdb"

@@ -129,6 +129,8 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	if (sysctl_hung_task_panic) {
 		if (hung_task_show_lock)
 			debug_show_all_locks();
+		/* Dump all tasks. */
+		show_state_filter(TASK_UNINTERRUPTIBLE);
 		trigger_all_cpu_backtrace();
 		panic("hung_task: blocked tasks");
 	}
