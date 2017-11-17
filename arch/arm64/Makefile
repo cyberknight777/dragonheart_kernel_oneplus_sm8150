@@ -44,8 +44,12 @@ brokengasinst := $(call as-instr,1:\n.inst 0\n.rept . - 1b\n\nnop\n.endr\n,,-DCO
 $(warning Detected assembler with broken .inst; disassembly will be unreliable)
   endif
 endif
-
-KBUILD_CFLAGS	+= -mgeneral-regs-only $(lseinstr) $(brokengasinst)
+ifeq ($(cc-name),clang)
+KBUILD_CFLAGS  += -mno-implicit-float
+else
+KBUILD_CFLAGS  += -mgeneral-regs-only
+endif
+KBUILD_CFLAGS	+= $(lseinstr) $(brokengasinst)
 KBUILD_CFLAGS	+= -fno-asynchronous-unwind-tables
 KBUILD_CFLAGS	+= $(call cc-option, -mpc-relative-literal-loads)
 KBUILD_AFLAGS	+= $(lseinstr) $(brokengasinst)

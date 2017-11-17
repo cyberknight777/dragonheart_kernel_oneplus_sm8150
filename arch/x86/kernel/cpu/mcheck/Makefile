@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-y				=  mce.o mce-severity.o mce-genpool.o
+CFLAGS_mce.o			+= $(call cc-disable-warning, gcc-compat)
 
 obj-$(CONFIG_X86_ANCIENT_MCE)	+= winchip.o p5.o
 obj-$(CONFIG_X86_MCE_INTEL)	+= mce_intel.o
