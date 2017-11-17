@@ -608,6 +608,36 @@ static int stm_is_unlocked_sr(struct spi_nor *nor, loff_t ofs, uint64_t len,
 }
 
 /*
+ * Update the Status Register, and check that its value was updated (with a
+ * mask, for the don't-care bits). An update can fail due when WP# is asserted,
+ * for instance, as that may disallow further writes to the Status Register.
+ */
+static int spi_nor_update_sr_rb(struct spi_nor *nor, u8 val, u8 mask)
+{
+	int ret;
+
+	write_enable(nor);
+	ret = write_sr(nor, val);
+	if (ret)
+		return ret;
+	ret = spi_nor_wait_till_ready(nor);
+	if (ret)
+		return ret;
+
+	ret = read_sr(nor);
+	if (ret < 0)
+		return ret;
+
+	if ((ret ^ val) & mask) {
+		dev_dbg(nor->dev, "read-back failure - is WP# asserted?: %#x, %#x\n",
+			val, ret);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/*
  * Lock a region of the flash. Compatible with ST Micro and similar flash.
  * Supports the block protection bits BP{0,1,2} in the status register
  * (SR). Does not support these features found in newer SR bitfields:
@@ -644,11 +674,16 @@ static int stm_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	struct mtd_info *mtd = &nor->mtd;
 	int status_old, status_new;
 	u8 mask = SR_BP2 | SR_BP1 | SR_BP0;
+	u8 wr_mask = mask;
 	u8 shift = ffs(mask) - 1, pow, val;
 	loff_t lock_len;
-	bool can_be_top = true, can_be_bottom = nor->flags & SNOR_F_HAS_SR_TB;
+	bool can_be_top = true, can_be_bottom = false;
 	bool use_top;
-	int ret;
+
+	if (nor->flags & SNOR_F_HAS_SR_TB) {
+		wr_mask |= SR_TB;
+		can_be_bottom = true;
+	}
 
 	status_old = read_sr(nor);
 	if (status_old < 0)
@@ -696,7 +731,7 @@ static int stm_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	if (!(val & mask))
 		return -EINVAL;
 
-	status_new = (status_old & ~mask & ~SR_TB) | val;
+	status_new = (status_old & ~wr_mask) | val;
 
 	/* Disallow further writes if WP pin is asserted */
 	status_new |= SR_SRWD;
@@ -712,11 +747,7 @@ static int stm_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	if ((status_new & mask) < (status_old & mask))
 		return -EINVAL;
 
-	write_enable(nor);
-	ret = write_sr(nor, status_new);
-	if (ret)
-		return ret;
-	return spi_nor_wait_till_ready(nor);
+	return spi_nor_update_sr_rb(nor, status_new, wr_mask | SR_SRWD);
 }
 
 /*
@@ -729,11 +760,16 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	struct mtd_info *mtd = &nor->mtd;
 	int status_old, status_new;
 	u8 mask = SR_BP2 | SR_BP1 | SR_BP0;
+	u8 wr_mask = mask;
 	u8 shift = ffs(mask) - 1, pow, val;
 	loff_t lock_len;
-	bool can_be_top = true, can_be_bottom = nor->flags & SNOR_F_HAS_SR_TB;
+	bool can_be_top = true, can_be_bottom = false;
 	bool use_top;
-	int ret;
+
+	if (nor->flags & SNOR_F_HAS_SR_TB) {
+		wr_mask |= SR_TB;
+		can_be_bottom = true;
+	}
 
 	status_old = read_sr(nor);
 	if (status_old < 0)
@@ -783,7 +819,7 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 			return -EINVAL;
 	}
 
-	status_new = (status_old & ~mask & ~SR_TB) | val;
+	status_new = (status_old & ~wr_mask) | val;
 
 	/* Don't protect status register if we're fully unlocked */
 	if (lock_len == 0)
@@ -800,11 +836,7 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	if ((status_new & mask) > (status_old & mask))
 		return -EINVAL;
 
-	write_enable(nor);
-	ret = write_sr(nor, status_new);
-	if (ret)
-		return ret;
-	return spi_nor_wait_till_ready(nor);
+	return spi_nor_update_sr_rb(nor, status_new, wr_mask | SR_SRWD);
 }
 
 /*
