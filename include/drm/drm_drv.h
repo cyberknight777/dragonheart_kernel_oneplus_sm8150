@@ -600,6 +600,7 @@ __printf(3, 4)
 void drm_printk(const char *level, unsigned int category,
 		const char *format, ...);
 extern unsigned int drm_debug;
+extern bool drm_master_relax;
 
 int drm_dev_init(struct drm_device *dev,
 		 struct drm_driver *driver,

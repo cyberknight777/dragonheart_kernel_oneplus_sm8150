@@ -768,6 +768,7 @@ long drm_ioctl(struct file *filp,
 	char *kdata = NULL;
 	unsigned int in_size, out_size, drv_size, ksize;
 	bool is_driver_ioctl;
+	int flags;
 
 	dev = file_priv->minor->dev;
 
@@ -801,6 +802,15 @@ long drm_ioctl(struct file *filp,
 		  (long)old_encode_dev(file_priv->minor->kdev->devt),
 		  file_priv->authenticated, ioctl->name);
 
+	flags = ioctl->flags;
+	if (drm_master_relax) {
+		if (nr == DRM_IOCTL_NR(DRM_IOCTL_SET_MASTER))
+			flags = DRM_AUTH;
+		else if (nr == DRM_IOCTL_NR(DRM_IOCTL_DROP_MASTER))
+			flags = DRM_MASTER;
+	}
+
+
 	/* Do not trust userspace, use our own definition */
 	func = ioctl->func;
 
@@ -828,7 +838,8 @@ long drm_ioctl(struct file *filp,
 	if (ksize > in_size)
 		memset(kdata + in_size, 0, ksize - in_size);
 
-	retcode = drm_ioctl_kernel(filp, func, kdata, ioctl->flags);
+	retcode = drm_ioctl_kernel(filp, func, kdata, flags);
+
 	if (copy_to_user((void __user *)arg, kdata, out_size) != 0)
 		retcode = -EFAULT;
 
