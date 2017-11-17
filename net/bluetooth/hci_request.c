@@ -1284,20 +1284,29 @@ int __hci_req_schedule_adv_instance(struct hci_request *req, u8 instance,
 	hdev->adv_instance_timeout = timeout;
 	queue_delayed_work(hdev->req_workqueue,
 			   &hdev->adv_instance_expire,
-			   msecs_to_jiffies(timeout * 1000));
+			   msecs_to_jiffies(timeout));
 
-	/* If we're just re-scheduling the same instance again then do not
-	 * execute any HCI commands. This happens when a single instance is
-	 * being advertised.
+	/* In case of one single advertising instance, if the same instance
+	 * is rescheduled, the update on the advertising data and scan response
+	 * data depends on the value of flag le_adv_param_changed.
 	 */
 	if (!force && hdev->cur_adv_instance == instance &&
-	    hci_dev_test_flag(hdev, HCI_LE_ADV))
+	    hci_dev_test_flag(hdev, HCI_LE_ADV)) {
+		/* If advertising parameters have been changed, we need to
+		 * update the parameters and re-enable advertising.
+		 */
+		if (hdev->le_adv_param_changed) {
+			__hci_req_enable_advertising(req);
+			hdev->le_adv_param_changed = false;
+		}
 		return 0;
+	}
 
 	hdev->cur_adv_instance = instance;
 	__hci_req_update_adv_data(req, instance);
 	__hci_req_update_scan_rsp_data(req, instance);
 	__hci_req_enable_advertising(req);
+	hdev->le_adv_param_changed = false;
 
 	return 0;
 }

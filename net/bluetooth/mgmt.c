@@ -106,6 +106,7 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_START_LIMITED_DISCOVERY,
 	MGMT_OP_READ_EXT_INFO,
 	MGMT_OP_SET_APPEARANCE,
+	MGMT_OP_SET_ADVERTISING_INTERVALS,
 };
 
 static const u16 mgmt_events[] = {
@@ -648,6 +649,7 @@ static u32 get_supported_settings(struct hci_dev *hdev)
 		settings |= MGMT_SETTING_SECURE_CONN;
 		settings |= MGMT_SETTING_PRIVACY;
 		settings |= MGMT_SETTING_STATIC_ADDRESS;
+		settings |= MGMT_SETTING_ADVERTISING_INTERVALS;
 	}
 
 	if (test_bit(HCI_QUIRK_EXTERNAL_CONFIG, &hdev->quirks) ||
@@ -721,6 +723,9 @@ static u32 get_current_settings(struct hci_dev *hdev)
 		if (bacmp(&hdev->static_addr, BDADDR_ANY))
 			settings |= MGMT_SETTING_STATIC_ADDRESS;
 	}
+
+	if (hci_dev_test_flag(hdev, HCI_ADVERTISING_INTERVALS))
+		settings |= MGMT_SETTING_ADVERTISING_INTERVALS;
 
 	return settings;
 }
@@ -4252,6 +4257,79 @@ unlock:
 	return err;
 }
 
+static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
+				     void *data, u16 len)
+{
+	struct mgmt_cp_set_advertising_intervals *cp = data;
+	int err;
+	u16 max_interval_ms, grace_period;
+	/* If both min_interval and max_interval are 0, use default values. */
+	bool use_default = cp->min_interval == 0 && cp->max_interval == 0;
+	struct adv_info *adv_instance;
+	int instance;
+
+	BT_DBG("%s", hdev->name);
+
+	/* This method is intended for LE devices only.*/
+	if (!hci_dev_test_flag(hdev, HCI_LE_ENABLED))
+		return mgmt_cmd_status(sk, hdev->id,
+				       MGMT_OP_SET_ADVERTISING_INTERVALS,
+				       MGMT_STATUS_REJECTED);
+
+	/* Check the validity of the intervals. */
+	if (!use_default && (cp->min_interval < HCI_VALID_LE_ADV_MIN_INTERVAL ||
+			     cp->max_interval > HCI_VALID_LE_ADV_MAX_INTERVAL ||
+			     cp->min_interval > cp->max_interval)) {
+		return mgmt_cmd_status(sk, hdev->id,
+				       MGMT_OP_SET_ADVERTISING_INTERVALS,
+				       MGMT_STATUS_INVALID_PARAMS);
+	}
+
+	hci_dev_lock(hdev);
+
+	if (use_default) {
+		hci_dev_clear_flag(hdev, HCI_ADVERTISING_INTERVALS);
+		hdev->le_adv_min_interval = HCI_DEFAULT_LE_ADV_MIN_INTERVAL;
+		hdev->le_adv_max_interval = HCI_DEFAULT_LE_ADV_MAX_INTERVAL;
+		hdev->le_adv_duration = HCI_DEFAULT_ADV_DURATION;
+	} else {
+		hci_dev_set_flag(hdev, HCI_ADVERTISING_INTERVALS);
+		hdev->le_adv_min_interval = cp->min_interval;
+		hdev->le_adv_max_interval = cp->max_interval;
+
+		max_interval_ms = CONVERT_TO_ADV_INTERVAL_MS(cp->max_interval);
+		grace_period = ADV_DURATION_GRACE_PERIOD(max_interval_ms);
+		if (grace_period < ADV_DURATION_MIN_GRACE_PERIOD)
+			grace_period = ADV_DURATION_MIN_GRACE_PERIOD;
+		hdev->le_adv_duration = max_interval_ms + grace_period;
+	}
+	hdev->le_adv_param_changed = true;
+
+	/* hdev->le_adv_duration would be copied to adv instances created
+	 * hereafter. However, for any existing adv instance of which the
+	 * individual_duration_flag is false, we should modify its duration.
+	 */
+	for (instance = 1;  instance <= HCI_MAX_ADV_INSTANCES; instance++) {
+		adv_instance = hci_find_adv_instance(hdev, instance);
+		if (adv_instance && !adv_instance->individual_duration_flag)
+			adv_instance->duration = hdev->le_adv_duration;
+	}
+
+	/* If advertising is not enabled, the new parameters will take effect
+	 * when advertising is enabled.
+	 * If advertising has been enabled, the new parameters will take effect
+	 * when next adv instance is scheduled by
+	 * __hci_req_schedule_adv_instance().
+	 * Hence, it is ok to send settings response now.
+	 */
+	err = send_settings_rsp(sk, MGMT_OP_SET_ADVERTISING_INTERVALS, hdev);
+	new_settings(hdev, sk);
+
+	hci_dev_unlock(hdev);
+
+	return err;
+}
+
 static void set_bredr_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 {
 	struct mgmt_pending_cmd *cmd;
@@ -6538,6 +6616,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ read_ext_controller_info,MGMT_READ_EXT_INFO_SIZE,
 						HCI_MGMT_UNTRUSTED },
 	{ set_appearance,	   MGMT_SET_APPEARANCE_SIZE },
+	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
 };
 
 void mgmt_index_added(struct hci_dev *hdev)
