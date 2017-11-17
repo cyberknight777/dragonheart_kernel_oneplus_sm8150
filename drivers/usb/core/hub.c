@@ -28,6 +28,7 @@
 #include <linux/mutex.h>
 #include <linux/random.h>
 #include <linux/pm_qos.h>
+#include <linux/pm_dark_resume.h>
 
 #include <linux/uaccess.h>
 #include <asm/byteorder.h>
@@ -2143,6 +2144,7 @@ void usb_disconnect(struct usb_device **pdev)
 	usb_remove_ep_devs(&udev->ep0);
 	usb_unlock_device(udev);
 
+	dev_dark_resume_remove_consumer(&udev->dev);
 	/* Unregister the device.  The device driver is responsible
 	 * for de-configuring the device and invoking the remove-device
 	 * notifier chain (used by usbfs and possibly others).
@@ -2485,6 +2487,7 @@ int usb_new_device(struct usb_device *udev)
 	(void) usb_create_ep_devs(&udev->dev, &udev->ep0, udev);
 	usb_mark_last_busy(udev);
 	pm_runtime_put_sync_autosuspend(&udev->dev);
+	dev_dark_resume_add_consumer(&udev->dev);
 	return err;
 
 fail:
@@ -3401,6 +3404,11 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	int		port1 = udev->portnum;
 	int		status;
 	u16		portchange, portstatus;
+
+	if (dev_dark_resume_active(&udev->dev)) {
+		dev_info(&udev->dev, "disabled for dark resume\n");
+		return 0;
+	}
 
 	if (!test_and_set_bit(port1, hub->child_usage_bits)) {
 		status = pm_runtime_get_sync(&port_dev->dev);
