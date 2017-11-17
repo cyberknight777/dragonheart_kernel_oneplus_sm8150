@@ -330,6 +330,12 @@ config HOLTEK_FF
 	  Say Y here if you have a Holtek On Line Grip based game controller
 	  and want to have force feedback support for it.
 
+config HID_GOOGLE_HAMMER
+	tristate "Google Hammer Keyboard"
+	depends on USB_HID && LEDS_CLASS
+	---help---
+	Say Y here if you have a Google Hammer device.
+
 config HID_GT683R
 	tristate "MSI GT68xR LED support"
 	depends on LEDS_CLASS && USB_HID
@@ -748,6 +754,13 @@ config HID_PRIMAX
 	---help---
 	Support for Primax devices that are not fully compliant with the
 	HID standard.
+
+config HID_QUICKSTEP
+	tristate "ChromeOS Touch Latency Measurement Device -- Quickstep"
+	depends on USB_HID
+	---help---
+	This module is the driver for the ChromeOS Touch Latency Measurement
+	Device known as Quickstep.
 
 config HID_RETRODE
 	tristate "Retrode"

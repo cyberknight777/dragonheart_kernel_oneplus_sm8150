@@ -44,6 +44,12 @@
 
 #define DRIVER_DESC "HID core driver"
 
+/*
+ * Qurik that is pass to the driver_data of struct hid_device_id indicating
+ * that some of the interfaces on the bus should not use the generic hid driver.
+ */
+#define QUIRK_NO_HID_GENERIC BIT(0)
+
 int hid_debug = 0;
 module_param_named(debug, hid_debug, int, 0600);
 MODULE_PARM_DESC(debug, "toggle HID debugging messages");
@@ -2055,6 +2061,12 @@ static const struct hid_device_id hid_have_special_driver[] = {
 #if IS_ENABLED(CONFIG_HID_GREENASIA)
 	{ HID_USB_DEVICE(USB_VENDOR_ID_GREENASIA, 0x0012) },
 #endif
+#if IS_ENABLED(CONFIG_HID_GOOGLE_HAMMER)
+	{ HID_USB_DEVICE(USB_VENDOR_ID_GOOGLE, USB_DEVICE_ID_GOOGLE_HAMMER),
+	  .driver_data = QUIRK_NO_HID_GENERIC },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_GOOGLE, USB_DEVICE_ID_GOOGLE_STAFF),
+	  .driver_data = QUIRK_NO_HID_GENERIC },
+#endif
 #if IS_ENABLED(CONFIG_HID_GT683R)
 	{ HID_USB_DEVICE(USB_VENDOR_ID_MSI, USB_DEVICE_ID_MSI_GT683R_LED_PANEL) },
 #endif
@@ -2246,6 +2258,9 @@ static const struct hid_device_id hid_have_special_driver[] = {
 #endif
 #if IS_ENABLED(CONFIG_HID_PRODIKEYS)
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CREATIVELABS, USB_DEVICE_ID_PRODIKEYS_PCMIDI) },
+#endif
+#if IS_ENABLED(CONFIG_HID_QUICKSTEP)
+	{ HID_USB_DEVICE(USB_VENDOR_ID_GOOGLE, USB_DEVICE_ID_GOOGLE_QUICKSTEP) },
 #endif
 #if IS_ENABLED(CONFIG_HID_RETRODE)
 	{ HID_USB_DEVICE(USB_VENDOR_ID_FUTURE_TECHNOLOGY, USB_DEVICE_ID_RETRODE2) },
@@ -2954,11 +2969,22 @@ int hid_add_device(struct hid_device *hdev)
 	 */
 	if (hid_ignore_special_drivers) {
 		hdev->group = HID_GROUP_GENERIC;
-	} else if (!hdev->group &&
-		   !hid_match_id(hdev, hid_have_special_driver)) {
-		ret = hid_scan_report(hdev);
-		if (ret)
-			hid_warn(hdev, "bad device descriptor (%d)\n", ret);
+	} else if (!hdev->group) {
+		const struct hid_device_id *matched_id = hid_match_id(
+			hdev, hid_have_special_driver);
+
+		if (!matched_id ||
+		    matched_id->driver_data & QUIRK_NO_HID_GENERIC) {
+			ret = hid_scan_report(hdev);
+			if (ret)
+				hid_warn(hdev, "bad device descriptor (%d)\n",
+					 ret);
+
+			if (matched_id &&
+			    matched_id->driver_data & QUIRK_NO_HID_GENERIC &&
+			    hdev->group == HID_GROUP_GENERIC)
+				hdev->group = HID_GROUP_GENERIC_OVERRIDE;
+		}
 	}
 
 	/* XXX hack, any other cleaner solution after the driver core
