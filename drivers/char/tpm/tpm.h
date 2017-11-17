@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
+#include <linux/hw_random.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/platform_device.h>
@@ -239,6 +240,9 @@ struct tpm_chip {
 	unsigned long is_open;	/* only one allowed */
 
 	unsigned long is_suspended;
+
+	char hwrng_name[64];
+	struct hwrng hwrng;
 
 	struct mutex tpm_mutex;	/* tpm is processing */
 
