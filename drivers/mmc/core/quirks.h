@@ -91,6 +91,10 @@ static const struct mmc_fixup mmc_blk_fixups[] = {
 	MMC_FIXUP("V10016", CID_MANFID_KINGSTON, CID_OEMID_ANY, add_quirk_mmc,
 		  MMC_QUIRK_TRIM_BROKEN),
 
+	/* Add Hynix specific fixup here */
+	MMC_FIXUP(CID_NAME_ANY, CID_MANFID_HYNIX, CID_OEMID_ANY, add_quirk_mmc,
+		  MMC_QUIRK_NOTIFY_POWEROFF_ON_SLEEP),
+
 	END_FIXUP
 };
 

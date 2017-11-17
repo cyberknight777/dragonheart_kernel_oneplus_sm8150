@@ -1954,8 +1954,14 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 	if (mmc_can_poweroff_notify(host->card) &&
 		((host->caps2 & MMC_CAP2_FULL_PWR_CYCLE) || !is_suspend))
 		err = mmc_poweroff_notify(host->card, notify_type);
-	else if (mmc_can_sleep(host->card))
+	else if (mmc_can_sleep(host->card)) {
+		if (host->card->quirks & MMC_QUIRK_NOTIFY_POWEROFF_ON_SLEEP) {
+			err = mmc_poweroff_notify(host->card, notify_type);
+			if (err)
+				goto out;
+		}
 		err = mmc_sleep(host);
+	}
 	else if (!mmc_host_is_spi(host))
 		err = mmc_deselect_cards(host);
 
