@@ -311,8 +311,15 @@ int pciehp_check_link_status(struct controller *ctrl)
 	else
 		msleep(1000);
 
-	/* wait 100ms before read pci conf, and try in 1s */
-	msleep(100);
+	/*
+	 * If the port supports Link speeds greater than 5.0 GT/s, we
+	 * must wait for 100 ms after Link training completes before
+	 * sending configuration request.
+	 */
+	if (ctrl->pcie->port->subordinate->max_bus_speed > PCIE_SPEED_5_0GT)
+		msleep(100);
+
+	/* try in 1s */
 	found = pci_bus_check_dev(ctrl->pcie->port->subordinate,
 					PCI_DEVFN(0, 0));
 
