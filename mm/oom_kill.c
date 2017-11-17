@@ -829,8 +829,9 @@ static void oom_kill_process(struct oom_control *oc, const char *message)
 	struct task_struct *t;
 	struct mm_struct *mm;
 	unsigned int victim_points = 0;
+	/* CrOS: lower burst ratelimit to 1 to prevent excessive jank */
 	static DEFINE_RATELIMIT_STATE(oom_rs, DEFAULT_RATELIMIT_INTERVAL,
-					      DEFAULT_RATELIMIT_BURST);
+				      1);
 	bool can_oom_reap = true;
 
 	/*

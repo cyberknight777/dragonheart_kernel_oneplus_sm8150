@@ -335,6 +335,23 @@ config DEFAULT_MMAP_MIN_ADDR
 	  This value can be changed after boot using the
 	  /proc/sys/vm/mmap_min_addr tunable.
 
+config MMAP_NOEXEC_TAINT
+	int "Turns on tainting of mmap()d files from noexec mountpoints"
+	default 1 if MMU
+	default 0 if !MMU
+	help
+	  By default, the ability to change the protections of a virtual
+	  memory area to allow execution depend on if the vma has the
+	  VM_MAYEXEC flag.  When mapping regions from files, VM_MAYEXEC
+	  will be unset if the containing mountpoint is mounted MNT_NOEXEC.
+	  By setting the value to 0, any mmap()d region may be later
+	  mprotect()d with PROT_EXEC.
+
+	  If unsure, keep the value set to 1.
+
+	  This value can be changed after boot using the
+	  /proc/sys/vm/mmap_noexec_taint tunable.
+
 config ARCH_SUPPORTS_MEMORY_FAILURE
 	bool
 
@@ -740,6 +757,17 @@ config DEVICE_PUBLIC
 	  Allows creation of struct pages to represent addressable device
 	  memory; i.e., memory that is accessible from both the device and
 	  the CPU
+
+config LOW_MEM_NOTIFY
+	bool "Create device that lets processes detect low-memory conditions"
+	default n
+	help
+	  A process can poll the /dev/low_mem device to be notified of
+	  low-memory conditions.  The process can then attempt to free memory
+	  before a OOM condition develops and the OOM killer takes over.  This
+	  is meant to be used in systems with no or very little swap space.  In
+	  the presence of large swap space, the system is likely to become
+	  unusable before the OOM killer is triggered.
 
 config FRAME_VECTOR
 	bool
