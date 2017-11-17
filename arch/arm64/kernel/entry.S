@@ -658,9 +658,15 @@ el0_svc_compat:
 	/*
 	 * AArch32 syscall handling
 	 */
+#ifdef CONFIG_ALT_SYSCALL
+	ldr	stbl, [tsk, #TSK_TI_COMPAT_SYS_CALL_TABLE] // load per-thread compat syscall table pointer
+	ldr	w16, [tsk, #TSK_TI_COMPAT_NR_SYSCALLS]
+	mov	wsc_nr, w16
+#else
 	adrp	stbl, compat_sys_call_table	// load compat syscall table pointer
-	mov	wscno, w7			// syscall number in w7 (r7)
 	mov     wsc_nr, #__NR_compat_syscalls
+#endif
+	mov	wscno, w7			// syscall number in w7 (r7)
 	b	el0_svc_naked
 
 	.align	6
@@ -835,9 +841,15 @@ ENDPROC(ret_to_user)
  */
 	.align	6
 el0_svc:
+#ifdef CONFIG_ALT_SYSCALL
+	ldr	stbl, [tsk, #TSK_TI_SYS_CALL_TABLE] // load per-thread syscall table pointer
+	ldr	w16, [tsk, #TSK_TI_NR_SYSCALLS]
+	mov	wsc_nr, w16
+#else
 	adrp	stbl, sys_call_table		// load syscall table pointer
-	mov	wscno, w8			// syscall number in w8
 	mov	wsc_nr, #__NR_syscalls
+#endif
+	mov	wscno, w8			// syscall number in w8
 el0_svc_naked:					// compat entry point
 	stp	x0, xscno, [sp, #S_ORIG_X0]	// save the original x0 and syscall number
 	enable_dbg_and_irq

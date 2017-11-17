@@ -29,6 +29,7 @@ extern const sys_call_ptr_t sys_call_table[];
 #define ia32_sys_call_table sys_call_table
 #define __NR_syscall_compat_max __NR_syscall_max
 #define IA32_NR_syscalls NR_syscalls
+#define ia32_nr_syscalls nr_syscalls
 #endif
 
 #if defined(CONFIG_IA32_EMULATION)

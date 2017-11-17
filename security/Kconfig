@@ -211,6 +211,7 @@ source security/tomoyo/Kconfig
 source security/apparmor/Kconfig
 source security/loadpin/Kconfig
 source security/yama/Kconfig
+source security/chromiumos/Kconfig
 
 source security/integrity/Kconfig
 
@@ -251,5 +252,13 @@ config DEFAULT_SECURITY
 	default "apparmor" if DEFAULT_SECURITY_APPARMOR
 	default "" if DEFAULT_SECURITY_DAC
 
-endmenu
+config ARCH_HAS_ALT_SYSCALL
+	def_bool n
 
+config ALT_SYSCALL
+	bool "Alternate syscall table support"
+	depends on ARCH_HAS_ALT_SYSCALL
+	help
+	  Allow syscall table to be swapped on a running process.
+
+endmenu

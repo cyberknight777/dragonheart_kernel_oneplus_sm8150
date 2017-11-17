@@ -187,12 +187,26 @@ entry_SYSCALL_64_fastpath:
 	TRACE_IRQS_ON
 	ENABLE_INTERRUPTS(CLBR_NONE)
 #if __SYSCALL_MASK == ~0
+# ifdef CONFIG_ALT_SYSCALL
+	movq	PER_CPU_VAR(current_task), %r11
+	movl	TASK_TI_nr_syscalls(%r11), %r11d
+	cmpq	%r11, %rax
+	jae	1f				/* return -ENOSYS (already in pt_regs->ax) */
+# else
 	cmpq	$__NR_syscall_max, %rax
+	ja	1f
+# endif /* CONFIG_ALT_SYSCALL */
 #else
 	andl	$__SYSCALL_MASK, %eax
+# ifdef CONFIG_ALT_SYSCALL
+	movq	PER_CPU_VAR(current_task), %r11
+	cmpl	TASK_TI_nr_syscalls(%r11), %eax
+	jae	1f				/* return -ENOSYS (already in pt_regs->ax) */
+# else
 	cmpl	$__NR_syscall_max, %eax
-#endif
 	ja	1f				/* return -ENOSYS (already in pt_regs->ax) */
+# endif /* CONFIG_ALT_SYSCALL */
+#endif
 	movq	%r10, %rcx
 
 	/*
@@ -200,7 +214,13 @@ entry_SYSCALL_64_fastpath:
 	 * It might end up jumping to the slow path.  If it jumps, RAX
 	 * and all argument registers are clobbered.
 	 */
+#ifdef CONFIG_ALT_SYSCALL
+	movq	PER_CPU_VAR(current_task), %r11
+	movq	TASK_TI_sys_call_table(%r11), %r11
+	call	*(%r11, %rax, 8)
+#else
 	call	*sys_call_table(, %rax, 8)
+#endif
 .Lentry_SYSCALL_64_after_fastpath_call:
 
 	movq	%rax, RAX(%rsp)
