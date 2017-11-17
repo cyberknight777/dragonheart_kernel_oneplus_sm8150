@@ -31,8 +31,16 @@
 #include <linux/slab.h>
 #include <linux/cpu.h>
 #include <linux/cpu_cooling.h>
+#include <linux/ratelimit.h>
 
 #include <trace/events/thermal.h>
+
+static DEFINE_RATELIMIT_STATE(cpu_cooling_ratelimit_state, 30 * HZ, 1);
+
+static int cpu_cooling_ratelimit(void)
+{
+	return __ratelimit(&cpu_cooling_ratelimit_state);
+}
 
 /*
  * Cooling state <-> CPUFreq frequency
@@ -445,6 +453,7 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 {
 	struct cpufreq_cooling_device *cpufreq_cdev = cdev->devdata;
 	unsigned int clip_freq;
+	struct device *cpu_dev;
 
 	/* Request state should be less than max_level */
 	if (WARN_ON(state > cpufreq_cdev->max_level))
@@ -459,6 +468,13 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	cpufreq_cdev->clipped_freq = clip_freq;
 
 	cpufreq_update_policy(cpufreq_cdev->policy->cpu);
+
+	if (cpu_cooling_ratelimit()) {
+		cpu_dev = get_cpu_device(cpufreq_cdev->policy->cpu);
+		dev_info(cpu_dev,
+			 "Cooling state set to %lu. New max freq = %u\n",
+			 state, clip_freq);
+	}
 
 	return 0;
 }

@@ -15,6 +15,7 @@
 
 #define pr_fmt(fmt) "Power allocator: " fmt
 
+#include <linux/ratelimit.h>
 #include <linux/rculist.h>
 #include <linux/slab.h>
 #include <linux/thermal.h>
@@ -29,6 +30,13 @@
 #define FRAC_BITS 10
 #define int_to_frac(x) ((x) << FRAC_BITS)
 #define frac_to_int(x) ((x) >> FRAC_BITS)
+
+DEFINE_RATELIMIT_STATE(power_allocator_ratelimit_state, 30 * HZ, 1);
+
+static int power_allocator_ratelimit(void)
+{
+	return __ratelimit(&power_allocator_ratelimit_state);
+}
 
 /**
  * mul_frac() - multiply two fixed-point numbers
@@ -442,6 +450,15 @@ static int allocate_power(struct thermal_zone_device *tz,
 				      num_actors, power_range,
 				      max_allocatable_power, tz->temperature,
 				      control_temp - tz->temperature);
+
+	if (total_granted_power < total_req_power &&
+			power_allocator_ratelimit()) {
+		dev_info(&tz->device, "Controlling power: control_temp=%d "
+			 "last_temp=%d, curr_temp=%d total_requested_power=%d "
+			 "total_granted_power=%d\n", control_temp,
+			 tz->last_temperature, tz->temperature,
+			 total_req_power, total_granted_power);
+	}
 
 	kfree(req_power);
 unlock:
