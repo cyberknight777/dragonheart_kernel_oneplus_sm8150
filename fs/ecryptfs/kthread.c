@@ -25,6 +25,7 @@
 #include <linux/slab.h>
 #include <linux/wait.h>
 #include <linux/mount.h>
+#include <linux/selinux.h>
 #include "ecryptfs_kernel.h"
 
 struct ecryptfs_open_req {
@@ -141,17 +142,30 @@ int ecryptfs_privileged_open(struct file **lower_file,
 	req.path.dentry = lower_dentry;
 	req.path.mnt = lower_mnt;
 
-	/* Corresponding dput() and mntput() are done when the
-	 * lower file is fput() when all eCryptfs files for the inode are
-	 * released. */
-	flags |= IS_RDONLY(d_inode(lower_dentry)) ? O_RDONLY : O_RDWR;
-	(*lower_file) = dentry_open(&req.path, flags, cred);
-	if (!IS_ERR(*lower_file))
-		goto out;
-	if ((flags & O_ACCMODE) == O_RDONLY) {
-		rc = PTR_ERR((*lower_file));
-		goto out;
+	/*
+	 * When SELinux is enabled, force the lower file to be opened by the
+	 * kernel thread.  Otherwise, the lower file will be associated with the
+	 * SELinux context of the first process that opens it, which may prevent
+	 * a different process from using it, unless that process has permission
+	 * to use fds from the first process.
+	 *
+	 * If SELinux is enabled, then any process that needs read access to an
+	 * ecryptfs filesytem must allow fd:use on the kernel context.
+	 */
+	if (!selinux_is_enabled()) {
+		/* Corresponding dput() and mntput() are done when the lower
+		 * file is fput() when all eCryptfs files for the inode are
+		 * released. */
+		flags |= IS_RDONLY(d_inode(lower_dentry)) ? O_RDONLY : O_RDWR;
+		(*lower_file) = dentry_open(&req.path, flags, cred);
+		if (!IS_ERR(*lower_file))
+			goto out;
+		if ((flags & O_ACCMODE) == O_RDONLY) {
+			rc = PTR_ERR((*lower_file));
+			goto out;
+		}
 	}
+
 	mutex_lock(&ecryptfs_kthread_ctl.mux);
 	if (ecryptfs_kthread_ctl.flags & ECRYPTFS_KTHREAD_ZOMBIE) {
 		rc = -EIO;
