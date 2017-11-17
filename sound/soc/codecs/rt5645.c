@@ -55,6 +55,8 @@ MODULE_PARM_DESC(quirk, "RT5645 pdata quirk override");
 
 #define RT5645_HWEQ_NUM 57
 
+#define TIME_TO_POWER_MS 400
+
 static const struct regmap_range_cfg rt5645_ranges[] = {
 	{
 		.name = "PR",
@@ -3670,6 +3672,22 @@ static struct dmi_system_id dmi_platform_minix_z83_4[] = {
 	{ }
 };
 
+static struct rt5645_platform_data kahlee_platform_data = {
+	.dmic1_data_pin = RT5645_DMIC_DATA_GPIO5,
+	.dmic2_data_pin = RT5645_DMIC_DATA_IN2P,
+	.jd_mode = 3,
+};
+
+static struct dmi_system_id dmi_platform_amd_stoney[] = {
+	{
+		.ident = "Chrome Kahlee",
+		.matches = {
+			DMI_MATCH(DMI_PRODUCT_NAME, "Kahlee"),
+		},
+	},
+	{ }
+};
+
 static bool rt5645_check_dp(struct device *dev)
 {
 	if (device_property_present(dev, "realtek,in2-differential") ||
@@ -3703,6 +3721,7 @@ static int rt5645_i2c_probe(struct i2c_client *i2c,
 	int ret, i;
 	unsigned int val;
 	struct regmap *regmap;
+	int timeout = TIME_TO_POWER_MS;
 
 	rt5645 = devm_kzalloc(&i2c->dev, sizeof(struct rt5645_priv),
 				GFP_KERNEL);
@@ -3726,6 +3745,8 @@ static int rt5645_i2c_probe(struct i2c_client *i2c,
 		rt5645->pdata = general_platform_data2;
 	else if (dmi_check_system(dmi_platform_minix_z83_4))
 		rt5645->pdata = minix_z83_4_platform_data;
+	else if (dmi_check_system(dmi_platform_amd_stoney))
+		rt5645->pdata = kahlee_platform_data;
 
 	if (quirk != -1) {
 		rt5645->pdata.in2_diff = QUIRK_IN2_DIFF(quirk);
@@ -3776,6 +3797,15 @@ static int rt5645_i2c_probe(struct i2c_client *i2c,
 		return ret;
 	}
 	regmap_read(regmap, RT5645_VENDOR_ID2, &val);
+
+	/*
+	 * Read for 400msec, as it is the interval required between
+	 * read and power On.
+	 */
+	while (val != RT5645_DEVICE_ID && val != RT5650_DEVICE_ID && --timeout) {
+		msleep(1);
+		regmap_read(regmap, RT5645_VENDOR_ID2, &val);
+	}
 
 	switch (val) {
 	case RT5645_DEVICE_ID:

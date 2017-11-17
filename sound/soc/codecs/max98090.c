@@ -814,8 +814,67 @@ static const char *dmic_mux_text[] = { "ADC", "DMIC" };
 
 static SOC_ENUM_SINGLE_VIRT_DECL(dmic_mux_enum, dmic_mux_text);
 
+/*
+ * DMIC enable register can not be safely toggled when shutdown bit
+ * is 1. This causes a short audio drop in playback whenever a capture
+ * stream starts.
+ * To overcome this problem, we can uses these routes to turn on
+ * DMIC enable bit during all audio playback cases when DMIC is selected.
+ * Captured audio is not sent outside of codec because SDOEN is not
+ * enabled.
+ * When external mic is selected, delete these routes.
+ * These routes will be used in put_dmic_mux, that is, the put function
+ * of "DMIC Mux" control.
+ */
+static const struct snd_soc_dapm_route max98090_dapm_enable_dmic_routes[] = {
+
+	{"HPL", NULL,  "DMICL_ENA"},
+	{"HPR", NULL, "DMICR_ENA"},
+	{"SPKL", NULL, "DMICL_ENA"},
+	{"SPKR", NULL, "DMICR_ENA"},
+	{"RCVL", NULL, "DMICL_ENA"},
+	{"RCVR", NULL, "DMICR_ENA"},
+
+};
+
+/*
+ * Add or delete routes for max98090. Check comments for
+ * max98090_dapm_enable_dmic_routes.
+ */
+static int put_dmic_mux(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_dapm_kcontrol_codec(kcontrol);
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
+	struct max98090_priv *max98090 = snd_soc_codec_get_drvdata(codec);
+	int ret = 0;
+	int use_dmic = ucontrol->value.enumerated.item[0];
+
+	/* max98091 does not suffer from DMIC enable register problem. */
+	if (max98090->devtype == MAX98091)
+		return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+
+	dev_info(codec->dev, "DMIC Mux: put_dmic_mux %s DMIC\n",
+		use_dmic ? "enable" : "disable");
+
+	if (use_dmic)
+		snd_soc_dapm_add_routes(dapm, max98090_dapm_enable_dmic_routes,
+			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+	else
+		snd_soc_dapm_del_routes(dapm, max98090_dapm_enable_dmic_routes,
+			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+
+	ret = snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+
+	snd_soc_dapm_sync(dapm);
+
+	return ret;
+}
+
+
 static const struct snd_kcontrol_new max98090_dmic_mux =
-	SOC_DAPM_ENUM("DMIC Mux", dmic_mux_enum);
+	SOC_DAPM_ENUM_EXT("DMIC Mux", dmic_mux_enum,
+		snd_soc_dapm_get_enum_double, put_dmic_mux);
 
 static const char *max98090_micpre_text[] = { "Off", "On" };
 
@@ -1074,6 +1133,15 @@ static SOC_ENUM_SINGLE_DECL(mixhprsel_mux_enum,
 static const struct snd_kcontrol_new max98090_mixhprsel_mux =
 	SOC_DAPM_ENUM("MIXHPRSEL Mux", mixhprsel_mux_enum);
 
+/* HP output enables. */
+static const struct snd_kcontrol_new max98090_hpl_enable =
+	SOC_DAPM_SINGLE("Switch", M98090_REG_OUTPUT_ENABLE,
+			M98090_HPLEN_SHIFT, 1, 0);
+
+static const struct snd_kcontrol_new max98090_hpr_enable =
+	SOC_DAPM_SINGLE("Switch", M98090_REG_OUTPUT_ENABLE,
+			M98090_HPREN_SHIFT, 1, 0);
+
 static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_INPUT("MIC1"),
 	SND_SOC_DAPM_INPUT("MIC2"),
@@ -1147,12 +1215,10 @@ static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 		&max98090_right_adc_mixer_controls[0],
 		ARRAY_SIZE(max98090_right_adc_mixer_controls)),
 
-	SND_SOC_DAPM_ADC_E("ADCL", NULL, M98090_REG_INPUT_ENABLE,
-		M98090_ADLEN_SHIFT, 0, max98090_shdn_event,
-		SND_SOC_DAPM_POST_PMU),
-	SND_SOC_DAPM_ADC_E("ADCR", NULL, M98090_REG_INPUT_ENABLE,
-		M98090_ADREN_SHIFT, 0, max98090_shdn_event,
-		SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_ADC("ADCL", NULL, M98090_REG_INPUT_ENABLE,
+		M98090_ADLEN_SHIFT, 0),
+	SND_SOC_DAPM_ADC("ADCR", NULL, M98090_REG_INPUT_ENABLE,
+		M98090_ADREN_SHIFT, 0),
 
 	SND_SOC_DAPM_AIF_OUT("AIFOUTL", "HiFi Capture", 0,
 		SND_SOC_NOPM, 0, 0),
@@ -1218,10 +1284,10 @@ static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_MUX("MIXHPRSEL Mux", M98090_REG_HP_CONTROL,
 		M98090_MIXHPRSEL_SHIFT, 0, &max98090_mixhprsel_mux),
 
-	SND_SOC_DAPM_PGA("HP Left Out", M98090_REG_OUTPUT_ENABLE,
-		M98090_HPLEN_SHIFT, 0, NULL, 0),
-	SND_SOC_DAPM_PGA("HP Right Out", M98090_REG_OUTPUT_ENABLE,
-		M98090_HPREN_SHIFT, 0, NULL, 0),
+	SND_SOC_DAPM_SWITCH("HP Left Out", SND_SOC_NOPM, 0, 0,
+			    &max98090_hpl_enable),
+	SND_SOC_DAPM_SWITCH("HP Right Out", SND_SOC_NOPM, 0, 0,
+			    &max98090_hpr_enable),
 
 	SND_SOC_DAPM_PGA("SPK Left Out", M98090_REG_OUTPUT_ENABLE,
 		M98090_SPLEN_SHIFT, 0, NULL, 0),
@@ -1405,8 +1471,8 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	 * Disable this for lowest power if bypassing
 	 * the DAC with an analog signal
 	 */
-	{"HP Left Out", NULL, "DACL"},
-	{"HP Left Out", NULL, "MIXHPLSEL Mux"},
+	{"HP Left Out", "Switch", "DACL"},
+	{"HP Left Out", "Switch", "MIXHPLSEL Mux"},
 
 	{"MIXHPRSEL Mux", "HP Mixer", "Right Headphone Mixer"},
 
@@ -1414,8 +1480,8 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	 * Disable this for lowest power if bypassing
 	 * the DAC with an analog signal
 	 */
-	{"HP Right Out", NULL, "DACR"},
-	{"HP Right Out", NULL, "MIXHPRSEL Mux"},
+	{"HP Right Out", "Switch", "DACR"},
+	{"HP Right Out", "Switch", "MIXHPRSEL Mux"},
 
 	{"SPK Left Out", NULL, "Left Speaker Mixer"},
 	{"SPK Right Out", NULL, "Right Speaker Mixer"},
@@ -2120,7 +2186,6 @@ static void max98090_pll_work(struct work_struct *work)
 	/* Toggle shutdown OFF then ON */
 	snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, 0);
-	msleep(10);
 	snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
 			    M98090_SHDNN_MASK, M98090_SHDNN_MASK);
 
