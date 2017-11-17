@@ -20,3 +20,32 @@ config IIO_CROS_EC_SENSORS
 	  Accelerometers, Gyroscope and Magnetometer that are
 	  presented by the ChromeOS EC Sensor hub.
 	  Creates an IIO device for each functions.
+
+config IIO_CROS_EC_ACTIVITY
+	tristate "ChromeOS EC Activity Sensors"
+	depends on IIO_CROS_EC_SENSORS_CORE
+	help
+	  Module to handle activity events detections presented by the ChromeOS
+	  EC Sensor hub.
+	  Activities can be simple (low/no motion) or more complex (riding train).
+	  They are being reported by physical devices or the EC itself.
+	  Creates an IIO device to manage all activities.
+
+config IIO_CROS_EC_LIGHT_PROX
+	tristate "ChromeOS EC Light and Proximity Sensors"
+	depends on IIO_CROS_EC_SENSORS_CORE
+	help
+	  Module to handle Light and Proximity sensors
+	  presented by the ChromeOS EC Sensor hub.
+	  Create an IIO device for each funcions.
+	  Only one source is exposed by the EC.
+
+config IIO_CROS_EC_SENSORS_RING
+	tristate "ChromeOS EC Sensors Ring"
+	depends on IIO_CROS_EC_SENSORS || IIO_CROS_EC_LIGHT_PROX
+	help
+	  Add support for handling sensor events FIFO produced by
+	  the sensor hub.
+	  A single device with a buffer will collect all samples produced
+	  by the sensors managed by the CroEC sensor hub.
+

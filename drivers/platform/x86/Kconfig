@@ -890,6 +890,16 @@ config INTEL_IPS
 	  functionality.  If in doubt, say Y here; it will only load on
 	  supported platforms.
 
+config ACPI_CHROMEOS
+	bool "ChromeOS specific ACPI extensions"
+	depends on ACPI
+	depends on CHROME_PLATFORMS
+	select NVRAM
+	select CHROMEOS
+	---help---
+	  This driver provides the firmware interface for the services exported
+	  through the CHROMEOS interfaces when using ChromeOS ACPI firmware.
+
 config INTEL_IMR
 	bool "Intel Isolated Memory Region support"
 	default n

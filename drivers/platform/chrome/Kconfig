@@ -4,7 +4,6 @@
 
 menuconfig CHROME_PLATFORMS
 	bool "Platform support for Chrome hardware"
-	depends on X86 || ARM || ARM64 || COMPILE_TEST
 	---help---
 	  Say Y here to get to see options for platform support for
 	  various Chromebooks and Chromeboxes. This option alone does
@@ -13,6 +12,24 @@ menuconfig CHROME_PLATFORMS
 	  If you say N, all options in this submenu will be skipped and disabled.
 
 if CHROME_PLATFORMS
+
+config CHROMEOS
+	bool
+	depends on CHROMEOS_OF_FIRMWARE || (NVRAM && ACPI_CHROMEOS)
+	---help---
+	  Provides abstracted interfaces to the firmware features provided on
+	  ChromeOS devices. It depends on a lowlevel driver to implement the
+	  firmware interface on the platform.
+
+config CHROMEOS_OF_FIRMWARE
+	bool "ChromeOS firmware interface driver"
+	depends on OF && MFD_CROS_EC
+	select CHROMEOS
+	select CHROMEOS_VBC_EC
+	---help---
+	  This driver provides an interface to ChromeOS firmware.
+
+	  Say Y here if you are building for a ChromeOS device.
 
 config CHROMEOS_LAPTOP
 	tristate "Chrome OS Laptop"
@@ -38,9 +55,19 @@ config CHROMEOS_PSTORE
 	  If you have a supported Chromebook, choose Y or M here.
 	  The module will be called chromeos_pstore.
 
+config CHROMEOS_TBMC
+	tristate "ChromeOS Tablet Switch Controller"
+	depends on ACPI
+	---help---
+	  This option adds a driver for the tablet switch on
+	  select Chrome OS systems.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called chromeos_tbmc.
+
 config CROS_EC_CHARDEV
         tristate "Chrome OS Embedded Controller userspace device interface"
-        depends on MFD_CROS_EC
+        depends on MFD_CROS_EC && MFD_CROS_EC_PD_UPDATE
         ---help---
           This driver adds support to talk with the ChromeOS EC from userspace.
 
