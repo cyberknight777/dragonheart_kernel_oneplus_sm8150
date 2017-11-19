@@ -1610,7 +1610,7 @@ struct ieee80211_he_mcs_nss_supp {
  */
 struct ieee80211_he_operation {
 	__le32 he_oper_params;
-	u8 he_mcs_nss_set[2];
+	__le16 he_mcs_nss_set;
 	/* Optional 0,1,3 or 4 bytes: depends on %he_oper_params */
 	u8 optional[0];
 } __packed;
