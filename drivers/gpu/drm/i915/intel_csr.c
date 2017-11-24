@@ -433,7 +433,7 @@ static void csr_load_work_fn(struct work_struct *work)
 	/* Wait until root filesystem is loaded in case the firmware
 	 * is not built-in but in /lib/firmware */
 	WARN(_wait_for(system_state == SYSTEM_RUNNING,
-		       rootfs_timeout_ms * 1000, 100 * 1000),
+		       rootfs_timeout_ms * 1000, 10 * 1000, 100 * 1000),
 	     "Timing out after waiting %dms for SYSTEM_RUNNING",
 	     rootfs_timeout_ms);
 
