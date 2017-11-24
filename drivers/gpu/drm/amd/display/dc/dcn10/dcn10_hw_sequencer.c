@@ -2367,7 +2367,8 @@ static const struct hw_sequencer_funcs dcn10_funcs = {
 	.pplib_apply_display_requirements =
 			dcn10_pplib_apply_display_requirements,
 	.edp_backlight_control = hwss_edp_backlight_control,
-	.edp_power_control = hwss_edp_power_control
+	.edp_power_control = hwss_edp_power_control,
+	.edp_wait_for_hpd_ready = hwss_edp_wait_for_hpd_ready,
 };
 
 
