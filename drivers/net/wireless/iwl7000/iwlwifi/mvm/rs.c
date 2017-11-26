@@ -3578,17 +3578,17 @@ static void rs_fill_lq_cmd(struct iwl_mvm *mvm,
 			cpu_to_le16(iwl_mvm_coex_agg_time_limit(mvm, sta));
 }
 
-void *rs_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
+static void *rs_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
 {
 	return hw->priv;
 }
 /* rate scale requires free function to be implemented */
-void rs_free(void *mvm_rate)
+static void rs_free(void *mvm_rate)
 {
 	return;
 }
 
-void rs_free_sta(void *mvm_r, struct ieee80211_sta *sta, void *mvm_sta)
+static void rs_free_sta(void *mvm_r, struct ieee80211_sta *sta, void *mvm_sta)
 {
 	struct iwl_op_mode *op_mode __maybe_unused = mvm_r;
 	struct iwl_mvm *mvm __maybe_unused = IWL_OP_MODE_GET_MVM(op_mode);
@@ -4045,15 +4045,16 @@ void rs_remove_sta_debugfs(void *mvm, void *mvm_sta)
  * the station is added. Since mac80211 calls this function before a
  * station is added we ignore it.
  */
-void rs_rate_init_ops(void *mvm_r, struct ieee80211_supported_band *sband,
-		      struct cfg80211_chan_def *chandef,
-		      struct ieee80211_sta *sta, void *mvm_sta)
+static void rs_rate_init_ops(void *mvm_r,
+			     struct ieee80211_supported_band *sband,
+			     struct cfg80211_chan_def *chandef,
+			     struct ieee80211_sta *sta, void *mvm_sta)
 {
 }
 
 /* ops for rate scaling implemented in the driver */
 static const struct rate_control_ops rs_mvm_ops_drv = {
-	.name = RS_NAME_DRV,
+	.name = RS_NAME,
 	.tx_status = rs_drv_mac80211_tx_status,
 	.get_rate = rs_drv_get_rate,
 	.rate_init = rs_rate_init_ops,
@@ -4077,30 +4078,14 @@ void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		rs_drv_rate_init(mvm, sta, band, init);
 }
 
-static int rs_drv_register_ops(void)
+int iwl_mvm_rate_control_register(void)
 {
 	return ieee80211_rate_control_register(&rs_mvm_ops_drv);
 }
 
-static void rs_drv_unregister_ops(void)
+void iwl_mvm_rate_control_unregister(void)
 {
-	return ieee80211_rate_control_unregister(&rs_mvm_ops_drv);
-}
-
-int iwl_mvm_rate_control_register(const struct iwl_fw *fw)
-{
-	if (fw_has_capa(&fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD))
-		return rs_fw_register_ops();
-	else
-		return rs_drv_register_ops();
-}
-
-void iwl_mvm_rate_control_unregister(const struct iwl_fw *fw)
-{
-	if (fw_has_capa(&fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD))
-		rs_fw_unregister_ops();
-	else
-		rs_drv_unregister_ops();
+	ieee80211_rate_control_unregister(&rs_mvm_ops_drv);
 }
 
 /**

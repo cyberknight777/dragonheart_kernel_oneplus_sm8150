@@ -36,8 +36,7 @@
 #include "fw-api.h"
 #include "iwl-trans.h"
 
-#define RS_NAME_DRV "iwl-mvm-rs-drv"
-#define RS_NAME_FW "iwl-mvm-rs-fw"
+#define RS_NAME "iwl-mvm-rs"
 
 struct iwl_rs_rate_info {
 	u8 plcp;	  /* uCode API:  IWL_RATE_6M_PLCP, etc. */
@@ -429,7 +428,7 @@ void iwl_mvm_rs_tx_status(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
  * ieee80211_register_hw
  *
  */
-int iwl_mvm_rate_control_register(const struct iwl_fw *fw);
+int iwl_mvm_rate_control_register(void);
 
 /**
  * iwl_rate_control_unregister - Unregister the rate control callbacks
@@ -437,7 +436,7 @@ int iwl_mvm_rate_control_register(const struct iwl_fw *fw);
  * This should be called after calling ieee80211_unregister_hw, but before
  * the driver is unloaded.
  */
-void iwl_mvm_rate_control_unregister(const struct iwl_fw *fw);
+void iwl_mvm_rate_control_unregister(void);
 
 struct iwl_mvm_sta;
 
@@ -448,19 +447,12 @@ int iwl_mvm_tx_protection(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta,
 void iwl_mvm_reset_frame_stats(struct iwl_mvm *mvm);
 #endif
 
-void rs_rate_init_ops(void *mvm_r, struct ieee80211_supported_band *sband,
-		      struct cfg80211_chan_def *chandef,
-		      struct ieee80211_sta *sta, void *mvm_sta);
 #ifdef CPTCFG_MAC80211_DEBUGFS
 void rs_remove_sta_debugfs(void *mvm, void *mvm_sta);
 #endif
 
-void *rs_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir);
-void rs_free(void *mvm_rate);
-void rs_free_sta(void *mvm_r, struct ieee80211_sta *sta, void *mvm_sta);
+void iwl_mvm_rs_add_sta(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta);
 void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		     enum nl80211_band band);
-int rs_fw_register_ops(void);
-void rs_fw_unregister_ops(void);
 void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt);
 #endif /* __rs__ */

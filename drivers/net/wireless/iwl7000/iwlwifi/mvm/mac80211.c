@@ -472,8 +472,10 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
 	ieee80211_hw_set(hw, NEEDS_UNIQUE_STA_ADDR);
 
-	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD))
+	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD)) {
 		ieee80211_hw_set(hw, TX_AMPDU_SETUP_IN_HW);
+		ieee80211_hw_set(hw, HAS_RATE_CONTROL);
+	}
 
 	if (iwl_mvm_has_new_rx_api(mvm))
 		ieee80211_hw_set(hw, SUPPORTS_REORDERING_BUFFER);
@@ -523,10 +525,8 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			    IEEE80211_RADIOTAP_HE_DATA2_LTF_SYMS_KNOWN |
 			    IEEE80211_RADIOTAP_HE_DATA2_TXBF_KNOWN);
 
-	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD))
-		hw->rate_control_algorithm = RS_NAME_FW;
-	else
-		hw->rate_control_algorithm = RS_NAME_DRV;
+	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TLC_OFFLOAD))
+		hw->rate_control_algorithm = RS_NAME;
 
 	hw->uapsd_queues = IWL_MVM_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IWL_UAPSD_MAX_SP;
