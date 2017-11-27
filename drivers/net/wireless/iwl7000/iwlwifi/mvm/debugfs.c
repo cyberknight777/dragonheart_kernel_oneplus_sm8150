@@ -1991,6 +1991,13 @@ static const struct file_operations iwl_dbgfs_mem_ops = {
 	.llseek = default_llseek,
 };
 
+void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
+			     struct ieee80211_vif *vif,
+			     struct ieee80211_sta *sta,
+			     struct dentry *dir)
+{
+}
+
 int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 {
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS

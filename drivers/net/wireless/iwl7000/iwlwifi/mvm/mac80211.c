@@ -4739,4 +4739,7 @@ const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.stop_nan = iwl_mvm_stop_nan,
 	.add_nan_func = iwl_mvm_add_nan_func,
 	.del_nan_func = iwl_mvm_del_nan_func,
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	.sta_add_debugfs = iwl_mvm_sta_add_debugfs,
+#endif
 };
