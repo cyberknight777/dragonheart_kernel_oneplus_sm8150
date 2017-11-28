@@ -3274,6 +3274,7 @@ SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head,
 
 	return 0;
 }
+EXPORT_SYMBOL(sys_set_robust_list);
 
 /**
  * sys_get_robust_list() - Get the robust-futex list head of a task
