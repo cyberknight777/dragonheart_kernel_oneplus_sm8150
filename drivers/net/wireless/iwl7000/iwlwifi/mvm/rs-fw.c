@@ -236,6 +236,13 @@ void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
 
 	notif = (void *)pkt->data;
 	mvmsta = iwl_mvm_sta_from_staid_rcu(mvm, notif->sta_id);
+
+	if (!mvmsta) {
+		IWL_ERR(mvm, "Invalid sta id (%d) in FW TLC notification\n",
+			notif->sta_id);
+		return;
+	}
+
 	lq_sta = &mvmsta->lq_sta.rs_fw;
 
 	if (le16_to_cpu(notif->flags) & IWL_TLC_NOTIF_INIT_RATE_MSK) {
