@@ -2060,6 +2060,7 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 		MVM_DEBUGFS_ADD_STA_FILE(rs_data, dir, S_IRUSR);
 	}
 
+	return;
 err:
 	IWL_ERR(mvm, "Can't create the mvm station debugfs entry\n");
 }
