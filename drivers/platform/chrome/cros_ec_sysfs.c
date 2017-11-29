@@ -362,4 +362,7 @@ struct attribute_group cros_ec_attr_group = {
 	.attrs = __ec_attrs,
 	.is_visible = cros_ec_ctrl_visible,
 };
+EXPORT_SYMBOL(cros_ec_attr_group);
 
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("ChromeOS EC control driver");

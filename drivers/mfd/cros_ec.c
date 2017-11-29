@@ -50,25 +50,25 @@ static struct cros_ec_platform pd_p = {
 };
 
 static const struct mfd_cell ec_cell = {
-	.name = "cros-ec-ctl",
+	.name = "cros-ec-dev",
 	.platform_data = &ec_p,
 	.pdata_size = sizeof(ec_p),
 };
 
 static const struct mfd_cell ec_fp_cell = {
-	.name = "cros-ec-ctl",
+	.name = "cros-ec-dev",
 	.platform_data = &ec_fp_p,
 	.pdata_size = sizeof(ec_fp_p),
 };
 
 static const struct mfd_cell ec_tp_cell = {
-	.name = "cros-ec-ctl",
+	.name = "cros-ec-dev",
 	.platform_data = &ec_tp_p,
 	.pdata_size = sizeof(ec_tp_p),
 };
 
 static const struct mfd_cell ec_pd_cell = {
-	.name = "cros-ec-ctl",
+	.name = "cros-ec-dev",
 	.platform_data = &pd_p,
 	.pdata_size = sizeof(pd_p),
 };
