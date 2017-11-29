@@ -333,6 +333,12 @@ extern struct attribute_group cros_ec_lightbar_attr_group;
 extern struct attribute_group cros_ec_vbc_attr_group;
 extern struct attribute_group cros_ec_pd_attr_group;
 
+/* debugfs stuff */
+int cros_ec_debugfs_init(struct cros_ec_dev *ec);
+void cros_ec_debugfs_remove(struct cros_ec_dev *ec);
+void cros_ec_debugfs_suspend(struct cros_ec_dev *ec);
+void cros_ec_debugfs_resume(struct cros_ec_dev *ec);
+
 /* ACPI GPE handler */
 #ifdef CONFIG_ACPI
 
