@@ -3209,12 +3209,14 @@ static void rs_drv_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	rs_initialize_lq(mvm, sta, lq_sta, band, init);
 }
 
-static void rs_drv_rate_update(void *mvm,
+static void rs_drv_rate_update(void *mvm_r,
 			       struct ieee80211_supported_band *sband,
 			       struct cfg80211_chan_def *chandef,
 			       struct ieee80211_sta *sta,
 			       void *priv_sta, u32 changed)
 {
+	struct iwl_op_mode *op_mode = mvm_r;
+	struct iwl_mvm *mvm __maybe_unused = IWL_OP_MODE_GET_MVM(op_mode);
 	u8 tid;
 
 	if (!iwl_mvm_sta_from_mac80211(sta)->vif)
