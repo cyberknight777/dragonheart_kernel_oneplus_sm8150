@@ -710,7 +710,6 @@ static int do_send(struct virtwl_vfd *vfd, const char __user *buffer, u32 len,
 	struct virtio_wl_ctrl_vfd_send *ctrl_send;
 	__le32 *vfd_ids;
 	u8 *out_buffer;
-	unsigned long remaining;
 	struct completion finish_completion;
 	struct scatterlist out_sg;
 	struct scatterlist in_sg;
@@ -763,9 +762,10 @@ static int do_send(struct virtwl_vfd *vfd, const char __user *buffer, u32 len,
 	for (i = 0; i < vfd_count; i++)
 		vfd_ids[i] = cpu_to_le32(vfds[i]->id);
 
-	remaining = copy_from_user(out_buffer, buffer, len);
-	if (remaining)
+	if (copy_from_user(out_buffer, buffer, len)) {
+		ret = -EFAULT;
 		goto free_ctrl_send;
+	}
 
 	init_completion(&finish_completion);
 	sg_init_one(&out_sg, ctrl_send, sizeof(*ctrl_send) + post_send_size);
