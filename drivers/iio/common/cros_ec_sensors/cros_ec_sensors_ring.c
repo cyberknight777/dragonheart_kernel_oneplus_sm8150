@@ -199,8 +199,10 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 	if (fifo_info->info.total_lost) {
 		/* Need to retrieve the number of lost vectors per sensor */
 		state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INFO;
-		if (cros_ec_motion_send_host_cmd(&state->core, 0))
-			goto ring_handler_end;
+		if (cros_ec_motion_send_host_cmd(&state->core, 0)) {
+			mutex_unlock(&state->core.cmd_lock);
+			return;
+		}
 		memcpy(fifo_info, &state->core.resp->fifo_info,
 		       sizeof(*fifo_info));
 		fifo_timestamp = cros_ec_get_time_ns();
