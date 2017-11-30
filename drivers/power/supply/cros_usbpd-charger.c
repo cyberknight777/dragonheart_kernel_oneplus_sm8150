@@ -495,7 +495,7 @@ static void cros_usb_pd_print_log_entry(struct ec_response_pd_log *r,
 	struct usb_chg_measures *meas;
 	struct mcdp_info *minfo;
 	struct rtc_time rt;
-	s64 msecs;
+	u64 msecs;
 	int len = 0;
 	char buf[BUF_SIZE + 1];
 
