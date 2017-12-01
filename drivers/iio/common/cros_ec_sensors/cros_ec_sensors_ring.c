@@ -94,14 +94,6 @@ static const struct iio_info ec_sensors_info = {
 	.driver_module = THIS_MODULE,
 };
 
-static s64 cros_ec_get_time_ns(void)
-{
-	struct timespec ts;
-
-	get_monotonic_boottime(&ts);
-	return timespec_to_ns(&ts);
-}
-
 static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
 				    bool on)
 {
@@ -392,7 +384,7 @@ static int cros_ec_ring_event(struct notifier_block *nb,
 		return NOTIFY_OK;
 
 	state->fifo_info.info = ec->event_data.data.sensor_fifo.info;
-	state->fifo_timestamp[NEW_TS] = cros_ec_get_time_ns();
+	state->fifo_timestamp[NEW_TS] = ec->last_event_time;
 	cros_ec_ring_handler(state);
 	return NOTIFY_OK;
 }

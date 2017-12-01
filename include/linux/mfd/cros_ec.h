@@ -118,6 +118,8 @@ struct cros_ec_command {
  * @event_notifier: interrupt event notifier for transport devices.
  * @event_data: raw payload transferred with the MKBP event.
  * @event_size: size in bytes of the event data.
+ * @last_event_time: exact time from the hard irq when we got notified of
+ *     a new event.
  */
 struct cros_ec_device {
 
@@ -154,6 +156,7 @@ struct cros_ec_device {
 	struct ec_response_get_next_event event_data;
 	int event_size;
 	u32 host_event_wake_mask;
+	s64 last_event_time;
 };
 
 /**
@@ -337,4 +340,16 @@ void cros_ec_debugfs_suspend(struct cros_ec_dev *ec);
 void cros_ec_debugfs_resume(struct cros_ec_dev *ec);
 
 
-#endif /* __LINUX_MFD_CROS_EC_H */
+/**
+ * cros_ec_get_time_ns - Return time in ns.
+ *
+ * This is the function used to record the time for last_event_time in struct
+ * cros_ec_device during the hard irq.
+ *
+ * This function is probably implemented using ktime_get_boot_ns(), but it's
+ * exposed here to make sure all cros_ec drivers use the same code path to get
+ * the time.
+ */
+s64 cros_ec_get_time_ns(void);
+
+#endif  /* __LINUX_MFD_CROS_EC_H */
