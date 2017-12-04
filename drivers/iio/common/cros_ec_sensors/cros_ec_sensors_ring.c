@@ -244,7 +244,7 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 		} else if (out + number_data >
 			   state->ring + fifo_info->info.count) {
 			dev_warn(&indio_dev->dev,
-				 "Too many samples: %d (%ld data) to %d entries for expected %d entries",
+				 "Too many samples: %d (%zd data) to %d entries for expected %d entries",
 				 i, out - state->ring, i + number_data,
 				 fifo_info->info.count);
 			break;
