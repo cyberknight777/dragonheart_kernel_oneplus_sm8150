@@ -543,6 +543,7 @@ struct amdgpu_mc {
 	u64					private_aperture_end;
 	/* protects concurrent invalidation */
 	spinlock_t		invalidate_lock;
+	bool			translate_further;
 };
 
 /*
