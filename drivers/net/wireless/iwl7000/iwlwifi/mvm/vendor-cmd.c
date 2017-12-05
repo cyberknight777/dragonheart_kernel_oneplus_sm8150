@@ -451,6 +451,12 @@ static int iwl_mvm_oppps_wa_update_quota(struct iwl_mvm *mvm,
 		mvm->p2p_opps_test_wa_vif = mvmvif;
 	else
 		mvm->p2p_opps_test_wa_vif = NULL;
+
+	if (fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_DYNAMIC_QUOTA)) {
+		return -EOPNOTSUPP;
+	}
+
 	return iwl_mvm_update_quotas(mvm, force_update, NULL);
 }
 
