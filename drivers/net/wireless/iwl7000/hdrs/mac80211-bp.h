@@ -243,3 +243,61 @@ static inline void timer_setup(struct timer_list *timer,
 #define from_timer(var, callback_timer, timer_fieldname) \
 	container_of(callback_timer, typeof(*var), timer_fieldname)
 #endif
+
+#if LINUX_VERSION_IS_LESS(4,11,0)
+static inline u32 get_random_u32(void)
+{
+#if LINUX_VERSION_IS_LESS(3,10,0)
+	unsigned int r;
+	get_random_bytes(&r, sizeof(r));
+
+	return r;
+#else
+	return get_random_int();
+#endif
+}
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,13,0)
+static inline void *backport_skb_put(struct sk_buff *skb, unsigned int len)
+{
+	return skb_put(skb, len);
+}
+#define skb_put LINUX_BACKPORT(skb_put)
+
+static inline void *backport_skb_push(struct sk_buff *skb, unsigned int len)
+{
+	return skb_push(skb, len);
+}
+#define skb_push LINUX_BACKPORT(skb_push)
+
+static inline void *backport___skb_push(struct sk_buff *skb, unsigned int len)
+{
+	return __skb_push(skb, len);
+}
+#define __skb_push LINUX_BACKPORT(__skb_push)
+
+static inline void *skb_put_zero(struct sk_buff *skb, unsigned int len)
+{
+	void *tmp = skb_put(skb, len);
+
+	memset(tmp, 0, len);
+
+	return tmp;
+}
+
+static inline void *skb_put_data(struct sk_buff *skb, const void *data,
+				 unsigned int len)
+{
+	void *tmp = skb_put(skb, len);
+
+	memcpy(tmp, data, len);
+
+	return tmp;
+}
+
+static inline void skb_put_u8(struct sk_buff *skb, u8 val)
+{
+	*(u8 *)skb_put(skb, 1) = val;
+}
+#endif

@@ -730,10 +730,10 @@ struct survey_info {
  *	allowed through even on unauthorized ports
  * @control_port_no_encrypt: TRUE to prevent encryption of control port
  *	protocol frames.
- * @psk: PSK (for devices supporting 4Way-handshake offload)
  * @wep_keys: static WEP keys, if not NULL points to an array of
  *	CFG80211_MAX_WEP_KEYS WEP keys
  * @wep_tx_key: key index (0..3) of the default TX static WEP key
+ * @psk: PSK (for devices supporting 4-way-handshake offload)
  */
 struct cfg80211_crypto_settings {
 	u32 wpa_versions;
@@ -746,9 +746,9 @@ struct cfg80211_crypto_settings {
 	bool control_port;
 	__be16 control_port_ethertype;
 	bool control_port_no_encrypt;
-	const u8 *psk;
 	struct key_params *wep_keys;
 	int wep_tx_key;
+	const u8 *psk;
 };
 
 /**
@@ -2217,6 +2217,8 @@ struct cfg80211_bss_selection {
  * @fils_erp_rrk: ERP re-authentication Root Key (rRK) used to derive additional
  *	keys in FILS or %NULL if not specified.
  * @fils_erp_rrk_len: Length of @fils_erp_rrk in octets.
+ * @want_1x: indicates user-space supports and wants to use 802.1X driver
+ *	offload of 4-way handshake.
  */
 struct cfg80211_connect_params {
 	struct ieee80211_channel *channel;
@@ -2249,6 +2251,7 @@ struct cfg80211_connect_params {
 	u16 fils_erp_next_seq_num;
 	const u8 *fils_erp_rrk;
 	size_t fils_erp_rrk_len;
+	bool want_1x;
 };
 
 /**
@@ -3376,7 +3379,10 @@ struct cfg80211_nan_ndp_params {
  *	All other parameters must be ignored.
  *
  * @set_multicast_to_unicast: configure multicast to unicast conversion for BSS
- * @set_pmk: configure the PMK to be used for offloaded 4-Way handshake.
+ *
+ * @set_pmk: configure the PMK to be used for offloaded 802.1X 4-Way handshake.
+ *	If not deleted through @del_pmk the PMK remains valid until disconnect
+ *	upon which the driver should clear it.
  *	(invoked with the wireless_dev mutex held)
  * @del_pmk: delete the previously configured PMK for the given authenticator.
  *	(invoked with the wireless_dev mutex held)
@@ -3685,6 +3691,7 @@ struct cfg80211_ops {
 	int	(*set_multicast_to_unicast)(struct wiphy *wiphy,
 					    struct net_device *dev,
 					    const bool enabled);
+
 	int	(*set_pmk)(struct wiphy *wiphy, struct net_device *dev,
 			   const struct cfg80211_pmk_conf *conf);
 	int	(*del_pmk)(struct wiphy *wiphy, struct net_device *dev,
@@ -5972,6 +5979,9 @@ cfg80211_connect_timeout(struct net_device *dev, const u8 *bssid,
  * @req_ie_len: association request IEs length
  * @resp_ie: association response IEs (may be %NULL)
  * @resp_ie_len: assoc response IEs length
+ * @authorized: true if the 802.1X authentication was done by the driver or is
+ *	not needed (e.g., when Fast Transition protocol was used), false
+ *	otherwise. Ignored for networks that don't use 802.1X authentication.
  */
 struct cfg80211_roam_info {
 	struct ieee80211_channel *channel;
@@ -5981,6 +5991,7 @@ struct cfg80211_roam_info {
 	size_t req_ie_len;
 	const u8 *resp_ie;
 	size_t resp_ie_len;
+	bool authorized;
 };
 
 /**

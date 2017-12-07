@@ -1208,7 +1208,7 @@ static void iwl_mvm_report_wakeup_reasons(struct iwl_mvm *mvm,
 			if (!pkt)
 				goto report;
 
-			memcpy(skb_put(pkt, hdrlen), pktdata, hdrlen);
+			skb_put_data(pkt, pktdata, hdrlen);
 			pktdata += hdrlen;
 			pktsize -= hdrlen;
 
@@ -1240,7 +1240,7 @@ static void iwl_mvm_report_wakeup_reasons(struct iwl_mvm *mvm,
 			pktsize -= ivlen + icvlen;
 			pktdata += ivlen;
 
-			memcpy(skb_put(pkt, pktsize), pktdata, pktsize);
+			skb_put_data(pkt, pktdata, pktsize);
 
 			if (ieee80211_data_to_8023(pkt, vif->addr, vif->type))
 				goto report;

@@ -3934,8 +3934,8 @@ static void nl80211_check_ap_rate_selectors(struct cfg80211_ap_settings *params,
 static void nl80211_calculate_ap_params(struct cfg80211_ap_settings *params)
 {
 	const struct cfg80211_beacon_data *bcn = &params->beacon;
-	size_t ies_len = bcn->beacon_ies_len;
-	const u8 *ies = bcn->beacon_ies;
+	size_t ies_len = bcn->tail_len;
+	const u8 *ies = bcn->tail;
 	const u8 *rates;
 	const u8 *cap;
 
@@ -8391,8 +8391,10 @@ static int nl80211_crypto_settings(struct cfg80211_registered_device *rdev,
 	}
 
 	if (info->attrs[NL80211_ATTR_PMK]) {
+		if (nla_len(info->attrs[NL80211_ATTR_PMK]) != WLAN_PMK_LEN)
+			return -EINVAL;
 		if (!wiphy_ext_feature_isset(&rdev->wiphy,
-					     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_OFFLOAD_STA))
+					     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_PSK))
 			return -EINVAL;
 		settings->psk = nla_data(info->attrs[NL80211_ATTR_PMK]);
 	}
@@ -9100,6 +9102,12 @@ static int nl80211_connect(struct sk_buff *skb, struct genl_info *info)
 		connect.auth_type = NL80211_AUTHTYPE_AUTOMATIC;
 
 	connect.privacy = info->attrs[NL80211_ATTR_PRIVACY];
+
+	if (info->attrs[NL80211_ATTR_WANT_1X_4WAY_HS] &&
+	    !wiphy_ext_feature_isset(&rdev->wiphy,
+				     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_1X))
+		return -EINVAL;
+	connect.want_1x = info->attrs[NL80211_ATTR_WANT_1X_4WAY_HS];
 
 	err = nl80211_crypto_settings(rdev, info, &connect.crypto,
 				      NL80211_MAX_NR_CIPHER_SUITES,
@@ -12870,6 +12878,90 @@ static int nl80211_set_multicast_to_unicast(struct sk_buff *skb,
 	return rdev_set_multicast_to_unicast(rdev, dev, enabled);
 }
 
+static int nl80211_set_pmk(struct sk_buff *skb, struct genl_info *info)
+{
+	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+	struct net_device *dev = info->user_ptr[1];
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	struct cfg80211_pmk_conf pmk_conf = {};
+	int ret;
+
+	if (wdev->iftype != NL80211_IFTYPE_STATION &&
+	    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT)
+		return -EOPNOTSUPP;
+
+	if (!wiphy_ext_feature_isset(&rdev->wiphy,
+				     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_1X))
+		return -EOPNOTSUPP;
+
+	if (!info->attrs[NL80211_ATTR_MAC] || !info->attrs[NL80211_ATTR_PMK])
+		return -EINVAL;
+
+	wdev_lock(wdev);
+	if (!wdev->current_bss) {
+		ret = -ENOTCONN;
+		goto out;
+	}
+
+	pmk_conf.aa = nla_data(info->attrs[NL80211_ATTR_MAC]);
+	if (memcmp(pmk_conf.aa, wdev->current_bss->pub.bssid, ETH_ALEN)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	pmk_conf.pmk = nla_data(info->attrs[NL80211_ATTR_PMK]);
+	pmk_conf.pmk_len = nla_len(info->attrs[NL80211_ATTR_PMK]);
+	if (pmk_conf.pmk_len != WLAN_PMK_LEN &&
+	    pmk_conf.pmk_len != WLAN_PMK_LEN_SUITE_B_192) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (info->attrs[NL80211_ATTR_PMKR0_NAME]) {
+		int r0_name_len = nla_len(info->attrs[NL80211_ATTR_PMKR0_NAME]);
+
+		if (r0_name_len != WLAN_PMK_NAME_LEN) {
+			ret = -EINVAL;
+			goto out;
+		}
+
+		pmk_conf.pmk_r0_name =
+			nla_data(info->attrs[NL80211_ATTR_PMKR0_NAME]);
+	}
+
+	ret = rdev_set_pmk(rdev, dev, &pmk_conf);
+out:
+	wdev_unlock(wdev);
+	return ret;
+}
+
+static int nl80211_del_pmk(struct sk_buff *skb, struct genl_info *info)
+{
+	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+	struct net_device *dev = info->user_ptr[1];
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	const u8 *aa;
+	int ret;
+
+	if (wdev->iftype != NL80211_IFTYPE_STATION &&
+	    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT)
+		return -EOPNOTSUPP;
+
+	if (!wiphy_ext_feature_isset(&rdev->wiphy,
+				     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_1X))
+		return -EOPNOTSUPP;
+
+	if (!info->attrs[NL80211_ATTR_MAC])
+		return -EINVAL;
+
+	wdev_lock(wdev);
+	aa = nla_data(info->attrs[NL80211_ATTR_MAC]);
+	ret = rdev_del_pmk(rdev, dev, aa);
+	wdev_unlock(wdev);
+
+	return ret;
+}
+
 /* policy for the attributes of a single ftm target */
 static const struct nla_policy
 nl80211_ftm_target_policy[NL80211_FTM_TARGET_ATTR_MAX + 1] = {
@@ -13262,90 +13354,6 @@ static int nl80211_get_ftm_responder(struct sk_buff *skb,
 nla_put_failure:
 	nlmsg_free(msg);
 	return -ENOBUFS;
-}
-
-static int nl80211_set_pmk(struct sk_buff *skb, struct genl_info *info)
-{
-	struct cfg80211_registered_device *rdev = info->user_ptr[0];
-	struct net_device *dev = info->user_ptr[1];
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	struct cfg80211_pmk_conf pmk_conf = {};
-	int ret;
-
-	if (wdev->iftype != NL80211_IFTYPE_STATION &&
-	    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT)
-		return -EOPNOTSUPP;
-
-	if (!wiphy_ext_feature_isset(&rdev->wiphy,
-				     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_OFFLOAD_STA))
-		return -EOPNOTSUPP;
-
-	if (!info->attrs[NL80211_ATTR_MAC] || !info->attrs[NL80211_ATTR_PMK])
-		return -EINVAL;
-
-	wdev_lock(wdev);
-	if (!wdev->current_bss) {
-		ret = -ENOTCONN;
-		goto out;
-	}
-
-	pmk_conf.aa = nla_data(info->attrs[NL80211_ATTR_MAC]);
-	if (memcmp(pmk_conf.aa, wdev->current_bss->pub.bssid, ETH_ALEN)) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	pmk_conf.pmk = nla_data(info->attrs[NL80211_ATTR_PMK]);
-	pmk_conf.pmk_len = nla_len(info->attrs[NL80211_ATTR_PMK]);
-	if (pmk_conf.pmk_len != WLAN_PMK_LEN &&
-	    pmk_conf.pmk_len != WLAN_PMK_LEN_SUITE_B_192) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	if (info->attrs[NL80211_ATTR_PMKR0_NAME]) {
-		int r0_name_len = nla_len(info->attrs[NL80211_ATTR_PMKR0_NAME]);
-
-		if (r0_name_len != WLAN_PMK_NAME_LEN) {
-			ret = -EINVAL;
-			goto out;
-		}
-
-		pmk_conf.pmk_r0_name =
-			nla_data(info->attrs[NL80211_ATTR_PMKR0_NAME]);
-	}
-
-	ret = rdev_set_pmk(rdev, dev, &pmk_conf);
-out:
-	wdev_unlock(wdev);
-	return ret;
-}
-
-static int nl80211_del_pmk(struct sk_buff *skb, struct genl_info *info)
-{
-	struct cfg80211_registered_device *rdev = info->user_ptr[0];
-	struct net_device *dev = info->user_ptr[1];
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	const u8 *aa;
-	int ret;
-
-	if (wdev->iftype != NL80211_IFTYPE_STATION &&
-	    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT)
-		return -EOPNOTSUPP;
-
-	if (!wiphy_ext_feature_isset(&rdev->wiphy,
-				     NL80211_EXT_FEATURE_4WAY_HANDSHAKE_OFFLOAD_STA))
-		return -EOPNOTSUPP;
-
-	if (!info->attrs[NL80211_ATTR_MAC])
-		return -EINVAL;
-
-	wdev_lock(wdev);
-	aa = nla_data(info->attrs[NL80211_ATTR_MAC]);
-	ret = rdev_del_pmk(rdev, dev, aa);
-	wdev_unlock(wdev);
-
-	return ret;
 }
 
 static int nl80211_nan_ndp(struct sk_buff *skb, struct genl_info *info)
@@ -14414,6 +14422,20 @@ static __genl_const struct genl_ops nl80211_ops[] = {
 				  NL80211_FLAG_NEED_RTNL,
 	},
 	{
+		.cmd = NL80211_CMD_SET_PMK,
+		.doit = nl80211_set_pmk,
+		.policy = nl80211_policy,
+		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
+				  NL80211_FLAG_NEED_RTNL,
+	},
+	{
+		.cmd = NL80211_CMD_DEL_PMK,
+		.doit = nl80211_del_pmk,
+		.policy = nl80211_policy,
+		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
+				  NL80211_FLAG_NEED_RTNL,
+	},
+	{
 		.cmd = NL80211_CMD_MSRMENT_REQUEST,
 		.doit = nl80211_msrment_request,
 		.policy = nl80211_policy,
@@ -14437,20 +14459,6 @@ static __genl_const struct genl_ops nl80211_ops[] = {
 				  NL80211_FLAG_NEED_RTNL,
 	},
 	{
-		.cmd = NL80211_CMD_SET_PMK,
-		.doit = nl80211_set_pmk,
-		.policy = nl80211_policy,
-		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
-				  NL80211_FLAG_NEED_RTNL,
-	},
-	{
-		.cmd = NL80211_CMD_DEL_PMK,
-		.doit = nl80211_del_pmk,
-		.policy = nl80211_policy,
-		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
-				  NL80211_FLAG_NEED_RTNL,
-	},
-	{
 		.cmd = NL80211_CMD_NAN_NDP,
 		.doit = nl80211_nan_ndp,
 		.policy = nl80211_policy,
@@ -14458,6 +14466,7 @@ static __genl_const struct genl_ops nl80211_ops[] = {
 		.internal_flags = NL80211_FLAG_NEED_WDEV_UP |
 				  NL80211_FLAG_NEED_RTNL,
 	},
+
 };
 
 static struct genl_family nl80211_fam __genl_ro_after_init = {
@@ -15052,7 +15061,7 @@ void nl80211_send_port_authorized(struct cfg80211_registered_device *rdev,
 				NL80211_MCGRP_MLME, GFP_KERNEL);
 	return;
 
- nla_put_failure:
+nla_put_failure:
 	genlmsg_cancel(msg, hdr);
 	nlmsg_free(msg);
 }
