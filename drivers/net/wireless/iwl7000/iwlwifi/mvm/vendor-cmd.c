@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -17,11 +18,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -35,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1221,6 +1218,23 @@ void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy)
 }
 
 #ifdef CPTCFG_IWLMVM_TCM
+static enum iwl_mvm_vendor_load
+iwl_mvm_get_vendor_load(enum iwl_mvm_traffic_load load)
+{
+	switch (load) {
+	case IWL_MVM_TRAFFIC_HIGH:
+		return IWL_MVM_VENDOR_LOAD_HIGH;
+	case IWL_MVM_TRAFFIC_MEDIUM:
+		return IWL_MVM_VENDOR_LOAD_MEDIUM;
+	case IWL_MVM_TRAFFIC_LOW:
+		return IWL_MVM_VENDOR_LOAD_LOW;
+	default:
+		break;
+	}
+
+	return IWL_MVM_VENDOR_LOAD_LOW;
+}
+
 void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 {
 	struct sk_buff *msg =
@@ -1246,7 +1260,7 @@ void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	if (nla_put_u8(msg, IWL_MVM_VENDOR_ATTR_LL, iwl_mvm_low_latency(mvm)) ||
 	    nla_put_u8(msg, IWL_MVM_VENDOR_ATTR_LOAD,
-		       mvm->tcm.result.global_load))
+		       iwl_mvm_get_vendor_load(mvm->tcm.result.global_load)))
 		goto nla_put_failure;
 
 	cfg80211_vendor_event(msg, GFP_ATOMIC);

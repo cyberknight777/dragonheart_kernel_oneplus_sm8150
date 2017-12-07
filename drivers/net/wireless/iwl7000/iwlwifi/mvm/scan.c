@@ -71,18 +71,9 @@
 #include "mvm.h"
 #include "fw/api/scan.h"
 #include "iwl-io.h"
-#ifdef CPTCFG_IWLMVM_TCM
-#include "iwl-vendor-cmd.h"
-#endif
 
 #define IWL_DENSE_EBS_SCAN_RATIO 5
 #define IWL_SPARSE_EBS_SCAN_RATIO 1
-
-enum iwl_mvm_traffic_load {
-	IWL_MVM_TRAFFIC_LOW,
-	IWL_MVM_TRAFFIC_MEDIUM,
-	IWL_MVM_TRAFFIC_HIGH,
-};
 
 #define IWL_SCAN_DWELL_ACTIVE		10
 #define IWL_SCAN_DWELL_PASSIVE		110
@@ -236,27 +227,10 @@ static void iwl_mvm_scan_condition_iterator(void *data, u8 *mac,
 		*global_cnt += 1;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
-static enum iwl_mvm_traffic_load
-_iwl_mvm_get_traffic_load(enum iwl_mvm_vendor_load load)
-{
-	switch (load) {
-	case IWL_MVM_VENDOR_LOAD_HIGH:
-		return IWL_MVM_TRAFFIC_HIGH;
-	case IWL_MVM_VENDOR_LOAD_MEDIUM:
-		return IWL_MVM_TRAFFIC_MEDIUM;
-	case IWL_MVM_VENDOR_LOAD_LOW:
-		return IWL_MVM_TRAFFIC_LOW;
-	default:
-		return IWL_MVM_TRAFFIC_LOW;
-	}
-}
-#endif /* CPTCFG_IWLMVM_TCM */
-
 static enum iwl_mvm_traffic_load iwl_mvm_get_traffic_load(struct iwl_mvm *mvm)
 {
 #ifdef CPTCFG_IWLMVM_TCM
-	return _iwl_mvm_get_traffic_load(mvm->tcm.result.global_load);
+	return mvm->tcm.result.global_load;
 #endif /* CPTCFG_IWLMVM_TCM */
 	return IWL_MVM_TRAFFIC_LOW;
 }
@@ -265,7 +239,7 @@ static enum iwl_mvm_traffic_load
 iwl_mvm_get_traffic_load_band(struct iwl_mvm *mvm, enum nl80211_band band)
 {
 #ifdef CPTCFG_IWLMVM_TCM
-	return _iwl_mvm_get_traffic_load(mvm->tcm.result.band_load[band]);
+	return mvm->tcm.result.band_load[band];
 #endif /* CPTCFG_IWLMVM_TCM */
 	return IWL_MVM_TRAFFIC_LOW;
 }

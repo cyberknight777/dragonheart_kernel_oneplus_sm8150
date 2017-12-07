@@ -74,9 +74,6 @@
 #include "iwl-csr.h"
 #include "mvm.h"
 #include "fw/api/rs.h"
-#ifdef CPTCFG_IWLMVM_TCM
-#include "iwl-vendor-cmd.h"
-#endif
 
 /*
  * Will return 0 even if the cmd failed when RFKILL is asserted unless
@@ -1479,16 +1476,17 @@ u8 iwl_mvm_tcm_load_percentage(u32 airtime, u32 elapsed)
 	return (100 * airtime / elapsed) / USEC_PER_MSEC;
 }
 
-static enum iwl_mvm_vendor_load
+static enum iwl_mvm_traffic_load
 iwl_mvm_tcm_load(struct iwl_mvm *mvm, u32 airtime, unsigned long elapsed)
 {
 	u8 load = iwl_mvm_tcm_load_percentage(airtime, elapsed);
 
 	if (load > IWL_MVM_TCM_LOAD_HIGH_THRESH)
-		return IWL_MVM_VENDOR_LOAD_HIGH;
+		return IWL_MVM_TRAFFIC_HIGH;
 	if (load > IWL_MVM_TCM_LOAD_MEDIUM_THRESH)
-		return IWL_MVM_VENDOR_LOAD_MEDIUM;
-	return IWL_MVM_VENDOR_LOAD_LOW;
+		return IWL_MVM_TRAFFIC_MEDIUM;
+
+	return IWL_MVM_TRAFFIC_LOW;
 }
 
 struct iwl_mvm_tcm_iter_data {
@@ -1669,7 +1667,7 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 	u32 band[NUM_MAC_INDEX_DRIVER] = {0};
 	int ac, mac, i;
 	bool low_latency = false;
-	enum iwl_mvm_vendor_load load, band_load;
+	enum iwl_mvm_traffic_load load, band_load;
 	bool handle_ll = time_after(ts, mvm->tcm.ll_ts + MVM_LL_PERIOD);
 
 	if (handle_ll)
@@ -1740,7 +1738,7 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 	 * was no traffic at all (and thus iwl_mvm_recalc_tcm didn't get
 	 * triggered by traffic).
 	 */
-	if (load != IWL_MVM_VENDOR_LOAD_LOW)
+	if (load != IWL_MVM_TRAFFIC_LOW)
 		return MVM_TCM_PERIOD;
 	/*
 	 * If low-latency is active we need to force re-evaluation after

@@ -616,6 +616,12 @@ enum iwl_mvm_tdls_cs_state {
 	IWL_MVM_TDLS_SW_ACTIVE,
 };
 
+enum iwl_mvm_traffic_load {
+	IWL_MVM_TRAFFIC_LOW,
+	IWL_MVM_TRAFFIC_MEDIUM,
+	IWL_MVM_TRAFFIC_HIGH,
+};
+
 #ifdef CPTCFG_IWLMVM_TCM
 
 DECLARE_EWMA(rate, 16, 16)
@@ -650,9 +656,9 @@ struct iwl_mvm_tcm {
 	struct {
 		u32 elapsed; /* milliseconds for this TCM period */
 		u32 airtime[NUM_MAC_INDEX_DRIVER];
-		enum iwl_mvm_vendor_load load[NUM_MAC_INDEX_DRIVER];
-		enum iwl_mvm_vendor_load band_load[NUM_NL80211_BANDS];
-		enum iwl_mvm_vendor_load global_load;
+		enum iwl_mvm_traffic_load load[NUM_MAC_INDEX_DRIVER];
+		enum iwl_mvm_traffic_load band_load[NUM_NL80211_BANDS];
+		enum iwl_mvm_traffic_load global_load;
 		bool low_latency[NUM_MAC_INDEX_DRIVER];
 		bool change[NUM_MAC_INDEX_DRIVER];
 		bool global_change;
