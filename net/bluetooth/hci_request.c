@@ -1150,6 +1150,43 @@ static bool adv_use_rpa(struct hci_dev *hdev, uint32_t flags)
 	return true;
 }
 
+static bool is_advertising_allowed(struct hci_dev *hdev, bool connectable)
+{
+	/* If there is no connection we are OK to advertise. */
+	if (hci_conn_num(hdev, LE_LINK) == 0)
+		return true;
+
+	/* Check le_states if there is any connection in slave role. */
+	if (hdev->conn_hash.le_num_slave > 0) {
+		/* Slave connection state and non connectable mode bit 20. */
+		if (!connectable && !(hdev->le_states[2] & 0x10))
+			return false;
+
+		/* Slave connection state and connectable mode bit 38
+		 * and scannable bit 21.
+		 */
+		if (connectable && (!(hdev->le_states[4] & 0x01) ||
+				    !(hdev->le_states[2] & 0x40)))
+			return false;
+	}
+
+	/* Check le_states if there is any connection in master role. */
+	if (hci_conn_num(hdev, LE_LINK) != hdev->conn_hash.le_num_slave) {
+		/* Master connection state and non connectable mode bit 18. */
+		if (!connectable && !(hdev->le_states[2] & 0x02))
+			return false;
+
+		/* Master connection state and connectable mode bit 35 and
+		 * scannable 19.
+		 */
+		if (connectable && (!(hdev->le_states[4] & 0x10) ||
+				    !(hdev->le_states[2] & 0x08)))
+			return false;
+	}
+
+	return true;
+}
+
 void __hci_req_enable_advertising(struct hci_request *req)
 {
 	struct hci_dev *hdev = req->hdev;
@@ -1158,7 +1195,15 @@ void __hci_req_enable_advertising(struct hci_request *req)
 	bool connectable;
 	u32 flags;
 
-	if (hci_conn_num(hdev, LE_LINK) > 0)
+	flags = get_adv_instance_flags(hdev, hdev->cur_adv_instance);
+
+	/* If the "connectable" instance flag was not set, then choose between
+	 * ADV_IND and ADV_NONCONN_IND based on the global connectable setting.
+	 */
+	connectable = (flags & MGMT_ADV_FLAG_CONNECTABLE) ||
+		      mgmt_get_connectable(hdev);
+
+	if (!is_advertising_allowed(hdev, connectable))
 		return;
 
 	/* Set advertising to "off" temporarily so that the we can call
@@ -1167,14 +1212,6 @@ void __hci_req_enable_advertising(struct hci_request *req)
 	 * as soon as the SET_ADV_ENABLE HCI command completes.
 	 */
 	__hci_req_disable_advertising(req);
-
-	flags = get_adv_instance_flags(hdev, hdev->cur_adv_instance);
-
-	/* If the "connectable" instance flag was not set, then choose between
-	 * ADV_IND and ADV_NONCONN_IND based on the global connectable setting.
-	 */
-	connectable = (flags & MGMT_ADV_FLAG_CONNECTABLE) ||
-		      mgmt_get_connectable(hdev);
 
 	/* Set require_privacy to true only when non-connectable
 	 * advertising is used. In that case it is fine to use a
