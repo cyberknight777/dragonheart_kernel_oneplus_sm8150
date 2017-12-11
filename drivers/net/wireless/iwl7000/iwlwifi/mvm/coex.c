@@ -418,7 +418,7 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 			data->secondary = chanctx_conf;
 		}
 
-#ifdef CPTCFG_IWLWIFI_TCM
+#ifdef CPTCFG_IWLMVM_TCM
 		if (data->primary == chanctx_conf)
 			data->primary_load = mvm->tcm.result.load[mvmvif->id];
 		else if (data->secondary == chanctx_conf)
@@ -437,7 +437,7 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		/* if secondary is not NULL, it might be a GO */
 		data->secondary = chanctx_conf;
 
-#ifdef CPTCFG_IWLWIFI_TCM
+#ifdef CPTCFG_IWLMVM_TCM
 	if (data->primary == chanctx_conf)
 		data->primary_load = mvm->tcm.result.load[mvmvif->id];
 	else if (data->secondary == chanctx_conf)
