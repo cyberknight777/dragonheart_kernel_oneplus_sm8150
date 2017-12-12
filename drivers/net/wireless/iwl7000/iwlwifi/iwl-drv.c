@@ -2187,3 +2187,9 @@ MODULE_PARM_DESC(disable_11ac, "Disable VHT capabilities (default: false)");
 module_param_named(disable_msix, iwlwifi_mod_params.disable_msix, bool,
 		   S_IRUGO);
 MODULE_PARM_DESC(disable_msix, "Disable MSI-X and use MSI instead (default: false)");
+
+module_param_named(remove_when_gone,
+		   iwlwifi_mod_params.remove_when_gone, bool,
+		   S_IRUGO);
+MODULE_PARM_DESC(remove_when_gone,
+		 "Remove dev from PCIe bus if it is deemed inaccessible (default: false)");

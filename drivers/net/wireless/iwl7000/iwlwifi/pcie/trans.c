@@ -1976,31 +1976,31 @@ static void iwl_trans_pcie_set_pmi(struct iwl_trans *trans, bool state)
 		clear_bit(STATUS_TPOWER_PMI, &trans->status);
 }
 
-struct iwl_trans_pcie_rescan {
+struct iwl_trans_pcie_removal {
 	struct pci_dev *pdev;
 	struct work_struct work;
 };
 
-static void iwl_trans_pcie_rescan_wk(struct work_struct *wk)
+static void iwl_trans_pcie_removal_wk(struct work_struct *wk)
 {
-	struct iwl_trans_pcie_rescan *rescan =
-		container_of(wk, struct iwl_trans_pcie_rescan, work);
-#if LINUX_VERSION_IS_LESS(3,14,0)
-	dev_err(&rescan->pdev->dev,
-		"Device disconnected - can't rescan on old kernels.\n");
-#else
-	struct pci_bus *parent;
+	struct iwl_trans_pcie_removal *removal =
+		container_of(wk, struct iwl_trans_pcie_removal, work);
+	struct pci_dev *pdev = removal->pdev;
 
+#if LINUX_VERSION_IS_LESS(3,14,0)
+	dev_err(&pdev->dev, "Device gone - can't remove on old kernels.\n");
+#else
+	char *prop[] = {"EVENT=INACCESSIBLE", NULL};
+
+	dev_err(&pdev->dev, "Device gone - attempting removal\n");
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, prop);
 	pci_lock_rescan_remove();
-	parent = rescan->pdev->bus->parent;
-	pci_stop_and_remove_bus_device(rescan->pdev);
-	pci_rescan_bus(parent);
+	pci_dev_put(pdev);
+	pci_stop_and_remove_bus_device(pdev);
 	pci_unlock_rescan_remove();
 #endif /* LINUX_VERSION_IS_LESS(3,14,0) */
 
-	pci_dev_put(rescan->pdev);
-
-	kfree(rescan);
+	kfree(removal);
 	module_put(THIS_MODULE);
 }
 
@@ -2054,18 +2054,13 @@ static bool iwl_trans_pcie_grab_nic_access(struct iwl_trans *trans,
 
 		iwl_trans_pcie_dump_regs(trans);
 
-		if (cntrl == 0xffffffff) {
-			struct iwl_trans_pcie_rescan *rescan;
+		if (iwlwifi_mod_params.remove_when_gone && cntrl == ~0U) {
+			struct iwl_trans_pcie_removal *removal;
 
-			if (trans_pcie->in_rescan)
+			if (trans_pcie->scheduled_for_removal)
 				goto err;
-			/*
-			 * we don't need to clear this flag, because
-			 * the trans will be freed and reallocated.
-			*/
-			trans_pcie->in_rescan = true;
 
-			IWL_ERR(trans, "Device disconnected - rescan!\n");
+			IWL_ERR(trans, "Device gone - scheduling removal!\n");
 
 			/*
 			 * get a module reference to avoid doing this
@@ -2079,16 +2074,21 @@ static bool iwl_trans_pcie_grab_nic_access(struct iwl_trans *trans,
 				goto err;
 			}
 
-			rescan = kzalloc(sizeof(*rescan), GFP_ATOMIC);
-			if (!rescan) {
-				trans_pcie->in_rescan = false;
+			removal = kzalloc(sizeof(*removal), GFP_ATOMIC);
+			if (!removal) {
 				module_put(THIS_MODULE);
 				goto err;
 			}
-			rescan->pdev = to_pci_dev(trans->dev);
-			INIT_WORK(&rescan->work, iwl_trans_pcie_rescan_wk);
-			pci_dev_get(rescan->pdev);
-			schedule_work(&rescan->work);
+			/*
+			 * we don't need to clear this flag, because
+			 * the trans will be freed and reallocated.
+			*/
+			trans_pcie->scheduled_for_removal = true;
+
+			removal->pdev = to_pci_dev(trans->dev);
+			INIT_WORK(&removal->work, iwl_trans_pcie_removal_wk);
+			pci_dev_get(removal->pdev);
+			schedule_work(&removal->work);
 		} else {
 			iwl_write32(trans, CSR_RESET,
 				    CSR_RESET_REG_FLAG_FORCE_NMI);
