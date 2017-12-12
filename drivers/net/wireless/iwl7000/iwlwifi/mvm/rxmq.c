@@ -1097,17 +1097,17 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->he_dcm =
 			!!(rate_n_flags & RATE_HE_DUAL_CARRIER_MODE_MSK);
 
-#define CHECK_TYPE(F) \
-	BUILD_BUG_ON(RATE_MCS_HE_TYPE_ ## F == \
-		     IEEE80211_HE_FORMAT_ ## F << RATE_MCS_HE_TYPE_POS)
+#define CHECK_TYPE(F)							\
+	BUILD_BUG_ON(IEEE80211_HE_FORMAT_ ## F !=			\
+		     (RATE_MCS_HE_TYPE_ ## F >> RATE_MCS_HE_TYPE_POS) + 1)
 
 		CHECK_TYPE(SU);
 		CHECK_TYPE(EXT_SU);
 		CHECK_TYPE(MU);
 		CHECK_TYPE(TRIG);
 
-		rx_status->he_format = (rate_n_flags & RATE_MCS_HE_TYPE_MSK) >>
-						RATE_MCS_HE_TYPE_POS;
+		rx_status->he_format = ((rate_n_flags & RATE_MCS_HE_TYPE_MSK) >>
+			RATE_MCS_HE_TYPE_POS) + 1;
 
 		rx_status->he_txbf = !!(rate_n_flags & RATE_MCS_BF_POS);
 
