@@ -615,6 +615,7 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 			break;
 		}
 
+		rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_HE);
 		memcpy(pos, &he, sizeof(he));
 		pos += sizeof(he);
 	}
