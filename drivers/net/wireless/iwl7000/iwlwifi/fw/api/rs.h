@@ -203,7 +203,7 @@ enum iwl_tlc_mng_ht_rates {
  * @max_supp_ss: valid values are 0-3, 0 - spatial streams are not supported
  * @valid_vht_he_types: bitmap of &enum iwl_tlc_mng_vht_he_types
  * @non_ht_supp_rates: bitmap of supported legacy rates
- * @ht_supp_rates: bitmap of supported HT/VHT rates, valid bits are 0-9
+ * @ht_supp_rates: bitmap of supported HT/VHT/HE rates, valid bits are 0-11
  * @mode: &enum iwl_tlc_mng_cfg_mode
  * @amsdu: TX amsdu is supported
  * @he_supp_rates: bitmap of supported HE rates

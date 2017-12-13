@@ -138,7 +138,7 @@ static u16 rs_fw_set_config_flags(struct iwl_mvm *mvm,
 }
 
 static
-int rs_fw_vht_highest_rx_mcs_index(struct ieee80211_sta_vht_cap *vht_cap,
+int rs_fw_vht_highest_rx_mcs_index(const struct ieee80211_sta_vht_cap *vht_cap,
 				   int nss)
 {
 	u16 rx_mcs = le16_to_cpu(vht_cap->vht_mcs.rx_mcs_map) &
@@ -160,9 +160,10 @@ int rs_fw_vht_highest_rx_mcs_index(struct ieee80211_sta_vht_cap *vht_cap,
 	return 0;
 }
 
-static void rs_fw_vht_set_enabled_rates(struct ieee80211_sta *sta,
-					struct ieee80211_sta_vht_cap *vht_cap,
-					struct iwl_tlc_config_cmd *cmd)
+static void
+rs_fw_vht_set_enabled_rates(const struct ieee80211_sta *sta,
+			    const struct ieee80211_sta_vht_cap *vht_cap,
+			    struct iwl_tlc_config_cmd *cmd)
 {
 	u16 supp;
 	int i, highest_mcs;
@@ -183,6 +184,33 @@ static void rs_fw_vht_set_enabled_rates(struct ieee80211_sta *sta,
 	}
 }
 
+static void rs_fw_he_set_enabled_rates(const struct ieee80211_sta *sta,
+				       struct iwl_tlc_config_cmd *cmd)
+{
+	u16 mcs_160 = le16_to_cpu(sta->he_cap.he_mcs_nss_supp.rx_msc_160);
+	u16 mcs_80 = le16_to_cpu(sta->he_cap.he_mcs_nss_supp.rx_msc_80);
+	int i;
+
+	for (i = 0; i < MAX_RS_ANT_NUM; i++) {
+		u16 _mcs_160 = (mcs_160 >> (2 * i)) & 0x3;
+		u16 _mcs_80 = (mcs_80 >> (2 * i)) & 0x3;
+		u16 mcs = min(_mcs_160, _mcs_80);
+
+		switch (mcs) {
+		case IEEE80211_HE_MCS_SUPPORT_0_7:
+			break;
+		case IEEE80211_HE_MCS_SUPPORT_0_9:
+			cmd->ht_supp_rates[i] |= cpu_to_le16(0x1 << 10);
+			break;
+		case IEEE80211_HE_MCS_SUPPORT_0_11:
+			cmd->ht_supp_rates[i] |= cpu_to_le16(0x3 << 10);
+			break;
+		}
+	}
+
+	/* TODO: what to do with he_supp_rates? */
+}
+
 static void rs_fw_set_supp_rates(struct ieee80211_sta *sta,
 				 struct ieee80211_supported_band *sband,
 				 struct iwl_tlc_config_cmd *cmd)
@@ -190,8 +218,8 @@ static void rs_fw_set_supp_rates(struct ieee80211_sta *sta,
 	int i;
 	unsigned long tmp;
 	unsigned long supp; /* must be unsigned long for for_each_set_bit */
-	struct ieee80211_sta_ht_cap *ht_cap = &sta->ht_cap;
-	struct ieee80211_sta_vht_cap *vht_cap = &sta->vht_cap;
+	const struct ieee80211_sta_ht_cap *ht_cap = &sta->ht_cap;
+	const struct ieee80211_sta_vht_cap *vht_cap = &sta->vht_cap;
 
 	/* non HT rates */
 	supp = 0;
@@ -210,6 +238,13 @@ static void rs_fw_set_supp_rates(struct ieee80211_sta *sta,
 		cmd->mode = IWL_TLC_MNG_MODE_HT;
 		cmd->ht_supp_rates[0] = cpu_to_le16(ht_cap->mcs.rx_mask[0]);
 		cmd->ht_supp_rates[1] = cpu_to_le16(ht_cap->mcs.rx_mask[1]);
+	}
+
+	/* HE rates */
+	if (sta->he_cap.has_he) {
+		cmd->mode = IWL_TLC_MNG_MODE_HE;
+		rs_fw_he_set_enabled_rates(sta, cmd);
+		/* TODO: set the GI support */
 	}
 }
 
