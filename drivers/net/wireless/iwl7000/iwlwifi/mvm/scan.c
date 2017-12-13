@@ -88,6 +88,8 @@ enum iwl_mvm_traffic_load {
 #define IWL_SCAN_DWELL_PASSIVE		110
 #define IWL_SCAN_DWELL_FRAGMENTED	44
 #define IWL_SCAN_DWELL_EXTENDED		90
+#define IWL_SCAN_NUM_OF_FRAGS		3
+
 
 /* adaptive dwell max budget time [TU] for full scan */
 #define IWL_SCAN_ADWELL_MAX_BUDGET_FULL_SCAN 300
@@ -1232,7 +1234,11 @@ static void iwl_mvm_scan_umac_dwell(struct iwl_mvm *mvm,
 			cmd->v7.active_dwell = IWL_SCAN_DWELL_ACTIVE;
 			cmd->v7.passive_dwell = IWL_SCAN_DWELL_PASSIVE;
 		}
-		cmd->v7.fragmented_dwell = IWL_SCAN_DWELL_FRAGMENTED;
+		if (!iwl_mvm_is_adaptive_dwell_v2_supported(mvm))
+			cmd->v7.fragmented_dwell = IWL_SCAN_DWELL_FRAGMENTED;
+		else
+			cmd->v8.num_of_fragments = IWL_SCAN_NUM_OF_FRAGS;
+
 		cmd->v7.adwell_default_n_aps_social =
 			IWL_SCAN_ADWELL_DEFAULT_N_APS_SOCIAL;
 		cmd->v7.adwell_default_n_aps =
@@ -1436,14 +1442,14 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				IWL_SCAN_CHANNEL_FLAG_CACHE_ADD;
 
 	if (iwl_mvm_is_adaptive_dwell_supported(mvm)) {
-		cmd->v7.channel_flags = channel_flags;
-		cmd->v7.n_channels = params->n_channels;
+		cmd->v7.channel.flags = channel_flags;
+		cmd->v7.channel.count = params->n_channels;
 	} else if (iwl_mvm_cdb_scan_api(mvm)) {
-		cmd->v6.channel_flags = channel_flags;
-		cmd->v6.n_channels = params->n_channels;
+		cmd->v6.channel.flags = channel_flags;
+		cmd->v6.channel.count = params->n_channels;
 	} else {
-		cmd->v1.channel_flags = channel_flags;
-		cmd->v1.n_channels = params->n_channels;
+		cmd->v1.channel.flags = channel_flags;
+		cmd->v1.channel.count = params->n_channels;
 	}
 
 	iwl_scan_build_ssids(params, sec_part->direct_scan, &ssid_bitmap);

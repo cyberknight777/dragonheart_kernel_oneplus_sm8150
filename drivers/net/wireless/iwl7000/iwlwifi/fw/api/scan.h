@@ -636,6 +636,18 @@ struct iwl_scan_req_umac_tail {
 } __packed;
 
 /**
+ * struct iwl_scan_umac_chan_param
+ * @flags: channel flags &enum iwl_scan_channel_flags
+ * @count: num of channels in scan request
+ * @reserved: for future use and alignment
+ */
+struct iwl_scan_umac_chan_param {
+	u8 flags;
+	u8 count;
+	__le16 reserved;
+} __packed; /*SCAN_CHANNEL_PARAMS_API_S_VER_1 */
+
+/**
  * struct iwl_scan_req_umac
  * @flags: &enum iwl_umac_scan_flags
  * @uid: scan id, &enum iwl_umac_scan_uid_offsets
@@ -656,10 +668,8 @@ struct iwl_scan_req_umac_tail {
  *	are 2 LMACs
  * @suspend_time: max suspend time, per LMAC - for CDB there are 2 LMACs
  * @scan_priority: scan internal prioritization &enum iwl_scan_priority
- * @channel_flags: &enum iwl_scan_channel_flags
- * @n_channels: num of channels in scan request
+ * @channel: &struct iwl_scan_umac_chan_param
  * @reserved: for future use and alignment
- * @reserved2: for future use and alignment
  * @reserved3: for future use and alignment
  * @data: &struct iwl_scan_channel_cfg_umac and
  *	&struct iwl_scan_req_umac_tail
@@ -680,10 +690,7 @@ struct iwl_scan_req_umac {
 			__le32 max_out_time;
 			__le32 suspend_time;
 			__le32 scan_priority;
-			/* SCAN_CHANNEL_PARAMS_API_S_VER_1 */
-			u8 channel_flags;
-			u8 n_channels;
-			__le16 reserved2;
+			struct iwl_scan_umac_chan_param channel;
 			u8 data[];
 		} v1; /* SCAN_REQUEST_CMD_UMAC_API_S_VER_1 */
 		struct {
@@ -694,10 +701,7 @@ struct iwl_scan_req_umac {
 			__le32 max_out_time[SCAN_TWO_LMACS];
 			__le32 suspend_time[SCAN_TWO_LMACS];
 			__le32 scan_priority;
-			/* SCAN_CHANNEL_PARAMS_API_S_VER_1 */
-			u8 channel_flags;
-			u8 n_channels;
-			__le16 reserved2;
+			struct iwl_scan_umac_chan_param channel;
 			u8 data[];
 		} v6; /* SCAN_REQUEST_CMD_UMAC_API_S_VER_6 */
 		struct {
@@ -711,12 +715,23 @@ struct iwl_scan_req_umac {
 			__le32 max_out_time[SCAN_TWO_LMACS];
 			__le32 suspend_time[SCAN_TWO_LMACS];
 			__le32 scan_priority;
-			/* SCAN_CHANNEL_PARAMS_API_S_VER_1 */
-			u8 channel_flags;
-			u8 n_channels;
-			__le16 reserved2;
+			struct iwl_scan_umac_chan_param channel;
 			u8 data[];
 		} v7; /* SCAN_REQUEST_CMD_UMAC_API_S_VER_7 */
+		struct {
+			u8 active_dwell;
+			u8 passive_dwell;
+			u8 reserved3;
+			u8 adwell_default_n_aps;
+			u8 adwell_default_n_aps_social;
+			u8 num_of_fragments;
+			__le16 adwell_max_budget;
+			__le32 max_out_time[SCAN_TWO_LMACS];
+			__le32 suspend_time[SCAN_TWO_LMACS];
+			__le32 scan_priority;
+			struct iwl_scan_umac_chan_param channel;
+			u8 data[];
+		} v8; /* SCAN_REQUEST_CMD_UMAC_API_S_VER_8 */
 	};
 } __packed;
 
