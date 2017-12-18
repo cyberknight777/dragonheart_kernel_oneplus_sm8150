@@ -6254,7 +6254,7 @@ static void gfx_v8_0_ring_emit_hdp_invalidate(struct amdgpu_ring *ring)
 
 static void gfx_v8_0_ring_emit_ib_gfx(struct amdgpu_ring *ring,
 				      struct amdgpu_ib *ib,
-				      unsigned vm_id, bool ctx_switch)
+				      unsigned vmid, bool ctx_switch)
 {
 	u32 header, control = 0;
 
@@ -6263,7 +6263,7 @@ static void gfx_v8_0_ring_emit_ib_gfx(struct amdgpu_ring *ring,
 	else
 		header = PACKET3(PACKET3_INDIRECT_BUFFER, 2);
 
-	control |= ib->length_dw | (vm_id << 24);
+	control |= ib->length_dw | (vmid << 24);
 
 	if (amdgpu_sriov_vf(ring->adev) && (ib->flags & AMDGPU_IB_FLAG_PREEMPT)) {
 		control |= INDIRECT_BUFFER_PRE_ENB(1);
@@ -6284,9 +6284,9 @@ static void gfx_v8_0_ring_emit_ib_gfx(struct amdgpu_ring *ring,
 
 static void gfx_v8_0_ring_emit_ib_compute(struct amdgpu_ring *ring,
 					  struct amdgpu_ib *ib,
-					  unsigned vm_id, bool ctx_switch)
+					  unsigned vmid, bool ctx_switch)
 {
-	u32 control = INDIRECT_BUFFER_VALID | ib->length_dw | (vm_id << 24);
+	u32 control = INDIRECT_BUFFER_VALID | ib->length_dw | (vmid << 24);
 
 	amdgpu_ring_write(ring, PACKET3(PACKET3_INDIRECT_BUFFER, 2));
 	amdgpu_ring_write(ring,
@@ -6337,7 +6337,7 @@ static void gfx_v8_0_ring_emit_pipeline_sync(struct amdgpu_ring *ring)
 }
 
 static void gfx_v8_0_ring_emit_vm_flush(struct amdgpu_ring *ring,
-					unsigned vm_id, uint64_t pd_addr)
+					unsigned vmid, uint64_t pd_addr)
 {
 	int usepfp = (ring->funcs->type == AMDGPU_RING_TYPE_GFX);
 
@@ -6345,12 +6345,12 @@ static void gfx_v8_0_ring_emit_vm_flush(struct amdgpu_ring *ring,
 	amdgpu_ring_write(ring, (WRITE_DATA_ENGINE_SEL(usepfp) |
 				 WRITE_DATA_DST_SEL(0)) |
 				 WR_CONFIRM);
-	if (vm_id < 8) {
+	if (vmid < 8) {
 		amdgpu_ring_write(ring,
-				  (mmVM_CONTEXT0_PAGE_TABLE_BASE_ADDR + vm_id));
+				  (mmVM_CONTEXT0_PAGE_TABLE_BASE_ADDR + vmid));
 	} else {
 		amdgpu_ring_write(ring,
-				  (mmVM_CONTEXT8_PAGE_TABLE_BASE_ADDR + vm_id - 8));
+				  (mmVM_CONTEXT8_PAGE_TABLE_BASE_ADDR + vmid - 8));
 	}
 	amdgpu_ring_write(ring, 0);
 	amdgpu_ring_write(ring, pd_addr >> 12);
@@ -6362,7 +6362,7 @@ static void gfx_v8_0_ring_emit_vm_flush(struct amdgpu_ring *ring,
 				 WRITE_DATA_DST_SEL(0)));
 	amdgpu_ring_write(ring, mmVM_INVALIDATE_REQUEST);
 	amdgpu_ring_write(ring, 0);
-	amdgpu_ring_write(ring, 1 << vm_id);
+	amdgpu_ring_write(ring, 1 << vmid);
 
 	/* wait for the invalidate to complete */
 	amdgpu_ring_write(ring, PACKET3(PACKET3_WAIT_REG_MEM, 5));
