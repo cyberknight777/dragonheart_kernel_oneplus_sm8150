@@ -7,6 +7,7 @@
  */
 
 #include <linux/version.h>
+#include <hdrs/symbols-rename.h>
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/idr.h>
@@ -65,7 +66,6 @@ static inline u64 ktime_get_real_ns(void)
 #define IEEE80211RADIOTAP_H 1 /* older kernels used this include protection */
 
 /* mac80211 & backport - order matters, need this inbetween */
-#include <hdrs/symbols-rename.h>
 #include <hdrs/mac80211-bp.h>
 #include <hdrs/uapi/linux/nl80211.h>
 #include <hdrs/net/regulatory.h>
