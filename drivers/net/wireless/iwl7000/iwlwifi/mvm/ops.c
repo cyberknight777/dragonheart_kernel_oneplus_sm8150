@@ -268,6 +268,9 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 	RX_HANDLER(TX_CMD, iwl_mvm_rx_tx_cmd, RX_HANDLER_SYNC),
 	RX_HANDLER(BA_NOTIF, iwl_mvm_rx_ba_notif, RX_HANDLER_SYNC),
 
+	RX_HANDLER_GRP(DATA_PATH_GROUP, TLC_MNG_UPDATE_NOTIF,
+		       iwl_mvm_tlc_update_notif, RX_HANDLER_SYNC),
+
 	RX_HANDLER(BT_PROFILE_NOTIFICATION, iwl_mvm_rx_bt_coex_notif,
 		   RX_HANDLER_ASYNC_LOCKED),
 	RX_HANDLER(BEACON_NOTIFICATION, iwl_mvm_rx_beacon_notif,
@@ -1187,8 +1190,6 @@ static void iwl_mvm_rx_mq(struct iwl_op_mode *op_mode,
 		iwl_mvm_rx_queue_notif(mvm, rxb, 0);
 	else if (cmd == WIDE_ID(LEGACY_GROUP, FRAME_RELEASE))
 		iwl_mvm_rx_frame_release(mvm, napi, rxb, 0);
-	else if (cmd == WIDE_ID(DATA_PATH_GROUP, TLC_MNG_UPDATE_NOTIF))
-		iwl_mvm_tlc_update_notif(mvm, pkt);
 	else
 		iwl_mvm_rx_common(mvm, rxb, pkt);
 }

@@ -265,8 +265,10 @@ void iwl_mvm_tlc_amsdu_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 	rcu_read_unlock();
 };
 
-void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
+void iwl_mvm_tlc_update_notif(struct iwl_mvm *mvm,
+			      struct iwl_rx_cmd_buffer *rxb)
 {
+	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_tlc_update_notif *notif;
 	struct iwl_mvm_sta *mvmsta;
 	struct iwl_lq_sta_rs_fw *lq_sta;
