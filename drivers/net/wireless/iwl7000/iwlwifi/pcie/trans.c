@@ -2008,29 +2008,28 @@ static void iwl_trans_pcie_set_pmi(struct iwl_trans *trans, bool state)
 }
 
 struct iwl_trans_pcie_rescan {
-	struct device *dev;
+	struct pci_dev *pdev;
 	struct work_struct work;
 };
 
 static void iwl_trans_pcie_rescan_wk(struct work_struct *wk)
 {
-	struct iwl_trans_pcie_rescan *rescan;
-	struct pci_dev *pdev;
-
-	rescan = container_of(wk, struct iwl_trans_pcie_rescan, work);
-
-	pdev = to_pci_dev(rescan->dev);
-
+	struct iwl_trans_pcie_rescan *rescan =
+		container_of(wk, struct iwl_trans_pcie_rescan, work);
 #if LINUX_VERSION_IS_LESS(3,14,0)
-	dev_err(rescan->dev,
+	dev_err(&rescan->pdev->dev,
 		"Device disconnected - can't rescan on old kernels.\n");
 #else
-	pci_stop_and_remove_bus_device_locked(pdev);
+	struct pci_bus *parent;
 
 	pci_lock_rescan_remove();
-	pci_rescan_bus(pdev->bus->parent);
+	parent = rescan->pdev->bus->parent;
+	pci_stop_and_remove_bus_device(rescan->pdev);
+	pci_rescan_bus(parent);
 	pci_unlock_rescan_remove();
 #endif /* LINUX_VERSION_IS_LESS(3,14,0) */
+
+	pci_dev_put(rescan->pdev);
 
 	kfree(rescan);
 	module_put(THIS_MODULE);
@@ -2084,6 +2083,8 @@ static bool iwl_trans_pcie_grab_nic_access(struct iwl_trans *trans,
 			  "Timeout waiting for hardware access (CSR_GP_CNTRL 0x%08x)\n",
 			  cntrl);
 
+		iwl_trans_pcie_dump_regs(trans);
+
 		if (cntrl == 0xffffffff) {
 			struct iwl_trans_pcie_rescan *rescan;
 
@@ -2111,14 +2112,15 @@ static bool iwl_trans_pcie_grab_nic_access(struct iwl_trans *trans,
 
 			rescan = kzalloc(sizeof(*rescan), GFP_ATOMIC);
 			if (!rescan) {
+				trans_pcie->in_rescan = false;
 				module_put(THIS_MODULE);
 				goto err;
 			}
-			rescan->dev = trans->dev;
+			rescan->pdev = to_pci_dev(trans->dev);
 			INIT_WORK(&rescan->work, iwl_trans_pcie_rescan_wk);
+			pci_dev_get(rescan->pdev);
 			schedule_work(&rescan->work);
 		} else {
-			iwl_trans_pcie_dump_regs(trans);
 			iwl_write32(trans, CSR_RESET,
 				    CSR_RESET_REG_FLAG_FORCE_NMI);
 		}
