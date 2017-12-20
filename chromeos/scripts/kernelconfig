@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to merge all configs and run 'make silentoldconfig' on it to wade out bad juju.
+# Script to merge all configs and run 'make oldconfig' on it to wade out bad juju.
 # Then split the configs into distro-commmon and flavour-specific parts
 #
 # See this page for more details:
@@ -66,8 +66,8 @@ build_one() {
 		case ${mode} in
 		oldconfig)
 			# Weed out incorrect config parameters
-			echo "* Run silentoldconfig on ${arch}/${config} ..."
-			make -j O="${O}" ARCH=${kernarch} silentoldconfig
+			echo "* Run oldconfig on ${arch}/${config} ..."
+			make -j O="${O}" ARCH=${kernarch} oldconfig
 			;;
 		editconfig)
 			# Interactively edit config parameters
@@ -85,8 +85,8 @@ build_one() {
 
 			case ${REPLY} in
 			s|S)
-				echo "* Skip: running silentoldconfig"
-				make -j O="${O}" ARCH=${kernarch} silentoldconfig
+				echo "* Skip: running oldconfig"
+				make -j O="${O}" ARCH=${kernarch} oldconfig
 				;;
 			*)
 				echo "* Running menuconfig"
@@ -101,6 +101,10 @@ build_one() {
 
 		cat "${O}/.config" > "${archconfdir}/${config}"
 		if [[ "${keep}" == "1" ]]; then
+			# oldconfig is probably redundant because .config is
+		        # likely formatted already at this point, however
+		        # this only take a split-second and could flag some
+		        # issues.
 			make -j O="${O}" ARCH=${kernarch} oldconfig
 			make -j O="${O}" ARCH=${kernarch} savedefconfig
 			mv "${O}"/.config "CONFIGS/${arch}-${config}"
