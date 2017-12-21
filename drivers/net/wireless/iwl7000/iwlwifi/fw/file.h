@@ -143,6 +143,8 @@ enum iwl_ucode_tlv_type {
 	IWL_UCODE_TLV_FW_DBG_TRIGGER	= 40,
 	IWL_UCODE_TLV_FW_GSCAN_CAPA	= 50,
 	IWL_UCODE_TLV_FW_MEM_SEG	= 51,
+	/* 52 is unused */
+	IWL_UCODE_TLV_FW_FMAC_API_VERSION	= 53,
 };
 
 struct iwl_ucode_tlv {
