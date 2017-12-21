@@ -20,6 +20,7 @@ snd-soc-skl_rt286-objs := skl_rt286.o
 snd-skl_nau88l25_max98357a-objs := skl_nau88l25_max98357a.o
 snd-soc-skl_nau88l25_ssm4567-objs := skl_nau88l25_ssm4567.o
 snd-soc-cnl-rt274-objs := cnl_rt274.o
+snd-soc-cnl-max98373-objs := cnl_max98373.o
 
 obj-$(CONFIG_SND_SOC_INTEL_HASWELL_MACH) += snd-soc-sst-haswell.o
 obj-$(CONFIG_SND_SOC_INTEL_BYT_RT5640_MACH) += snd-soc-sst-byt-rt5640-mach.o
@@ -42,3 +43,4 @@ obj-$(CONFIG_SND_SOC_INTEL_SKL_RT286_MACH) += snd-soc-skl_rt286.o
 obj-$(CONFIG_SND_SOC_INTEL_SKL_NAU88L25_MAX98357A_MACH) += snd-skl_nau88l25_max98357a.o
 obj-$(CONFIG_SND_SOC_INTEL_SKL_NAU88L25_SSM4567_MACH) += snd-soc-skl_nau88l25_ssm4567.o
 obj-$(CONFIG_SND_SOC_INTEL_CNL_RT274_MACH) += snd-soc-cnl-rt274.o
+obj-$(CONFIG_SND_SOC_INTEL_CNL_MAX98373_MACH) += snd-soc-cnl-max98373.o
