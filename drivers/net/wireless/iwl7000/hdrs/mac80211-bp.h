@@ -1,6 +1,7 @@
 /*
  * ChromeOS backport definitions
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  */
 #include <linux/if_ether.h>
 #include <linux/errqueue.h>
@@ -300,4 +301,15 @@ static inline void skb_put_u8(struct sk_buff *skb, u8 val)
 {
 	*(u8 *)skb_put(skb, 1) = val;
 }
+#endif
+
+#if LINUX_VERSION_IS_LESS(3,18,0)
+static inline void __percpu *__alloc_gfp_warn(void)
+{
+	WARN(1, "Cannot backport alloc_percpu_gfp");
+	return NULL;
+}
+
+#define alloc_percpu_gfp(type, gfp) \
+	({ (gfp == GFP_KERNEL) ? alloc_percpu(type) : __alloc_gfp_warn(); })
 #endif
