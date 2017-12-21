@@ -1892,7 +1892,12 @@ static int btusb_setup_intel(struct hci_dev *hdev)
 	if (err)
 		return err;
 
-	bt_dev_info(hdev, "Intel firmware patch completed and activated");
+	/* Need build number for downloaded fw patches in every power-on boot */
+	err = btintel_read_version(hdev, &ver);
+	if (err)
+		return err;
+	BT_INFO("%s: Intel Bluetooth fw patch 0x%02x completed and activated",
+		hdev->name, ver.fw_patch_num);
 
 	goto complete;
 
