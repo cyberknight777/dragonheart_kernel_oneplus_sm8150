@@ -1208,6 +1208,8 @@ static uint32_t skl_plane_formats[] = {
 };
 
 static const uint64_t skl_plane_format_modifiers[] = {
+	I915_FORMAT_MOD_Yf_TILED,
+	I915_FORMAT_MOD_Y_TILED,
 	I915_FORMAT_MOD_X_TILED,
 	DRM_FORMAT_MOD_LINEAR,
 	DRM_FORMAT_MOD_INVALID
