@@ -243,37 +243,6 @@ struct iwl_tlc_amsdu_notif {
 	__le16 amsdu_enabled;
 } __packed; /* TLC_MNG_AMSDU_ENABLE_NTFY_API_S_VER_1 */
 
-#define IWL_MVM_TXAGG_TIMEOUT	5000 /* TU */
-#define IWL_MAX_TID_COUNT	8
-
-/**
- * enum iwl_agg_mng_policy - policy options
- * @IWL_AGG_MNG_BA_POLICY_DELAYED: delayed BA
- * @IWL_AGG_MNG_BA_POLICY_IMMEDIATE: immediate BA
- */
-enum iwl_agg_mng_policy {
-	IWL_AGG_MNG_BA_POLICY_DELAYED,
-	IWL_AGG_MNG_BA_POLICY_IMMEDIATE,
-};
-
-/**
- * struct agg_mng_config_cmd - aggregation manager configuration
- * @agg_time_limit: max time to wait for a single BA
- * @ba_timeout: timeout for a single BA
- * @ba_streams: total number of streams, for all interfaces
- * @ba_policy: immediate vs delayed
- * @reserved: reserved
- * @load_threshold: packets per second to start aggregation per TID
- */
-struct iwl_agg_mng_config_cmd {
-	__le16 agg_time_limit;
-	__le16 ba_timeout;
-	u8 ba_streams;
-	u8 ba_policy;
-	__le16 reserved;
-	u8 load_threshold[IWL_MAX_TID_COUNT];
-} __packed; /* AGG_MNG_CONFIG_CMD_API_S_VER_1 */
-
 #define IWL_TLC_NOTIF_INIT_RATE_POS 0
 #define IWL_TLC_NOTIF_INIT_RATE_MSK BIT(IWL_TLC_NOTIF_INIT_RATE_POS)
 #define IWL_TLC_NOTIF_REQ_INTERVAL (500)

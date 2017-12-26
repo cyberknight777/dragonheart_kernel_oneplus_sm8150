@@ -88,11 +88,6 @@ enum iwl_data_path_subcmd_ids {
 	AX_SOFTAP_CLIENT_TESTMODE = 0xC,
 
 	/**
-	 * @AGG_MNG_CONFIG_CMD: &struct iwl_agg_mng_config_cmd
-	 */
-	AGG_MNG_CONFIG_CMD = 0xE,
-
-	/**
 	 * @TLC_MNG_CONFIG_CMD: &struct iwl_tlc_config_cmd
 	 */
 	TLC_MNG_CONFIG_CMD = 0xF,
