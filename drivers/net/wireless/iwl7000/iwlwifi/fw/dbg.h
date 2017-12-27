@@ -224,4 +224,22 @@ static inline void iwl_fw_cancel_dump(struct iwl_fw_runtime *fwrt)
 	cancel_delayed_work_sync(&fwrt->dump.wk);
 }
 
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+static inline void iwl_fw_cancel_timestamp(struct iwl_fw_runtime *fwrt)
+{
+	fwrt->timestamp.delay = 0;
+	cancel_delayed_work_sync(&fwrt->timestamp.wk);
+}
+
+void iwl_fw_trigger_timestamp(struct iwl_fw_runtime *fwrt, u32 delay);
+
+#else
+
+static inline void iwl_fw_cancel_timestamp(struct iwl_fw_runtime *fwrt) {}
+
+static inline void iwl_fw_trigger_timestamp(struct iwl_fw_runtime *fwrt,
+					    u32 delay) {}
+
+#endif /* CPTCFG_IWLWIFI_DEBUGFS */
+
 #endif  /* __iwl_fw_dbg_h__ */
