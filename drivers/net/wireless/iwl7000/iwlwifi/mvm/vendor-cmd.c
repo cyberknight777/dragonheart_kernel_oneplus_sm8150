@@ -125,13 +125,10 @@ static int iwl_mvm_set_low_latency(struct wiphy *wiphy,
 	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
 	int err;
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-	struct iwl_mvm_vif *mvmvif;
-	bool low_latency, prev;
+	bool low_latency;
 
 	if (!vif)
 		return -ENODEV;
-
-	mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
 	if (data) {
 		err = iwl_mvm_parse_vendor_data(tb, data, data_len);
@@ -143,9 +140,8 @@ static int iwl_mvm_set_low_latency(struct wiphy *wiphy,
 	}
 
 	mutex_lock(&mvm->mutex);
-	prev = iwl_mvm_vif_low_latency(mvmvif);
-	mvmvif->low_latency_vcmd = low_latency;
-	err = iwl_mvm_update_low_latency(mvm, vif, prev);
+	err = iwl_mvm_update_low_latency(mvm, vif, low_latency,
+					 LOW_LATENCY_VCMD);
 	mutex_unlock(&mvm->mutex);
 
 	return err;
