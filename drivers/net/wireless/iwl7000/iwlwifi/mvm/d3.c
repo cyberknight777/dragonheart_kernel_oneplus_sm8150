@@ -1101,6 +1101,8 @@ int iwl_mvm_suspend(struct ieee80211_hw *hw, struct cfg80211_wowlan *wowlan)
 	iwl_mvm_pause_tcm(mvm);
 #endif
 
+	iwl_fw_runtime_suspend(&mvm->fwrt);
+
 	ret = iwl_trans_suspend(trans);
 	if (ret)
 		return ret;
@@ -2019,6 +2021,8 @@ int iwl_mvm_resume(struct ieee80211_hw *hw)
 	iwl_mvm_resume_tcm(mvm);
 #endif
 
+	iwl_fw_runtime_resume(&mvm->fwrt);
+
 	return ret;
 }
 
@@ -2048,6 +2052,8 @@ static int iwl_mvm_d3_test_open(struct inode *inode, struct file *file)
 #ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_pause_tcm(mvm);
 #endif
+
+	iwl_fw_runtime_suspend(&mvm->fwrt);
 
 	/* start pseudo D3 */
 	rtnl_lock();
@@ -2112,6 +2118,8 @@ static int iwl_mvm_d3_test_release(struct inode *inode, struct file *file)
 #ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_resume_tcm(mvm);
 #endif
+
+	iwl_fw_runtime_resume(&mvm->fwrt);
 
 	mvm->trans->system_pm_mode = IWL_PLAT_PM_MODE_DISABLED;
 
