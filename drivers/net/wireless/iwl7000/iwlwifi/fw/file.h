@@ -637,6 +637,14 @@ enum iwl_fw_dbg_trigger_mode {
 };
 
 /**
+ * enum iwl_fw_dbg_trigger_flags - the flags supported by wrt triggers
+ * @IWL_FW_DBG_FORCE_RESTART: force a firmware restart
+ */
+enum iwl_fw_dbg_trigger_flags {
+	IWL_FW_DBG_FORCE_RESTART = BIT(0),
+};
+
+/**
  * enum iwl_fw_dbg_trigger_vif_type - define the VIF type for a trigger
  * @IWL_FW_DBG_CONF_VIF_ANY: any vif type
  * @IWL_FW_DBG_CONF_VIF_IBSS: IBSS mode
@@ -674,6 +682,7 @@ enum iwl_fw_dbg_trigger_vif_type {
  * @occurrences: number of occurrences. 0 means the trigger will never fire.
  * @trig_dis_ms: the time, in milliseconds, after an occurrence of this
  *	trigger in which another occurrence should be ignored.
+ * @flags: &enum iwl_fw_dbg_trigger_flags
  */
 struct iwl_fw_dbg_trigger_tlv {
 	__le32 id;
@@ -684,7 +693,8 @@ struct iwl_fw_dbg_trigger_tlv {
 	u8 start_conf_id;
 	__le16 occurrences;
 	__le16 trig_dis_ms;
-	__le16 reserved[3];
+	u8 flags;
+	u8 reserved[5];
 
 	u8 data[0];
 } __packed;
