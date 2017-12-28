@@ -293,7 +293,6 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	return op_mode;
 
 out_free:
-	iwl_fw_runtime_exit(&xvt->fwrt);
 	kfree(op_mode);
 
 	return NULL;
@@ -302,6 +301,8 @@ out_free:
 static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+
+	iwl_fw_cancel_timestamp(&xvt->fwrt);
 
 	if (xvt->state != IWL_XVT_STATE_UNINITIALIZED) {
 		if (xvt->fw_running) {
@@ -314,7 +315,6 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 	iwl_phy_db_free(xvt->phy_db);
 	xvt->phy_db = NULL;
 	iwl_dnt_free(xvt->trans);
-	iwl_fw_runtime_exit(&xvt->fwrt);
 	kfree(op_mode);
 }
 

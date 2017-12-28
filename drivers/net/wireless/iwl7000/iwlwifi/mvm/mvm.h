@@ -1962,6 +1962,7 @@ static inline u32 iwl_mvm_flushable_queues(struct iwl_mvm *mvm)
 
 static inline void iwl_mvm_stop_device(struct iwl_mvm *mvm)
 {
+	iwl_fw_cancel_timestamp(&mvm->fwrt);
 	iwl_free_fw_paging(&mvm->fwrt);
 	clear_bit(IWL_MVM_STATUS_FIRMWARE_RUNNING, &mvm->status);
 	iwl_fw_dump_conf_clear(&mvm->fwrt);
