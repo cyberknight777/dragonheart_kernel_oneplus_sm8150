@@ -38,6 +38,7 @@
 #include "cz_hwmgr.h"
 #include "power_state.h"
 #include "cz_clockpowergating.h"
+#include "pp_thermal.h"
 
 #define ixSMUSVI_NB_CURRENTVID 0xD8230044
 #define CURRENT_NB_VID_MASK 0xff000000
@@ -1863,6 +1864,20 @@ static int cz_notify_cac_buffer_info(struct pp_hwmgr *hwmgr,
 	return 0;
 }
 
+static int cz_get_thermal_temperature_range(struct pp_hwmgr *hwmgr,
+		struct PP_TemperatureRange *thermal_data)
+{
+	struct cz_hwmgr *cz_hwmgr = (struct cz_hwmgr *)(hwmgr->backend);
+
+	memcpy(thermal_data, &SMU7ThermalPolicy[0], sizeof(struct PP_TemperatureRange));
+
+	thermal_data->max = (cz_hwmgr->thermal_auto_throttling_treshold +
+			cz_hwmgr->sys_info.htc_hyst_lmt) *
+			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
+
+	return 0;
+}
+
 static void cz_dpm_powergate_acp(struct pp_hwmgr *hwmgr, bool bgate)
 {
 	struct cz_hwmgr *data = hwmgr->backend;
@@ -1908,6 +1923,7 @@ static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.power_state_set = cz_set_power_state_tasks,
 	.dynamic_state_management_disable = cz_disable_dpm_tasks,
 	.notify_cac_buffer_info = cz_notify_cac_buffer_info,
+	.get_thermal_temperature_range = cz_get_thermal_temperature_range,
 	.update_nbdpm_pstate = cz_nbdpm_pstate_enable_disable,
 };
 
