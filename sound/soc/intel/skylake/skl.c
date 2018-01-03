@@ -1125,6 +1125,12 @@ static const struct snd_soc_acpi_mach sst_cnl_devdata[] = {
 		.fw_filename = "intel/dsp_fw_cnl.bin",
 		.pdata = &cnl_pdata,
 	},
+	{
+		.id = "MX98373",
+		.drv_name = "cnl_max98373",
+		.fw_filename = "intel/dsp_fw_cnl.bin",
+		.pdata = &cnl_pdata,
+	},
 	{}
 };
 
