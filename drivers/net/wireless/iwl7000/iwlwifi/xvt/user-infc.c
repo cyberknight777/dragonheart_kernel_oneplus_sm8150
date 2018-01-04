@@ -1459,7 +1459,8 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 		};
 
 		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
-					       SCD_QUEUE_CFG, 0);
+					       SCD_QUEUE_CFG,
+					       IWL_DEFAULT_QUEUE_SIZE, 0);
 		if (queue_id < 0)
 			return queue_id;
 	} else {
