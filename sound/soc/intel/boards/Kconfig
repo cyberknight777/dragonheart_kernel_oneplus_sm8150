@@ -24,7 +24,7 @@ config SND_MFLD_MACHINE
           Say Y if you have such a device.
           If unsure select "N".
 
-endif
+endif ## SND_SST_ATOM_HIFI2_PLATFORM_PCI
 
 if SND_SOC_INTEL_HASWELL
 
@@ -57,7 +57,7 @@ config SND_SOC_INTEL_BROADWELL_MACH
 	  Ultrabook platforms.
 	  Say Y or m if you have such a device. This is a recommended option.
 	  If unsure select "N".
-endif
+endif ## SND_SOC_INTEL_HASWELL
 
 if SND_SOC_INTEL_BAYTRAIL
 
@@ -82,7 +82,7 @@ config SND_SOC_INTEL_BYT_RT5640_MACH
 	  with the RT5640 audio codec. This driver is deprecated, use
 	  SND_SOC_INTEL_BYTCR_RT5640_MACH instead for better functionality.
 
-endif
+endif ## SND_SOC_INTEL_BAYTRAIL
 
 if SND_SST_ATOM_HIFI2_PLATFORM
 
@@ -174,7 +174,7 @@ config SND_SOC_INTEL_BYT_CHT_NOCODEC_MACH
 
 	  If unsure select "N".
 
-endif
+endif ## SND_SST_ATOM_HIFI2_PLATFORM
 
 if SND_SOC_INTEL_SKYLAKE
 
@@ -312,6 +312,7 @@ config SND_SOC_INTEL_GLK_RT5682_MAX98357A_MACH
 	   with RT5682 + MAX98357A I2S audio codec.
 	   Say Y if you have such a device. This is a recommended option.
 	   If unsure select "N".
-endif
+
+endif ## SND_SOC_INTEL_SKYLAKE
 
 endif ## SND_SOC_INTEL_MACH
