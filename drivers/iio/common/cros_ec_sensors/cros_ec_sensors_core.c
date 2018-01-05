@@ -295,6 +295,11 @@ const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
 		.write = cros_ec_sensors_calibrate
 	},
 	{
+		.name = "id",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_id
+	},
+	{
 		.name = "location",
 		.shared = IIO_SHARED_BY_ALL,
 		.read = cros_ec_sensors_loc
