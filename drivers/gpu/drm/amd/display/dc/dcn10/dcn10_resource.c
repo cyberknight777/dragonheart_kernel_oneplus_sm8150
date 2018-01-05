@@ -1448,6 +1448,7 @@ static bool construct(
 
 	/* valid pipe num */
 	pool->base.pipe_count = j;
+	pool->base.timing_generator_count = j;
 
 	/* within dml lib, it is hard code to 4. If ASIC pipe is fused,
 	 * the value may be changed
