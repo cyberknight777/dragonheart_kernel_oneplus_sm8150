@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -33,6 +34,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -89,6 +91,7 @@ enum iwl_xvt_state {
 
 #define NUM_OF_LMACS	(2)
 #define IWL_XVT_DBG_FLAGS_NO_DEFAULT_TXQ (BIT(2))
+#define IWL_XVT_MAX_PAYLOADS_AMOUNT (16)
 
 /**
  * tx_meta_data - Holds data and member needed for tx
@@ -110,6 +113,16 @@ struct tx_meta_data {
 	u32 tot_tx;
 	wait_queue_head_t mod_tx_done_wq;
 	bool txq_full;
+};
+
+/**
+ * tx_payload - Holds tx payload
+ * @length: Payload length in bytes
+ * @payload: Payload buffer
+ */
+struct tx_payload {
+	u16 length;
+	u8 payload[];
 };
 
 /**
@@ -313,6 +326,7 @@ struct iwl_xvt {
 	u8 nvm_mac_addr[ETH_ALEN];
 
 	struct tx_meta_data tx_meta_data[NUM_OF_LMACS];
+	struct tx_payload *payloads[IWL_XVT_MAX_PAYLOADS_AMOUNT];
 };
 
 #define IWL_OP_MODE_GET_XVT(_op_mode) \

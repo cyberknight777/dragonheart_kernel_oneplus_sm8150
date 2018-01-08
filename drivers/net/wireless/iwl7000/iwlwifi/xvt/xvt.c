@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -33,6 +34,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2017   Intel Deutschland GmbH
+ * Copyright(c) 2018   Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -283,6 +285,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 		xvt->tx_meta_data[i].txq_full = false;
 	};
 
+	memset(xvt->payloads, 0, sizeof(xvt->payloads));
 	trans->dbg_dest_tlv = xvt->fw->dbg_dest_tlv;
 	trans->dbg_dest_reg_num = xvt->fw->dbg_dest_reg_num;
 	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg_conf_tlv,

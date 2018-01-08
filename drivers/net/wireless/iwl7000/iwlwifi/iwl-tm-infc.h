@@ -8,6 +8,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -189,6 +191,7 @@ enum {
  */
 enum {
 	IWL_DRV_CMD_CONFIG_TX_QUEUE = 0,
+	IWL_DRV_CMD_SET_TX_PAYLOAD,
 };
 
 enum {
@@ -663,6 +666,18 @@ struct iwl_xvt_txq_config_resp {
 	u8 tid;
 	u8 scd_queue;
 	u8 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_set_tx_payload - input for TX payload configuration
+ * @index: payload's index in 'payloads' array in struct iwl_xvt
+ * @length: payload length in bytes
+ * @payload: buffer containing payload
+*/
+struct iwl_xvt_set_tx_payload {
+	u16 index;
+	u16 length;
+	u8 payload[];
 } __packed __aligned(4);
 
 #endif

@@ -8,6 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018         Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1183,6 +1185,33 @@ static int iwl_xvt_tx_queue_cfg(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_set_tx_payload(struct iwl_xvt *xvt,
+				  struct iwl_xvt_driver_command_req *req)
+{
+	struct iwl_xvt_set_tx_payload *input =
+		(struct iwl_xvt_set_tx_payload *)req->input_data;
+	u32 size = sizeof(struct tx_payload) + input->length;
+	struct tx_payload *payload_struct;
+
+	if (WARN(input->index >= IWL_XVT_MAX_PAYLOADS_AMOUNT,
+		 "invalid payload index\n"))
+		return -EINVAL;
+
+	/* First free payload in case index is already in use */
+	kfree(xvt->payloads[input->index]);
+
+	/* Allocate payload in xvt buffer */
+	xvt->payloads[input->index] = kzalloc(size, GFP_KERNEL);
+	if (!xvt->payloads[input->index])
+		return -ENOMEM;
+
+	payload_struct = xvt->payloads[input->index];
+	payload_struct->length = input->length;
+	memcpy(payload_struct->payload, input->payload, input->length);
+
+	return 0;
+}
+
 static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 				struct iwl_tm_data *data_in)
 {
@@ -1571,6 +1600,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 	switch (cmd_id) {
 	case IWL_DRV_CMD_CONFIG_TX_QUEUE:
 		err = iwl_xvt_config_txq(xvt, req, resp);
+		break;
+	case IWL_DRV_CMD_SET_TX_PAYLOAD:
+		err = iwl_xvt_set_tx_payload(xvt, req);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
