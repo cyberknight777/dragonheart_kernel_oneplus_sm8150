@@ -158,6 +158,11 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 					IWL_TM_USER_CMD_NOTIF_LOC_RANGE,
 					data, size, GFP_ATOMIC);
 		break;
+	case WIDE_ID(XVT_GROUP, IQ_CALIB_CONFIG_NOTIF):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_IQ_CALIB,
+					data, size, GFP_ATOMIC);
+		break;
 	case REPLY_RX_PHY_CMD:
 		IWL_DEBUG_INFO(xvt,
 			       "REPLY_RX_PHY_CMD received but not handled\n");

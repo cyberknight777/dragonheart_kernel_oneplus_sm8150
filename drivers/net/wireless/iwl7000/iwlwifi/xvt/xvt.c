@@ -172,6 +172,10 @@ static const struct iwl_hcmd_names iwl_xvt_system_names[] = {
 	HCMD_NAME(INIT_EXTENDED_CFG_CMD),
 };
 
+static const struct iwl_hcmd_names iwl_xvt_xvt_names[] = {
+	HCMD_NAME(IQ_CALIB_CONFIG_NOTIF),
+};
+
 static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[LEGACY_GROUP] = HCMD_ARR(iwl_xvt_cmd_names),
 	[LONG_GROUP] = HCMD_ARR(iwl_xvt_long_cmd_names),
@@ -180,6 +184,7 @@ static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[DATA_PATH_GROUP] = HCMD_ARR(iwl_xvt_data_path_names),
 	[TOF_GROUP] = HCMD_ARR(iwl_xvt_tof_names),
 	[REGULATORY_AND_NVM_GROUP] = HCMD_ARR(iwl_xvt_regulatory_and_nvm_names),
+	[XVT_GROUP] = HCMD_ARR(iwl_xvt_xvt_names),
 };
 
 static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
