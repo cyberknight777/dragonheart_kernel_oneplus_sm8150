@@ -1507,6 +1507,18 @@ static int iwl_xvt_start_tx(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_stop_tx(struct iwl_xvt *xvt)
+{
+	int err = 0;
+
+	if (xvt->tx_task && xvt->is_enhanced_tx) {
+		err = kthread_stop(xvt->tx_task);
+		xvt->tx_task = NULL;
+	}
+
+	return err;
+}
+
 static int iwl_xvt_set_tx_payload(struct iwl_xvt *xvt,
 				  struct iwl_xvt_driver_command_req *req)
 {
@@ -1934,6 +1946,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 		break;
 	case IWL_DRV_CMD_TX_START:
 		err = iwl_xvt_start_tx(xvt, req);
+		break;
+	case IWL_DRV_CMD_TX_STOP:
+		err = iwl_xvt_stop_tx(xvt);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
