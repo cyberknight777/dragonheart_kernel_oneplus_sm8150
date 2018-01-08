@@ -48,6 +48,13 @@ struct cros_ec_sensors_state {
 	/* Shared by all sensors */
 	struct cros_ec_sensors_core_state core;
 
+	/*
+	 * Static array to hold data from a single capture. For each
+	 * channel we need 2 bytes, except for the timestamp. The timestamp
+	 * is always last and is always 8-byte aligned.
+	 */
+	u8 samples[SAMPLE_SIZE];
+
 	struct iio_chan_spec channels[MAX_CHANNELS];
 };
 
@@ -113,7 +120,7 @@ static int ec_sensors_read(struct iio_dev *indio_dev,
 		break;
 	case IIO_CHAN_INFO_SCALE:
 		/* Light: Result in Lux, using calibration multiplier */
-		/* Prox: Result in cm. */
+		/* Prox: Just a number */
 		*val = 1;
 		ret = IIO_VAL_INT;
 		break;
@@ -223,8 +230,7 @@ static int cros_ec_sensors_probe(struct platform_device *pdev)
 	/* common part */
 	channel->info_mask_separate =
 		BIT(IIO_CHAN_INFO_RAW) |
-		BIT(IIO_CHAN_INFO_CALIBBIAS) |
-		BIT(IIO_CHAN_INFO_CALIBSCALE);
+		BIT(IIO_CHAN_INFO_CALIBBIAS);
 	channel->info_mask_shared_by_all =
 		BIT(IIO_CHAN_INFO_SCALE) |
 		BIT(IIO_CHAN_INFO_SAMP_FREQ) |
@@ -234,6 +240,8 @@ static int cros_ec_sensors_probe(struct platform_device *pdev)
 	channel->scan_type.shift = 0;
 	channel->scan_index = 0;
 	channel->ext_info = cros_ec_sensors_ext_info;
+	channel->info_mask_separate |=
+		BIT(IIO_CHAN_INFO_CALIBSCALE);
 	channel->scan_type.sign = 'u';
 
 	state->core.calib[0] = 0;
