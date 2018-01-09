@@ -16,7 +16,10 @@
 #ifndef __CROS_EC_SENSORS_CORE_H
 #define __CROS_EC_SENSORS_CORE_H
 
+#include <linux/iio/iio.h>
 #include <linux/irqreturn.h>
+#include <linux/mfd/cros_ec.h>
+#include <linux/platform_device.h>
 
 enum {
 	CROS_EC_SENSOR_X,
