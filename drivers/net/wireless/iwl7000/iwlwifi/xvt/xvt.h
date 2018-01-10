@@ -281,6 +281,16 @@ struct iwl_umac_error_event_table {
 } __packed;
 
 /**
+ * struct iwl_xvt_skb_info - driver data per skb
+ * @dev_cmd: a pointer to the iwl_dev_cmd associated with this skb
+ * @trans: transport data
+ */
+struct iwl_xvt_skb_info {
+	struct iwl_device_cmd *dev_cmd;
+	void *trans[2];
+};
+
+/**
  * struct iwl_xvt - the xvt op_mode
  *
  * @trans: pointer to the transport layer

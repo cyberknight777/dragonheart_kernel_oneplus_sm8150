@@ -904,7 +904,8 @@ static struct iwl_device_cmd *
 iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 			       u32 rate_flags, u32 flags)
 {
-	struct iwl_device_cmd *dev_cmd, **cb_dev_cmd = (void *)skb->cb;
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 	struct iwl_tx_cmd_gen2 *tx_cmd;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 
@@ -932,7 +933,7 @@ iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 	 /* Saving device command address itself in the
 	  * control buffer, to be used when reclaiming
 	  * the command. */
-	*cb_dev_cmd = dev_cmd;
+	skb_info->dev_cmd = dev_cmd;
 
 	return dev_cmd;
 }
@@ -944,7 +945,8 @@ static struct iwl_device_cmd *
 iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 			  u8 sta_id, u32 rate_flags, u32 flags)
 {
-	struct iwl_device_cmd *dev_cmd, **cb_dev_cmd = (void *)skb->cb;
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 	struct iwl_tx_cmd *tx_cmd;
 
 	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
@@ -970,7 +972,7 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	 * control buffer, to be used when reclaiming
 	 * the command.
 	 */
-	*cb_dev_cmd = dev_cmd;
+	skb_info->dev_cmd = dev_cmd;
 
 	return dev_cmd;
 }

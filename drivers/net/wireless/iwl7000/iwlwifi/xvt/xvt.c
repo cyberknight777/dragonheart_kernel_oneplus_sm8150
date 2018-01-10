@@ -258,7 +258,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	if (xvt->trans->cfg->mq_rx_supported)
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
 
-	trans_cfg.cb_data_offs = 0;
+	trans_cfg.cb_data_offs = offsetof(struct iwl_xvt_skb_info, trans);
 
 	/* Configure transport layer */
 	iwl_trans_configure(xvt->trans, &trans_cfg);
@@ -336,7 +336,7 @@ static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
 	u16 ssn = iwl_xvt_get_scd_ssn(xvt, tx_resp);
 	struct sk_buff_head skbs;
 	struct sk_buff *skb;
-	struct iwl_device_cmd **cb_dev_cmd;
+	struct iwl_xvt_skb_info *skb_info;
 	struct tx_meta_data *tx_data;
 
 	__skb_queue_head_init(&skbs);
@@ -360,10 +360,10 @@ static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
 
 	while (!skb_queue_empty(&skbs)) {
 		skb = __skb_dequeue(&skbs);
-		cb_dev_cmd = (void *)skb->cb;
+		skb_info = (void *)skb->cb;
 		tx_data->tx_counter++;
-		if (cb_dev_cmd && *cb_dev_cmd)
-			iwl_trans_free_tx_cmd(xvt->trans, *cb_dev_cmd);
+		if (skb_info->dev_cmd)
+			iwl_trans_free_tx_cmd(xvt->trans, skb_info->dev_cmd);
 		kfree_skb(skb);
 	}
 	if (tx_data->tot_tx == tx_data->tx_counter)
@@ -524,9 +524,9 @@ static bool iwl_xvt_valid_hw_addr(u32 addr)
 static void iwl_xvt_free_skb(struct iwl_op_mode *op_mode, struct sk_buff *skb)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
-	struct iwl_device_cmd **cb_dev_cmd = (void *)skb->cb;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 
-	iwl_trans_free_tx_cmd(xvt->trans, *cb_dev_cmd);
+	iwl_trans_free_tx_cmd(xvt->trans, skb_info->dev_cmd);
 	kfree_skb(skb);
 }
 
