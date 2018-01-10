@@ -139,6 +139,7 @@ static const struct iwl_hcmd_names iwl_xvt_long_cmd_names[] = {
  * Access is done through binary search.
  */
 static const struct iwl_hcmd_names iwl_xvt_phy_names[] = {
+	HCMD_NAME(CT_KILL_NOTIFICATION),
 	HCMD_NAME(DTS_MEASUREMENT_NOTIF_WIDE),
 };
 
