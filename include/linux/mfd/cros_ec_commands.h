@@ -2730,20 +2730,24 @@ struct ec_response_charge_state {
 /*
  * Set maximum battery charging current.
  */
-#define EC_CMD_CHARGE_CURRENT_LIMIT 0xa1
+#define EC_CMD_CHARGE_CURRENT_LIMIT 0x00A1
 
-struct ec_params_current_limit {
+struct __ec_align4 ec_params_current_limit {
 	uint32_t limit; /* in mA */
-} __packed;
+};
 
 /*
- * Set maximum external power current.
+ * Set maximum external voltage / current.
  */
-#define EC_CMD_EXTERNAL_POWER_LIMIT 0xa2
+#define EC_CMD_EXTERNAL_POWER_LIMIT 0x00A2
 
-struct ec_params_ext_power_current_limit {
-	uint32_t limit; /* in mA */
-} __packed;
+/* Command v0 is used only on Spring and is obsolete + unsupported */
+struct __ec_align2 ec_params_external_power_limit_v1 {
+	uint16_t current_lim; /* in mA, or EC_POWER_LIMIT_NONE to clear limit */
+	uint16_t voltage_lim; /* in mV, or EC_POWER_LIMIT_NONE to clear limit */
+};
+
+#define EC_POWER_LIMIT_NONE 0xffff
 
 /* Inform the EC when entering a sleep state */
 #define EC_CMD_HOST_SLEEP_EVENT 0xa9
@@ -3095,28 +3099,35 @@ struct ec_params_usb_pd_control {
 #define PD_CTRL_RESP_ROLE_USB_COMM      (1 << 5) /* Partner USB comm capable */
 #define PD_CTRL_RESP_ROLE_EXT_POWERED   (1 << 6) /* Partner externally powerd */
 
-struct ec_response_usb_pd_control_v1 {
+struct __ec_align1 ec_response_usb_pd_control {
+	uint8_t enabled;
+	uint8_t role;
+	uint8_t polarity;
+	uint8_t state;
+};
+
+struct __ec_align1 ec_response_usb_pd_control_v1 {
 	uint8_t enabled;
 	uint8_t role;
 	uint8_t polarity;
 	char state[32];
-} __packed;
+};
 
-#define EC_CMD_USB_PD_PORTS 0x102
+#define EC_CMD_USB_PD_PORTS 0x0102
 
 /* Maximum number of PD ports on a device, num_ports will be <= this */
 #define EC_USB_PD_MAX_PORTS 8
 
-struct ec_response_usb_pd_ports {
+struct __ec_align1 ec_response_usb_pd_ports {
 	uint8_t num_ports;
-} __packed;
+};
 
-#define EC_CMD_USB_PD_POWER_INFO 0x103
+#define EC_CMD_USB_PD_POWER_INFO 0x0103
 
 #define PD_POWER_CHARGING_PORT 0xff
-struct ec_params_usb_pd_power_info {
+struct __ec_align1 ec_params_usb_pd_power_info {
 	uint8_t port;
-} __packed;
+};
 
 enum usb_chg_type {
 	USB_CHG_TYPE_NONE,
@@ -3130,22 +3141,28 @@ enum usb_chg_type {
 	USB_CHG_TYPE_VBUS,
 	USB_CHG_TYPE_UNKNOWN,
 };
+enum usb_power_roles {
+	USB_PD_PORT_POWER_DISCONNECTED,
+	USB_PD_PORT_POWER_SOURCE,
+	USB_PD_PORT_POWER_SINK,
+	USB_PD_PORT_POWER_SINK_NOT_CHARGING,
+};
 
-struct usb_chg_measures {
+struct __ec_align2 usb_chg_measures {
 	uint16_t voltage_max;
 	uint16_t voltage_now;
 	uint16_t current_max;
 	uint16_t current_lim;
-} __packed;
+};
 
-struct ec_response_usb_pd_power_info {
+struct __ec_align4 ec_response_usb_pd_power_info {
 	uint8_t role;
 	uint8_t type;
 	uint8_t dualrole;
 	uint8_t reserved1;
 	struct usb_chg_measures meas;
 	uint32_t max_power;
-} __packed;
+};
 
 /* Write USB-PD device FW */
 #define EC_CMD_USB_PD_FW_UPDATE 0x0110
@@ -3349,13 +3366,12 @@ struct __ec_align1 ec_params_pd_control {
 	uint8_t subcmd;
 };
 
-
 /* Get info about USB-C SS muxes */
-#define EC_CMD_USB_PD_MUX_INFO 0x11a
+#define EC_CMD_USB_PD_MUX_INFO 0x011A
 
-struct ec_params_usb_pd_mux_info {
+struct __ec_align1 ec_params_usb_pd_mux_info {
 	uint8_t port; /* USB-C port number */
-} __packed;
+};
 
 /* Flags representing mux state */
 #define USB_PD_MUX_USB_ENABLED       (1 << 0)
@@ -3363,9 +3379,9 @@ struct ec_params_usb_pd_mux_info {
 #define USB_PD_MUX_POLARITY_INVERTED (1 << 2)
 #define USB_PD_MUX_HPD_IRQ           (1 << 3)
 
-struct ec_response_usb_pd_mux_info {
+struct __ec_align1 ec_response_usb_pd_mux_info {
 	uint8_t flags; /* USB_PD_MUX_*-encoded USB mux state */
-} __packed;
+};
 
 /*****************************************************************************/
 /*
