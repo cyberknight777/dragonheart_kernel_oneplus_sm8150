@@ -900,6 +900,20 @@ static int iwl_xvt_get_phy_db(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static struct iwl_device_cmd *iwl_xvt_init_tx_dev_cmd(struct iwl_xvt *xvt)
+{
+	struct iwl_device_cmd *dev_cmd;
+
+	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	memset(dev_cmd, 0, sizeof(*dev_cmd));
+	dev_cmd->hdr.cmd = TX_CMD;
+
+	return dev_cmd;
+}
+
 static struct iwl_device_cmd *
 iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 			       u32 rate_flags, u32 flags)
@@ -909,12 +923,9 @@ iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 	struct iwl_tx_cmd_gen2 *tx_cmd;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 
-	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
 	if (unlikely(!dev_cmd))
 		return NULL;
-
-	memset(dev_cmd, 0, sizeof(*dev_cmd));
-	dev_cmd->hdr.cmd = TX_CMD;
 
 	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
 
@@ -949,12 +960,10 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 	struct iwl_tx_cmd *tx_cmd;
 
-	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
 	if (unlikely(!dev_cmd))
 		return NULL;
 
-	memset(dev_cmd, 0, sizeof(dev_cmd->hdr) + sizeof(*tx_cmd));
-	dev_cmd->hdr.cmd = TX_CMD;
 	tx_cmd = (struct iwl_tx_cmd *)dev_cmd->payload;
 
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
@@ -1063,6 +1072,164 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 
 	return err;
 err:
+	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
+	kfree_skb(skb);
+	return err;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
+			   struct iwl_xvt_tx_start *tx_start, u8 packet_index)
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	struct iwl_tx_cmd_gen2 *tx_cmd;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
+	tx_cmd->len = cpu_to_le16((u16)skb->len);
+	tx_cmd->offload_assist |= (header_length % 4) ?
+				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
+	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
+	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
+
+	/* Copy MAC header from skb into command buffer */
+	memcpy(tx_cmd->hdr, hdr, header_length);
+
+	 /* Saving device command address itself in the
+	  * control buffer, to be used when reclaiming
+	  * the command. */
+	skb_info->dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
+		      struct iwl_xvt_tx_start *tx_start, u8 packet_index)
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	struct iwl_tx_cmd *tx_cmd;
+	/* the skb should already hold the data */
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	tx_cmd = (struct iwl_tx_cmd *)dev_cmd->payload;
+
+	tx_cmd->len = cpu_to_le16((u16)skb->len);
+	tx_cmd->offload_assist |= (header_length % 4) ?
+				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
+	tx_cmd->tx_flags = cpu_to_le32(tx_start->tx_data.tx_flags);
+	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
+	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
+	tx_cmd->sec_ctl = tx_start->frames_data[packet_index].sec_ctl;
+	tx_cmd->initial_rate_index = tx_start->tx_data.initial_rate_index;
+	tx_cmd->life_time = cpu_to_le32(TX_CMD_LIFE_TIME_INFINITE);
+	tx_cmd->rts_retry_limit = tx_start->tx_data.rts_retry_limit;
+	tx_cmd->data_retry_limit = tx_start->tx_data.data_retry_limit;
+	tx_cmd->tid_tspec = tx_start->frames_data[packet_index].tid_tspec;
+	memcpy(tx_cmd->key,
+	       tx_start->frames_data[packet_index].key,
+	       sizeof(tx_cmd->key));
+
+	memcpy(tx_cmd->hdr, hdr, header_length);
+
+	/*
+	 * Saving device command address itself in the control buffer,
+	 * to be used when reclaiming the command.
+	 */
+	skb_info->dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
+			    struct iwl_xvt_tx_start *tx_start,
+			    u8 packet_index,
+			    u32 *status)
+{
+	struct sk_buff *skb;
+	struct iwl_device_cmd *dev_cmd;
+	int time_remain, err = 0;
+	struct tx_cmd_frame_data frame_data =
+		tx_start->frames_data[packet_index];
+	u32 payload_length = xvt->payloads[frame_data.payload_index]->length;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)
+		tx_start->frames_data[packet_index].header;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+	u32 packet_length  = payload_length + header_length;
+	struct tx_queue_data queue_data = xvt->queue_data[frame_data.queue];
+
+	skb = alloc_skb(packet_length, GFP_KERNEL);
+	if (!skb) {
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENOMEM;
+	}
+	/* copy MAC header into skb */
+	memcpy(skb_put(skb, header_length), frame_data.header, header_length);
+	/* copy frame payload into skb */
+	memcpy(skb_put(skb, payload_length),
+	       xvt->payloads[frame_data.payload_index]->payload,
+	       payload_length);
+
+	if (iwl_xvt_is_unified_fw(xvt))
+		dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb, tx_start,
+						     packet_index);
+	else
+		dev_cmd = iwl_xvt_set_tx_params(xvt, skb, tx_start,
+						packet_index);
+	if (!dev_cmd) {
+		kfree_skb(skb);
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENOMEM;
+	}
+	/* wait until the tx queue isn't full */
+	time_remain = wait_event_interruptible_timeout(queue_data.tx_wq,
+						       !queue_data.txq_full,
+						       HZ);
+
+	if (time_remain <= 0) {
+		/* This should really not happen */
+		WARN_ON_ONCE(queue_data.txq_full);
+		IWL_ERR(xvt, "Error while sending Tx\n");
+		*status = XVT_TX_DRIVER_QUEUE_FULL;
+		err = -EIO;
+		goto on_err;
+	}
+
+	if (xvt->fw_error) {
+		WARN_ON_ONCE(queue_data.txq_full);
+		IWL_ERR(xvt, "FW Error while sending packet\n");
+		*status = XVT_TX_DRIVER_ABORTED;
+		err = -ENODEV;
+		goto on_err;
+	}
+	/* Assume we have one Txing thread only: the queue is not full
+	 * any more - nobody could fill it up in the meantime since we
+	 * were blocked.
+	 */
+	local_bh_disable();
+	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, frame_data.queue);
+	local_bh_enable();
+	if (err) {
+		IWL_ERR(xvt, "Tx command failed (error %d)\n", err);
+		*status = XVT_TX_DRIVER_ABORTED;
+		goto on_err;
+	}
+
+	return 0;
+
+on_err:
 	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
 	kfree_skb(skb);
 	return err;
@@ -1515,7 +1682,8 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 		}
 	}
 
-	xvt->tx_meta_data[XVT_LMAC_0_ID].queue = queue_id;
+	xvt->queue_data[queue_id].allocated_queue = true;
+	init_waitqueue_head(&xvt->queue_data[queue_id].tx_wq);
 
 	return queue_id;
 }
@@ -1536,7 +1704,7 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 	if (WARN(ret, "failed to send SCD_QUEUE_CFG"))
 		return ret;
 
-	xvt->tx_meta_data[XVT_LMAC_0_ID].queue = -1;
+	xvt->queue_data[cmd->scd_queue].allocated_queue = false;
 
 	return 0;
 }

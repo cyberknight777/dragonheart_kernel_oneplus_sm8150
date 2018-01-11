@@ -87,5 +87,10 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out);
+/* Stub */
+int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
+			    struct iwl_xvt_tx_start *tx_start,
+			    u8 packet_index,
+			    u32 *status);
 
 #endif

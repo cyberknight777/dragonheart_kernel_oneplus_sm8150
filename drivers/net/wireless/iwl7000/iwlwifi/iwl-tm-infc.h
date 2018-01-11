@@ -100,6 +100,9 @@ enum iwl_tm_gnl_cmd_t {
  */
 #define IWL_XVT_TX_MODULATED_INFINITE (0)
 
+#define IWL_XVT_MAX_MAC_HEADER_LENGTH (36)
+#define IWL_XVT_MAX_NUM_OF_FRAMES (32)
+
 /*
  * Periphery registers absolute lower bound. This is used in order to
  * differentiate registery access through HBUS_TARG_PRPH_.* and
@@ -174,6 +177,7 @@ enum {
 	IWL_XVT_CMD_SEND_NIC_ERROR,
 	IWL_XVT_CMD_SEND_NIC_UMAC_ERROR,
 	IWL_XVT_CMD_SEND_MOD_TX_DONE,
+	IWL_XVT_CMD_ENHANCED_TX_DONE,
 
 	/* Bus Tester Commands*/
 	IWL_TM_USER_CMD_SV_BUS_CONFIG = XVT_BUS_TESTER_BASE,
@@ -678,6 +682,101 @@ struct iwl_xvt_set_tx_payload {
 	u16 index;
 	u16 length;
 	u8 payload[];
+} __packed __aligned(4);
+
+/**
+ * struct tx_cmd_commom_data - Data shared between all queues for TX
+ * command configuration
+ * @rate_flags: Tx Configuration rate flags
+ * @tx_flags: TX flags configuration
+ * @initial_rate_index: Start index in TLC table
+ * @rts_retry_limit: Max retry for RTS transmit
+ * @data_retry_limit: Max retry for data transmit
+ */
+struct tx_cmd_commom_data {
+	u32 rate_flags;
+	u32 tx_flags;
+	u8 initial_rate_index;
+	u8 rts_retry_limit;
+	u8 data_retry_limit;
+	u8 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct tx_cmd_frame - frame specific transmission data
+ * @times: Number of subsequent times to transmit tx command to queue
+ * @sta_id: Station index
+ * @queue: Transmission queue
+ * @tid_tspec: TID tspec
+ * @sec_ctl: security control
+ * @payload_index: payload buffer index in 'payloads' array in struct iwl_xvt
+ * @key: security key
+ * @header: MAC header
+ */
+struct tx_cmd_frame_data {
+	u16 times;
+	u8 sta_id;
+	u8 queue;
+	u8 tid_tspec;
+	u8 sec_ctl;
+	u8 payload_index;
+	u8 reserved;
+	u8 key[16];
+	u8 header[IWL_XVT_MAX_MAC_HEADER_LENGTH];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_tx_start - Data for transmission. IWL_DRV_CMD_TX_START input.
+ * @num_of_cycles: Number of times to go over frames_data. When set to zero -
+ *  infinite transmit (max amount is ULLONG_MAX) - go over frames_data and sent
+ *  tx until stop command is received.
+ * @num_of_different_frames: actual number of entries in frames_data
+ * @send_tx_resp: Whether to send FW's tx response to user
+ * @tx_data: Tx command configuration shared data
+ * @frames_data: array of specific frame data for each queue
+*/
+struct iwl_xvt_tx_start {
+	u16 num_of_cycles;
+	u16 num_of_different_frames;
+	u8 send_tx_resp;
+	u8 reserved1;
+	u16 reserved2;
+	struct tx_cmd_commom_data tx_data;
+	struct tx_cmd_frame_data frames_data[IWL_XVT_MAX_NUM_OF_FRAMES];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_enhanced_tx_data - Data for enhanced TX task
+ * @xvt: pointer to the xvt op mode
+ * @tx_start_data: IWL_DRV_CMD_TX_START command's input
+*/
+struct iwl_xvt_enhanced_tx_data {
+	struct iwl_xvt *xvt;
+	struct iwl_xvt_tx_start tx_start_data;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_post_tx_data - transmission data per queue
+ * @num_of_packets: number of sent packets
+ * @queue: queue packets were sent on
+ */
+struct iwl_xvt_post_tx_data {
+	u64 num_of_packets;
+	u16 queue;
+	u16 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_tx_done - Notification data for sent tx
+ * @status: tx task handler error status
+ * @num_of_queues: total number of queues tx was sent from. Equals to number of
+ * entries in tx_data
+ * @tx_data: data of sent frames for each queue
+*/
+struct iwl_xvt_tx_done {
+	u32 status;
+	u32 num_of_queues;
+	struct iwl_xvt_post_tx_data tx_data[];
 } __packed __aligned(4);
 
 #endif

@@ -286,6 +286,10 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	};
 
 	memset(xvt->payloads, 0, sizeof(xvt->payloads));
+	xvt->is_enhanced_tx = false;
+	memset(xvt->queue_data, 0, sizeof(xvt->queue_data));
+	init_waitqueue_head(&xvt->tx_done_wq);
+
 	trans->dbg_dest_tlv = xvt->fw->dbg_dest_tlv;
 	trans->dbg_dest_reg_num = xvt->fw->dbg_dest_reg_num;
 	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg_conf_tlv,
@@ -337,36 +341,47 @@ static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
 	struct sk_buff_head skbs;
 	struct sk_buff *skb;
 	struct iwl_xvt_skb_info *skb_info;
-	struct tx_meta_data *tx_data;
+	struct tx_meta_data *tx_data = &xvt->tx_meta_data[XVT_LMAC_0_ID];
+	u16 status = le16_to_cpu(iwl_xvt_get_agg_status(xvt, tx_resp)->status) &
+				 TX_STATUS_MSK;
 
 	__skb_queue_head_init(&skbs);
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		txq_id = le16_to_cpu(tx_resp->tx_queue);
+		if (xvt->is_enhanced_tx)
+			goto reclaim;
 
-		if (txq_id == xvt->tx_meta_data[XVT_LMAC_0_ID].queue) {
-			tx_data = &xvt->tx_meta_data[XVT_LMAC_0_ID];
-		} else if (txq_id == xvt->tx_meta_data[XVT_LMAC_1_ID].queue) {
+		if (txq_id == xvt->tx_meta_data[XVT_LMAC_1_ID].queue)
 			tx_data = &xvt->tx_meta_data[XVT_LMAC_1_ID];
-		} else {
-			IWL_ERR(xvt, "got TX_CMD from unidentified queque\n");
+		else if (WARN(txq_id != xvt->tx_meta_data[XVT_LMAC_0_ID].queue,
+			      "got TX_CMD from unidentified queque\n"))
 			return;
-		}
-	} else {
-		tx_data = &xvt->tx_meta_data[XVT_LMAC_0_ID];
 	}
 
+reclaim:
 	iwl_trans_reclaim(xvt->trans, txq_id, ssn, &skbs);
 
 	while (!skb_queue_empty(&skbs)) {
 		skb = __skb_dequeue(&skbs);
 		skb_info = (void *)skb->cb;
-		tx_data->tx_counter++;
+		if (xvt->is_enhanced_tx) {
+			xvt->queue_data[txq_id].tx_counter++;
+			xvt->num_of_tx_resp++;
+		} else {
+			tx_data->tx_counter++;
+		}
+		WARN(status != TX_STATUS_SUCCESS,
+		     "got error TX_RSP status %#x\n", status);
 		if (skb_info->dev_cmd)
 			iwl_trans_free_tx_cmd(xvt->trans, skb_info->dev_cmd);
 		kfree_skb(skb);
 	}
-	if (tx_data->tot_tx == tx_data->tx_counter)
+
+	if (xvt->is_enhanced_tx &&
+	    xvt->expected_tx_amount == xvt->num_of_tx_resp)
+		wake_up_interruptible(&xvt->tx_done_wq);
+	else if (tx_data->tot_tx == tx_data->tx_counter)
 		wake_up_interruptible(&tx_data->mod_tx_done_wq);
 }
 
@@ -535,10 +550,14 @@ static void iwl_xvt_stop_sw_queue(struct iwl_op_mode *op_mode, int queue)
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	u8 i;
 
-	for (i = 0; i < NUM_OF_LMACS; i++) {
-		if (queue == xvt->tx_meta_data[i].queue) {
-			xvt->tx_meta_data[i].txq_full = true;
-			break;
+	if (xvt->queue_data[queue].allocated_queue) {
+		xvt->queue_data[queue].txq_full = true;
+	} else {
+		for (i = 0; i < NUM_OF_LMACS; i++) {
+			if (queue == xvt->tx_meta_data[i].queue) {
+				xvt->tx_meta_data[i].txq_full = true;
+				break;
+			}
 		}
 	}
 }
@@ -548,11 +567,17 @@ static void iwl_xvt_wake_sw_queue(struct iwl_op_mode *op_mode, int queue)
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	u8 i;
 
-	for (i = 0; i < NUM_OF_LMACS; i++) {
-		if (queue == xvt->tx_meta_data[i].queue) {
-			xvt->tx_meta_data[i].txq_full = false;
-			wake_up_interruptible(&xvt->tx_meta_data[i].mod_tx_wq);
-			break;
+	if (xvt->queue_data[queue].allocated_queue) {
+		xvt->queue_data[queue].txq_full = false;
+		wake_up_interruptible(&xvt->queue_data[queue].tx_wq);
+	} else {
+		for (i = 0; i < NUM_OF_LMACS; i++) {
+			if (queue == xvt->tx_meta_data[i].queue) {
+				xvt->tx_meta_data[i].txq_full = false;
+				wake_up_interruptible(
+					&xvt->tx_meta_data[i].mod_tx_wq);
+				break;
+			}
 		}
 	}
 }

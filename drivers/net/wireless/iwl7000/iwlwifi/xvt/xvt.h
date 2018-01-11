@@ -116,6 +116,20 @@ struct tx_meta_data {
 };
 
 /**
+ * tx_queue_data - Holds tx data per tx queue
+ * @tx_wq: TX sw queue
+ * @tx_counter: Number of packets that were sent from this queue. Counts TX_RSP
+ * @txq_full: Set to true when tx_wq is full
+ * @allocated_queue: Whether queue is allocated
+ */
+struct tx_queue_data {
+	wait_queue_head_t tx_wq;
+	u64 tx_counter;
+	bool txq_full;
+	bool allocated_queue;
+};
+
+/**
  * tx_payload - Holds tx payload
  * @length: Payload length in bytes
  * @payload: Payload buffer
@@ -336,7 +350,14 @@ struct iwl_xvt {
 	u8 nvm_mac_addr[ETH_ALEN];
 
 	struct tx_meta_data tx_meta_data[NUM_OF_LMACS];
+
+	/* members for enhanced tx command */
 	struct tx_payload *payloads[IWL_XVT_MAX_PAYLOADS_AMOUNT];
+	bool is_enhanced_tx;
+	u64 num_of_tx_resp;
+	u64 expected_tx_amount;
+	wait_queue_head_t tx_done_wq;
+	struct tx_queue_data queue_data[IWL_MAX_HW_QUEUES];
 };
 
 #define IWL_OP_MODE_GET_XVT(_op_mode) \
