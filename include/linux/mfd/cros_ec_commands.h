@@ -3373,17 +3373,13 @@ struct __ec_align4 ec_params_current_limit {
 };
 
 /*
- * Set maximum external voltage / current.
+ * Set maximum external power current.
  */
 #define EC_CMD_EXTERNAL_POWER_LIMIT 0x00A2
 
-/* Command v0 is used only on Spring and is obsolete + unsupported */
-struct __ec_align2 ec_params_external_power_limit_v1 {
-	uint16_t current_lim; /* in mA, or EC_POWER_LIMIT_NONE to clear limit */
-	uint16_t voltage_lim; /* in mV, or EC_POWER_LIMIT_NONE to clear limit */
-};
-
-#define EC_POWER_LIMIT_NONE 0xffff
+struct ec_params_ext_power_current_limit {
+	uint32_t limit; /* in mA */
+} __packed;
 
 /*****************************************************************************/
 /* Hibernate/Deep Sleep Commands */
@@ -3810,12 +3806,6 @@ enum usb_chg_type {
 	USB_CHG_TYPE_OTHER,
 	USB_CHG_TYPE_VBUS,
 	USB_CHG_TYPE_UNKNOWN,
-};
-enum usb_power_roles {
-	USB_PD_PORT_POWER_DISCONNECTED,
-	USB_PD_PORT_POWER_SOURCE,
-	USB_PD_PORT_POWER_SINK,
-	USB_PD_PORT_POWER_SINK_NOT_CHARGING,
 };
 
 struct __ec_align2 usb_chg_measures {
