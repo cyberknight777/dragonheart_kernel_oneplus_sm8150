@@ -353,6 +353,7 @@ struct iwl_xvt {
 
 	/* members for enhanced tx command */
 	struct tx_payload *payloads[IWL_XVT_MAX_PAYLOADS_AMOUNT];
+	struct task_struct *tx_task;
 	bool is_enhanced_tx;
 	u64 num_of_tx_resp;
 	u64 expected_tx_amount;

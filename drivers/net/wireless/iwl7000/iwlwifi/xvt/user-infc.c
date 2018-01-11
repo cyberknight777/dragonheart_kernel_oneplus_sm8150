@@ -1153,10 +1153,10 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	return dev_cmd;
 }
 
-int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
-			    struct iwl_xvt_tx_start *tx_start,
-			    u8 packet_index,
-			    u32 *status)
+static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
+				   struct iwl_xvt_tx_start *tx_start,
+				   u8 packet_index,
+				   u32 *status)
 {
 	struct sk_buff *skb;
 	struct iwl_device_cmd *dev_cmd;
@@ -1233,6 +1233,119 @@ on_err:
 	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
 	kfree_skb(skb);
 	return err;
+}
+
+static int iwl_xvt_send_tx_done_notif(struct iwl_xvt *xvt, u32 status)
+{
+	struct iwl_xvt_tx_done *done_notif;
+	u32 i, j, done_notif_size, num_of_queues = 0;
+	int err;
+
+	for (i = 1; i < IWL_MAX_HW_QUEUES; i++) {
+		if (xvt->queue_data[i].allocated_queue)
+			num_of_queues++;
+	}
+
+	done_notif_size = sizeof(*done_notif) +
+		num_of_queues * sizeof(struct iwl_xvt_post_tx_data);
+	done_notif = kzalloc(done_notif_size, GFP_KERNEL);
+	if (!done_notif)
+		return -ENOMEM;
+
+	done_notif->status = status;
+	done_notif->num_of_queues = num_of_queues;
+
+	for (i = 1, j = 0; i <= num_of_queues; i++) {
+		if (!xvt->queue_data[i].allocated_queue)
+			continue;
+		done_notif->tx_data[j].num_of_packets =
+			xvt->queue_data[i].tx_counter;
+		done_notif->tx_data[j].queue = i;
+		j++;
+	}
+	err = iwl_xvt_user_send_notif(xvt,
+				      IWL_XVT_CMD_ENHANCED_TX_DONE,
+				      (void *)done_notif,
+				      done_notif_size, GFP_ATOMIC);
+	if (err) {
+		IWL_ERR(xvt, "Error %d sending tx_done notification\n", err);
+		kfree(done_notif);
+		return err;
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_start_tx_handler(void *data)
+{
+	struct iwl_xvt_enhanced_tx_data *task_data = data;
+	struct iwl_xvt_tx_start *tx_start = &task_data->tx_start_data;
+	struct iwl_xvt *xvt = task_data->xvt;
+	u8 i, num_of_frames;
+	u32 status, packets_in_cycle = 0;
+	int time_remain, err = 0, sent_packets = 0;
+	u32 num_of_cycles = tx_start->num_of_cycles;
+	u64 num_of_iterations;
+
+	/* reset tx parameters */
+	xvt->num_of_tx_resp = 0;
+	status = 0;
+
+	for (i = 0; i < IWL_MAX_HW_QUEUES; i++)
+		xvt->queue_data[i].tx_counter = 0;
+
+	num_of_frames = tx_start->num_of_different_frames;
+	for (i = 0; i < num_of_frames; i++)
+		packets_in_cycle += tx_start->frames_data[i].times;
+	if (WARN(packets_in_cycle == 0, "invalid packets amount to send"))
+		return -EINVAL;
+
+	if (num_of_cycles == IWL_XVT_TX_MODULATED_INFINITE)
+		num_of_cycles = XVT_MAX_TX_COUNT / packets_in_cycle;
+	xvt->expected_tx_amount = packets_in_cycle * num_of_cycles;
+	num_of_iterations = num_of_cycles * num_of_frames;
+
+	for (i = 0; (i < num_of_iterations) && !kthread_should_stop(); i++) {
+		u8 times, frame_index, j;
+
+		frame_index = i % num_of_cycles;
+		times = tx_start->frames_data[frame_index].times;
+		for (j = 0; j < times; j++) {
+			if (xvt->fw_error) {
+				IWL_ERR(xvt, "FW Error during TX\n");
+				status = XVT_TX_DRIVER_ABORTED;
+				err = -ENODEV;
+				goto on_exit;
+			}
+
+			err = iwl_xvt_transmit_packet(xvt, tx_start,
+						      frame_index, &status);
+			sent_packets++;
+			if (err) {
+				IWL_ERR(xvt, "stop due to err %d\n", err);
+				goto on_exit;
+			}
+		}
+	}
+	time_remain = wait_event_interruptible_timeout(
+			xvt->tx_done_wq,
+			xvt->num_of_tx_resp == sent_packets,
+			5 * HZ);
+	if (time_remain <= 0) {
+		IWL_ERR(xvt, "Not all Tx messages were sent\n");
+		status = XVT_TX_DRIVER_TIMEOUT;
+	}
+
+on_exit:
+	err = iwl_xvt_send_tx_done_notif(xvt, status);
+
+	xvt->is_enhanced_tx = false;
+	kfree(data);
+	for (i = 0; i < IWL_XVT_MAX_PAYLOADS_AMOUNT; i++) {
+		kfree(xvt->payloads[i]);
+		xvt->payloads[i] = NULL;
+	}
+	do_exit(err);
 }
 
 static int iwl_xvt_modulated_tx_handler(void *data)
@@ -1354,6 +1467,40 @@ static int iwl_xvt_tx_queue_cfg(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_start_tx(struct iwl_xvt *xvt,
+			    struct iwl_xvt_driver_command_req *req)
+{
+	struct iwl_xvt_enhanced_tx_data *task_data;
+
+	if (WARN(xvt->is_enhanced_tx ||
+		 xvt->tx_meta_data[XVT_LMAC_0_ID].tx_task_operating ||
+		 xvt->tx_meta_data[XVT_LMAC_1_ID].tx_task_operating,
+		 "TX is already in progress\n"))
+		return -EINVAL;
+
+	xvt->is_enhanced_tx = true;
+
+	task_data = kzalloc(sizeof(*task_data), GFP_KERNEL);
+	if (!task_data) {
+		xvt->is_enhanced_tx = false;
+		return -ENOMEM;
+	}
+
+	task_data->xvt = xvt;
+	memcpy(&task_data->tx_start_data, req->input_data,
+	       sizeof(struct iwl_xvt_tx_start));
+
+	xvt->tx_task = kthread_run(iwl_xvt_start_tx_handler,
+				   task_data, "start enhanced tx command");
+	if (!xvt->tx_task) {
+		xvt->is_enhanced_tx = true;
+		kfree(task_data);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
 static int iwl_xvt_set_tx_payload(struct iwl_xvt *xvt,
 				  struct iwl_xvt_driver_command_req *req)
 {
@@ -1391,8 +1538,13 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 	struct tx_meta_data *xvt_tx = &xvt->tx_meta_data[XVT_LMAC_0_ID];
 	u8 sta_id;
 	int lmac_id;
-	struct iwl_xvt_tx_mod_task_data *task_data =
-		kzalloc(task_data_length, GFP_KERNEL);
+	struct iwl_xvt_tx_mod_task_data *task_data;
+
+	/* Verify this command was not called while tx is operating */
+	if (WARN_ON(xvt->is_enhanced_tx))
+		return -EINVAL;
+
+	task_data = kzalloc(task_data_length, GFP_KERNEL);
 	if (!task_data)
 		return -ENOMEM;
 
@@ -1773,6 +1925,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 		break;
 	case IWL_DRV_CMD_SET_TX_PAYLOAD:
 		err = iwl_xvt_set_tx_payload(xvt, req);
+		break;
+	case IWL_DRV_CMD_TX_START:
+		err = iwl_xvt_start_tx(xvt, req);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",

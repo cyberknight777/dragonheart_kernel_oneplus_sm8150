@@ -196,6 +196,7 @@ enum {
 enum {
 	IWL_DRV_CMD_CONFIG_TX_QUEUE = 0,
 	IWL_DRV_CMD_SET_TX_PAYLOAD,
+	IWL_DRV_CMD_TX_START,
 };
 
 enum {

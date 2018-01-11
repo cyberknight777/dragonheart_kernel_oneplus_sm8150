@@ -286,6 +286,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	};
 
 	memset(xvt->payloads, 0, sizeof(xvt->payloads));
+	xvt->tx_task = NULL;
 	xvt->is_enhanced_tx = false;
 	memset(xvt->queue_data, 0, sizeof(xvt->queue_data));
 	init_waitqueue_head(&xvt->tx_done_wq);
