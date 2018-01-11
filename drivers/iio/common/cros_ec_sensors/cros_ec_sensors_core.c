@@ -246,8 +246,7 @@ static ssize_t cros_ec_sensors_calibrate(struct iio_dev *indio_dev,
 	st->param.cmd = MOTIONSENSE_CMD_PERFORM_CALIB;
 	ret = cros_ec_motion_send_host_cmd(st, 0);
 	if (ret != 0) {
-		dev_warn(&indio_dev->dev, "Unable to calibrate sensor: %d\n",
-			 ret);
+		dev_warn(&indio_dev->dev, "Unable to calibrate sensor\n");
 	} else {
 		/* Save values */
 		for (i = CROS_EC_SENSOR_X; i < CROS_EC_SENSOR_MAX_AXIS; i++)

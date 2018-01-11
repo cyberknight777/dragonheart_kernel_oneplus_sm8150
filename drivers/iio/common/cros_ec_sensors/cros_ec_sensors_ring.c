@@ -36,8 +36,7 @@
 
 #define DRV_NAME "cros-ec-ring"
 
-/*
- * The ring is a FIFO that return sensor information from
+/* The ring is a FIFO that return sensor information from
  * the single EC FIFO.
  * There are always 5 channels returned:
  * | ID | FLAG | X | Y | Z | Timestamp |
@@ -63,7 +62,7 @@ enum {
 
 #define CROS_EC_SENSOR_MAX 16
 
-struct __ec_todo_packed cros_ec_fifo_info {
+struct cros_ec_fifo_info {
 	struct ec_response_motion_sense_fifo_info info;
 	uint16_t lost[CROS_EC_SENSOR_MAX];
 };
@@ -101,19 +100,6 @@ static s64 cros_ec_get_time_ns(void)
 
 	get_monotonic_boottime(&ts);
 	return timespec_to_ns(&ts);
-}
-
-static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
-				    bool on)
-{
-	int ret;
-
-	mutex_lock(&state->core.cmd_lock);
-	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
-	state->core.param.fifo_int_enable.enable = on;
-	ret = cros_ec_motion_send_host_cmd(&state->core, 0);
-	mutex_unlock(&state->core.cmd_lock);
-	return ret;
 }
 
 /*
@@ -407,36 +393,29 @@ static int __maybe_unused cros_ec_ring_prepare(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
+	struct cros_ec_sensors_ring_state *state = iio_priv(indio_dev);
+	int ret;
 
-	return cros_ec_ring_fifo_toggle(iio_priv(indio_dev), false);
+	mutex_lock(&state->core.cmd_lock);
+	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
+	state->core.param.fifo_int_enable.enable = 0;
+	ret = cros_ec_motion_send_host_cmd(&state->core, 0);
+	mutex_unlock(&state->core.cmd_lock);
+	return ret;
 }
 
 static void __maybe_unused cros_ec_ring_complete(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
+	struct cros_ec_sensors_ring_state *state = iio_priv(indio_dev);
 
-	cros_ec_ring_fifo_toggle(iio_priv(indio_dev), true);
+	mutex_lock(&state->core.cmd_lock);
+	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
+	state->core.param.fifo_int_enable.enable = 1;
+	cros_ec_motion_send_host_cmd(&state->core, 0);
+	mutex_unlock(&state->core.cmd_lock);
 }
-
-/*
- * Once we are ready to receive data, enable the interrupt
- * that allow EC to indicate events are available.
- */
-static int cros_ec_ring_postenable(struct iio_dev *indio_dev)
-{
-	return cros_ec_ring_fifo_toggle(iio_priv(indio_dev), true);
-}
-
-static int cros_ec_ring_predisable(struct iio_dev *indio_dev)
-{
-	return cros_ec_ring_fifo_toggle(iio_priv(indio_dev), false);
-}
-
-static const struct iio_buffer_setup_ops cros_ec_ring_buffer_ops = {
-	.postenable = cros_ec_ring_postenable,
-	.predisable = cros_ec_ring_predisable,
-};
 
 #define CROS_EC_RING_ID(_id, _name)		\
 {						\
@@ -500,13 +479,6 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 		return ret;
 
 	state = iio_priv(indio_dev);
-	/*
-	 * Disable the ring in case it was left enabled previously.
-	 */
-	ret = cros_ec_ring_fifo_toggle(state, false);
-	if (ret)
-		return ret;
-
 	/* Retrieve FIFO information */
 	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INFO;
 	/* If it fails, just assume the FIFO is not supported.
@@ -537,7 +509,6 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	iio_device_attach_buffer(indio_dev, buffer);
-	indio_dev->setup_ops = &cros_ec_ring_buffer_ops;
 
 	ret = devm_iio_device_register(indio_dev->dev.parent, indio_dev);
 	if (ret < 0)
@@ -549,8 +520,11 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 					       &state->notifier);
 	if (ret < 0) {
 		dev_warn(&indio_dev->dev, "failed to register notifier\n");
+		return ret;
 	}
-	return ret;
+	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
+	state->core.param.fifo_int_enable.enable = 1;
+	return cros_ec_motion_send_host_cmd(&state->core, 0);
 }
 
 static int cros_ec_ring_remove(struct platform_device *pdev)
@@ -559,10 +533,10 @@ static int cros_ec_ring_remove(struct platform_device *pdev)
 	struct cros_ec_sensors_ring_state *state = iio_priv(indio_dev);
 	struct cros_ec_device *ec = state->core.ec;
 
-	/*
-	 * Disable the ring, prevent EC interrupt to the AP for nothing.
-	 */
-	cros_ec_ring_fifo_toggle(state, false);
+	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
+	state->core.param.fifo_int_enable.enable = 0;
+	cros_ec_motion_send_host_cmd(&state->core, 0);
+
 	blocking_notifier_chain_unregister(&ec->event_notifier,
 					   &state->notifier);
 	return 0;
