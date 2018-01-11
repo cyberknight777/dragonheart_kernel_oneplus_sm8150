@@ -67,7 +67,7 @@ config CHROMEOS_TBMC
 
 config CROS_EC_CHARDEV
         tristate "Chrome OS Embedded Controller userspace device interface"
-        depends on MFD_CROS_EC && MFD_CROS_EC_PD_UPDATE
+        depends on MFD_CROS_EC
         ---help---
           This driver adds support to talk with the ChromeOS EC from userspace.
 

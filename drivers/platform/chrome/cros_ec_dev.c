@@ -36,7 +36,6 @@ static const struct attribute_group *cros_ec_groups[] = {
 	&cros_ec_attr_group,
 	&cros_ec_lightbar_attr_group,
 	&cros_ec_vbc_attr_group,
-	&cros_ec_pd_attr_group,
 	NULL,
 };
 
