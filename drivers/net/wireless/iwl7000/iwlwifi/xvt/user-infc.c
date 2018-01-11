@@ -177,6 +177,11 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 	case INIT_COMPLETE_NOTIF:
 		IWL_DEBUG_INFO(xvt, "received INIT_COMPLETE_NOTIF\n");
 		break;
+	case TX_CMD:
+		if (xvt->send_tx_resp)
+			iwl_xvt_user_send_notif(xvt, IWL_XVT_CMD_TX_CMD_RESP,
+						data, size, GFP_ATOMIC);
+		break;
 	default:
 		IWL_DEBUG_INFO(xvt, "xVT mode RX command 0x%x not handled\n",
 			       pkt->hdr.cmd);
@@ -1289,6 +1294,7 @@ static int iwl_xvt_start_tx_handler(void *data)
 
 	/* reset tx parameters */
 	xvt->num_of_tx_resp = 0;
+	xvt->send_tx_resp = tx_start->send_tx_resp;
 	status = 0;
 
 	for (i = 0; i < IWL_MAX_HW_QUEUES; i++)
