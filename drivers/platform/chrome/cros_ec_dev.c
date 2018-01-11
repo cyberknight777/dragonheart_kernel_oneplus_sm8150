@@ -28,8 +28,6 @@
 #include "cros_ec_debugfs.h"
 #include "cros_ec_dev.h"
 
-#define DRV_NAME "cros-ec-dev"
-
 /* Device variables */
 #define CROS_MAX_DEV 128
 static int ec_major;
@@ -311,7 +309,7 @@ static void ec_device_shutdown(struct platform_device *pdev)
 }
 
 static const struct platform_device_id cros_ec_id[] = {
-	{ DRV_NAME, 0 },
+	{ "cros-ec-ctl", 0 },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(platform, cros_ec_id);
@@ -346,7 +344,7 @@ static const struct dev_pm_ops cros_ec_dev_pm_ops = {
 
 static struct platform_driver cros_ec_dev_driver = {
 	.driver = {
-		.name = DRV_NAME,
+		.name = "cros-ec-ctl",
 		.pm = &cros_ec_dev_pm_ops,
 	},
 	.probe = ec_device_probe,
@@ -398,7 +396,6 @@ static void __exit cros_ec_dev_exit(void)
 module_init(cros_ec_dev_init);
 module_exit(cros_ec_dev_exit);
 
-MODULE_ALIAS("platform:" DRV_NAME);
 MODULE_AUTHOR("Bill Richardson <wfrichar@chromium.org>");
 MODULE_DESCRIPTION("Userspace interface to the Chrome OS Embedded Controller");
 MODULE_VERSION("1.0");
