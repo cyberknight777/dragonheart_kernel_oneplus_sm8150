@@ -40,6 +40,9 @@ static const struct attribute_group *cros_ec_groups[] = {
 #if IS_ENABLED(CONFIG_MFD_CROS_EC_PD_UPDATE)
 	&cros_ec_pd_attr_group,
 #endif
+#if IS_ENABLED(CONFIG_CHARGER_CROS_USB_PD)
+	&cros_usb_pd_charger_attr_group,
+#endif
 	NULL,
 };
 
@@ -270,6 +273,24 @@ static void __remove(struct device *dev)
 	struct cros_ec_dev *ec = container_of(dev, struct cros_ec_dev,
 					      class_dev);
 	kfree(ec);
+}
+
+static const struct mfd_cell cros_usb_pd_charger_devs[] = {
+	{
+		.name = "cros-usb-pd-charger",
+		.id   = -1,
+	},
+};
+
+static void cros_ec_usb_pd_charger_register(struct cros_ec_dev *ec)
+{
+	int ret;
+
+	ret = mfd_add_devices(ec->dev, 0, cros_usb_pd_charger_devs,
+			      ARRAY_SIZE(cros_usb_pd_charger_devs),
+			      NULL, 0, NULL);
+	if (ret)
+		dev_err(ec->dev, "failed to add usb-pd-charger device\n");
 }
 
 static void cros_ec_sensors_register(struct cros_ec_dev *ec)
@@ -511,6 +532,10 @@ static int ec_device_probe(struct platform_device *pdev)
 
 	if (cros_ec_debugfs_init(ec))
 		dev_warn(dev, "failed to create debugfs directory\n");
+
+	/* check whether this EC instance has the PD charge manager */
+	if (cros_ec_check_features(ec, EC_FEATURE_USB_PD))
+		cros_ec_usb_pd_charger_register(ec);
 
 	return 0;
 
