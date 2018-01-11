@@ -33,6 +33,8 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 
+#include "cros_ec_dev.h"
+
 /* Rate-limit the lightbar interface to prevent DoS. */
 static unsigned long lb_interval_jiffies = 50 * HZ / 1000;
 

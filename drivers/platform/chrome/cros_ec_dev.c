@@ -25,6 +25,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include "cros_ec_debugfs.h"
 #include "cros_ec_dev.h"
 
 #define DRV_NAME "cros-ec-dev"
