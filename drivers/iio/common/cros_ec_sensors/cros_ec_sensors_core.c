@@ -120,7 +120,7 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 	platform_set_drvdata(pdev, indio_dev);
 
 	state->ec = ec_dev;
-	state->indio_dev = indio_dev;
+
 	state->msg = devm_kzalloc(&pdev->dev,
 				max((u16)sizeof(struct ec_params_motion_sense),
 				state->ec->max_response), GFP_KERNEL);
