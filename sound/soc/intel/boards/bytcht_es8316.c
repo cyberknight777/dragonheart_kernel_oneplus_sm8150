@@ -236,8 +236,12 @@ static char codec_name[SND_ACPI_I2C_ID_LEN];
 
 static int snd_byt_cht_es8316_mc_probe(struct platform_device *pdev)
 {
-	int ret = 0;
 	struct byt_cht_es8316_private *priv;
+	struct snd_soc_acpi_mach *mach;
+	const char *i2c_name = NULL;
+	int dai_index = 0;
+	int i;
+	int ret = 0;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_ATOMIC);
 	if (!priv)
