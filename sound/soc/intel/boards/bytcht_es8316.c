@@ -243,6 +243,24 @@ static int snd_byt_cht_es8316_mc_probe(struct platform_device *pdev)
 	if (!priv)
 		return -ENOMEM;
 
+	mach = (&pdev->dev)->platform_data;
+	/* fix index of codec dai */
+	for (i = 0; i < ARRAY_SIZE(byt_cht_es8316_dais); i++) {
+		if (!strcmp(byt_cht_es8316_dais[i].codec_name,
+			    "i2c-ESSX8316:00")) {
+			dai_index = i;
+			break;
+		}
+	}
+
+	/* fixup codec name based on HID */
+	i2c_name = acpi_dev_get_first_match_name(mach->id, NULL, -1);
+	if (i2c_name) {
+		snprintf(codec_name, sizeof(codec_name),
+			"%s%s", "i2c-", i2c_name);
+		byt_cht_es8316_dais[dai_index].codec_name = codec_name;
+	}
+
 	/* register the soc card */
 	byt_cht_es8316_card.dev = &pdev->dev;
 	snd_soc_card_set_drvdata(&byt_cht_es8316_card, priv);
