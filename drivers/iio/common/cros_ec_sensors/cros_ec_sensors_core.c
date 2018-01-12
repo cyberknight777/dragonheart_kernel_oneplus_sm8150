@@ -29,6 +29,12 @@
 
 #include "cros_ec_sensors_core.h"
 
+/*
+ * Hard coded to the first device to support sensor fifo.  The EC has a 2048
+ * byte fifo and will trigger an interrupt when fifo is 2/3 full.
+ */
+#define CROS_EC_FIFO_SIZE (2048 * 2 / 3)
+
 static char *cros_ec_loc[] = {
 	[MOTIONSENSE_LOC_BASE] = "base",
 	[MOTIONSENSE_LOC_LID] = "lid",
@@ -38,8 +44,9 @@ static char *cros_ec_loc[] = {
 static void get_default_min_max_freq_and_fifo_size(enum motionsensor_type type,
 	uint32_t *min_freq, uint32_t *max_freq, uint32_t *max_fifo_events)
 {
-	/* we don't know size of fifo, so default to smallest size */
-	*max_fifo_events = 128;
+	/* we don't know fifo size, set to size previously used by sensor HAL */
+	*max_fifo_events = CROS_EC_FIFO_SIZE;
+
 	switch (type) {
 	case MOTIONSENSE_TYPE_ACCEL:
 	case MOTIONSENSE_TYPE_GYRO:
