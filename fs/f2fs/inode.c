@@ -625,7 +625,7 @@ no_delete:
 		 */
 	}
 out_clear:
-	fscrypt_put_encryption_info(inode, NULL);
+	fscrypt_put_encryption_info(inode);
 	clear_inode(inode);
 }
 
