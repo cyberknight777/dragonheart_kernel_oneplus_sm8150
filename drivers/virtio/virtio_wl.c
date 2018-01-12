@@ -985,6 +985,11 @@ static long virtwl_ioctl_new(struct file *filp, void __user *ptr)
 	struct virtwl_ioctl_new ioctl_new;
 	int ret;
 
+	/* Early check for user error. */
+	ret = !access_ok(VERIFY_WRITE, ptr, sizeof(struct virtwl_ioctl_new));
+	if (ret)
+		return -EFAULT;
+
 	ret = copy_from_user(&ioctl_new, ptr, sizeof(struct virtwl_ioctl_new));
 	if (ret)
 		return -EFAULT;
@@ -1017,22 +1022,6 @@ static long virtwl_ioctl_new(struct file *filp, void __user *ptr)
 static long virtwl_ioctl_ptr(struct file *filp, unsigned int cmd,
 			     void *__user ptr)
 {
-	int err = 0;
-
-	if (_IOC_TYPE(cmd) != VIRTWL_IOCTL_BASE)
-		return -ENOTTY;
-	if (_IOC_NR(cmd) > VIRTWL_IOCTL_MAXNR)
-		return -ENOTTY;
-
-	if (_IOC_DIR(cmd) & _IOC_READ) {
-		err = !access_ok(VERIFY_WRITE, ptr, _IOC_SIZE(cmd));
-	} else if (_IOC_DIR(cmd) & _IOC_WRITE) {
-		err = !access_ok(VERIFY_READ, ptr, _IOC_SIZE(cmd));
-	}
-
-	if (err)
-		return -EFAULT;
-
 	if (filp->f_op == &virtwl_vfd_fops)
 		return virtwl_vfd_ioctl(filp, cmd, ptr);
 
