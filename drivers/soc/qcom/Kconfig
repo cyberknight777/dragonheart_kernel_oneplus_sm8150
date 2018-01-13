@@ -3,6 +3,14 @@
 #
 menu "Qualcomm SoC drivers"
 
+config QCOM_GENI_SE
+	tristate "QCOM GENI Serial Engine Driver"
+	help
+	  This module is used to manage Generic Interface (GENI) firmware based
+	  Qualcomm Technologies, Inc. Universal Peripheral (QUP) Wrapper. This
+	  module is also used to manage the common aspects of multiple Serial
+	  Engines present in the QUP.
+
 config QCOM_GLINK_SSR
 	tristate "Qualcomm Glink SSR driver"
 	depends on RPMSG
