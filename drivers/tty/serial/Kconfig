@@ -1098,6 +1098,16 @@ config SERIAL_MSM_CONSOLE
 	select SERIAL_CORE_CONSOLE
 	select SERIAL_EARLYCON
 
+config SERIAL_QCOM_GENI
+	tristate "QCOM on-chip GENI based serial port support"
+	depends on ARCH_QCOM
+	select SERIAL_CORE
+	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
+	help
+	  Serial driver for Qualcomm Technologies Inc's GENI based QUP
+	  hardware.
+
 config SERIAL_VT8500
 	bool "VIA VT8500 on-chip serial port support"
 	depends on ARCH_VT8500
