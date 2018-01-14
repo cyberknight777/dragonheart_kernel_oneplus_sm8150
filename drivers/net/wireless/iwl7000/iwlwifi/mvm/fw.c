@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -80,6 +82,7 @@
 #include "fw/dbg.h"
 #include "iwl-phy-db.h"
 #include "iwl-modparams.h"
+#include "iwl-nvm-parse.h"
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
 #endif
@@ -408,7 +411,8 @@ static int iwl_run_unified_mvm_ucode(struct iwl_mvm *mvm, bool read_nvm)
 
 	/* Load NVM to NIC if needed */
 	if (mvm->nvm_file_name) {
-		iwl_mvm_read_external_nvm(mvm);
+		iwl_read_external_nvm(mvm->trans, mvm->nvm_file_name,
+				      mvm->nvm_sections);
 		iwl_mvm_load_nvm_to_nic(mvm);
 	}
 
