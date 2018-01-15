@@ -1235,6 +1235,8 @@ enum ieee80211_he_format {
  *	values in this field are 0, 1, 3.
  *	(only used for radiotap)
  * @he_txbf: TxBF bit for HE
+ * @he_ul: HE uplink/downlink bit (1 = uplink)
+ * @he_ul_known: HE uplink/downlink bit is known
  * @rx_flags: internal RX flags for mac80211
  * @ampdu_reference: A-MPDU reference number, must be a different value for
  *	each A-MPDU but the same for each subframe within one A-MPDU
@@ -1249,7 +1251,8 @@ struct ieee80211_rx_status {
 	u16 freq;
 	u8 enc_flags;
 	u8 encoding:2, bw:3, he_ru:3;
-	u8 he_gi:2, he_dcm:1, he_format:3, he_ltf:2, he_txbf:1;
+	u8 he_gi:2, he_dcm:1, he_format:3, he_ltf:2, he_txbf:1,
+	   he_ul:1, he_ul_known:1;
 	u8 rate_idx;
 	u8 nss;
 	u8 rx_flags;

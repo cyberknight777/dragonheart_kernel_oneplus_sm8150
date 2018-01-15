@@ -573,6 +573,8 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 		he.data3 |= HE_PREP(DATA3_DATA_DCM, status->he_dcm);
 		he.data3 |= HE_PREP(DATA3_CODING,
 				    !!(status->enc_flags & RX_ENC_FLAG_LDPC));
+		he.data3 |= HE_PREP(DATA3_UL_DL, status->he_ul);
+		he.data1 |= HE_PREP(DATA1_UL_DL_KNOWN, status->he_ul_known);
 
 		he.data5 |= HE_PREP(DATA5_GI, status->he_gi);
 		he.data5 |= HE_PREP(DATA5_LTF_SYMS, status->he_ltf);
