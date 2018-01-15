@@ -900,6 +900,11 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->mactime = le64_to_cpu(desc->tsf_on_air_rise);
 		/* TSF as indicated by the firmware is at INA time */
 		rx_status->flag |= RX_FLAG_MACTIME_PLCP_START;
+	} else if ((rate_n_flags & RATE_MCS_HE_TYPE_MSK) ==
+			RATE_MCS_HE_TYPE_SU) {
+		rx_status->he_ul_known = 1;
+		rx_status->he_ul = FIELD_GET(IWL_RX_HE_PHY_UPLINK,
+					     le64_to_cpu(desc->he_phy_data));
 	}
 	rx_status->device_timestamp = le32_to_cpu(desc->gp2_on_air_rise);
 	rx_status->band = desc->channel > 14 ? NL80211_BAND_5GHZ :
