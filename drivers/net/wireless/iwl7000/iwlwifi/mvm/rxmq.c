@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -905,6 +907,16 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->he_ul_known = 1;
 		rx_status->he_ul = FIELD_GET(IWL_RX_HE_PHY_UPLINK,
 					     le64_to_cpu(desc->he_phy_data));
+		if (!queue && !(phy_info & IWL_RX_MPDU_PHY_AMPDU)) {
+			rx_status->ampdu_reference = mvm->ampdu_ref;
+			mvm->ampdu_ref++;
+
+			rx_status->flag |= RX_FLAG_AMPDU_DETAILS;
+			rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
+			if (FIELD_GET(IWL_RX_HE_PHY_DELIM_EOF,
+				      le64_to_cpu(desc->he_phy_data)))
+				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT;
+		}
 	}
 	rx_status->device_timestamp = le32_to_cpu(desc->gp2_on_air_rise);
 	rx_status->band = desc->channel > 14 ? NL80211_BAND_5GHZ :
@@ -923,6 +935,16 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		if (toggle_bit != mvm->ampdu_toggle) {
 			mvm->ampdu_ref++;
 			mvm->ampdu_toggle = toggle_bit;
+
+			if (phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD &&
+			    (rate_n_flags & RATE_MCS_HE_TYPE_MSK) ==
+					RATE_MCS_HE_TYPE_MU) {
+				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
+				if (FIELD_GET(IWL_RX_HE_PHY_DELIM_EOF,
+					      le64_to_cpu(desc->he_phy_data)))
+					rx_status->flag |=
+						RX_FLAG_AMPDU_EOF_BIT;
+			}
 		}
 	}
 
