@@ -368,6 +368,10 @@ enum amdgpu_pcie_gen {
 		((adev)->powerplay.pp_funcs->set_power_profile_mode(\
 			(adev)->powerplay.pp_handle, parameter, size))
 
+#define amdgpu_dpm_odn_edit_dpm_table(adev, type, parameter, size) \
+		((adev)->powerplay.pp_funcs->odn_edit_dpm_table(\
+			(adev)->powerplay.pp_handle, type, parameter, size))
+
 #define amdgpu_dpm_set_powergating_by_smu(adev, block_type, gate) \
 		((adev)->powerplay.pp_funcs->set_powergating_by_smu(\
 			(adev)->powerplay.pp_handle, block_type, gate))
