@@ -1121,7 +1121,7 @@ iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
 	tx_cmd->offload_assist |= (header_length % 4) ?
-				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
+				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
 	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 
@@ -1160,7 +1160,7 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
 	tx_cmd->offload_assist |= (header_length % 4) ?
-				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
+				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
 	tx_cmd->tx_flags |= cpu_to_le32(tx_start->tx_data.tx_flags);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
