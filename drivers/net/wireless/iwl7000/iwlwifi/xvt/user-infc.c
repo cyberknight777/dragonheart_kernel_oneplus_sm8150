@@ -1344,7 +1344,7 @@ static int iwl_xvt_start_tx_handler(void *data)
 	for (i = 0; (i < num_of_iterations) && !kthread_should_stop(); i++) {
 		u8 times, frame_index, j;
 
-		frame_index = i % num_of_cycles;
+		frame_index = i % num_of_frames;
 		times = tx_start->frames_data[frame_index].times;
 		for (j = 0; j < times; j++) {
 			if (xvt->fw_error) {
