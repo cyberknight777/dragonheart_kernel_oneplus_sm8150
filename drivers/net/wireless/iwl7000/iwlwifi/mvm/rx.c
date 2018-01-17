@@ -272,12 +272,8 @@ static void iwl_mvm_rx_handle_tcm(struct iwl_mvm *mvm,
 	};
 	u16 thr;
 
-	if (ieee80211_is_data_qos(hdr->frame_control)) {
-		int tid = *ieee80211_get_qos_ctl(hdr) &
-				IEEE80211_QOS_CTL_TID_MASK;
-
-		ac = tid_to_mac80211_ac[tid];
-	}
+	if (ieee80211_is_data_qos(hdr->frame_control))
+		ac = tid_to_mac80211_ac[ieee80211_get_tid(hdr)];
 
 	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
