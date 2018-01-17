@@ -1002,7 +1002,7 @@ static int iwl_mvm_mac_ampdu_action(struct ieee80211_hw *hw,
 	enum ieee80211_ampdu_mlme_action action = params->action;
 	u16 tid = params->tid;
 	u16 *ssn = &params->ssn;
-	u8 buf_size = params->buf_size;
+	u16 buf_size = params->buf_size;
 	bool amsdu = params->amsdu;
 	u16 timeout = params->timeout;
 
