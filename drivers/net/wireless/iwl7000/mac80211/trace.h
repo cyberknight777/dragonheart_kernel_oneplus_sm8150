@@ -90,7 +90,7 @@
 				STA_ENTRY						\
 				__field(u16, tid)					\
 				__field(u16, ssn)					\
-				__field(u8, buf_size)					\
+				__field(u16, buf_size)					\
 				__field(bool, amsdu)					\
 				__field(u16, timeout)					\
 				__field(u16, action)
