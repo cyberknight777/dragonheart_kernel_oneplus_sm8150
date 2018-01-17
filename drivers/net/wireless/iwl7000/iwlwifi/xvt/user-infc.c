@@ -991,6 +991,26 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	return dev_cmd;
 }
 
+static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
+				   struct tx_meta_data *meta_tx,
+				   struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u8 *qc, tid;
+
+	if (!ieee80211_is_data_qos(hdr->frame_control) ||
+	    is_multicast_ether_addr(hdr->addr1))
+		return;
+
+	qc = ieee80211_get_qos_ctl(hdr);
+	tid = *qc & IEEE80211_QOS_CTL_TID_MASK;
+	if (WARN_ON(tid >= IWL_MAX_TID_COUNT))
+		tid = IWL_MAX_TID_COUNT;
+
+	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid]);
+	meta_tx->seq_num[tid] += 0x10;
+}
+
 static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 			       struct iwl_tm_mod_tx_request *tx_req,
 			       u32 *status, struct tx_meta_data *meta_tx)
@@ -1011,7 +1031,9 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 		*status = XVT_TX_DRIVER_ABORTED;
 		return -ENOMEM;
 	}
+
 	memcpy(skb_put(skb, tx_req->len), tx_req->data, tx_req->len);
+	iwl_xvt_set_seq_number(xvt, meta_tx, skb);
 
 	flags = tx_req->no_ack ? 0 : TX_CMD_FLG_ACK;
 
@@ -1131,10 +1153,15 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 	tx_cmd = (struct iwl_tx_cmd *)dev_cmd->payload;
 
+	/* let the fw manage the seq number for non-qos/multicast */
+	if (!ieee80211_is_data_qos(hdr->frame_control) ||
+	    is_multicast_ether_addr(hdr->addr1))
+		tx_cmd->tx_flags |= cpu_to_le32(TX_CMD_FLG_SEQ_CTL);
+
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
 	tx_cmd->offload_assist |= (header_length % 4) ?
 				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
-	tx_cmd->tx_flags = cpu_to_le32(tx_start->tx_data.tx_flags);
+	tx_cmd->tx_flags |= cpu_to_le32(tx_start->tx_data.tx_flags);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
 	tx_cmd->sec_ctl = tx_start->frames_data[packet_index].sec_ctl;
@@ -1186,6 +1213,9 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 	memcpy(skb_put(skb, payload_length),
 	       xvt->payloads[frame_data.payload_index]->payload,
 	       payload_length);
+
+	/* set tx number */
+	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb);
 
 	if (iwl_xvt_is_unified_fw(xvt))
 		dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb, tx_start,
