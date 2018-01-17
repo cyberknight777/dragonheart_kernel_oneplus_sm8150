@@ -37,7 +37,8 @@
 struct chromiumos_inode_mark {
 	struct fsnotify_mark mark;
 	struct inode *inode;
-	enum chromiumos_symlink_traversal_policy traversal_policy;
+	enum chromiumos_inode_security_policy
+		policies[CHROMIUMOS_NUMBER_OF_POLICIES];
 };
 
 static inline struct chromiumos_inode_mark *
@@ -189,13 +190,20 @@ chromiumos_super_block_get(struct super_block *sb)
 	return sbm;
 }
 
+/*
+ * This will only ever get called if the metadata does not already exist for
+ * an inode, so no need to worry about freeing an existing mark.
+ */
 static int
-chromiumos_inode_mark_create(struct chromiumos_super_block_mark *sbm,
-			     struct inode *inode,
-			     enum chromiumos_symlink_traversal_policy policy)
+chromiumos_inode_mark_create(
+	struct chromiumos_super_block_mark *sbm,
+	struct inode *inode,
+	enum chromiumos_inode_security_policy_type type,
+	enum chromiumos_inode_security_policy policy)
 {
 	struct chromiumos_inode_mark *inode_mark;
 	int ret;
+	size_t i;
 
 	WARN_ON(!mutex_is_locked(&sbm->fsn_group->mark_mutex));
 
@@ -210,7 +218,11 @@ chromiumos_inode_mark_create(struct chromiumos_super_block_mark *sbm,
 		goto out;
 	}
 
-	inode_mark->traversal_policy = policy;
+	/* Initialize all policies to inherit. */
+	for (i = 0; i < CHROMIUMOS_NUMBER_OF_POLICIES; i++)
+		inode_mark->policies[i] = CHROMIUMOS_INODE_POLICY_INHERIT;
+
+	inode_mark->policies[type] = policy;
 	ret = fsnotify_add_mark_locked(&inode_mark->mark, inode_mark->inode,
 				       NULL, false);
 	if (ret)
@@ -224,13 +236,16 @@ out:
 	return ret;
 }
 
-int chromiumos_update_symlink_traversal_policy(
-	struct inode *inode, enum chromiumos_symlink_traversal_policy policy)
+int chromiumos_update_inode_security_policy(
+	struct inode *inode,
+	enum chromiumos_inode_security_policy_type type,
+	enum chromiumos_inode_security_policy policy)
 {
 	struct chromiumos_super_block_mark *sbm;
 	struct fsnotify_mark *mark;
 	bool free_mark = false;
 	int ret;
+	size_t i;
 
 	sbm = chromiumos_super_block_get(inode->i_sb);
 	if (IS_ERR(sbm))
@@ -239,19 +254,26 @@ int chromiumos_update_symlink_traversal_policy(
 	mutex_lock(&sbm->fsn_group->mark_mutex);
 
 	mark = fsnotify_find_mark(&inode->i_fsnotify_marks, sbm->fsn_group);
-	if (policy == CHROMIUMOS_SYMLINK_TRAVERSAL_INHERIT) {
-		/* Drop the mark if present. */
-		if (mark) {
-			fsnotify_detach_mark(mark);
-			free_mark = true;
+	if (mark) {
+		WRITE_ONCE(chromiumos_to_inode_mark(mark)->policies[type],
+				   policy);
+		/*
+		 * Frees mark if all policies are
+		 * CHROMIUM_INODE_POLICY_INHERIT.
+		 */
+		free_mark = true;
+		for (i = 0; i < CHROMIUMOS_NUMBER_OF_POLICIES; i++) {
+			if (chromiumos_to_inode_mark(mark)->policies[i]
+				!= CHROMIUMOS_INODE_POLICY_INHERIT) {
+				free_mark = false;
+				break;
+			}
 		}
-		ret = 0;
-	} else if (mark) {
-		WRITE_ONCE(chromiumos_to_inode_mark(mark)->traversal_policy,
-			   policy);
+		if (free_mark)
+			fsnotify_detach_mark(mark);
 		ret = 0;
 	} else {
-		ret = chromiumos_inode_mark_create(sbm, inode, policy);
+		ret = chromiumos_inode_mark_create(sbm, inode, type, policy);
 	}
 
 	mutex_unlock(&sbm->fsn_group->mark_mutex);
@@ -266,7 +288,8 @@ int chromiumos_update_symlink_traversal_policy(
 	return ret;
 }
 
-int chromiumos_flush_symlink_traversal_policy(struct super_block *sb)
+/* Flushes all inode security policies. */
+int chromiumos_flush_inode_security_policies(struct super_block *sb)
 {
 	struct chromiumos_super_block_mark *sbm;
 
@@ -280,18 +303,27 @@ int chromiumos_flush_symlink_traversal_policy(struct super_block *sb)
 	return 0;
 }
 
-enum chromiumos_symlink_traversal_policy
-chromiumos_get_symlink_traversal_policy(struct dentry *dentry)
+enum chromiumos_inode_security_policy chromiumos_get_inode_security_policy(
+	struct dentry *dentry,
+	enum chromiumos_inode_security_policy_type type)
 {
 	struct chromiumos_super_block_mark *sbm;
-	enum chromiumos_symlink_traversal_policy policy;
+	/*
+	 * Initializes policy to CHROMIUM_INODE_POLICY_INHERIT, which is
+	 * the value that will be returned if neither |dentry| nor any
+	 * directory in its path has been asigned an inode security policy
+	 * value for the given type.
+	 */
+	enum chromiumos_inode_security_policy policy =
+		CHROMIUMOS_INODE_POLICY_INHERIT;
 
-	if (!dentry || !dentry->d_inode)
-		return CHROMIUMOS_SYMLINK_TRAVERSAL_INHERIT;
+	if (!dentry || !dentry->d_inode ||
+			type >= CHROMIUMOS_NUMBER_OF_POLICIES)
+		return policy;
 
 	sbm = chromiumos_super_block_lookup(dentry->d_inode->i_sb);
 	if (!sbm)
-		return CHROMIUMOS_SYMLINK_TRAVERSAL_INHERIT;
+		return policy;
 
 	/* Walk the dentry path and look for a traversal policy. */
 	rcu_read_lock();
@@ -301,10 +333,10 @@ chromiumos_get_symlink_traversal_policy(struct dentry *dentry)
 		if (mark) {
 			struct chromiumos_inode_mark *inode_mark =
 				chromiumos_to_inode_mark(mark);
-			policy = READ_ONCE(inode_mark->traversal_policy);
+			policy = READ_ONCE(inode_mark->policies[type]);
 			fsnotify_put_mark(mark);
 
-			if (policy != CHROMIUMOS_SYMLINK_TRAVERSAL_INHERIT)
+			if (policy != CHROMIUMOS_INODE_POLICY_INHERIT)
 				break;
 		}
 

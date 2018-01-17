@@ -57,9 +57,11 @@ static int chromiumos_security_inode_follow_link(struct dentry *dentry,
 						 struct inode *inode, bool rcu)
 {
 	static char accessed_path[PATH_MAX];
-	enum chromiumos_symlink_traversal_policy policy;
+	enum chromiumos_inode_security_policy policy;
 
-	policy = chromiumos_get_symlink_traversal_policy(dentry);
+	policy = chromiumos_get_inode_security_policy(
+		dentry,
+		CHROMIUMOS_SYMLINK_TRAVERSAL);
 
 	/*
 	 * Emit a warning in cases of blocked symlink traversal attempts. These
@@ -67,17 +69,47 @@ static int chromiumos_security_inode_follow_link(struct dentry *dentry,
 	 * reporter, so we have some insight on spurious failures that need
 	 * addressing.
 	 */
-	WARN(policy == CHROMIUMOS_SYMLINK_TRAVERSAL_BLOCK,
-	     "Blocked symlink traversal for path %x:%x:%s\n",
+	WARN(policy == CHROMIUMOS_INODE_POLICY_BLOCK,
+	     "Blocked symlink traversal for path %x:%x:%s (see https://goo.gl/8xICW6 for context and rationale)\n",
 	     MAJOR(dentry->d_sb->s_dev), MINOR(dentry->d_sb->s_dev),
 	     dentry_path(dentry, accessed_path, PATH_MAX));
 
-	return policy == CHROMIUMOS_SYMLINK_TRAVERSAL_BLOCK ? -EACCES : 0;
+	return policy == CHROMIUMOS_INODE_POLICY_BLOCK ? -EACCES : 0;
+}
+
+static int chromiumos_security_file_open(
+	struct file *file,
+	const struct cred *cred)
+{
+	static char accessed_path[PATH_MAX];
+	enum chromiumos_inode_security_policy policy;
+	struct dentry *dentry = file->f_path.dentry;
+
+	/* Returns 0 if file is not a FIFO */
+	if (!S_ISFIFO(file->f_inode->i_mode))
+		return 0;
+
+	policy = chromiumos_get_inode_security_policy(
+		dentry,
+		CHROMIUMOS_FIFO_ACCESS);
+
+	/*
+	 * Emit a warning in cases of blocked fifo access attempts. These will
+	 * show up in kernel warning reports collected by the crash reporter,
+	 * so we have some insight on spurious failures that need addressing.
+	 */
+	WARN(policy == CHROMIUMOS_INODE_POLICY_BLOCK,
+	     "Blocked fifo access for path %x:%x:%s\n (see https://goo.gl/8xICW6 for context and rationale)\n",
+	     MAJOR(dentry->d_sb->s_dev), MINOR(dentry->d_sb->s_dev),
+	     dentry_path(dentry, accessed_path, PATH_MAX));
+
+	return policy == CHROMIUMOS_INODE_POLICY_BLOCK ? -EACCES : 0;
 }
 
 static struct security_hook_list chromiumos_security_hooks[] = {
 	LSM_HOOK_INIT(sb_mount, chromiumos_security_sb_mount),
 	LSM_HOOK_INIT(inode_follow_link, chromiumos_security_inode_follow_link),
+	LSM_HOOK_INIT(file_open, chromiumos_security_file_open),
 };
 
 static int __init chromiumos_security_init(void)
