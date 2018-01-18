@@ -373,8 +373,10 @@ reclaim:
 		} else {
 			tx_data->tx_counter++;
 		}
-		WARN(status != TX_STATUS_SUCCESS,
-		     "got error TX_RSP status %#x\n", status);
+
+		if (unlikely(status != TX_STATUS_SUCCESS))
+			IWL_WARN(xvt, "got error TX_RSP status %#x\n", status);
+
 		if (skb_info->dev_cmd)
 			iwl_trans_free_tx_cmd(xvt->trans, skb_info->dev_cmd);
 		kfree_skb(skb);
