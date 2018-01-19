@@ -1121,9 +1121,6 @@ static void amdgpu_uvd_idle_work_handler(struct work_struct *work)
 		container_of(work, struct amdgpu_device, uvd.idle_work.work);
 	unsigned fences = amdgpu_fence_count_emitted(&adev->uvd.ring);
 
-	if (amdgpu_sriov_vf(adev))
-		return;
-
 	if (fences == 0) {
 		if (adev->pm.dpm_enabled) {
 			amdgpu_dpm_enable_uvd(adev, false);
@@ -1143,11 +1140,12 @@ static void amdgpu_uvd_idle_work_handler(struct work_struct *work)
 void amdgpu_uvd_ring_begin_use(struct amdgpu_ring *ring)
 {
 	struct amdgpu_device *adev = ring->adev;
-	bool set_clocks = !cancel_delayed_work_sync(&adev->uvd.idle_work);
+	bool set_clocks;
 
 	if (amdgpu_sriov_vf(adev))
 		return;
 
+	set_clocks = !cancel_delayed_work_sync(&adev->uvd.idle_work);
 	if (set_clocks) {
 		if (adev->pm.dpm_enabled) {
 			amdgpu_dpm_enable_uvd(adev, true);
@@ -1163,7 +1161,8 @@ void amdgpu_uvd_ring_begin_use(struct amdgpu_ring *ring)
 
 void amdgpu_uvd_ring_end_use(struct amdgpu_ring *ring)
 {
-	schedule_delayed_work(&ring->adev->uvd.idle_work, UVD_IDLE_TIMEOUT);
+	if (!amdgpu_sriov_vf(ring->adev))
+		schedule_delayed_work(&ring->adev->uvd.idle_work, UVD_IDLE_TIMEOUT);
 }
 
 /**
