@@ -400,8 +400,8 @@ verify:
 	return &xvt->tx_meta_data[lmac_id];
 }
 
-static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
-				      struct iwl_rx_packet *pkt)
+static void iwl_xvt_rx_tx_cmd_single(struct iwl_xvt *xvt,
+				     struct iwl_rx_packet *pkt)
 {
 	/* struct iwl_mvm_tx_resp_v3 is almost the same */
 	struct iwl_mvm_tx_resp *tx_resp = (void *)pkt->data;
@@ -421,6 +421,83 @@ static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
 	iwl_xvt_reclaim_and_free(xvt, tx_data, txq_id, ssn);
 }
 
+static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
+				      struct iwl_rx_packet *pkt)
+{
+	struct iwl_mvm_tx_resp *tx_resp = (void *)pkt->data;
+
+	if (tx_resp->frame_count == 1)
+		iwl_xvt_rx_tx_cmd_single(xvt, pkt);
+
+	/* for aggregations - we reclaim on BA_NOTIF */
+}
+
+static void iwl_xvt_rx_ba_notif(struct iwl_xvt *xvt,
+				struct iwl_rx_packet *pkt)
+{
+	struct iwl_mvm_ba_notif *ba_notif;
+	struct tx_meta_data *tx_data;
+	u16 scd_flow;
+	u16 scd_ssn;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		struct iwl_mvm_compressed_ba_notif *ba_res = (void *)pkt->data;
+		u8 tid;
+		u16 queue;
+		u16 tfd_idx;
+
+		if (!le16_to_cpu(ba_res->tfd_cnt))
+			goto out;
+
+		/*
+		 * TODO:
+		 * When supporting multi TID aggregations - we need to move
+		 * next_reclaimed to be per TXQ and not per TID or handle it
+		 * in a different way.
+		 * This will go together with SN and AddBA offload and cannot
+		 * be handled properly for now.
+		 */
+		WARN_ON(le16_to_cpu(ba_res->ra_tid_cnt) != 1);
+		tid = ba_res->ra_tid[0].tid;
+		if (tid == IWL_MGMT_TID)
+			tid = IWL_MAX_TID_COUNT;
+		queue = le16_to_cpu(ba_res->tfd[0].q_num);
+		tfd_idx = le16_to_cpu(ba_res->tfd[0].tfd_index);
+
+		tx_data = iwl_xvt_rx_get_tx_meta_data(xvt, queue);
+		if (!tx_data)
+			return;
+
+		iwl_xvt_reclaim_and_free(xvt, tx_data, queue, tfd_idx);
+out:
+		IWL_DEBUG_TX_REPLY(xvt,
+				   "BA_NOTIFICATION Received from sta_id = %d, flags %x, sent:%d, acked:%d\n",
+				   ba_res->sta_id, le32_to_cpu(ba_res->flags),
+				   le16_to_cpu(ba_res->txed),
+				   le16_to_cpu(ba_res->done));
+		return;
+	}
+
+	ba_notif = (void *)pkt->data;
+	scd_ssn = le16_to_cpu(ba_notif->scd_ssn);
+	scd_flow = le16_to_cpu(ba_notif->scd_flow);
+
+	tx_data = iwl_xvt_rx_get_tx_meta_data(xvt, scd_flow);
+	if (!tx_data)
+		return;
+
+	iwl_xvt_reclaim_and_free(xvt, tx_data, scd_flow, scd_ssn);
+
+	IWL_DEBUG_TX_REPLY(xvt, "ba_notif from %pM, sta_id = %d\n",
+			   ba_notif->sta_addr, ba_notif->sta_id);
+	IWL_DEBUG_TX_REPLY(xvt,
+			   "tid %d, seq %d, bitmap 0x%llx, scd flow %d, ssn %d, sent %d, acked %d\n",
+			   ba_notif->tid, le16_to_cpu(ba_notif->seq_ctl),
+			   (unsigned long long)le64_to_cpu(ba_notif->bitmap),
+			   scd_flow, scd_ssn, ba_notif->txed,
+			   ba_notif->txed_2_done);
+}
+
 static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 				struct napi_struct *napi,
 				struct iwl_rx_cmd_buffer *rxb)
@@ -432,8 +509,14 @@ static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 	iwl_notification_wait_notify(&xvt->notif_wait, pkt);
 	IWL_DEBUG_INFO(xvt, "rx dispatch got notification\n");
 
-	if (pkt->hdr.cmd == TX_CMD)
+	switch (pkt->hdr.cmd) {
+	case TX_CMD:
 		iwl_xvt_rx_tx_cmd_handler(xvt, pkt);
+		break;
+	case BA_NOTIF:
+		iwl_xvt_rx_ba_notif(xvt, pkt);
+		break;
+	}
 
 	iwl_xvt_send_user_rx_notif(xvt, rxb);
 	spin_unlock(&xvt->notif_lock);
