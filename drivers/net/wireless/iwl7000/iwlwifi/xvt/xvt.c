@@ -333,35 +333,16 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 	kfree(op_mode);
 }
 
-static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
-				      struct iwl_rx_packet *pkt)
+static void iwl_xvt_reclaim_and_free(struct iwl_xvt *xvt,
+				     struct tx_meta_data *tx_data,
+				     u16 txq_id, u16 ssn)
 {
-	/* struct iwl_mvm_tx_resp_v3 is almost the same */
-	struct iwl_mvm_tx_resp *tx_resp = (void *)pkt->data;
-	int txq_id = SEQ_TO_QUEUE(le16_to_cpu(pkt->hdr.sequence));
-	u16 ssn = iwl_xvt_get_scd_ssn(xvt, tx_resp);
 	struct sk_buff_head skbs;
 	struct sk_buff *skb;
 	struct iwl_xvt_skb_info *skb_info;
-	struct tx_meta_data *tx_data = &xvt->tx_meta_data[XVT_LMAC_0_ID];
-	u16 status = le16_to_cpu(iwl_xvt_get_agg_status(xvt, tx_resp)->status) &
-				 TX_STATUS_MSK;
 
 	__skb_queue_head_init(&skbs);
 
-	if (iwl_xvt_is_unified_fw(xvt)) {
-		txq_id = le16_to_cpu(tx_resp->tx_queue);
-		if (xvt->is_enhanced_tx)
-			goto reclaim;
-
-		if (txq_id == xvt->tx_meta_data[XVT_LMAC_1_ID].queue)
-			tx_data = &xvt->tx_meta_data[XVT_LMAC_1_ID];
-		else if (WARN(txq_id != xvt->tx_meta_data[XVT_LMAC_0_ID].queue,
-			      "got TX_CMD from unidentified queque\n"))
-			return;
-	}
-
-reclaim:
 	iwl_trans_reclaim(xvt->trans, txq_id, ssn, &skbs);
 
 	while (!skb_queue_empty(&skbs)) {
@@ -374,8 +355,6 @@ reclaim:
 			tx_data->tx_counter++;
 		}
 
-		if (unlikely(status != TX_STATUS_SUCCESS))
-			IWL_WARN(xvt, "got error TX_RSP status %#x\n", status);
 
 		if (skb_info->dev_cmd)
 			iwl_trans_free_tx_cmd(xvt->trans, skb_info->dev_cmd);
@@ -387,6 +366,59 @@ reclaim:
 		wake_up_interruptible(&xvt->tx_done_wq);
 	else if (tx_data->tot_tx == tx_data->tx_counter)
 		wake_up_interruptible(&tx_data->mod_tx_done_wq);
+}
+
+static struct tx_meta_data *
+iwl_xvt_rx_get_tx_meta_data(struct iwl_xvt *xvt, u16 txq_id)
+{
+	u8 lmac_id;
+
+	/*
+	 * in case of enhanced_tx, tx_meta_data->queue is not
+	 * being set, so there's nothing to verify
+	 */
+	if (xvt->is_enhanced_tx)
+		return &xvt->tx_meta_data[XVT_LMAC_0_ID];
+
+	if (!iwl_xvt_is_unified_fw(xvt)) {
+		lmac_id = XVT_LMAC_0_ID;
+		goto verify;
+	}
+
+	if (txq_id == xvt->tx_meta_data[XVT_LMAC_1_ID].queue) {
+		lmac_id = XVT_LMAC_1_ID;
+		goto verify;
+	}
+
+	lmac_id = XVT_LMAC_0_ID;
+verify:
+	if (WARN(txq_id != xvt->tx_meta_data[lmac_id].queue,
+		 "got TX_CMD from unidentified queue: (lmac %d) %d %d\n",
+		 lmac_id, txq_id, xvt->tx_meta_data[lmac_id].queue))
+		return NULL;
+
+	return &xvt->tx_meta_data[lmac_id];
+}
+
+static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
+				      struct iwl_rx_packet *pkt)
+{
+	/* struct iwl_mvm_tx_resp_v3 is almost the same */
+	struct iwl_mvm_tx_resp *tx_resp = (void *)pkt->data;
+	int txq_id = SEQ_TO_QUEUE(le16_to_cpu(pkt->hdr.sequence));
+	u16 ssn = iwl_xvt_get_scd_ssn(xvt, tx_resp);
+	struct tx_meta_data *tx_data;
+	u16 status = le16_to_cpu(iwl_xvt_get_agg_status(xvt, tx_resp)->status) &
+				 TX_STATUS_MSK;
+
+	tx_data = iwl_xvt_rx_get_tx_meta_data(xvt, txq_id);
+	if (!tx_data)
+		return;
+
+	if (unlikely(status != TX_STATUS_SUCCESS))
+		IWL_WARN(xvt, "got error TX_RSP status %#x\n", status);
+
+	iwl_xvt_reclaim_and_free(xvt, tx_data, txq_id, ssn);
 }
 
 static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
