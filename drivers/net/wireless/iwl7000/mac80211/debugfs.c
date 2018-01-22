@@ -326,6 +326,7 @@ static const char *hw_flag_names[] = {
 	FLAG(TX_FRAG_LIST),
 	FLAG(REPORTS_LOW_ACK),
 	FLAG(SUPPORTS_TX_FRAG),
+	FLAG(DEAUTH_NEED_MGD_TX_PREP),
 #undef FLAG
 };
 
