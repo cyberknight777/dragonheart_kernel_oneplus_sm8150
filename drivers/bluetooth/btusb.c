@@ -2339,8 +2339,6 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 	struct intel_version ver;
 	struct intel_boot_params params;
 	const struct firmware *fw;
-	const u8 *fw_ptr;
-	u32 frag_len;
 	u32 boot_param;
 	char fwname[64];
 	ktime_t calltime, delta, rettime;
@@ -2524,64 +2522,10 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 
 	set_bit(BTUSB_DOWNLOADING, &data->flags);
 
-	/* Start the firmware download transaction with the Init fragment
-	 * represented by the 128 bytes of CSS header.
-	 */
-	err = btintel_secure_send(hdev, 0x00, 128, fw->data);
-	if (err < 0) {
-		BT_ERR("%s: Failed to send firmware header (%d)",
-		       hdev->name, err);
+	/* Start firmware downloading and get boot parameter */
+	err = btintel_download_firmware(hdev, fw, &boot_param);
+	if (err < 0)
 		goto done;
-	}
-
-	/* Send the 256 bytes of public key information from the firmware
-	 * as the PKey fragment.
-	 */
-	err = btintel_secure_send(hdev, 0x03, 256, fw->data + 128);
-	if (err < 0) {
-		BT_ERR("%s: Failed to send firmware public key (%d)",
-		       hdev->name, err);
-		goto done;
-	}
-
-	/* Send the 256 bytes of signature information from the firmware
-	 * as the Sign fragment.
-	 */
-	err = btintel_secure_send(hdev, 0x02, 256, fw->data + 388);
-	if (err < 0) {
-		BT_ERR("%s: Failed to send firmware signature (%d)",
-		       hdev->name, err);
-		goto done;
-	}
-
-	fw_ptr = fw->data + 644;
-	frag_len = 0;
-
-	while (fw_ptr - fw->data < fw->size) {
-		struct hci_command_hdr *cmd = (void *)(fw_ptr + frag_len);
-
-		frag_len += sizeof(*cmd) + cmd->plen;
-
-		/* The parameter length of the secure send command requires
-		 * a 4 byte alignment. It happens so that the firmware file
-		 * contains proper Intel_NOP commands to align the fragments
-		 * as needed.
-		 *
-		 * Send set of commands with 4 byte alignment from the
-		 * firmware data buffer as a single Data fragement.
-		 */
-		if (!(frag_len % 4)) {
-			err = btintel_secure_send(hdev, 0x01, frag_len, fw_ptr);
-			if (err < 0) {
-				BT_ERR("%s: Failed to send firmware data (%d)",
-				       hdev->name, err);
-				goto done;
-			}
-
-			fw_ptr += frag_len;
-			frag_len = 0;
-		}
-	}
 
 	set_bit(BTUSB_FIRMWARE_LOADED, &data->flags);
 
