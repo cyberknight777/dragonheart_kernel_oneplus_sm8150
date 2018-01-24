@@ -1316,11 +1316,11 @@ static int iwl_xvt_start_tx_handler(void *data)
 	struct iwl_xvt_enhanced_tx_data *task_data = data;
 	struct iwl_xvt_tx_start *tx_start = &task_data->tx_start_data;
 	struct iwl_xvt *xvt = task_data->xvt;
-	u8 i, num_of_frames;
+	u8 num_of_frames;
 	u32 status, packets_in_cycle = 0;
 	int time_remain, err = 0, sent_packets = 0;
 	u32 num_of_cycles = tx_start->num_of_cycles;
-	u64 num_of_iterations;
+	u64 i, num_of_iterations;
 
 	/* reset tx parameters */
 	xvt->num_of_tx_resp = 0;
@@ -1342,7 +1342,8 @@ static int iwl_xvt_start_tx_handler(void *data)
 	num_of_iterations = num_of_cycles * num_of_frames;
 
 	for (i = 0; (i < num_of_iterations) && !kthread_should_stop(); i++) {
-		u8 times, frame_index, j;
+		u16 j, times;
+		u8 frame_index;
 
 		frame_index = i % num_of_frames;
 		times = tx_start->frames_data[frame_index].times;
