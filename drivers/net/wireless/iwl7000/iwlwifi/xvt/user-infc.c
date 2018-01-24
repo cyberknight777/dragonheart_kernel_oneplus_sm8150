@@ -1200,7 +1200,7 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 		tx_start->frames_data[packet_index].header;
 	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
 	u32 packet_length  = payload_length + header_length;
-	struct tx_queue_data queue_data = xvt->queue_data[frame_data.queue];
+	struct tx_queue_data *queue_data = &xvt->queue_data[frame_data.queue];
 
 	skb = alloc_skb(packet_length, GFP_KERNEL);
 	if (!skb) {
@@ -1229,13 +1229,13 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 		return -ENOMEM;
 	}
 	/* wait until the tx queue isn't full */
-	time_remain = wait_event_interruptible_timeout(queue_data.tx_wq,
-						       !queue_data.txq_full,
+	time_remain = wait_event_interruptible_timeout(queue_data->tx_wq,
+						       !queue_data->txq_full,
 						       HZ);
 
 	if (time_remain <= 0) {
 		/* This should really not happen */
-		WARN_ON_ONCE(queue_data.txq_full);
+		WARN_ON_ONCE(queue_data->txq_full);
 		IWL_ERR(xvt, "Error while sending Tx\n");
 		*status = XVT_TX_DRIVER_QUEUE_FULL;
 		err = -EIO;
@@ -1243,7 +1243,7 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 	}
 
 	if (xvt->fw_error) {
-		WARN_ON_ONCE(queue_data.txq_full);
+		WARN_ON_ONCE(queue_data->txq_full);
 		IWL_ERR(xvt, "FW Error while sending packet\n");
 		*status = XVT_TX_DRIVER_ABORTED;
 		err = -ENODEV;
