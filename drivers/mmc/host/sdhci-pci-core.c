@@ -1000,7 +1000,7 @@ static int jmicron_resume(struct sdhci_pci_chip *chip)
 }
 #endif
 
-int sdhci_pci_fail_probe(struct sdhci_pci_chip *chip)
+static int sdhci_pci_fail_probe(struct sdhci_pci_chip *chip)
 {
 	/*
 	 * Temporarily disable the O2 SEABIRD0 pci device because
