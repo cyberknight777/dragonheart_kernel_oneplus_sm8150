@@ -1,0 +1,1568 @@
+/******************************************************************************
+ *
+ * This file is provided under a dual BSD/GPLv2 license.  When using or
+ * redistributing this file, you may do so under either license.
+ *
+ * GPL LICENSE SUMMARY
+ *
+ * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of version 2 of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
+ * USA
+ *
+ * The full GNU General Public License is included in this distribution
+ * in the file called COPYING.
+ *
+ * Contact Information:
+ *  Intel Linux Wireless <linuxwifi@intel.com>
+ * Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
+ *
+ * BSD LICENSE
+ *
+ * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *  * Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *  * Neither the name Intel Corporation nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *****************************************************************************/
+
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/dma-mapping.h>
+#include <linux/pci_ids.h>
+#include <linux/if_ether.h>
+#include <linux/etherdevice.h>
+#include <linux/limits.h>
+
+#include "iwl-drv.h"
+#include "iwl-prph.h"
+#include "iwl-csr.h"
+#include "iwl-io.h"
+#include "iwl-trans.h"
+#include "iwl-op-mode.h"
+#include "iwl-phy-db.h"
+#include "xvt.h"
+#include "user-infc.h"
+#include "iwl-tm-gnl.h"
+#include "iwl-dnt-cfg.h"
+#include "iwl-dnt-dispatch.h"
+#include "iwl-trans.h"
+
+#define XVT_UCODE_CALIB_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ)
+#define XVT_SCU_BASE	(0xe6a00000)
+#define XVT_SCU_SNUM1	(XVT_SCU_BASE + 0x300)
+#define XVT_SCU_SNUM2	(XVT_SCU_SNUM1 + 0x4)
+#define XVT_SCU_SNUM3	(XVT_SCU_SNUM2 + 0x4)
+#define XVT_MAX_TX_COUNT (ULLONG_MAX)
+#define XVT_LMAC_0_STA_ID (0) /* must be aligned with station id added in USC */
+#define XVT_LMAC_1_STA_ID (3) /* must be aligned with station id added in USC */
+
+void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
+				struct iwl_rx_cmd_buffer *rxb)
+{
+	struct iwl_rx_packet *pkt = rxb_addr(rxb);
+	void *data = pkt->data;
+	u32 size = iwl_rx_packet_payload_len(pkt);
+
+	IWL_DEBUG_INFO(xvt, "rx notification: group=0x%x, id=0x%x\n",
+		       pkt->hdr.group_id, pkt->hdr.cmd);
+
+	switch (WIDE_ID(pkt->hdr.group_id, pkt->hdr.cmd)) {
+	case WIDE_ID(LONG_GROUP, GET_SET_PHY_DB_CMD):
+		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_PHY_DB,
+					data, size, GFP_ATOMIC);
+		break;
+	case DTS_MEASUREMENT_NOTIFICATION:
+	case WIDE_ID(PHY_OPS_GROUP, DTS_MEASUREMENT_NOTIF_WIDE):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_DTS_MEASUREMENTS,
+					data, size, GFP_ATOMIC);
+		break;
+	case REPLY_RX_DSP_EXT_INFO:
+		if (!xvt->rx_hdr_enabled)
+			break;
+
+		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_RX_HDR,
+					data, size, GFP_ATOMIC);
+		break;
+	case APMG_PD_SV_CMD:
+		if (!xvt->apmg_pd_en)
+			break;
+
+		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_APMG_PD,
+					data, size, GFP_ATOMIC);
+		break;
+	case REPLY_RX_MPDU_CMD:
+		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
+					data, size, GFP_ATOMIC);
+		break;
+	case NVM_COMMIT_COMPLETE_NOTIFICATION:
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_COMMIT_STATISTICS,
+					data, size, GFP_ATOMIC);
+		break;
+	case REPLY_HD_PARAMS_CMD:
+		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_BFE,
+					data, size, GFP_ATOMIC);
+		break;
+	case DEBUG_LOG_MSG:
+		iwl_dnt_dispatch_collect_ucode_message(xvt->trans, rxb);
+		break;
+	case WIDE_ID(TOF_GROUP, TOF_MCSI_DEBUG_NOTIF):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_LOC_MCSI,
+					data, size, GFP_ATOMIC);
+		break;
+	case WIDE_ID(TOF_GROUP, TOF_RANGE_RESPONSE_NOTIF):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_LOC_RANGE,
+					data, size, GFP_ATOMIC);
+		break;
+	case REPLY_RX_PHY_CMD:
+		IWL_DEBUG_INFO(xvt,
+			       "REPLY_RX_PHY_CMD received but not handled\n");
+		break;
+	case INIT_COMPLETE_NOTIF:
+		IWL_DEBUG_INFO(xvt, "received INIT_COMPLETE_NOTIF\n");
+		break;
+	default:
+		IWL_DEBUG_INFO(xvt, "xVT mode RX command 0x%x not handled\n",
+			       pkt->hdr.cmd);
+	}
+}
+
+static void iwl_xvt_led_enable(struct iwl_xvt *xvt)
+{
+	iwl_write32(xvt->trans, CSR_LED_REG, CSR_LED_REG_TURN_ON);
+}
+
+static void iwl_xvt_led_disable(struct iwl_xvt *xvt)
+{
+	iwl_write32(xvt->trans, CSR_LED_REG, CSR_LED_REG_TURN_OFF);
+}
+
+static int iwl_xvt_sdio_io_toggle(struct iwl_xvt *xvt,
+				 struct iwl_tm_data *data_in,
+				 struct iwl_tm_data *data_out)
+{
+	struct iwl_tm_sdio_io_toggle *sdio_io_toggle = data_in->data;
+
+	return iwl_trans_test_mode_cmd(xvt->trans, sdio_io_toggle->enable);
+}
+
+static int iwl_xvt_send_hcmd(struct iwl_xvt *xvt,
+			     struct iwl_tm_data *data_in,
+			     struct iwl_tm_data *data_out)
+{
+	struct iwl_tm_cmd_request *hcmd_req = data_in->data;
+	struct iwl_tm_cmd_request *cmd_resp;
+	u32 reply_len, resp_size;
+	struct iwl_rx_packet *pkt;
+	struct iwl_host_cmd host_cmd = {
+		.id = hcmd_req->id,
+		.data[0] = hcmd_req->data,
+		.len[0] = hcmd_req->len,
+		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
+	};
+	int ret;
+
+	if (hcmd_req->want_resp)
+		host_cmd.flags |= CMD_WANT_SKB;
+
+	ret = iwl_xvt_send_cmd(xvt, &host_cmd);
+	if (ret)
+		return ret;
+	/* if no reply is required, we are done */
+	if (!(host_cmd.flags & CMD_WANT_SKB))
+		return 0;
+
+	/* Retrieve response packet */
+	pkt = host_cmd.resp_pkt;
+	reply_len = iwl_rx_packet_len(pkt);
+
+	/* Set response data */
+	resp_size = sizeof(struct iwl_tm_cmd_request) + reply_len;
+	cmd_resp = kzalloc(resp_size, GFP_KERNEL);
+	if (!cmd_resp) {
+		iwl_free_resp(&host_cmd);
+		return -ENOMEM;
+	}
+	cmd_resp->id = hcmd_req->id;
+	cmd_resp->len = reply_len;
+	memcpy(cmd_resp->data, &(pkt->hdr), reply_len);
+
+	iwl_free_resp(&host_cmd);
+
+	data_out->data = cmd_resp;
+	data_out->len = resp_size;
+
+	return 0;
+}
+
+static void iwl_xvt_execute_reg_ops(struct iwl_trans *trans,
+				    struct iwl_tm_regs_request *request,
+				    struct iwl_tm_regs_request *result)
+{
+	struct iwl_tm_reg_op *cur_op;
+	u32 idx, read_idx;
+	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
+		cur_op = &request->reg_ops[idx];
+
+		if  (cur_op->op_type == IWL_TM_REG_OP_READ) {
+			cur_op->value = iwl_read32(trans, cur_op->address);
+			memcpy(&result->reg_ops[read_idx], cur_op,
+			       sizeof(*cur_op));
+			read_idx++;
+		} else {
+			/* IWL_TM_REG_OP_WRITE is the only possible option */
+			iwl_write32(trans, cur_op->address, cur_op->value);
+		}
+	}
+}
+
+static int iwl_xvt_reg_ops(struct iwl_trans *trans,
+			   struct iwl_tm_data *data_in,
+			   struct iwl_tm_data *data_out)
+{
+	struct iwl_tm_reg_op *cur_op;
+	struct iwl_tm_regs_request *request = data_in->data;
+	struct iwl_tm_regs_request *result;
+	u32 result_size;
+	u32 idx, read_idx;
+	bool is_grab_nic_access_required = true;
+	unsigned long flags;
+
+	/* Calculate result size (result is returned only for read ops) */
+	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
+		if (request->reg_ops[idx].op_type == IWL_TM_REG_OP_READ)
+			read_idx++;
+		/* check if there is an operation that it is not */
+		/* in the CSR range (0x00000000 - 0x000003FF)    */
+		/* and not in the AL range			 */
+		cur_op = &request->reg_ops[idx];
+
+		if (IS_AL_ADDR(cur_op->address) ||
+		    (cur_op->address < HBUS_BASE))
+			is_grab_nic_access_required = false;
+	}
+	result_size = sizeof(struct iwl_tm_regs_request) +
+		      read_idx*sizeof(struct iwl_tm_reg_op);
+
+	result = kzalloc(result_size, GFP_KERNEL);
+	if (!result)
+		return -ENOMEM;
+	result->num = read_idx;
+	if (is_grab_nic_access_required) {
+		if (!iwl_trans_grab_nic_access(trans, &flags)) {
+			kfree(result);
+			return -EBUSY;
+		}
+		iwl_xvt_execute_reg_ops(trans, request, result);
+		iwl_trans_release_nic_access(trans, &flags);
+	} else {
+		iwl_xvt_execute_reg_ops(trans, request, result);
+	}
+
+	data_out->data = result;
+	data_out->len = result_size;
+
+	return 0;
+}
+
+/**
+ * iwl_xvt_read_sv_drop - read SV drop version
+ * @xvt: xvt data
+ * Return: the SV drop (>= 0) or a negative error number
+ */
+static int iwl_xvt_read_sv_drop(struct iwl_xvt *xvt)
+{
+	struct xvt_debug_cmd debug_cmd = {
+		.opcode = cpu_to_le32(XVT_DBG_GET_SVDROP_VER_OP),
+		.dw_num = 0,
+	};
+	struct xvt_debug_res *debug_res;
+	struct iwl_rx_packet *pkt;
+	struct iwl_host_cmd host_cmd = {
+		.id = REPLY_DEBUG_XVT_CMD,
+		.data[0] = &debug_cmd,
+		.len[0] = sizeof(debug_cmd),
+		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
+		.flags = CMD_WANT_SKB,
+	};
+	int ret;
+
+	if (xvt->state != IWL_XVT_STATE_OPERATIONAL)
+		return 0;
+
+	ret = iwl_xvt_send_cmd(xvt, &host_cmd);
+	if (ret)
+		return ret;
+
+	/* Retrieve response packet */
+	pkt = host_cmd.resp_pkt;
+
+	/* Get response data */
+	debug_res = (struct xvt_debug_res *)pkt->data;
+	if (le32_to_cpu(debug_res->dw_num) < 1) {
+		ret = -ENODATA;
+		goto out;
+	}
+	ret = le32_to_cpu(debug_res->data[0]) & 0xFF;
+
+out:
+	iwl_free_resp(&host_cmd);
+	return ret;
+}
+
+static int iwl_xvt_get_dev_info(struct iwl_xvt *xvt,
+				struct iwl_tm_data *data_in,
+				struct iwl_tm_data *data_out)
+{
+	struct iwl_tm_dev_info_req *dev_info_req;
+	struct iwl_tm_dev_info *dev_info;
+	const u8 driver_ver[] = BACKPORTS_GIT_TRACKED;
+	int sv_step = 0x00;
+	int dev_info_size;
+	bool read_sv_drop = true;
+
+	if (data_in) {
+		dev_info_req = (struct iwl_tm_dev_info_req *)data_in->data;
+		read_sv_drop = dev_info_req->read_sv ? true : false;
+	}
+
+	if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR && read_sv_drop) {
+		sv_step = iwl_xvt_read_sv_drop(xvt);
+		if (sv_step < 0)
+			return sv_step;
+	}
+
+	dev_info_size = sizeof(struct iwl_tm_dev_info) +
+			(strlen(driver_ver)+1)*sizeof(u8);
+	dev_info = kzalloc(dev_info_size, GFP_KERNEL);
+	if (!dev_info)
+		return -ENOMEM;
+
+	dev_info->dev_id = xvt->trans->hw_id;
+	dev_info->fw_ver = xvt->fw->ucode_ver;
+	dev_info->vendor_id = PCI_VENDOR_ID_INTEL;
+	dev_info->build_ver = sv_step;
+
+	/*
+	 * TODO: Silicon step is retrieved by reading
+	 * radio register 0x00. Simplifying implementation
+	 * by reading it in user space.
+	 */
+	dev_info->silicon_step = 0x00;
+
+	strcpy(dev_info->driver_ver, driver_ver);
+
+	data_out->data = dev_info;
+	data_out->len = dev_info_size;
+
+	return 0;
+}
+
+static int iwl_xvt_indirect_read(struct iwl_xvt *xvt,
+				 struct iwl_tm_data *data_in,
+				 struct iwl_tm_data *data_out)
+{
+	struct iwl_trans *trans = xvt->trans;
+	struct iwl_tm_sram_read_request *cmd_in = data_in->data;
+	u32 addr = cmd_in->offset;
+	u32 size = cmd_in->length;
+	u32 *buf32, size32, i;
+	unsigned long flags;
+
+	if (size & (sizeof(u32)-1))
+		return -EINVAL;
+
+	data_out->data = kmalloc(size, GFP_KERNEL);
+	if (!data_out->data)
+		return -ENOMEM;
+
+	data_out->len = size;
+
+	size32 = size / sizeof(u32);
+	buf32 = data_out->data;
+
+	/* Hard-coded periphery absolute address */
+	if (IWL_ABS_PRPH_START <= addr &&
+	    addr < IWL_ABS_PRPH_START + PRPH_END) {
+		if (!iwl_trans_grab_nic_access(trans, &flags))
+			return -EBUSY;
+		for (i = 0; i < size32; i++)
+			buf32[i] = iwl_trans_read_prph(trans,
+						       addr + i * sizeof(u32));
+		iwl_trans_release_nic_access(trans, &flags);
+	} else {
+		/* target memory (SRAM) */
+		iwl_trans_read_mem(trans, addr, buf32, size32);
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_indirect_write(struct iwl_xvt *xvt,
+				  struct iwl_tm_data *data_in)
+{
+	struct iwl_trans *trans = xvt->trans;
+	struct iwl_tm_sram_write_request *cmd_in = data_in->data;
+	u32 addr = cmd_in->offset;
+	u32 size = cmd_in->len;
+	u8 *buf = cmd_in->buffer;
+	u32 *buf32 = (u32 *)buf, size32 = size / sizeof(u32);
+	unsigned long flags;
+	u32 val, i;
+
+	if (IWL_ABS_PRPH_START <= addr &&
+	    addr < IWL_ABS_PRPH_START + PRPH_END) {
+		/* Periphery writes can be 1-3 bytes long, or DWORDs */
+		if (size < 4) {
+			memcpy(&val, buf, size);
+			if (!iwl_trans_grab_nic_access(trans, &flags))
+				return -EBUSY;
+			iwl_write32(trans, HBUS_TARG_PRPH_WADDR,
+				    (addr & 0x0000FFFF) | ((size - 1) << 24));
+			iwl_write32(trans, HBUS_TARG_PRPH_WDAT, val);
+			iwl_trans_release_nic_access(trans, &flags);
+		} else {
+			if (size % sizeof(u32))
+				return -EINVAL;
+
+			for (i = 0; i < size32; i++)
+				iwl_write_prph(trans, addr + i*sizeof(u32),
+					       buf32[i]);
+		}
+	} else {
+		iwl_trans_write_mem(trans, addr, buf32, size32);
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_set_sw_config(struct iwl_xvt *xvt,
+				  struct iwl_tm_data *data_in)
+{
+	struct iwl_xvt_sw_cfg_request *sw_cfg =
+				(struct iwl_xvt_sw_cfg_request *)data_in->data;
+	struct iwl_phy_cfg_cmd *fw_calib_cmd_cfg =
+				xvt->sw_stack_cfg.fw_calib_cmd_cfg;
+	__le32 cfg_mask = cpu_to_le32(sw_cfg->cfg_mask),
+	       fw_calib_event, fw_calib_flow,
+	       event_override, flow_override;
+	int usr_idx, iwl_idx;
+
+	if (data_in->len < sizeof(struct iwl_xvt_sw_cfg_request))
+		return -EINVAL;
+
+	xvt->sw_stack_cfg.fw_dbg_flags = sw_cfg->dbg_flags;
+	xvt->sw_stack_cfg.load_mask = sw_cfg->load_mask;
+	xvt->sw_stack_cfg.calib_override_mask = sw_cfg->cfg_mask;
+
+	for (usr_idx = 0; usr_idx < IWL_USER_FW_IMAGE_IDX_TYPE_MAX; usr_idx++) {
+		switch (usr_idx) {
+		case IWL_USER_FW_IMAGE_IDX_INIT:
+			iwl_idx = IWL_UCODE_INIT;
+			break;
+		case IWL_USER_FW_IMAGE_IDX_REGULAR:
+			iwl_idx = IWL_UCODE_REGULAR;
+			break;
+		case IWL_USER_FW_IMAGE_IDX_WOWLAN:
+			iwl_idx = IWL_UCODE_WOWLAN;
+			break;
+		}
+		/* TODO: Calculate PHY config according to device values */
+		fw_calib_cmd_cfg[iwl_idx].phy_cfg =
+			cpu_to_le32(xvt->fw->phy_config);
+
+		/*
+		 * If a cfg_mask bit is unset, take the default value
+		 * from the FW. Otherwise, take the value from sw_cfg.
+		 */
+		fw_calib_event = xvt->fw->default_calib[iwl_idx].event_trigger;
+		event_override =
+			 cpu_to_le32(sw_cfg->calib_ctrl[usr_idx].event_trigger);
+
+		fw_calib_cmd_cfg[iwl_idx].calib_control.event_trigger =
+			(~cfg_mask & fw_calib_event) |
+			(cfg_mask & event_override);
+
+		fw_calib_flow = xvt->fw->default_calib[iwl_idx].flow_trigger;
+		flow_override =
+			cpu_to_le32(sw_cfg->calib_ctrl[usr_idx].flow_trigger);
+
+		fw_calib_cmd_cfg[iwl_idx].calib_control.flow_trigger =
+			(~cfg_mask & fw_calib_flow) |
+			(cfg_mask & flow_override);
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_get_sw_config(struct iwl_xvt *xvt,
+				 struct iwl_tm_data *data_in,
+				 struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_sw_cfg_request *get_cfg_req;
+	struct iwl_xvt_sw_cfg_request *sw_cfg;
+	struct iwl_phy_cfg_cmd *fw_calib_cmd_cfg =
+				xvt->sw_stack_cfg.fw_calib_cmd_cfg;
+	__le32 event_trigger, flow_trigger;
+	int i, u;
+
+	if (data_in->len < sizeof(struct iwl_xvt_sw_cfg_request))
+		return -EINVAL;
+
+	get_cfg_req = data_in->data;
+	sw_cfg = kzalloc(sizeof(*sw_cfg), GFP_KERNEL);
+	if (!sw_cfg)
+		return -ENOMEM;
+
+	sw_cfg->load_mask = xvt->sw_stack_cfg.load_mask;
+	sw_cfg->phy_config = xvt->fw->phy_config;
+	sw_cfg->cfg_mask = xvt->sw_stack_cfg.calib_override_mask;
+	sw_cfg->dbg_flags = xvt->sw_stack_cfg.fw_dbg_flags;
+	for (i = 0; i < IWL_UCODE_TYPE_MAX; i++) {
+		switch (i) {
+		case IWL_UCODE_INIT:
+			u = IWL_USER_FW_IMAGE_IDX_INIT;
+			break;
+		case IWL_UCODE_REGULAR:
+			u = IWL_USER_FW_IMAGE_IDX_REGULAR;
+			break;
+		case IWL_UCODE_WOWLAN:
+			u = IWL_USER_FW_IMAGE_IDX_WOWLAN;
+			break;
+		case IWL_UCODE_REGULAR_USNIFFER:
+			continue;
+		}
+		if (get_cfg_req->get_calib_type == IWL_XVT_GET_CALIB_TYPE_DEF) {
+			event_trigger =
+				xvt->fw->default_calib[i].event_trigger;
+			flow_trigger =
+				xvt->fw->default_calib[i].flow_trigger;
+		} else {
+			event_trigger =
+				fw_calib_cmd_cfg[i].calib_control.event_trigger;
+			flow_trigger =
+				fw_calib_cmd_cfg[i].calib_control.flow_trigger;
+		}
+		sw_cfg->calib_ctrl[u].event_trigger =
+			le32_to_cpu(event_trigger);
+		sw_cfg->calib_ctrl[u].flow_trigger =
+			le32_to_cpu(flow_trigger);
+	}
+
+	data_out->data = sw_cfg;
+	data_out->len = sizeof(*sw_cfg);
+	return 0;
+}
+
+static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
+{
+	struct iwl_phy_cfg_cmd *calib_cmd_cfg =
+		&xvt->sw_stack_cfg.fw_calib_cmd_cfg[ucode_type];
+	int err;
+
+	IWL_DEBUG_INFO(xvt, "Sending Phy CFG command: 0x%x\n",
+		       calib_cmd_cfg->phy_cfg);
+
+	/* Sending calibration configuration control data */
+	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, 0,
+				   sizeof(*calib_cmd_cfg), calib_cmd_cfg);
+	if (err)
+		IWL_ERR(xvt, "Error (%d) running INIT calibrations control\n",
+			err);
+
+	return err;
+}
+
+static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
+{
+	struct iwl_nvm_access_complete_cmd nvm_complete = {};
+	struct iwl_notification_wait init_complete_wait;
+	static const u16 init_complete[] = { INIT_COMPLETE_NOTIF };
+	int err;
+
+	err = iwl_xvt_send_cmd_pdu(xvt,
+				   WIDE_ID(REGULATORY_AND_NVM_GROUP,
+					   NVM_ACCESS_COMPLETE), 0,
+				   sizeof(nvm_complete), &nvm_complete);
+	if (err)
+		goto init_error;
+
+	xvt->state = IWL_XVT_STATE_OPERATIONAL;
+
+	iwl_init_notification_wait(&xvt->notif_wait,
+				   &init_complete_wait,
+				   init_complete,
+				   sizeof(init_complete),
+				   NULL,
+				   NULL);
+
+	err = iwl_xvt_send_phy_cfg_cmd(xvt, IWL_UCODE_REGULAR);
+	if (err) {
+		iwl_remove_notification(&xvt->notif_wait, &init_complete_wait);
+		goto init_error;
+	}
+
+	err = iwl_wait_notification(&xvt->notif_wait, &init_complete_wait,
+				    XVT_UCODE_CALIB_TIMEOUT);
+	if (err)
+		goto init_error;
+	return 0;
+init_error:
+	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
+	iwl_trans_stop_device(xvt->trans);
+	return err;
+}
+static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt, bool cont_run)
+{
+	int err;
+
+	err = iwl_xvt_run_fw(xvt, IWL_UCODE_REGULAR, cont_run);
+	if (err)
+		goto fw_error;
+
+	xvt->state = IWL_XVT_STATE_OPERATIONAL;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		err = iwl_xvt_nvm_init(xvt);
+		if (err) {
+			IWL_ERR(xvt, "Failed to read NVM: %d\n", err);
+			return err;
+		}
+		return iwl_xvt_continue_init_unified(xvt);
+	}
+
+	/* Send phy db control command and then phy db calibration*/
+	err = iwl_send_phy_db_data(xvt->phy_db);
+	if (err)
+		goto phy_error;
+
+	err = iwl_xvt_send_phy_cfg_cmd(xvt, IWL_UCODE_REGULAR);
+	if (err)
+		goto phy_error;
+
+	return 0;
+
+phy_error:
+	iwl_trans_stop_device(xvt->trans);
+
+fw_error:
+	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
+
+	return err;
+}
+
+static bool iwl_xvt_wait_phy_db_entry(struct iwl_notif_wait_data *notif_wait,
+				  struct iwl_rx_packet *pkt, void *data)
+{
+	struct iwl_phy_db *phy_db = data;
+
+	if (pkt->hdr.cmd != CALIB_RES_NOTIF_PHY_DB) {
+		WARN_ON(pkt->hdr.cmd != INIT_COMPLETE_NOTIF);
+		return true;
+	}
+
+	WARN_ON(iwl_phy_db_set_section(phy_db, pkt));
+
+	return false;
+}
+
+/*
+ * iwl_xvt_start_op_mode starts FW according to load mask,
+ * waits for alive notification from device, and sends it
+ * to user.
+ */
+static int iwl_xvt_start_op_mode(struct iwl_xvt *xvt)
+{
+	int err = 0;
+	u32 ucode_type = IWL_UCODE_INIT;
+
+	/*
+	 * If init FW and runtime FW are both enabled,
+	 * Runtime FW will be executed after "continue
+	 * initialization" is done.
+	 * If init FW is disabled and runtime FW is
+	 * enabled, run Runtime FW. If runtime fw is
+	 * disabled, do nothing.
+	 */
+	if (!(xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_INIT)) {
+		if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME) {
+			err = iwl_xvt_run_runtime_fw(xvt, false);
+		} else {
+			if (xvt->state != IWL_XVT_STATE_UNINITIALIZED) {
+				xvt->fw_running = false;
+				iwl_trans_stop_device(xvt->trans);
+			}
+			err = iwl_trans_start_hw(xvt->trans);
+			if (err) {
+				IWL_ERR(xvt, "Failed to start HW\n");
+			} else {
+				iwl_write32(xvt->trans, CSR_RESET, 0);
+				xvt->state = IWL_XVT_STATE_NO_FW;
+			}
+		}
+
+		return err;
+	}
+
+	/* when fw image is unified, only regular ucode is loaded. */
+	if (iwl_xvt_is_unified_fw(xvt))
+		ucode_type = IWL_UCODE_REGULAR;
+	err = iwl_xvt_run_fw(xvt, ucode_type, false);
+	if (err)
+		return err;
+
+	xvt->state = IWL_XVT_STATE_INIT_STARTED;
+
+	err = iwl_xvt_nvm_init(xvt);
+	if (err)
+		IWL_ERR(xvt, "Failed to read NVM: %d\n", err);
+
+	/*
+	 * The initialization flow is not yet complete.
+	 * User need to execute "Continue initialization"
+	 * flow in order to complete it.
+	 *
+	 * NOT sending ALIVE notification to user. User
+	 * knows that FW is alive when "start op mode"
+	 * returns without errors.
+	 */
+
+	return err;
+}
+
+static void iwl_xvt_stop_op_mode(struct iwl_xvt *xvt)
+{
+	if (xvt->state == IWL_XVT_STATE_UNINITIALIZED)
+		return;
+
+	if (xvt->fw_running) {
+		iwl_xvt_txq_disable(xvt);
+		xvt->fw_running = false;
+	}
+	iwl_trans_stop_device(xvt->trans);
+
+	iwl_free_fw_paging(&xvt->fwrt);
+
+	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
+}
+
+/*
+ * iwl_xvt_continue_init get phy calibrations data from
+ * device and stores them. It also runs runtime FW if it
+ * is marked in the load mask.
+ */
+static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
+{
+	struct iwl_notification_wait calib_wait;
+	static const u16 init_complete[] = {
+		INIT_COMPLETE_NOTIF,
+		CALIB_RES_NOTIF_PHY_DB
+	};
+	int err;
+
+	if (xvt->state != IWL_XVT_STATE_INIT_STARTED)
+		return -EINVAL;
+
+	if (iwl_xvt_is_unified_fw(xvt))
+		return iwl_xvt_continue_init_unified(xvt);
+
+	iwl_init_notification_wait(&xvt->notif_wait,
+				   &calib_wait,
+				   init_complete,
+				   ARRAY_SIZE(init_complete),
+				   iwl_xvt_wait_phy_db_entry,
+				   xvt->phy_db);
+
+	err = iwl_xvt_send_phy_cfg_cmd(xvt, IWL_UCODE_INIT);
+	if (err) {
+		iwl_remove_notification(&xvt->notif_wait, &calib_wait);
+		goto error;
+	}
+
+	/*
+	 * Waiting for the calibration complete notification
+	 * iwl_xvt_wait_phy_db_entry will store the calibrations
+	 */
+	err = iwl_wait_notification(&xvt->notif_wait, &calib_wait,
+				    XVT_UCODE_CALIB_TIMEOUT);
+	if (err)
+		goto error;
+
+	xvt->state = IWL_XVT_STATE_OPERATIONAL;
+
+	if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME)
+		/* Run runtime FW stops the device by itself if error occurs */
+		err = iwl_xvt_run_runtime_fw(xvt, true);
+
+	goto cont_init_end;
+
+error:
+	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
+	iwl_xvt_txq_disable(xvt);
+	iwl_trans_stop_device(xvt->trans);
+
+cont_init_end:
+
+	return err;
+}
+
+static int iwl_xvt_get_phy_db(struct iwl_xvt *xvt,
+			      struct iwl_tm_data *data_in,
+			      struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_phy_db_request *phy_db_req =
+				(struct iwl_xvt_phy_db_request *)data_in->data;
+	struct iwl_xvt_phy_db_request *phy_db_resp;
+	u8 *phy_data;
+	u16 phy_size;
+	u32 resp_size;
+	int err;
+
+	if ((data_in->len < sizeof(struct iwl_xvt_phy_db_request)) ||
+	    (phy_db_req->size != 0))
+		return -EINVAL;
+
+	err = iwl_phy_db_get_section_data(xvt->phy_db,
+					  phy_db_req->type,
+					  &phy_data, &phy_size,
+					  phy_db_req->chg_id);
+	if (err)
+		return err;
+
+	resp_size = sizeof(*phy_db_resp) + phy_size;
+	phy_db_resp = kzalloc(resp_size, GFP_KERNEL);
+	if (!phy_db_resp)
+		return -ENOMEM;
+	phy_db_resp->chg_id = phy_db_req->chg_id;
+	phy_db_resp->type = phy_db_req->type;
+	phy_db_resp->size = phy_size;
+	memcpy(phy_db_resp->data, phy_data, phy_size);
+
+	data_out->data = phy_db_resp;
+	data_out->len = resp_size;
+
+	return 0;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
+			       u32 rate_flags, u32 flags)
+{
+	struct iwl_device_cmd *dev_cmd, **cb_dev_cmd = (void *)skb->cb;
+	struct iwl_tx_cmd_gen2 *tx_cmd;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+
+	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	memset(dev_cmd, 0, sizeof(*dev_cmd));
+	dev_cmd->hdr.cmd = TX_CMD;
+
+	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
+
+	tx_cmd->len = cpu_to_le16((u16)skb->len);
+
+	tx_cmd->offload_assist |= (ieee80211_hdrlen(hdr->frame_control) % 4) ?
+				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
+
+	tx_cmd->flags = cpu_to_le32(flags | IWL_TX_FLAGS_CMD_RATE);
+
+	tx_cmd->rate_n_flags = cpu_to_le32(rate_flags);
+
+	/* Copy MAC header from skb into command buffer */
+	memcpy(tx_cmd->hdr, hdr, sizeof(*hdr));
+
+	 /* Saving device command address itself in the
+	  * control buffer, to be used when reclaiming
+	  * the command. */
+	*cb_dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+/*
+ * Allocates and sets the Tx cmd the driver data pointers in the skb
+ */
+static struct iwl_device_cmd *
+iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
+			  u8 sta_id, u32 rate_flags, u32 flags)
+{
+	struct iwl_device_cmd *dev_cmd, **cb_dev_cmd = (void *)skb->cb;
+	struct iwl_tx_cmd *tx_cmd;
+
+	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	memset(dev_cmd, 0, sizeof(dev_cmd->hdr) + sizeof(*tx_cmd));
+	dev_cmd->hdr.cmd = TX_CMD;
+	tx_cmd = (struct iwl_tx_cmd *)dev_cmd->payload;
+
+	tx_cmd->len = cpu_to_le16((u16)skb->len);
+	tx_cmd->life_time = cpu_to_le32(TX_CMD_LIFE_TIME_INFINITE);
+
+	tx_cmd->sta_id = sta_id;
+	tx_cmd->rate_n_flags = cpu_to_le32(rate_flags);
+	tx_cmd->tx_flags = cpu_to_le32(flags);
+
+	/* the skb should already hold the data */
+	memcpy(tx_cmd->hdr, skb->data, sizeof(struct ieee80211_hdr));
+
+	/*
+	 * Saving device command address itself in the
+	 * control buffer, to be used when reclaiming
+	 * the command.
+	 */
+	*cb_dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
+			       struct iwl_tm_mod_tx_request *tx_req,
+			       u32 *status, struct tx_meta_data *meta_tx)
+{
+	struct sk_buff *skb;
+	struct iwl_device_cmd *dev_cmd;
+	int time_remain, err = 0;
+	u32 flags = 0;
+
+	if (xvt->fw_error) {
+		IWL_ERR(xvt, "FW Error while sending Tx\n");
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENODEV;
+	}
+
+	skb = alloc_skb(tx_req->len, GFP_KERNEL);
+	if (!skb) {
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENOMEM;
+	}
+	memcpy(skb_put(skb, tx_req->len), tx_req->data, tx_req->len);
+
+	flags = tx_req->no_ack ? 0 : TX_CMD_FLG_ACK;
+
+	if (iwl_xvt_is_unified_fw(xvt))
+		dev_cmd = iwl_xvt_set_mod_tx_params_gen2(xvt,
+							 skb,
+							 tx_req->rate_flags,
+							 flags);
+	else
+		dev_cmd = iwl_xvt_set_mod_tx_params(xvt,
+						    skb,
+						    tx_req->sta_id,
+						    tx_req->rate_flags,
+						    flags);
+	if (!dev_cmd) {
+		kfree_skb(skb);
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENOMEM;
+	}
+
+	if (tx_req->trigger_led)
+		iwl_xvt_led_enable(xvt);
+
+	/* wait until the tx queue isn't full */
+	time_remain = wait_event_interruptible_timeout(meta_tx->mod_tx_wq,
+						       !meta_tx->txq_full, HZ);
+
+	if (time_remain <= 0) {
+		/* This should really not happen */
+		WARN_ON_ONCE(meta_tx->txq_full);
+		IWL_ERR(xvt, "Error while sending Tx\n");
+		*status = XVT_TX_DRIVER_QUEUE_FULL;
+		err = -EIO;
+		goto err;
+	}
+
+	if (xvt->fw_error) {
+		WARN_ON_ONCE(meta_tx->txq_full);
+		IWL_ERR(xvt, "FW Error while sending Tx\n");
+		*status = XVT_TX_DRIVER_ABORTED;
+		err = -ENODEV;
+		goto err;
+	}
+
+	/* Assume we have one Txing thread only: the queue is not full
+	 * any more - nobody could fill it up in the meantime since we
+	 * were blocked.
+	 */
+
+	local_bh_disable();
+
+	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, meta_tx->queue);
+
+	local_bh_enable();
+	if (err) {
+		IWL_ERR(xvt, "Tx command failed (error %d)\n", err);
+		*status = XVT_TX_DRIVER_ABORTED;
+		goto err;
+	}
+
+	if (tx_req->trigger_led)
+		iwl_xvt_led_disable(xvt);
+
+	return err;
+err:
+	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
+	kfree_skb(skb);
+	return err;
+}
+
+static int iwl_xvt_modulated_tx_handler(void *data)
+{
+	u64 tx_count, max_tx;
+	int time_remain, num_of_packets, err = 0;
+	struct iwl_xvt *xvt;
+	struct iwl_xvt_tx_mod_done *done_notif;
+	u32 status = XVT_TX_DRIVER_SUCCESSFUL;
+	struct iwl_xvt_tx_mod_task_data *task_data =
+		(struct iwl_xvt_tx_mod_task_data *)data;
+	struct tx_meta_data *xvt_tx;
+
+	xvt = task_data->xvt;
+	xvt_tx = &xvt->tx_meta_data[task_data->lmac_id];
+	xvt_tx->tx_task_operating = true;
+	num_of_packets = task_data->tx_req.times;
+	max_tx = (num_of_packets == IWL_XVT_TX_MODULATED_INFINITE) ?
+		  XVT_MAX_TX_COUNT : num_of_packets;
+	xvt_tx->tot_tx = num_of_packets;
+	xvt_tx->tx_counter = 0;
+
+	for (tx_count = 0;
+	    (tx_count < max_tx) && (!kthread_should_stop());
+	     tx_count++){
+		err = iwl_xvt_send_packet(xvt, &task_data->tx_req,
+					  &status, xvt_tx);
+		if (err) {
+			IWL_ERR(xvt, "stop send packets due to err %d\n", err);
+			break;
+		}
+	}
+
+	if (!err) {
+		time_remain = wait_event_interruptible_timeout(
+						xvt_tx->mod_tx_done_wq,
+						xvt_tx->tx_counter == tx_count,
+						5 * HZ);
+		if (time_remain <= 0) {
+			IWL_ERR(xvt, "Not all Tx messages were sent\n");
+			xvt_tx->tx_task_operating = false;
+			status = XVT_TX_DRIVER_TIMEOUT;
+		}
+	}
+
+	done_notif = kmalloc(sizeof(*done_notif), GFP_KERNEL);
+	if (!done_notif) {
+		xvt_tx->tx_task_operating = false;
+		kfree(data);
+		return -ENOMEM;
+	}
+	done_notif->num_of_packets = xvt_tx->tx_counter;
+	done_notif->status = status;
+	done_notif->lmac_id = task_data->lmac_id;
+	err = iwl_xvt_user_send_notif(xvt,
+				      IWL_XVT_CMD_SEND_MOD_TX_DONE,
+				      (void *)done_notif,
+				      sizeof(*done_notif), GFP_ATOMIC);
+	if (err) {
+		IWL_ERR(xvt, "Error %d sending tx_done notification\n", err);
+		kfree(done_notif);
+	}
+
+	xvt_tx->tx_task_operating = false;
+	kfree(data);
+	do_exit(err);
+}
+
+static int iwl_xvt_modulated_tx_infinite_stop(struct iwl_xvt *xvt,
+					      struct iwl_tm_data *data_in)
+{
+	int err = 0;
+	u32 lmac_id = ((struct iwl_xvt_tx_mod_stop *)data_in->data)->lmac_id;
+	struct tx_meta_data *xvt_tx = &xvt->tx_meta_data[lmac_id];
+
+	if (xvt_tx->tx_mod_thread && xvt_tx->tx_task_operating) {
+		err = kthread_stop(xvt_tx->tx_mod_thread);
+		xvt_tx->tx_mod_thread = NULL;
+	}
+
+	return err;
+}
+
+static inline int map_sta_to_lmac(struct iwl_xvt *xvt, u8 sta_id)
+{
+	switch (sta_id) {
+	case XVT_LMAC_0_STA_ID:
+		return XVT_LMAC_0_ID;
+	case XVT_LMAC_1_STA_ID:
+		return XVT_LMAC_1_ID;
+	default:
+		IWL_ERR(xvt, "wrong sta id, can't match queue\n");
+		return -EINVAL;
+	}
+}
+
+static int iwl_xvt_tx_queue_cfg(struct iwl_xvt *xvt,
+				struct iwl_tm_data *data_in)
+{
+	struct iwl_xvt_tx_queue_cfg *input =
+			(struct iwl_xvt_tx_queue_cfg *)data_in->data;
+	u8 sta_id = input->sta_id;
+	int lmac_id = map_sta_to_lmac(xvt, sta_id);
+
+	if (lmac_id < 0)
+		return lmac_id;
+
+	switch (input->operation) {
+	case TX_QUEUE_CFG_ADD:
+		return iwl_xvt_allocate_tx_queue(xvt, sta_id, lmac_id);
+	case TX_QUEUE_CFG_REMOVE:
+		iwl_xvt_free_tx_queue(xvt, lmac_id);
+		break;
+	default:
+		IWL_ERR(xvt, "failed in tx config - wrong operation\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
+				struct iwl_tm_data *data_in)
+{
+	u32 pkt_length = ((struct iwl_tm_mod_tx_request *)data_in->data)->len;
+	u32 req_length = sizeof(struct iwl_tm_mod_tx_request) + pkt_length;
+	u32 task_data_length =
+		sizeof(struct iwl_xvt_tx_mod_task_data) + pkt_length;
+	struct tx_meta_data *xvt_tx = &xvt->tx_meta_data[XVT_LMAC_0_ID];
+	u8 sta_id;
+	int lmac_id;
+	struct iwl_xvt_tx_mod_task_data *task_data =
+		kzalloc(task_data_length, GFP_KERNEL);
+	if (!task_data)
+		return -ENOMEM;
+
+	/*
+	* no need to check whether tx already operating on lmac, since check
+	* is already done in the USC
+	*/
+	task_data->xvt = xvt;
+	memcpy(&task_data->tx_req, data_in->data, req_length);
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		sta_id = task_data->tx_req.sta_id;
+		lmac_id = map_sta_to_lmac(xvt, sta_id);
+		if (lmac_id < 0)
+			return lmac_id;
+
+		task_data->lmac_id = lmac_id;
+		xvt_tx = &xvt->tx_meta_data[lmac_id];
+
+		/* check if tx queue is allocated. if not - return */
+		if (xvt_tx->queue < 0) {
+			IWL_ERR(xvt, "failed in tx - queue is not allocated\n");
+			return -EIO;
+		}
+	}
+
+	xvt_tx->tx_mod_thread = kthread_run(iwl_xvt_modulated_tx_handler,
+					   task_data, "tx mod infinite");
+	if (!xvt_tx->tx_mod_thread) {
+		xvt_tx->tx_task_operating = false;
+		kfree(task_data);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_rx_hdrs_mode(struct iwl_xvt *xvt,
+				  struct iwl_tm_data *data_in)
+{
+	struct iwl_xvt_rx_hdrs_mode_request *rx_hdr = data_in->data;
+
+	if (data_in->len < sizeof(struct iwl_xvt_rx_hdrs_mode_request))
+		return -EINVAL;
+
+	if (rx_hdr->mode)
+		xvt->rx_hdr_enabled = true;
+	else
+		xvt->rx_hdr_enabled = false;
+
+	return 0;
+}
+
+static int iwl_xvt_apmg_pd_mode(struct iwl_xvt *xvt,
+				  struct iwl_tm_data *data_in)
+{
+	struct iwl_xvt_apmg_pd_mode_request *apmg_pd = data_in->data;
+
+	if (apmg_pd->mode)
+		xvt->apmg_pd_en = true;
+	else
+		xvt->apmg_pd_en = false;
+
+	return 0;
+}
+
+static int iwl_xvt_allocate_dma(struct iwl_xvt *xvt,
+				struct iwl_tm_data *data_in,
+				struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_alloc_dma *dma_req = data_in->data;
+	struct iwl_xvt_alloc_dma *dma_res;
+
+	if (data_in->len < sizeof(struct iwl_xvt_alloc_dma))
+		return -EINVAL;
+
+	if (xvt->dma_cpu_addr) {
+		IWL_ERR(xvt, "XVT DMA already allocated\n");
+		return -EBUSY;
+	}
+
+	xvt->dma_cpu_addr = dma_alloc_coherent(xvt->trans->dev, dma_req->size,
+					       &(xvt->dma_addr), GFP_KERNEL);
+
+	if (!xvt->dma_cpu_addr) {
+		return false;
+	}
+
+	dma_res = kmalloc(sizeof(*dma_res), GFP_KERNEL);
+	if (!dma_res) {
+		dma_free_coherent(xvt->trans->dev, dma_req->size,
+				  xvt->dma_cpu_addr, xvt->dma_addr);
+		xvt->dma_cpu_addr = NULL;
+		xvt->dma_addr = 0;
+		return -ENOMEM;
+	}
+	dma_res->size = dma_req->size;
+	/* Casting to avoid compilation warnings when DMA address is 32bit */
+	dma_res->addr = (u64)xvt->dma_addr;
+
+	data_out->data = dma_res;
+	data_out->len = sizeof(struct iwl_xvt_alloc_dma);
+	xvt->dma_buffer_size = dma_req->size;
+
+	return 0;
+}
+
+static int iwl_xvt_get_dma(struct iwl_xvt *xvt,
+			   struct iwl_tm_data *data_in,
+			   struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_get_dma *get_dma_resp;
+	u32 resp_size;
+
+	if (!xvt->dma_cpu_addr) {
+		return -ENOMEM;
+	}
+
+	resp_size = sizeof(*get_dma_resp) + xvt->dma_buffer_size;
+	get_dma_resp = kmalloc(resp_size, GFP_KERNEL);
+	if (!get_dma_resp) {
+		return -ENOMEM;
+	}
+
+	get_dma_resp->size = xvt->dma_buffer_size;
+	memcpy(get_dma_resp->data, xvt->dma_cpu_addr, xvt->dma_buffer_size);
+	data_out->data = get_dma_resp;
+	data_out->len = resp_size;
+
+	return 0;
+}
+
+static int iwl_xvt_free_dma(struct iwl_xvt *xvt,
+			    struct iwl_tm_data *data_in)
+{
+
+	if (!xvt->dma_cpu_addr) {
+		IWL_ERR(xvt, "XVT DMA was not allocated\n");
+		return 0;
+	}
+
+	dma_free_coherent(xvt->trans->dev, xvt->dma_buffer_size,
+			  xvt->dma_cpu_addr, xvt->dma_addr);
+	xvt->dma_cpu_addr = NULL;
+	xvt->dma_addr = 0;
+	xvt->dma_buffer_size = 0;
+
+	return 0;
+}
+
+static int iwl_xvt_get_chip_id(struct iwl_xvt *xvt,
+			       struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_chip_id *chip_id;
+
+	chip_id = kmalloc(sizeof(struct iwl_xvt_chip_id), GFP_KERNEL);
+	if (!chip_id)
+		return -ENOMEM;
+
+	chip_id->registers[0] = ioread32((void __force __iomem *)XVT_SCU_SNUM1);
+	chip_id->registers[1] = ioread32((void __force __iomem *)XVT_SCU_SNUM2);
+	chip_id->registers[2] = ioread32((void __force __iomem *)XVT_SCU_SNUM3);
+
+
+	data_out->data = chip_id;
+	data_out->len = sizeof(struct iwl_xvt_chip_id);
+
+	return 0;
+}
+
+static int iwl_xvt_get_fw_info(struct iwl_xvt *xvt,
+			       struct iwl_tm_data *data_out)
+{
+	struct iwl_tm_get_fw_info *fw_info;
+	u32 api_len, capa_len;
+	u32 *bitmap;
+	int i;
+
+	api_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_API, 32);
+	capa_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_CAPA, 32);
+
+	fw_info = kzalloc(sizeof(*fw_info) + api_len + capa_len, GFP_KERNEL);
+	if (!fw_info)
+		return -ENOMEM;
+
+	fw_info->fw_major_ver = xvt->fw_major_ver;
+	fw_info->fw_minor_ver = xvt->fw_minor_ver;
+	fw_info->fw_capa_api_len = api_len;
+	fw_info->fw_capa_flags = xvt->fw->ucode_capa.flags;
+	fw_info->fw_capa_len = capa_len;
+
+	bitmap = (u32 *)fw_info->data;
+	for (i = 0; i < NUM_IWL_UCODE_TLV_API; i++) {
+		if (fw_has_api(&xvt->fw->ucode_capa,
+			       (__force iwl_ucode_tlv_api_t)i))
+			bitmap[i / 32] |= BIT(i % 32);
+	}
+
+	bitmap = (u32 *)(fw_info->data + api_len);
+	for (i = 0; i < NUM_IWL_UCODE_TLV_CAPA; i++) {
+		if (fw_has_capa(&xvt->fw->ucode_capa,
+				(__force iwl_ucode_tlv_capa_t)i))
+			bitmap[i / 32] |= BIT(i % 32);
+	}
+
+	data_out->data = fw_info;
+	data_out->len = sizeof(*fw_info) + api_len + capa_len;
+
+	return 0;
+}
+
+static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
+				     struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_mac_addr_info *mac_addr_info;
+	u32 mac_addr0, mac_addr1;
+	__u8 temp_mac_addr[ETH_ALEN];
+	const u8 *hw_addr;
+
+	mac_addr_info = kzalloc(sizeof(*mac_addr_info), GFP_KERNEL);
+	if (!mac_addr_info)
+		return -ENOMEM;
+
+	if (xvt->cfg->nvm_type != IWL_NVM_EXT) {
+		memcpy(mac_addr_info->mac_addr, xvt->nvm_hw_addr,
+		       sizeof(mac_addr_info->mac_addr));
+	} else {
+		/* MAC address in family 8000 */
+		if (xvt->is_nvm_mac_override) {
+			memcpy(mac_addr_info->mac_addr, xvt->nvm_mac_addr,
+			       sizeof(mac_addr_info->mac_addr));
+		} else {
+			/* read the mac address from WFMP registers */
+			mac_addr0 = iwl_trans_read_prph(xvt->trans,
+							WFMP_MAC_ADDR_0);
+			mac_addr1 = iwl_trans_read_prph(xvt->trans,
+							WFMP_MAC_ADDR_1);
+
+			hw_addr = (const u8 *)&mac_addr0;
+			temp_mac_addr[0] = hw_addr[3];
+			temp_mac_addr[1] = hw_addr[2];
+			temp_mac_addr[2] = hw_addr[1];
+			temp_mac_addr[3] = hw_addr[0];
+
+			hw_addr = (const u8 *)&mac_addr1;
+			temp_mac_addr[4] = hw_addr[1];
+			temp_mac_addr[5] = hw_addr[0];
+
+			memcpy(mac_addr_info->mac_addr, temp_mac_addr,
+			       sizeof(mac_addr_info->mac_addr));
+		}
+	}
+
+	data_out->data = mac_addr_info;
+	data_out->len = sizeof(*mac_addr_info);
+
+	return 0;
+}
+
+int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
+			     struct iwl_tm_data *data_in,
+			     struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+	int ret = 0;
+
+	if (WARN_ON_ONCE(!op_mode || !data_in))
+		return -EINVAL;
+
+	IWL_DEBUG_INFO(xvt, "%s cmd=0x%X\n", __func__, cmd);
+	mutex_lock(&xvt->mutex);
+
+	switch (cmd) {
+
+	/* Tesmode cases */
+
+	case IWL_TM_USER_CMD_HCMD:
+		ret = iwl_xvt_send_hcmd(xvt, data_in, data_out);
+		break;
+
+	case IWL_TM_USER_CMD_REG_ACCESS:
+		ret = iwl_xvt_reg_ops(xvt->trans, data_in, data_out);
+		break;
+
+	case IWL_TM_USER_CMD_SRAM_WRITE:
+		ret = iwl_xvt_indirect_write(xvt, data_in);
+		break;
+
+	case IWL_TM_USER_CMD_SRAM_READ:
+		ret = iwl_xvt_indirect_read(xvt, data_in, data_out);
+		break;
+
+	case IWL_TM_USER_CMD_GET_DEVICE_INFO:
+		ret = iwl_xvt_get_dev_info(xvt, data_in, data_out);
+		break;
+
+	case IWL_TM_USER_CMD_SV_IO_TOGGLE:
+		ret = iwl_xvt_sdio_io_toggle(xvt, data_in, data_out);
+		break;
+	case IWL_TM_USER_CMD_GET_FW_INFO:
+		ret = iwl_xvt_get_fw_info(xvt, data_out);
+		break;
+
+	/* xVT cases */
+
+	case IWL_XVT_CMD_START:
+		ret = iwl_xvt_start_op_mode(xvt);
+		break;
+
+	case IWL_XVT_CMD_STOP:
+		iwl_xvt_stop_op_mode(xvt);
+		break;
+
+	case IWL_XVT_CMD_CONTINUE_INIT:
+		ret = iwl_xvt_continue_init(xvt);
+		break;
+
+	case IWL_XVT_CMD_GET_PHY_DB_ENTRY:
+		ret = iwl_xvt_get_phy_db(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_SET_CONFIG:
+		ret = iwl_xvt_set_sw_config(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_GET_CONFIG:
+		ret = iwl_xvt_get_sw_config(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_MOD_TX:
+		ret = iwl_xvt_modulated_tx(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_RX_HDRS_MODE:
+		ret = iwl_xvt_rx_hdrs_mode(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_APMG_PD_MODE:
+		ret = iwl_xvt_apmg_pd_mode(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_ALLOC_DMA:
+		ret = iwl_xvt_allocate_dma(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_GET_DMA:
+		ret = iwl_xvt_get_dma(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_FREE_DMA:
+		ret = iwl_xvt_free_dma(xvt, data_in);
+		break;
+	case IWL_XVT_CMD_GET_CHIP_ID:
+		ret = iwl_xvt_get_chip_id(xvt, data_out);
+		break;
+
+	case IWL_XVT_CMD_GET_MAC_ADDR_INFO:
+		ret = iwl_xvt_get_mac_addr_info(xvt, data_out);
+		break;
+
+	case IWL_XVT_CMD_MOD_TX_STOP:
+		ret = iwl_xvt_modulated_tx_infinite_stop(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_TX_QUEUE_CFG:
+		ret = iwl_xvt_tx_queue_cfg(xvt, data_in);
+		break;
+
+	default:
+		ret = -EOPNOTSUPP;
+		break;
+	}
+
+	mutex_unlock(&xvt->mutex);
+
+	if (ret)
+		IWL_ERR(xvt, "%s (cmd=0x%X) ret=%d\n", __func__, cmd, ret);
+	else
+		IWL_DEBUG_INFO(xvt, "%s (cmd=0x%X) ended Ok\n", __func__, cmd);
+	return ret;
+}
