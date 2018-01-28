@@ -285,6 +285,9 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 		xvt->tx_meta_data[i].txq_full = false;
 	};
 
+	for (i = 0; i < ARRAY_SIZE(xvt->reorder_bufs); i++)
+		xvt->reorder_bufs[i].sta_id = IWL_XVT_INVALID_STA;
+
 	memset(xvt->payloads, 0, sizeof(xvt->payloads));
 	xvt->tx_task = NULL;
 	xvt->is_enhanced_tx = false;
@@ -316,6 +319,7 @@ out_free:
 static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+	int i;
 
 	iwl_fw_cancel_timestamp(&xvt->fwrt);
 
@@ -325,6 +329,13 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 			xvt->fw_running = false;
 		}
 		iwl_trans_stop_device(xvt->trans);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(xvt->reorder_bufs); i++) {
+		struct iwl_xvt_reorder_buffer *buffer;
+
+		buffer = &xvt->reorder_bufs[i];
+		iwl_xvt_destroy_reorder_buffer(xvt, buffer);
 	}
 
 	iwl_phy_db_free(xvt->phy_db);
@@ -516,6 +527,11 @@ static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 	case BA_NOTIF:
 		iwl_xvt_rx_ba_notif(xvt, pkt);
 		break;
+	case REPLY_RX_MPDU_CMD:
+		iwl_xvt_reorder(xvt, pkt);
+		break;
+	case FRAME_RELEASE:
+		iwl_xvt_rx_frame_release(xvt, pkt);
 	}
 
 	iwl_xvt_send_user_rx_notif(xvt, rxb);
