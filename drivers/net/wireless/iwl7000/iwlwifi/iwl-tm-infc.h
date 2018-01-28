@@ -199,6 +199,7 @@ enum {
 	IWL_DRV_CMD_SET_TX_PAYLOAD,
 	IWL_DRV_CMD_TX_START,
 	IWL_DRV_CMD_TX_STOP,
+	IWL_DRV_CMD_GET_RX_AGG_STATS,
 };
 
 enum {
@@ -780,6 +781,33 @@ struct iwl_xvt_tx_done {
 	u32 status;
 	u32 num_of_queues;
 	struct iwl_xvt_post_tx_data tx_data[];
+} __packed __aligned(4);
+
+/*
+ * struct iwl_xvt_get_rx_agg_stats - get rx aggregation statistics
+ * @sta_id: station id of relevant ba
+ * @tid: tid of relevant ba
+ * @reserved: reserved
+ */
+struct iwl_xvt_get_rx_agg_stats {
+	u8 sta_id;
+	u8 tid;
+	u16 reserved;
+} __packed __aligned(4);
+
+/*
+ * struct iwl_xvt_get_rx_agg_stats_resp - rx aggregation statistics response
+ * @dropped: number of frames dropped (e.g. too old)
+ * @released: total number of frames released (either in-order or
+ *	out of order (after passing the reorder buffer)
+ * @skipped: number of frames skipped the reorder buffer (in-order)
+ * @reordered: number of frames gone through the reorder buffer (unordered)
+ */
+struct iwl_xvt_get_rx_agg_stats_resp {
+	u32 dropped;
+	u32 released;
+	u32 skipped;
+	u32 reordered;
 } __packed __aligned(4);
 
 #endif

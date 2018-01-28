@@ -1952,6 +1952,49 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int
+iwl_xvt_get_rx_agg_stats_cmd(struct iwl_xvt *xvt,
+			     struct iwl_xvt_driver_command_req *req,
+			     struct iwl_xvt_driver_command_resp *resp)
+{
+	struct iwl_xvt_get_rx_agg_stats *params = (void *)req->input_data;
+	struct iwl_xvt_get_rx_agg_stats_resp *stats_resp =
+						(void *)resp->resp_data;
+	struct iwl_xvt_reorder_buffer *buffer;
+	int i;
+
+	IWL_DEBUG_INFO(xvt, "get rx agg stats: sta_id=%d, tid=%d\n",
+		       params->sta_id, params->tid);
+
+	if (req->max_out_length < sizeof(stats_resp))
+		return -ENOBUFS;
+
+	for (i = 0; i < ARRAY_SIZE(xvt->reorder_bufs); i++) {
+		buffer = &xvt->reorder_bufs[i];
+		if (buffer->sta_id != params->sta_id ||
+		    buffer->tid != params->tid)
+			continue;
+
+		spin_lock_bh(&buffer->lock);
+		stats_resp->dropped = buffer->stats.dropped;
+		stats_resp->released = buffer->stats.released;
+		stats_resp->skipped = buffer->stats.skipped;
+		stats_resp->reordered = buffer->stats.reordered;
+
+		/* clear statistics */
+		memset(&buffer->stats, 0, sizeof(buffer->stats));
+		spin_unlock_bh(&buffer->lock);
+
+		break;
+	}
+
+	if (i == ARRAY_SIZE(xvt->reorder_bufs))
+		return -ENOENT;
+
+	resp->length = sizeof(*stats_resp);
+	return 0;
+}
+
 static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_in,
 				     struct iwl_tm_data *data_out)
@@ -1980,6 +2023,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 		break;
 	case IWL_DRV_CMD_TX_STOP:
 		err = iwl_xvt_stop_tx(xvt);
+		break;
+	case IWL_DRV_CMD_GET_RX_AGG_STATS:
+		err = iwl_xvt_get_rx_agg_stats_cmd(xvt, req, resp);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
