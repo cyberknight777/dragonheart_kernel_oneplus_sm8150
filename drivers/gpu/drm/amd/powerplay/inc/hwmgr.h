@@ -348,6 +348,7 @@ struct pp_hwmgr_func {
 	int (*odn_edit_dpm_table)(struct pp_hwmgr *hwmgr,
 					enum PP_OD_DPM_TABLE_COMMAND type,
 					long *input, uint32_t size);
+	int (*set_power_limit)(struct pp_hwmgr *hwmgr, uint32_t n);
 	int (*update_nbdpm_pstate)(struct pp_hwmgr *hwmgr,
 	                                bool enable,
 	                                bool lock);
@@ -763,6 +764,8 @@ struct pp_hwmgr {
 	uint32_t pstate_sclk;
 	uint32_t pstate_mclk;
 	bool od_enabled;
+	uint32_t power_limit;
+	uint32_t default_power_limit;
 };
 
 struct cgs_irq_src_funcs {
