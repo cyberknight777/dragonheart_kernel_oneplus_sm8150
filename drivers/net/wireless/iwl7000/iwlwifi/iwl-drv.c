@@ -8,6 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1577,10 +1579,9 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 					 drv->trans->dbg_cfg.fw_dbg_conf,
 					 drv->trans->dev);
 		if (!load_fw_dbg_err) {
-			struct iwl_ucode_capabilities capa = {};
-
 			err = iwl_parse_tlv_firmware(drv, fw_dbg_config, pieces,
-						     &capa, &usniffer_images);
+						     &fw->ucode_capa,
+						     &usniffer_images);
 			if (err)
 				IWL_ERR(drv,
 					"Failed to configure FW DBG data!\n");
