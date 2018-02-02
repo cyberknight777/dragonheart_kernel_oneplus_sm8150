@@ -1025,6 +1025,22 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 		__hci_abort_conn(&req, conn, 0x15);
 	}
 
+	/* When there are no bluetooth activities, i.e., no advertising,
+	 * no scanning, and no connections, the only command built into
+	 * the request would be a conditional HCI command to disable
+	 * advertising. Since the advertising is already off, the command
+	 * is skipped at run time. This leads to an issue that there is
+	 * no command complete event and thus the clean_up_hci_complete()
+	 * callback below is not invoked. This ends up with a 5-second delay
+	 * in setting power off.
+	 * It is important to add this dummy HCI command at the end of the
+	 * request to ensure that the last command in the request would
+	 * definitely be executed. As a result, the clean_up_hci_complete()
+	 * callback would be executed which in turn starts the power off
+	 * procedure immediately.
+	 */
+	hci_req_add(&req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
+
 	err = hci_req_run(&req, clean_up_hci_complete);
 	if (!err && discov_stopped)
 		hci_discovery_set_state(hdev, DISCOVERY_STOPPING);
