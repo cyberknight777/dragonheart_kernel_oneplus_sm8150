@@ -30,6 +30,7 @@
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/module.h>
+#include <linux/sort.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 
@@ -74,6 +75,28 @@ struct cros_ec_sensors_ring_sample {
 	s64      timestamp;
 } __packed;
 
+/* State used for cros_ec_ring_fix_overflow */
+struct cros_ec_sensors_ec_overflow_state {
+	s64 offset;
+	s64 last;
+};
+
+#define M_PRECISION (1 << 23)
+#define TS_HISTORY_SIZE 64
+
+struct cros_ec_sensors_ts_filter_state {
+	s64 x_offset, y_offset;
+	s64 x_history[TS_HISTORY_SIZE]; /* stored relative to x_offset */
+	s64 y_history[TS_HISTORY_SIZE]; /* stored relative to y_offset */
+	s64 m_history[TS_HISTORY_SIZE]; /* stored as *M_PRECISION */
+	int history_len;
+
+	s64 temp_buf[TS_HISTORY_SIZE];
+
+	s64 median_m;
+	s64 median_error;
+};
+
 /* State data for ec_sensors iio driver. */
 struct cros_ec_sensors_ring_state {
 	/* Shared by all sensors */
@@ -92,6 +115,11 @@ struct cros_ec_sensors_ring_state {
 	/* Used for timestamp spreading calculations when a batch shows up */
 	s64 last_batch_timestamp[CROS_EC_SENSOR_MAX];
 	s64 last_batch_len[CROS_EC_SENSOR_MAX];
+
+	struct cros_ec_sensors_ec_overflow_state overflow_a;
+	struct cros_ec_sensors_ec_overflow_state overflow_b;
+
+	struct cros_ec_sensors_ts_filter_state filter;
 };
 
 static const struct iio_info ec_sensors_info = {
@@ -113,6 +141,191 @@ static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
 	return ret;
 }
 
+static int cros_ec_ring_median_cmp(const void *ts1, const void *ts2)
+{
+	return *(s64 *)ts1 - *(s64 *)ts2;
+}
+
+/*
+ * cros_ec_ring_median: Gets median of an array of numbers
+ *
+ * For now it's implemented using an inefficient > O(n) sort then return
+ * the middle element. A more optimal method would be something like
+ * quickselect, but given that n = 64 we can probably live with it in the
+ * name of clarity.
+ *
+ * Warning: the input array gets modified (sorted)!
+ */
+static s64 cros_ec_ring_median(s64 *array, size_t length)
+{
+	sort(array, length, sizeof(s64), cros_ec_ring_median_cmp, NULL);
+	return array[length / 2];
+}
+
+/*
+ * IRQ Timestamp Filtering
+ *
+ * Lower down in cros_ec_ring_process_event(), for each sensor event we have to
+ * calculate it's timestamp in the AP timebase. There are 3 time points:
+ *   a - EC timebase, sensor event
+ *   b - EC timebase, IRQ
+ *   c - AP timebase, IRQ
+ *   a' - what we want: sensor even in AP timebase
+ *
+ * While a and b are recorded at accurate times (due to the EC real time
+ * nature); c is pretty untrustworthy, even though it's recorded the
+ * first thing in ec_irq_handler(). There is a very good change we'll get
+ * added lantency due to:
+ *   other irqs
+ *   ddrfreq
+ *   cpuidle
+ *
+ * Normally a' = c - b + a, but if we do that naive math any jitter in c
+ * will get coupled in a', which we don't want. We want a function
+ * a' = cros_ec_ring_ts_filter(a) which will filter out outliers in c.
+ *
+ * Think of a graph of AP time(b) on the y axis vs EC time(c) on the x axis.
+ * The slope of the line won't be exactly 1, there will be some clock drift
+ * between the 2 chips for various reasons (mechanical stress, temperature,
+ * voltage). We need to extrapolate values for a future x, without trusting
+ * recent y values too much.
+ *
+ * We use a median filter for the slope, then another median filter for the
+ * y-intercept to calculate this function:
+ *   dx[n] = x[n-1] - x[n]
+ *   dy[n] = x[n-1] - x[n]
+ *   m[n] = dy[n] / dx[n]
+ *   median_m = median(m[n-k:n])
+ *   error[i] = y[n-i] - median_m * x[n-i]
+ *   median_error = median(error[:k])
+ *   predicted_y = median_m * x + median_error
+ *
+ * Implementation differences from above:
+ * - Redefined y to be actually c - b, this gives us a lot more precision
+ * to do the math. (c-b)/b variations are more obvious than c/b variations.
+ * - Since we don't have floating point, any operations involving slope are
+ * done using fixed point math (*M_PRECISION)
+ * - Since x and y grow with time, we keep zeroing the graph (relative to
+ * the last sample), this way math involving *x[n-i] will not overflow
+ * - EC timestamps are kept in us, it improves the slope calculation precision
+ */
+
+/*
+ * cros_ec_ring_ts_filter_update: Given a new IRQ timestamp pair (EC and
+ * AP timebases), add it to the filter history.
+ *
+ * @b IRQ timestamp, EC timebase (us)
+ * @c IRQ timestamp, AP timebase (ns)
+ */
+static void cros_ec_ring_ts_filter_update(
+			struct cros_ec_sensors_ts_filter_state *state,
+			s64 b, s64 c)
+{
+	s64 x, y;
+	s64 dx, dy;
+	s64 m; /* stored as *M_PRECISION */
+	s64 *m_history_copy = state->temp_buf;
+	s64 *error = state->temp_buf;
+	int i;
+
+	/* we trust b the most, that'll be our independent variable */
+	x = b;
+	/* y is the offset between AP and EC times, in ns */
+	y = c - b * 1000;
+
+	dx = (state->x_history[0] + state->x_offset) - x;
+	if (dx == 0)
+		return; /* we already have this irq in the history */
+	dy = (state->y_history[0] + state->y_offset) - y;
+	m = div64_s64(dy * M_PRECISION, dx);
+
+	/* Move everything over, also update offset to all absolute coords .*/
+	for (i = state->history_len - 1; i >= 1; i--) {
+		state->x_history[i] = state->x_history[i-1] + dx;
+		state->y_history[i] = state->y_history[i-1] + dy;
+
+		state->m_history[i] = state->m_history[i-1];
+		/*
+		 * Also use the same loop to copy m_history for future
+		 * median extraction.
+		 */
+		m_history_copy[i] = state->m_history[i-1];
+	}
+
+	/* Store the x and y, but remember offset is actually last sample. */
+	state->x_offset = x;
+	state->y_offset = y;
+	state->x_history[0] = 0;
+	state->y_history[0] = 0;
+
+	state->m_history[0] = m;
+	m_history_copy[0] = m;
+
+	if (state->history_len < TS_HISTORY_SIZE)
+		state->history_len++;
+
+	/* Precalculate things for the filter. */
+	state->median_m =
+		cros_ec_ring_median(m_history_copy, state->history_len);
+
+	/*
+	 * Calculate y-intercepts as if m_median is the slope and points in
+	 * the history are on the line. median_error will still be in the
+	 * offset coordinate system.
+	 */
+	for (i = 0; i < state->history_len; i++)
+		error[i] = state->y_history[i] -
+			   div_s64(state->median_m * state->x_history[i],
+				   M_PRECISION);
+	state->median_error = cros_ec_ring_median(error, state->history_len);
+}
+
+/*
+ * cros_ec_ring_ts_filter: Translate EC timebase timestamp to AP timebase
+ *
+ * @x any ec timestamp (us):
+ *
+ * cros_ec_ring_ts_filter(a) => a' event timestamp, AP timebase
+ * cros_ec_ring_ts_filter(b) => calculated timestamp when the EC IRQ
+ *                           should have happened on the AP, with low jitter
+ *
+ * @returns timestamp in AP timebase (ns)
+ *
+ * How to derive the formula, starting from:
+ *   f(x) = median_m * x + median_error
+ * That's the calculated AP - EC offset (at the x point in time)
+ * Undo the coordinate system transform:
+ *   f(x) = median_m * (x - x_offset) + median_error + y_offset
+ * Remember to undo the "y = c - b * 1000" modification:
+ *   f(x) = median_m * (x - x_offset) + median_error + y_offset + x * 1000
+ */
+static s64 cros_ec_ring_ts_filter(struct cros_ec_sensors_ts_filter_state *state,
+				  s64 x)
+{
+	return div_s64(state->median_m * (x - state->x_offset), M_PRECISION)
+	       + state->median_error + state->y_offset + x * 1000;
+}
+
+/*
+ * Since a and b were originally 32 bit values from the EC,
+ * they overflow relatively often, casting is not enough, so we need to
+ * add an offset.
+ */
+static void cros_ec_ring_fix_overflow(s64 *ts,
+		const s64 overflow_period,
+		struct cros_ec_sensors_ec_overflow_state *state)
+{
+	s64 adjust;
+
+	*ts += state->offset;
+	if (abs(state->last - *ts) > (overflow_period / 2)) {
+		adjust = state->last > *ts ? overflow_period : -overflow_period;
+		state->offset += adjust;
+		*ts += adjust;
+	}
+	state->last = *ts;
+}
+
 /*
  * cros_ec_ring_process_event: process one EC FIFO event
  *
@@ -120,11 +333,11 @@ static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
  *
  * Return true if out event has been populated.
  *
- * fifo_info: fifo information from the EC.
- * fifo_timestamp: timestamp at time of fifo_info collection.
- * current_timestamp: estimated current timestamp.
- * in: incoming FIFO event from EC
- * out: outgoing event to user space.
+ * fifo_info: fifo information from the EC (includes b point, EC timebase).
+ * fifo_timestamp: EC IRQ, kernel timebase (aka c)
+ * current_timestamp: calculated event timestamp, kernel timebase (aka a')
+ * in: incoming FIFO event from EC (includes a point, EC timebase)
+ * out: outgoing event to user space (includes a')
  */
 static bool cros_ec_ring_process_event(
 				struct cros_ec_sensors_ring_state *state,
@@ -138,9 +351,15 @@ static bool cros_ec_ring_process_event(
 	s64 new_timestamp;
 
 	if (in->flags & MOTIONSENSE_SENSOR_FLAG_TIMESTAMP) {
-		new_timestamp = fifo_timestamp -
-			((s64)fifo_info->info.timestamp * 1000) +
-			((s64)in->timestamp * 1000);
+		s64 a = in->timestamp;
+		s64 b = fifo_info->info.timestamp;
+		s64 c = fifo_timestamp;
+
+		cros_ec_ring_fix_overflow(&a, 1LL << 32, &state->overflow_a);
+		cros_ec_ring_fix_overflow(&b, 1LL << 32, &state->overflow_b);
+
+		cros_ec_ring_ts_filter_update(&state->filter, b, c);
+		new_timestamp = cros_ec_ring_ts_filter(&state->filter, a);
 		/*
 		 * The timestamp can be stale if we had to use the fifo
 		 * info timestamp.
@@ -589,12 +808,12 @@ static int cros_ec_ring_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM_SLEEP
-const struct dev_pm_ops cros_ec_ring_pm_ops = {
+static const struct dev_pm_ops cros_ec_ring_pm_ops = {
 	.prepare = cros_ec_ring_prepare,
 	.complete = cros_ec_ring_complete
 };
 #else
-const struct dev_pm_ops cros_ec_ring_pm_ops = { };
+static const struct dev_pm_ops cros_ec_ring_pm_ops = { };
 #endif
 
 static struct platform_driver cros_ec_ring_platform_driver = {
