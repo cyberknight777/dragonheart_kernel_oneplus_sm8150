@@ -100,6 +100,95 @@ struct isr_statistics {
 };
 
 /**
+ * enum iwl_completion_desc_status - CD status field usage
+ * @IWL_CD_STTS_NON_OPTIMIZED: used for all rx completion (RX)
+ * @IWL_CD_STTS_OPTIMIZED: used for all tx completion (RX)
+ * @IWL_CD_STTS_END_TRANSFER: successful transfer complete.
+ *	In sniffer mode, when split is used, set in last CD completion. (RX)
+ * @IWL_CD_STTS_OVERFLOW: In sniffer mode, when using split - used for
+ *	all CD completion. (RX)
+ * @IWL_CD_STTS_ABORTED: CR abort / close flow. (RX)
+ * @IWL_CD_STTS_VALID: the packet is valid (RX)
+ * @IWL_CD_STTS_FCS_ERR: frame check sequence error (RX)
+ * @IWL_CD_STTS_SEC_KEY_ERR: error handling the security key of rx (RX)
+ * @IWL_CD_STTS_DECRYPTION_ERR: error decrypting the frame (RX)
+ * @IWL_CD_STTS_DUP: duplicate packet (RX)
+ * @IWL_CD_STTS_ICV_MIC_ERR: MIC error (RX)
+ * @IWL_CD_STTS_INTERNAL_SNAP_ERR: problems removing the snap (RX)
+ * @IWL_CD_STTS_SEC_PORT_FAIL: security port fail (RX)
+ * @IWL_CD_STTS_BA_OLD_SN: block ack received old SN (RX)
+ * @IWL_CD_STTS_QOS_NULL: QoS null packet (RX)
+ * @IWL_CD_STTS_MAC_HDR_ERR: MAC header conversion error (RX)
+ * @IWL_CD_STTS_MAX_RETRANS: reached max number of retransmissions (TX)
+ * @IWL_CD_STTS_EX_LIFETIME: exceeded lifetime (TX)
+ * @IWL_CD_STTS_NOT_USED: completed but not used (RX)
+ * @IWL_CD_STTS_REPLAY_ERR: pn check failed, replay error (RX)
+ */
+enum iwl_completion_desc_status {
+	IWL_CD_STTS_NON_OPTIMIZED = 0,
+	IWL_CD_STTS_OPTIMIZED = 0x1,
+	IWL_CD_STTS_END_TRANSFER = 0x4,
+	IWL_CD_STTS_OVERFLOW = 0x6,
+	IWL_CD_STTS_ABORTED = 0x7,
+	IWL_CD_STTS_ERROR = 0x9,
+	IWL_CD_STTS_VALID = 0,
+	IWL_CD_STTS_FCS_ERR = 0x10,
+	IWL_CD_STTS_SEC_KEY_ERR = 0x20,
+	IWL_CD_STTS_DECRYPTION_ERR = 0x30,
+	IWL_CD_STTS_DUP = 0x40,
+	IWL_CD_STTS_ICV_MIC_ERR = 0x50,
+	IWL_CD_STTS_INTERNAL_SNAP_ERR = 0x70,
+	IWL_CD_STTS_SEC_PORT_FAIL = 0x80,
+	IWL_CD_STTS_BA_OLD_SN = 0x90,
+	IWL_CD_STTS_QOS_NULL = 0xa0,
+	IWL_CD_STTS_MAC_HDR_ERR = 0xb,
+	IWL_CD_STTS_MAX_RETRANS = 0xc,
+	IWL_CD_STTS_EX_LIFETIME = 0xd,
+	IWL_CD_STTS_NOT_USED = 0xe,
+	IWL_CD_STTS_REPLAY_ERR = 0xf0,
+};
+
+#define IWL_RX_TD_TYPE		0xff000000
+#define IWL_RX_TD_SIZE		0x00ffffff
+
+/**
+ * struct iwl_rx_transfer_desc - transfer descriptor
+ * @type_n_size: buffer type (bit 0: external buff valid,
+ *	bit 1: optional footer valid, bit 2-7: reserved)
+ *	and buffer size
+ * @addr: ptr to free buffer start address
+ * @rbid: unique tag of the buffer
+ * @reserved: reserved
+ */
+struct iwl_rx_transfer_desc {
+	__le32 type_n_size;
+	__le64 addr;
+	__le16 rbid;
+	__le16 reserved;
+} __packed;
+
+#define IWL_RX_CD_SIZE		0xffffff00
+
+/**
+ * struct iwl_rx_completion_desc - completion descriptor
+ * @type: buffer type (bit 0: external buff valid,
+ *	bit 1: optional footer valid, bit 2-7: reserved)
+ * @status: status of the completion
+ * @reserved1: reserved
+ * @rbid: unique tag of the received buffer
+ * @size: buffer size, masked by IWL_RX_CD_SIZE
+ * @reserved2: reserved
+ */
+struct iwl_rx_completion_desc {
+	u8 type;
+	u8 status;
+	__le16 reserved1;
+	__le16 rbid;
+	__le32 size;
+	u8 reserved2[22];
+} __packed;
+
+/**
  * struct iwl_rxq - Rx queue
  * @id: queue index
  * @bd: driver's pointer to buffer of receive buffer descriptors (rbd).
