@@ -622,6 +622,7 @@ static void iwl_mvm_nan_match_v2(struct iwl_mvm *mvm,
 		struct iwl_nan_disc_info *disc_info =
 			(struct iwl_nan_disc_info *)(((u8 *)(ev + 1)) + i);
 
+		match.type = iwl_cfg_nan_func_type(disc_info->type);
 		match.inst_id = disc_info->instance_id;
 		match.peer_inst_id = disc_info->peer_instance;
 		match.addr = ev->peer_mac_addr;
