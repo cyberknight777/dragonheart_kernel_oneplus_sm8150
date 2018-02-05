@@ -1405,6 +1405,9 @@ static int amdgpu_device_set_cg_state(struct amdgpu_device *adev,
 {
 	int i, j, r;
 
+	if (amdgpu_emu_mode == 1)
+		return 0;
+
 	for (j = 0; j < adev->num_ip_blocks; j++) {
 		i = state == AMD_CG_STATE_GATE ? j : adev->num_ip_blocks - j - 1;
 		if (!adev->ip_blocks[i].status.valid)
