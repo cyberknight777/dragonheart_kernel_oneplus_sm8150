@@ -1221,9 +1221,13 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 		._offset = 0,
 	};
 	struct iwl_rx_packet *pkt;
-	struct iwl_rx_mpdu_desc *desc;
+	struct iwl_rx_mpdu_desc_v1 *desc_v1;
 	int bin_len = count / 2;
 	int ret = -EINVAL;
+	size_t mpdu_cmd_hdr_size =
+		(mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) ?
+		sizeof(struct iwl_rx_mpdu_desc) :
+		sizeof(struct iwl_rx_mpdu_desc_v1);
 
 	if (!iwl_mvm_firmware_running(mvm))
 		return -EIO;
@@ -1242,7 +1246,7 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 		goto out;
 
 	/* avoid invalid memory access */
-	if (bin_len < sizeof(*pkt) + sizeof(*desc))
+	if (bin_len < sizeof(*pkt) + mpdu_cmd_hdr_size)
 		goto out;
 
 	/* check this is RX packet */
@@ -1251,9 +1255,9 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 		goto out;
 
 	/* check the length in metadata matches actual received length */
-	desc = (void *)pkt->data;
-	if (le16_to_cpu(desc->mpdu_len) !=
-	    (bin_len - sizeof(*desc) - sizeof(*pkt)))
+	desc_v1 = (void *)pkt->data;
+	if (le16_to_cpu(desc_v1->mpdu_len) !=
+	    (bin_len - mpdu_cmd_hdr_size - sizeof(*pkt)))
 		goto out;
 
 	local_bh_disable();
