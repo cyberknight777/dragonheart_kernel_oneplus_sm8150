@@ -84,18 +84,6 @@ CRC Functions
 .. kernel-doc:: lib/crc-ccitt.c
    :export:
 
-idr/ida Functions
------------------
-
-.. kernel-doc:: include/linux/idr.h
-   :doc: idr sync
-
-.. kernel-doc:: lib/idr.c
-   :doc: IDA description
-
-.. kernel-doc:: lib/idr.c
-   :export:
-
 Memory Management in Linux
 ==========================
 
