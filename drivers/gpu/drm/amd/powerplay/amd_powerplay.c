@@ -1427,6 +1427,27 @@ static int pp_get_display_mode_validation_clocks(void *handle,
 	return ret;
 }
 
+static int pp_set_mmhub_powergating_by_smu(void *handle)
+{
+	struct pp_hwmgr *hwmgr;
+	struct pp_instance *pp_handle = (struct pp_instance *)handle;
+	int ret = 0;
+
+	ret = pp_check(pp_handle);
+
+	if (ret)
+		return ret;
+
+	hwmgr = pp_handle->hwmgr;
+
+	if (hwmgr->hwmgr_func->set_mmhub_powergating_by_smu == NULL) {
+		pr_info("%s was not implemented.\n", __func__);
+		return 0;
+	}
+
+	return hwmgr->hwmgr_func->set_mmhub_powergating_by_smu(hwmgr);
+}
+
 const struct amd_pm_funcs pp_dpm_funcs = {
 	.get_temperature = pp_dpm_get_temperature,
 	.load_firmware = pp_dpm_load_fw,
@@ -1471,4 +1492,5 @@ const struct amd_pm_funcs pp_dpm_funcs = {
 	.set_watermarks_for_clocks_ranges = pp_set_watermarks_for_clocks_ranges,
 	.display_clock_voltage_request = pp_display_clock_voltage_request,
 	.get_display_mode_validation_clocks = pp_get_display_mode_validation_clocks,
+	.set_mmhub_powergating_by_smu = pp_set_mmhub_powergating_by_smu,
 };

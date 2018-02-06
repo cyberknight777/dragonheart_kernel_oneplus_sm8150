@@ -339,6 +339,7 @@ struct pp_hwmgr_func {
 					uint32_t mc_addr_low,
 					uint32_t mc_addr_hi,
 					uint32_t size);
+	int (*set_mmhub_powergating_by_smu)(struct pp_hwmgr *hwmgr);
 };
 
 struct pp_table_func {
