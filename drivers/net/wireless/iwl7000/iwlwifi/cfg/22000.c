@@ -81,7 +81,7 @@
 #define IWL_22000_HR_B_FW_PRE		"iwlwifi-Qu-b0-hr-b0-"
 #define IWL_22000_JF_B0_FW_PRE		"iwlwifi-QuQnj-a0-jf-b0-"
 #define IWL_22000_HR_A0_FW_PRE		"iwlwifi-QuQnj-a0-hr-a0-"
-#define IWL_22000_SUP_Z0_FW_PRE		"iwlwifi-snp-z0-sup-z0-"
+#define IWL_22000_SU_Z0_FW_PRE		"iwlwifi-su-z0-"
 
 #define IWL_22000_HR_MODULE_FIRMWARE(api) \
 	IWL_22000_HR_FW_PRE __stringify(api) ".ucode"
@@ -95,8 +95,8 @@
 	IWL_22000_JF_B0_FW_PRE __stringify(api) ".ucode"
 #define IWL_22000_HR_A0_QNJ_MODULE_FIRMWARE(api) \
 	IWL_22000_HR_A0_FW_PRE __stringify(api) ".ucode"
-#define IWL_22000_SUP_Z0_MODULE_FIRMWARE(api) \
-	IWL_22000_SUP_Z0_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_SU_Z0_MODULE_FIRMWARE(api) \
+	IWL_22000_SU_Z0_FW_PRE __stringify(api) ".ucode"
 
 #define NVM_HW_SECTION_NUM_FAMILY_22000		10
 
@@ -258,7 +258,7 @@ const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_a0 = {
 
 const struct iwl_cfg iwl22000_2ax_cfg_hr_cdb = {
 	.name = "Intel(R) Dual Band Wireless AX 22650",
-	.fw_name_pre = IWL_22000_SUP_Z0_FW_PRE,
+	.fw_name_pre = IWL_22000_SU_Z0_FW_PRE,
 	IWL_DEVICE_22000,
 	.ht_params = &iwl_22000_ht_params,
 	.nvm_ver = IWL_22000_NVM_VERSION,
@@ -279,4 +279,4 @@ MODULE_FIRMWARE(IWL_22000_HR_A_F0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_22000_HR_B_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_22000_JF_B0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_22000_HR_A0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
-MODULE_FIRMWARE(IWL_22000_SUP_Z0_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_SU_Z0_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
