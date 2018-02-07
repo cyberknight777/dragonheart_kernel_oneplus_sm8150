@@ -280,10 +280,10 @@ struct kfd_ioctl_get_tile_config_args {
 };
 
 struct kfd_ioctl_set_trap_handler_args {
-	uint64_t tba_addr;		/* to KFD */
-	uint64_t tma_addr;		/* to KFD */
-	uint32_t gpu_id;		/* to KFD */
-	uint32_t pad;
+	__u64 tba_addr;		/* to KFD */
+	__u64 tma_addr;		/* to KFD */
+	__u32 gpu_id;		/* to KFD */
+	__u32 pad;
 };
 
 struct kfd_ioctl_acquire_vm_args {
