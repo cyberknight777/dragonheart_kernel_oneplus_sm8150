@@ -953,9 +953,6 @@ static irqreturn_t q6v5_wdog_interrupt(int irq, void *dev)
 
 	rproc_report_crash(qproc->rproc, RPROC_WATCHDOG);
 
-	if (!IS_ERR(msg))
-		msg[0] = '\0';
-
 	return IRQ_HANDLED;
 }
 
@@ -972,9 +969,6 @@ static irqreturn_t q6v5_fatal_interrupt(int irq, void *dev)
 		dev_err(qproc->dev, "fatal error without message\n");
 
 	rproc_report_crash(qproc->rproc, RPROC_FATAL_ERROR);
-
-	if (!IS_ERR(msg))
-		msg[0] = '\0';
 
 	return IRQ_HANDLED;
 }
