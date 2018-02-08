@@ -149,9 +149,9 @@ void iwl_pcie_free_dma_ptr(struct iwl_trans *trans, struct iwl_dma_ptr *ptr)
 	memset(ptr, 0, sizeof(*ptr));
 }
 
-static void iwl_pcie_txq_stuck_timer(unsigned long data)
+static void iwl_pcie_txq_stuck_timer(struct timer_list *t)
 {
-	struct iwl_txq *txq = (void *)data;
+	struct iwl_txq *txq = from_timer(txq, t, stuck_timer);
 	struct iwl_trans_pcie *trans_pcie = txq->trans_pcie;
 	struct iwl_trans *trans = iwl_trans_pcie_get_trans(trans_pcie);
 
@@ -500,8 +500,7 @@ int iwl_pcie_txq_alloc(struct iwl_trans *trans, struct iwl_txq *txq,
 	if (trans->cfg->use_tfh)
 		tfd_sz = trans_pcie->tfd_size * slots_num;
 
-	setup_timer(&txq->stuck_timer, iwl_pcie_txq_stuck_timer,
-		    (unsigned long)txq);
+	timer_setup(&txq->stuck_timer, iwl_pcie_txq_stuck_timer, 0);
 	txq->trans_pcie = trans_pcie;
 
 	txq->n_window = slots_num;

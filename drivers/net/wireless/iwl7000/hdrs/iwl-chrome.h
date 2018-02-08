@@ -579,6 +579,20 @@ static inline void *nla_memdup(const struct nlattr *src, gfp_t gfp)
 #define GENLMSG_DEFAULT_SIZE (NLMSG_DEFAULT_SIZE - GENL_HDRLEN)
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,15,0)
+static inline
+void backport_genl_dump_check_consistent(struct netlink_callback *cb,
+					 void *user_hdr)
+{
+	struct genl_family dummy_family = {
+		.hdrsize = 0,
+	};
+
+	genl_dump_check_consistent(cb, user_hdr, &dummy_family);
+}
+#define genl_dump_check_consistent LINUX_BACKPORT(genl_dump_check_consistent)
+#endif /* LINUX_VERSION_IS_LESS(4,15,0) */
+
 #if LINUX_VERSION_IS_LESS(3,13,0)
 static inline int __real_genl_register_family(struct genl_family *family)
 {
@@ -651,10 +665,6 @@ int genl_unregister_family(struct genl_family *family);
 	genlmsg_put(_skb, _pid, _seq, &(_fam)->family, _flags, _cmd)
 #define genlmsg_nlhdr(_hdr, _fam)					\
 	genlmsg_nlhdr(_hdr, &(_fam)->family)
-#ifndef genl_dump_check_consistent
-#define genl_dump_check_consistent(_cb, _hdr, _fam)			\
-	genl_dump_check_consistent(_cb, _hdr, &(_fam)->family)
-#endif
 #ifndef genlmsg_put_reply /* might already be there from _info override above */
 #define genlmsg_put_reply(_skb, _info, _fam, _flags, _cmd)		\
 	genlmsg_put_reply(_skb, _info, &(_fam)->family, _flags, _cmd)
@@ -815,5 +825,93 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 #define nla_validate_nested(...) \
 	macro_dispatcher(nla_validate_nested, __VA_ARGS__)(__VA_ARGS__)
 #endif /* LINUX_VERSION_IS_LESS(4,12,0) */
+
+#ifndef offsetofend
+/**
+ * offsetofend(TYPE, MEMBER)
+ *
+ * @TYPE: The type of the structure
+ * @MEMBER: The member within the structure to get the end offset of
+ */
+#define offsetofend(TYPE, MEMBER) \
+	(offsetof(TYPE, MEMBER)	+ sizeof(((TYPE *)0)->MEMBER))
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,16,0)
+int alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
+                           size_t max_size, unsigned int cpu_mult,
+                           gfp_t gfp);
+
+void free_bucket_spinlocks(spinlock_t *locks);
+#endif /* LINUX_VERSION_IS_LESS(4,16,0) */
+
+#ifndef READ_ONCE
+#include <linux/types.h>
+
+#define __READ_ONCE_SIZE						\
+({									\
+	switch (size) {							\
+	case 1: *(__u8 *)res = *(volatile __u8 *)p; break;		\
+	case 2: *(__u16 *)res = *(volatile __u16 *)p; break;		\
+	case 4: *(__u32 *)res = *(volatile __u32 *)p; break;		\
+	case 8: *(__u64 *)res = *(volatile __u64 *)p; break;		\
+	default:							\
+		barrier();						\
+		__builtin_memcpy((void *)res, (const void *)p, size);	\
+		barrier();						\
+	}								\
+})
+
+static __always_inline
+void __read_once_size(const volatile void *p, void *res, int size)
+{
+	__READ_ONCE_SIZE;
+}
+
+#define __READ_ONCE(x, check)						\
+({									\
+	union { typeof(x) __val; char __c[1]; } __u;			\
+	__read_once_size(&(x), __u.__c, sizeof(x));			\
+	__u.__val;							\
+})
+
+#define READ_ONCE(x) __READ_ONCE(x, 1)
+
+static __always_inline void __write_once_size(volatile void *p, void *res, int size)
+{
+	switch (size) {
+	case 1: *(volatile __u8 *)p = *(__u8 *)res; break;
+	case 2: *(volatile __u16 *)p = *(__u16 *)res; break;
+	case 4: *(volatile __u32 *)p = *(__u32 *)res; break;
+	case 8: *(volatile __u64 *)p = *(__u64 *)res; break;
+	default:
+		barrier();
+		__builtin_memcpy((void *)p, (const void *)res, size);
+		barrier();
+	}
+}
+
+#define WRITE_ONCE(x, val) \
+({							\
+	union { typeof(x) __val; char __c[1]; } __u =	\
+		{ .__val = (__force typeof(x)) (val) }; \
+	__write_once_size(&(x), __u.__c, sizeof(x));	\
+	__u.__val;					\
+})
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,12,0)
+#define GENL_SET_ERR_MSG(info, msg) do { } while (0)
+
+static inline int genl_err_attr(struct genl_info *info, int err,
+				struct nlattr *attr)
+{
+#if LINUX_VERSION_IS_GEQ(4,12,0)
+	info->extack->bad_attr = attr;
+#endif
+
+	return err;
+}
+#endif
 
 #endif /* __IWL_CHROME */

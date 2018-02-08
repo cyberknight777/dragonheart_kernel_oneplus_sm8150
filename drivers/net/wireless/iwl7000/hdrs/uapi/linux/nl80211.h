@@ -990,6 +990,8 @@
  *	&NL80211_CMD_CONNECT or &NL80211_CMD_ROAM. If the 4 way handshake failed
  *	&NL80211_CMD_DISCONNECT should be indicated instead.
  *
+ * @NL80211_CMD_RELOAD_REGDB: Request that the regdb firmware file is reloaded.
+ *
  * @NL80211_CMD_MSRMENT_REQUEST: Request to perform some type of measurement.
  *	Request type is given by %NL80211_ATTR_MSRMENT_TYPE. Additional data is
  *	given according to the request type.
@@ -1224,6 +1226,8 @@ enum nl80211_commands {
 	NL80211_CMD_DEL_PMK,
 
 	NL80211_CMD_PORT_AUTHORIZED,
+
+	NL80211_CMD_RELOAD_REGDB,
 
 	/* let this always be before all commands we haven't upstreamed yet */
 	__NL80211_CMD_NONUPSTREAM_START,
@@ -2188,6 +2192,7 @@ enum nl80211_commands {
  *	in %NL80211_CMD_CONNECT to indicate that for 802.1X authentication it
  *	wants to use the supported offload of the 4-way handshake.
  * @NL80211_ATTR_PMKR0_NAME: PMK-R0 Name for offloaded FT.
+ * @NL80211_ATTR_PORT_AUTHORIZED: (reserved)
  *
  * @NL80211_ATTR_MSRMENT_TYPE: Type of current measurement request/response.
  *	(values defined in &enum nl80211_msrment_type).
@@ -2648,6 +2653,7 @@ enum nl80211_attrs {
 
 	NL80211_ATTR_WANT_1X_4WAY_HS,
 	NL80211_ATTR_PMKR0_NAME,
+	NL80211_ATTR_PORT_AUTHORIZED,
 
 	NL80211_ATTR_FTM_RESPONDER_STATS,
 
@@ -2703,7 +2709,6 @@ enum nl80211_attrs {
 #define NL80211_ATTR_REASON_CODE NL80211_ATTR_REASON_CODE
 #define NL80211_ATTR_CIPHER_SUITES_PAIRWISE NL80211_ATTR_CIPHER_SUITES_PAIRWISE
 #define NL80211_ATTR_CIPHER_SUITE_GROUP NL80211_ATTR_CIPHER_SUITES_GROUP
-#define NL80211_ATTR_CIPHER_SUITES_GROUP NL80211_ATTR_CIPHER_SUITES_GROUP
 #define NL80211_ATTR_WPA_VERSIONS NL80211_ATTR_WPA_VERSIONS
 #define NL80211_ATTR_AKM_SUITES NL80211_ATTR_AKM_SUITES
 #define NL80211_ATTR_KEY NL80211_ATTR_KEY
@@ -4037,6 +4042,9 @@ enum nl80211_bss_scan_width {
  *	@NL80211_BSS_PARENT_BSSID. (u64).
  * @NL80211_BSS_PARENT_BSSID: the BSS according to which @NL80211_BSS_PARENT_TSF
  *	is set.
+ * @NL80211_BSS_CHAIN_SIGNAL: per-chain signal strength of last BSS update.
+ *	Contains a nested array of signal strength attributes (u8, dBm),
+ *	using the nesting index as the antenna number.
  * @__NL80211_BSS_AFTER_LAST: internal
  * @NL80211_BSS_MAX: highest BSS attribute
  */
@@ -4060,6 +4068,7 @@ enum nl80211_bss {
 	NL80211_BSS_PAD,
 	NL80211_BSS_PARENT_TSF,
 	NL80211_BSS_PARENT_BSSID,
+	NL80211_BSS_CHAIN_SIGNAL,
 
 	/* keep last */
 	__NL80211_BSS_AFTER_LAST,

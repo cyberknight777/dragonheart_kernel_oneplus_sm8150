@@ -189,7 +189,8 @@ static bool ieee80211_scan_accept_presp(struct ieee80211_sub_if_data *sdata,
 	if (!sdata)
 		return false;
 	/* accept broadcast for OCE */
-	if (is_broadcast_ether_addr(da))
+	if (scan_flags & NL80211_SCAN_FLAG_ACCEPT_BCAST_PROBE_RESP &&
+	    is_broadcast_ether_addr(da))
 		return true;
 	if (scan_flags & NL80211_SCAN_FLAG_RANDOM_ADDR)
 		return true;

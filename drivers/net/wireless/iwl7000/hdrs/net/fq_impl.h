@@ -43,6 +43,15 @@ static inline void fq_tin_enqueue(struct fq *fq,
 	WARN_ON(1);
 }
 
+static inline void fq_tin_filter(struct fq *fq,
+				 struct fq_tin *tin,
+				 fq_skb_filter_t filter_func,
+				 void *filter_data,
+				 fq_skb_free_t free_func)
+{
+	WARN_ON(1);
+}
+
 static inline void fq_flow_reset(struct fq *fq,
 				 struct fq_flow *flow,
 				 fq_skb_free_t free_func)

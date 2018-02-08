@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 # common
 obj-$(CPTCFG_IWLWIFI)	+= iwlwifi.o
 iwlwifi-objs		+= iwl-io.o

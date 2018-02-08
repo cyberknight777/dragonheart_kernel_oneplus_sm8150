@@ -3603,6 +3603,7 @@ static void *rs_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
 {
 	return hw->priv;
 }
+
 /* rate scale requires free function to be implemented */
 static void rs_free(void *mvm_rate)
 {

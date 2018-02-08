@@ -501,6 +501,7 @@ static void ieee80211_add_ht_ie(struct ieee80211_sub_if_data *sdata,
 	case IEEE80211_SMPS_AUTOMATIC:
 	case IEEE80211_SMPS_NUM_MODES:
 		WARN_ON(1);
+		/* fall through */
 	case IEEE80211_SMPS_OFF:
 		cap |= WLAN_HT_CAP_SM_PS_DISABLED <<
 			IEEE80211_HT_CAP_SM_PS_SHIFT;
@@ -986,7 +987,7 @@ void ieee80211_send_nullfunc(struct ieee80211_local *local,
 	    !(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
 		return;
 
-	skb = ieee80211_nullfunc_get(&local->hw, &sdata->vif);
+	skb = ieee80211_nullfunc_get(&local->hw, &sdata->vif, true);
 	if (!skb)
 		return;
 
@@ -1161,10 +1162,10 @@ void ieee80211_chswitch_done(struct ieee80211_vif *vif, bool success)
 }
 EXPORT_SYMBOL(ieee80211_chswitch_done);
 
-static void ieee80211_chswitch_timer(unsigned long data)
+static void ieee80211_chswitch_timer(struct timer_list *t)
 {
 	struct ieee80211_sub_if_data *sdata =
-		(struct ieee80211_sub_if_data *) data;
+		from_timer(sdata, t, u.mgd.chswitch_timer);
 
 	ieee80211_queue_work(&sdata->local->hw, &sdata->u.mgd.chswitch_work);
 }
@@ -1652,9 +1653,9 @@ void ieee80211_dynamic_ps_enable_work(struct work_struct *work)
 	}
 }
 
-void ieee80211_dynamic_ps_timer(unsigned long data)
+void ieee80211_dynamic_ps_timer(struct timer_list *t)
 {
-	struct ieee80211_local *local = (void *) data;
+	struct ieee80211_local *local = from_timer(local, t, dynamic_ps_timer);
 
 	ieee80211_queue_work(&local->hw, &local->dynamic_ps_enable_work);
 }
@@ -3878,10 +3879,10 @@ void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 	sdata_unlock(sdata);
 }
 
-static void ieee80211_sta_timer(unsigned long data)
+static void ieee80211_sta_timer(struct timer_list *t)
 {
 	struct ieee80211_sub_if_data *sdata =
-		(struct ieee80211_sub_if_data *) data;
+		from_timer(sdata, t, u.mgd.timer);
 
 	ieee80211_queue_work(&sdata->local->hw, &sdata->work);
 }
@@ -4158,10 +4159,10 @@ void ieee80211_sta_work(struct ieee80211_sub_if_data *sdata)
 	sdata_unlock(sdata);
 }
 
-static void ieee80211_sta_bcn_mon_timer(unsigned long data)
+static void ieee80211_sta_bcn_mon_timer(struct timer_list *t)
 {
 	struct ieee80211_sub_if_data *sdata =
-		(struct ieee80211_sub_if_data *) data;
+		from_timer(sdata, t, u.mgd.bcn_mon_timer);
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 
 	if (sdata->vif.csa_active && !ifmgd->csa_waiting_bcn)
@@ -4172,10 +4173,10 @@ static void ieee80211_sta_bcn_mon_timer(unsigned long data)
 			     &sdata->u.mgd.beacon_connection_loss_work);
 }
 
-static void ieee80211_sta_conn_mon_timer(unsigned long data)
+static void ieee80211_sta_conn_mon_timer(struct timer_list *t)
 {
 	struct ieee80211_sub_if_data *sdata =
-		(struct ieee80211_sub_if_data *) data;
+		from_timer(sdata, t, u.mgd.conn_mon_timer);
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 	struct ieee80211_local *local = sdata->local;
 
@@ -4308,14 +4309,10 @@ void ieee80211_sta_setup_sdata(struct ieee80211_sub_if_data *sdata)
 	INIT_WORK(&ifmgd->request_smps_work, ieee80211_request_smps_mgd_work);
 	INIT_DELAYED_WORK(&ifmgd->tdls_peer_del_work,
 			  ieee80211_tdls_peer_del_work);
-	setup_timer(&ifmgd->timer, ieee80211_sta_timer,
-		    (unsigned long) sdata);
-	setup_timer(&ifmgd->bcn_mon_timer, ieee80211_sta_bcn_mon_timer,
-		    (unsigned long) sdata);
-	setup_timer(&ifmgd->conn_mon_timer, ieee80211_sta_conn_mon_timer,
-		    (unsigned long) sdata);
-	setup_timer(&ifmgd->chswitch_timer, ieee80211_chswitch_timer,
-		    (unsigned long) sdata);
+	timer_setup(&ifmgd->timer, ieee80211_sta_timer, 0);
+	timer_setup(&ifmgd->bcn_mon_timer, ieee80211_sta_bcn_mon_timer, 0);
+	timer_setup(&ifmgd->conn_mon_timer, ieee80211_sta_conn_mon_timer, 0);
+	timer_setup(&ifmgd->chswitch_timer, ieee80211_chswitch_timer, 0);
 	INIT_DELAYED_WORK(&ifmgd->tx_tspec_wk,
 			  ieee80211_sta_handle_tspec_ac_params_wk);
 
