@@ -306,9 +306,14 @@ void ___ieee80211_start_rx_ba_session(struct sta_info *sta,
 					   "updated AddBA Req from %pM on tid %u\n",
 					   sta->sta.addr, tid);
 			/* We have no API to update the timeout value in the
-			 * driver so reject the timeout update.
+			 * driver so reject the timeout update if the timeout
+			 * changed. If if did not change, i.e., no real update,
+			 * just reply with success.
 			 */
-			status = WLAN_STATUS_REQUEST_DECLINED;
+			if (sta->ampdu_mlme.tid_rx[tid]->timeout == timeout)
+				status = WLAN_STATUS_SUCCESS;
+			else
+				status = WLAN_STATUS_REQUEST_DECLINED;
 			goto end;
 		}
 
