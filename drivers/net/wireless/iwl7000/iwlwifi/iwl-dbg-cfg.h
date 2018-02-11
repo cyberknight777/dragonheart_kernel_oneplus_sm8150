@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -33,6 +34,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -110,6 +112,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D0_EVENT)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D3_FLOW)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D3_EVENT)
+	IWL_DBG_CFG_NODEF(bool, enable_timestamp_marker_cmd)
 #endif
 #if IS_ENABLED(CPTCFG_IWLMVM)
 	IWL_DBG_CFG(u32, MVM_DEFAULT_PS_TX_DATA_TIMEOUT)
