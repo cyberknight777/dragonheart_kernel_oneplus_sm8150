@@ -1087,9 +1087,11 @@ int iwl_fw_start_dbg_conf(struct iwl_fw_runtime *fwrt, u8 conf_id)
 		IWL_WARN(fwrt, "FW already configured (%d) - re-configuring\n",
 			 fwrt->dump.conf);
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	/* start default config marker cmd for syncing logs */
-	iwl_fw_trigger_timestamp(fwrt, 1);
-
+	if (fwrt->trans->dbg_cfg.enable_timestamp_marker_cmd)
+		iwl_fw_trigger_timestamp(fwrt, 1);
+#endif
 	/* Send all HCMDs for configuring the FW debug */
 	ptr = (void *)&fwrt->fw->dbg_conf_tlv[conf_id]->hcmd;
 	for (i = 0; i < fwrt->fw->dbg_conf_tlv[conf_id]->num_of_hcmds; i++) {
