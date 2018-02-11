@@ -61,6 +61,7 @@ typedef asmlinkage long (*ti_sys_call_ptr_t)(unsigned long, unsigned long,
 
 struct thread_info {
 	unsigned long		flags;		/* low level flags */
+	u32			status;		/* thread synchronous flags */
 #ifdef CONFIG_ALT_SYSCALL
 	/*
 	 * This uses nr_syscalls instead of nr_syscall_max because we want
@@ -258,7 +259,7 @@ static inline int arch_within_stack_frames(const void * const stack,
 #define in_ia32_syscall() true
 #else
 #define in_ia32_syscall() (IS_ENABLED(CONFIG_IA32_EMULATION) && \
-			   current->thread.status & TS_COMPAT)
+			   current_thread_info()->status & TS_COMPAT)
 #endif
 
 /*
