@@ -19,7 +19,7 @@ iwlwifi-$(CONFIG_ACPI)	+= fw/acpi.o
 
 # Bus
 iwlwifi-objs			+= pcie/drv.o pcie/rx.o pcie/tx.o pcie/trans.o
-iwlwifi-objs			+= pcie/ctxt-info.o pcie/trans-gen2.o pcie/tx-gen2.o
+iwlwifi-objs			+= pcie/ctxt-info.o pcie/ctxt-info-gen3.o pcie/trans-gen2.o pcie/tx-gen2.o
 iwlwifi-$(CPTCFG_IWLMVM) += cfg/7000.o cfg/8000.o
 iwlwifi-$(CPTCFG_IWLMVM) += cfg/9000.o cfg/22000.o
 
