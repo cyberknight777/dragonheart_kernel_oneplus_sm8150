@@ -257,8 +257,8 @@ typedef unsigned int __bitwise iwl_ucode_tlv_api_t;
  *	deprecated.
  * @IWL_UCODE_TLV_API_ADAPTIVE_DWELL_V2: This ucode supports version 8
  *	of scan request: SCAN_REQUEST_CMD_UMAC_API_S_VER_8
- * IWL_UCODE_TLV_API_NAN_NOTIF_V2: This ucode support version 2 of the NAN
- *      discovery notification.
+ * @IWL_UCODE_TLV_API_NAN_NOTIF_V2: This ucode supports version 2 of
+ *      the NAN discovery notification.
  *
  * @NUM_IWL_UCODE_TLV_API: number of bits used
  */
