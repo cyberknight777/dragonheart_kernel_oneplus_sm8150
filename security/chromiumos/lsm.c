@@ -40,11 +40,22 @@ static int chromiumos_security_sb_mount(const char *dev_name,
 #ifdef CONFIG_SECURITY_CHROMIUMOS_NO_SYMLINK_MOUNT
 	if (nameidata_get_total_link_count()) {
 		char *cmdline;
+		char *pathbuf;
+		char *pathlog;
 
 		cmdline = printable_cmdline(current);
+		/* We add 11 spaces for ' (deleted)' to be appended */
+		pathbuf = kmalloc(PATH_MAX + 11, GFP_KERNEL);
+		if (pathbuf) {
+			pathlog = d_path(path, pathbuf, PATH_MAX + 11);
+			if (IS_ERR(pathlog))
+				pathlog = "<too_long>";
+		} else
+			pathlog = "<no_memory>";
 		pr_notice("Mount path with symlinks prohibited - "
-			"pid=%d cmdline=%s\n",
-			task_pid_nr(current), cmdline);
+			"pid=%d cmdline=%s dev=%s type=%s path=%s\n",
+			task_pid_nr(current), cmdline, dev_name, type, pathlog);
+		kfree(pathbuf);
 		kfree(cmdline);
 		return -ELOOP;
 	}
