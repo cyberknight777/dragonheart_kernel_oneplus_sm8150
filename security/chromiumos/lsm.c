@@ -32,6 +32,42 @@
 #include "inode_mark.h"
 #include "utils.h"
 
+#if defined(CONFIG_SECURITY_CHROMIUMOS_NO_UNPRIVILEGED_UNSAFE_MOUNTS) || \
+	defined(CONFIG_SECURITY_CHROMIUMOS_NO_SYMLINK_MOUNT)
+static void report(const char *origin, const struct path *path, char *operation)
+{
+	char *alloced = NULL, *cmdline;
+	char *pathname; /* Pointer to either static string or "alloced". */
+
+	if (!path)
+		pathname = "<unknown>";
+	else {
+		/* We will allow 11 spaces for ' (deleted)' to be appended */
+		alloced = pathname = kmalloc(PATH_MAX+11, GFP_KERNEL);
+		if (!pathname)
+			pathname = "<no_memory>";
+		else {
+			pathname = d_path(path, pathname, PATH_MAX+11);
+			if (IS_ERR(pathname))
+				pathname = "<too_long>";
+			else {
+				pathname = printable(pathname, PATH_MAX+11);
+				kfree(alloced);
+				alloced = pathname;
+			}
+		}
+	}
+
+	cmdline = printable_cmdline(current);
+
+	pr_notice("%s %s obj=%s pid=%d cmdline=%s\n", origin,
+		  operation, pathname, task_pid_nr(current), cmdline);
+
+	kfree(cmdline);
+	kfree(alloced);
+}
+#endif
+
 static int chromiumos_security_sb_mount(const char *dev_name,
 					const struct path *path,
 					const char *type, unsigned long flags,
@@ -39,25 +75,57 @@ static int chromiumos_security_sb_mount(const char *dev_name,
 {
 #ifdef CONFIG_SECURITY_CHROMIUMOS_NO_SYMLINK_MOUNT
 	if (nameidata_get_total_link_count()) {
-		char *cmdline;
-		char *pathbuf;
-		char *pathlog;
-
-		cmdline = printable_cmdline(current);
-		/* We add 11 spaces for ' (deleted)' to be appended */
-		pathbuf = kmalloc(PATH_MAX + 11, GFP_KERNEL);
-		if (pathbuf) {
-			pathlog = d_path(path, pathbuf, PATH_MAX + 11);
-			if (IS_ERR(pathlog))
-				pathlog = "<too_long>";
-		} else
-			pathlog = "<no_memory>";
-		pr_notice("Mount path with symlinks prohibited - "
-			"pid=%d cmdline=%s dev=%s type=%s path=%s\n",
-			task_pid_nr(current), cmdline, dev_name, type, pathlog);
-		kfree(pathbuf);
-		kfree(cmdline);
+		report("sb_mount", path, "Mount path with symlinks prohibited");
+		pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
+			  dev_name, type, flags);
 		return -ELOOP;
+	}
+#endif
+
+#ifdef CONFIG_SECURITY_CHROMIUMOS_NO_UNPRIVILEGED_UNSAFE_MOUNTS
+	if (!(flags & (MS_BIND | MS_MOVE | MS_SHARED | MS_PRIVATE | MS_SLAVE |
+		       MS_UNBINDABLE)) &&
+	    !capable(CAP_SYS_ADMIN)) {
+		/*
+		 * The three flags we are interested in disallowing in
+		 * unprivileged user namespaces (MS_NOEXEC, MS_NOSUID, MS_NODEV)
+		 * cannot be modified when doing a remount/bind. The kernel
+		 * attempts to dispatch calls to do_mount() within
+		 * fs/namespace.c in the following order:
+		 *
+		 * * If the MS_REMOUNT flag is present, it calls do_remount().
+		 *   When MS_BIND is also present, it only allows to set/unset
+		 *   MS_RDONLY. Otherwise it bails in the absence of the
+		 *   CAP_SYS_ADMIN in the init ns.
+		 * * If the MS_BIND flag is present, the only other flag checked
+		 *   is MS_REC.
+		 * * If any of the mount propagation flags are present
+		 *   (MS_SHARED, MS_PRIVATE, MS_SLAVE, MS_UNBINDABLE),
+		 *   flags_to_propagation_type() filters out any additional
+		 *   flags.
+		 * * If MS_MOVE flag is present, all other flags are ignored.
+		 */
+		if (!(flags & MS_NOEXEC)) {
+			report("sb_mount", path,
+			       "Mounting a filesystem with 'exec' flag requires CAP_SYS_ADMIN in init ns");
+			pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
+				  dev_name, type, flags);
+			return -EPERM;
+		}
+		if (!(flags & MS_NOSUID)) {
+			report("sb_mount", path,
+			       "Mounting a filesystem with 'suid' flag requires CAP_SYS_ADMIN in init ns");
+			pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
+				  dev_name, type, flags);
+			return -EPERM;
+		}
+		if (!(flags & MS_NODEV) && strcmp(type, "devpts")) {
+			report("sb_mount", path,
+			       "Mounting a filesystem with 'dev' flag requires CAP_SYS_ADMIN in init ns");
+			pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
+				  dev_name, type, flags);
+			return -EPERM;
+		}
 	}
 #endif
 
