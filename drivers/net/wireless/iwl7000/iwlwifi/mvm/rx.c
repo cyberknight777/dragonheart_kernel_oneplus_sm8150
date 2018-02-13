@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -34,6 +35,8 @@
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -745,8 +748,10 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 	int expected_size;
 	int i;
 	u8 *energy;
+#ifdef CPTCFG_IWLMVM_TCM
 	__le32 *bytes, *air_time;
 	__le32 flags;
+#endif
 
 	if (!iwl_mvm_has_new_rx_stats_api(mvm)) {
 		if (iwl_mvm_has_new_rx_api(mvm))
@@ -782,7 +787,9 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 
 		data.general = &stats->general;
 
+#ifdef CPTCFG_IWLMVM_TCM
 		flags = stats->flag;
+#endif
 	} else {
 		struct iwl_notif_statistics_cdb *stats = (void *)&pkt->data;
 
@@ -803,7 +810,9 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 
 		data.general = &stats->general;
 
+#ifdef CPTCFG_IWLMVM_TCM
 		flags = stats->flag;
+#endif
 	}
 
 	iwl_mvm_rx_stats_check_trigger(mvm, pkt);
@@ -820,14 +829,18 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 		struct iwl_notif_statistics_v11 *v11 = (void *)&pkt->data;
 
 		energy = (void *)&v11->load_stats.avg_energy;
+#ifdef CPTCFG_IWLMVM_TCM
 		bytes = (void *)&v11->load_stats.byte_count;
 		air_time = (void *)&v11->load_stats.air_time;
+#endif
 	} else {
 		struct iwl_notif_statistics_cdb *stats = (void *)&pkt->data;
 
 		energy = (void *)&stats->load_stats.avg_energy;
+#ifdef CPTCFG_IWLMVM_TCM
 		bytes = (void *)&stats->load_stats.byte_count;
 		air_time = (void *)&stats->load_stats.air_time;
+#endif
 	}
 
 	rcu_read_lock();
