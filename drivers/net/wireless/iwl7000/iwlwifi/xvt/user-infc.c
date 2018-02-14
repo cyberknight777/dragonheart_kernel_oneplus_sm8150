@@ -919,6 +919,30 @@ static struct iwl_device_cmd *iwl_xvt_init_tx_dev_cmd(struct iwl_xvt *xvt)
 	return dev_cmd;
 }
 
+static u16 iwl_xvt_get_offload_assist(struct ieee80211_hdr *hdr)
+{
+	int hdrlen = ieee80211_hdrlen(hdr->frame_control);
+	u16 offload_assist = 0;
+	bool amsdu;
+
+	amsdu = ieee80211_is_data_qos(hdr->frame_control) &&
+		(*ieee80211_get_qos_ctl(hdr) &
+		 IEEE80211_QOS_CTL_A_MSDU_PRESENT);
+
+	if (amsdu)
+		offload_assist |= BIT(TX_CMD_OFFLD_AMSDU);
+
+	/*
+	* padding is inserted later in transport.
+	* do not align A-MSDUs to dword, as the subframe header
+	* aligns the SNAP header.
+	*/
+	if (hdrlen % 4 && !amsdu)
+		offload_assist |= BIT(TX_CMD_OFFLD_PAD);
+
+	return offload_assist;
+}
+
 static struct iwl_device_cmd *
 iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 			       u32 rate_flags, u32 flags)
@@ -936,8 +960,7 @@ iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
 
-	tx_cmd->offload_assist |= (ieee80211_hdrlen(hdr->frame_control) % 4) ?
-				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
+	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
 
 	tx_cmd->flags = cpu_to_le32(flags | IWL_TX_FLAGS_CMD_RATE);
 
@@ -1120,8 +1143,7 @@ iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
-	tx_cmd->offload_assist |= (header_length % 4) ?
-				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
+	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
 	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 
@@ -1159,8 +1181,7 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 		tx_cmd->tx_flags |= cpu_to_le32(TX_CMD_FLG_SEQ_CTL);
 
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
-	tx_cmd->offload_assist |= (header_length % 4) ?
-				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
+	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
 	tx_cmd->tx_flags |= cpu_to_le32(tx_start->tx_data.tx_flags);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
