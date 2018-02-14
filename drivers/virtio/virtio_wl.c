@@ -1038,11 +1038,15 @@ static long virtwl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return virtwl_ioctl_ptr(filp, cmd, (void *__user)arg);
 }
 
+#ifdef CONFIG_COMPAT
 static long virtwl_ioctl_compat(struct file *filp, unsigned int cmd,
 				unsigned long arg)
 {
 	return virtwl_ioctl_ptr(filp, cmd, compat_ptr(arg));
 }
+#else
+#define virtwl_ioctl_compat NULL
+#endif
 
 static int virtwl_release(struct inode *inodep, struct file *filp)
 {
