@@ -1020,7 +1020,7 @@ static long virtwl_ioctl_new(struct file *filp, void __user *ptr)
 }
 
 static long virtwl_ioctl_ptr(struct file *filp, unsigned int cmd,
-			     void *__user ptr)
+			     void __user *ptr)
 {
 	if (filp->f_op == &virtwl_vfd_fops)
 		return virtwl_vfd_ioctl(filp, cmd, ptr);
@@ -1035,7 +1035,7 @@ static long virtwl_ioctl_ptr(struct file *filp, unsigned int cmd,
 
 static long virtwl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-	return virtwl_ioctl_ptr(filp, cmd, (void *__user)arg);
+	return virtwl_ioctl_ptr(filp, cmd, (void __user *)arg);
 }
 
 #ifdef CONFIG_COMPAT
