@@ -841,7 +841,7 @@ void dce110_link_encoder_hw_init(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		dm_logger_write(ctx->logger, LOG_ERROR,
+		DC_LOG_ERROR(ctx->logger,
 			"%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
@@ -942,7 +942,7 @@ void dce110_link_encoder_enable_tmds_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		dm_logger_write(ctx->logger, LOG_ERROR,
+		DC_LOG_ERROR(ctx->logger,
 			"%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
@@ -983,7 +983,7 @@ void dce110_link_encoder_enable_dp_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		dm_logger_write(ctx->logger, LOG_ERROR,
+		DC_LOG_ERROR(ctx->logger,
 			"%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
@@ -1024,7 +1024,7 @@ void dce110_link_encoder_enable_dp_mst_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		dm_logger_write(ctx->logger, LOG_ERROR,
+		DC_LOG_ERROR(ctx->logger,
 			"%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
@@ -1067,7 +1067,7 @@ void dce110_link_encoder_disable_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		dm_logger_write(ctx->logger, LOG_ERROR,
+		DC_LOG_ERROR(ctx->logger,
 			"%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
