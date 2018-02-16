@@ -1713,7 +1713,7 @@ static void update_dchubp_dpp(
 	 * divided by 2
 	 */
 	if (plane_state->update_flags.bits.full_update) {
-		bool should_divided_by_2 = context->bw.dcn.calc_clk.max_dppclk_khz <=
+		bool should_divided_by_2 = context->bw.dcn.calc_clk.dppclk_khz <=
 				context->bw.dcn.cur_clk.dispclk_khz / 2;
 
 		dpp->funcs->dpp_dppclk_control(
@@ -1721,7 +1721,7 @@ static void update_dchubp_dpp(
 				should_divided_by_2,
 				true);
 
-		dc->current_state->bw.dcn.cur_clk.max_dppclk_khz =
+		dc->current_state->bw.dcn.cur_clk.dppclk_khz =
 				should_divided_by_2 ?
 				context->bw.dcn.cur_clk.dispclk_khz / 2 :
 				context->bw.dcn.cur_clk.dispclk_khz;
@@ -1914,16 +1914,10 @@ static void dcn10_pplib_apply_display_requirements(
 {
 	struct dm_pp_display_configuration *pp_display_cfg = &context->pp_display_cfg;
 
-	pp_display_cfg->all_displays_in_sync = false;/*todo*/
-	pp_display_cfg->nb_pstate_switch_disable = false;
 	pp_display_cfg->min_engine_clock_khz = context->bw.dcn.cur_clk.dcfclk_khz;
 	pp_display_cfg->min_memory_clock_khz = context->bw.dcn.cur_clk.fclk_khz;
 	pp_display_cfg->min_engine_clock_deep_sleep_khz = context->bw.dcn.cur_clk.dcfclk_deep_sleep_khz;
 	pp_display_cfg->min_dcfc_deep_sleep_clock_khz = context->bw.dcn.cur_clk.dcfclk_deep_sleep_khz;
-	pp_display_cfg->avail_mclk_switch_time_us =
-			context->bw.dcn.cur_clk.dram_ccm_us > 0 ? context->bw.dcn.cur_clk.dram_ccm_us : 0;
-	pp_display_cfg->avail_mclk_switch_time_in_disp_active_us =
-			context->bw.dcn.cur_clk.min_active_dram_ccm_us > 0 ? context->bw.dcn.cur_clk.min_active_dram_ccm_us : 0;
 	pp_display_cfg->min_dcfclock_khz = context->bw.dcn.cur_clk.dcfclk_khz;
 	pp_display_cfg->disp_clk_khz = context->bw.dcn.cur_clk.dispclk_khz;
 	dce110_fill_display_configs(context, pp_display_cfg);
@@ -2136,12 +2130,12 @@ static inline bool should_set_clock(bool decrease_allowed, int calc_clk, int cur
 static int determine_dppclk_threshold(struct dc *dc, struct dc_state *context)
 {
 	bool request_dpp_div = context->bw.dcn.calc_clk.dispclk_khz >
-			context->bw.dcn.calc_clk.max_dppclk_khz;
+			context->bw.dcn.calc_clk.dppclk_khz;
 	bool dispclk_increase = context->bw.dcn.calc_clk.dispclk_khz >
 			context->bw.dcn.cur_clk.dispclk_khz;
 	int disp_clk_threshold = context->bw.dcn.calc_clk.max_supported_dppclk_khz;
 	bool cur_dpp_div = context->bw.dcn.cur_clk.dispclk_khz >
-			context->bw.dcn.cur_clk.max_dppclk_khz;
+			context->bw.dcn.cur_clk.dppclk_khz;
 
 	/* increase clock, looking for div is 0 for current, request div is 1*/
 	if (dispclk_increase) {
@@ -2186,7 +2180,7 @@ static void ramp_up_dispclk_with_dpp(struct dc *dc, struct dc_state *context)
 {
 	int i;
 	bool request_dpp_div = context->bw.dcn.calc_clk.dispclk_khz >
-				context->bw.dcn.calc_clk.max_dppclk_khz;
+				context->bw.dcn.calc_clk.dppclk_khz;
 
 	int dispclk_to_dpp_threshold = determine_dppclk_threshold(dc, context);
 
@@ -2217,8 +2211,8 @@ static void ramp_up_dispclk_with_dpp(struct dc *dc, struct dc_state *context)
 
 	context->bw.dcn.cur_clk.dispclk_khz =
 			context->bw.dcn.calc_clk.dispclk_khz;
-	context->bw.dcn.cur_clk.max_dppclk_khz =
-			context->bw.dcn.calc_clk.max_dppclk_khz;
+	context->bw.dcn.cur_clk.dppclk_khz =
+			context->bw.dcn.calc_clk.dppclk_khz;
 	context->bw.dcn.cur_clk.max_supported_dppclk_khz =
 			context->bw.dcn.calc_clk.max_supported_dppclk_khz;
 }
@@ -2285,21 +2279,6 @@ static void dcn10_set_bandwidth(
 		ramp_up_dispclk_with_dpp(dc, context);
 	}
 
-	/* Decrease in freq is increase in period so opposite comparison for dram_ccm */
-	if ((decrease_allowed && context->bw.dcn.calc_clk.dram_ccm_us
-			> dc->current_state->bw.dcn.cur_clk.dram_ccm_us) ||
-		context->bw.dcn.calc_clk.dram_ccm_us
-			< dc->current_state->bw.dcn.cur_clk.dram_ccm_us) {
-		context->bw.dcn.cur_clk.dram_ccm_us =
-				context->bw.dcn.calc_clk.dram_ccm_us;
-	}
-	if ((decrease_allowed && context->bw.dcn.calc_clk.min_active_dram_ccm_us
-			> dc->current_state->bw.dcn.cur_clk.min_active_dram_ccm_us) ||
-		context->bw.dcn.calc_clk.min_active_dram_ccm_us
-			< dc->current_state->bw.dcn.cur_clk.min_active_dram_ccm_us) {
-		context->bw.dcn.cur_clk.min_active_dram_ccm_us =
-				context->bw.dcn.calc_clk.min_active_dram_ccm_us;
-	}
 	dcn10_pplib_apply_display_requirements(dc, context);
 
 	if (dc->debug.sanity_checks) {
