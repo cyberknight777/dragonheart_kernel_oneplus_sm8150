@@ -786,8 +786,8 @@ i915_gem_userptr_ioctl(struct drm_device *dev, void *data, struct drm_file *file
 
 	drm_gem_private_object_init(dev, &obj->base, args->user_size);
 	i915_gem_object_init(obj, &i915_gem_userptr_ops);
-	obj->base.read_domains = I915_GEM_DOMAIN_CPU;
-	obj->base.write_domain = I915_GEM_DOMAIN_CPU;
+	obj->read_domains = I915_GEM_DOMAIN_CPU;
+	obj->write_domain = I915_GEM_DOMAIN_CPU;
 	i915_gem_object_set_cache_coherency(obj, I915_CACHE_LLC);
 
 	obj->userptr.ptr = args->user_ptr;
