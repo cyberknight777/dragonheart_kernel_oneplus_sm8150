@@ -8,6 +8,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -640,7 +642,7 @@ int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 		return 0;
 	dev = trans->tmdev;
 
-	nlportid = ACCESS_ONCE(dev->nl_events_portid);
+	nlportid = READ_ONCE(dev->nl_events_portid);
 
 	if (check_notify && !dev->tst.notify)
 		return 0;
