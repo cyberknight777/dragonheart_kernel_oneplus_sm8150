@@ -302,6 +302,8 @@ void ___ieee80211_start_rx_ba_session(struct sta_info *sta,
 
 	if (test_bit(tid, sta->ampdu_mlme.agg_session_valid)) {
 		if (sta->ampdu_mlme.tid_rx_token[tid] == dialog_token) {
+			struct tid_ampdu_rx *tid_rx;
+
 			ht_dbg_ratelimited(sta->sdata,
 					   "updated AddBA Req from %pM on tid %u\n",
 					   sta->sta.addr, tid);
@@ -310,10 +312,13 @@ void ___ieee80211_start_rx_ba_session(struct sta_info *sta,
 			 * changed. If if did not change, i.e., no real update,
 			 * just reply with success.
 			 */
-			if (sta->ampdu_mlme.tid_rx[tid]->timeout == timeout)
+			rcu_read_lock();
+			tid_rx = rcu_dereference(sta->ampdu_mlme.tid_rx[tid]);
+			if (tid_rx && tid_rx->timeout == timeout)
 				status = WLAN_STATUS_SUCCESS;
 			else
 				status = WLAN_STATUS_REQUEST_DECLINED;
+			rcu_read_unlock();
 			goto end;
 		}
 
