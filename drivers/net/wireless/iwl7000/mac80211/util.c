@@ -1146,12 +1146,14 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
 	if (chanctx_conf)
 		center_freq = chanctx_conf->def.chan->center_freq;
-	rcu_read_unlock();
 
-	if (!center_freq)
+	if (!center_freq) {
+		rcu_read_unlock();
 		return;
+	}
 
 	rrule = freq_reg_info(sdata->wdev.wiphy, MHZ_TO_KHZ(center_freq));
+	rcu_read_unlock();
 
 	if (IS_ERR_OR_NULL(rrule) || !rrule->wmm_rule)
 		return;
