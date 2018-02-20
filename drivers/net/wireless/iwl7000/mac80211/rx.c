@@ -185,6 +185,13 @@ ieee80211_rx_radiotap_hdrlen(struct ieee80211_local *local,
 		BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he) != 12);
 	}
 
+	if (status->encoding == RX_ENC_HE &&
+	    status->flag & RX_FLAG_RADIOTAP_HE_MU) {
+		len = ALIGN(len, 2);
+		len += 8;
+		BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he_mu) != 8);
+	}
+
 	if (status->chains) {
 		/* antenna and antenna signal fields */
 		len += 2 * hweight8(status->chains);
@@ -274,11 +281,17 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 	unsigned long chains = status->chains;
 	struct ieee80211_vendor_radiotap rtap = {};
 	struct ieee80211_radiotap_he he = {};
+	struct ieee80211_radiotap_he_mu he_mu = {};
 
 	if (status->flag & RX_FLAG_RADIOTAP_HE) {
 		he = *(struct ieee80211_radiotap_he *)skb->data;
 		skb_pull(skb, sizeof(he));
 		WARN_ON_ONCE(status->encoding != RX_ENC_HE);
+	}
+
+	if (status->flag & RX_FLAG_RADIOTAP_HE_MU) {
+		he_mu = *(struct ieee80211_radiotap_he_mu *)skb->data;
+		skb_pull(skb, sizeof(he_mu));
 	}
 
 	if (status->flag & RX_FLAG_RADIOTAP_VENDOR_DATA) {
@@ -610,6 +623,16 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 		pos += sizeof(he);
 	}
 
+	if (status->encoding == RX_ENC_HE &&
+	    status->flag & RX_FLAG_RADIOTAP_HE_MU) {
+		/* ensure 2 byte alignment */
+		while ((pos - (u8 *)rthdr) & 1)
+			pos++;
+		rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_HE_MU);
+		memcpy(pos, &he_mu, sizeof(he_mu));
+		pos += sizeof(he_mu);
+	}
+
 	for_each_set_bit(chain, &chains, IEEE80211_MAX_CHAINS) {
 		*pos++ = status->chain_signal[chain];
 		*pos++ = chain;
@@ -705,6 +728,9 @@ ieee80211_rx_monitor(struct ieee80211_local *local, struct sk_buff *origskb,
 
 	if (status->flag & RX_FLAG_RADIOTAP_HE)
 		rtap_space += sizeof(struct ieee80211_radiotap_he);
+
+	if (status->flag & RX_FLAG_RADIOTAP_HE_MU)
+		rtap_space += sizeof(struct ieee80211_radiotap_he_mu);
 
 	if (unlikely(status->flag & RX_FLAG_RADIOTAP_VENDOR_DATA)) {
 		struct ieee80211_vendor_radiotap *rtap = (void *)origskb->data;
