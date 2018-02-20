@@ -205,7 +205,11 @@ enum ieee80211_radiotap_timestamp_flags {
 	IEEE80211_RADIOTAP_TIMESTAMP_FLAG_ACCURACY = 0x02,
 };
 
-enum ieee80211_radiotap_he {
+struct ieee80211_radiotap_he {
+	__le16 data1, data2, data3, data4, data5, data6;
+};
+
+enum ieee80211_radiotap_he_bits {
 	IEEE80211_RADIOTAP_HE_DATA1_FORMAT_MASK		= 3,
 	IEEE80211_RADIOTAP_HE_DATA1_FORMAT_SU		= 0,
 	IEEE80211_RADIOTAP_HE_DATA1_FORMAT_EXT_SU	= 1,
@@ -277,7 +281,12 @@ enum ieee80211_radiotap_he {
 	IEEE80211_RADIOTAP_HE_DATA6_MIDAMBLE_PDCTY	= 0x8000,
 };
 
-enum ieee80211_radiotap_he_mu {
+struct ieee80211_radiotap_he_mu {
+	__le16 flags1, flags2;
+	u8 ru[4];
+};
+
+enum ieee80211_radiotap_he_mu_bits {
 	IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_MCS		= 0x000f,
 	IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_MCS_KNOWN		= 0x0010,
 	IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_DCM		= 0x0020,
