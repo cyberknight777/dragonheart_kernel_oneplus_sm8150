@@ -517,18 +517,6 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	/* this is the case for CCK frames, it's better (only 8) for OFDM */
 	hw->radiotap_timestamp.accuracy = 22;
 
-	/* mac80211 doesn't support more right now */
-	hw->radiotap_he.data1 =
-		cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_DATA_MCS_KNOWN |
-			    IEEE80211_RADIOTAP_HE_DATA1_DATA_DCM_KNOWN |
-			    IEEE80211_RADIOTAP_HE_DATA1_BW_RU_ALLOC_KNOWN |
-			    IEEE80211_RADIOTAP_HE_DATA1_STBC_KNOWN |
-			    IEEE80211_RADIOTAP_HE_DATA1_CODING_KNOWN);
-	hw->radiotap_he.data2 =
-		cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA2_GI_KNOWN |
-			    IEEE80211_RADIOTAP_HE_DATA2_LTF_SYMS_KNOWN |
-			    IEEE80211_RADIOTAP_HE_DATA2_TXBF_KNOWN);
-
 	if (!iwl_mvm_has_tlc_offload(mvm))
 		hw->rate_control_algorithm = RS_NAME;
 

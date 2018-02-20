@@ -23,6 +23,7 @@
 #include <linux/ieee80211.h>
 #include <net/cfg80211.h>
 #include <net/codel.h>
+#include <net/ieee80211_radiotap.h>
 #include <asm/unaligned.h>
 
 /**
@@ -1125,6 +1126,16 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  * @RX_FLAG_AMPDU_EOF_BIT: Value of the EOF bit in the A-MPDU delimiter for this
  *	frame
  * @RX_FLAG_AMPDU_EOF_BIT_KNOWN: The EOF value is known
+ * @RX_FLAG_RADIOTAP_HE: HE radiotap data is present
+ *	(&struct ieee80211_radiotap_he, mac80211 will fill in
+ *	 - DATA3_DATA_MCS
+ *	 - DATA3_DATA_DCM
+ *	 - DATA3_CODING
+ *	 - DATA5_GI
+ *	 - DATA5_DATA_BW_RU_ALLOC
+ *	 - DATA6_NSTS
+ *	 - DATA3_STBC
+ *	from the RX info data, so leave those zeroed when building this data)
  */
 enum mac80211_rx_flags {
 	RX_FLAG_MMIC_ERROR		= BIT(0),
@@ -1153,6 +1164,7 @@ enum mac80211_rx_flags {
 	RX_FLAG_ICV_STRIPPED		= BIT(23),
 	RX_FLAG_AMPDU_EOF_BIT		= BIT(24),
 	RX_FLAG_AMPDU_EOF_BIT_KNOWN	= BIT(25),
+	RX_FLAG_RADIOTAP_HE		= BIT(26),
 };
 
 /**
@@ -1186,14 +1198,6 @@ enum mac80211_rx_encoding {
 	RX_ENC_HT,
 	RX_ENC_VHT,
 	RX_ENC_HE,
-};
-
-enum ieee80211_he_format {
-	IEEE80211_HE_FORMAT_UNKNOWN,
-	IEEE80211_HE_FORMAT_SU,
-	IEEE80211_HE_FORMAT_EXT_SU,
-	IEEE80211_HE_FORMAT_MU,
-	IEEE80211_HE_FORMAT_TRIG,
 };
 
 /**
@@ -1231,13 +1235,6 @@ enum ieee80211_he_format {
  * @he_ru: HE RU, from &enum nl80211_he_ru_alloc
  * @he_gi: HE GI, from &enum nl80211_he_gi
  * @he_dcm: HE DCM value
- * @he_format: HE format (taken from &enum ieee80211_he_format)
- * @he_ltf: LTF value - 1, valid LTF values are 1, 2, 4 so the corresponding
- *	values in this field are 0, 1, 3.
- *	(only used for radiotap)
- * @he_txbf: TxBF bit for HE
- * @he_ul: HE uplink/downlink bit (1 = uplink)
- * @he_ul_known: HE uplink/downlink bit is known
  * @rx_flags: internal RX flags for mac80211
  * @ampdu_reference: A-MPDU reference number, must be a different value for
  *	each A-MPDU but the same for each subframe within one A-MPDU
@@ -1252,8 +1249,7 @@ struct ieee80211_rx_status {
 	u16 freq;
 	u8 enc_flags;
 	u8 encoding:2, bw:3, he_ru:3;
-	u8 he_gi:2, he_dcm:1, he_format:3, he_ltf:2, he_txbf:1,
-	   he_ul:1, he_ul_known:1;
+	u8 he_gi:2, he_dcm:1;
 	u8 rate_idx;
 	u8 nss;
 	u8 rx_flags;
@@ -2345,10 +2341,6 @@ struct ieee80211_hw {
 		int units_pos;
 		s16 accuracy;
 	} radiotap_timestamp;
-	struct {
-		/* these carry the "known" bits, don't set the format */
-		__le16 data1, data2;
-	} radiotap_he;
 	netdev_features_t netdev_features;
 	u8 uapsd_queues;
 	u8 uapsd_max_sp_len;
