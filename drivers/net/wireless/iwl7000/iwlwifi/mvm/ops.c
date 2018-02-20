@@ -845,6 +845,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	memcpy(trans->dbg_conf_tlv, mvm->fw->dbg_conf_tlv,
 	       sizeof(trans->dbg_conf_tlv));
 	trans->dbg_trigger_tlv = mvm->fw->dbg_trigger_tlv;
+	trans->dbg_dump_mask = mvm->fw->dbg_dump_mask;
 
 	/* set up notification wait support */
 	iwl_notification_wait_init(&mvm->notif_wait);
