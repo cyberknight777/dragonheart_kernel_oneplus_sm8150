@@ -56,6 +56,8 @@
 
 #define CTX \
 	enc110->base.ctx
+#define DC_LOGGER \
+	enc110->base.ctx->logger
 
 #define REG(reg)\
 	(enc110->link_regs->reg)
@@ -823,7 +825,6 @@ void dce110_link_encoder_hw_init(
 	struct link_encoder *enc)
 {
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
 	struct bp_transmitter_control cntl = { 0 };
 	enum bp_result result;
 
@@ -841,8 +842,7 @@ void dce110_link_encoder_hw_init(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		DC_LOG_ERROR(ctx->logger,
-			"%s: Failed to execute VBIOS command table!\n",
+		DC_LOG_ERROR("%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
 		return;
@@ -918,7 +918,6 @@ void dce110_link_encoder_enable_tmds_output(
 	uint32_t pixel_clock)
 {
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
 	struct bp_transmitter_control cntl = { 0 };
 	enum bp_result result;
 
@@ -942,8 +941,7 @@ void dce110_link_encoder_enable_tmds_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		DC_LOG_ERROR(ctx->logger,
-			"%s: Failed to execute VBIOS command table!\n",
+		DC_LOG_ERROR("%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
 	}
@@ -956,7 +954,6 @@ void dce110_link_encoder_enable_dp_output(
 	enum clock_source_id clock_source)
 {
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
 	struct bp_transmitter_control cntl = { 0 };
 	enum bp_result result;
 
@@ -983,8 +980,7 @@ void dce110_link_encoder_enable_dp_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		DC_LOG_ERROR(ctx->logger,
-			"%s: Failed to execute VBIOS command table!\n",
+		DC_LOG_ERROR("%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
 	}
@@ -997,7 +993,6 @@ void dce110_link_encoder_enable_dp_mst_output(
 	enum clock_source_id clock_source)
 {
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
 	struct bp_transmitter_control cntl = { 0 };
 	enum bp_result result;
 
@@ -1024,8 +1019,7 @@ void dce110_link_encoder_enable_dp_mst_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		DC_LOG_ERROR(ctx->logger,
-			"%s: Failed to execute VBIOS command table!\n",
+		DC_LOG_ERROR("%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
 	}
@@ -1039,7 +1033,6 @@ void dce110_link_encoder_disable_output(
 	enum signal_type signal)
 {
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
 	struct bp_transmitter_control cntl = { 0 };
 	enum bp_result result;
 
@@ -1067,8 +1060,7 @@ void dce110_link_encoder_disable_output(
 	result = link_transmitter_control(enc110, &cntl);
 
 	if (result != BP_RESULT_OK) {
-		DC_LOG_ERROR(ctx->logger,
-			"%s: Failed to execute VBIOS command table!\n",
+		DC_LOG_ERROR("%s: Failed to execute VBIOS command table!\n",
 			__func__);
 		BREAK_TO_DEBUGGER();
 		return;
