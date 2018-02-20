@@ -855,6 +855,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	struct sk_buff *skb;
 	u8 crypt_len = 0, channel, energy_a, energy_b;
 	struct ieee80211_radiotap_he *he = NULL;
+	struct ieee80211_radiotap_he_mu *he_mu = NULL;
 	u32 he_type = 0xffffffff;
 	size_t desc_size;
 	/* this is invalid e.g. because puncture type doesn't allow 0b11 */
@@ -906,11 +907,17 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		static const struct ieee80211_radiotap_he known = {
 			.data1 = cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_DATA_MCS_KNOWN |
 					     IEEE80211_RADIOTAP_HE_DATA1_DATA_DCM_KNOWN |
-					     IEEE80211_RADIOTAP_HE_DATA1_BW_RU_ALLOC_KNOWN |
 					     IEEE80211_RADIOTAP_HE_DATA1_STBC_KNOWN |
 					     IEEE80211_RADIOTAP_HE_DATA1_CODING_KNOWN),
 			.data2 = cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA2_GI_KNOWN |
 					     IEEE80211_RADIOTAP_HE_DATA2_TXBF_KNOWN),
+		};
+		static const struct ieee80211_radiotap_he_mu mu_known = {
+			.flags1 = cpu_to_le16(IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_MCS_KNOWN |
+					      IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_DCM_KNOWN |
+					      IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_SYMS_USERS_KNOWN |
+					      IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_COMP_KNOWN),
+			.flags2 = cpu_to_le16(IEEE80211_RADIOTAP_HE_MU_FLAGS2_PUNC_FROM_SIG_A_BW_KNOWN),
 		};
 
 		he = skb_put_data(skb, &known, sizeof(known));
@@ -926,6 +933,12 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			else
 				he_phy_data =
 					le64_to_cpu(desc->v1.he_phy_data);
+
+			if (he_type == RATE_MCS_HE_TYPE_MU) {
+				he_mu = skb_put_data(skb, &mu_known,
+						     sizeof(mu_known));
+				rx_status->flag |= RX_FLAG_RADIOTAP_HE_MU;
+			}
 		}
 	}
 
@@ -977,7 +990,29 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			if (FIELD_GET(IWL_RX_HE_PHY_DELIM_EOF, he_phy_data))
 				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT;
 		}
+	} else if (he_mu && he_phy_data != HE_PHY_DATA_INVAL) {
+		he_mu->flags1 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_SIG_B_SYMS_USERS,
+					FIELD_GET(IWL_RX_HE_PHY_SIBG_SYM_OR_USER_NUM_MASK,
+						  he_phy_data));
+		he_mu->flags1 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_DCM,
+					FIELD_GET(IWL_RX_HE_PHY_SIGB_DCM,
+						  he_phy_data));
+		he_mu->flags1 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_MCS,
+					FIELD_GET(IWL_RX_HE_PHY_SIGB_MCS_MASK,
+						  he_phy_data));
+		he_mu->flags2 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_SIG_B_COMP,
+					FIELD_GET(IWL_RX_HE_PHY_SIGB_COMPRESSION,
+						  he_phy_data));
+		he_mu->flags2 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_PUNC_FROM_SIG_A_BW,
+					FIELD_GET(IWL_RX_HE_PHY_PREAMBLE_PUNC_TYPE_MASK,
+						  he_phy_data));
 	}
+
 	rx_status->device_timestamp = gp2_on_air_rise;
 	rx_status->band = channel > 14 ? NL80211_BAND_5GHZ :
 		NL80211_BAND_2GHZ;
@@ -1141,6 +1176,62 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	    rate_n_flags & RATE_MCS_HE_106T_MSK) {
 		rx_status->bw = RATE_INFO_BW_HE_RU;
 		rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_106;
+	}
+
+	if (he_mu) {
+		/*
+		 * Unfortunately, we have to leave the mac80211 data
+		 * incorrect for the case that we receive an HE-MU
+		 * transmission and *don't* have the he_mu pointer,
+		 * i.e. we don't have the phy data (due to the bits
+		 * being used for TSF). This shouldn't happen though
+		 * as management frames where we need the TSF/timers
+		 * are not be transmitted in HE-MU, I think.
+		 */
+		u8 ru = FIELD_GET(IWL_RX_HE_PHY_RU_ALLOC_MASK, he_phy_data);
+		u8 offs = 0;
+
+		rx_status->bw = RATE_INFO_BW_HE_RU;
+
+		switch (ru) {
+		case 0 ... 36:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_26;
+			offs = ru;
+			break;
+		case 37 ... 52:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_52;
+			offs = ru - 37;
+			break;
+		case 53 ... 60:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_106;
+			offs = ru - 53;
+			break;
+		case 61 ... 64:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_242;
+			offs = ru - 61;
+			break;
+		case 65 ... 66:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_484;
+			offs = ru - 65;
+			break;
+		case 67:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_996;
+			break;
+		case 68:
+			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_2x996;
+			break;
+		}
+		he->data2 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_DATA2_RU_OFFSET,
+					offs);
+		he->data2 |=
+			cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA2_PRISEC_80_KNOWN);
+		if (he_phy_data & IWL_RX_HE_PHY_RU_ALLOC_SEC80)
+			he->data2 |=
+				cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA2_PRISEC_80_SEC);
+	} else if (he) {
+		he->data1 |=
+			cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_BW_RU_ALLOC_KNOWN);
 	}
 
 	if (!(rate_n_flags & RATE_MCS_CCK_MSK) &&
