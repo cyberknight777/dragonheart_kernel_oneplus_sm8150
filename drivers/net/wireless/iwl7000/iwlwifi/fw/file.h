@@ -147,6 +147,9 @@ enum iwl_ucode_tlv_type {
 	IWL_UCODE_TLV_FW_MEM_SEG	= 51,
 	IWL_UCODE_TLV_IML		= 52,
 	IWL_UCODE_TLV_FW_FMAC_API_VERSION	= 53,
+
+	/* TLVs 0x1000-0x2000 are for internal driver usage */
+	IWL_UCODE_TLV_FW_DBG_DUMP_LST	= 0x1000,
 };
 
 struct iwl_ucode_tlv {
