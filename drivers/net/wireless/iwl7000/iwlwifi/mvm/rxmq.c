@@ -857,6 +857,9 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	struct ieee80211_radiotap_he *he = NULL;
 	u32 he_type = 0xffffffff;
 	size_t desc_size;
+	/* this is invalid e.g. because puncture type doesn't allow 0b11 */
+#define HE_PHY_DATA_INVAL ((u64)-1)
+	u64 he_phy_data = HE_PHY_DATA_INVAL;
 
 	if (unlikely(test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)))
 		return;
@@ -914,6 +917,16 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->flag |= RX_FLAG_RADIOTAP_HE;
 
 		he_type = rate_n_flags & RATE_MCS_HE_TYPE_MSK;
+
+		if (phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD) {
+			if (mvm->trans->cfg->device_family >=
+					IWL_DEVICE_FAMILY_22650)
+				he_phy_data =
+					le64_to_cpu(desc->v3.he_phy_data);
+			else
+				he_phy_data =
+					le64_to_cpu(desc->v1.he_phy_data);
+		}
 	}
 
 	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc,
@@ -949,17 +962,9 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		/* TSF as indicated by the firmware is at INA time */
 		rx_status->flag |= RX_FLAG_MACTIME_PLCP_START;
 	} else if (he_type == RATE_MCS_HE_TYPE_SU) {
-		u64 he_phy_data;
-
-		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
-			he_phy_data = le64_to_cpu(desc->v3.he_phy_data);
-		else
-			he_phy_data = le64_to_cpu(desc->v1.he_phy_data);
-
 		he->data1 |=
 			cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_UL_DL_KNOWN);
-		if (FIELD_GET(IWL_RX_HE_PHY_UPLINK,
-			      he_phy_data))
+		if (FIELD_GET(IWL_RX_HE_PHY_UPLINK, he_phy_data))
 			he->data3 |=
 				cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA3_UL_DL);
 
@@ -969,8 +974,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 			rx_status->flag |= RX_FLAG_AMPDU_DETAILS;
 			rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
-			if (FIELD_GET(IWL_RX_HE_PHY_DELIM_EOF,
-				      he_phy_data))
+			if (FIELD_GET(IWL_RX_HE_PHY_DELIM_EOF, he_phy_data))
 				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT;
 		}
 	}
@@ -985,12 +989,6 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	/* update aggregation data for monitor sake on default queue */
 	if (!queue && (phy_info & IWL_RX_MPDU_PHY_AMPDU)) {
 		bool toggle_bit = phy_info & IWL_RX_MPDU_PHY_AMPDU_TOGGLE;
-		u64 he_phy_data;
-
-		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
-			he_phy_data = le64_to_cpu(desc->v3.he_phy_data);
-		else
-			he_phy_data = le64_to_cpu(desc->v1.he_phy_data);
 
 		rx_status->flag |= RX_FLAG_AMPDU_DETAILS;
 		rx_status->ampdu_reference = mvm->ampdu_ref;
@@ -999,7 +997,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			mvm->ampdu_ref++;
 			mvm->ampdu_toggle = toggle_bit;
 
-			if (phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD &&
+			if (he_phy_data != HE_PHY_DATA_INVAL &&
 			    he_type == RATE_MCS_HE_TYPE_MU) {
 				rx_status->flag |= RX_FLAG_AMPDU_EOF_BIT_KNOWN;
 				if (FIELD_GET(IWL_RX_HE_PHY_DELIM_EOF,
@@ -1255,15 +1253,8 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			break;
 		case RATE_MCS_HE_TYPE_MU: {
 			u16 val;
-			u64 he_phy_data;
 
-			if (mvm->trans->cfg->device_family >=
-			    IWL_DEVICE_FAMILY_22650)
-				he_phy_data = le64_to_cpu(desc->v3.he_phy_data);
-			else
-				he_phy_data = le64_to_cpu(desc->v1.he_phy_data);
-
-			if (!(phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD))
+			if (he_phy_data == HE_PHY_DATA_INVAL)
 				break;
 
 			val = FIELD_GET(IWL_RX_HE_PHY_HE_LTF_NUM_MASK,
