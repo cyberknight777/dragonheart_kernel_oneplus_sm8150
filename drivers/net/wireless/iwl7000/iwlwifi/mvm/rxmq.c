@@ -1248,14 +1248,40 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		}
 
 		switch (he_type) {
-		case RATE_MCS_HE_TYPE_SU:
+		case RATE_MCS_HE_TYPE_SU: {
+			u16 val;
+
 			/* LTF syms correspond to streams */
 			he->data2 |=
 				cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA2_LTF_SYMS_KNOWN);
+			switch (rx_status->nss) {
+			case 1:
+				val = 0;
+				break;
+			case 2:
+				val = 1;
+				break;
+			case 3:
+			case 4:
+				val = 2;
+				break;
+			case 5:
+			case 6:
+				val = 3;
+				break;
+			case 7:
+			case 8:
+				val = 4;
+				break;
+			default:
+				WARN_ONCE(1, "invalid nss: %d\n",
+					  rx_status->nss);
+				val = 0;
+			}
 			he->data5 |=
-				cpu_to_le16(FIELD_PREP(
-					IEEE80211_RADIOTAP_HE_DATA5_LTF_SYMS,
-					rx_status->nss));
+				FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_DATA5_LTF_SYMS,
+						val);
+			}
 			break;
 		case RATE_MCS_HE_TYPE_MU: {
 			u16 val;
