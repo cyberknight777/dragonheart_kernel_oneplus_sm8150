@@ -941,16 +941,14 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	if (likely(!(phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD))) {
 		u64 tsf_on_air_rise;
 
-		if (mvm->trans->cfg->device_family >=
-		    IWL_DEVICE_FAMILY_22650) {
+		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
 			struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
 
 			tsf_on_air_rise = le64_to_cpu(desc->tsf_on_air_rise);
 		} else {
-			struct iwl_rx_mpdu_desc *desc_v1 = (void *)pkt->data;
+			struct iwl_rx_mpdu_desc_v1 *desc = (void *)pkt->data;
 
-			tsf_on_air_rise =
-				le64_to_cpu(desc_v1->tsf_on_air_rise);
+			tsf_on_air_rise = le64_to_cpu(desc->tsf_on_air_rise);
 		}
 
 		rx_status->mactime = tsf_on_air_rise;
@@ -959,16 +957,14 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	} else if (he_type == RATE_MCS_HE_TYPE_SU) {
 		u64 he_phy_data;
 
-		if (mvm->trans->cfg->device_family >=
-		    IWL_DEVICE_FAMILY_22650) {
+		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
 			struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
 
 			he_phy_data = le64_to_cpu(desc->he_phy_data);
 		} else {
-			struct iwl_rx_mpdu_desc *desc_v1 = (void *)pkt->data;
+			struct iwl_rx_mpdu_desc_v1 *desc = (void *)pkt->data;
 
-			he_phy_data =
-				le64_to_cpu(desc_v1->he_phy_data);
+			he_phy_data = le64_to_cpu(desc->he_phy_data);
 		}
 
 		he->data1 |=
@@ -1002,16 +998,14 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		bool toggle_bit = phy_info & IWL_RX_MPDU_PHY_AMPDU_TOGGLE;
 		u64 he_phy_data;
 
-		if (mvm->trans->cfg->device_family >=
-		    IWL_DEVICE_FAMILY_22650) {
+		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
 			struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
 
 			he_phy_data = le64_to_cpu(desc->he_phy_data);
 		} else {
-			struct iwl_rx_mpdu_desc *desc_v1 = (void *)pkt->data;
+			struct iwl_rx_mpdu_desc_v1 *desc = (void *)pkt->data;
 
-			he_phy_data =
-				le64_to_cpu(desc_v1->he_phy_data);
+			he_phy_data = le64_to_cpu(desc->he_phy_data);
 		}
 
 		rx_status->flag |= RX_FLAG_AMPDU_DETAILS;
@@ -1274,11 +1268,11 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 				he_phy_data = le64_to_cpu(desc->he_phy_data);
 			} else {
-				struct iwl_rx_mpdu_desc *desc_v1 =
+				struct iwl_rx_mpdu_desc_v1 *desc =
 					(void *)pkt->data;
 
 				he_phy_data =
-					le64_to_cpu(desc_v1->he_phy_data);
+					le64_to_cpu(desc->he_phy_data);
 			}
 
 			if (!(phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD))
