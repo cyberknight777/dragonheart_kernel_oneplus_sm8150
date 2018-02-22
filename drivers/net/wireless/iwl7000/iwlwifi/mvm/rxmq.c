@@ -1125,37 +1125,17 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		}
 	}
 
-	/* Set up the HT phy flags */
 	switch (rate_n_flags & RATE_MCS_CHAN_WIDTH_MSK) {
 	case RATE_MCS_CHAN_WIDTH_20:
-		if (he_type == RATE_MCS_HE_TYPE_MU) {
-			rx_status->bw = RATE_INFO_BW_HE_RU;
-			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_242;
-		}
 		break;
 	case RATE_MCS_CHAN_WIDTH_40:
-		if (he_type == RATE_MCS_HE_TYPE_MU) {
-			rx_status->bw = RATE_INFO_BW_HE_RU;
-			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_484;
-		} else {
-			rx_status->bw = RATE_INFO_BW_40;
-		}
+		rx_status->bw = RATE_INFO_BW_40;
 		break;
 	case RATE_MCS_CHAN_WIDTH_80:
-		if (he_type == RATE_MCS_HE_TYPE_MU) {
-			rx_status->bw = RATE_INFO_BW_HE_RU;
-			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_996;
-		} else {
-			rx_status->bw = RATE_INFO_BW_80;
-		}
+		rx_status->bw = RATE_INFO_BW_80;
 		break;
 	case RATE_MCS_CHAN_WIDTH_160:
-		if (he_type == RATE_MCS_HE_TYPE_MU) {
-			rx_status->bw = RATE_INFO_BW_HE_RU;
-			rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_2x996;
-		} else {
-			rx_status->bw = RATE_INFO_BW_160;
-		}
+		rx_status->bw = RATE_INFO_BW_160;
 		break;
 	}
 
