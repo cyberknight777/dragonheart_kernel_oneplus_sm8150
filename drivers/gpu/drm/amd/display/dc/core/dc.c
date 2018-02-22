@@ -866,6 +866,8 @@ static enum dc_status dc_commit_state_no_check(struct dc *dc, struct dc_state *c
 	if (!dcb->funcs->is_accelerated_mode(dcb))
 		dc->hwss.enable_accelerated_mode(dc, context);
 
+	dc->hwss.set_bandwidth(dc, context, false);
+
 	/* re-program planes for existing stream, in case we need to
 	 * free up plane resource for later use
 	 */
@@ -931,6 +933,9 @@ static enum dc_status dc_commit_state_no_check(struct dc *dc, struct dc_state *c
 				context->streams[i]->timing.v_total,
 				context->streams[i]->timing.pix_clk_khz);
 	}
+
+	/* pplib is notified if disp_num changed */
+	dc->hwss.set_bandwidth(dc, context, true);
 
 	dc_enable_stereo(dc, context, dc_streams, context->stream_count);
 
