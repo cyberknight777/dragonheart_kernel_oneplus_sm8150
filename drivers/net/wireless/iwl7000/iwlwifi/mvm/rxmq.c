@@ -1139,6 +1139,12 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		break;
 	}
 
+	if (he_type == RATE_MCS_HE_TYPE_EXT_SU &&
+	    rate_n_flags & RATE_MCS_HE_106T_MSK) {
+		rx_status->bw = RATE_INFO_BW_HE_RU;
+		rx_status->he_ru = NL80211_RATE_INFO_HE_RU_ALLOC_106;
+	}
+
 	if (!(rate_n_flags & RATE_MCS_CCK_MSK) &&
 	    rate_n_flags & RATE_MCS_SGI_MSK)
 		rx_status->enc_flags |= RX_ENC_FLAG_SHORT_GI;

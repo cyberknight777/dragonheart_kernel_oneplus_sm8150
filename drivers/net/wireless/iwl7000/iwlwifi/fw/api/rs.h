@@ -492,6 +492,9 @@ enum {
 #define RATE_MCS_LDPC_POS		27
 #define RATE_MCS_LDPC_MSK		(1 << RATE_MCS_LDPC_POS)
 
+/* Bit 28: (1) 106-tone RX (8 MHz RU), (0) normal bandwidth */
+#define RATE_MCS_HE_106T_POS		28
+#define RATE_MCS_HE_106T_MSK		(1 << RATE_MCS_HE_106T_POS)
 
 /* Link Quality definitions */
 
