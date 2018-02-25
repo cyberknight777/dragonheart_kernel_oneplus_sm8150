@@ -2211,7 +2211,6 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 
 	debugfs_create_file("mem", S_IRUSR | S_IWUSR, dbgfs_dir, mvm,
 			    &iwl_dbgfs_mem_ops);
-
 	/*
 	 * Create a symlink with mac80211. It will be removed when mac80211
 	 * exists (before the opmode exists which removes the target.)
