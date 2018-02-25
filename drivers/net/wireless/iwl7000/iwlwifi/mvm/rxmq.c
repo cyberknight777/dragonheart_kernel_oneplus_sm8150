@@ -148,11 +148,11 @@ static void iwl_mvm_create_skb(struct sk_buff *skb, struct ieee80211_hdr *hdr,
 			       struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	struct iwl_rx_mpdu_desc_v1 *desc_v1 = (void *)pkt->data;
+	struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
 	unsigned int headlen, fraglen, pad_len = 0;
 	unsigned int hdrlen = ieee80211_hdrlen(hdr->frame_control);
 
-	if (desc_v1->mac_flags2 & IWL_RX_MPDU_MFLG2_PAD) {
+	if (desc->mac_flags2 & IWL_RX_MPDU_MFLG2_PAD) {
 		len -= 2;
 		pad_len = 2;
 	}
@@ -229,10 +229,10 @@ static void iwl_mvm_get_signal_strength(struct iwl_mvm *mvm,
 
 static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 			     struct ieee80211_rx_status *stats,
-			     struct iwl_rx_mpdu_desc_v1 *desc_v1,
+			     struct iwl_rx_mpdu_desc *desc,
 			     u32 pkt_flags, int queue, u8 *crypt_len)
 {
-	u16 status = le16_to_cpu(desc_v1->status);
+	u16 status = le16_to_cpu(desc->status);
 
 	if (!ieee80211_has_protected(hdr->frame_control) ||
 	    (status & IWL_RX_MPDU_STATUS_SEC_MASK) ==
@@ -299,11 +299,11 @@ static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 
 static void iwl_mvm_rx_csum(struct ieee80211_sta *sta,
 			    struct sk_buff *skb,
-			    struct iwl_rx_mpdu_desc_v1 *desc_v1)
+			    struct iwl_rx_mpdu_desc *desc)
 {
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(mvmsta->vif);
-	u16 flags = le16_to_cpu(desc_v1->l3l4_flags);
+	u16 flags = le16_to_cpu(desc->l3l4_flags);
 	u8 l3_prot = (u8)((flags & IWL_RX_L3L4_L3_PROTO_MASK) >>
 			  IWL_RX_L3_PROTO_POS);
 
@@ -322,7 +322,7 @@ static void iwl_mvm_rx_csum(struct ieee80211_sta *sta,
 static bool iwl_mvm_is_dup(struct ieee80211_sta *sta, int queue,
 			   struct ieee80211_rx_status *rx_status,
 			   struct ieee80211_hdr *hdr,
-			   struct iwl_rx_mpdu_desc_v1 *desc_v1)
+			   struct iwl_rx_mpdu_desc *desc)
 {
 	struct iwl_mvm_sta *mvm_sta;
 	struct iwl_mvm_rxq_dup_data *dup_data;
@@ -352,7 +352,7 @@ static bool iwl_mvm_is_dup(struct ieee80211_sta *sta, int queue,
 		tid = IWL_MAX_TID_COUNT;
 
 	/* If this wasn't a part of an A-MSDU the sub-frame index will be 0 */
-	sub_frame_idx = desc_v1->amsdu_info &
+	sub_frame_idx = desc->amsdu_info &
 		IWL_RX_MPDU_AMSDU_SUBFRAME_IDX_MASK;
 
 	if (unlikely(ieee80211_has_retry(hdr->frame_control) &&
@@ -363,7 +363,7 @@ static bool iwl_mvm_is_dup(struct ieee80211_sta *sta, int queue,
 	/* Allow same PN as the first subframe for following sub frames */
 	if (dup_data->last_seq[tid] == hdr->seq_ctrl &&
 	    sub_frame_idx > dup_data->last_sub_frame[tid] &&
-	    desc_v1->mac_flags2 & IWL_RX_MPDU_MFLG2_AMSDU)
+	    desc->mac_flags2 & IWL_RX_MPDU_MFLG2_AMSDU)
 		rx_status->flag |= RX_FLAG_ALLOW_SAME_PN;
 
 	dup_data->last_seq[tid] = hdr->seq_ctrl;
@@ -617,19 +617,19 @@ static bool iwl_mvm_reorder(struct iwl_mvm *mvm,
 			    int queue,
 			    struct ieee80211_sta *sta,
 			    struct sk_buff *skb,
-			    struct iwl_rx_mpdu_desc_v1 *desc_v1)
+			    struct iwl_rx_mpdu_desc *desc)
 {
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 	struct iwl_mvm_sta *mvm_sta;
 	struct iwl_mvm_baid_data *baid_data;
 	struct iwl_mvm_reorder_buffer *buffer;
 	struct sk_buff *tail;
-	u32 reorder = le32_to_cpu(desc_v1->reorder_data);
-	bool amsdu = desc_v1->mac_flags2 & IWL_RX_MPDU_MFLG2_AMSDU;
+	u32 reorder = le32_to_cpu(desc->reorder_data);
+	bool amsdu = desc->mac_flags2 & IWL_RX_MPDU_MFLG2_AMSDU;
 	bool last_subframe =
-		desc_v1->amsdu_info & IWL_RX_MPDU_AMSDU_LAST_SUBFRAME;
+		desc->amsdu_info & IWL_RX_MPDU_AMSDU_LAST_SUBFRAME;
 	u8 tid = ieee80211_get_tid(hdr);
-	u8 sub_frame_idx = desc_v1->amsdu_info &
+	u8 sub_frame_idx = desc->amsdu_info &
 			   IWL_RX_MPDU_AMSDU_SUBFRAME_IDX_MASK;
 	struct iwl_mvm_reorder_buf_entry *entries;
 	int index;
@@ -846,11 +846,11 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 {
 	struct ieee80211_rx_status *rx_status;
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	struct iwl_rx_mpdu_desc_v1 *desc_v1 = (void *)pkt->data;
+	struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
 	struct ieee80211_hdr *hdr;
-	u32 len = le16_to_cpu(desc_v1->mpdu_len);
+	u32 len = le16_to_cpu(desc->mpdu_len);
 	u32 rate_n_flags, gp2_on_air_rise;
-	u16 phy_info = le16_to_cpu(desc_v1->phy_info);
+	u16 phy_info = le16_to_cpu(desc->phy_info);
 	struct ieee80211_sta *sta = NULL;
 	struct sk_buff *skb;
 	u8 crypt_len = 0, channel, energy_a, energy_b;
@@ -862,21 +862,19 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		return;
 
 	if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
-		struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
-
-		rate_n_flags = le32_to_cpu(desc->rate_n_flags);
-		channel = desc->channel;
-		gp2_on_air_rise = le32_to_cpu(desc->gp2_on_air_rise);
-		energy_a = desc->energy_a;
-		energy_b = desc->energy_b;
+		rate_n_flags = le32_to_cpu(desc->v3.rate_n_flags);
+		channel = desc->v3.channel;
+		gp2_on_air_rise = le32_to_cpu(desc->v3.gp2_on_air_rise);
+		energy_a = desc->v3.energy_a;
+		energy_b = desc->v3.energy_b;
 		desc_size = sizeof(*desc);
 	} else {
-		rate_n_flags = le32_to_cpu(desc_v1->rate_n_flags);
-		channel = desc_v1->channel;
-		gp2_on_air_rise = le32_to_cpu(desc_v1->gp2_on_air_rise);
-		energy_a = desc_v1->energy_a;
-		energy_b = desc_v1->energy_b;
-		desc_size = sizeof(*desc_v1);
+		rate_n_flags = le32_to_cpu(desc->v1.rate_n_flags);
+		channel = desc->v1.channel;
+		gp2_on_air_rise = le32_to_cpu(desc->v1.gp2_on_air_rise);
+		energy_a = desc->v1.energy_a;
+		energy_b = desc->v1.energy_b;
+		desc_size = IWL_RX_DESC_SIZE_V1;
 	}
 
 	hdr = (void *)(pkt->data + desc_size);
@@ -889,7 +887,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		return;
 	}
 
-	if (desc_v1->mac_flags2 & IWL_RX_MPDU_MFLG2_PAD) {
+	if (desc->mac_flags2 & IWL_RX_MPDU_MFLG2_PAD) {
 		/*
 		 * If the device inserted padding it means that (it thought)
 		 * the 802.11 header wasn't a multiple of 4 bytes long. In
@@ -917,7 +915,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 	rx_status = IEEE80211_SKB_RXCB(skb);
 
-	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc_v1,
+	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc,
 			      le32_to_cpu(pkt->len_n_flags), queue,
 			      &crypt_len)) {
 		kfree_skb(skb);
@@ -928,10 +926,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	 * Keep packets with CRC errors (and with overrun) for monitor mode
 	 * (otherwise the firmware discards them) but mark them as bad.
 	 */
-	if (!(desc_v1->status & cpu_to_le16(IWL_RX_MPDU_STATUS_CRC_OK)) ||
-	    !(desc_v1->status & cpu_to_le16(IWL_RX_MPDU_STATUS_OVERRUN_OK))) {
+	if (!(desc->status & cpu_to_le16(IWL_RX_MPDU_STATUS_CRC_OK)) ||
+	    !(desc->status & cpu_to_le16(IWL_RX_MPDU_STATUS_OVERRUN_OK))) {
 		IWL_DEBUG_RX(mvm, "Bad CRC or FIFO: 0x%08X.\n",
-			     le16_to_cpu(desc_v1->status));
+			     le16_to_cpu(desc->status));
 		rx_status->flag |= RX_FLAG_FAILED_FCS_CRC;
 	}
 	/* set the preamble flag if appropriate */
@@ -941,15 +939,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	if (likely(!(phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD))) {
 		u64 tsf_on_air_rise;
 
-		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
-			struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
-
-			tsf_on_air_rise = le64_to_cpu(desc->tsf_on_air_rise);
-		} else {
-			struct iwl_rx_mpdu_desc_v1 *desc = (void *)pkt->data;
-
-			tsf_on_air_rise = le64_to_cpu(desc->tsf_on_air_rise);
-		}
+		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
+			tsf_on_air_rise = le64_to_cpu(desc->v3.tsf_on_air_rise);
+		else
+			tsf_on_air_rise = le64_to_cpu(desc->v1.tsf_on_air_rise);
 
 		rx_status->mactime = tsf_on_air_rise;
 		/* TSF as indicated by the firmware is at INA time */
@@ -957,15 +950,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	} else if (he_type == RATE_MCS_HE_TYPE_SU) {
 		u64 he_phy_data;
 
-		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
-			struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
-
-			he_phy_data = le64_to_cpu(desc->he_phy_data);
-		} else {
-			struct iwl_rx_mpdu_desc_v1 *desc = (void *)pkt->data;
-
-			he_phy_data = le64_to_cpu(desc->he_phy_data);
-		}
+		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
+			he_phy_data = le64_to_cpu(desc->v3.he_phy_data);
+		else
+			he_phy_data = le64_to_cpu(desc->v1.he_phy_data);
 
 		he->data1 |=
 			cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_UL_DL_KNOWN);
@@ -998,15 +986,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		bool toggle_bit = phy_info & IWL_RX_MPDU_PHY_AMPDU_TOGGLE;
 		u64 he_phy_data;
 
-		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
-			struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
-
-			he_phy_data = le64_to_cpu(desc->he_phy_data);
-		} else {
-			struct iwl_rx_mpdu_desc_v1 *desc = (void *)pkt->data;
-
-			he_phy_data = le64_to_cpu(desc->he_phy_data);
-		}
+		if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
+			he_phy_data = le64_to_cpu(desc->v3.he_phy_data);
+		else
+			he_phy_data = le64_to_cpu(desc->v1.he_phy_data);
 
 		rx_status->flag |= RX_FLAG_AMPDU_DETAILS;
 		rx_status->ampdu_reference = mvm->ampdu_ref;
@@ -1028,8 +1011,8 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 	rcu_read_lock();
 
-	if (desc_v1->status & cpu_to_le16(IWL_RX_MPDU_STATUS_SRC_STA_FOUND)) {
-		u8 id = desc_v1->sta_id_flags & IWL_RX_MPDU_SIF_STA_ID_MASK;
+	if (desc->status & cpu_to_le16(IWL_RX_MPDU_STATUS_SRC_STA_FOUND)) {
+		u8 id = desc->sta_id_flags & IWL_RX_MPDU_SIF_STA_ID_MASK;
 
 		if (!WARN_ON_ONCE(id >= ARRAY_SIZE(mvm->fw_id_to_mac_id))) {
 			sta = rcu_dereference(mvm->fw_id_to_mac_id[id]);
@@ -1048,7 +1031,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 		struct ieee80211_vif *tx_blocked_vif =
 			rcu_dereference(mvm->csa_tx_blocked_vif);
-		u8 baid = (u8)((le32_to_cpu(desc_v1->reorder_data) &
+		u8 baid = (u8)((le32_to_cpu(desc->reorder_data) &
 			       IWL_RX_MPDU_REORDER_BAID_MASK) >>
 			       IWL_RX_MPDU_REORDER_BAID_SHIFT);
 
@@ -1099,7 +1082,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		}
 
 		if (ieee80211_is_data(hdr->frame_control))
-			iwl_mvm_rx_csum(sta, skb, desc_v1);
+			iwl_mvm_rx_csum(sta, skb, desc);
 
 #ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
 		/*
@@ -1109,7 +1092,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		iwl_mvm_tdls_peer_cache_pkt(mvm, hdr, len, queue);
 #endif /* CPTCFG_IWLMVM_TDLS_PEER_CACHE */
 
-		if (iwl_mvm_is_dup(sta, queue, rx_status, hdr, desc_v1)) {
+		if (iwl_mvm_is_dup(sta, queue, rx_status, hdr, desc)) {
 			kfree_skb(skb);
 			goto out;
 		}
@@ -1120,7 +1103,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		 * AMSDU bit in the QoS control ourselves.
 		 * In addition, HW reverses addr3 and addr4 - reverse it back.
 		 */
-		if ((desc_v1->mac_flags2 & IWL_RX_MPDU_MFLG2_AMSDU) &&
+		if ((desc->mac_flags2 & IWL_RX_MPDU_MFLG2_AMSDU) &&
 		    !WARN_ON(!ieee80211_is_data_qos(hdr->frame_control))) {
 			u8 *qc = ieee80211_get_qos_ctl(hdr);
 
@@ -1135,7 +1118,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			}
 		}
 		if (baid != IWL_RX_REORDER_DATA_INVALID_BAID) {
-			u32 reorder_data = le32_to_cpu(desc_v1->reorder_data);
+			u32 reorder_data = le32_to_cpu(desc->reorder_data);
 
 			iwl_mvm_agg_rx_received(mvm, reorder_data, baid);
 		}
@@ -1288,18 +1271,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			u64 he_phy_data;
 
 			if (mvm->trans->cfg->device_family >=
-			    IWL_DEVICE_FAMILY_22650) {
-				struct iwl_rx_mpdu_desc *desc =
-					(void *)pkt->data;
-
-				he_phy_data = le64_to_cpu(desc->he_phy_data);
-			} else {
-				struct iwl_rx_mpdu_desc_v1 *desc =
-					(void *)pkt->data;
-
-				he_phy_data =
-					le64_to_cpu(desc->he_phy_data);
-			}
+			    IWL_DEVICE_FAMILY_22650)
+				he_phy_data = le64_to_cpu(desc->v3.he_phy_data);
+			else
+				he_phy_data = le64_to_cpu(desc->v1.he_phy_data);
 
 			if (!(phy_info & IWL_RX_MPDU_PHY_TSF_OVERLOAD))
 				break;
@@ -1355,7 +1330,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	}
 
 	iwl_mvm_create_skb(skb, hdr, len, crypt_len, rxb);
-	if (!iwl_mvm_reorder(mvm, napi, queue, sta, skb, desc_v1))
+	if (!iwl_mvm_reorder(mvm, napi, queue, sta, skb, desc))
 		iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue, sta);
 out:
 	rcu_read_unlock();

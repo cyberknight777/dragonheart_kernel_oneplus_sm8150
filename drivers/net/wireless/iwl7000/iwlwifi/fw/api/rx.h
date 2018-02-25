@@ -386,59 +386,6 @@ enum iwl_rx_he_phy {
  * struct iwl_rx_mpdu_desc_v1 - RX MPDU descriptor
  */
 struct iwl_rx_mpdu_desc_v1 {
-	/* DW2 */
-	/**
-	 * @mpdu_len: MPDU length
-	 */
-	__le16 mpdu_len;
-	/**
-	 * @mac_flags1: &enum iwl_rx_mpdu_mac_flags1
-	 */
-	u8 mac_flags1;
-	/**
-	 * @mac_flags2: &enum iwl_rx_mpdu_mac_flags2
-	 */
-	u8 mac_flags2;
-	/* DW3 */
-	/**
-	 * @amsdu_info: &enum iwl_rx_mpdu_amsdu_info
-	 */
-	u8 amsdu_info;
-	/**
-	 * @phy_info: &enum iwl_rx_mpdu_phy_info
-	 */
-	__le16 phy_info;
-	/**
-	 * @mac_phy_idx: MAC/PHY index
-	 */
-	u8 mac_phy_idx;
-	/* DW4 - carries csum data only when rpa_en == 1 */
-	/**
-	 * @raw_csum: raw checksum (alledgedly unreliable)
-	 */
-	__le16 raw_csum;
-	/**
-	 * @l3l4_flags: &enum iwl_rx_l3l4_flags
-	 */
-	__le16 l3l4_flags;
-	/* DW5 */
-	/**
-	 * @status: &enum iwl_rx_mpdu_status
-	 */
-	__le16 status;
-	/**
-	 * @hash_filter: hash filter value
-	 */
-	u8 hash_filter;
-	/**
-	 * @sta_id_flags: &enum iwl_rx_mpdu_sta_id_flags
-	 */
-	u8 sta_id_flags;
-	/* DW6 */
-	/**
-	 * @reorder_data: &enum iwl_rx_mpdu_reorder_data
-	 */
-	__le32 reorder_data;
 	/* DW7 - carries rss_hash only when rpa_en == 1 */
 	/**
 	 * @rss_hash: RSS hash value
@@ -494,62 +441,9 @@ struct iwl_rx_mpdu_desc_v1 {
 } __packed;
 
 /**
- * struct iwl_rx_mpdu_desc - RX MPDU descriptor
+ * struct iwl_rx_mpdu_desc_v3 - RX MPDU descriptor
  */
-struct iwl_rx_mpdu_desc {
-	/* DW2 */
-	/**
-	 * @mpdu_len: MPDU length
-	 */
-	__le16 mpdu_len;
-	/**
-	 * @mac_flags1: &enum iwl_rx_mpdu_mac_flags1
-	 */
-	u8 mac_flags1;
-	/**
-	 * @mac_flags2: &enum iwl_rx_mpdu_mac_flags2
-	 */
-	u8 mac_flags2;
-	/* DW3 */
-	/**
-	 * @amsdu_info: &enum iwl_rx_mpdu_amsdu_info
-	 */
-	u8 amsdu_info;
-	/**
-	 * @phy_info: &enum iwl_rx_mpdu_phy_info
-	 */
-	__le16 phy_info;
-	/**
-	 * @mac_phy_idx: MAC/PHY index
-	 */
-	u8 mac_phy_idx;
-	/* DW4 - carries csum data only when rpa_en == 1 */
-	/**
-	 * @raw_csum: raw checksum (alledgedly unreliable)
-	 */
-	__le16 raw_csum;
-	/**
-	 * @l3l4_flags: &enum iwl_rx_l3l4_flags
-	 */
-	__le16 l3l4_flags;
-	/* DW5 */
-	/**
-	 * @status: &enum iwl_rx_mpdu_status
-	 */
-	__le16 status;
-	/**
-	 * @hash_filter: hash filter value
-	 */
-	u8 hash_filter;
-	/**
-	 * @sta_id_flags: &enum iwl_rx_mpdu_sta_id_flags
-	 */
-	u8 sta_id_flags;
-	/* DW6 */
-	/**
-	 * @reorder_data: &enum iwl_rx_mpdu_reorder_data
-	 */
-	__le32 reorder_data;
+struct iwl_rx_mpdu_desc_v3 {
 	/* DW7 - carries filter_match only when rpa_en == 1 */
 	/**
 	 * @filter_match: filter match value
@@ -619,6 +513,72 @@ struct iwl_rx_mpdu_desc {
 	 */
 	__le32 reserved[2];
 } __packed; /* RX_MPDU_RES_START_API_S_VER_3 */
+
+/**
+ * struct iwl_rx_mpdu_desc - RX MPDU descriptor
+ */
+struct iwl_rx_mpdu_desc {
+	/* DW2 */
+	/**
+	 * @mpdu_len: MPDU length
+	 */
+	__le16 mpdu_len;
+	/**
+	 * @mac_flags1: &enum iwl_rx_mpdu_mac_flags1
+	 */
+	u8 mac_flags1;
+	/**
+	 * @mac_flags2: &enum iwl_rx_mpdu_mac_flags2
+	 */
+	u8 mac_flags2;
+	/* DW3 */
+	/**
+	 * @amsdu_info: &enum iwl_rx_mpdu_amsdu_info
+	 */
+	u8 amsdu_info;
+	/**
+	 * @phy_info: &enum iwl_rx_mpdu_phy_info
+	 */
+	__le16 phy_info;
+	/**
+	 * @mac_phy_idx: MAC/PHY index
+	 */
+	u8 mac_phy_idx;
+	/* DW4 - carries csum data only when rpa_en == 1 */
+	/**
+	 * @raw_csum: raw checksum (alledgedly unreliable)
+	 */
+	__le16 raw_csum;
+	/**
+	 * @l3l4_flags: &enum iwl_rx_l3l4_flags
+	 */
+	__le16 l3l4_flags;
+	/* DW5 */
+	/**
+	 * @status: &enum iwl_rx_mpdu_status
+	 */
+	__le16 status;
+	/**
+	 * @hash_filter: hash filter value
+	 */
+	u8 hash_filter;
+	/**
+	 * @sta_id_flags: &enum iwl_rx_mpdu_sta_id_flags
+	 */
+	u8 sta_id_flags;
+	/* DW6 */
+	/**
+	 * @reorder_data: &enum iwl_rx_mpdu_reorder_data
+	 */
+	__le32 reorder_data;
+
+	union {
+		struct iwl_rx_mpdu_desc_v1 v1;
+		struct iwl_rx_mpdu_desc_v3 v3;
+	};
+} __packed; /* RX_MPDU_RES_START_API_S_VER_3 */
+
+#define IWL_RX_DESC_SIZE_V1 48
 
 struct iwl_frame_release {
 	u8 baid;

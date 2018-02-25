@@ -1221,7 +1221,7 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 		._offset = 0,
 	};
 	struct iwl_rx_packet *pkt;
-	struct iwl_rx_mpdu_desc_v1 *desc_v1;
+	struct iwl_rx_mpdu_desc *desc;
 	int bin_len = count / 2;
 	int ret = -EINVAL;
 	size_t mpdu_cmd_hdr_size =
@@ -1255,8 +1255,8 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 		goto out;
 
 	/* check the length in metadata matches actual received length */
-	desc_v1 = (void *)pkt->data;
-	if (le16_to_cpu(desc_v1->mpdu_len) !=
+	desc = (void *)pkt->data;
+	if (le16_to_cpu(desc->mpdu_len) !=
 	    (bin_len - mpdu_cmd_hdr_size - sizeof(*pkt)))
 		goto out;
 
