@@ -1115,6 +1115,13 @@ static struct snd_soc_acpi_mach sst_glk_devdata[] = {
 		.drv_name = "glk_alc298s_i2s",
 		.fw_filename = "intel/dsp_fw_glk.bin",
 	},
+	{
+		.id = "DLGS7219",
+		.drv_name = "glk_da7219_max98357a",
+		.fw_filename = "intel/dsp_fw_glk.bin",
+		.machine_quirk = snd_soc_acpi_codec_list,
+		.quirk_data = &bxt_codecs,
+	},
 	{}
 };
 
