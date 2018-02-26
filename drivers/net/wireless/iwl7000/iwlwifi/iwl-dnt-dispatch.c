@@ -8,6 +8,7 @@
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -253,10 +255,8 @@ int iwl_dnt_dispatch_collect_ucode_message(struct iwl_trans *trans,
 	dispatch = &dnt->dispatch;
 	db = dispatch->um_db;
 
-	if (dispatch->ucode_msgs_in_mode != COLLECT) {
-		IWL_INFO(dnt, "uCode Message ignored\n");
+	if (dispatch->ucode_msgs_in_mode != COLLECT)
 		return 0;
-	}
 
 	if (dispatch->ucode_msgs_out_mode != PUSH)
 		return iwl_dnt_dispatch_collect_data(dnt, db, pkt);
