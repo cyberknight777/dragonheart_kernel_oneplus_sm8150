@@ -389,6 +389,63 @@ error:
 	kfree(msg);
 }
 
+#define CROS_EC_SENSOR_LEGACY_NUM 2
+static struct mfd_cell cros_ec_accel_legacy_cells[CROS_EC_SENSOR_LEGACY_NUM];
+
+static void cros_ec_accel_legacy_register(struct cros_ec_dev *ec)
+{
+	struct cros_ec_device *ec_dev = ec->ec_dev;
+	u8 status;
+	int i, ret;
+	struct cros_ec_sensor_platform
+		sensor_platforms[CROS_EC_SENSOR_LEGACY_NUM];
+
+	/*
+	 * EC that need legacy support are the main EC, directly connected to
+	 * the AP.
+	 */
+	if (ec->cmd_offset != 0)
+		return;
+
+	/*
+	 * Check if EC supports direct memory reads and if EC has
+	 * accelerometers.
+	 */
+	if (!ec_dev->cmd_readmem)
+		return;
+
+	ret = ec_dev->cmd_readmem(ec_dev, EC_MEMMAP_ACC_STATUS, 1, &status);
+	if (ret < 0) {
+		dev_warn(ec->dev, "EC does not support direct reads.\n");
+		return;
+	}
+
+	/* Check if EC has accelerometers. */
+	if (!(status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)) {
+		dev_info(ec->dev, "EC does not have accelerometers.\n");
+		return;
+	}
+
+	/*
+	 * Register 2 accelerometers
+	 */
+	for (i = 0; i < CROS_EC_SENSOR_LEGACY_NUM; i++) {
+		cros_ec_accel_legacy_cells[i].name = "cros-ec-accel-legacy";
+		sensor_platforms[i].sensor_num = i;
+		cros_ec_accel_legacy_cells[i].id = i;
+		cros_ec_accel_legacy_cells[i].platform_data =
+			&sensor_platforms[i];
+		cros_ec_accel_legacy_cells[i].pdata_size =
+			sizeof(struct cros_ec_sensor_platform);
+	}
+	ret = mfd_add_devices(ec->dev, PLATFORM_DEVID_AUTO,
+			      cros_ec_accel_legacy_cells,
+			      CROS_EC_SENSOR_LEGACY_NUM,
+			      NULL, 0, NULL);
+	if (ret)
+		dev_err(ec_dev->dev, "failed to add EC sensors\n");
+}
+
 static const struct mfd_cell cros_ec_rtc_cell = {
 	.name = "cros-ec-rtc",
 };
@@ -440,6 +497,9 @@ static int ec_device_probe(struct platform_device *pdev)
 	/* check whether this EC is a sensor hub. */
 	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE))
 		cros_ec_sensors_register(ec);
+	else
+		/* Workaroud for older EC firmware */
+		cros_ec_accel_legacy_register(ec);
 
 	/* check whether this EC instance has RTC host command support */
 	if (cros_ec_check_features(ec, EC_FEATURE_RTC)) {
