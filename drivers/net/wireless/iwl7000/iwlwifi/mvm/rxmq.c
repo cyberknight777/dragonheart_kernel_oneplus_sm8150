@@ -897,6 +897,8 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		skb_reserve(skb, 2);
 	}
 
+	rx_status = IEEE80211_SKB_RXCB(skb);
+
 	if (rate_n_flags & RATE_MCS_HE_MSK) {
 		static const struct ieee80211_radiotap_he known = {
 			.data1 = cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_DATA_MCS_KNOWN |
@@ -909,11 +911,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		};
 
 		he = skb_put_data(skb, &known, sizeof(known));
+		rx_status->flag |= RX_FLAG_RADIOTAP_HE;
 
 		he_type = rate_n_flags & RATE_MCS_HE_TYPE_MSK;
 	}
-
-	rx_status = IEEE80211_SKB_RXCB(skb);
 
 	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc,
 			      le32_to_cpu(pkt->len_n_flags), queue,
