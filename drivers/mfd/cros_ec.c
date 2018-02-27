@@ -371,11 +371,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 
 	mutex_init(&ec_dev->lock);
 
-	err = cros_ec_query_all(ec_dev);
-	if (err) {
-		dev_err(dev, "Cannot identify the EC: error %d\n", err);
-		return err;
-	}
+	cros_ec_query_all(ec_dev);
 
 	if (ec_dev->irq) {
 		err = request_threaded_irq(ec_dev->irq, NULL, ec_irq_thread,
