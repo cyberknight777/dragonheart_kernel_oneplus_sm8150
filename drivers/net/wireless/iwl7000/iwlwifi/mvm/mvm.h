@@ -785,7 +785,7 @@ enum iwl_mvm_queue_status {
 #define IWL_MVM_DQA_QUEUE_TIMEOUT	(5 * HZ)
 #define IWL_MVM_INVALID_QUEUE		0xFFFF
 
-#define IWL_MVM_NUM_CIPHERS             10
+#define IWL_MVM_NUM_CIPHERS             11
 
 struct iwl_mvm_sar_profile {
 	bool enabled;
