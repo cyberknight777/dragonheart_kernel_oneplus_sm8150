@@ -194,7 +194,7 @@ bool iwl_xvt_reorder(struct iwl_xvt *xvt, struct iwl_rx_packet *pkt)
 	if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
 		hdr = (void *)(pkt->data + sizeof(struct iwl_rx_mpdu_desc));
 	else
-		hdr = (void *)(pkt->data + sizeof(struct iwl_rx_mpdu_desc_v1));
+		hdr = (void *)(pkt->data + IWL_RX_DESC_SIZE_V1);
 
 	/* not a data packet */
 	if (!ieee80211_is_data_qos(hdr->frame_control) ||
