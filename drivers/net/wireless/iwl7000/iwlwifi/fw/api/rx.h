@@ -571,7 +571,7 @@ struct iwl_rx_mpdu_desc {
 	};
 } __packed; /* RX_MPDU_RES_START_API_S_VER_3 */
 
-#define IWL_RX_DESC_SIZE_V1 48
+#define IWL_RX_DESC_SIZE_V1 offsetofend(struct iwl_rx_mpdu_desc, v1)
 
 struct iwl_frame_release {
 	u8 baid;
