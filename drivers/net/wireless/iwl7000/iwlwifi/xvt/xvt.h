@@ -412,6 +412,7 @@ struct iwl_xvt {
 	struct task_struct *tx_task;
 	bool is_enhanced_tx;
 	bool send_tx_resp;
+	bool send_rx_mpdu;
 	u64 num_of_tx_resp;
 	u64 expected_tx_amount;
 	wait_queue_head_t tx_done_wq;

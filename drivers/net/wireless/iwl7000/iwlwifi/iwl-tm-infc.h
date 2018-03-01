@@ -200,6 +200,7 @@ enum {
 	IWL_DRV_CMD_TX_START,
 	IWL_DRV_CMD_TX_STOP,
 	IWL_DRV_CMD_GET_RX_AGG_STATS,
+	IWL_DRV_CMD_CONFIG_RX_MPDU,
 };
 
 enum {
@@ -808,6 +809,15 @@ struct iwl_xvt_get_rx_agg_stats_resp {
 	u32 released;
 	u32 skipped;
 	u32 reordered;
+} __packed __aligned(4);
+
+/* struct iwl_xvt_config_rx_mpdu - Whether to send RX MPDU notifications to user
+ * @enable: 0 - disable. don't send rx mpdu to user 1 - send rx mpdu to user.
+ * @reserved: reserved
+ */
+struct iwl_xvt_config_rx_mpdu_req {
+	u8 enable;
+	u8 reserved[3];
 } __packed __aligned(4);
 
 #endif

@@ -135,6 +135,9 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 					data, size, GFP_ATOMIC);
 		break;
 	case REPLY_RX_MPDU_CMD:
+		if (!xvt->send_rx_mpdu)
+			break;
+
 		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
 					data, size, GFP_ATOMIC);
 		break;
@@ -2016,6 +2019,14 @@ iwl_xvt_get_rx_agg_stats_cmd(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static void iwl_xvt_config_rx_mpdu(struct iwl_xvt *xvt,
+				   struct iwl_xvt_driver_command_req *req)
+
+{
+	xvt->send_rx_mpdu =
+		((struct iwl_xvt_config_rx_mpdu_req *)req->input_data)->enable;
+}
+
 static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_in,
 				     struct iwl_tm_data *data_out)
@@ -2049,6 +2060,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 		break;
 	case IWL_DRV_CMD_GET_RX_AGG_STATS:
 		err = iwl_xvt_get_rx_agg_stats_cmd(xvt, req, resp);
+		break;
+	case IWL_DRV_CMD_CONFIG_RX_MPDU:
+		iwl_xvt_config_rx_mpdu(xvt, req);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
