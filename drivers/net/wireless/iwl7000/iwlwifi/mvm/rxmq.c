@@ -198,10 +198,20 @@ static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 					    struct sk_buff *skb, int queue,
 					    struct ieee80211_sta *sta)
 {
-	if (iwl_mvm_check_pn(mvm, skb, queue, sta))
+	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
+
+	if (iwl_mvm_check_pn(mvm, skb, queue, sta)) {
 		kfree_skb(skb);
-	else
+	} else {
+		unsigned int radiotap_len = 0;
+
+		if (rx_status->flag & RX_FLAG_RADIOTAP_HE)
+			radiotap_len += sizeof(struct ieee80211_radiotap_he);
+		if (rx_status->flag & RX_FLAG_RADIOTAP_HE_MU)
+			radiotap_len += sizeof(struct ieee80211_radiotap_he_mu);
+		__skb_push(skb, radiotap_len);
 		ieee80211_rx_napi(mvm->hw, sta, skb, napi);
+	}
 }
 
 static void iwl_mvm_get_signal_strength(struct iwl_mvm *mvm,
@@ -919,8 +929,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 					      IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_COMP_KNOWN),
 			.flags2 = cpu_to_le16(IEEE80211_RADIOTAP_HE_MU_FLAGS2_PUNC_FROM_SIG_A_BW_KNOWN),
 		};
+		unsigned int radiotap_len = 0;
 
 		he = skb_put_data(skb, &known, sizeof(known));
+		radiotap_len += sizeof(known);
 		rx_status->flag |= RX_FLAG_RADIOTAP_HE;
 
 		he_type = rate_n_flags & RATE_MCS_HE_TYPE_MSK;
@@ -937,9 +949,13 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			if (he_type == RATE_MCS_HE_TYPE_MU) {
 				he_mu = skb_put_data(skb, &mu_known,
 						     sizeof(mu_known));
+				radiotap_len += sizeof(mu_known);
 				rx_status->flag |= RX_FLAG_RADIOTAP_HE_MU;
 			}
 		}
+
+		/* temporarily hide the radiotap data */
+		__skb_pull(skb, radiotap_len);
 	}
 
 	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc,
