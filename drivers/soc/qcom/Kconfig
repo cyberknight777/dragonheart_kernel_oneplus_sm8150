@@ -4,7 +4,7 @@
 menu "Qualcomm SoC drivers"
 
 config QCOM_GENI_SE
-	bool "QCOM GENI Serial Engine Driver"
+	tristate "QCOM GENI Serial Engine Driver"
 	help
 	  This module is used to manage Generic Interface (GENI) firmware based
 	  Qualcomm Technologies, Inc. Universal Peripheral (QUP) Wrapper. This
