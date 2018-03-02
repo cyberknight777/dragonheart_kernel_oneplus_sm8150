@@ -1099,7 +1099,7 @@ config SERIAL_MSM_CONSOLE
 	select SERIAL_EARLYCON
 
 config SERIAL_QCOM_GENI
-	bool "QCOM on-chip GENI based serial port support"
+	tristate "QCOM on-chip GENI based serial port support"
 	depends on ARCH_QCOM
 	select SERIAL_CORE
 	select SERIAL_CORE_CONSOLE
