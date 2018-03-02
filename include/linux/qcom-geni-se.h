@@ -309,7 +309,7 @@ struct geni_se_rsc {
 #define RX_GENI_CANCEL_IRQ	(BIT(11))
 #define RX_GENI_GP_IRQ_EXT	(GENMASK(13, 12))
 
-#if IS_ENABLED(CONFIG_QCOM_GENI_SE)
+#ifdef CONFIG_QCOM_GENI_SE
 /**
  * geni_read_reg_nolog() - Helper function to read from a GENI register
  * @base:	Base address of the serial engine's register block.
