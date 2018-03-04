@@ -814,8 +814,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	}
 
 	/* the hardware splits the A-MSDU */
-	if (mvm->trans->cfg->device_family >=
-	    IWL_DEVICE_FAMILY_22650)
+	if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
 		trans_cfg.rx_buf_size = IWL_AMSDU_2K;
 	else if (mvm->cfg->mq_rx_supported)
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
