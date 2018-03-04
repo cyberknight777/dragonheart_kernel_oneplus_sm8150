@@ -1075,7 +1075,8 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_txq *txq = trans_pcie->txq[txq_id];
-	int tfd_num = ssn & (trans->cfg->base_params->max_tfd_queue_size - 1);
+	int tfd_num = iwl_pcie_get_cmd_index(txq, ssn);
+	int read_ptr = iwl_pcie_get_cmd_index(txq, txq->read_ptr);
 	int last_to_free;
 
 	/* This function is not meant to release cmd queue*/
@@ -1090,7 +1091,7 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 		goto out;
 	}
 
-	if (txq->read_ptr == tfd_num)
+	if (read_ptr == tfd_num)
 		goto out;
 
 	IWL_DEBUG_TX_REPLY(trans, "[Q %d] %d -> %d (%d)\n",
@@ -1113,10 +1114,10 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 		goto out;
 
 	for (;
-	     txq->read_ptr != tfd_num;
-	     txq->read_ptr = iwl_queue_inc_wrap(trans, txq->read_ptr)) {
-		int idx = iwl_pcie_get_cmd_index(txq, txq->read_ptr);
-		struct sk_buff *skb = txq->entries[idx].skb;
+	     read_ptr != tfd_num;
+	     txq->read_ptr = iwl_queue_inc_wrap(trans, txq->read_ptr),
+	     read_ptr = iwl_pcie_get_cmd_index(txq, txq->read_ptr)) {
+		struct sk_buff *skb = txq->entries[read_ptr].skb;
 
 		if (WARN_ON_ONCE(!skb))
 			continue;
@@ -1125,7 +1126,7 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 
 		__skb_queue_tail(skbs, skb);
 
-		txq->entries[idx].skb = NULL;
+		txq->entries[read_ptr].skb = NULL;
 
 		if (!trans->cfg->use_tfh)
 			iwl_pcie_txq_inval_byte_cnt_tbl(trans, txq);
