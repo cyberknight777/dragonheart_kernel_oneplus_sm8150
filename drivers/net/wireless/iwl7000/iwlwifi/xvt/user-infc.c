@@ -2025,6 +2025,8 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 	__u32 cmd_id = req->command_id;
 	int err = 0;
 
+	IWL_DEBUG_INFO(xvt, "handle driver command 0x%X\n", cmd_id);
+
 	if (req->max_out_length > 0) {
 		resp = kzalloc(sizeof(*resp) + req->max_out_length, GFP_KERNEL);
 		if (!resp)
