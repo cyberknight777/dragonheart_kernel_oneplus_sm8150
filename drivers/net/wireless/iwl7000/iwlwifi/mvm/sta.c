@@ -2539,7 +2539,6 @@ int iwl_mvm_sta_tx_agg_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	tid_data = &mvmsta->tid_data[tid];
 	tid_data->ssn = IEEE80211_SEQ_TO_SN(tid_data->seq_number);
-	tid_data->txq_id = txq_id;
 	*ssn = tid_data->ssn;
 
 	IWL_DEBUG_TX_QUEUES(mvm,
