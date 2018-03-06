@@ -2027,6 +2027,12 @@ static void iwl_xvt_config_rx_mpdu(struct iwl_xvt *xvt,
 		((struct iwl_xvt_config_rx_mpdu_req *)req->input_data)->enable;
 }
 
+static int iwl_xvt_echo_notif(struct iwl_xvt *xvt)
+{
+	return iwl_xvt_user_send_notif(xvt, IWL_XVT_CMD_ECHO_NOTIF,
+				       NULL, 0, GFP_KERNEL);
+}
+
 static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_in,
 				     struct iwl_tm_data *data_out)
@@ -2063,6 +2069,9 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 		break;
 	case IWL_DRV_CMD_CONFIG_RX_MPDU:
 		iwl_xvt_config_rx_mpdu(xvt, req);
+		break;
+	case IWL_DRV_CMD_ECHO_NOTIF:
+		err = iwl_xvt_echo_notif(xvt);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
