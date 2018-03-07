@@ -365,7 +365,7 @@ enum iwl_rx_he_phy {
 	/* 6 bits reserved */
 	IWL_RX_HE_PHY_DELIM_EOF			= BIT(31),
 
-	/* second word - MU data */
+	/* second dword - MU data */
 	IWL_RX_HE_PHY_SIGB_COMPRESSION		= BIT_ULL(32 + 0),
 	IWL_RX_HE_PHY_SIBG_SYM_OR_USER_NUM_POS	= 32 + 1,
 	IWL_RX_HE_PHY_SIBG_SYM_OR_USER_NUM_MASK	= 0x1e00000000ULL,
@@ -376,7 +376,7 @@ enum iwl_rx_he_phy {
 	IWL_RX_HE_PHY_SIGB_MCS_POS		= 32 + 16,
 	IWL_RX_HE_PHY_SIGB_MCS_MASK		= 0xf000000000000ULL,
 	/* 1 bit reserved */
-	IWL_RX_HE_PHY_SIGB_DCM			= BIT(32 + 21),
+	IWL_RX_HE_PHY_SIGB_DCM			= BIT_ULL(32 + 21),
 	IWL_RX_HE_PHY_PREAMBLE_FUNC_TYPE_POS	= 32 + 22,
 	IWL_RX_HE_PHY_PREAMBLE_FUNC_TYPE_MASK	= 0xc0000000000000ULL,
 	/* 8 bits reserved */
