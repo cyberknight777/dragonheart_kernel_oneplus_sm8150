@@ -722,7 +722,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 			(trans->cfg->device_family >=
 			 IWL_DEVICE_FAMILY_22650) ?
 			sizeof(struct iwl_rx_mpdu_desc) :
-			sizeof(struct iwl_rx_mpdu_desc_v1);
+			IWL_RX_DESC_SIZE_V1;
 	} else {
 		op_mode->ops = &iwl_mvm_ops;
 		trans->rx_mpdu_cmd_hdr_size =
