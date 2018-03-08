@@ -2204,6 +2204,7 @@ void amdgpu_device_fini(struct amdgpu_device *adev)
 	}
 	amdgpu_ib_pool_fini(adev);
 	amdgpu_fence_driver_fini(adev);
+	amdgpu_pm_sysfs_fini(adev);
 	amdgpu_fbdev_fini(adev);
 	r = amdgpu_device_ip_fini(adev);
 	if (adev->firmware.gpu_info_fw) {
@@ -2232,7 +2233,6 @@ void amdgpu_device_fini(struct amdgpu_device *adev)
 	iounmap(adev->rmmio);
 	adev->rmmio = NULL;
 	amdgpu_device_doorbell_fini(adev);
-	amdgpu_pm_sysfs_fini(adev);
 	amdgpu_debugfs_regs_cleanup(adev);
 }
 
