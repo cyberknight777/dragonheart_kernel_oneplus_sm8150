@@ -1775,16 +1775,6 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 				      dev_priv->vbt.edp.bpp);
 			bpp = dev_priv->vbt.edp.bpp;
 		}
-
-		/*
-		 * Use the maximum clock and number of lanes the eDP panel
-		 * advertizes being capable of. The panels are generally
-		 * designed to support only a single clock and lane
-		 * configuration, and typically these values correspond to the
-		 * native resolution of the panel.
-		 */
-		min_lane_count = max_lane_count;
-		min_clock = max_clock;
 	}
 
 	for (; bpp >= 6*3; bpp -= 2*3) {
