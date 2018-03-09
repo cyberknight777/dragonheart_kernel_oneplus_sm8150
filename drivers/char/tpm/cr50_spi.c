@@ -154,8 +154,11 @@ static int cr50_spi_flow_control(struct cr50_spi_phy *phy)
 		ret = spi_sync_locked(phy->spi_device, &m);
 		if (ret < 0)
 			return ret;
-		if (time_after(jiffies, timeout_jiffies))
+		if (time_after(jiffies, timeout_jiffies)) {
+			dev_warn(&phy->spi_device->dev,
+				 "Timeout during flow control\n");
 			return -EBUSY;
+		}
 	} while (!(phy->rx_buf[0] & 0x01));
 	return 0;
 }
