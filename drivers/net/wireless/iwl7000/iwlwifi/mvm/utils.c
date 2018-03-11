@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 	2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 	2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1812,7 +1814,7 @@ void iwl_mvm_tcm_work(struct work_struct *work)
 void iwl_mvm_pause_tcm(struct iwl_mvm *mvm)
 {
 	spin_lock_bh(&mvm->tcm.lock);
-	cancel_delayed_work(&mvm->tcm.work);
+	cancel_delayed_work_sync(&mvm->tcm.work);
 	mvm->tcm.paused = true;
 	spin_unlock_bh(&mvm->tcm.lock);
 }
