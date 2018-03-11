@@ -36,6 +36,7 @@
 #define IEEE80211_AUTH_TIMEOUT		(CPTCFG_IWL_TIMEOUT_FACTOR * HZ / 5)
 #define IEEE80211_AUTH_TIMEOUT_LONG	(CPTCFG_IWL_TIMEOUT_FACTOR * HZ / 2)
 #define IEEE80211_AUTH_TIMEOUT_SHORT	(CPTCFG_IWL_TIMEOUT_FACTOR * HZ / 10)
+#define IEEE80211_AUTH_TIMEOUT_SAE	(CPTCFG_IWL_TIMEOUT_FACTOR * HZ * 2)
 #define IEEE80211_AUTH_MAX_TRIES	3
 #define IEEE80211_AUTH_WAIT_ASSOC	(CPTCFG_IWL_TIMEOUT_FACTOR * HZ * 5)
 #define IEEE80211_ASSOC_TIMEOUT		(CPTCFG_IWL_TIMEOUT_FACTOR * HZ / 5)
@@ -3953,16 +3954,16 @@ static int ieee80211_auth(struct ieee80211_sub_if_data *sdata)
 			    auth_data->bss->bssid, NULL, 0, 0,
 			    tx_flags);
 
-	if (tx_flags == 0) {
+	if (auth_data->algorithm == WLAN_AUTH_SAE)
+		auth_data->timeout = (jiffies + IEEE80211_AUTH_TIMEOUT_SAE);
+	else if (tx_flags == 0)
 		auth_data->timeout = jiffies + IEEE80211_AUTH_TIMEOUT;
-		auth_data->timeout_started = true;
-		run_again(sdata, auth_data->timeout);
-	} else {
+	else
 		auth_data->timeout =
 			round_jiffies_up(jiffies + IEEE80211_AUTH_TIMEOUT_LONG);
-		auth_data->timeout_started = true;
-		run_again(sdata, auth_data->timeout);
-	}
+
+	auth_data->timeout_started = true;
+	run_again(sdata, auth_data->timeout);
 
 	return 0;
 }
