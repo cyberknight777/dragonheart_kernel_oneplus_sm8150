@@ -98,6 +98,7 @@
 #define XVT_MAX_TX_COUNT (ULLONG_MAX)
 #define XVT_LMAC_0_STA_ID (0) /* must be aligned with station id added in USC */
 #define XVT_LMAC_1_STA_ID (3) /* must be aligned with station id added in USC */
+#define XVT_STOP_TX (IEEE80211_SCTL_FRAG + 1)
 
 void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 				struct iwl_rx_cmd_buffer *rxb)
@@ -1019,7 +1020,8 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
 				   struct tx_meta_data *meta_tx,
-				   struct sk_buff *skb)
+				   struct sk_buff *skb,
+				   u8 frag_num)
 {
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 	u8 *qc, tid;
@@ -1033,8 +1035,12 @@ static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
 	if (WARN_ON(tid >= IWL_MAX_TID_COUNT))
 		tid = IWL_MAX_TID_COUNT;
 
-	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid]);
-	meta_tx->seq_num[tid] += 0x10;
+	/* frag_num is expected to be zero in case of no fragmentation */
+	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid] |
+				    (frag_num & IEEE80211_SCTL_FRAG));
+
+	if (!ieee80211_has_morefrags(hdr->frame_control))
+		meta_tx->seq_num[tid] += 0x10;
 }
 
 static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
@@ -1059,7 +1065,7 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 	}
 
 	memcpy(skb_put(skb, tx_req->len), tx_req->data, tx_req->len);
-	iwl_xvt_set_seq_number(xvt, meta_tx, skb);
+	iwl_xvt_set_seq_number(xvt, meta_tx, skb, 0);
 
 	flags = tx_req->no_ack ? 0 : TX_CMD_FLG_ACK;
 
@@ -1148,6 +1154,8 @@ iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
 	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
 	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		tx_cmd->flags |= cpu_to_le32(TX_CMD_FLG_MORE_FRAG);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 
 	/* Copy MAC header from skb into command buffer */
@@ -1186,6 +1194,8 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
 	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
 	tx_cmd->tx_flags |= cpu_to_le32(tx_start->tx_data.tx_flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		tx_cmd->tx_flags |= cpu_to_le32(TX_CMD_FLG_MORE_FRAG);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
 	tx_cmd->sec_ctl = tx_start->frames_data[packet_index].sec_ctl;
@@ -1209,37 +1219,102 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	return dev_cmd;
 }
 
-static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
-				   struct iwl_xvt_tx_start *tx_start,
-				   u8 packet_index,
-				   u32 *status)
+static struct sk_buff *iwl_xvt_set_skb(struct iwl_xvt *xvt,
+				       struct ieee80211_hdr *hdr,
+				       struct tx_payload *payload)
 {
 	struct sk_buff *skb;
-	struct iwl_device_cmd *dev_cmd;
-	int time_remain, err = 0;
-	struct tx_cmd_frame_data frame_data =
-		tx_start->frames_data[packet_index];
-	u32 payload_length = xvt->payloads[frame_data.payload_index]->length;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)
-		tx_start->frames_data[packet_index].header;
-	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
-	u32 packet_length  = payload_length + header_length;
-	struct tx_queue_data *queue_data = &xvt->queue_data[frame_data.queue];
+	u32 header_size = ieee80211_hdrlen(hdr->frame_control);
+	u32 payload_length  = payload->length;
+	u32 packet_length  = payload_length + header_size;
 
 	skb = alloc_skb(packet_length, GFP_KERNEL);
-	if (!skb) {
-		*status = XVT_TX_DRIVER_ABORTED;
-		return -ENOMEM;
-	}
+	if (!skb)
+		return NULL;
 	/* copy MAC header into skb */
-	memcpy(skb_put(skb, header_length), frame_data.header, header_length);
+	memcpy(skb_put(skb, header_size), hdr, header_size);
 	/* copy frame payload into skb */
-	memcpy(skb_put(skb, payload_length),
-	       xvt->payloads[frame_data.payload_index]->payload,
-	       payload_length);
+	memcpy(skb_put(skb, payload_length), payload, payload_length);
+
+	return skb;
+}
+
+static struct sk_buff *iwl_xvt_create_fragment_skb(struct iwl_xvt *xvt,
+						   struct ieee80211_hdr *hdr,
+						   struct tx_payload *payload,
+						   u32 fragment_size,
+						   u8 frag_num)
+{
+	struct sk_buff *skb;
+	const __le16 morefrags = cpu_to_le16(IEEE80211_FCTL_MOREFRAGS);
+	u32 header_size = ieee80211_hdrlen(hdr->frame_control);
+	u32 skb_size, offset, payload_remain, payload_chunck_size;
+
+	if (WARN(fragment_size <= header_size ||
+		 !ieee80211_is_data_qos(hdr->frame_control),
+		 "can't fragment, fragment_size small big or not qos data"))
+		return NULL;
+
+	payload_chunck_size = fragment_size - header_size;
+	offset = payload_chunck_size * frag_num;
+	if (WARN(offset >= payload->length, "invalid fragment number %d\n",
+		 frag_num))
+		return NULL;
+
+	payload_remain = payload->length - offset;
+
+	if (fragment_size < payload_remain + header_size) {
+		skb_size = fragment_size;
+		hdr->frame_control |= morefrags;
+	} else {
+		skb_size = payload_remain + header_size;
+		hdr->frame_control &= ~morefrags;
+		payload_chunck_size = payload_remain;
+	}
+
+	skb = alloc_skb(skb_size, GFP_KERNEL);
+	if (!skb)
+		return NULL;
+
+	/* copy MAC header into skb */
+	memcpy(skb_put(skb, header_size), hdr, header_size);
+
+	/* copy frame payload into skb */
+	memcpy(skb_put(skb, payload_chunck_size),
+	       &payload[offset],
+	       payload_chunck_size);
+
+	return skb;
+}
+
+static struct sk_buff *iwl_xvt_get_skb(struct iwl_xvt *xvt,
+				       struct ieee80211_hdr *hdr,
+				       struct tx_payload *payload,
+				       u32 fragment_size,
+				       u8 frag_num)
+{
+	if (fragment_size == 0)/* no framgmentation */
+		return iwl_xvt_set_skb(xvt, hdr, payload);
+
+	return iwl_xvt_create_fragment_skb(xvt, hdr, payload,
+					   fragment_size, frag_num);
+}
+
+static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
+				   struct sk_buff *skb,
+				   struct iwl_xvt_tx_start *tx_start,
+				   u8 packet_index,
+				   u8 frag_num,
+				   u32 *status)
+{
+	struct iwl_device_cmd *dev_cmd;
+	int time_remain, err = 0;
+	u8 queue = tx_start->frames_data[packet_index].queue;
+	struct tx_queue_data *queue_data = &xvt->queue_data[queue];
 
 	/* set tx number */
-	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb);
+	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb,
+			       frag_num);
 
 	if (iwl_xvt_is_unified_fw(xvt))
 		dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb, tx_start,
@@ -1278,7 +1353,7 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 	 * were blocked.
 	 */
 	local_bh_disable();
-	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, frame_data.queue);
+	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, queue);
 	local_bh_enable();
 	if (err) {
 		IWL_ERR(xvt, "Tx command failed (error %d)\n", err);
@@ -1367,9 +1442,18 @@ static int iwl_xvt_start_tx_handler(void *data)
 
 	for (i = 0; (i < num_of_iterations) && !kthread_should_stop(); i++) {
 		u16 j, times;
-		u8 frame_index;
+		u8 frame_index, payload_idx, frag_idx, frag_num;
+		struct ieee80211_hdr *hdr;
+		struct sk_buff *skb;
+		u8 frag_size = tx_start->tx_data.fragment_size;
+		struct tx_payload *payload;
+		u8 frag_array_size = ARRAY_SIZE(tx_start->tx_data.frag_num);
 
 		frame_index = i % num_of_frames;
+		payload_idx = tx_start->frames_data[frame_index].payload_index;
+		payload = xvt->payloads[payload_idx];
+		hdr = (struct ieee80211_hdr *)
+			tx_start->frames_data[frame_index].header;
 		times = tx_start->frames_data[frame_index].times;
 		for (j = 0; j < times; j++) {
 			if (xvt->fw_error) {
@@ -1379,12 +1463,36 @@ static int iwl_xvt_start_tx_handler(void *data)
 				goto on_exit;
 			}
 
-			err = iwl_xvt_transmit_packet(xvt, tx_start,
-						      frame_index, &status);
-			sent_packets++;
-			if (err) {
-				IWL_ERR(xvt, "stop due to err %d\n", err);
-				goto on_exit;
+			frag_idx = 0;
+			while (frag_idx <  frag_array_size) {
+				frag_num = tx_start->tx_data.frag_num[frag_idx];
+
+				if (frag_num == XVT_STOP_TX ||
+				    (frag_size == 0 && frag_idx > 0))
+					break;
+
+				skb = iwl_xvt_get_skb(xvt, hdr, payload,
+						      frag_size, frag_num);
+				if (!skb) {
+					IWL_ERR(xvt, "skb is NULL\n");
+					status = XVT_TX_DRIVER_ABORTED;
+					err = -ENOMEM;
+					goto on_exit;
+				}
+				err = iwl_xvt_transmit_packet(xvt,
+							      skb,
+							      tx_start,
+							      frame_index,
+							      frag_num,
+							      &status);
+				sent_packets++;
+				if (err) {
+					IWL_ERR(xvt, "stop due to err %d\n",
+						err);
+					goto on_exit;
+				}
+
+				++frag_idx;
 			}
 		}
 	}

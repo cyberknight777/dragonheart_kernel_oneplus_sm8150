@@ -699,6 +699,8 @@ struct iwl_xvt_set_tx_payload {
  * @initial_rate_index: Start index in TLC table
  * @rts_retry_limit: Max retry for RTS transmit
  * @data_retry_limit: Max retry for data transmit
+ * @fragment_size: 0 - no fragnentation else - max fragment size
+ * @frag_num: Array of fragments numbers
  */
 struct tx_cmd_commom_data {
 	u32 rate_flags;
@@ -706,7 +708,8 @@ struct tx_cmd_commom_data {
 	u8 initial_rate_index;
 	u8 rts_retry_limit;
 	u8 data_retry_limit;
-	u8 reserved;
+	u8 fragment_size;
+	u8 frag_num[32];
 } __packed __aligned(4);
 
 /**
@@ -739,6 +742,8 @@ struct tx_cmd_frame_data {
  *  tx until stop command is received.
  * @num_of_different_frames: actual number of entries in frames_data
  * @send_tx_resp: Whether to send FW's tx response to user
+ * @reserved1: for alignment
+ * @reserved2: for alignment
  * @tx_data: Tx command configuration shared data
  * @frames_data: array of specific frame data for each queue
 */
