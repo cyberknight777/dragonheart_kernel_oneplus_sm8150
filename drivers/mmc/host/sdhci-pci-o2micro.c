@@ -355,6 +355,23 @@ int sdhci_pci_o2_probe_slot(struct sdhci_pci_slot *slot)
 		if (reg & 0x1)
 			host->quirks |= SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12;
 
+#if defined(CONFIG_PCI_MSI)
+		if (pci_find_capability(chip->pdev, PCI_CAP_ID_MSI)) {
+			ret = pci_enable_msi(chip->pdev);
+			if (!ret) {
+				host->irq = chip->pdev->irq;
+				pr_info("%s: use MSI irq, irq=%d\n",
+					mmc_hostname(host->mmc), host->irq);
+			} else {
+				pr_err("%s: enable PCI MSI failed, err=%d\n",
+					mmc_hostname(host->mmc), ret);
+			}
+		} else {
+			pr_info("%s: unsupport msi, use INTx irq\n",
+				mmc_hostname(host->mmc));
+		}
+#endif
+
 		if (chip->pdev->device == PCI_DEVICE_ID_O2_SEABIRD0) {
 			ret = pci_read_config_dword(chip->pdev,
 						    O2_SD_MISC_SETTING, &reg);
