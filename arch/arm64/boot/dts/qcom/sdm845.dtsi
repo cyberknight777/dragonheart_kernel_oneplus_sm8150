@@ -166,8 +166,6 @@
 			ranges;
 			#interrupt-cells = <3>;
 			interrupt-controller;
-			#redistributor-regions = <1>;
-			redistributor-stride = <0x0 0x20000>;
 			reg = <0x17a00000 0x10000>,     /* GICD */
 			      <0x17a60000 0x100000>;    /* GICR * 8 */
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
@@ -186,6 +184,7 @@
 			reg = <0x100000 0x1f0000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			#power-domain-cells = <1>;
 		};
 
 		tlmm: pinctrl@3400000 {
