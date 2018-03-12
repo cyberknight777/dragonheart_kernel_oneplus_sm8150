@@ -64,6 +64,7 @@
 
 #define O2_SD_VENDOR_SETTING	0x110
 #define O2_SD_VENDOR_SETTING2	0x1C8
+#define O2_SD_HW_TUNING_DISABLE		BIT(4)
 
 extern int sdhci_pci_o2_probe_slot(struct sdhci_pci_slot *slot);
 
