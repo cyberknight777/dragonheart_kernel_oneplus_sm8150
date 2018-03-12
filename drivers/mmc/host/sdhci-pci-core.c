@@ -1027,23 +1027,6 @@ static int jmicron_resume(struct sdhci_pci_chip *chip)
 }
 #endif
 
-static int sdhci_pci_fail_probe(struct sdhci_pci_chip *chip)
-{
-	/*
-	 * Temporarily disable the O2 SEABIRD0 pci device because
-	 * it breaks with this driver.  Ideally, the SEABIRD0 device
-	 * would be disabled by removing it from the pci_ids table.
-	 * However, the PCI_DEVICE_CLASS call also matches this
-	 * device.  So, we force probe failure here instead.
-	 */
-	dev_info(&chip->pdev->dev, "Forcing probe failure for PCI device 0x1217:8620\n");
-	return -ENODEV;
-}
-
-static const struct sdhci_pci_fixes sdhci_fail_probe = {
-	.probe = sdhci_pci_fail_probe,
-};
-
 static const struct sdhci_pci_fixes sdhci_o2 = {
 	.probe = sdhci_pci_o2_probe,
 	.quirks = SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
@@ -1357,7 +1340,7 @@ static const struct pci_device_id pci_ids[] = {
 	SDHCI_PCI_DEVICE(O2, FUJIN2,   o2),
 	SDHCI_PCI_DEVICE(O2, SDS0,     o2),
 	SDHCI_PCI_DEVICE(O2, SDS1,     o2),
-	SDHCI_PCI_DEVICE(O2, SEABIRD0, fail_probe),
+	SDHCI_PCI_DEVICE(O2, SEABIRD0, o2),
 	SDHCI_PCI_DEVICE(O2, SEABIRD1, o2),
 	SDHCI_PCI_DEVICE_CLASS(AMD, SYSTEM_SDHCI, PCI_CLASS_MASK, amd),
 	/* Generic SD host controller */
