@@ -182,7 +182,7 @@ static int cz_load_mec_firmware(struct pp_hwmgr *hwmgr)
 	if (hwmgr == NULL || hwmgr->device == NULL)
 		return -EINVAL;
 
-	cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	cz_smu = hwmgr->smu_backend;
 	ret = cgs_get_firmware_info(hwmgr->device,
 						CGS_UCODE_ID_CP_MEC, &info);
 
@@ -331,7 +331,7 @@ static int cz_smu_populate_single_scratch_task(
 			uint8_t type, bool is_last)
 {
 	uint8_t i;
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	struct TOC *toc = (struct TOC *)cz_smu->toc_buffer.kaddr;
 	struct SMU_Task *task = &toc->tasks[cz_smu->toc_entry_used_count++];
 
@@ -368,7 +368,7 @@ static int cz_smu_populate_single_ucode_load_task(
 					bool is_last)
 {
 	uint8_t i;
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	struct TOC *toc = (struct TOC *)cz_smu->toc_buffer.kaddr;
 	struct SMU_Task *task = &toc->tasks[cz_smu->toc_entry_used_count++];
 
@@ -394,7 +394,7 @@ static int cz_smu_populate_single_ucode_load_task(
 
 static int cz_smu_construct_toc_for_rlc_aram_save(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 
 	cz_smu->toc_entry_aram = cz_smu->toc_entry_used_count;
 	cz_smu_populate_single_scratch_task(hwmgr,
@@ -407,7 +407,7 @@ static int cz_smu_construct_toc_for_rlc_aram_save(struct pp_hwmgr *hwmgr)
 static int cz_smu_initialize_toc_empty_job_list(struct pp_hwmgr *hwmgr)
 {
 	int i;
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	struct TOC *toc = (struct TOC *)cz_smu->toc_buffer.kaddr;
 
 	for (i = 0; i < NUM_JOBLIST_ENTRIES; i++)
@@ -418,7 +418,7 @@ static int cz_smu_initialize_toc_empty_job_list(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_construct_toc_for_vddgfx_enter(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	struct TOC *toc = (struct TOC *)cz_smu->toc_buffer.kaddr;
 
 	toc->JobList[JOB_GFX_SAVE] = (uint8_t)cz_smu->toc_entry_used_count;
@@ -436,7 +436,7 @@ static int cz_smu_construct_toc_for_vddgfx_enter(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_construct_toc_for_vddgfx_exit(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	struct TOC *toc = (struct TOC *)cz_smu->toc_buffer.kaddr;
 
 	toc->JobList[JOB_GFX_RESTORE] = (uint8_t)cz_smu->toc_entry_used_count;
@@ -478,7 +478,7 @@ static int cz_smu_construct_toc_for_vddgfx_exit(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_construct_toc_for_power_profiling(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 
 	cz_smu->toc_entry_power_profiling_index = cz_smu->toc_entry_used_count;
 
@@ -490,7 +490,7 @@ static int cz_smu_construct_toc_for_power_profiling(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_construct_toc_for_bootup(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 
 	cz_smu->toc_entry_initialize_index = cz_smu->toc_entry_used_count;
 
@@ -518,7 +518,7 @@ static int cz_smu_construct_toc_for_bootup(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_construct_toc_for_clock_table(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 
 	cz_smu->toc_entry_clock_table = cz_smu->toc_entry_used_count;
 
@@ -531,7 +531,7 @@ static int cz_smu_construct_toc_for_clock_table(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_construct_toc(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 
 	cz_smu->toc_entry_used_count = 0;
 	cz_smu_initialize_toc_empty_job_list(hwmgr);
@@ -547,7 +547,7 @@ static int cz_smu_construct_toc(struct pp_hwmgr *hwmgr)
 
 static int cz_smu_populate_firmware_entries(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	uint32_t firmware_type;
 	uint32_t i;
 	int ret;
@@ -585,7 +585,7 @@ static int cz_smu_populate_single_scratch_entry(
 				uint32_t ulsize_byte,
 				struct cz_buffer_entry *entry)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	uint32_t ulsize_aligned = SIZE_ALIGN_32(ulsize_byte);
 
 	entry->data_size = ulsize_byte;
@@ -601,7 +601,7 @@ static int cz_smu_populate_single_scratch_entry(
 
 static int cz_download_pptable_settings(struct pp_hwmgr *hwmgr, void **table)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	unsigned long i;
 
 	for (i = 0; i < cz_smu->scratch_buffer_length; i++) {
@@ -630,7 +630,7 @@ static int cz_download_pptable_settings(struct pp_hwmgr *hwmgr, void **table)
 
 static int cz_upload_pptable_settings(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	unsigned long i;
 
 	for (i = 0; i < cz_smu->scratch_buffer_length; i++) {
@@ -657,7 +657,7 @@ static int cz_upload_pptable_settings(struct pp_hwmgr *hwmgr)
 
 static int cz_request_smu_load_fw(struct pp_hwmgr *hwmgr)
 {
-	struct cz_smumgr *cz_smu = (struct cz_smumgr *)(hwmgr->smu_backend);
+	struct cz_smumgr *cz_smu = hwmgr->smu_backend;
 	uint32_t smc_address;
 
 	if (!hwmgr->reload_fw) {
@@ -842,7 +842,7 @@ static int cz_smu_fini(struct pp_hwmgr *hwmgr)
 	if (hwmgr == NULL || hwmgr->device == NULL)
 		return -EINVAL;
 
-	cz_smu = (struct cz_smumgr *)hwmgr->smu_backend;
+	cz_smu = hwmgr->smu_backend;
 	if (cz_smu) {
 		amdgpu_bo_free_kernel(&cz_smu->toc_buffer.handle,
 					&cz_smu->toc_buffer.mc_addr,
