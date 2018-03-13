@@ -16,6 +16,7 @@
 #include <linux/prctl.h>
 #include <linux/sched/types.h>
 #include <linux/slab.h>
+#include <linux/socket.h>
 #include <linux/syscalls.h>
 #include <linux/timex.h>
 
@@ -578,6 +579,14 @@ do_android_sched_setscheduler(pid_t pid, int policy,
 	return retval;
 }
 
+static asmlinkage int __maybe_unused
+android_socket(int domain, int type, int socket)
+{
+	if (domain == AF_VSOCK)
+	       return -EACCES;
+	return sys_socket(domain, type, socket);
+}
+
 static asmlinkage long
 android_sched_setscheduler(pid_t pid, int policy,
 			   struct sched_param __user *param)
@@ -884,7 +893,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(sendto),
 	SYSCALL_ENTRY(setsockopt),
 	SYSCALL_ENTRY(shutdown),
-	SYSCALL_ENTRY(socket),
+	SYSCALL_ENTRY_ALT(socket, android_socket),
 	SYSCALL_ENTRY(socketpair),
 	/*
 	 * recv(2)/send(2) are officially deprecated, but their entry-points
