@@ -1811,12 +1811,13 @@ void iwl_mvm_tcm_work(struct work_struct *work)
 	iwl_mvm_recalc_tcm(mvm);
 }
 
-void iwl_mvm_pause_tcm(struct iwl_mvm *mvm)
+void iwl_mvm_pause_tcm(struct iwl_mvm *mvm, bool with_cancel)
 {
 	spin_lock_bh(&mvm->tcm.lock);
-	cancel_delayed_work(&mvm->tcm.work);
 	mvm->tcm.paused = true;
 	spin_unlock_bh(&mvm->tcm.lock);
+	if (with_cancel)
+		cancel_delayed_work_sync(&mvm->tcm.work);
 }
 
 void iwl_mvm_resume_tcm(struct iwl_mvm *mvm)
