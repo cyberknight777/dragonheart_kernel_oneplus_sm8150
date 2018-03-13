@@ -43,14 +43,12 @@
 #define AZX_REG_VS_D0I3C_I3       0x4 /* D0i3 enable */
 #define AZX_PGCTL_ADSPPGD              BIT(2)
 #define AZX_CGCTL_ADSPDCGE             BIT(1)
-#define AZX_REG_VS_EM2_L1SEN           BIT(13)
-
-#define AZX_REG_VS_EM2_L1SEN		BIT(13)
-
 #define SKL_MAX_DMACTRL_CFG	18
 #define DMA_CLK_CONTROLS	1
 #define DMA_TRANSMITION_START	2
 #define DMA_TRANSMITION_STOP	3
+
+#define AZX_REG_VS_EM2_L1SEN		BIT(13)
 
 struct skl_dsp_resource {
 	u32 max_mcps;
