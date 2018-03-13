@@ -1962,8 +1962,10 @@ static int da7219_remove(struct snd_soc_codec *codec)
 
 	da7219_aad_exit(codec);
 
+#ifdef CONFIG_COMMON_CLK
 	if (da7219->dai_clks_lookup)
 		clkdev_drop(da7219->dai_clks_lookup);
+#endif
 
 	/* Supplies */
 	return regulator_bulk_disable(DA7219_NUM_SUPPLIES, da7219->supplies);
