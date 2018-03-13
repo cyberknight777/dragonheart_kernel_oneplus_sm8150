@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -19,9 +20,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
+ * along with this program
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -1689,7 +1688,7 @@ int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		return ret;
 
 #ifdef CPTCFG_IWLMVM_TCM
-	iwl_mvm_pause_tcm(mvm);
+	iwl_mvm_pause_tcm(mvm, false);
 #endif
 
 	ret = iwl_mvm_send_cmd(mvm, &hcmd);

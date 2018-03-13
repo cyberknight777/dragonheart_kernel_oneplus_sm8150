@@ -1599,7 +1599,7 @@ int iwl_mvm_enter_d0i3(struct iwl_op_mode *op_mode)
 	}
 
 #ifdef CPTCFG_IWLMVM_TCM
-	iwl_mvm_pause_tcm(mvm);
+	iwl_mvm_pause_tcm(mvm, true);
 #endif
 	/* make sure we have no running tx while configuring the seqno */
 	synchronize_net();
