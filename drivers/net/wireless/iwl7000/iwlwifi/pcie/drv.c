@@ -621,7 +621,7 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 /* 22000 Series */
 	/* TODO: temporary solution to support qnj hr b0 due to HW bug */
 	{IWL_PCI_DEVICE(0x2526, 0x0000, iwl22000_2ax_cfg_qnj_hr_b0)},
-	{IWL_PCI_DEVICE(0x2720, 0x0A10, iwl22000_2ac_cfg_hr_cdb)},
+	{IWL_PCI_DEVICE(0xA0F0, 0x0A10, iwl22000_2ac_cfg_hr_cdb)},
 	/* TODO: remove this entry */
 	{IWL_PCI_DEVICE(0x0000, 0x0000, iwl22000_2ac_cfg_hr_cdb)},
 	{IWL_PCI_DEVICE(0x2720, 0x0000, iwl22000_2ax_cfg_hr)},
@@ -703,6 +703,8 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 				cfg = &iwl22000_2ax_cfg_qnj_hr_a0;
 			else if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_QNJ_B0)
 				cfg = &iwl22000_2ax_cfg_qnj_hr_b0;
+			else if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_QU_B0)
+				cfg = &iwl22000_2ax_cfg_qnj_hr_b0_f0;
 			else
 				cfg = &iwl22000_2ac_cfg_hr;
 		}
