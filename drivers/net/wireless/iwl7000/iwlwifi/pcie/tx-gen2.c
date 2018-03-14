@@ -531,7 +531,6 @@ struct iwl_tfh_tfd *iwl_pcie_gen2_build_tfd(struct iwl_trans *trans,
 	if (amsdu)
 		return iwl_pcie_gen2_build_tx_amsdu(trans, txq, dev_cmd, skb,
 						    out_meta, hdr_len, len);
-
 	return iwl_pcie_gen2_build_tx(trans, txq, dev_cmd, skb, out_meta,
 				      hdr_len, len);
 }
