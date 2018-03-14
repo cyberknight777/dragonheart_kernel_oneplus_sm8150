@@ -4,6 +4,7 @@
  *
  * ChromeOS backport definitions
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
+ * Copyright (C) 2018      Intel Corporation
  */
 
 #include <linux/version.h>
@@ -14,6 +15,14 @@
 #include <linux/vmalloc.h>
 #include <net/genetlink.h>
 #include <linux/crypto.h>
+
+/* include rhashtable this way to get our copy if another exists */
+#include <linux/list_nulls.h>
+#ifndef NULLS_MARKER
+#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
+#endif
+#include "linux/rhashtable.h"
+
 #include <linux/moduleparam.h>
 #include <linux/debugfs.h>
 #include <linux/hrtimer.h>
@@ -76,13 +85,6 @@ static inline u64 ktime_get_real_ns(void)
 #include <hdrs/net/fq.h>
 #include <hdrs/net/fq_impl.h>
 #include <hdrs/net/mac80211.h>
-
-/* include rhashtable this way to get our copy if another exists */
-#include <linux/list_nulls.h>
-#ifndef NULLS_MARKER
-#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
-#endif
-#include "linux/rhashtable.h"
 
 /* artifacts of backports - never in upstream */
 #define genl_info_snd_portid(__genl_info) (__genl_info->snd_portid)
