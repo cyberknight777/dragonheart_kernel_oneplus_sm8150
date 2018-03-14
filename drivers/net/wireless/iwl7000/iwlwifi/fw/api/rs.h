@@ -224,11 +224,13 @@ struct iwl_tlc_update_notif {
  * @IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM: set max number of frames in an aggregation
  * @IWL_TLC_DEBUG_FLAGS_NUM: number of flags. Used to define the data array in
  *                           %struct iwl_dhc_tlc_cmd
+ * @IWL_TLC_DEBUG_TPC_ENABLED: enable or disable tpc
  */
 enum iwl_tlc_debug_flags {
 	IWL_TLC_DEBUG_FIXED_RATE,
 	IWL_TLC_DEBUG_AGG_DURATION_LIM,
 	IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM,
+	IWL_TLC_DEBUG_TPC_ENABLED,
 
 	IWL_TLC_DEBUG_FLAGS_NUM,
 }; /* TLC_MNG_DEBUG_FLAGS_API_E_VER_1 */
