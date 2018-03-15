@@ -36,8 +36,9 @@
 #include "hw_sequencer.h"
 
 #include "resource.h"
-#define DC_LOGGER \
-	logger
+
+#define DC_LOGGER_INIT(logger)
+
 
 #define SURFACE_TRACE(...) do {\
 		if (dc->debug.surface_trace) \
@@ -60,8 +61,7 @@ void pre_surface_trace(
 		int surface_count)
 {
 	int i;
-	struct dc  *core_dc = dc;
-	struct dal_logger *logger =  core_dc->ctx->logger;
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 	for (i = 0; i < surface_count; i++) {
 		const struct dc_plane_state *plane_state = plane_states[i];
@@ -181,8 +181,7 @@ void update_surface_trace(
 		int surface_count)
 {
 	int i;
-	struct dc  *core_dc = dc;
-	struct dal_logger *logger =  core_dc->ctx->logger;
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 	for (i = 0; i < surface_count; i++) {
 		const struct dc_surface_update *update = &updates[i];
@@ -300,8 +299,7 @@ void update_surface_trace(
 
 void post_surface_trace(struct dc *dc)
 {
-	struct dc  *core_dc = dc;
-	struct dal_logger *logger =  core_dc->ctx->logger;
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 	SURFACE_TRACE("post surface process.\n");
 
@@ -313,10 +311,10 @@ void context_timing_trace(
 {
 	int i;
 	struct dc  *core_dc = dc;
-	struct dal_logger *logger =  core_dc->ctx->logger;
 	int h_pos[MAX_PIPES], v_pos[MAX_PIPES];
 	struct crtc_position position;
 	unsigned int underlay_idx = core_dc->res_pool->underlay_pipe_index;
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 
 	for (i = 0; i < core_dc->res_pool->pipe_count; i++) {
@@ -351,9 +349,7 @@ void context_clock_trace(
 		struct dc_state *context)
 {
 #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
-	struct dc  *core_dc = dc;
-	struct dal_logger *logger =  core_dc->ctx->logger;
-
+	DC_LOGGER_INIT(dc->ctx->logger);
 	CLOCK_TRACE("Current: dispclk_khz:%d  max_dppclk_khz:%d  dcfclk_khz:%d\n"
 			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d  socclk_khz:%d\n",
 			context->bw.dcn.calc_clk.dispclk_khz,
