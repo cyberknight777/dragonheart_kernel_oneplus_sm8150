@@ -1774,8 +1774,6 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
 	int i, r;
 
 	amdgpu_amdkfd_device_fini(adev);
-	/* disable all interrupts */
-	amdgpu_irq_disable_all(adev);
 
 	amdgpu_device_set_pg_state(adev, AMD_PG_STATE_UNGATE);
 	amdgpu_device_set_cg_state(adev, AMD_CG_STATE_UNGATE);
@@ -2525,6 +2523,8 @@ void amdgpu_device_fini(struct amdgpu_device *adev)
 
 	DRM_INFO("amdgpu: finishing device.\n");
 	adev->shutdown = true;
+	/* disable all interrupts */
+	amdgpu_irq_disable_all(adev);
 	if (adev->mode_info.mode_config_initialized){
 		if (!amdgpu_device_has_dc_support(adev))
 			drm_crtc_force_disable_all(adev->ddev);
