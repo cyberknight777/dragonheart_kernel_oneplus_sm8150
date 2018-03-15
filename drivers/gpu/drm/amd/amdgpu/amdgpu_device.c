@@ -1774,6 +1774,8 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
 	int i, r;
 
 	amdgpu_amdkfd_device_fini(adev);
+	/* disable all interrupts */
+	amdgpu_irq_disable_all(adev);
 
 	amdgpu_device_set_pg_state(adev, AMD_PG_STATE_UNGATE);
 	amdgpu_device_set_cg_state(adev, AMD_CG_STATE_UNGATE);
@@ -1808,8 +1810,6 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
 		adev->ip_blocks[i].status.hw = false;
 	}
 
-	/* disable all interrupts */
-	amdgpu_irq_disable_all(adev);
 
 	for (i = adev->num_ip_blocks - 1; i >= 0; i--) {
 		if (!adev->ip_blocks[i].status.sw)
