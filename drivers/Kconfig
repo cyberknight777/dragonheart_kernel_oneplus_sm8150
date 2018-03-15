@@ -213,4 +213,6 @@ source "drivers/opp/Kconfig"
 
 source "drivers/pkglist/Kconfig"
 
+source "drivers/gpu/drm/evdi/Kconfig"
+
 endmenu

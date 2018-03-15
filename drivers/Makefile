@@ -186,3 +186,5 @@ obj-$(CONFIG_TEE)		+= tee/
 obj-$(CONFIG_MULTIPLEXER)	+= mux/
 
 obj-$(CONFIG_PKGLIST)		+= pkglist/
+obj-$(CONFIG_DRM_EVDI)	+= gpu/drm/evdi/
+
