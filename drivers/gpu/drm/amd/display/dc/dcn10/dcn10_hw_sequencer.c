@@ -45,8 +45,8 @@
 #include "dcn10_hubbub.h"
 #include "dcn10_cm_common.h"
 
-#define DC_LOGGER \
-	ctx->logger
+#define DC_LOGGER_INIT(logger)
+
 #define CTX \
 	hws->ctx
 #define REG(reg)\
@@ -365,7 +365,7 @@ static void power_on_plane(
 	struct dce_hwseq *hws,
 	int plane_id)
 {
-	struct dc_context *ctx = hws->ctx;
+	DC_LOGGER_INIT(hws->ctx->logger);
 	if (REG(DC_IP_REQUEST_CNTL)) {
 		REG_SET(DC_IP_REQUEST_CNTL, 0,
 				IP_REQUEST_EN, 1);
@@ -564,7 +564,7 @@ static void reset_back_end_for_pipe(
 		struct dc_state *context)
 {
 	int i;
-	struct dc_context *ctx = dc->ctx;
+	DC_LOGGER_INIT(dc->ctx->logger);
 	if (pipe_ctx->stream_res.stream_enc == NULL) {
 		pipe_ctx->stream = NULL;
 		return;
@@ -660,7 +660,7 @@ static void plane_atomic_power_down(struct dc *dc, struct pipe_ctx *pipe_ctx)
 {
 	struct dce_hwseq *hws = dc->hwseq;
 	struct dpp *dpp = pipe_ctx->plane_res.dpp;
-	struct dc_context *ctx = dc->ctx;
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 	if (REG(DC_IP_REQUEST_CNTL)) {
 		REG_SET(DC_IP_REQUEST_CNTL, 0,
@@ -710,7 +710,7 @@ static void plane_atomic_disable(struct dc *dc, struct pipe_ctx *pipe_ctx)
 
 static void dcn10_disable_plane(struct dc *dc, struct pipe_ctx *pipe_ctx)
 {
-	struct dc_context *ctx = dc->ctx;
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 	if (!pipe_ctx->plane_res.hubp || pipe_ctx->plane_res.hubp->power_gated)
 		return;
@@ -2002,9 +2002,9 @@ static void dcn10_apply_ctx_for_surface(
 	bool removed_pipe[4] = { false };
 	unsigned int ref_clk_mhz = dc->res_pool->ref_clock_inKhz/1000;
 	bool program_water_mark = false;
-	struct dc_context *ctx = dc->ctx;
 	struct pipe_ctx *top_pipe_to_program =
 			find_top_pipe_for_stream(dc, context, stream);
+	DC_LOGGER_INIT(dc->ctx->logger);
 
 	if (!top_pipe_to_program)
 		return;

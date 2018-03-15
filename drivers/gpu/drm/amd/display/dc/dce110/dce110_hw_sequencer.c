@@ -70,8 +70,9 @@
 
 #define CTX \
 	hws->ctx
-#define DC_LOGGER \
-	ctx->logger
+
+#define DC_LOGGER_INIT()
+
 #define REG(reg)\
 	hws->regs->reg
 
@@ -2735,10 +2736,10 @@ static void dce110_program_front_end_for_pipe(
 	struct xfm_grph_csc_adjustment adjust;
 	struct out_csc_color_matrix tbl_entry;
 	unsigned int i;
-	struct dc_context *ctx = dc->ctx;
 #if defined(CONFIG_DRM_AMD_DC_FBC)
        unsigned int underlay_idx = dc->res_pool->underlay_pipe_index;
 #endif
+	DC_LOGGER_INIT();
 	memset(&tbl_entry, 0, sizeof(tbl_entry));
 
 	if (dc->current_state)
