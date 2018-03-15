@@ -13,8 +13,6 @@
 #include <linux/errno.h>
 #include <linux/idr.h>
 #include <linux/vmalloc.h>
-#include <net/genetlink.h>
-#include <linux/crypto.h>
 
 /* include rhashtable this way to get our copy if another exists */
 #include <linux/list_nulls.h>
@@ -23,6 +21,8 @@
 #endif
 #include "linux/rhashtable.h"
 
+#include <net/genetlink.h>
+#include <linux/crypto.h>
 #include <linux/moduleparam.h>
 #include <linux/debugfs.h>
 #include <linux/hrtimer.h>
