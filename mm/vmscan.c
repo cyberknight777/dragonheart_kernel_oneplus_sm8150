@@ -2225,8 +2225,11 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	unsigned long ap, fp;
 	enum lru_list lru;
 
-	/* do not scan file pages when file page count is low */
-	if (file_is_low(lruvec, sc)) {
+	/*
+	 * Do not scan file pages when swap is allowed by __GFP_IO and
+	 * file page count is low.
+	 */
+	if ((sc->gfp_mask & __GFP_IO) && file_is_low(lruvec, sc)) {
 		scan_balance = SCAN_ANON;
 		goto out;
 	}
