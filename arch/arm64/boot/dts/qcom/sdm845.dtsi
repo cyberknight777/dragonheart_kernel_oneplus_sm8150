@@ -6,7 +6,6 @@
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <dt-bindings/clock/qcom,gcc-sdm845.h>
 
 / {
 	interrupt-parent = <&intc>;
@@ -195,20 +194,6 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
-
-			qup_uart2_default: qup-uart2-default {
-				pinmux {
-					function = "qup9";
-					pins = "gpio4", "gpio5";
-				};
-			};
-
-			qup_uart2_sleep: qup-uart2-sleep {
-				pinmux {
-					function = "gpio";
-					pins = "gpio4", "gpio5";
-				};
-			};
 		};
 
 		timer@17c90000 {
@@ -286,30 +271,6 @@
 			interrupt-controller;
 			#interrupt-cells = <4>;
 			cell-index = <0>;
-		};
-
-		geni-se@ac0000 {
-			compatible = "qcom,geni-se-qup";
-			#address-cells = <1>;
-			#size-cells = <1>;
-			ranges;
-			reg = <0xac0000 0x6000>;
-			clocks = <&gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
-				 <&gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
-			clock-names = "m-ahb", "s-ahb";
-
-			qup_uart2: serial@a84000 {
-				compatible = "qcom,geni-debug-uart";
-				reg = <0xa84000 0x4000>;
-				reg-names = "se-phys";
-				clock-names = "se-clk";
-				clocks = <&gcc GCC_QUPV3_WRAP1_S1_CLK>;
-				pinctrl-names = "default", "sleep";
-				pinctrl-0 = <&qup_uart2_default>;
-				pinctrl-1 = <&qup_uart2_sleep>;
-				interrupts = <GIC_SPI 354 IRQ_TYPE_NONE>;
-				status = "disabled";
-			};
 		};
 	};
 };
