@@ -5,8 +5,9 @@ config IWL7000
 	depends on PCI && HAS_IOMEM
 	select FW_LOADER
 
-	# this is because we don't depend on mac80211
-	depends on CFG80211
+	# this is because cfg80211 is now included in iwl7000,
+	# and there can only be one instance of it.
+	depends on CFG80211=n
 
 	# things mac80211 selects
 	select CRYPTO
@@ -32,7 +33,6 @@ config IWL7000_LEDS
 config IWL7000_DEBUGFS
 	def_bool y
 	depends on IWL7000
-	depends on CFG80211_DEBUGFS
 
 config IWL7000_TRACING
 	def_bool y
