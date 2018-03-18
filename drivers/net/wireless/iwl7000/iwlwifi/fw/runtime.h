@@ -143,6 +143,7 @@ struct iwl_fw_runtime {
 		u32 delay;
 		u64 seq;
 	} timestamp;
+	bool tpc_enabled;
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
 };
 
