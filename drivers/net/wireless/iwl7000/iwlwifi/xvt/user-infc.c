@@ -628,6 +628,12 @@ static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 	IWL_DEBUG_INFO(xvt, "Sending Phy CFG command: 0x%x\n",
 		       calib_cmd_cfg->phy_cfg);
 
+	/* ESL workaround - calibration is not allowed */
+	if (CPTCFG_IWL_TIMEOUT_FACTOR > 20) {
+		calib_cmd_cfg->calib_control.event_trigger = 0;
+		calib_cmd_cfg->calib_control.flow_trigger = 0;
+	}
+
 	/* Sending calibration configuration control data */
 	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, 0,
 				   sizeof(*calib_cmd_cfg), calib_cmd_cfg);
@@ -1499,7 +1505,7 @@ static int iwl_xvt_start_tx_handler(void *data)
 	time_remain = wait_event_interruptible_timeout(
 			xvt->tx_done_wq,
 			xvt->num_of_tx_resp == sent_packets,
-			5 * HZ);
+			5 * HZ * CPTCFG_IWL_TIMEOUT_FACTOR);
 	if (time_remain <= 0) {
 		IWL_ERR(xvt, "Not all Tx messages were sent\n");
 		status = XVT_TX_DRIVER_TIMEOUT;
