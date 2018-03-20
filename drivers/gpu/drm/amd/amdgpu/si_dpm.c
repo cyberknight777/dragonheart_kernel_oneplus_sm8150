@@ -7916,6 +7916,7 @@ static int si_dpm_early_init(void *handle)
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
 	adev->powerplay.pp_funcs = &si_dpm_funcs;
+	adev->powerplay.pp_handle = adev;
 	si_dpm_set_irq_funcs(adev);
 	return 0;
 }
