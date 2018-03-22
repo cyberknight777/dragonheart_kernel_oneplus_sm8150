@@ -462,10 +462,6 @@ static ssize_t vfd_out_locked(struct virtwl_vfd *vfd, char __user *buffer,
 		u8 *buf = (u8 *)recv + recv_offset;
 		ssize_t to_read = (ssize_t)qentry->len - (ssize_t)recv_offset;
 
-		if (read_count >= len)
-			break;
-		if (to_read <= 0)
-			continue;
 		if (qentry->hdr->type != VIRTIO_WL_CMD_VFD_RECV)
 			continue;
 
@@ -473,9 +469,7 @@ static ssize_t vfd_out_locked(struct virtwl_vfd *vfd, char __user *buffer,
 			to_read = len - read_count;
 
 		if (copy_to_user(buffer + read_count, buf, to_read)) {
-			/* return error unless we have some data to return */
-			if (read_count == 0)
-				read_count = -EFAULT;
+			read_count = -EFAULT;
 			break;
 		}
 
@@ -483,6 +477,9 @@ static ssize_t vfd_out_locked(struct virtwl_vfd *vfd, char __user *buffer,
 
 		qentry->data_offset += to_read;
 		vfd_qentry_free_if_empty(vfd, qentry);
+
+		if (read_count >= len)
+			break;
 	}
 
 	return read_count;
