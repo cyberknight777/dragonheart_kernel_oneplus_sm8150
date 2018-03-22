@@ -1356,10 +1356,10 @@ static struct iwl_rx_mem_buffer *iwl_pcie_get_rxb(struct iwl_trans *trans,
 	if (rxb->invalid)
 		goto out_err;
 
-	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) {
+	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650)
 		rxb->size = le32_to_cpu(rxq->cd[i].size) & IWL_RX_CD_SIZE;
-		rxb->invalid = true;
-	}
+
+	rxb->invalid = true;
 
 	return rxb;
 
