@@ -1469,8 +1469,20 @@ static int arm_smmu_add_device(struct device *dev)
 
 	iommu_device_link(&smmu->iommu, dev);
 
+	if (pm_runtime_enabled(smmu->dev) &&
+	    !device_link_add(dev, smmu->dev,
+			     DL_FLAG_PM_RUNTIME | DL_FLAG_AUTOREMOVE)) {
+		dev_err(smmu->dev, "Unable to add link to the consumer %s\n",
+			dev_name(dev));
+		ret = -ENODEV;
+		goto out_unlink;
+	}
+
 	return 0;
 
+out_unlink:
+	iommu_device_unlink(&smmu->iommu, dev);
+	arm_smmu_master_free_smes(fwspec);
 out_cfg_free:
 	kfree(cfg);
 out_free:
