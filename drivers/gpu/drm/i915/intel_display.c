@@ -2875,7 +2875,7 @@ intel_find_initial_plane_obj(struct intel_crtc *intel_crtc,
 			continue;
 
 		if (intel_plane_ggtt_offset(state) == plane_config->base) {
-			fb = c->primary->fb;
+			fb = state->base.fb;
 			drm_framebuffer_reference(fb);
 			goto valid_fb;
 		}
