@@ -8,6 +8,7 @@
  * Copyright 2009, Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright(c) 2016 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1190,18 +1191,7 @@ void ieee80211_ibss_rx_no_sta(struct ieee80211_sub_if_data *sdata,
 			      u32 supp_rates)
 {
 	struct ieee80211_if_ibss *ifibss = &sdata->u.ibss;
-	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_chanctx_conf *chanctx_conf;
-
-	/*
-	 * XXX: Consider removing the least recently used entry and
-	 * 	allow new one to be added.
-	 */
-	if (local->num_sta >= IEEE80211_IBSS_MAX_STA_ENTRIES) {
-		net_info_ratelimited("%s: No room for a new IBSS STA entry %pM\n",
-				    sdata->name, addr);
-		return;
-	}
 
 	if (ifibss->state == IEEE80211_IBSS_MLME_SEARCH)
 		return;
