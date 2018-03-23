@@ -783,8 +783,8 @@ int smu7_enable_didt_config(struct pp_hwmgr *hwmgr)
 	    PP_CAP(PHM_PlatformCaps_TDRamping) ||
 	    PP_CAP(PHM_PlatformCaps_TCPRamping)) {
 
-		cgs_enter_safe_mode(hwmgr->device, true);
-		cgs_lock_grbm_idx(hwmgr->device, true);
+		adev->gfx.rlc.funcs->enter_safe_mode(adev);
+		mutex_lock(&adev->grbm_idx_mutex);
 		value = 0;
 		value2 = cgs_read_register(hwmgr->device, mmGRBM_GFX_INDEX);
 		for (count = 0; count < num_se; count++) {
@@ -824,8 +824,8 @@ int smu7_enable_didt_config(struct pp_hwmgr *hwmgr)
 			PP_ASSERT_WITH_CODE((0 == result),
 					"Failed to enable DPM DIDT.", return result);
 		}
-		cgs_lock_grbm_idx(hwmgr->device, false);
-		cgs_enter_safe_mode(hwmgr->device, false);
+		mutex_unlock(&adev->grbm_idx_mutex);
+		adev->gfx.rlc.funcs->exit_safe_mode(adev);
 	}
 
 	return 0;
@@ -834,13 +834,14 @@ int smu7_enable_didt_config(struct pp_hwmgr *hwmgr)
 int smu7_disable_didt_config(struct pp_hwmgr *hwmgr)
 {
 	int result;
+	struct amdgpu_device *adev = hwmgr->adev;
 
 	if (PP_CAP(PHM_PlatformCaps_SQRamping) ||
 	    PP_CAP(PHM_PlatformCaps_DBRamping) ||
 	    PP_CAP(PHM_PlatformCaps_TDRamping) ||
 	    PP_CAP(PHM_PlatformCaps_TCPRamping)) {
 
-		cgs_enter_safe_mode(hwmgr->device, true);
+		adev->gfx.rlc.funcs->enter_safe_mode(adev);
 
 		result = smu7_enable_didt(hwmgr, false);
 		PP_ASSERT_WITH_CODE((result == 0),
@@ -852,7 +853,7 @@ int smu7_disable_didt_config(struct pp_hwmgr *hwmgr)
 			PP_ASSERT_WITH_CODE((0 == result),
 					"Failed to disable DPM DIDT.", return result);
 		}
-		cgs_enter_safe_mode(hwmgr->device, false);
+		adev->gfx.rlc.funcs->exit_safe_mode(adev);
 	}
 
 	return 0;
