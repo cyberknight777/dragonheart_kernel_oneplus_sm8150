@@ -1721,7 +1721,7 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 		return ret;
 
 	if (ret > 0) {
-		if (!params->userspace_handles_dfs)
+		if (!cfg80211_ibss_userspace_handles_dfs(params))
 			return -EINVAL;
 		radar_detect_width = BIT(params->chandef.width);
 	}
@@ -1744,7 +1744,7 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 
 	sdata->u.ibss.privacy = params->privacy;
 	sdata->u.ibss.control_port = params->control_port;
-	sdata->u.ibss.userspace_handles_dfs = params->userspace_handles_dfs;
+	sdata->u.ibss.userspace_handles_dfs = cfg80211_ibss_userspace_handles_dfs(params);
 	sdata->u.ibss.basic_rates = params->basic_rates;
 	sdata->u.ibss.last_scan_completed = jiffies;
 
@@ -1776,10 +1776,12 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 	memcpy(sdata->u.ibss.ssid, params->ssid, params->ssid_len);
 	sdata->u.ibss.ssid_len = params->ssid_len;
 
+#if CFG80211_VERSION >= KERNEL_VERSION(3,12,0)
 	memcpy(&sdata->u.ibss.ht_capa, &params->ht_capa,
 	       sizeof(sdata->u.ibss.ht_capa));
 	memcpy(&sdata->u.ibss.ht_capa_mask, &params->ht_capa_mask,
 	       sizeof(sdata->u.ibss.ht_capa_mask));
+#endif
 
 	/*
 	 * 802.11n-2009 9.13.3.1: In an IBSS, the HT Protection field is

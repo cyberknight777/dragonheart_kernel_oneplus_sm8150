@@ -8,11 +8,15 @@
  */
 
 #include <linux/version.h>
-#include <hdrs/symbols-rename.h>
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/idr.h>
 #include <linux/vmalloc.h>
+
+/* get the CPTCFG_* preprocessor symbols */
+#include <hdrs/config.h>
+
+#include <hdrs/mac80211-exp.h>
 
 /* include rhashtable this way to get our copy if another exists */
 #include <linux/list_nulls.h>
@@ -56,9 +60,6 @@ static inline u64 ktime_get_real_ns(void)
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0) */
 
-/* get the CPTCFG_* preprocessor symbols */
-#include <hdrs/config.h>
-
 /*
  * Need to include these here, otherwise we get the regular kernel ones
  * pre-including them makes it work, even though later the kernel ones
@@ -76,9 +77,6 @@ static inline u64 ktime_get_real_ns(void)
 
 /* mac80211 & backport - order matters, need this inbetween */
 #include <hdrs/mac80211-bp.h>
-#include <hdrs/uapi/linux/nl80211.h>
-#include <hdrs/net/regulatory.h>
-#include <hdrs/net/cfg80211.h>
 
 #include <hdrs/net/codel.h>
 #include <hdrs/net/codel_impl.h>

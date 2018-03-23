@@ -320,6 +320,7 @@ iwl_mvm_scan_type iwl_mvm_get_scan_type_band(struct iwl_mvm *mvm,
 	return _iwl_mvm_get_scan_type(mvm, p2p_device, load, low_latency);
 }
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 static int
 iwl_mvm_get_measurement_dwell(struct iwl_mvm *mvm,
 			      struct cfg80211_scan_request *req,
@@ -346,6 +347,7 @@ iwl_mvm_get_measurement_dwell(struct iwl_mvm *mvm,
 
 	return min_t(u32, (u32)req->duration, duration);
 }
+#endif
 
 static inline bool iwl_mvm_rrm_scan_needed(struct iwl_mvm *mvm)
 {
@@ -1667,11 +1669,13 @@ int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	iwl_mvm_fill_scan_type(mvm, &params,
 			       vif->type == NL80211_IFTYPE_P2P_DEVICE);
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	ret = iwl_mvm_get_measurement_dwell(mvm, req, &params);
 	if (ret < 0)
 		return ret;
 
 	params.measurement_dwell = ret;
+#endif
 
 	iwl_mvm_build_scan_probe(mvm, vif, ies, &params);
 
@@ -1728,6 +1732,9 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 	};
 	struct iwl_mvm_scan_params params = {};
 	int ret;
+#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
+	struct cfg80211_sched_scan_plan scan_plan = {};
+#endif
 
 	lockdep_assert_held(&mvm->mutex);
 
@@ -1758,11 +1765,20 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 	params.pass_all =  iwl_mvm_scan_pass_all(mvm, req);
 	params.n_match_sets = req->n_match_sets;
 	params.match_sets = req->match_sets;
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	if (!req->n_scan_plans)
 		return -EINVAL;
 
 	params.n_scan_plans = req->n_scan_plans;
 	params.scan_plans = req->scan_plans;
+#else
+	params.n_scan_plans = 1;
+	params.scan_plans = &scan_plan;
+	if (req->interval / MSEC_PER_SEC > U16_MAX)
+		scan_plan.interval = U16_MAX;
+	else
+		scan_plan.interval = req->interval / MSEC_PER_SEC;
+#endif
 
 	iwl_mvm_fill_scan_type(mvm, &params,
 			       vif->type == NL80211_IFTYPE_P2P_DEVICE);

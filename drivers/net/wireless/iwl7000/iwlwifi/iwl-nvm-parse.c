@@ -989,6 +989,7 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 
 		if (!reg_query_regdb_wmm(regd->alpha2, center_freq,
 					 &regdb_ptrs[n_wmms].token, wmm_rule)) {
+#if LINUX_VERSION_IS_GEQ(4,17,0)
 			/* Add only new rules */
 			for (i = 0; i < n_wmms; i++) {
 				if (regdb_ptrs[i].token ==
@@ -1002,11 +1003,14 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 				regdb_ptrs[n_wmms++].rule = wmm_rule;
 				wmm_rule++;
 			}
+#endif
 		}
 	}
 
 	regd->n_reg_rules = valid_rules;
+#if LINUX_VERSION_IS_GEQ(4,17,0)
 	regd->n_wmm_rules = n_wmms;
+#endif
 
 	/*
 	 * Narrow down regdom for unused regulatory rules to prevent hole
@@ -1030,6 +1034,7 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	d_wmm = (struct ieee80211_wmm_rule *)((u8 *)copy_rd + regd_to_copy);
 	s_wmm = (struct ieee80211_wmm_rule *)((u8 *)regd + size_of_regd);
 
+#if LINUX_VERSION_IS_GEQ(4,17,0)
 	for (i = 0; i < regd->n_reg_rules; i++) {
 		if (!regd->reg_rules[i].wmm_rule)
 			continue;
@@ -1038,6 +1043,7 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 			(regd->reg_rules[i].wmm_rule - s_wmm) /
 			sizeof(struct ieee80211_wmm_rule);
 	}
+#endif
 
 out:
 	kfree(regdb_ptrs);

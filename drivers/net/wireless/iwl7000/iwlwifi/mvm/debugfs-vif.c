@@ -261,7 +261,10 @@ static ssize_t iwl_dbgfs_mac_params_read(struct file *file,
 	case NL80211_IFTYPE_P2P_DEVICE:
 		pos += scnprintf(buf+pos, bufsz-pos, "type: p2p dev\n");
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	case NL80211_IFTYPE_NAN:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		pos += scnprintf(buf+pos, bufsz-pos, "type: NAN\n");
 		break;
 	default:
@@ -1694,7 +1697,7 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TOF_SUPPORT) &&
 	    !vif->p2p && (vif->type != NL80211_IFTYPE_P2P_DEVICE) &&
-	    (vif->type != NL80211_IFTYPE_NAN)) {
+	    (!ieee80211_viftype_nan(vif->type))) {
 		if (IWL_MVM_TOF_IS_RESPONDER && vif->type == NL80211_IFTYPE_AP)
 			MVM_DEBUGFS_ADD_FILE_VIF(tof_responder_params,
 						 mvmvif->dbgfs_dir,

@@ -1,4 +1,3 @@
-export CPTCFG_CFG80211=m
 export CPTCFG_MAC80211=m
 export CPTCFG_MAC80211_LEDS=y
 export CPTCFG_IWLWIFI=m
@@ -18,7 +17,6 @@ endif
 ifeq ($(CONFIG_IWL7000_DEBUGFS),y)
 export CPTCFG_IWLWIFI_DEBUGFS=y
 export CPTCFG_MAC80211_DEBUGFS=y
-export CPTCFG_CFG80211_DEBUGFS=y
 endif
 
 ifeq ($(CONFIG_IWL7000_TRACING),y)
@@ -41,7 +39,10 @@ subdir-ccflags-y += $(call cc-option,-Wno-date-time)
 # otherwise ieee80211_band vs. nl80211_band warnings come up
 subdir-ccflags-y += $(call cc-option,-Wno-enum-compare)
 subdir-ccflags-y += $(call cc-option,-Wno-enum-conversion)
+subdir-ccflags-y += $(call cc-option,-Wno-int-in-bool-context)
+# cfg80211 compatibility porting mechanism sometimes causes these
+subdir-ccflags-y += $(call cc-option,-Wno-unused-const-variable)
+subdir-ccflags-y += $(call cc-option,-Wno-unused-variable)
 
-obj-$(CONFIG_IWL7000) += wireless/
 obj-$(CONFIG_IWL7000) += mac80211/
 obj-$(CONFIG_IWL7000) += iwlwifi/

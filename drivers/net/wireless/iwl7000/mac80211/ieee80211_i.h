@@ -1112,11 +1112,30 @@ enum mac80211_scan_state {
 	SCAN_ABORT,
 };
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
+/* private copy of a cfg80211 structure */
+struct cfg80211_registered_device {
+	struct list_head list;
+
+	/*
+	 * the driver requests the regulatory core to set this regulatory
+	 * domain as the wiphy's. Only used for %REGULATORY_WIPHY_SELF_MANAGED
+	 * devices using the regulatory_set_wiphy_regd() API
+	 */
+	const struct ieee80211_regdomain *requested_regd;
+};
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
+
 struct ieee80211_local {
 	/* embed the driver visible part.
 	 * don't cast (use the static inlines below), but we keep
 	 * it first anyway so they become a no-op */
 	struct ieee80211_hw hw;
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
+	/* used for internal mac80211 LAR implementation */
+	struct cfg80211_registered_device rdev;
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
 
 	struct fq fq;
 	struct codel_vars *cvars;
@@ -2159,14 +2178,26 @@ enum nl80211_chan_width ieee80211_get_sta_bw(struct ieee80211_sta *sta);
 void ieee80211_recalc_chanctx_chantype(struct ieee80211_local *local,
 				       struct ieee80211_chanctx *ctx);
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
+/* LAR private implementation */
+void intel_regulatory_deregister(struct ieee80211_local *local);
+void intel_regulatory_register(struct ieee80211_local *local);
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
+
 /* TDLS */
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-			const u8 *peer, u8 action_code, u8 dialog_token,
-			u16 status_code, u32 peer_capability,
-			bool initiator, const u8 *extra_ies,
+			const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
+			u16 status_code,
+#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
+			u32 peer_capability,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(3,17,0)
+			bool initiator,
+#endif
+			const u8 *extra_ies,
 			size_t extra_ies_len);
 int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
-			const u8 *peer, enum nl80211_tdls_operation oper);
+			const_since_3_16 u8 *peer, enum nl80211_tdls_operation oper);
 void ieee80211_tdls_peer_del_work(struct work_struct *wk);
 int ieee80211_tdls_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 				  const u8 *addr, u8 oper_class,
