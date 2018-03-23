@@ -138,10 +138,12 @@ static const struct ieee80211_iface_limit iwl_mvm_limits_nan[] = {
 		.max = 1,
 		.types = BIT(NL80211_IFTYPE_P2P_DEVICE),
 	},
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	{
 		.max = 1,
 		.types = BIT(NL80211_IFTYPE_NAN),
 	},
+#endif
 };
 
 static const struct ieee80211_iface_combination
@@ -469,7 +471,6 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	ieee80211_hw_set(hw, AMPDU_AGGREGATION);
 	ieee80211_hw_set(hw, TIMING_BEACON_ONLY);
 	ieee80211_hw_set(hw, CONNECTION_MONITOR);
-	ieee80211_hw_set(hw, CHANCTX_STA_CSA);
 	ieee80211_hw_set(hw, SUPPORT_FAST_XMIT);
 	ieee80211_hw_set(hw, SUPPORTS_CLONED_SKBS);
 	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
@@ -578,6 +579,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		hw->wiphy->n_cipher_suites++;
 	}
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
 	/* Basic support of FTM is limited to driver/FW, so this flag should be
 	 * set (depending on capbilities specified in TLV).
 	 */
@@ -585,6 +587,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		hw->wiphy->ftm_initiator_capa = &iwl_mvm_ftm_initiator_capa;
 		hw->wiphy->flags |= WIPHY_FLAG_HAS_FTM_RESPONDER;
 	}
+#endif
 
 	ieee80211_hw_set(hw, SINGLE_SCAN_ON_ALL_BANDS);
 	hw->wiphy->features |=
@@ -614,16 +617,20 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	hw->wiphy->flags |= WIPHY_FLAG_AP_UAPSD;
 	hw->wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH;
 
-	if (fw_has_capa(&mvm->fw->ucode_capa,
-			IWL_UCODE_TLV_CAPA_NAN_SUPPORT)) {
-		hw->wiphy->interface_modes |= BIT(NL80211_IFTYPE_NAN);
+	if (false) {
+		hw->wiphy->interface_modes |= 0;
 		hw->wiphy->iface_combinations = iwl_mvm_iface_combinations_nan;
 		hw->wiphy->n_iface_combinations =
 			ARRAY_SIZE(iwl_mvm_iface_combinations_nan);
+#if CFG80211_VERSION >= KERNEL_VERSION(4,11,0)
 		hw->wiphy->nan_supported_bands = BIT(NL80211_BAND_2GHZ);
-		if (mvm->nvm_data->bands[NL80211_BAND_5GHZ].n_channels)
+#endif
+		if (mvm->nvm_data->bands[NL80211_BAND_5GHZ].n_channels) {
+#if CFG80211_VERSION >= KERNEL_VERSION(4,11,0)
 			hw->wiphy->nan_supported_bands |=
 				BIT(NL80211_BAND_5GHZ);
+#endif
+		}
 		hw->max_nan_de_entries = NAN_MAX_SUPPORTED_DE_ENTRIES;
 	} else {
 		hw->wiphy->iface_combinations = iwl_mvm_iface_combinations;
@@ -689,12 +696,17 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	else
 		hw->wiphy->flags &= ~WIPHY_FLAG_PS_ON_BY_DEFAULT;
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
+	hw->wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+#else
 	hw->wiphy->max_sched_scan_reqs = 1;
+#endif
 	hw->wiphy->max_sched_scan_ssids = PROBE_OPTION_MAX;
 	hw->wiphy->max_match_sets = IWL_SCAN_MAX_PROFILES;
 	/* we create the 802.11 header and zero length SSID IE. */
 	hw->wiphy->max_sched_scan_ie_len =
 		SCAN_OFFLOAD_PROBE_REQ_SIZE - 24 - 2;
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	hw->wiphy->max_sched_scan_plans = IWL_MAX_SCHED_SCAN_PLANS;
 	hw->wiphy->max_sched_scan_plan_interval = U16_MAX;
 
@@ -703,6 +715,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	 * infinite loop, so the maximum number of iterations is actually 254.
 	 */
 	hw->wiphy->max_sched_scan_plan_iterations = 254;
+#endif
 
 	hw->wiphy->features |= NL80211_FEATURE_P2P_GO_CTWIN |
 			       NL80211_FEATURE_LOW_PRIORITY_SCAN |
@@ -755,7 +768,11 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	if (iwl_mvm_is_d0i3_supported(mvm) &&
 	    device_can_wakeup(mvm->trans->dev)) {
 		mvm->wowlan.flags = WIPHY_WOWLAN_ANY;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
 		hw->wiphy->wowlan = &mvm->wowlan;
+#else
+		hw->wiphy->wowlan = mvm->wowlan;
+#endif
 	}
 
 	if (mvm->fw->img[IWL_UCODE_WOWLAN].num_sec &&
@@ -776,7 +793,11 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		mvm->wowlan.pattern_min_len = IWL_WOWLAN_MIN_PATTERN_LEN;
 		mvm->wowlan.pattern_max_len = IWL_WOWLAN_MAX_PATTERN_LEN;
 		mvm->wowlan.max_nd_match_sets = IWL_SCAN_MAX_PROFILES;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
 		hw->wiphy->wowlan = &mvm->wowlan;
+#else
+		hw->wiphy->wowlan = mvm->wowlan;
+#endif
 	}
 #endif
 
@@ -1447,7 +1468,7 @@ static int iwl_mvm_mac_add_interface(struct ieee80211_hw *hw,
 		goto out_unlock;
 
 	/* Currently not much to do for NAN */
-	if (vif->type == NL80211_IFTYPE_NAN)
+	if (ieee80211_viftype_nan(vif->type))
 		goto out_unlock;
 
 	/* Counting number of interfaces is needed for legacy PM */
@@ -1591,7 +1612,7 @@ static void iwl_mvm_mac_remove_interface(struct ieee80211_hw *hw,
 
 	iwl_mvm_prepare_mac_removal(mvm, vif);
 
-	if (vif->type == NL80211_IFTYPE_NAN) {
+	if (ieee80211_viftype_nan(vif->type)) {
 		struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif);
 		/* cfg80211 should stop NAN before interface removal */
 		if (wdev && WARN_ON(wdev_running(wdev)))
@@ -4644,6 +4665,7 @@ iwl_mvm_mac_start_ftm_responder(struct ieee80211_hw *hw,
 	return ret;
 }
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
 static int
 iwl_mvm_mac_get_ftm_responder_stats(struct ieee80211_hw *hw,
 				    struct ieee80211_vif *vif,
@@ -4672,6 +4694,7 @@ iwl_mvm_mac_get_ftm_responder_stats(struct ieee80211_hw *hw,
 
 	return 0;
 }
+#endif
 
 const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.tx = iwl_mvm_mac_tx,
@@ -4751,7 +4774,9 @@ const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.perform_ftm = iwl_mvm_perform_ftm,
 	.abort_ftm = iwl_mvm_abort_ftm,
 	.start_ftm_responder = iwl_mvm_mac_start_ftm_responder,
+#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
 	.get_ftm_responder_stats = iwl_mvm_mac_get_ftm_responder_stats,
+#endif
 
 	.start_nan = iwl_mvm_start_nan,
 	.stop_nan = iwl_mvm_stop_nan,

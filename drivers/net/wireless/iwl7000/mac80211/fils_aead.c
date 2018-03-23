@@ -1,4 +1,4 @@
-#if LINUX_VERSION_IS_GEQ(4,10,0)
+#if LINUX_VERSION_IS_GEQ(4,3,0)
 /*
  * FILS AEAD for (Re)Association Request/Response frames
  * Copyright 2016, Qualcomm Atheros, Inc.

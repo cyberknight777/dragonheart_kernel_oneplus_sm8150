@@ -218,7 +218,7 @@ u32 iwl_mvm_mac_get_queues_mask(struct ieee80211_vif *vif)
 		return BIT(IWL_MVM_OFFCHANNEL_QUEUE);
 
 	/* Currently NAN doesn't use queues */
-	if (vif->type == NL80211_IFTYPE_NAN)
+	if (ieee80211_viftype_nan(vif->type))
 		return 0;
 
 	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
@@ -408,7 +408,7 @@ int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	/* No need to allocate data queues to P2P Device MAC and NAN.*/
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE ||
-	    vif->type == NL80211_IFTYPE_NAN) {
+	    ieee80211_viftype_nan(vif->type)) {
 		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
 			vif->hw_queue[ac] = IEEE80211_INVAL_HW_QUEUE;
 
@@ -1321,7 +1321,7 @@ int iwl_mvm_mac_ctxt_add(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	int ret;
 
-	if (WARN_ON_ONCE(vif->type == NL80211_IFTYPE_NAN))
+	if (WARN_ON_ONCE(ieee80211_viftype_nan(vif->type)))
 		return -EOPNOTSUPP;
 
 	if (WARN_ONCE(mvmvif->uploaded, "Adding active MAC %pM/%d\n",
@@ -1345,7 +1345,7 @@ int iwl_mvm_mac_ctxt_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
-	if (WARN_ON_ONCE(vif->type == NL80211_IFTYPE_NAN))
+	if (WARN_ON_ONCE(ieee80211_viftype_nan(vif->type)))
 		return -EOPNOTSUPP;
 
 	if (WARN_ONCE(!mvmvif->uploaded, "Changing inactive MAC %pM/%d\n",
@@ -1362,7 +1362,7 @@ int iwl_mvm_mac_ctxt_remove(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	struct iwl_mac_ctx_cmd cmd;
 	int ret;
 
-	if (WARN_ON_ONCE(vif->type == NL80211_IFTYPE_NAN))
+	if (WARN_ON_ONCE(ieee80211_viftype_nan(vif->type)))
 		return -EOPNOTSUPP;
 
 	if (WARN_ONCE(!mvmvif->uploaded, "Removing inactive MAC %pM/%d\n",

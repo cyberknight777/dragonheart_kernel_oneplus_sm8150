@@ -1670,7 +1670,7 @@ void ieee80211_dfs_cac_timer_work(struct work_struct *work)
 	struct cfg80211_chan_def chandef = sdata->vif.bss_conf.chandef;
 
 	mutex_lock(&sdata->local->mtx);
-	if (sdata->wdev.cac_started) {
+	if (wdev_cac_started(&sdata->wdev)) {
 		ieee80211_vif_release_channel(sdata);
 		cfg80211_cac_event(sdata->dev, &chandef,
 				   NL80211_RADAR_CAC_FINISHED,
@@ -4785,36 +4785,42 @@ int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
 	case NL80211_AUTHTYPE_SAE:
 		auth_alg = WLAN_AUTH_SAE;
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(4,10,0)
 	case NL80211_AUTHTYPE_FILS_SK:
 		auth_alg = WLAN_AUTH_FILS_SK;
 		break;
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,10,0)
 	case NL80211_AUTHTYPE_FILS_SK_PFS:
 		auth_alg = WLAN_AUTH_FILS_SK_PFS;
 		break;
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,10,0)
 	case NL80211_AUTHTYPE_FILS_PK:
 		auth_alg = WLAN_AUTH_FILS_PK;
 		break;
+#endif
 	default:
 		return -EOPNOTSUPP;
 	}
 
-	auth_data = kzalloc(sizeof(*auth_data) + req->auth_data_len +
+	auth_data = kzalloc(sizeof(*auth_data) + iwl7000_get_auth_data_len(req) +
 			    req->ie_len, GFP_KERNEL);
 	if (!auth_data)
 		return -ENOMEM;
 
 	auth_data->bss = req->bss;
 
-	if (req->auth_data_len >= 4) {
+	if (iwl7000_get_auth_data_len(req) >= 4) {
 		if (req->auth_type == NL80211_AUTHTYPE_SAE) {
-			__le16 *pos = (__le16 *) req->auth_data;
+			__le16 *pos = (__le16 *) iwl7000_get_auth_data(req);
 
 			auth_data->sae_trans = le16_to_cpu(pos[0]);
 			auth_data->sae_status = le16_to_cpu(pos[1]);
 		}
-		memcpy(auth_data->data, req->auth_data + 4,
-		       req->auth_data_len - 4);
-		auth_data->data_len += req->auth_data_len - 4;
+		memcpy(auth_data->data, iwl7000_get_auth_data(req) + 4,
+		       iwl7000_get_auth_data_len(req) - 4);
+		auth_data->data_len += iwl7000_get_auth_data_len(req) - 4;
 	}
 
 	if (req->ie && req->ie_len) {
@@ -5030,28 +5036,30 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 	memcpy(&ifmgd->ht_capa_mask, &req->ht_capa_mask,
 	       sizeof(ifmgd->ht_capa_mask));
 
+#if CFG80211_VERSION >= KERNEL_VERSION(3,10,0)
 	memcpy(&ifmgd->vht_capa, &req->vht_capa, sizeof(ifmgd->vht_capa));
 	memcpy(&ifmgd->vht_capa_mask, &req->vht_capa_mask,
 	       sizeof(ifmgd->vht_capa_mask));
+#endif
 
 	if (req->ie && req->ie_len) {
 		memcpy(assoc_data->ie, req->ie, req->ie_len);
 		assoc_data->ie_len = req->ie_len;
 	}
 
-	if (req->fils_kek) {
+	if (iwl7000_get_fils_kek(req)) {
 		/* should already be checked in cfg80211 - so warn */
-		if (WARN_ON(req->fils_kek_len > FILS_MAX_KEK_LEN)) {
+		if (WARN_ON(iwl7000_get_fils_kek_len(req) > FILS_MAX_KEK_LEN)) {
 			err = -EINVAL;
 			goto err_free;
 		}
-		memcpy(assoc_data->fils_kek, req->fils_kek,
-		       req->fils_kek_len);
-		assoc_data->fils_kek_len = req->fils_kek_len;
+		memcpy(assoc_data->fils_kek, iwl7000_get_fils_kek(req),
+		       iwl7000_get_fils_kek_len(req));
+		assoc_data->fils_kek_len = iwl7000_get_fils_kek_len(req);
 	}
 
-	if (req->fils_nonces)
-		memcpy(assoc_data->fils_nonces, req->fils_nonces,
+	if (iwl7000_get_fils_nonces(req))
+		memcpy(assoc_data->fils_nonces, iwl7000_get_fils_nonces(req),
 		       2 * FILS_NONCE_LEN);
 
 	assoc_data->bss = req->bss;

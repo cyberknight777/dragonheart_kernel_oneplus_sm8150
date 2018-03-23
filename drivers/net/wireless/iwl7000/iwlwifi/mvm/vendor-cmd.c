@@ -64,6 +64,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
+#if CFG80211_VERSION > KERNEL_VERSION(3, 14, 0)
+
 #include <linux/etherdevice.h>
 #include <net/mac80211.h>
 #include <net/netlink.h>
@@ -1254,3 +1256,4 @@ void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	kfree_skb(msg);
 }
 #endif
+#endif /* CFG80211_VERSION > KERNEL_VERSION(3, 14, 0) */

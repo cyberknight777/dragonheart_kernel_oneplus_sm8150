@@ -1142,6 +1142,7 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 	    sdata->vif.type != NL80211_IFTYPE_STATION)
 		return;
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
 	rcu_read_lock();
 	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
 	if (chanctx_conf)
@@ -1169,6 +1170,7 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 	qparam->txop = !qparam->txop ? wmm_ac->cot / 32 :
 		min_t(u16, qparam->txop, wmm_ac->cot / 32);
 	rcu_read_unlock();
+#endif
 }
 
 void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
@@ -1197,7 +1199,7 @@ void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
 		 !(sdata->flags & IEEE80211_SDATA_OPERATING_GMODE);
 	rcu_read_unlock();
 
-	is_ocb = (sdata->vif.type == NL80211_IFTYPE_OCB);
+	is_ocb = (ieee80211_viftype_ocb(sdata->vif.type));
 
 	/* Set defaults according to 802.11-2007 Table 7-37 */
 	aCWmax = 1023;
@@ -1274,7 +1276,7 @@ void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
 
 	if (sdata->vif.type != NL80211_IFTYPE_MONITOR &&
 	    sdata->vif.type != NL80211_IFTYPE_P2P_DEVICE &&
-	    sdata->vif.type != NL80211_IFTYPE_NAN) {
+	    !ieee80211_viftype_nan(sdata->vif.type)) {
 		sdata->vif.bss_conf.qos = enable_qos;
 		if (bss_notify)
 			ieee80211_bss_info_change_notify(sdata,
@@ -1837,6 +1839,12 @@ static void ieee80211_reconfig_stations(struct ieee80211_sub_if_data *sdata)
 	mutex_unlock(&local->sta_mtx);
 }
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,9,0)
+static int ieee80211_reconfig_nan(struct ieee80211_sub_if_data *sdata){
+	return 0;
+}
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 static int ieee80211_reconfig_nan(struct ieee80211_sub_if_data *sdata)
 {
 	struct cfg80211_nan_func *func, **funcs;
@@ -1876,6 +1884,7 @@ static int ieee80211_reconfig_nan(struct ieee80211_sub_if_data *sdata)
 
 	return 0;
 }
+#endif
 
 int ieee80211_reconfig(struct ieee80211_local *local)
 {
@@ -2079,7 +2088,10 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 			ieee80211_bss_info_change_notify(sdata, changed);
 			sdata_unlock(sdata);
 			break;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 		case NL80211_IFTYPE_OCB:
+			/* keep code in case of fall-through (spatch generated) */
+#endif
 			changed |= BSS_CHANGED_OCB;
 			ieee80211_bss_info_change_notify(sdata, changed);
 			break;
@@ -2104,7 +2116,10 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 				ieee80211_bss_info_change_notify(sdata, changed);
 			}
 			break;
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 		case NL80211_IFTYPE_NAN:
+			/* keep code in case of fall-through (spatch generated) */
+#endif
 			res = ieee80211_reconfig_nan(sdata);
 			if (res < 0) {
 				ieee80211_handle_reconfig_failure(local);
@@ -2121,7 +2136,10 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		case NUM_NL80211_IFTYPES:
 		case NL80211_IFTYPE_P2P_CLIENT:
 		case NL80211_IFTYPE_P2P_GO:
+#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
 		case NL80211_IFTYPE_NAN_DATA:
+			/* keep code in case of fall-through (spatch generated) */
+#endif
 			WARN_ON(1);
 			break;
 		}
@@ -2186,7 +2204,10 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		 * scan plan was currently running (and some scan plans may have
 		 * already finished).
 		 */
-		if (sched_scan_req->n_scan_plans > 1 ||
+		if (
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
+		    sched_scan_req->n_scan_plans > 1 ||
+#endif
 		    __ieee80211_request_sched_scan_start(sched_scan_sdata,
 							 sched_scan_req)) {
 			RCU_INIT_POINTER(local->sched_scan_sdata, NULL);
@@ -2903,7 +2924,7 @@ u64 ieee80211_calculate_rx_timestamp(struct ieee80211_local *local,
 
 	memset(&ri, 0, sizeof(ri));
 
-	ri.bw = status->bw;
+	set_rate_info_bw(&ri, status->bw);
 
 	/* Fill cfg80211 rate info */
 	switch (status->encoding) {
@@ -2988,7 +3009,7 @@ void ieee80211_dfs_cac_cancel(struct ieee80211_local *local)
 		 */
 		cancel_delayed_work(&sdata->dfs_cac_timer_work);
 
-		if (sdata->wdev.cac_started) {
+		if (wdev_cac_started(&sdata->wdev)) {
 			chandef = sdata->vif.bss_conf.chandef;
 			ieee80211_vif_release_channel(sdata);
 			cfg80211_cac_event(sdata->dev,
@@ -3272,8 +3293,10 @@ int ieee80211_cs_headroom(struct ieee80211_local *local,
 			headroom = cs->hdr_len;
 	}
 
-	for (i = 0; i < crypto->n_ciphers_group; i++) {
-		cs = ieee80211_cs_get(local, crypto->ciphers_group[i], iftype);
+	for (i = 0; i < cfg80211_crypto_n_ciphers_group(crypto); i++) {
+		cs = ieee80211_cs_get(local,
+				      cfg80211_crypto_ciphers_group(crypto, i),
+				      iftype);
 		if (cs && headroom < cs->hdr_len)
 			headroom = cs->hdr_len;
 	}
