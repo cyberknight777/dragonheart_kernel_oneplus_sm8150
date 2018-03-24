@@ -3955,13 +3955,16 @@ static int ieee80211_auth(struct ieee80211_sub_if_data *sdata)
 			    auth_data->bss->bssid, NULL, 0, 0,
 			    tx_flags);
 
-	if (auth_data->algorithm == WLAN_AUTH_SAE)
-		auth_data->timeout = (jiffies + IEEE80211_AUTH_TIMEOUT_SAE);
-	else if (tx_flags == 0)
-		auth_data->timeout = jiffies + IEEE80211_AUTH_TIMEOUT;
-	else
+	if (tx_flags == 0) {
+		if (auth_data->algorithm == WLAN_AUTH_SAE)
+			auth_data->timeout = jiffies +
+				IEEE80211_AUTH_TIMEOUT_SAE;
+		else
+			auth_data->timeout = jiffies + IEEE80211_AUTH_TIMEOUT;
+	} else {
 		auth_data->timeout =
 			round_jiffies_up(jiffies + IEEE80211_AUTH_TIMEOUT_LONG);
+	}
 
 	auth_data->timeout_started = true;
 	run_again(sdata, auth_data->timeout);
@@ -4036,8 +4039,15 @@ void ieee80211_sta_work(struct ieee80211_sub_if_data *sdata)
 		ifmgd->status_received = false;
 		if (ifmgd->auth_data && ieee80211_is_auth(fc)) {
 			if (status_acked) {
-				ifmgd->auth_data->timeout =
-					jiffies + IEEE80211_AUTH_TIMEOUT_SHORT;
+				if (ifmgd->auth_data->algorithm ==
+				    WLAN_AUTH_SAE)
+					ifmgd->auth_data->timeout =
+						jiffies +
+						IEEE80211_AUTH_TIMEOUT_SAE;
+				else
+					ifmgd->auth_data->timeout =
+						jiffies +
+						IEEE80211_AUTH_TIMEOUT_SHORT;
 				run_again(sdata, ifmgd->auth_data->timeout);
 			} else {
 				ifmgd->auth_data->timeout = jiffies - 1;
