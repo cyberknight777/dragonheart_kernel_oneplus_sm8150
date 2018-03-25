@@ -335,7 +335,6 @@ enum {
 	TRANSFER_FUNC_POINTS = 1025
 };
 
-// Moved here from color module for linux
 enum color_transfer_func {
 	transfer_func_unknown,
 	transfer_func_srgb,
@@ -422,7 +421,6 @@ union surface_update_flags {
 		/* Medium updates */
 		uint32_t dcc_change:1;
 		uint32_t color_space_change:1;
-		uint32_t input_tf_change:1;
 		uint32_t horizontal_mirror_change:1;
 		uint32_t per_pixel_alpha_change:1;
 		uint32_t rotation_change:1;
@@ -472,7 +470,6 @@ struct dc_plane_state {
 	struct dc_hdr_static_metadata hdr_static_ctx;
 
 	enum dc_color_space color_space;
-	enum color_transfer_func input_tf;
 
 	enum surface_pixel_format format;
 	enum dc_rotation_angle rotation;
@@ -502,7 +499,6 @@ struct dc_plane_info {
 	enum dc_rotation_angle rotation;
 	enum plane_stereo_format stereo_format;
 	enum dc_color_space color_space;
-	enum color_transfer_func input_tf;
 	unsigned int sdr_white_level;
 	bool horizontal_mirror;
 	bool visible;
@@ -529,7 +525,6 @@ struct dc_surface_update {
 	 * null means no updates
 	 */
 	struct dc_gamma *gamma;
-	enum color_transfer_func color_input_tf;
 	struct dc_transfer_func *in_transfer_func;
 
 	struct csc_transform *input_csc_color_matrix;
