@@ -339,6 +339,9 @@ enum iwl_d3_status {
  * @STATUS_TRANS_IDLE: the trans is idle - general commands are not to be sent
  * @STATUS_TA_ACTIVE: target access is in progress
  * @STATUS_TRANS_DEAD: trans is dead - avoid any read/write operation
+#ifdef CPTCFG_IWLWIFI_VENDOR_MODE
+ * @STATUS_HCMD_RESP: the host expects a response on the sent command
+#endif
  */
 enum iwl_trans_status {
 	STATUS_SYNC_HCMD_ACTIVE,
