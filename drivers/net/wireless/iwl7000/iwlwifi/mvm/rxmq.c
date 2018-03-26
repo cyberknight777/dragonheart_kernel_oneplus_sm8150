@@ -244,6 +244,11 @@ static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 {
 	u16 status = le16_to_cpu(desc->status);
 
+	/* Drop UNKNOWN frames,  unless in monitor mode (not having the keys) */
+	if ((status & IWL_RX_MPDU_STATUS_SEC_MASK) ==
+	    IWL_RX_MPDU_STATUS_SEC_UNKNOWN && !mvm->monitor_on)
+		return -1;
+
 	if (!ieee80211_has_protected(hdr->frame_control) ||
 	    (status & IWL_RX_MPDU_STATUS_SEC_MASK) ==
 	    IWL_RX_MPDU_STATUS_SEC_NONE)
