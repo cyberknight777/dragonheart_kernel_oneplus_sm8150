@@ -1153,10 +1153,11 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 	}
 
 	rrule = freq_reg_info(sdata->wdev.wiphy, MHZ_TO_KHZ(center_freq));
-	rcu_read_unlock();
 
-	if (IS_ERR_OR_NULL(rrule) || !rrule->wmm_rule)
+	if (IS_ERR_OR_NULL(rrule) || !rrule->wmm_rule) {
+		rcu_read_unlock();
 		return;
+	}
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP)
 		wmm_ac = &rrule->wmm_rule->ap[ac];
@@ -1167,6 +1168,7 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 	qparam->aifs = max_t(u8, qparam->aifs, wmm_ac->aifsn);
 	qparam->txop = !qparam->txop ? wmm_ac->cot / 32 :
 		min_t(u16, qparam->txop, wmm_ac->cot / 32);
+	rcu_read_unlock();
 }
 
 void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
