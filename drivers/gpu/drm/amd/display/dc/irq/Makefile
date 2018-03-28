@@ -26,3 +26,23 @@ IRQ_DCE11 = irq_service_dce110.o
 AMD_DAL_IRQ_DCE11 = $(addprefix $(AMDDALPATH)/dc/irq/dce110/,$(IRQ_DCE11))
 
 AMD_DISPLAY_FILES += $(AMD_DAL_IRQ_DCE11)
+
+###############################################################################
+# DCE 12x
+###############################################################################
+IRQ_DCE12 = irq_service_dce120.o
+
+AMD_DAL_IRQ_DCE12 = $(addprefix $(AMDDALPATH)/dc/irq/dce120/,$(IRQ_DCE12))
+
+AMD_DISPLAY_FILES += $(AMD_DAL_IRQ_DCE12)
+
+###############################################################################
+# DCN 1x
+###############################################################################
+ifdef CONFIG_DRM_AMD_DC_DCN1_0
+IRQ_DCN1 = irq_service_dcn10.o
+
+AMD_DAL_IRQ_DCN1 = $(addprefix $(AMDDALPATH)/dc/irq/dcn10/,$(IRQ_DCN1))
+
+AMD_DISPLAY_FILES += $(AMD_DAL_IRQ_DCN1)
+endif

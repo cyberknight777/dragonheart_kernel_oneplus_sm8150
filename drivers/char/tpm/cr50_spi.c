@@ -30,7 +30,7 @@
 #define CR50_SLEEP_DELAY_MSEC			1000
 #define CR50_WAKE_START_DELAY_MSEC		1
 #define CR50_ACCESS_DELAY_MSEC			2
-#define CR50_FLOW_CONTROL_MSEC			100
+#define CR50_FLOW_CONTROL_MSEC			TPM2_TIMEOUT_A
 
 #define MAX_SPI_FRAMESIZE			64
 
@@ -154,14 +154,17 @@ static int cr50_spi_flow_control(struct cr50_spi_phy *phy)
 		ret = spi_sync_locked(phy->spi_device, &m);
 		if (ret < 0)
 			return ret;
-		if (time_after(jiffies, timeout_jiffies))
+		if (time_after(jiffies, timeout_jiffies)) {
+			dev_warn(&phy->spi_device->dev,
+				 "Timeout during flow control\n");
 			return -EBUSY;
+		}
 	} while (!(phy->rx_buf[0] & 0x01));
 	return 0;
 }
 
 static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
-			       u16 len, u8 *buf, bool do_write)
+			       u16 len, const u8 *tx, u8 *rx)
 {
 	struct cr50_spi_phy *phy = to_cr50_spi_phy(data);
 	struct spi_message m;
@@ -184,7 +187,7 @@ static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
 	cr50_ensure_access_delay(phy);
 	cr50_wake_if_needed(phy);
 
-	phy->tx_buf[0] = (do_write ? 0x00 : 0x80) | (len - 1);
+	phy->tx_buf[0] = (tx ? 0x00 : 0x80) | (len - 1);
 	phy->tx_buf[1] = 0xD4;
 	phy->tx_buf[2] = (addr >> 8) & 0xFF;
 	phy->tx_buf[3] = addr & 0xFF;
@@ -203,8 +206,8 @@ static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
 
 	spi_xfer.cs_change = 0;
 	spi_xfer.len = len;
-	if (do_write) {
-		memcpy(phy->tx_buf, buf, len);
+	if (tx) {
+		memcpy(phy->tx_buf, tx, len);
 		spi_xfer.rx_buf = NULL;
 	} else {
 		spi_xfer.tx_buf = NULL;
@@ -214,8 +217,8 @@ static int cr50_spi_xfer_bytes(struct tpm_tis_data *data, u32 addr,
 	spi_message_add_tail(&spi_xfer, &m);
 	reinit_completion(&phy->tpm_ready);
 	ret = spi_sync_locked(phy->spi_device, &m);
-	if (!do_write)
-		memcpy(buf, phy->rx_buf, len);
+	if (rx)
+		memcpy(rx, phy->rx_buf, len);
 
 exit:
 	spi_bus_unlock(phy->spi_device->master);
@@ -228,13 +231,13 @@ exit:
 static int cr50_spi_read_bytes(struct tpm_tis_data *data, u32 addr,
 			       u16 len, u8 *result)
 {
-	return cr50_spi_xfer_bytes(data, addr, len, result, false);
+	return cr50_spi_xfer_bytes(data, addr, len, NULL, result);
 }
 
 static int cr50_spi_write_bytes(struct tpm_tis_data *data, u32 addr,
-				u16 len, u8 *value)
+				u16 len, const u8 *value)
 {
-	return cr50_spi_xfer_bytes(data, addr, len, value, true);
+	return cr50_spi_xfer_bytes(data, addr, len, value, NULL);
 }
 
 static int cr50_spi_read16(struct tpm_tis_data *data, u32 addr, u16 *result)
@@ -348,9 +351,6 @@ static int cr50_spi_probe(struct spi_device *dev)
 	cr50_get_fw_version(&phy->priv, fw_ver);
 	dev_info(&dev->dev, "Cr50 firmware version: %s\n", fw_ver);
 
-	/* Disable deep-sleep, ignore if command failed. */
-	cr50_control_deep_sleep(spi_get_drvdata(dev), 0);
-
 	return 0;
 }
 
@@ -377,7 +377,6 @@ static int cr50_spi_remove(struct spi_device *dev)
 {
 	struct tpm_chip *chip = spi_get_drvdata(dev);
 
-	cr50_control_deep_sleep(chip, 1);
 	tpm_chip_unregister(chip);
 	tpm_tis_remove(chip);
 	return 0;

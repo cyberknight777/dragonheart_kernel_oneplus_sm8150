@@ -109,6 +109,19 @@
 #define ASIC_REV_IS_STONEY(rev) \
 	((rev >= STONEY_A0) && (rev < CZ_UNKNOWN))
 
+/* DCN1_0 */
+#define INTERNAL_REV_RAVEN_A0             0x00    /* First spin of Raven */
+#define RAVEN_A0 0x01
+#define RAVEN_B0 0x21
+#define RAVEN_UNKNOWN 0xFF
+
+#define ASIC_REV_IS_RAVEN(eChipRev) ((eChipRev >= RAVEN_A0) && eChipRev < RAVEN_UNKNOWN)
+#define RAVEN1_F0 0xF0
+#define ASICREV_IS_RV1_F0(eChipRev) ((eChipRev >= RAVEN1_F0) && (eChipRev < RAVEN_UNKNOWN))
+
+
+#define FAMILY_RV 142 /* DCN 1*/
+
 /*
  * ASIC chip ID
  */
@@ -122,6 +135,8 @@
 #define FAMILY_KV 125 /* Fusion => Kaveri: Spectre, Spooky; Kabini: Kalindi */
 #define FAMILY_VI 130 /* Volcanic Islands: Iceland (V), Tonga (M) */
 #define FAMILY_CZ 135 /* Carrizo */
+
+#define FAMILY_AI 141
 
 #define	FAMILY_UNKNOWN 0xFF
 

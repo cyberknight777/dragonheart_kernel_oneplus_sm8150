@@ -45,7 +45,7 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
  */
 bool dm_helpers_dp_mst_write_payload_allocation_table(
 		struct dc_context *ctx,
-		const struct dc_stream *stream,
+		const struct dc_stream_state *stream,
 		struct dp_mst_stream_allocation_table *proposed_table,
 		bool enable);
 
@@ -54,13 +54,13 @@ bool dm_helpers_dp_mst_write_payload_allocation_table(
  */
 bool dm_helpers_dp_mst_poll_for_allocation_change_trigger(
 		struct dc_context *ctx,
-		const struct dc_stream *stream);
+		const struct dc_stream_state *stream);
 /*
  * Sends ALLOCATE_PAYLOAD message.
  */
 bool dm_helpers_dp_mst_send_payload_allocation(
 		struct dc_context *ctx,
-		const struct dc_stream *stream,
+		const struct dc_stream_state *stream,
 		bool enable);
 
 bool dm_helpers_dp_mst_start_top_mgr(
@@ -71,7 +71,6 @@ bool dm_helpers_dp_mst_start_top_mgr(
 void dm_helpers_dp_mst_stop_top_mgr(
 		struct dc_context *ctx,
 		const struct dc_link *link);
-
 /**
  * OS specific aux read callback.
  */
@@ -96,6 +95,11 @@ bool dm_helpers_submit_i2c(
 		struct dc_context *ctx,
 		const struct dc_link *link,
 		struct i2c_command *cmd);
+
+enum dc_edid_status dm_helpers_read_local_edid(
+		struct dc_context *ctx,
+		struct dc_link *link,
+		struct dc_sink *sink);
 
 
 #endif /* __DM_HELPERS__ */

@@ -392,24 +392,20 @@
 	INTEL_VGA_DEVICE(0x3EA8, info), /* ULT GT3 */ \
 	INTEL_VGA_DEVICE(0x3EA5, info)  /* ULT GT3 */
 
-/* CNL U 2+2 */
-#define INTEL_CNL_U_GT2_IDS(info) \
+/* CNL */
+#define INTEL_CNL_IDS(info) \
 	INTEL_VGA_DEVICE(0x5A52, info), \
 	INTEL_VGA_DEVICE(0x5A5A, info), \
 	INTEL_VGA_DEVICE(0x5A42, info), \
-	INTEL_VGA_DEVICE(0x5A4A, info)
-
-/* CNL Y 2+2 */
-#define INTEL_CNL_Y_GT2_IDS(info) \
+	INTEL_VGA_DEVICE(0x5A4A, info), \
 	INTEL_VGA_DEVICE(0x5A51, info), \
 	INTEL_VGA_DEVICE(0x5A59, info), \
 	INTEL_VGA_DEVICE(0x5A41, info), \
 	INTEL_VGA_DEVICE(0x5A49, info), \
 	INTEL_VGA_DEVICE(0x5A71, info), \
-	INTEL_VGA_DEVICE(0x5A79, info)
-
-#define INTEL_CNL_IDS(info) \
-	INTEL_CNL_U_GT2_IDS(info), \
-	INTEL_CNL_Y_GT2_IDS(info)
+	INTEL_VGA_DEVICE(0x5A79, info), \
+	INTEL_VGA_DEVICE(0x5A54, info), \
+	INTEL_VGA_DEVICE(0x5A5C, info), \
+	INTEL_VGA_DEVICE(0x5A44, info)
 
 #endif /* _I915_PCIIDS_H */

@@ -614,6 +614,8 @@ struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
 }
 EXPORT_SYMBOL_GPL(snd_soc_get_dai_substream);
 
+static const struct snd_soc_ops null_snd_soc_ops;
+
 static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
 	struct snd_soc_card *card, struct snd_soc_dai_link *dai_link)
 {
@@ -626,6 +628,9 @@ static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
 	INIT_LIST_HEAD(&rtd->component_list);
 	rtd->card = card;
 	rtd->dai_link = dai_link;
+	if (!rtd->dai_link->ops)
+		rtd->dai_link->ops = &null_snd_soc_ops;
+
 	rtd->codec_dais = kzalloc(sizeof(struct snd_soc_dai *) *
 					dai_link->num_codecs,
 					GFP_KERNEL);
@@ -3371,19 +3376,13 @@ static void snd_soc_component_del_unlocked(struct snd_soc_component *component)
 	list_del(&component->list);
 }
 
-int snd_soc_register_component(struct device *dev,
-			       const struct snd_soc_component_driver *component_driver,
-			       struct snd_soc_dai_driver *dai_drv,
-			       int num_dai)
+int snd_soc_add_component(struct device *dev,
+			struct snd_soc_component *component,
+			const struct snd_soc_component_driver *component_driver,
+			struct snd_soc_dai_driver *dai_drv,
+			int num_dai)
 {
-	struct snd_soc_component *component;
 	int ret;
-
-	component = kzalloc(sizeof(*component), GFP_KERNEL);
-	if (!component) {
-		dev_err(dev, "ASoC: Failed to allocate memory\n");
-		return -ENOMEM;
-	}
 
 	ret = snd_soc_component_initialize(component, component_driver, dev);
 	if (ret)
@@ -3407,6 +3406,24 @@ err_cleanup:
 err_free:
 	kfree(component);
 	return ret;
+}
+EXPORT_SYMBOL_GPL(snd_soc_add_component);
+
+int snd_soc_register_component(struct device *dev,
+			const struct snd_soc_component_driver *component_driver,
+			struct snd_soc_dai_driver *dai_drv,
+			int num_dai)
+{
+	struct snd_soc_component *component;
+
+	component = kzalloc(sizeof(*component), GFP_KERNEL);
+	if (!component) {
+		dev_err(dev, "ASoC: Failed to allocate memory\n");
+		return -ENOMEM;
+	}
+
+	return snd_soc_add_component(dev, component, component_driver,
+				     dai_drv, num_dai);
 }
 EXPORT_SYMBOL_GPL(snd_soc_register_component);
 

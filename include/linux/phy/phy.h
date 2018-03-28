@@ -25,10 +25,20 @@ struct phy;
 enum phy_mode {
 	PHY_MODE_INVALID,
 	PHY_MODE_USB_HOST,
+	PHY_MODE_USB_HOST_LS,
+	PHY_MODE_USB_HOST_FS,
+	PHY_MODE_USB_HOST_HS,
+	PHY_MODE_USB_HOST_SS,
 	PHY_MODE_USB_DEVICE,
+	PHY_MODE_USB_DEVICE_LS,
+	PHY_MODE_USB_DEVICE_FS,
+	PHY_MODE_USB_DEVICE_HS,
+	PHY_MODE_USB_DEVICE_SS,
 	PHY_MODE_USB_OTG,
 	PHY_MODE_SGMII,
 	PHY_MODE_10GKR,
+	PHY_MODE_UFS_HS_A,
+	PHY_MODE_UFS_HS_B,
 };
 
 /**
@@ -39,6 +49,7 @@ enum phy_mode {
  * @power_off: powering off the phy
  * @set_mode: set the mode of the phy
  * @reset: resetting the phy
+ * @calibrate: calibrate the phy
  * @owner: the module owner containing the ops
  */
 struct phy_ops {
@@ -48,6 +59,7 @@ struct phy_ops {
 	int	(*power_off)(struct phy *phy);
 	int	(*set_mode)(struct phy *phy, enum phy_mode mode);
 	int	(*reset)(struct phy *phy);
+	int	(*calibrate)(struct phy *phy);
 	struct module *owner;
 };
 
@@ -57,6 +69,7 @@ struct phy_ops {
  */
 struct phy_attrs {
 	u32			bus_width;
+	enum phy_mode		mode;
 };
 
 /**
@@ -140,7 +153,12 @@ int phy_exit(struct phy *phy);
 int phy_power_on(struct phy *phy);
 int phy_power_off(struct phy *phy);
 int phy_set_mode(struct phy *phy, enum phy_mode mode);
+static inline enum phy_mode phy_get_mode(struct phy *phy)
+{
+	return phy->attrs.mode;
+}
 int phy_reset(struct phy *phy);
+int phy_calibrate(struct phy *phy);
 static inline int phy_get_bus_width(struct phy *phy)
 {
 	return phy->attrs.bus_width;
@@ -255,7 +273,19 @@ static inline int phy_set_mode(struct phy *phy, enum phy_mode mode)
 	return -ENOSYS;
 }
 
+static inline enum phy_mode phy_get_mode(struct phy *phy)
+{
+	return PHY_MODE_INVALID;
+}
+
 static inline int phy_reset(struct phy *phy)
+{
+	if (!phy)
+		return 0;
+	return -ENOSYS;
+}
+
+static inline int phy_calibrate(struct phy *phy)
 {
 	if (!phy)
 		return 0;

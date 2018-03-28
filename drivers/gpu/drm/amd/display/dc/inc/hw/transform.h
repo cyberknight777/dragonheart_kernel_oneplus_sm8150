@@ -26,6 +26,7 @@
 #ifndef __DAL_TRANSFORM_H__
 #define __DAL_TRANSFORM_H__
 
+#include "hw_shared.h"
 #include "dc_hw_types.h"
 #include "fixed31_32.h"
 
@@ -37,6 +38,8 @@ struct transform {
 	const struct transform_funcs *funcs;
 	struct dc_context *ctx;
 	int inst;
+	struct dpp_caps *caps;
+	struct pwl_params regamma_params;
 };
 
 /* Colorimetry */
@@ -107,17 +110,25 @@ enum graphics_gamut_adjust_type {
 	GRAPHICS_GAMUT_ADJUST_TYPE_SW /* use adjustments */
 };
 
+enum lb_memory_config {
+	/* Enable all 3 pieces of memory */
+	LB_MEMORY_CONFIG_0 = 0,
+
+	/* Enable only the first piece of memory */
+	LB_MEMORY_CONFIG_1 = 1,
+
+	/* Enable only the second piece of memory */
+	LB_MEMORY_CONFIG_2 = 2,
+
+	/* Only applicable in 4:2:0 mode, enable all 3 pieces of memory and the
+	 * last piece of chroma memory used for the luma storage
+	 */
+	LB_MEMORY_CONFIG_3 = 3
+};
+
 struct xfm_grph_csc_adjustment {
 	struct fixed31_32 temperature_matrix[CSC_TEMPERATURE_MATRIX_SIZE];
 	enum graphics_gamut_adjust_type gamut_adjust_type;
-};
-
-enum lb_pixel_depth {
-	/* do not change the values because it is used as bit vector */
-	LB_PIXEL_DEPTH_18BPP = 1,
-	LB_PIXEL_DEPTH_24BPP = 2,
-	LB_PIXEL_DEPTH_30BPP = 4,
-	LB_PIXEL_DEPTH_36BPP = 8
 };
 
 struct overscan_info {
@@ -147,13 +158,24 @@ struct line_buffer_params {
 	enum lb_pixel_depth depth;
 };
 
+struct scl_inits {
+	struct fixed31_32 h;
+	struct fixed31_32 h_c;
+	struct fixed31_32 v;
+	struct fixed31_32 v_bot;
+	struct fixed31_32 v_c;
+	struct fixed31_32 v_c_bot;
+};
+
 struct scaler_data {
 	int h_active;
 	int v_active;
 	struct scaling_taps taps;
 	struct rect viewport;
+	struct rect viewport_c;
 	struct rect recout;
 	struct scaling_ratios ratios;
+	struct scl_inits inits;
 	struct sharpness_adj sharpness;
 	enum pixel_format format;
 	struct line_buffer_params lb_params;
@@ -165,10 +187,6 @@ struct transform_funcs {
 	void (*transform_set_scaler)(struct transform *xfm,
 			const struct scaler_data *scl_data);
 
-	void (*transform_set_gamut_remap)(
-			struct transform *xfm,
-			const struct xfm_grph_csc_adjustment *adjust);
-
 	void (*transform_set_pixel_storage_depth)(
 			struct transform *xfm,
 			enum lb_pixel_depth depth,
@@ -178,10 +196,80 @@ struct transform_funcs {
 			struct transform *xfm,
 			struct scaler_data *scl_data,
 			const struct scaling_taps *in_taps);
+
+	void (*transform_set_gamut_remap)(
+			struct transform *xfm,
+			const struct xfm_grph_csc_adjustment *adjust);
+
+	void (*opp_set_csc_default)(
+		struct transform *xfm,
+		const struct default_adjustment *default_adjust);
+
+	void (*opp_set_csc_adjustment)(
+		struct transform *xfm,
+		const struct out_csc_color_matrix *tbl_entry);
+
+	void (*opp_power_on_regamma_lut)(
+		struct transform *xfm,
+		bool power_on);
+
+	void (*opp_program_regamma_lut)(
+			struct transform *xfm,
+			const struct pwl_result_data *rgb,
+			uint32_t num);
+
+	void (*opp_configure_regamma_lut)(
+			struct transform *xfm,
+			bool is_ram_a);
+
+	void (*opp_program_regamma_lutb_settings)(
+			struct transform *xfm,
+			const struct pwl_params *params);
+
+	void (*opp_program_regamma_luta_settings)(
+			struct transform *xfm,
+			const struct pwl_params *params);
+
+	void (*opp_program_regamma_pwl)(
+		struct transform *xfm, const struct pwl_params *params);
+
+	void (*opp_set_regamma_mode)(
+			struct transform *xfm_base,
+			enum opp_regamma mode);
+
+	void (*ipp_set_degamma)(
+			struct transform *xfm_base,
+			enum ipp_degamma_mode mode);
+
+	void (*ipp_program_input_lut)(
+			struct transform *xfm_base,
+			const struct dc_gamma *gamma);
+
+	void (*ipp_program_degamma_pwl)(struct transform *xfm_base,
+									 const struct pwl_params *params);
+
+	void (*ipp_setup)(
+			struct transform *xfm_base,
+			enum surface_pixel_format input_format,
+			enum expansion_mode mode);
+
+	void (*ipp_full_bypass)(struct transform *xfm_base);
+
+	void (*set_cursor_attributes)(
+			struct transform *xfm_base,
+			const struct dc_cursor_attributes *attr);
+
+	void (*set_cursor_position)(
+			struct transform *xfm_base,
+			const struct dc_cursor_position *pos,
+			const struct dc_cursor_mi_param *param,
+			uint32_t width
+			);
+
 };
 
-extern const uint16_t filter_2tap_16p[18];
-extern const uint16_t filter_2tap_64p[66];
+const uint16_t *get_filter_2tap_16p(void);
+const uint16_t *get_filter_2tap_64p(void);
 const uint16_t *get_filter_3tap_16p(struct fixed31_32 ratio);
 const uint16_t *get_filter_3tap_64p(struct fixed31_32 ratio);
 const uint16_t *get_filter_4tap_16p(struct fixed31_32 ratio);
@@ -190,5 +278,34 @@ const uint16_t *get_filter_5tap_64p(struct fixed31_32 ratio);
 const uint16_t *get_filter_6tap_64p(struct fixed31_32 ratio);
 const uint16_t *get_filter_7tap_64p(struct fixed31_32 ratio);
 const uint16_t *get_filter_8tap_64p(struct fixed31_32 ratio);
+
+
+/* Defines the pixel processing capability of the DSCL */
+enum dscl_data_processing_format {
+	DSCL_DATA_PRCESSING_FIXED_FORMAT,	/* The DSCL processes pixel data in fixed format */
+	DSCL_DATA_PRCESSING_FLOAT_FORMAT,	/* The DSCL processes pixel data in float format */
+};
+
+/*
+ * The DPP capabilities structure contains enumerations to specify the
+ * HW processing features and an associated function pointers to
+ * provide the function interface that can be overloaded for implementations
+ * based on different capabilities
+ */
+struct dpp_caps {
+	/* DSCL processing pixel data in fixed or float format */
+	enum dscl_data_processing_format dscl_data_proc_format;
+
+	/* Calculates the number of partitions in the line buffer.
+	 * The implementation of this function is overloaded for
+	 * different versions of DSCL LB.
+	 */
+	void (*dscl_calc_lb_num_partitions)(
+			const struct scaler_data *scl_data,
+			enum lb_memory_config lb_config,
+			int *num_part_y,
+			int *num_part_c);
+};
+
 
 #endif

@@ -639,9 +639,6 @@ static int cr50_i2c_init(struct i2c_client *client)
 	if (rc)
 		return rc;
 
-	/* Disable deep-sleep, ignore if command failed. */
-	cr50_control_deep_sleep(chip, 0);
-
 	return 0;
 }
 
@@ -681,7 +678,6 @@ static int cr50_i2c_remove(struct i2c_client *client)
 {
 	struct tpm_chip *chip = i2c_get_clientdata(client);
 
-	cr50_control_deep_sleep(chip, 1);
 	tpm_chip_unregister(chip);
 	release_locality(chip, 1);
 

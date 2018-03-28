@@ -38,9 +38,9 @@
 #include "dce110/dce110_timing_generator_v.h"
 #include "dce/dce_link_encoder.h"
 #include "dce/dce_stream_encoder.h"
-#include "dce110/dce110_mem_input.h"
+#include "dce/dce_mem_input.h"
 #include "dce110/dce110_mem_input_v.h"
-#include "dce110/dce110_ipp.h"
+#include "dce/dce_ipp.h"
 #include "dce/dce_transform.h"
 #include "dce110/dce110_transform_v.h"
 #include "dce/dce_opp.h"
@@ -51,6 +51,10 @@
 #include "dce110/dce110_hw_sequencer.h"
 #include "dce/dce_abm.h"
 #include "dce/dce_dmcu.h"
+
+#if defined(CONFIG_DRM_AMD_DC_FBC)
+#include "dce110/dce110_compressor.h"
+#endif
 
 #include "reg_helper.h"
 
@@ -133,55 +137,6 @@ static const struct dce110_timing_generator_offsets dce110_tg_offsets[] = {
 	}
 };
 
-static const struct dce110_mem_input_reg_offsets dce110_mi_reg_offsets[] = {
-	{
-		.dcp = (mmDCP0_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG0_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE0_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP1_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG1_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE1_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP2_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG2_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE2_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	}
-};
-
-
-static const struct dce110_ipp_reg_offsets dce110_ipp_reg_offsets[] = {
-{
-	.dcp_offset = (mmDCP0_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP1_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP2_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP3_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP4_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP5_CUR_CONTROL - mmCUR_CONTROL),
-}
-};
-
-
-
-
 /* set register offset */
 #define SR(reg_name)\
 	.reg_name = mm ## reg_name
@@ -224,6 +179,25 @@ static const struct dce_abm_shift abm_shift = {
 
 static const struct dce_abm_mask abm_mask = {
 		ABM_MASK_SH_LIST_DCE110(_MASK)
+};
+
+#define ipp_regs(id)\
+[id] = {\
+		IPP_DCE110_REG_LIST_DCE_BASE(id)\
+}
+
+static const struct dce_ipp_registers ipp_regs[] = {
+		ipp_regs(0),
+		ipp_regs(1),
+		ipp_regs(2)
+};
+
+static const struct dce_ipp_shift ipp_shift = {
+		IPP_DCE100_MASK_SH_LIST_DCE_COMMON_BASE(__SHIFT)
+};
+
+static const struct dce_ipp_mask ipp_mask = {
+		IPP_DCE100_MASK_SH_LIST_DCE_COMMON_BASE(_MASK)
 };
 
 #define transform_regs(id)\
@@ -431,17 +405,13 @@ static struct timing_generator *dce110_timing_generator_create(
 		const struct dce110_timing_generator_offsets *offsets)
 {
 	struct dce110_timing_generator *tg110 =
-		dm_alloc(sizeof(struct dce110_timing_generator));
+		kzalloc(sizeof(struct dce110_timing_generator), GFP_KERNEL);
 
 	if (!tg110)
 		return NULL;
 
-	if (dce110_timing_generator_construct(tg110, ctx, instance, offsets))
-		return &tg110->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(tg110);
-	return NULL;
+	dce110_timing_generator_construct(tg110, ctx, instance, offsets);
+	return &tg110->base;
 }
 
 static struct stream_encoder *dce110_stream_encoder_create(
@@ -449,19 +419,15 @@ static struct stream_encoder *dce110_stream_encoder_create(
 	struct dc_context *ctx)
 {
 	struct dce110_stream_encoder *enc110 =
-		dm_alloc(sizeof(struct dce110_stream_encoder));
+		kzalloc(sizeof(struct dce110_stream_encoder), GFP_KERNEL);
 
 	if (!enc110)
 		return NULL;
 
-	if (dce110_stream_encoder_construct(
-			enc110, ctx, ctx->dc_bios, eng_id,
-			&stream_enc_regs[eng_id], &se_shift, &se_mask))
-		return &enc110->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(enc110);
-	return NULL;
+	dce110_stream_encoder_construct(enc110, ctx, ctx->dc_bios, eng_id,
+					&stream_enc_regs[eng_id],
+					&se_shift, &se_mask);
+	return &enc110->base;
 }
 
 #define SRII(reg_name, block, id)\
@@ -486,7 +452,7 @@ static const struct dce_hwseq_mask hwseq_mask = {
 static struct dce_hwseq *dce110_hwseq_create(
 	struct dc_context *ctx)
 {
-	struct dce_hwseq *hws = dm_alloc(sizeof(struct dce_hwseq));
+	struct dce_hwseq *hws = kzalloc(sizeof(struct dce_hwseq), GFP_KERNEL);
 
 	if (hws) {
 		hws->ctx = ctx;
@@ -526,35 +492,27 @@ static const struct dce_mem_input_mask mi_masks = {
 		.ENABLE = MC_HUB_RDREQ_DMIF_LIMIT__ENABLE_MASK
 };
 
+
 static struct mem_input *dce110_mem_input_create(
 	struct dc_context *ctx,
-	uint32_t inst,
-	const struct dce110_mem_input_reg_offsets *offset)
+	uint32_t inst)
 {
-	struct dce110_mem_input *mem_input110 =
-		dm_alloc(sizeof(struct dce110_mem_input));
+	struct dce_mem_input *dce_mi = kzalloc(sizeof(struct dce_mem_input),
+					       GFP_KERNEL);
 
-	if (!mem_input110)
+	if (!dce_mi) {
+		BREAK_TO_DEBUGGER();
 		return NULL;
-
-	if (dce110_mem_input_construct(mem_input110, ctx, inst, offset)) {
-		struct mem_input *mi = &mem_input110->base;
-
-		mi->regs = &mi_regs[inst];
-		mi->shifts = &mi_shifts;
-		mi->masks = &mi_masks;
-		mi->wa.single_head_rdreq_dmif_limit = 3;
-		return mi;
 	}
 
-	BREAK_TO_DEBUGGER();
-	dm_free(mem_input110);
-	return NULL;
+	dce_mem_input_construct(dce_mi, ctx, inst, &mi_regs[inst], &mi_shifts, &mi_masks);
+	dce_mi->wa.single_head_rdreq_dmif_limit = 3;
+	return &dce_mi->base;
 }
 
 static void dce110_transform_destroy(struct transform **xfm)
 {
-	dm_free(TO_DCE_TRANSFORM(*xfm));
+	kfree(TO_DCE_TRANSFORM(*xfm));
 	*xfm = NULL;
 }
 
@@ -563,37 +521,29 @@ static struct transform *dce110_transform_create(
 	uint32_t inst)
 {
 	struct dce_transform *transform =
-		dm_alloc(sizeof(struct dce_transform));
+		kzalloc(sizeof(struct dce_transform), GFP_KERNEL);
 
 	if (!transform)
 		return NULL;
 
-	if (dce_transform_construct(transform, ctx, inst,
-			&xfm_regs[inst], &xfm_shift, &xfm_mask))
-		return &transform->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(transform);
-	return NULL;
+	dce_transform_construct(transform, ctx, inst,
+				&xfm_regs[inst], &xfm_shift, &xfm_mask);
+	return &transform->base;
 }
 
 static struct input_pixel_processor *dce110_ipp_create(
-	struct dc_context *ctx,
-	uint32_t inst,
-	const struct dce110_ipp_reg_offsets *offsets)
+	struct dc_context *ctx, uint32_t inst)
 {
-	struct dce110_ipp *ipp =
-		dm_alloc(sizeof(struct dce110_ipp));
+	struct dce_ipp *ipp = kzalloc(sizeof(struct dce_ipp), GFP_KERNEL);
 
-	if (!ipp)
+	if (!ipp) {
+		BREAK_TO_DEBUGGER();
 		return NULL;
+	}
 
-	if (dce110_ipp_construct(ipp, ctx, inst, offsets))
-		return &ipp->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(ipp);
-	return NULL;
+	dce_ipp_construct(ipp, ctx, inst,
+			&ipp_regs[inst], &ipp_shift, &ipp_mask);
+	return &ipp->base;
 }
 
 static const struct encoder_feature_support link_enc_feature = {
@@ -604,29 +554,22 @@ static const struct encoder_feature_support link_enc_feature = {
 		.flags.bits.IS_YCBCR_CAPABLE = true
 };
 
-struct link_encoder *dce110_link_encoder_create(
+static struct link_encoder *dce110_link_encoder_create(
 	const struct encoder_init_data *enc_init_data)
 {
 	struct dce110_link_encoder *enc110 =
-		dm_alloc(sizeof(struct dce110_link_encoder));
+		kzalloc(sizeof(struct dce110_link_encoder), GFP_KERNEL);
 
 	if (!enc110)
 		return NULL;
 
-	if (dce110_link_encoder_construct(
-			enc110,
-			enc_init_data,
-			&link_enc_feature,
-			&link_enc_regs[enc_init_data->transmitter],
-			&link_enc_aux_regs[enc_init_data->channel - 1],
-			&link_enc_hpd_regs[enc_init_data->hpd_source])) {
-
-		return &enc110->base;
-	}
-
-	BREAK_TO_DEBUGGER();
-	dm_free(enc110);
-	return NULL;
+	dce110_link_encoder_construct(enc110,
+				      enc_init_data,
+				      &link_enc_feature,
+				      &link_enc_regs[enc_init_data->transmitter],
+				      &link_enc_aux_regs[enc_init_data->channel - 1],
+				      &link_enc_hpd_regs[enc_init_data->hpd_source]);
+	return &enc110->base;
 }
 
 static struct output_pixel_processor *dce110_opp_create(
@@ -634,18 +577,14 @@ static struct output_pixel_processor *dce110_opp_create(
 	uint32_t inst)
 {
 	struct dce110_opp *opp =
-		dm_alloc(sizeof(struct dce110_opp));
+		kzalloc(sizeof(struct dce110_opp), GFP_KERNEL);
 
 	if (!opp)
 		return NULL;
 
-	if (dce110_opp_construct(opp,
-				ctx, inst, &opp_regs[inst], &opp_shift, &opp_mask))
-		return &opp->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(opp);
-	return NULL;
+	dce110_opp_construct(opp,
+			     ctx, inst, &opp_regs[inst], &opp_shift, &opp_mask);
+	return &opp->base;
 }
 
 struct clock_source *dce110_clock_source_create(
@@ -656,7 +595,7 @@ struct clock_source *dce110_clock_source_create(
 	bool dp_clk_src)
 {
 	struct dce110_clk_src *clk_src =
-		dm_alloc(sizeof(struct dce110_clk_src));
+		kzalloc(sizeof(struct dce110_clk_src), GFP_KERNEL);
 
 	if (!clk_src)
 		return NULL;
@@ -680,16 +619,11 @@ void dce110_clock_source_destroy(struct clock_source **clk_src)
 
 	dce110_clk_src = TO_DCE110_CLK_SRC(*clk_src);
 
-	if (dce110_clk_src->dp_ss_params)
-		dm_free(dce110_clk_src->dp_ss_params);
+	kfree(dce110_clk_src->dp_ss_params);
+	kfree(dce110_clk_src->hdmi_ss_params);
+	kfree(dce110_clk_src->dvi_ss_params);
 
-	if (dce110_clk_src->hdmi_ss_params)
-		dm_free(dce110_clk_src->hdmi_ss_params);
-
-	if (dce110_clk_src->dvi_ss_params)
-		dm_free(dce110_clk_src->dvi_ss_params);
-
-	dm_free(dce110_clk_src);
+	kfree(dce110_clk_src);
 	*clk_src = NULL;
 }
 
@@ -705,22 +639,22 @@ static void destruct(struct dce110_resource_pool *pool)
 			dce110_transform_destroy(&pool->base.transforms[i]);
 
 		if (pool->base.ipps[i] != NULL)
-			dce110_ipp_destroy(&pool->base.ipps[i]);
+			dce_ipp_destroy(&pool->base.ipps[i]);
 
 		if (pool->base.mis[i] != NULL) {
-			dm_free(TO_DCE110_MEM_INPUT(pool->base.mis[i]));
+			kfree(TO_DCE_MEM_INPUT(pool->base.mis[i]));
 			pool->base.mis[i] = NULL;
 		}
 
 		if (pool->base.timing_generators[i] != NULL)	{
-			dm_free(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
 			pool->base.timing_generators[i] = NULL;
 		}
 	}
 
 	for (i = 0; i < pool->base.stream_enc_count; i++) {
 		if (pool->base.stream_enc[i] != NULL)
-			dm_free(DCE110STRENC_FROM_STRENC(pool->base.stream_enc[i]));
+			kfree(DCE110STRENC_FROM_STRENC(pool->base.stream_enc[i]));
 	}
 
 	for (i = 0; i < pool->base.clk_src_count; i++) {
@@ -757,13 +691,13 @@ static void get_pixel_clock_parameters(
 	const struct pipe_ctx *pipe_ctx,
 	struct pixel_clk_params *pixel_clk_params)
 {
-	const struct core_stream *stream = pipe_ctx->stream;
+	const struct dc_stream_state *stream = pipe_ctx->stream;
 
 	/*TODO: is this halved for YCbCr 420? in that case we might want to move
 	 * the pixel clock normalization for hdmi up to here instead of doing it
 	 * in pll_adjust_pix_clk
 	 */
-	pixel_clk_params->requested_pix_clk = stream->public.timing.pix_clk_khz;
+	pixel_clk_params->requested_pix_clk = stream->timing.pix_clk_khz;
 	pixel_clk_params->encoder_object_id = stream->sink->link->link_enc->id;
 	pixel_clk_params->signal_type = pipe_ctx->stream->signal;
 	pixel_clk_params->controller_id = pipe_ctx->pipe_idx + 1;
@@ -772,149 +706,68 @@ static void get_pixel_clock_parameters(
 						LINK_RATE_REF_FREQ_IN_KHZ;
 	pixel_clk_params->flags.ENABLE_SS = 0;
 	pixel_clk_params->color_depth =
-		stream->public.timing.display_color_depth;
+		stream->timing.display_color_depth;
 	pixel_clk_params->flags.DISPLAY_BLANKED = 1;
-	pixel_clk_params->flags.SUPPORT_YCBCR420 = (stream->public.timing.pixel_encoding ==
+	pixel_clk_params->flags.SUPPORT_YCBCR420 = (stream->timing.pixel_encoding ==
 			PIXEL_ENCODING_YCBCR420);
-	pixel_clk_params->pixel_encoding = stream->public.timing.pixel_encoding;
-	if (stream->public.timing.pixel_encoding == PIXEL_ENCODING_YCBCR422) {
+	pixel_clk_params->pixel_encoding = stream->timing.pixel_encoding;
+	if (stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR422) {
 		pixel_clk_params->color_depth = COLOR_DEPTH_888;
 	}
-	if (stream->public.timing.pixel_encoding == PIXEL_ENCODING_YCBCR420) {
+	if (stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR420) {
 		pixel_clk_params->requested_pix_clk  = pixel_clk_params->requested_pix_clk / 2;
 	}
 }
 
-void dce110_resource_build_bit_depth_reduction_params(
-		const struct core_stream *stream,
-		struct bit_depth_reduction_params *fmt_bit_depth)
+void dce110_resource_build_pipe_hw_param(struct pipe_ctx *pipe_ctx)
 {
-	memset(fmt_bit_depth, 0, sizeof(*fmt_bit_depth));
-
-	/*TODO: Need to un-hardcode, refer to function with same name
-	 * in dal2 hw_sequencer*/
-
-	fmt_bit_depth->flags.TRUNCATE_ENABLED = 0;
-	fmt_bit_depth->flags.SPATIAL_DITHER_ENABLED = 0;
-	fmt_bit_depth->flags.FRAME_MODULATION_ENABLED = 0;
-
-	/* Diagnostics need consistent CRC of the image, that means
-	 * dithering should not be enabled for Diagnostics. */
-	if (IS_DIAG_DC(stream->ctx->dce_environment) == false) {
-		switch (stream->public.timing.display_color_depth) {
-		case COLOR_DEPTH_666:
-			fmt_bit_depth->flags.SPATIAL_DITHER_ENABLED = 1;
-			fmt_bit_depth->flags.SPATIAL_DITHER_DEPTH = 0;
-		break;
-		case COLOR_DEPTH_888:
-			fmt_bit_depth->flags.SPATIAL_DITHER_ENABLED = 1;
-			fmt_bit_depth->flags.SPATIAL_DITHER_DEPTH = 1;
-		break;
-		case COLOR_DEPTH_101010:
-			fmt_bit_depth->flags.SPATIAL_DITHER_ENABLED = 1;
-			fmt_bit_depth->flags.SPATIAL_DITHER_DEPTH = 2;
-		break;
-		default:
-		break;
-		}
-		fmt_bit_depth->flags.RGB_RANDOM = 1;
-		fmt_bit_depth->flags.HIGHPASS_RANDOM = 1;
-		fmt_bit_depth->flags.TRUNCATE_ENABLED = 1;
-		fmt_bit_depth->flags.TRUNCATE_DEPTH = 2;
-
-		fmt_bit_depth->pixel_encoding =
-				stream->public.timing.pixel_encoding;
-	}
-
-	return;
-}
-
-enum dc_status dce110_resource_build_pipe_hw_param(struct pipe_ctx *pipe_ctx)
-{
-	get_pixel_clock_parameters(pipe_ctx, &pipe_ctx->pix_clk_params);
+	get_pixel_clock_parameters(pipe_ctx, &pipe_ctx->stream_res.pix_clk_params);
 	pipe_ctx->clock_source->funcs->get_pix_clk_dividers(
 		pipe_ctx->clock_source,
-		&pipe_ctx->pix_clk_params,
+		&pipe_ctx->stream_res.pix_clk_params,
 		&pipe_ctx->pll_settings);
-	dce110_resource_build_bit_depth_reduction_params(pipe_ctx->stream,
+	resource_build_bit_depth_reduction_params(pipe_ctx->stream,
 			&pipe_ctx->stream->bit_depth_params);
-	pipe_ctx->stream->clamping.pixel_encoding = pipe_ctx->stream->public.timing.pixel_encoding;
-
-	return DC_OK;
+	pipe_ctx->stream->clamping.pixel_encoding = pipe_ctx->stream->timing.pixel_encoding;
 }
 
 static bool is_surface_pixel_format_supported(struct pipe_ctx *pipe_ctx, unsigned int underlay_idx)
 {
 	if (pipe_ctx->pipe_idx != underlay_idx)
 		return true;
-	if (!pipe_ctx->surface)
+	if (!pipe_ctx->plane_state)
 		return false;
-	if (pipe_ctx->surface->public.format < SURFACE_PIXEL_FORMAT_VIDEO_BEGIN)
+	if (pipe_ctx->plane_state->format < SURFACE_PIXEL_FORMAT_VIDEO_BEGIN)
 		return false;
 	return true;
 }
 
-static enum dc_status validate_mapped_resource(
-		const struct core_dc *dc,
-		struct validate_context *context)
+static enum dc_status build_mapped_resource(
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream)
 {
-	enum dc_status status = DC_OK;
-	uint8_t i, j;
+	struct pipe_ctx *pipe_ctx = resource_get_head_pipe_for_stream(&context->res_ctx, stream);
 
-	for (i = 0; i < context->stream_count; i++) {
-		struct core_stream *stream = context->streams[i];
-		struct core_link *link = stream->sink->link;
+	if (!pipe_ctx)
+		return DC_ERROR_UNEXPECTED;
 
-		if (resource_is_stream_unchanged(dc->current_context, stream))
-			continue;
+	if (!is_surface_pixel_format_supported(pipe_ctx,
+			dc->res_pool->underlay_pipe_index))
+		return DC_SURFACE_PIXEL_FORMAT_UNSUPPORTED;
 
-		for (j = 0; j < MAX_PIPES; j++) {
-			struct pipe_ctx *pipe_ctx =
-				&context->res_ctx.pipe_ctx[j];
+	dce110_resource_build_pipe_hw_param(pipe_ctx);
 
-			if (context->res_ctx.pipe_ctx[j].stream != stream)
-				continue;
+	/* TODO: validate audio ASIC caps, encoder */
 
-			if (!is_surface_pixel_format_supported(pipe_ctx,
-							       context->res_ctx.pool->underlay_pipe_index))
-				return DC_SURFACE_PIXEL_FORMAT_UNSUPPORTED;
-
-			if (!pipe_ctx->tg->funcs->validate_timing(
-				pipe_ctx->tg, &stream->public.timing))
-				return DC_FAIL_CONTROLLER_VALIDATE;
-
-			status = dce110_resource_build_pipe_hw_param(pipe_ctx);
-
-			if (status != DC_OK)
-				return status;
-
-			if (!link->link_enc->funcs->validate_output_with_stream(
-				link->link_enc,
-				pipe_ctx))
-				return DC_FAIL_ENC_VALIDATE;
-
-			/* TODO: validate audio ASIC caps, encoder */
-
-			status = dc_link_validate_mode_timing(stream,
-							      link,
-							      &stream->public.timing);
-
-			if (status != DC_OK)
-				return status;
-
-			resource_build_info_frame(pipe_ctx);
-
-			/* do not need to validate non root pipes */
-			break;
-		}
-	}
+	resource_build_info_frame(pipe_ctx);
 
 	return DC_OK;
 }
 
-bool dce110_validate_bandwidth(
-	const struct core_dc *dc,
-	struct validate_context *context)
+static bool dce110_validate_bandwidth(
+	struct dc *dc,
+	struct dc_state *context)
 {
 	bool result = false;
 
@@ -925,24 +778,23 @@ bool dce110_validate_bandwidth(
 
 	if (bw_calcs(
 			dc->ctx,
-			&dc->bw_dceip,
-			&dc->bw_vbios,
+			dc->bw_dceip,
+			dc->bw_vbios,
 			context->res_ctx.pipe_ctx,
-			context->res_ctx.pool->pipe_count,
-			&context->bw_results))
+			dc->res_pool->pipe_count,
+			&context->bw.dce))
 		result =  true;
-	context->dispclk_khz = context->bw_results.dispclk_khz;
 
 	if (!result)
 		dm_logger_write(dc->ctx->logger, LOG_BANDWIDTH_VALIDATION,
 			"%s: %dx%d@%d Bandwidth validation failed!\n",
 			__func__,
-			context->streams[0]->public.timing.h_addressable,
-			context->streams[0]->public.timing.v_addressable,
-			context->streams[0]->public.timing.pix_clk_khz);
+			context->streams[0]->timing.h_addressable,
+			context->streams[0]->timing.v_addressable,
+			context->streams[0]->timing.pix_clk_khz);
 
-	if (memcmp(&dc->current_context->bw_results,
-			&context->bw_results, sizeof(context->bw_results))) {
+	if (memcmp(&dc->current_state->bw.dce,
+			&context->bw.dce, sizeof(context->bw.dce))) {
 		struct log_entry log_entry;
 		dm_logger_open(
 			dc->ctx->logger,
@@ -952,155 +804,144 @@ bool dce110_validate_bandwidth(
 			"nbpMark_b: %d nbpMark_a: %d urgentMark_b: %d urgentMark_a: %d\n"
 			"stutMark_b: %d stutMark_a: %d\n",
 			__func__,
-			context->bw_results.nbp_state_change_wm_ns[0].b_mark,
-			context->bw_results.nbp_state_change_wm_ns[0].a_mark,
-			context->bw_results.urgent_wm_ns[0].b_mark,
-			context->bw_results.urgent_wm_ns[0].a_mark,
-			context->bw_results.stutter_exit_wm_ns[0].b_mark,
-			context->bw_results.stutter_exit_wm_ns[0].a_mark);
+			context->bw.dce.nbp_state_change_wm_ns[0].b_mark,
+			context->bw.dce.nbp_state_change_wm_ns[0].a_mark,
+			context->bw.dce.urgent_wm_ns[0].b_mark,
+			context->bw.dce.urgent_wm_ns[0].a_mark,
+			context->bw.dce.stutter_exit_wm_ns[0].b_mark,
+			context->bw.dce.stutter_exit_wm_ns[0].a_mark);
 		dm_logger_append(&log_entry,
 			"nbpMark_b: %d nbpMark_a: %d urgentMark_b: %d urgentMark_a: %d\n"
 			"stutMark_b: %d stutMark_a: %d\n",
-			context->bw_results.nbp_state_change_wm_ns[1].b_mark,
-			context->bw_results.nbp_state_change_wm_ns[1].a_mark,
-			context->bw_results.urgent_wm_ns[1].b_mark,
-			context->bw_results.urgent_wm_ns[1].a_mark,
-			context->bw_results.stutter_exit_wm_ns[1].b_mark,
-			context->bw_results.stutter_exit_wm_ns[1].a_mark);
+			context->bw.dce.nbp_state_change_wm_ns[1].b_mark,
+			context->bw.dce.nbp_state_change_wm_ns[1].a_mark,
+			context->bw.dce.urgent_wm_ns[1].b_mark,
+			context->bw.dce.urgent_wm_ns[1].a_mark,
+			context->bw.dce.stutter_exit_wm_ns[1].b_mark,
+			context->bw.dce.stutter_exit_wm_ns[1].a_mark);
 		dm_logger_append(&log_entry,
 			"nbpMark_b: %d nbpMark_a: %d urgentMark_b: %d urgentMark_a: %d\n"
 			"stutMark_b: %d stutMark_a: %d stutter_mode_enable: %d\n",
-			context->bw_results.nbp_state_change_wm_ns[2].b_mark,
-			context->bw_results.nbp_state_change_wm_ns[2].a_mark,
-			context->bw_results.urgent_wm_ns[2].b_mark,
-			context->bw_results.urgent_wm_ns[2].a_mark,
-			context->bw_results.stutter_exit_wm_ns[2].b_mark,
-			context->bw_results.stutter_exit_wm_ns[2].a_mark,
-			context->bw_results.stutter_mode_enable);
+			context->bw.dce.nbp_state_change_wm_ns[2].b_mark,
+			context->bw.dce.nbp_state_change_wm_ns[2].a_mark,
+			context->bw.dce.urgent_wm_ns[2].b_mark,
+			context->bw.dce.urgent_wm_ns[2].a_mark,
+			context->bw.dce.stutter_exit_wm_ns[2].b_mark,
+			context->bw.dce.stutter_exit_wm_ns[2].a_mark,
+			context->bw.dce.stutter_mode_enable);
 		dm_logger_append(&log_entry,
 			"cstate: %d pstate: %d nbpstate: %d sync: %d dispclk: %d\n"
 			"sclk: %d sclk_sleep: %d yclk: %d blackout_recovery_time_us: %d\n",
-			context->bw_results.cpuc_state_change_enable,
-			context->bw_results.cpup_state_change_enable,
-			context->bw_results.nbp_state_change_enable,
-			context->bw_results.all_displays_in_sync,
-			context->bw_results.dispclk_khz,
-			context->bw_results.required_sclk,
-			context->bw_results.required_sclk_deep_sleep,
-			context->bw_results.required_yclk,
-			context->bw_results.blackout_recovery_time_us);
+			context->bw.dce.cpuc_state_change_enable,
+			context->bw.dce.cpup_state_change_enable,
+			context->bw.dce.nbp_state_change_enable,
+			context->bw.dce.all_displays_in_sync,
+			context->bw.dce.dispclk_khz,
+			context->bw.dce.sclk_khz,
+			context->bw.dce.sclk_deep_sleep_khz,
+			context->bw.dce.yclk_khz,
+			context->bw.dce.blackout_recovery_time_us);
 		dm_logger_close(&log_entry);
 	}
 	return result;
 }
 
 static bool dce110_validate_surface_sets(
-		const struct dc_validation_set set[],
-		int set_count)
+		struct dc_state *context)
 {
-	int i;
+	int i, j;
 
-	for (i = 0; i < set_count; i++) {
-		if (set[i].surface_count == 0)
+	for (i = 0; i < context->stream_count; i++) {
+		if (context->stream_status[i].plane_count == 0)
 			continue;
 
-		if (set[i].surface_count > 2)
+		if (context->stream_status[i].plane_count > 2)
 			return false;
 
-		if (set[i].surfaces[0]->clip_rect.width
-				> set[i].stream->src.width
-				|| set[i].surfaces[0]->clip_rect.height
-				> set[i].stream->src.height)
-			return false;
-		if (set[i].surfaces[0]->format
-				>= SURFACE_PIXEL_FORMAT_VIDEO_BEGIN)
-			return false;
+		for (j = 0; j < context->stream_status[i].plane_count; j++) {
+			struct dc_plane_state *plane =
+				context->stream_status[i].plane_states[j];
 
-		if (set[i].surface_count == 2) {
-			if (set[i].surfaces[1]->format
-					< SURFACE_PIXEL_FORMAT_VIDEO_BEGIN)
-				return false;
-			if (set[i].surfaces[1]->src_rect.width > 1920
-					|| set[i].surfaces[1]->src_rect.height > 1080)
-				return false;
+			/* underlay validation */
+			if (plane->format >= SURFACE_PIXEL_FORMAT_VIDEO_BEGIN) {
 
-			if (set[i].stream->timing.pixel_encoding != PIXEL_ENCODING_RGB)
-				return false;
+				if ((plane->src_rect.width > 1920 ||
+					plane->src_rect.height > 1080))
+					return false;
+
+				/* we don't have the logic to support underlay
+				 * only yet so block the use case where we get
+				 * NV12 plane as top layer
+				 */
+				if (j == 0)
+					return false;
+
+				/* irrespective of plane format,
+				 * stream should be RGB encoded
+				 */
+				if (context->streams[i]->timing.pixel_encoding
+						!= PIXEL_ENCODING_RGB)
+					return false;
+
+			}
+
 		}
 	}
 
 	return true;
 }
 
-enum dc_status dce110_validate_with_context(
-		const struct core_dc *dc,
-		const struct dc_validation_set set[],
-		int set_count,
-		struct validate_context *context)
+enum dc_status dce110_validate_global(
+		struct dc *dc,
+		struct dc_state *context)
 {
-	struct dc_context *dc_ctx = dc->ctx;
-	enum dc_status result = DC_ERROR_UNEXPECTED;
-	int i;
-
-	if (!dce110_validate_surface_sets(set, set_count))
+	if (!dce110_validate_surface_sets(context))
 		return DC_FAIL_SURFACE_VALIDATE;
 
-	context->res_ctx.pool = dc->res_pool;
+	return DC_OK;
+}
 
-	for (i = 0; i < set_count; i++) {
-		context->streams[i] = DC_STREAM_TO_CORE(set[i].stream);
-		dc_stream_retain(&context->streams[i]->public);
-		context->stream_count++;
-	}
+static enum dc_status dce110_add_stream_to_ctx(
+		struct dc *dc,
+		struct dc_state *new_ctx,
+		struct dc_stream_state *dc_stream)
+{
+	enum dc_status result = DC_ERROR_UNEXPECTED;
 
-	result = resource_map_pool_resources(dc, context);
-
-	if (result == DC_OK)
-		result = resource_map_clock_resources(dc, context);
-
-	if (!resource_validate_attach_surfaces(
-			set, set_count, dc->current_context, context)) {
-		DC_ERROR("Failed to attach surface to stream!\n");
-		return DC_FAIL_ATTACH_SURFACES;
-	}
+	result = resource_map_pool_resources(dc, new_ctx, dc_stream);
 
 	if (result == DC_OK)
-		result = validate_mapped_resource(dc, context);
+		result = resource_map_clock_resources(dc, new_ctx, dc_stream);
+
 
 	if (result == DC_OK)
-		result = resource_build_scaling_params_for_context(dc, context);
-
-	if (result == DC_OK)
-		if (!dce110_validate_bandwidth(dc, context))
-			result = DC_FAIL_BANDWIDTH_VALIDATE;
+		result = build_mapped_resource(dc, new_ctx, dc_stream);
 
 	return result;
 }
 
-enum dc_status dce110_validate_guaranteed(
-		const struct core_dc *dc,
-		const struct dc_stream *dc_stream,
-		struct validate_context *context)
+static enum dc_status dce110_validate_guaranteed(
+		struct dc *dc,
+		struct dc_stream_state *dc_stream,
+		struct dc_state *context)
 {
 	enum dc_status result = DC_ERROR_UNEXPECTED;
 
-	context->res_ctx.pool = dc->res_pool;
-
-	context->streams[0] = DC_STREAM_TO_CORE(dc_stream);
-	dc_stream_retain(&context->streams[0]->public);
+	context->streams[0] = dc_stream;
+	dc_stream_retain(context->streams[0]);
 	context->stream_count++;
 
-	result = resource_map_pool_resources(dc, context);
+	result = resource_map_pool_resources(dc, context, dc_stream);
 
 	if (result == DC_OK)
-		result = resource_map_clock_resources(dc, context);
+		result = resource_map_clock_resources(dc, context, dc_stream);
 
 	if (result == DC_OK)
-		result = validate_mapped_resource(dc, context);
+		result = build_mapped_resource(dc, context, dc_stream);
 
 	if (result == DC_OK) {
 		validate_guaranteed_copy_streams(
-				context, dc->public.caps.max_streams);
+				context, dc->caps.max_streams);
 		result = resource_build_scaling_params_for_context(dc, context);
 	}
 
@@ -1111,29 +952,65 @@ enum dc_status dce110_validate_guaranteed(
 	return result;
 }
 
-static struct pipe_ctx *dce110_acquire_idle_pipe_for_layer(
-		struct resource_context *res_ctx,
-		struct core_stream *stream)
+static struct pipe_ctx *dce110_acquire_underlay(
+		struct dc_state *context,
+		const struct resource_pool *pool,
+		struct dc_stream_state *stream)
 {
-	unsigned int underlay_idx = res_ctx->pool->underlay_pipe_index;
+	struct dc *dc = stream->ctx->dc;
+	struct resource_context *res_ctx = &context->res_ctx;
+	unsigned int underlay_idx = pool->underlay_pipe_index;
 	struct pipe_ctx *pipe_ctx = &res_ctx->pipe_ctx[underlay_idx];
 
-	if (res_ctx->pipe_ctx[underlay_idx].stream) {
+	if (res_ctx->pipe_ctx[underlay_idx].stream)
 		return NULL;
-	}
 
-	pipe_ctx->tg = res_ctx->pool->timing_generators[underlay_idx];
-	pipe_ctx->mi = res_ctx->pool->mis[underlay_idx];
-	/*pipe_ctx->ipp = res_ctx->pool->ipps[underlay_idx];*/
-	pipe_ctx->xfm = res_ctx->pool->transforms[underlay_idx];
-	pipe_ctx->opp = res_ctx->pool->opps[underlay_idx];
-	pipe_ctx->dis_clk = res_ctx->pool->display_clock;
+	pipe_ctx->stream_res.tg = pool->timing_generators[underlay_idx];
+	pipe_ctx->plane_res.mi = pool->mis[underlay_idx];
+	/*pipe_ctx->plane_res.ipp = res_ctx->pool->ipps[underlay_idx];*/
+	pipe_ctx->plane_res.xfm = pool->transforms[underlay_idx];
+	pipe_ctx->stream_res.opp = pool->opps[underlay_idx];
 	pipe_ctx->pipe_idx = underlay_idx;
 
 	pipe_ctx->stream = stream;
 
-	return pipe_ctx;
+	if (!dc->current_state->res_ctx.pipe_ctx[underlay_idx].stream) {
+		struct tg_color black_color = {0};
+		struct dc_bios *dcb = dc->ctx->dc_bios;
 
+		dc->hwss.enable_display_power_gating(
+				dc,
+				pipe_ctx->pipe_idx,
+				dcb, PIPE_GATING_CONTROL_DISABLE);
+
+		/*
+		 * This is for powering on underlay, so crtc does not
+		 * need to be enabled
+		 */
+
+		pipe_ctx->stream_res.tg->funcs->program_timing(pipe_ctx->stream_res.tg,
+				&stream->timing,
+				false);
+
+		pipe_ctx->stream_res.tg->funcs->enable_advanced_request(
+				pipe_ctx->stream_res.tg,
+				true,
+				&stream->timing);
+
+		pipe_ctx->plane_res.mi->funcs->allocate_mem_input(pipe_ctx->plane_res.mi,
+				stream->timing.h_total,
+				stream->timing.v_total,
+				stream->timing.pix_clk_khz,
+				context->stream_count);
+
+		color_space_to_black_color(dc,
+				COLOR_SPACE_YCBCR601, &black_color);
+		pipe_ctx->stream_res.tg->funcs->set_blank_color(
+				pipe_ctx->stream_res.tg,
+				&black_color);
+	}
+
+	return pipe_ctx;
 }
 
 static void dce110_destroy_resource_pool(struct resource_pool **pool)
@@ -1141,7 +1018,7 @@ static void dce110_destroy_resource_pool(struct resource_pool **pool)
 	struct dce110_resource_pool *dce110_pool = TO_DCE110_RES_POOL(*pool);
 
 	destruct(dce110_pool);
-	dm_free(dce110_pool);
+	kfree(dce110_pool);
 	*pool = NULL;
 }
 
@@ -1149,20 +1026,23 @@ static void dce110_destroy_resource_pool(struct resource_pool **pool)
 static const struct resource_funcs dce110_res_pool_funcs = {
 	.destroy = dce110_destroy_resource_pool,
 	.link_enc_create = dce110_link_encoder_create,
-	.validate_with_context = dce110_validate_with_context,
 	.validate_guaranteed = dce110_validate_guaranteed,
 	.validate_bandwidth = dce110_validate_bandwidth,
-	.acquire_idle_pipe_for_layer = dce110_acquire_idle_pipe_for_layer,
-	.build_bit_depth_reduction_params =
-			dce110_resource_build_bit_depth_reduction_params
+	.acquire_idle_pipe_for_layer = dce110_acquire_underlay,
+	.add_stream_to_ctx = dce110_add_stream_to_ctx,
+	.validate_global = dce110_validate_global
 };
 
 static bool underlay_create(struct dc_context *ctx, struct resource_pool *pool)
 {
-	struct dce110_timing_generator *dce110_tgv = dm_alloc(sizeof (*dce110_tgv));
-	struct dce_transform *dce110_xfmv = dm_alloc(sizeof (*dce110_xfmv));
-	struct dce110_mem_input *dce110_miv = dm_alloc(sizeof (*dce110_miv));
-	struct dce110_opp *dce110_oppv = dm_alloc(sizeof (*dce110_oppv));
+	struct dce110_timing_generator *dce110_tgv = kzalloc(sizeof(*dce110_tgv),
+							     GFP_KERNEL);
+	struct dce_transform *dce110_xfmv = kzalloc(sizeof(*dce110_xfmv),
+						    GFP_KERNEL);
+	struct dce_mem_input *dce110_miv = kzalloc(sizeof(*dce110_miv),
+						   GFP_KERNEL);
+	struct dce110_opp *dce110_oppv = kzalloc(sizeof(*dce110_oppv),
+						 GFP_KERNEL);
 
 	if ((dce110_tgv == NULL) ||
 		(dce110_xfmv == NULL) ||
@@ -1170,8 +1050,7 @@ static bool underlay_create(struct dc_context *ctx, struct resource_pool *pool)
 		(dce110_oppv == NULL))
 			return false;
 
-	if (!dce110_opp_v_construct(dce110_oppv, ctx))
-		return false;
+	dce110_opp_v_construct(dce110_oppv, ctx);
 
 	dce110_timing_generator_v_construct(dce110_tgv, ctx);
 	dce110_mem_input_v_construct(dce110_miv, ctx);
@@ -1190,7 +1069,7 @@ static bool underlay_create(struct dc_context *ctx, struct resource_pool *pool)
 	return true;
 }
 
-static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
+static void bw_calcs_data_update_from_pplib(struct dc *dc)
 {
 	struct dm_pp_clock_levels clks = {0};
 
@@ -1200,21 +1079,21 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 			DM_PP_CLOCK_TYPE_ENGINE_CLK,
 			&clks);
 	/* convert all the clock fro kHz to fix point mHz */
-	dc->bw_vbios.high_sclk = bw_frc_to_fixed(
+	dc->bw_vbios->high_sclk = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels-1], 1000);
-	dc->bw_vbios.mid1_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid1_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels/8], 1000);
-	dc->bw_vbios.mid2_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid2_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels*2/8], 1000);
-	dc->bw_vbios.mid3_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid3_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels*3/8], 1000);
-	dc->bw_vbios.mid4_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid4_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels*4/8], 1000);
-	dc->bw_vbios.mid5_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid5_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels*5/8], 1000);
-	dc->bw_vbios.mid6_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid6_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels*6/8], 1000);
-	dc->bw_vbios.low_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->low_sclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[0], 1000);
 	dc->sclk_lvls = clks;
 
@@ -1223,11 +1102,11 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 			dc->ctx,
 			DM_PP_CLOCK_TYPE_DISPLAY_CLK,
 			&clks);
-	dc->bw_vbios.high_voltage_max_dispclk = bw_frc_to_fixed(
+	dc->bw_vbios->high_voltage_max_dispclk = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels-1], 1000);
-	dc->bw_vbios.mid_voltage_max_dispclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid_voltage_max_dispclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels>>1], 1000);
-	dc->bw_vbios.low_voltage_max_dispclk  = bw_frc_to_fixed(
+	dc->bw_vbios->low_voltage_max_dispclk  = bw_frc_to_fixed(
 			clks.clocks_in_khz[0], 1000);
 
 	/*do memory clock*/
@@ -1236,12 +1115,12 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 			DM_PP_CLOCK_TYPE_MEMORY_CLK,
 			&clks);
 
-	dc->bw_vbios.low_yclk = bw_frc_to_fixed(
+	dc->bw_vbios->low_yclk = bw_frc_to_fixed(
 		clks.clocks_in_khz[0] * MEMORY_TYPE_MULTIPLIER, 1000);
-	dc->bw_vbios.mid_yclk = bw_frc_to_fixed(
+	dc->bw_vbios->mid_yclk = bw_frc_to_fixed(
 		clks.clocks_in_khz[clks.num_levels>>1] * MEMORY_TYPE_MULTIPLIER,
 		1000);
-	dc->bw_vbios.high_yclk = bw_frc_to_fixed(
+	dc->bw_vbios->high_yclk = bw_frc_to_fixed(
 		clks.clocks_in_khz[clks.num_levels-1] * MEMORY_TYPE_MULTIPLIER,
 		1000);
 }
@@ -1257,13 +1136,13 @@ const struct resource_caps *dce110_resource_cap(
 
 static bool construct(
 	uint8_t num_virtual_links,
-	struct core_dc *dc,
+	struct dc *dc,
 	struct dce110_resource_pool *pool,
 	struct hw_asic_id asic_id)
 {
 	unsigned int i;
 	struct dc_context *ctx = dc->ctx;
-	struct firmware_info info;
+	struct dc_firmware_info info;
 	struct dc_bios *bp;
 	struct dm_pp_static_clock_info static_clk_info = {0};
 
@@ -1279,9 +1158,9 @@ static bool construct(
 	pool->base.pipe_count = pool->base.res_cap->num_timing_generator;
 	pool->base.underlay_pipe_index = pool->base.pipe_count;
 
-	dc->public.caps.max_downscale_ratio = 150;
-	dc->public.caps.i2c_speed_in_khz = 100;
-	dc->public.caps.max_cursor_size = 128;
+	dc->caps.max_downscale_ratio = 150;
+	dc->caps.i2c_speed_in_khz = 100;
+	dc->caps.max_cursor_size = 128;
 
 	/*************************************************
 	 *  Create resources                             *
@@ -1374,8 +1253,7 @@ static bool construct(
 			goto res_create_fail;
 		}
 
-		pool->base.mis[i] = dce110_mem_input_create(ctx, i,
-				&dce110_mi_reg_offsets[i]);
+		pool->base.mis[i] = dce110_mem_input_create(ctx, i);
 		if (pool->base.mis[i] == NULL) {
 			BREAK_TO_DEBUGGER();
 			dm_error(
@@ -1383,7 +1261,7 @@ static bool construct(
 			goto res_create_fail;
 		}
 
-		pool->base.ipps[i] = dce110_ipp_create(ctx, i, &dce110_ipp_reg_offsets[i]);
+		pool->base.ipps[i] = dce110_ipp_create(ctx, i);
 		if (pool->base.ipps[i] == NULL) {
 			BREAK_TO_DEBUGGER();
 			dm_error(
@@ -1408,6 +1286,12 @@ static bool construct(
 		}
 	}
 
+#if defined(CONFIG_DRM_AMD_DC_FBC)
+	dc->fbc_compressor = dce110_compressor_create(ctx);
+
+
+
+#endif
 	if (!underlay_create(ctx, &pool->base))
 		goto res_create_fail;
 
@@ -1416,10 +1300,11 @@ static bool construct(
 		goto res_create_fail;
 
 	/* Create hardware sequencer */
-	if (!dce110_hw_sequencer_construct(dc))
-		goto res_create_fail;
+	dce110_hw_sequencer_construct(dc);
 
-	bw_calcs_init(&dc->bw_dceip, &dc->bw_vbios, dc->ctx->asic_id);
+	dc->caps.max_planes =  pool->base.pipe_count;
+
+	bw_calcs_init(dc->bw_dceip, dc->bw_vbios, dc->ctx->asic_id);
 
 	bw_calcs_data_update_from_pplib(dc);
 
@@ -1432,11 +1317,11 @@ res_create_fail:
 
 struct resource_pool *dce110_create_resource_pool(
 	uint8_t num_virtual_links,
-	struct core_dc *dc,
+	struct dc *dc,
 	struct hw_asic_id asic_id)
 {
 	struct dce110_resource_pool *pool =
-		dm_alloc(sizeof(struct dce110_resource_pool));
+		kzalloc(sizeof(struct dce110_resource_pool), GFP_KERNEL);
 
 	if (!pool)
 		return NULL;

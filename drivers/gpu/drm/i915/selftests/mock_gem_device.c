@@ -146,6 +146,11 @@ struct drm_i915_private *mock_gem_device(void)
 	dev_set_name(&pdev->dev, "mock");
 	dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
 
+#if IS_ENABLED(CONFIG_IOMMU_API) && defined(CONFIG_INTEL_IOMMU)
+	/* hack to disable iommu for the fake device; force identity mapping */
+	pdev->dev.archdata.iommu = (void *)-1;
+#endif
+
 	dev_pm_domain_set(&pdev->dev, &pm_domain);
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
@@ -234,8 +239,14 @@ struct drm_i915_private *mock_gem_device(void)
 	if (!i915->kernel_context)
 		goto err_engine;
 
+	i915->preempt_context = mock_context(i915, NULL);
+	if (!i915->preempt_context)
+		goto err_kernel_context;
+
 	return i915;
 
+err_kernel_context:
+	i915_gem_context_put(i915->kernel_context);
 err_engine:
 	for_each_engine(engine, i915, id)
 		mock_engine_free(engine);

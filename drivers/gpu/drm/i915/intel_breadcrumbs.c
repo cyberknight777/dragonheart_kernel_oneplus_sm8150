@@ -121,7 +121,7 @@ static void intel_breadcrumbs_fake_irq(unsigned long data)
 	 */
 
 	spin_lock_irq(&b->irq_lock);
-	if (!__intel_breadcrumbs_wakeup(b))
+	if (b->irq_armed && !__intel_breadcrumbs_wakeup(b))
 		__intel_engine_disarm_breadcrumbs(engine);
 	spin_unlock_irq(&b->irq_lock);
 	if (!b->irq_armed)
@@ -169,13 +169,35 @@ void __intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
 
 	lockdep_assert_held(&b->irq_lock);
 	GEM_BUG_ON(b->irq_wait);
+	GEM_BUG_ON(!b->irq_armed);
 
-	if (b->irq_enabled) {
+	GEM_BUG_ON(!b->irq_enabled);
+	if (!--b->irq_enabled)
 		irq_disable(engine);
-		b->irq_enabled = false;
-	}
 
 	b->irq_armed = false;
+}
+
+void intel_engine_pin_breadcrumbs_irq(struct intel_engine_cs *engine)
+{
+	struct intel_breadcrumbs *b = &engine->breadcrumbs;
+
+	spin_lock_irq(&b->irq_lock);
+	if (!b->irq_enabled++)
+		irq_enable(engine);
+	GEM_BUG_ON(!b->irq_enabled); /* no overflow! */
+	spin_unlock_irq(&b->irq_lock);
+}
+
+void intel_engine_unpin_breadcrumbs_irq(struct intel_engine_cs *engine)
+{
+	struct intel_breadcrumbs *b = &engine->breadcrumbs;
+
+	spin_lock_irq(&b->irq_lock);
+	GEM_BUG_ON(!b->irq_enabled); /* no underflow! */
+	if (!--b->irq_enabled)
+		irq_disable(engine);
+	spin_unlock_irq(&b->irq_lock);
 }
 
 void intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
@@ -195,7 +217,8 @@ void intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
 
 	spin_lock(&b->irq_lock);
 	first = fetch_and_zero(&b->irq_wait);
-	__intel_engine_disarm_breadcrumbs(engine);
+	if (b->irq_armed)
+		__intel_engine_disarm_breadcrumbs(engine);
 	spin_unlock(&b->irq_lock);
 
 	rbtree_postorder_for_each_entry_safe(wait, n, &b->waiters, node) {
@@ -239,6 +262,9 @@ static bool __intel_breadcrumbs_enable_irq(struct intel_breadcrumbs *b)
 	struct intel_engine_cs *engine =
 		container_of(b, struct intel_engine_cs, breadcrumbs);
 	struct drm_i915_private *i915 = engine->i915;
+	bool enabled;
+
+	GEM_BUG_ON(!intel_irqs_enabled(i915));
 
 	lockdep_assert_held(&b->irq_lock);
 	if (b->irq_armed)
@@ -250,7 +276,6 @@ static bool __intel_breadcrumbs_enable_irq(struct intel_breadcrumbs *b)
 	 * the irq.
 	 */
 	b->irq_armed = true;
-	GEM_BUG_ON(b->irq_enabled);
 
 	if (I915_SELFTEST_ONLY(b->mock)) {
 		/* For our mock objects we want to avoid interaction
@@ -271,14 +296,15 @@ static bool __intel_breadcrumbs_enable_irq(struct intel_breadcrumbs *b)
 	 */
 
 	/* No interrupts? Kick the waiter every jiffie! */
-	if (intel_irqs_enabled(i915)) {
-		if (!test_bit(engine->id, &i915->gpu_error.test_irq_rings))
-			irq_enable(engine);
-		b->irq_enabled = true;
+	enabled = false;
+	if (!b->irq_enabled++ &&
+	    !test_bit(engine->id, &i915->gpu_error.test_irq_rings)) {
+		irq_enable(engine);
+		enabled = true;
 	}
 
 	enable_fake_irq(b);
-	return true;
+	return enabled;
 }
 
 static inline struct intel_wait *to_wait(struct rb_node *node)
@@ -541,29 +567,16 @@ void intel_engine_remove_wait(struct intel_engine_cs *engine,
 	spin_unlock_irq(&b->rb_lock);
 }
 
-static bool signal_valid(const struct drm_i915_gem_request *request)
-{
-	return intel_wait_check_request(&request->signaling.wait, request);
-}
-
 static bool signal_complete(const struct drm_i915_gem_request *request)
 {
 	if (!request)
 		return false;
 
-	/* If another process served as the bottom-half it may have already
-	 * signalled that this wait is already completed.
-	 */
-	if (intel_wait_complete(&request->signaling.wait))
-		return signal_valid(request);
-
-	/* Carefully check if the request is complete, giving time for the
+	/*
+	 * Carefully check if the request is complete, giving time for the
 	 * seqno to be visible or if the GPU hung.
 	 */
-	if (__i915_request_irq_complete(request))
-		return true;
-
-	return false;
+	return __i915_request_irq_complete(request);
 }
 
 static struct drm_i915_gem_request *to_signaler(struct rb_node *rb)
@@ -606,9 +619,13 @@ static int intel_breadcrumbs_signaler(void *arg)
 			request = i915_gem_request_get_rcu(request);
 		rcu_read_unlock();
 		if (signal_complete(request)) {
-			local_bh_disable();
-			dma_fence_signal(&request->fence);
-			local_bh_enable(); /* kick start the tasklets */
+			if (!test_bit(DMA_FENCE_FLAG_SIGNALED_BIT,
+				      &request->fence.flags)) {
+				local_bh_disable();
+				dma_fence_signal(&request->fence);
+				GEM_BUG_ON(!i915_gem_request_completed(request));
+				local_bh_enable(); /* kick start the tasklets */
+			}
 
 			spin_lock_irq(&b->rb_lock);
 

@@ -120,7 +120,7 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 	platform_set_drvdata(pdev, indio_dev);
 
 	state->ec = ec_dev;
-
+	state->indio_dev = indio_dev;
 	state->msg = devm_kzalloc(&pdev->dev,
 				max((u16)sizeof(struct ec_params_motion_sense),
 				state->ec->max_response), GFP_KERNEL);
@@ -293,6 +293,11 @@ const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[] = {
 		.name = "calibrate",
 		.shared = IIO_SHARED_BY_ALL,
 		.write = cros_ec_sensors_calibrate
+	},
+	{
+		.name = "id",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_sensors_id
 	},
 	{
 		.name = "location",

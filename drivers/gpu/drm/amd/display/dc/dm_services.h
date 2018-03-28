@@ -38,47 +38,6 @@
 
 #undef DEPRECATED
 
-/*
- *
- * general debug capabilities
- *
- */
-#if defined(CONFIG_DEBUG_KERNEL) || defined(CONFIG_DEBUG_DRIVER)
-
-#if defined(CONFIG_HAVE_KGDB) || defined(CONFIG_KGDB)
-#define ASSERT_CRITICAL(expr) do {	\
-	if (WARN_ON(!(expr))) { \
-		kgdb_breakpoint(); \
-	} \
-} while (0)
-#else
-#define ASSERT_CRITICAL(expr) do {	\
-	if (WARN_ON(!(expr))) { \
-		; \
-	} \
-} while (0)
-#endif
-
-#if defined(CONFIG_DEBUG_KERNEL_DC)
-#define ASSERT(expr) ASSERT_CRITICAL(expr)
-
-#else
-#define ASSERT(expr) WARN_ON(!(expr))
-#endif
-
-#define BREAK_TO_DEBUGGER() ASSERT(0)
-
-#endif /* CONFIG_DEBUG_KERNEL || CONFIG_DEBUG_DRIVER */
-
-#define DC_ERR(...)  do { \
-	dm_error(__VA_ARGS__); \
-	BREAK_TO_DEBUGGER(); \
-} while (0)
-
-#define dm_alloc(size) kzalloc(size, GFP_KERNEL)
-#define dm_realloc(ptr, size) krealloc(ptr, size, GFP_KERNEL)
-#define dm_free(ptr) kfree(ptr)
-
 irq_handler_idx dm_register_interrupt(
 	struct dc_context *ctx,
 	struct dc_interrupt_params *int_params,
@@ -92,6 +51,9 @@ irq_handler_idx dm_register_interrupt(
  *
  */
 
+/* enable for debugging new code, this adds 50k to the driver size. */
+/* #define DM_CHECK_ADDR_0 */
+
 #define dm_read_reg(ctx, address)	\
 		dm_read_reg_func(ctx, address, __func__)
 
@@ -101,12 +63,12 @@ static inline uint32_t dm_read_reg_func(
 	const char *func_name)
 {
 	uint32_t value;
-
+#ifdef DM_CHECK_ADDR_0
 	if (address == 0) {
 		DC_ERR("invalid register read; address = 0\n");
 		return 0;
 	}
-
+#endif
 	value = cgs_read_register(ctx->cgs_device, address);
 
 	return value;
@@ -121,10 +83,12 @@ static inline void dm_write_reg_func(
 	uint32_t value,
 	const char *func_name)
 {
+#ifdef DM_CHECK_ADDR_0
 	if (address == 0) {
 		DC_ERR("invalid register write. address = 0");
 		return;
 	}
+#endif
 	cgs_write_register(ctx->cgs_device, address, value);
 }
 
@@ -190,7 +154,39 @@ uint32_t generic_reg_update_ex(const struct dc_context *ctx,
 unsigned int generic_reg_wait(const struct dc_context *ctx,
 	uint32_t addr, uint32_t mask, uint32_t shift, uint32_t condition_value,
 	unsigned int delay_between_poll_us, unsigned int time_out_num_tries,
-	const char *func_name);
+	const char *func_name, int line);
+
+
+/* These macros need to be used with soc15 registers in order to retrieve
+ * the actual offset.
+ */
+#define dm_write_reg_soc15(ctx, reg, inst_offset, value)	\
+		dm_write_reg_func(ctx, reg + DCE_BASE.instance[0].segment[reg##_BASE_IDX] + inst_offset, value, __func__)
+
+#define dm_read_reg_soc15(ctx, reg, inst_offset)	\
+		dm_read_reg_func(ctx, reg + DCE_BASE.instance[0].segment[reg##_BASE_IDX] + inst_offset, __func__)
+
+#define generic_reg_update_soc15(ctx, inst_offset, reg_name, n, ...)\
+		generic_reg_update_ex(ctx, DCE_BASE.instance[0].segment[mm##reg_name##_BASE_IDX] +  mm##reg_name + inst_offset, \
+		dm_read_reg_func(ctx, mm##reg_name + DCE_BASE.instance[0].segment[mm##reg_name##_BASE_IDX] + inst_offset, __func__), \
+		n, __VA_ARGS__)
+
+#define generic_reg_set_soc15(ctx, inst_offset, reg_name, n, ...)\
+		generic_reg_update_ex(ctx, DCE_BASE.instance[0].segment[mm##reg_name##_BASE_IDX] + mm##reg_name + inst_offset, 0, \
+		n, __VA_ARGS__)
+
+#define get_reg_field_value_soc15(reg_value, block, reg_num, reg_name, reg_field)\
+	get_reg_field_value_ex(\
+		(reg_value),\
+		block ## reg_num ## _ ## reg_name ## __ ## reg_field ## _MASK,\
+		block ## reg_num ## _ ## reg_name ## __ ## reg_field ## __SHIFT)
+
+#define set_reg_field_value_soc15(reg_value, value, block, reg_num, reg_name, reg_field)\
+	(reg_value) = set_reg_field_value_ex(\
+		(reg_value),\
+		(value),\
+		block ## reg_num ## _ ## reg_name ## __ ## reg_field ## _MASK,\
+		block ## reg_num ## _ ## reg_name ## __ ## reg_field ## __SHIFT)
 
 /**************************************
  * Power Play (PP) interfaces
@@ -253,6 +249,9 @@ bool dm_pp_get_clock_levels_by_type_with_voltage(
 bool dm_pp_notify_wm_clock_changes(
 	const struct dc_context *ctx,
 	struct dm_pp_wm_sets_with_clock_ranges *wm_with_clock_ranges);
+
+void dm_pp_get_funcs_rv(struct dc_context *ctx,
+		struct pp_smu_funcs_rv *funcs);
 
 /* DAL calls this function to notify PP about completion of Mode Set.
  * For PP it means that current DCE clocks are those which were returned
@@ -357,9 +356,6 @@ bool dm_read_persistent_data(struct dc_context *ctx,
 		unsigned int size,
 		struct persistent_data_flag *flag);
 
-void dm_delay_in_microseconds
-	(struct dc_context *ctx, unsigned int microSeconds);
-
 bool dm_query_extended_brightness_caps
 	(struct dc_context *ctx, enum dm_acpi_display_type display,
 			struct dm_acpi_atif_backlight_caps *pCaps);
@@ -373,5 +369,19 @@ bool dm_dmcu_set_pipe(struct dc_context *ctx, unsigned int controller_id);
  */
 #define dm_log_to_buffer(buffer, size, fmt, args)\
 	vsnprintf(buffer, size, fmt, args)
+
+unsigned long long dm_get_timestamp(struct dc_context *ctx);
+
+/*
+ * Debug and verification hooks
+ */
+bool dm_helpers_dc_conn_log(
+		struct dc_context *ctx,
+		struct log_entry *entry,
+		enum dc_log_type event);
+
+void dm_dtn_log_begin(struct dc_context *ctx);
+void dm_dtn_log_append_v(struct dc_context *ctx, const char *msg, ...);
+void dm_dtn_log_end(struct dc_context *ctx);
 
 #endif /* __DM_SERVICES_H__ */

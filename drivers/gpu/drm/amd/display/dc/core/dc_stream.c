@@ -31,28 +31,38 @@
 #include "timing_generator.h"
 
 /*******************************************************************************
- * Private definitions
- ******************************************************************************/
-
-struct stream {
-	struct core_stream protected;
-	int ref_count;
-};
-
-#define DC_STREAM_TO_STREAM(dc_stream) container_of(dc_stream, struct stream, protected.public)
-
-/*******************************************************************************
  * Private functions
  ******************************************************************************/
+#define TMDS_MAX_PIXEL_CLOCK_IN_KHZ_UPMOST 297000
+static void update_stream_signal(struct dc_stream_state *stream)
+{
+	if (stream->output_signal == SIGNAL_TYPE_NONE) {
+		struct dc_sink *dc_sink = stream->sink;
 
-static bool construct(struct core_stream *stream,
-	const struct dc_sink *dc_sink_data)
+		if (dc_sink->sink_signal == SIGNAL_TYPE_NONE)
+			stream->signal = stream->sink->link->connector_signal;
+		else
+			stream->signal = dc_sink->sink_signal;
+	} else {
+		stream->signal = stream->output_signal;
+	}
+
+	if (dc_is_dvi_signal(stream->signal)) {
+		if (stream->timing.pix_clk_khz > TMDS_MAX_PIXEL_CLOCK_IN_KHZ_UPMOST &&
+			stream->sink->sink_signal != SIGNAL_TYPE_DVI_SINGLE_LINK)
+			stream->signal = SIGNAL_TYPE_DVI_DUAL_LINK;
+		else
+			stream->signal = SIGNAL_TYPE_DVI_SINGLE_LINK;
+	}
+}
+
+static void construct(struct dc_stream_state *stream,
+	struct dc_sink *dc_sink_data)
 {
 	uint32_t i = 0;
 
-	stream->sink = DC_SINK_TO_CORE(dc_sink_data);
+	stream->sink = dc_sink_data;
 	stream->ctx = stream->sink->ctx;
-	stream->public.sink = dc_sink_data;
 
 	dc_sink_retain(dc_sink_data);
 
@@ -60,105 +70,101 @@ static bool construct(struct core_stream *stream,
 	/* TODO - Remove this translation */
 	for (i = 0; i < (dc_sink_data->edid_caps.audio_mode_count); i++)
 	{
-		stream->public.audio_info.modes[i].channel_count = dc_sink_data->edid_caps.audio_modes[i].channel_count;
-		stream->public.audio_info.modes[i].format_code = dc_sink_data->edid_caps.audio_modes[i].format_code;
-		stream->public.audio_info.modes[i].sample_rates.all = dc_sink_data->edid_caps.audio_modes[i].sample_rate;
-		stream->public.audio_info.modes[i].sample_size = dc_sink_data->edid_caps.audio_modes[i].sample_size;
+		stream->audio_info.modes[i].channel_count = dc_sink_data->edid_caps.audio_modes[i].channel_count;
+		stream->audio_info.modes[i].format_code = dc_sink_data->edid_caps.audio_modes[i].format_code;
+		stream->audio_info.modes[i].sample_rates.all = dc_sink_data->edid_caps.audio_modes[i].sample_rate;
+		stream->audio_info.modes[i].sample_size = dc_sink_data->edid_caps.audio_modes[i].sample_size;
 	}
-	stream->public.audio_info.mode_count = dc_sink_data->edid_caps.audio_mode_count;
-	stream->public.audio_info.audio_latency = dc_sink_data->edid_caps.audio_latency;
-	stream->public.audio_info.video_latency = dc_sink_data->edid_caps.video_latency;
+	stream->audio_info.mode_count = dc_sink_data->edid_caps.audio_mode_count;
+	stream->audio_info.audio_latency = dc_sink_data->edid_caps.audio_latency;
+	stream->audio_info.video_latency = dc_sink_data->edid_caps.video_latency;
 	memmove(
-		stream->public.audio_info.display_name,
+		stream->audio_info.display_name,
 		dc_sink_data->edid_caps.display_name,
 		AUDIO_INFO_DISPLAY_NAME_SIZE_IN_CHARS);
-	stream->public.audio_info.manufacture_id = dc_sink_data->edid_caps.manufacturer_id;
-	stream->public.audio_info.product_id = dc_sink_data->edid_caps.product_id;
-	stream->public.audio_info.flags.all = dc_sink_data->edid_caps.speaker_flags;
+	stream->audio_info.manufacture_id = dc_sink_data->edid_caps.manufacturer_id;
+	stream->audio_info.product_id = dc_sink_data->edid_caps.product_id;
+	stream->audio_info.flags.all = dc_sink_data->edid_caps.speaker_flags;
 
-	/* TODO - Unhardcode port_id */
-	stream->public.audio_info.port_id[0] = 0x5558859e;
-	stream->public.audio_info.port_id[1] = 0xd989449;
+	if (dc_sink_data->dc_container_id != NULL) {
+		struct dc_container_id *dc_container_id = dc_sink_data->dc_container_id;
+
+		stream->audio_info.port_id[0] = dc_container_id->portId[0];
+		stream->audio_info.port_id[1] = dc_container_id->portId[1];
+	} else {
+		/* TODO - WindowDM has implemented,
+		other DMs need Unhardcode port_id */
+		stream->audio_info.port_id[0] = 0x5558859e;
+		stream->audio_info.port_id[1] = 0xd989449;
+	}
 
 	/* EDID CAP translation for HDMI 2.0 */
-	stream->public.timing.flags.LTE_340MCSC_SCRAMBLE = dc_sink_data->edid_caps.lte_340mcsc_scramble;
+	stream->timing.flags.LTE_340MCSC_SCRAMBLE = dc_sink_data->edid_caps.lte_340mcsc_scramble;
 
-	stream->status.link = &stream->sink->link->public;
-	return true;
+	stream->status.link = stream->sink->link;
+
+	update_stream_signal(stream);
 }
 
-static void destruct(struct core_stream *stream)
+static void destruct(struct dc_stream_state *stream)
 {
-	dc_sink_release(&stream->sink->public);
-	if (stream->public.out_transfer_func != NULL) {
+	dc_sink_release(stream->sink);
+	if (stream->out_transfer_func != NULL) {
 		dc_transfer_func_release(
-				stream->public.out_transfer_func);
-		stream->public.out_transfer_func = NULL;
+				stream->out_transfer_func);
+		stream->out_transfer_func = NULL;
 	}
 }
 
-void dc_stream_retain(const struct dc_stream *dc_stream)
+void dc_stream_retain(struct dc_stream_state *stream)
 {
-	struct stream *stream = DC_STREAM_TO_STREAM(dc_stream);
-
-	ASSERT(stream->ref_count > 0);
-	stream->ref_count++;
+	kref_get(&stream->refcount);
 }
 
-void dc_stream_release(const struct dc_stream *public)
+static void dc_stream_free(struct kref *kref)
 {
-	struct stream *stream = DC_STREAM_TO_STREAM(public);
-	struct core_stream *protected = DC_STREAM_TO_CORE(public);
+	struct dc_stream_state *stream = container_of(kref, struct dc_stream_state, refcount);
 
-	if (public != NULL) {
-		ASSERT(stream->ref_count > 0);
-		stream->ref_count--;
+	destruct(stream);
+	kfree(stream);
+}
 
-		if (stream->ref_count == 0) {
-			destruct(protected);
-			dm_free(stream);
-		}
+void dc_stream_release(struct dc_stream_state *stream)
+{
+	if (stream != NULL) {
+		kref_put(&stream->refcount, dc_stream_free);
 	}
 }
 
-struct dc_stream *dc_create_stream_for_sink(
-		const struct dc_sink *dc_sink)
+struct dc_stream_state *dc_create_stream_for_sink(
+		struct dc_sink *sink)
 {
-	struct core_sink *sink = DC_SINK_TO_CORE(dc_sink);
-	struct stream *stream;
+	struct dc_stream_state *stream;
 
 	if (sink == NULL)
-		goto alloc_fail;
+		return NULL;
 
-	stream = dm_alloc(sizeof(struct stream));
+	stream = kzalloc(sizeof(struct dc_stream_state), GFP_KERNEL);
+	if (stream == NULL)
+		return NULL;
 
-	if (NULL == stream)
-		goto alloc_fail;
+	construct(stream, sink);
 
-	if (false == construct(&stream->protected, dc_sink))
-			goto construct_fail;
+	kref_init(&stream->refcount);
 
-	stream->ref_count++;
-
-	return &stream->protected.public;
-
-construct_fail:
-	dm_free(stream);
-
-alloc_fail:
-	return NULL;
+	return stream;
 }
 
-const struct dc_stream_status *dc_stream_get_status(
-	const struct dc_stream *dc_stream)
+struct dc_stream_status *dc_stream_get_status(
+	struct dc_stream_state *stream)
 {
 	uint8_t i;
-	struct core_stream *stream = DC_STREAM_TO_CORE(dc_stream);
-	struct core_dc *dc = DC_TO_CORE(stream->ctx->dc);
+	struct dc  *dc = stream->ctx->dc;
 
-	for (i = 0; i < dc->current_context->stream_count; i++)
-		if (stream == dc->current_context->streams[i])
-			return &dc->current_context->stream_status[i];
+	for (i = 0; i < dc->current_state->stream_count; i++) {
+		if (stream == dc->current_state->streams[i])
+			return &dc->current_state->stream_status[i];
+	}
 
 	return NULL;
 }
@@ -167,55 +173,79 @@ const struct dc_stream_status *dc_stream_get_status(
  * Update the cursor attributes and set cursor surface address
  */
 bool dc_stream_set_cursor_attributes(
-	const struct dc_stream *dc_stream,
+	struct dc_stream_state *stream,
 	const struct dc_cursor_attributes *attributes)
 {
 	int i;
-	struct core_stream *stream;
-	struct core_dc *core_dc;
+	struct dc  *core_dc;
 	struct resource_context *res_ctx;
-	bool ret = false;
 
-	if (NULL == dc_stream) {
+	if (NULL == stream) {
 		dm_error("DC: dc_stream is NULL!\n");
-			return false;
+		return false;
 	}
 	if (NULL == attributes) {
 		dm_error("DC: attributes is NULL!\n");
-			return false;
+		return false;
 	}
 
-	stream = DC_STREAM_TO_CORE(dc_stream);
-	core_dc = DC_TO_CORE(stream->ctx->dc);
-	res_ctx = &core_dc->current_context->res_ctx;
+	if (attributes->address.quad_part == 0) {
+		dm_output_to_console("DC: Cursor address is 0!\n");
+		return false;
+	}
+
+	core_dc = stream->ctx->dc;
+	res_ctx = &core_dc->current_state->res_ctx;
 
 	for (i = 0; i < MAX_PIPES; i++) {
 		struct pipe_ctx *pipe_ctx = &res_ctx->pipe_ctx[i];
 
-		if ((pipe_ctx->stream == stream) &&
-			(pipe_ctx->ipp != NULL)) {
-			struct input_pixel_processor *ipp = pipe_ctx->ipp;
+		if (pipe_ctx->stream != stream || (!pipe_ctx->plane_res.xfm && !pipe_ctx->plane_res.dpp))
+			continue;
+		if (pipe_ctx->top_pipe && pipe_ctx->plane_state != pipe_ctx->top_pipe->plane_state)
+			continue;
 
-			if (ipp->funcs->ipp_cursor_set_attributes(
-				ipp, attributes))
-				ret = true;
-		}
+
+		if (pipe_ctx->plane_res.ipp->funcs->ipp_cursor_set_attributes != NULL)
+			pipe_ctx->plane_res.ipp->funcs->ipp_cursor_set_attributes(
+						pipe_ctx->plane_res.ipp, attributes);
+
+		if (pipe_ctx->plane_res.hubp != NULL &&
+				pipe_ctx->plane_res.hubp->funcs->set_cursor_attributes != NULL)
+			pipe_ctx->plane_res.hubp->funcs->set_cursor_attributes(
+					pipe_ctx->plane_res.hubp, attributes);
+
+		if (pipe_ctx->plane_res.mi != NULL &&
+				pipe_ctx->plane_res.mi->funcs->set_cursor_attributes != NULL)
+			pipe_ctx->plane_res.mi->funcs->set_cursor_attributes(
+					pipe_ctx->plane_res.mi, attributes);
+
+
+		if (pipe_ctx->plane_res.xfm != NULL &&
+				pipe_ctx->plane_res.xfm->funcs->set_cursor_attributes != NULL)
+			pipe_ctx->plane_res.xfm->funcs->set_cursor_attributes(
+				pipe_ctx->plane_res.xfm, attributes);
+
+		if (pipe_ctx->plane_res.dpp != NULL &&
+				pipe_ctx->plane_res.dpp->funcs->set_cursor_attributes != NULL)
+			pipe_ctx->plane_res.dpp->funcs->set_cursor_attributes(
+				pipe_ctx->plane_res.dpp, attributes);
 	}
 
-	return ret;
+	stream->cursor_attributes = *attributes;
+
+	return true;
 }
 
 bool dc_stream_set_cursor_position(
-	const struct dc_stream *dc_stream,
+	struct dc_stream_state *stream,
 	const struct dc_cursor_position *position)
 {
 	int i;
-	struct core_stream *stream;
-	struct core_dc *core_dc;
+	struct dc  *core_dc;
 	struct resource_context *res_ctx;
-	bool ret = false;
 
-	if (NULL == dc_stream) {
+	if (NULL == stream) {
 		dm_error("DC: dc_stream is NULL!\n");
 		return false;
 	}
@@ -225,42 +255,68 @@ bool dc_stream_set_cursor_position(
 		return false;
 	}
 
-	stream = DC_STREAM_TO_CORE(dc_stream);
-	core_dc = DC_TO_CORE(stream->ctx->dc);
-	res_ctx = &core_dc->current_context->res_ctx;
+	core_dc = stream->ctx->dc;
+	res_ctx = &core_dc->current_state->res_ctx;
 
 	for (i = 0; i < MAX_PIPES; i++) {
 		struct pipe_ctx *pipe_ctx = &res_ctx->pipe_ctx[i];
+		struct input_pixel_processor *ipp = pipe_ctx->plane_res.ipp;
+		struct mem_input *mi = pipe_ctx->plane_res.mi;
+		struct hubp *hubp = pipe_ctx->plane_res.hubp;
+		struct transform *xfm = pipe_ctx->plane_res.xfm;
+		struct dpp *dpp = pipe_ctx->plane_res.dpp;
+		struct dc_cursor_position pos_cpy = *position;
+		struct dc_cursor_mi_param param = {
+			.pixel_clk_khz = stream->timing.pix_clk_khz,
+			.ref_clk_khz = core_dc->res_pool->ref_clock_inKhz,
+			.viewport_x_start = pipe_ctx->plane_res.scl_data.viewport.x,
+			.viewport_width = pipe_ctx->plane_res.scl_data.viewport.width,
+			.h_scale_ratio = pipe_ctx->plane_res.scl_data.ratios.horz
+		};
 
-		if (pipe_ctx->stream == stream &&
-				pipe_ctx->ipp && pipe_ctx->surface) {
-			struct input_pixel_processor *ipp = pipe_ctx->ipp;
-			struct dc_cursor_mi_param param = {
-				.pixel_clk_khz = dc_stream->timing.pix_clk_khz,
-				.ref_clk_khz = 48000,/*todo refclk*/
-				.viewport_x_start = pipe_ctx->scl_data.viewport.x,
-				.viewport_width = pipe_ctx->scl_data.viewport.width,
-				.h_scale_ratio = pipe_ctx->scl_data.ratios.horz,
-			};
+		if (pipe_ctx->stream != stream ||
+				(!pipe_ctx->plane_res.mi  && !pipe_ctx->plane_res.hubp) ||
+				!pipe_ctx->plane_state ||
+				(!pipe_ctx->plane_res.xfm && !pipe_ctx->plane_res.dpp))
+			continue;
 
-			ipp->funcs->ipp_cursor_set_position(ipp, position, &param);
-			ret = true;
-		}
+		if (pipe_ctx->plane_state->address.type
+				== PLN_ADDR_TYPE_VIDEO_PROGRESSIVE)
+			pos_cpy.enable = false;
+
+		if (pipe_ctx->top_pipe && pipe_ctx->plane_state != pipe_ctx->top_pipe->plane_state)
+			pos_cpy.enable = false;
+
+
+		if (ipp != NULL && ipp->funcs->ipp_cursor_set_position != NULL)
+			ipp->funcs->ipp_cursor_set_position(ipp, &pos_cpy, &param);
+
+		if (mi != NULL && mi->funcs->set_cursor_position != NULL)
+			mi->funcs->set_cursor_position(mi, &pos_cpy, &param);
+
+		if (hubp != NULL && hubp->funcs->set_cursor_position != NULL)
+			hubp->funcs->set_cursor_position(hubp, &pos_cpy, &param);
+
+		if (xfm != NULL && xfm->funcs->set_cursor_position != NULL)
+			xfm->funcs->set_cursor_position(xfm, &pos_cpy, &param, hubp->curs_attr.width);
+
+		if (dpp != NULL && dpp->funcs->set_cursor_position != NULL)
+			dpp->funcs->set_cursor_position(dpp, &pos_cpy, &param, hubp->curs_attr.width);
+
 	}
 
-	return ret;
+	return true;
 }
 
-uint32_t dc_stream_get_vblank_counter(const struct dc_stream *dc_stream)
+uint32_t dc_stream_get_vblank_counter(const struct dc_stream_state *stream)
 {
 	uint8_t i;
-	struct core_stream *stream = DC_STREAM_TO_CORE(dc_stream);
-	struct core_dc *core_dc = DC_TO_CORE(stream->ctx->dc);
+	struct dc  *core_dc = stream->ctx->dc;
 	struct resource_context *res_ctx =
-		&core_dc->current_context->res_ctx;
+		&core_dc->current_state->res_ctx;
 
 	for (i = 0; i < MAX_PIPES; i++) {
-		struct timing_generator *tg = res_ctx->pipe_ctx[i].tg;
+		struct timing_generator *tg = res_ctx->pipe_ctx[i].stream_res.tg;
 
 		if (res_ctx->pipe_ctx[i].stream != stream)
 			continue;
@@ -271,66 +327,72 @@ uint32_t dc_stream_get_vblank_counter(const struct dc_stream *dc_stream)
 	return 0;
 }
 
-uint32_t dc_stream_get_scanoutpos(
-		const struct dc_stream *dc_stream,
-		uint32_t *vbl,
-		uint32_t *position)
+bool dc_stream_get_scanoutpos(const struct dc_stream_state *stream,
+				  uint32_t *v_blank_start,
+				  uint32_t *v_blank_end,
+				  uint32_t *h_position,
+				  uint32_t *v_position)
 {
 	uint8_t i;
-	struct core_stream *stream = DC_STREAM_TO_CORE(dc_stream);
-	struct core_dc *core_dc = DC_TO_CORE(stream->ctx->dc);
+	bool ret = false;
+	struct dc  *core_dc = stream->ctx->dc;
 	struct resource_context *res_ctx =
-		&core_dc->current_context->res_ctx;
+		&core_dc->current_state->res_ctx;
 
 	for (i = 0; i < MAX_PIPES; i++) {
-		struct timing_generator *tg = res_ctx->pipe_ctx[i].tg;
+		struct timing_generator *tg = res_ctx->pipe_ctx[i].stream_res.tg;
 
 		if (res_ctx->pipe_ctx[i].stream != stream)
 			continue;
 
-		return tg->funcs->get_scanoutpos(tg, vbl, position);
+		tg->funcs->get_scanoutpos(tg,
+					  v_blank_start,
+					  v_blank_end,
+					  h_position,
+					  v_position);
+
+		ret = true;
+		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 
 void dc_stream_log(
-	const struct dc_stream *stream,
+	const struct dc_stream_state *stream,
 	struct dal_logger *dm_logger,
 	enum dc_log_type log_type)
 {
-	const struct core_stream *core_stream =
-		DC_STREAM_TO_CORE(stream);
 
 	dm_logger_write(dm_logger,
 			log_type,
 			"core_stream 0x%x: src: %d, %d, %d, %d; dst: %d, %d, %d, %d, colorSpace:%d\n",
-			core_stream,
-			core_stream->public.src.x,
-			core_stream->public.src.y,
-			core_stream->public.src.width,
-			core_stream->public.src.height,
-			core_stream->public.dst.x,
-			core_stream->public.dst.y,
-			core_stream->public.dst.width,
-			core_stream->public.dst.height,
-			core_stream->public.output_color_space);
+			stream,
+			stream->src.x,
+			stream->src.y,
+			stream->src.width,
+			stream->src.height,
+			stream->dst.x,
+			stream->dst.y,
+			stream->dst.width,
+			stream->dst.height,
+			stream->output_color_space);
 	dm_logger_write(dm_logger,
 			log_type,
 			"\tpix_clk_khz: %d, h_total: %d, v_total: %d, pixelencoder:%d, displaycolorDepth:%d\n",
-			core_stream->public.timing.pix_clk_khz,
-			core_stream->public.timing.h_total,
-			core_stream->public.timing.v_total,
-			core_stream->public.timing.pixel_encoding,
-			core_stream->public.timing.display_color_depth);
+			stream->timing.pix_clk_khz,
+			stream->timing.h_total,
+			stream->timing.v_total,
+			stream->timing.pixel_encoding,
+			stream->timing.display_color_depth);
 	dm_logger_write(dm_logger,
 			log_type,
 			"\tsink name: %s, serial: %d\n",
-			core_stream->sink->public.edid_caps.display_name,
-			core_stream->sink->public.edid_caps.serial_number);
+			stream->sink->edid_caps.display_name,
+			stream->sink->edid_caps.serial_number);
 	dm_logger_write(dm_logger,
 			log_type,
 			"\tlink: %d\n",
-			core_stream->sink->link->public.link_index);
+			stream->sink->link->link_index);
 }

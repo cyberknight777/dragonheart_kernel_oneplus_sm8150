@@ -25,12 +25,12 @@
 
 #include "dm_services.h"
 #include "dc.h"
-#include "core_dc.h"
 #include "core_types.h"
 #include "dce80_hw_sequencer.h"
 
 #include "dce/dce_hwseq.h"
 #include "dce110/dce110_hw_sequencer.h"
+#include "dce100/dce100_hw_sequencer.h"
 
 /* include DCE8 register header files */
 #include "dce/dce_8_0_d.h"
@@ -71,7 +71,7 @@ static const struct dce80_hw_seq_reg_offsets reg_offsets[] = {
 /***************************PIPE_CONTROL***********************************/
 
 static bool dce80_enable_display_power_gating(
-	struct core_dc *dc,
+	struct dc *dc,
 	uint8_t controller_id,
 	struct dc_bios *dcb,
 	enum pipe_gating_control power_gating)
@@ -106,30 +106,12 @@ static bool dce80_enable_display_power_gating(
 		return false;
 }
 
-static void set_displaymarks(
-		const struct core_dc *dc, struct validate_context *context)
-{
-	/* Do nothing until we have proper bandwitdth calcs */
-}
-
-static void set_bandwidth(
-		struct core_dc *dc,
-		struct validate_context *context,
-		bool decrease_allowed)
-{
-	dc->hwss.set_displaymarks(dc, context);
-}
-
-
-bool dce80_hw_sequencer_construct(struct core_dc *dc)
+void dce80_hw_sequencer_construct(struct dc *dc)
 {
 	dce110_hw_sequencer_construct(dc);
 
 	dc->hwss.enable_display_power_gating = dce80_enable_display_power_gating;
 	dc->hwss.pipe_control_lock = dce_pipe_control_lock;
-	dc->hwss.set_displaymarks = set_displaymarks;
-	dc->hwss.set_bandwidth = set_bandwidth;
-
-	return true;
+	dc->hwss.set_bandwidth = dce100_set_bandwidth;
 }
 

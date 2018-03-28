@@ -28,28 +28,23 @@
 
 struct dc_bios;
 
-/**
- *  These parameters are required as input when doing blanking/Unblanking
-*/
-#define MAX_TG_COLOR_VALUE 0x3FF
-
-struct tg_color {
-	/* Maximum 10 bits color value */
-	uint16_t color_r_cr;
-	uint16_t color_g_y;
-	uint16_t color_b_cb;
-};
-
 /* Contains CRTC vertical/horizontal pixel counters */
 struct crtc_position {
-	uint32_t vertical_count;
-	uint32_t horizontal_count;
-	uint32_t nominal_vcount;
+	int32_t vertical_count;
+	int32_t horizontal_count;
+	int32_t nominal_vcount;
 };
 
 struct dcp_gsl_params {
 	int gsl_group;
 	int gsl_master;
+};
+
+/* define the structure of Dynamic Refresh Mode */
+struct drr_params {
+	uint32_t vertical_total_min;
+	uint32_t vertical_total_max;
+	bool immediate_flip;
 };
 
 #define LEFT_EYE_3D_PRIMARY_SURFACE 1
@@ -97,10 +92,27 @@ enum crtc_state {
 	CRTC_STATE_VACTIVE
 };
 
+struct _dlg_otg_param {
+	int vstartup_start;
+	int vupdate_offset;
+	int vupdate_width;
+	int vready_offset;
+	enum signal_type signal;
+};
+
+struct crtc_stereo_flags {
+	uint8_t PROGRAM_STEREO         : 1;
+	uint8_t PROGRAM_POLARITY       : 1;
+	uint8_t RIGHT_EYE_POLARITY     : 1;
+	uint8_t FRAME_PACKED           : 1;
+	uint8_t DISABLE_STEREO_DP_SYNC : 1;
+};
+
 struct timing_generator {
 	const struct timing_generator_funcs *funcs;
 	struct dc_bios *bp;
 	struct dc_context *ctx;
+	struct _dlg_otg_param dlg_otg_param;
 	int inst;
 };
 
@@ -118,13 +130,15 @@ struct timing_generator_funcs {
 	bool (*disable_crtc)(struct timing_generator *tg);
 	bool (*is_counter_moving)(struct timing_generator *tg);
 	void (*get_position)(struct timing_generator *tg,
-								int32_t *h_position,
-								int32_t *v_position);
+				struct crtc_position *position);
+
 	uint32_t (*get_frame_count)(struct timing_generator *tg);
-	uint32_t (*get_scanoutpos)(
+	void (*get_scanoutpos)(
 		struct timing_generator *tg,
-		uint32_t *vbl,
-		uint32_t *position);
+		uint32_t *v_blank_start,
+		uint32_t *v_blank_end,
+		uint32_t *h_position,
+		uint32_t *v_position);
 	void (*set_early_control)(struct timing_generator *tg,
 							   uint32_t early_cntl);
 	void (*wait_for_state)(struct timing_generator *tg,
@@ -157,6 +171,13 @@ struct timing_generator_funcs {
 		enum controller_dp_test_pattern test_pattern,
 		enum dc_color_depth color_depth);
 
+	bool (*arm_vert_intr)(struct timing_generator *tg, uint8_t width);
+
+	void (*program_global_sync)(struct timing_generator *tg);
+	void (*enable_optc_clock)(struct timing_generator *tg, bool enable);
+	void (*program_stereo)(struct timing_generator *tg,
+		const struct dc_crtc_timing *timing, struct crtc_stereo_flags *flags);
+	bool (*is_stereo_left_eye)(struct timing_generator *tg);
 };
 
 #endif

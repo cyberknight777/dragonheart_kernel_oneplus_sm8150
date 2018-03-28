@@ -31,6 +31,23 @@
 
 #define EDID_SEGMENT_SIZE 256
 
+/* Address range from 0x00 to 0x1F.*/
+#define DP_ADAPTOR_TYPE2_SIZE 0x20
+#define DP_ADAPTOR_TYPE2_REG_ID 0x10
+#define DP_ADAPTOR_TYPE2_REG_MAX_TMDS_CLK 0x1D
+/* Identifies adaptor as Dual-mode adaptor */
+#define DP_ADAPTOR_TYPE2_ID 0xA0
+/* MHz*/
+#define DP_ADAPTOR_TYPE2_MAX_TMDS_CLK 600
+/* MHz*/
+#define DP_ADAPTOR_TYPE2_MIN_TMDS_CLK 25
+/* kHZ*/
+#define DP_ADAPTOR_DVI_MAX_TMDS_CLK 165000
+/* kHZ*/
+#define DP_ADAPTOR_HDMI_SAFE_MAX_TMDS_CLK 165000
+
+#define DDC_I2C_COMMAND_ENGINE I2C_COMMAND_ENGINE_SW
+
 struct ddc_service;
 struct graphics_object_id;
 enum ddc_result;
@@ -39,16 +56,6 @@ struct dp_receiver_id_info;
 
 struct i2c_payloads;
 struct aux_payloads;
-
-struct i2c_payloads *dal_ddc_i2c_payloads_create(struct dc_context *ctx, uint32_t count);
-struct i2c_payload *dal_ddc_i2c_payloads_get(struct i2c_payloads *p);
-uint32_t  dal_ddc_i2c_payloads_get_count(struct i2c_payloads *p);
-void dal_ddc_i2c_payloads_destroy(struct i2c_payloads **p);
-
-struct aux_payloads *dal_ddc_aux_payloads_create(struct dc_context *ctx, uint32_t count);
-struct aux_payload *dal_ddc_aux_payloads_get(struct aux_payloads *p);
-uint32_t dal_ddc_aux_payloads_get_count(struct aux_payloads *p);
-void dal_ddc_aux_payloads_destroy(struct aux_payloads **p);
 
 void dal_ddc_i2c_payloads_add(
 		struct i2c_payloads *payloads,
@@ -67,7 +74,7 @@ void dal_ddc_aux_payloads_add(
 struct ddc_service_init_data {
 	struct graphics_object_id id;
 	struct dc_context *ctx;
-	struct core_link *link;
+	struct dc_link *link;
 };
 
 struct ddc_service *dal_ddc_service_create(
@@ -83,12 +90,6 @@ void dal_ddc_service_set_transaction_type(
 
 bool dal_ddc_service_is_in_aux_transaction_mode(struct ddc_service *ddc);
 
-uint32_t dal_ddc_service_edid_query(struct ddc_service *ddc);
-
-uint32_t dal_ddc_service_get_edid_buf_len(struct ddc_service *ddc);
-
-void dal_ddc_service_get_edid_buf(struct ddc_service *ddc, uint8_t *edid_buf);
-
 void dal_ddc_service_i2c_query_dp_dual_mode_adaptor(
 		struct ddc_service *ddc,
 		struct display_sink_capability *sink_cap);
@@ -101,14 +102,18 @@ bool dal_ddc_service_query_ddc_data(
 		uint8_t *read_buf,
 		uint32_t read_size);
 
-enum ddc_result dal_ddc_service_read_dpcd_data(
+ssize_t dal_ddc_service_read_dpcd_data(
 		struct ddc_service *ddc,
+		bool i2c,
+		enum i2c_mot_mode mot,
 		uint32_t address,
 		uint8_t *data,
 		uint32_t len);
 
 enum ddc_result dal_ddc_service_write_dpcd_data(
 		struct ddc_service *ddc,
+		bool i2c,
+		enum i2c_mot_mode mot,
 		uint32_t address,
 		const uint8_t *data,
 		uint32_t len);
@@ -130,16 +135,7 @@ void dal_ddc_service_set_ddc_pin(
 
 struct ddc *dal_ddc_service_get_ddc_pin(struct ddc_service *ddc_service);
 
-enum ddc_result dal_ddc_service_read_dpcd_data(
-		struct ddc_service *ddc,
-		uint32_t address,
-		uint8_t *data,
-		uint32_t len);
-enum ddc_result dal_ddc_service_write_dpcd_data(
-		struct ddc_service *ddc,
-		uint32_t address,
-		const uint8_t *data,
-		uint32_t len);
+uint32_t get_defer_delay(struct ddc_service *ddc);
 
 #endif /* __DAL_DDC_SERVICE_H__ */
 
