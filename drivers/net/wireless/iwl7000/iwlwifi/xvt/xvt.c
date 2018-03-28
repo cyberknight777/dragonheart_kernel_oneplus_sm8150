@@ -117,6 +117,7 @@ static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
 	HCMD_NAME(TX_CMD),
 	HCMD_NAME(SCD_QUEUE_CFG),
 	HCMD_NAME(FW_PAGING_BLOCK_CMD),
+	HCMD_NAME(BA_NOTIF),
 	HCMD_NAME(PHY_CONFIGURATION_CMD),
 	HCMD_NAME(CALIB_RES_NOTIF_PHY_DB),
 	HCMD_NAME(NVM_ACCESS_CMD),
@@ -125,6 +126,7 @@ static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
 	HCMD_NAME(NVM_COMMIT_COMPLETE_NOTIFICATION),
 	HCMD_NAME(REPLY_RX_PHY_CMD),
 	HCMD_NAME(REPLY_RX_MPDU_CMD),
+	HCMD_NAME(FRAME_RELEASE),
 	HCMD_NAME(REPLY_RX_DSP_EXT_INFO),
 	HCMD_NAME(DTS_MEASUREMENT_NOTIFICATION),
 	HCMD_NAME(REPLY_DEBUG_XVT_CMD),
@@ -135,7 +137,17 @@ static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
  * Access is done through binary search.
  */
 static const struct iwl_hcmd_names iwl_xvt_long_cmd_names[] = {
+	HCMD_NAME(PHY_CONTEXT_CMD),
+	HCMD_NAME(ADD_STA_KEY),
+	HCMD_NAME(ADD_STA),
+	HCMD_NAME(REMOVE_STA),
+	HCMD_NAME(MAC_CONTEXT_CMD),
+	HCMD_NAME(BINDING_CONTEXT_CMD),
+	HCMD_NAME(LQ_CMD),
+	HCMD_NAME(POWER_TABLE_CMD),
 	HCMD_NAME(GET_SET_PHY_DB_CMD),
+	HCMD_NAME(TX_ANT_CONFIGURATION_CMD),
+	HCMD_NAME(REPLY_SF_CFG_CMD),
 };
 
 /* Please keep this array *SORTED* by hex value.
