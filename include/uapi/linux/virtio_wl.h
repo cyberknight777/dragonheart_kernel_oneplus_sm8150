@@ -16,6 +16,9 @@
 #define VIRTWL_MAX_ALLOC 0x800
 #define VIRTWL_PFN_SHIFT 12
 
+/* Enables the transition to new flag semantics */
+#define VIRTIO_WL_F_TRANS_FLAGS 1
+
 struct virtio_wl_config {
 };
 
@@ -28,7 +31,9 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_CMD_VFD_CLOSE, /* virtio_wl_ctrl_vfd */
 	VIRTIO_WL_CMD_VFD_SEND, /* virtio_wl_ctrl_vfd_send + data */
 	VIRTIO_WL_CMD_VFD_RECV, /* virtio_wl_ctrl_vfd_recv + data */
-	VIRTIO_WL_CMD_VFD_NEW_CTX, /* virtio_wl_ctrl_vfd */
+	VIRTIO_WL_CMD_VFD_NEW_CTX, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_CMD_VFD_NEW_PIPE, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_CMD_VFD_HUP, /* virtio_wl_ctrl_vfd */
 
 	VIRTIO_WL_RESP_OK = 0x1000,
 	VIRTIO_WL_RESP_VFD_NEW = 0x1001, /* virtio_wl_ctrl_vfd_new */
@@ -37,6 +42,8 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_RESP_OUT_OF_MEMORY,
 	VIRTIO_WL_RESP_INVALID_ID,
 	VIRTIO_WL_RESP_INVALID_TYPE,
+	VIRTIO_WL_RESP_INVALID_FLAGS,
+	VIRTIO_WL_RESP_INVALID_CMD,
 };
 
 struct virtio_wl_ctrl_hdr {
@@ -45,9 +52,8 @@ struct virtio_wl_ctrl_hdr {
 };
 
 enum virtio_wl_vfd_flags {
-	VIRTIO_WL_VFD_WRITE = 0x1, /* mapped area is writable */
-	VIRTIO_WL_VFD_MAP = 0x2, /* fixed size and mapped into a pfn range */
-	VIRTIO_WL_VFD_CONTROL = 0x4, /* send/recv can transmit VFDs */
+	VIRTIO_WL_VFD_WRITE = 0x1, /* intended to be written by guest */
+	VIRTIO_WL_VFD_READ = 0x2, /* intended to be read by guest */
 };
 
 struct virtio_wl_ctrl_vfd {
