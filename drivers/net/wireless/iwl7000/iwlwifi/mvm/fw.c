@@ -874,19 +874,28 @@ out_free:
 
 int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 {
-	struct iwl_dev_tx_power_cmd cmd = {
-		.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
-	};
+	union {
+		struct iwl_dev_tx_power_cmd v5;
+		struct iwl_dev_tx_power_cmd_v4 v4;
+	} cmd;
 	int i, j, idx;
 	int profs[ACPI_SAR_NUM_CHAIN_LIMITS] = { prof_a, prof_b };
-	int len = sizeof(cmd);
+	int len;
 
 	BUILD_BUG_ON(ACPI_SAR_NUM_CHAIN_LIMITS < 2);
 	BUILD_BUG_ON(ACPI_SAR_NUM_CHAIN_LIMITS * ACPI_SAR_NUM_SUB_BANDS !=
 		     ACPI_SAR_TABLE_SIZE);
 
-	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
-		len = sizeof(cmd.v3);
+	cmd.v5.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS);
+
+	if (fw_has_api(&mvm->fw->ucode_capa,
+		       IWL_UCODE_TLV_API_REDUCE_TX_POWER))
+		len = sizeof(cmd.v5);
+	else if (fw_has_capa(&mvm->fw->ucode_capa,
+			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
+		len = sizeof(cmd.v4);
+	else
+		len = sizeof(cmd.v4.v3);
 
 	for (i = 0; i < ACPI_SAR_NUM_CHAIN_LIMITS; i++) {
 		struct iwl_mvm_sar_profile *prof;
@@ -913,7 +922,7 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 		IWL_DEBUG_RADIO(mvm, "  Chain[%d]:\n", i);
 		for (j = 0; j < ACPI_SAR_NUM_SUB_BANDS; j++) {
 			idx = (i * ACPI_SAR_NUM_SUB_BANDS) + j;
-			cmd.v3.per_chain_restriction[i][j] =
+			cmd.v5.v3.per_chain_restriction[i][j] =
 				cpu_to_le16(prof->table[idx]);
 			IWL_DEBUG_RADIO(mvm, "    Band[%d] = %d * .125dBm\n",
 					j, prof->table[idx]);
@@ -1279,13 +1288,18 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	/* set_mode must be IWL_TX_POWER_MODE_SET_DEVICE if this was
 	 * ever initialized.
 	 */
-	if (le32_to_cpu(mvm->txp_cmd.v3.set_mode) ==
+	if (le32_to_cpu(mvm->txp_cmd.v5.v3.set_mode) ==
 	    IWL_TX_POWER_MODE_SET_DEVICE) {
-		int len = sizeof(mvm->txp_cmd);
+		int len;
 
-		if (!fw_has_capa(&mvm->fw->ucode_capa,
-				 IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
-			len = sizeof(mvm->txp_cmd.v3);
+		if (fw_has_api(&mvm->fw->ucode_capa,
+			       IWL_UCODE_TLV_API_REDUCE_TX_POWER))
+			len = sizeof(mvm->txp_cmd.v5);
+		else if (fw_has_capa(&mvm->fw->ucode_capa,
+				     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
+			len = sizeof(mvm->txp_cmd.v4);
+		else
+			len = sizeof(mvm->txp_cmd.v4.v3);
 
 		if (iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD, 0,
 					 len, &mvm->txp_cmd))
