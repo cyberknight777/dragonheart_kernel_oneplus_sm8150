@@ -114,7 +114,7 @@ static const struct iwl_base_params iwl_22000_base_params = {
 	.pcie_l1_allowed = true,
 };
 
-static const struct iwl_base_params iwl_22650_base_params = {
+static const struct iwl_base_params iwl_22560_base_params = {
 	.eeprom_size = OTP_LOW_IMAGE_SIZE_FAMILY_22000,
 	.num_of_queues = 512,
 	.max_tfd_queue_size = 65536,
@@ -168,10 +168,10 @@ static const struct iwl_ht_params iwl_22000_ht_params = {
 	.base_params = &iwl_22000_base_params,				\
 	.csr = &iwl_csr_v1
 
-#define IWL_DEVICE_22600						\
+#define IWL_DEVICE_22560						\
 	IWL_DEVICE_22000_COMMON,					\
-	.device_family = IWL_DEVICE_FAMILY_22650,			\
-	.base_params = &iwl_22650_base_params,				\
+	.device_family = IWL_DEVICE_FAMILY_22560,			\
+	.base_params = &iwl_22560_base_params,				\
 	.csr = &iwl_csr_v2
 
 const struct iwl_cfg iwl22000_2ac_cfg_hr = {
@@ -265,10 +265,10 @@ const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_a0 = {
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
 };
 
-const struct iwl_cfg iwl22650_2ax_cfg_su_cdb = {
-	.name = "Intel(R) Dual Band Wireless AX 22650",
+const struct iwl_cfg iwl22560_2ax_cfg_su_cdb = {
+	.name = "Intel(R) Dual Band Wireless AX 22560",
 	.fw_name_pre = IWL_22000_SU_Z0_FW_PRE,
-	IWL_DEVICE_22600,
+	IWL_DEVICE_22560,
 	.cdb = true,
 	/*
 	 * This device doesn't support receiving BlockAck with a large bitmap

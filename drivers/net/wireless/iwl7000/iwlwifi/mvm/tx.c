@@ -525,7 +525,7 @@ iwl_mvm_set_tx_params(struct iwl_mvm *mvm, struct sk_buff *skb,
 		}
 
 		if (mvm->trans->cfg->device_family >=
-		    IWL_DEVICE_FAMILY_22650) {
+		    IWL_DEVICE_FAMILY_22560) {
 			struct iwl_tx_cmd_gen3 *cmd = (void *)dev_cmd->payload;
 
 			cmd->offload_assist |= cpu_to_le32(offload_assist);

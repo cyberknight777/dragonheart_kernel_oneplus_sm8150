@@ -1225,7 +1225,7 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 	int bin_len = count / 2;
 	int ret = -EINVAL;
 	size_t mpdu_cmd_hdr_size =
-		(mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) ?
+		(mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
 		sizeof(struct iwl_rx_mpdu_desc) :
 		IWL_RX_DESC_SIZE_V1;
 

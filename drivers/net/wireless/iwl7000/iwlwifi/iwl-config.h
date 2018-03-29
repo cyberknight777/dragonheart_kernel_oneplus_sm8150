@@ -93,7 +93,7 @@ enum iwl_device_family {
 	IWL_DEVICE_FAMILY_8000,
 	IWL_DEVICE_FAMILY_9000,
 	IWL_DEVICE_FAMILY_22000,
-	IWL_DEVICE_FAMILY_22650,
+	IWL_DEVICE_FAMILY_22560,
 };
 
 /*
@@ -534,7 +534,7 @@ extern const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_b0_f0;
 extern const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_b0;
 extern const struct iwl_cfg iwl22000_2ax_cfg_qnj_jf_b0;
 extern const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_a0;
-extern const struct iwl_cfg iwl22650_2ax_cfg_su_cdb;
+extern const struct iwl_cfg iwl22560_2ax_cfg_su_cdb;
 #endif /* CPTCFG_IWLMVM */
 
 #endif /* __IWL_CONFIG_H__ */

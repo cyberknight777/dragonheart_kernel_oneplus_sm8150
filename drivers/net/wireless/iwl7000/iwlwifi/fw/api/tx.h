@@ -323,7 +323,7 @@ struct iwl_tx_cmd_gen2 {
 } __packed; /* TX_CMD_API_S_VER_7 */
 
 /**
- * struct iwl_tx_cmd_gen3 - TX command struct to FW for 22650 devices
+ * struct iwl_tx_cmd_gen3 - TX command struct to FW for 22560 devices
  * ( TX_CMD = 0x1c )
  * @len: in bytes of the payload, see below for details
  * @flags: combination of &enum iwl_tx_cmd_flags

@@ -927,7 +927,7 @@ static int iwl_pcie_tx_alloc(struct iwl_trans *trans)
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	u16 bc_tbls_size = trans->cfg->base_params->num_of_queues;
 
-	bc_tbls_size *= (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) ?
+	bc_tbls_size *= (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
 		sizeof(struct iwl_gen3_bc_tbl) :
 		sizeof(struct iwlagn_scd_bc_tbl);
 

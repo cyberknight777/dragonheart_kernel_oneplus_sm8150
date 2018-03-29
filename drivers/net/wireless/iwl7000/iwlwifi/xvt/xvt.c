@@ -272,7 +272,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
 
 	trans->rx_mpdu_cmd_hdr_size =
-		(trans->cfg->device_family >= IWL_DEVICE_FAMILY_22650) ?
+		(trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
 		sizeof(struct iwl_rx_mpdu_desc) :
 		sizeof(struct iwl_rx_mpdu_desc_v1);
 
