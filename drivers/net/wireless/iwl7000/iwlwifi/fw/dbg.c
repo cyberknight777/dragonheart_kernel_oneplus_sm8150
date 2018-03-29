@@ -764,7 +764,7 @@ void iwl_fw_error_dump(struct iwl_fw_runtime *fwrt)
 
 	if (fwrt->fw->dbg_dump_mask & BIT(IWL_FW_ERROR_DUMP_MEM) &&
 	    !fwrt->fw->n_dbg_mem_tlv)
-		file_len += sram_len + sizeof(*dump_mem);
+		file_len += sizeof(*dump_data) + sram_len + sizeof(*dump_mem);
 
 	dump_file = vzalloc(file_len);
 	if (!dump_file) {
