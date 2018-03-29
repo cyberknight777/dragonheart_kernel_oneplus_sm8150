@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -16,11 +17,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -33,6 +29,7 @@
  *
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,6 +64,7 @@
 
 #include <linux/types.h>
 
+#include "fw/testmode.h"
 
 struct iwl_test_trace {
 	u32 size;
@@ -100,22 +98,6 @@ struct iwl_tm_gnl_dev {
 	u32 nl_events_portid;
 };
 
-/**
- * iwl_tm_data - A data packet for testmode usages
- * @data:   Pointer to be casted to relevant data type
- *          (According to usage)
- * @len:    Size of data in bytes
- *
- * This data structure is used for sending/receiving data packets
- * between internal testmode interfaces
- */
-struct iwl_tm_data {
-	void *data;
-	u32 len;
-};
-
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-
 int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 			void *data_out, u32 data_len, gfp_t flags);
 
@@ -124,38 +106,5 @@ void iwl_tm_gnl_remove(struct iwl_trans *trans);
 
 int iwl_tm_gnl_init(void);
 int iwl_tm_gnl_exit(void);
-
-#else
-
-static inline int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd,
-				      bool check_notify, void *data_out,
-				      u32 data_len, gfp_t flags)
-{
-	return 0;
-}
-
-static inline void iwl_tm_gnl_add(struct iwl_trans *trans)
-{
-}
-
-static inline void iwl_tm_gnl_remove(struct iwl_trans *trans)
-{
-}
-
-static inline int iwl_tm_gnl_init(void)
-{
-	return 0;
-}
-
-static inline int iwl_tm_gnl_exit(void)
-{
-	return 0;
-}
-
-#endif
-
-#define ADDR_IN_AL_MSK (0x80000000)
-#define GET_AL_ADDR(ofs) (ofs & ~(ADDR_IN_AL_MSK))
-#define IS_AL_ADDR(ofs) (!!(ofs & (ADDR_IN_AL_MSK)))
-
+void iwl_tm_gnl_send_rx(struct iwl_trans *trans, struct iwl_rx_cmd_buffer *rxb);
 #endif

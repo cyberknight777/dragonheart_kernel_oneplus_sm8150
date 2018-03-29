@@ -85,6 +85,7 @@
 #include "iwl-nvm-parse.h"
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
+#include "fw/testmode.h"
 #endif
 
 #define MVM_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
@@ -279,8 +280,8 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 	alive_data->valid = status == IWL_ALIVE_STATUS_OK;
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-	mvm->fw_major_ver = le32_to_cpu(lmac1->ucode_major);
-	mvm->fw_minor_ver = le32_to_cpu(lmac1->ucode_minor);
+	iwl_tm_set_fw_ver(mvm->trans, le32_to_cpu(lmac1->ucode_major),
+			  le32_to_cpu(lmac1->ucode_minor));
 #endif
 	IWL_DEBUG_FW(mvm,
 		     "Alive ucode status 0x%04x revision 0x%01X 0x%01X\n",

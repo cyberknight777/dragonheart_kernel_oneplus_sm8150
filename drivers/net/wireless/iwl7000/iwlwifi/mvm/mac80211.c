@@ -85,7 +85,6 @@
 #include "time-event.h"
 #include "iwl-eeprom-parse.h"
 #include "iwl-phy-db.h"
-#include "testmode.h"
 #include "iwl-vendor-cmd.h"
 #include "fw/error-dump.h"
 #include "iwl-prph.h"
@@ -93,6 +92,9 @@
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
+#endif
+#ifdef CPTCFG_NL80211_TESTMODE
+#include "fw/testmode.h"
 #endif
 #include "tof.h"
 #include "fw/api/nan.h"
@@ -4151,36 +4153,36 @@ static int iwl_mvm_set_tim(struct ieee80211_hw *hw,
 }
 
 #ifdef CPTCFG_NL80211_TESTMODE
-static const struct nla_policy iwl_mvm_tm_policy[IWL_MVM_TM_ATTR_MAX + 1] = {
-	[IWL_MVM_TM_ATTR_CMD] = { .type = NLA_U32 },
-	[IWL_MVM_TM_ATTR_NOA_DURATION] = { .type = NLA_U32 },
-	[IWL_MVM_TM_ATTR_BEACON_FILTER_STATE] = { .type = NLA_U32 },
+static const struct nla_policy iwl_mvm_tm_policy[IWL_TM_ATTR_MAX + 1] = {
+	[IWL_TM_ATTR_CMD] = { .type = NLA_U32 },
+	[IWL_TM_ATTR_NOA_DURATION] = { .type = NLA_U32 },
+	[IWL_TM_ATTR_BEACON_FILTER_STATE] = { .type = NLA_U32 },
 };
 
 static int __iwl_mvm_mac_testmode_cmd(struct iwl_mvm *mvm,
 				      struct ieee80211_vif *vif,
 				      void *data, int len)
 {
-	struct nlattr *tb[IWL_MVM_TM_ATTR_MAX + 1];
+	struct nlattr *tb[IWL_TM_ATTR_MAX + 1];
 	int err;
 	u32 noa_duration;
 
-	err = nla_parse(tb, IWL_MVM_TM_ATTR_MAX, data, len, iwl_mvm_tm_policy,
+	err = nla_parse(tb, IWL_TM_ATTR_MAX, data, len, iwl_mvm_tm_policy,
 			NULL);
 	if (err)
 		return err;
 
-	if (!tb[IWL_MVM_TM_ATTR_CMD])
+	if (!tb[IWL_TM_ATTR_CMD])
 		return -EINVAL;
 
-	switch (nla_get_u32(tb[IWL_MVM_TM_ATTR_CMD])) {
-	case IWL_MVM_TM_CMD_SET_NOA:
+	switch (nla_get_u32(tb[IWL_TM_ATTR_CMD])) {
+	case IWL_TM_CMD_SET_NOA:
 		if (!vif || vif->type != NL80211_IFTYPE_AP || !vif->p2p ||
 		    !vif->bss_conf.enable_beacon ||
-		    !tb[IWL_MVM_TM_ATTR_NOA_DURATION])
+		    !tb[IWL_TM_ATTR_NOA_DURATION])
 			return -EINVAL;
 
-		noa_duration = nla_get_u32(tb[IWL_MVM_TM_ATTR_NOA_DURATION]);
+		noa_duration = nla_get_u32(tb[IWL_TM_ATTR_NOA_DURATION]);
 		if (noa_duration >= vif->bss_conf.beacon_int)
 			return -EINVAL;
 
@@ -4193,14 +4195,14 @@ static int __iwl_mvm_mac_testmode_cmd(struct iwl_mvm *mvm,
 		}
 
 		return iwl_mvm_update_quotas(mvm, true, NULL);
-	case IWL_MVM_TM_CMD_SET_BEACON_FILTER:
+	case IWL_TM_CMD_SET_BEACON_FILTER:
 		/* must be associated client vif - ignore authorized */
 		if (!vif || vif->type != NL80211_IFTYPE_STATION ||
 		    !vif->bss_conf.assoc || !vif->bss_conf.dtim_period ||
-		    !tb[IWL_MVM_TM_ATTR_BEACON_FILTER_STATE])
+		    !tb[IWL_TM_ATTR_BEACON_FILTER_STATE])
 			return -EINVAL;
 
-		if (nla_get_u32(tb[IWL_MVM_TM_ATTR_BEACON_FILTER_STATE]))
+		if (nla_get_u32(tb[IWL_TM_ATTR_BEACON_FILTER_STATE]))
 			return iwl_mvm_enable_beacon_filter(mvm, vif, 0);
 		return iwl_mvm_disable_beacon_filter(mvm, vif, 0);
 	}

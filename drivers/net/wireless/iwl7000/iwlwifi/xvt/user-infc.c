@@ -85,7 +85,6 @@
 #include "iwl-phy-db.h"
 #include "xvt.h"
 #include "user-infc.h"
-#include "iwl-tm-gnl.h"
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
 #include "iwl-trans.h"
@@ -211,125 +210,6 @@ static int iwl_xvt_sdio_io_toggle(struct iwl_xvt *xvt,
 	return iwl_trans_test_mode_cmd(xvt->trans, sdio_io_toggle->enable);
 }
 
-static int iwl_xvt_send_hcmd(struct iwl_xvt *xvt,
-			     struct iwl_tm_data *data_in,
-			     struct iwl_tm_data *data_out)
-{
-	struct iwl_tm_cmd_request *hcmd_req = data_in->data;
-	struct iwl_tm_cmd_request *cmd_resp;
-	u32 reply_len, resp_size;
-	struct iwl_rx_packet *pkt;
-	struct iwl_host_cmd host_cmd = {
-		.id = hcmd_req->id,
-		.data[0] = hcmd_req->data,
-		.len[0] = hcmd_req->len,
-		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
-	};
-	int ret;
-
-	if (hcmd_req->want_resp)
-		host_cmd.flags |= CMD_WANT_SKB;
-
-	ret = iwl_xvt_send_cmd(xvt, &host_cmd);
-	if (ret)
-		return ret;
-	/* if no reply is required, we are done */
-	if (!(host_cmd.flags & CMD_WANT_SKB))
-		return 0;
-
-	/* Retrieve response packet */
-	pkt = host_cmd.resp_pkt;
-	reply_len = iwl_rx_packet_len(pkt);
-
-	/* Set response data */
-	resp_size = sizeof(struct iwl_tm_cmd_request) + reply_len;
-	cmd_resp = kzalloc(resp_size, GFP_KERNEL);
-	if (!cmd_resp) {
-		iwl_free_resp(&host_cmd);
-		return -ENOMEM;
-	}
-	cmd_resp->id = hcmd_req->id;
-	cmd_resp->len = reply_len;
-	memcpy(cmd_resp->data, &(pkt->hdr), reply_len);
-
-	iwl_free_resp(&host_cmd);
-
-	data_out->data = cmd_resp;
-	data_out->len = resp_size;
-
-	return 0;
-}
-
-static void iwl_xvt_execute_reg_ops(struct iwl_trans *trans,
-				    struct iwl_tm_regs_request *request,
-				    struct iwl_tm_regs_request *result)
-{
-	struct iwl_tm_reg_op *cur_op;
-	u32 idx, read_idx;
-	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
-		cur_op = &request->reg_ops[idx];
-
-		if  (cur_op->op_type == IWL_TM_REG_OP_READ) {
-			cur_op->value = iwl_read32(trans, cur_op->address);
-			memcpy(&result->reg_ops[read_idx], cur_op,
-			       sizeof(*cur_op));
-			read_idx++;
-		} else {
-			/* IWL_TM_REG_OP_WRITE is the only possible option */
-			iwl_write32(trans, cur_op->address, cur_op->value);
-		}
-	}
-}
-
-static int iwl_xvt_reg_ops(struct iwl_trans *trans,
-			   struct iwl_tm_data *data_in,
-			   struct iwl_tm_data *data_out)
-{
-	struct iwl_tm_reg_op *cur_op;
-	struct iwl_tm_regs_request *request = data_in->data;
-	struct iwl_tm_regs_request *result;
-	u32 result_size;
-	u32 idx, read_idx;
-	bool is_grab_nic_access_required = true;
-	unsigned long flags;
-
-	/* Calculate result size (result is returned only for read ops) */
-	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
-		if (request->reg_ops[idx].op_type == IWL_TM_REG_OP_READ)
-			read_idx++;
-		/* check if there is an operation that it is not */
-		/* in the CSR range (0x00000000 - 0x000003FF)    */
-		/* and not in the AL range			 */
-		cur_op = &request->reg_ops[idx];
-
-		if (IS_AL_ADDR(cur_op->address) ||
-		    (cur_op->address < HBUS_BASE))
-			is_grab_nic_access_required = false;
-	}
-	result_size = sizeof(struct iwl_tm_regs_request) +
-		      read_idx*sizeof(struct iwl_tm_reg_op);
-
-	result = kzalloc(result_size, GFP_KERNEL);
-	if (!result)
-		return -ENOMEM;
-	result->num = read_idx;
-	if (is_grab_nic_access_required) {
-		if (!iwl_trans_grab_nic_access(trans, &flags)) {
-			kfree(result);
-			return -EBUSY;
-		}
-		iwl_xvt_execute_reg_ops(trans, request, result);
-		iwl_trans_release_nic_access(trans, &flags);
-	} else {
-		iwl_xvt_execute_reg_ops(trans, request, result);
-	}
-
-	data_out->data = result;
-	data_out->len = result_size;
-
-	return 0;
-}
-
 /**
  * iwl_xvt_read_sv_drop - read SV drop version
  * @xvt: xvt data
@@ -419,84 +299,6 @@ static int iwl_xvt_get_dev_info(struct iwl_xvt *xvt,
 
 	data_out->data = dev_info;
 	data_out->len = dev_info_size;
-
-	return 0;
-}
-
-static int iwl_xvt_indirect_read(struct iwl_xvt *xvt,
-				 struct iwl_tm_data *data_in,
-				 struct iwl_tm_data *data_out)
-{
-	struct iwl_trans *trans = xvt->trans;
-	struct iwl_tm_sram_read_request *cmd_in = data_in->data;
-	u32 addr = cmd_in->offset;
-	u32 size = cmd_in->length;
-	u32 *buf32, size32, i;
-	unsigned long flags;
-
-	if (size & (sizeof(u32)-1))
-		return -EINVAL;
-
-	data_out->data = kmalloc(size, GFP_KERNEL);
-	if (!data_out->data)
-		return -ENOMEM;
-
-	data_out->len = size;
-
-	size32 = size / sizeof(u32);
-	buf32 = data_out->data;
-
-	/* Hard-coded periphery absolute address */
-	if (IWL_ABS_PRPH_START <= addr &&
-	    addr < IWL_ABS_PRPH_START + PRPH_END) {
-		if (!iwl_trans_grab_nic_access(trans, &flags))
-			return -EBUSY;
-		for (i = 0; i < size32; i++)
-			buf32[i] = iwl_trans_read_prph(trans,
-						       addr + i * sizeof(u32));
-		iwl_trans_release_nic_access(trans, &flags);
-	} else {
-		/* target memory (SRAM) */
-		iwl_trans_read_mem(trans, addr, buf32, size32);
-	}
-
-	return 0;
-}
-
-static int iwl_xvt_indirect_write(struct iwl_xvt *xvt,
-				  struct iwl_tm_data *data_in)
-{
-	struct iwl_trans *trans = xvt->trans;
-	struct iwl_tm_sram_write_request *cmd_in = data_in->data;
-	u32 addr = cmd_in->offset;
-	u32 size = cmd_in->len;
-	u8 *buf = cmd_in->buffer;
-	u32 *buf32 = (u32 *)buf, size32 = size / sizeof(u32);
-	unsigned long flags;
-	u32 val, i;
-
-	if (IWL_ABS_PRPH_START <= addr &&
-	    addr < IWL_ABS_PRPH_START + PRPH_END) {
-		/* Periphery writes can be 1-3 bytes long, or DWORDs */
-		if (size < 4) {
-			memcpy(&val, buf, size);
-			if (!iwl_trans_grab_nic_access(trans, &flags))
-				return -EBUSY;
-			iwl_write32(trans, HBUS_TARG_PRPH_WADDR,
-				    (addr & 0x0000FFFF) | ((size - 1) << 24));
-			iwl_write32(trans, HBUS_TARG_PRPH_WDAT, val);
-			iwl_trans_release_nic_access(trans, &flags);
-		} else {
-			if (size % sizeof(u32))
-				return -EINVAL;
-
-			for (i = 0; i < size32; i++)
-				iwl_write_prph(trans, addr + i*sizeof(u32),
-					       buf32[i]);
-		}
-	} else {
-		iwl_trans_write_mem(trans, addr, buf32, size32);
-	}
 
 	return 0;
 }
@@ -1927,47 +1729,6 @@ static int iwl_xvt_get_chip_id(struct iwl_xvt *xvt,
 	return 0;
 }
 
-static int iwl_xvt_get_fw_info(struct iwl_xvt *xvt,
-			       struct iwl_tm_data *data_out)
-{
-	struct iwl_tm_get_fw_info *fw_info;
-	u32 api_len, capa_len;
-	u32 *bitmap;
-	int i;
-
-	api_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_API, 32);
-	capa_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_CAPA, 32);
-
-	fw_info = kzalloc(sizeof(*fw_info) + api_len + capa_len, GFP_KERNEL);
-	if (!fw_info)
-		return -ENOMEM;
-
-	fw_info->fw_major_ver = xvt->fw_major_ver;
-	fw_info->fw_minor_ver = xvt->fw_minor_ver;
-	fw_info->fw_capa_api_len = api_len;
-	fw_info->fw_capa_flags = xvt->fw->ucode_capa.flags;
-	fw_info->fw_capa_len = capa_len;
-
-	bitmap = (u32 *)fw_info->data;
-	for (i = 0; i < NUM_IWL_UCODE_TLV_API; i++) {
-		if (fw_has_api(&xvt->fw->ucode_capa,
-			       (__force iwl_ucode_tlv_api_t)i))
-			bitmap[i / 32] |= BIT(i % 32);
-	}
-
-	bitmap = (u32 *)(fw_info->data + api_len);
-	for (i = 0; i < NUM_IWL_UCODE_TLV_CAPA; i++) {
-		if (fw_has_capa(&xvt->fw->ucode_capa,
-				(__force iwl_ucode_tlv_capa_t)i))
-			bitmap[i / 32] |= BIT(i % 32);
-	}
-
-	data_out->data = fw_info;
-	data_out->len = sizeof(*fw_info) + api_len + capa_len;
-
-	return 0;
-}
-
 static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_out)
 {
@@ -2238,14 +1999,15 @@ out_free:
 	return err;
 }
 
-int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
+int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 			     struct iwl_tm_data *data_in,
-			     struct iwl_tm_data *data_out)
+			     struct iwl_tm_data *data_out, bool *supported_cmd)
 {
-	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+	struct iwl_xvt *xvt = testmode->op_mode;
 	int ret = 0;
 
-	if (WARN_ON_ONCE(!op_mode || !data_in))
+	*supported_cmd = true;
+	if (WARN_ON_ONCE(!xvt || !data_in))
 		return -EINVAL;
 
 	IWL_DEBUG_INFO(xvt, "%s cmd=0x%X\n", __func__, cmd);
@@ -2253,23 +2015,7 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	switch (cmd) {
 
-	/* Tesmode cases */
-
-	case IWL_TM_USER_CMD_HCMD:
-		ret = iwl_xvt_send_hcmd(xvt, data_in, data_out);
-		break;
-
-	case IWL_TM_USER_CMD_REG_ACCESS:
-		ret = iwl_xvt_reg_ops(xvt->trans, data_in, data_out);
-		break;
-
-	case IWL_TM_USER_CMD_SRAM_WRITE:
-		ret = iwl_xvt_indirect_write(xvt, data_in);
-		break;
-
-	case IWL_TM_USER_CMD_SRAM_READ:
-		ret = iwl_xvt_indirect_read(xvt, data_in, data_out);
-		break;
+	/* Testmode custom cases */
 
 	case IWL_TM_USER_CMD_GET_DEVICE_INFO:
 		ret = iwl_xvt_get_dev_info(xvt, data_in, data_out);
@@ -2277,9 +2023,6 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	case IWL_TM_USER_CMD_SV_IO_TOGGLE:
 		ret = iwl_xvt_sdio_io_toggle(xvt, data_in, data_out);
-		break;
-	case IWL_TM_USER_CMD_GET_FW_INFO:
-		ret = iwl_xvt_get_fw_info(xvt, data_out);
 		break;
 
 	/* xVT cases */
@@ -2351,6 +2094,7 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 		break;
 
 	default:
+		*supported_cmd = false;
 		ret = -EOPNOTSUPP;
 		break;
 	}

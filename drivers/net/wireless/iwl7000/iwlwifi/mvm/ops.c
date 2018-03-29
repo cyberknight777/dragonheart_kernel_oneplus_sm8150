@@ -85,7 +85,6 @@
 #include "iwl-prph.h"
 #include "rs.h"
 #include "fw/api/scan.h"
-#include "iwl-tm-gnl.h"
 #include "time-event.h"
 #include "fw-api.h"
 #include "fw/api/scan.h"
@@ -95,6 +94,7 @@
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
+#include "iwl-tm-gnl.h"
 #endif
 
 #define DRV_DESCRIPTION	"The new Intel(R) wireless AGN driver for Linux"
@@ -673,6 +673,32 @@ static const struct iwl_fw_runtime_ops iwl_mvm_fwrt_ops = {
 	.fw_running = iwl_mvm_fwrt_fw_running,
 };
 
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+static int iwl_mvm_tm_send_hcmd(void *op_mode, struct iwl_host_cmd *host_cmd)
+{
+	struct iwl_mvm *mvm = (struct iwl_mvm *)op_mode;
+
+	if (WARN_ON_ONCE(!op_mode))
+		return -EINVAL;
+
+	return iwl_mvm_send_cmd(mvm, host_cmd);
+}
+
+static int iwl_mvm_tm_cmd_exec_start(struct iwl_testmode *testmode)
+{
+	struct iwl_mvm *mvm = testmode->op_mode;
+
+	return iwl_mvm_ref_sync(mvm, IWL_MVM_REF_TM_CMD);
+}
+
+static void iwl_mvm_tm_cmd_exec_end(struct iwl_testmode *testmode)
+{
+	struct iwl_mvm *mvm = testmode->op_mode;
+
+	iwl_mvm_unref(mvm, IWL_MVM_REF_TM_CMD);
+}
+#endif
+
 static struct iwl_op_mode *
 iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		      const struct iwl_fw *fw, struct dentry *dbgfs_dir)
@@ -871,6 +897,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	iwl_dnt_init(mvm->trans, dbgfs_dir);
+	iwl_tm_init(trans, mvm->fw, &mvm->mutex, mvm);
 #endif
 
 	/* Init phy db */
@@ -1173,7 +1200,7 @@ static void iwl_mvm_rx(struct iwl_op_mode *op_mode,
 	 * In this case the iwl_test object will handle forwarding the rx
 	 * data to user space.
 	 */
-	iwl_tm_mvm_send_rx(mvm, rxb);
+	iwl_tm_gnl_send_rx(mvm->trans, rxb);
 #endif
 
 	if (likely(cmd == WIDE_ID(LEGACY_GROUP, REPLY_RX_MPDU_CMD)))
@@ -1199,7 +1226,7 @@ static void iwl_mvm_rx_mq(struct iwl_op_mode *op_mode,
 	 * In this case the iwl_test object will handle forwarding the rx
 	 * data to user space.
 	 */
-	iwl_tm_mvm_send_rx(mvm, rxb);
+	iwl_tm_gnl_send_rx(mvm->trans, rxb);
 #endif
 
 	if (likely(cmd == WIDE_ID(LEGACY_GROUP, REPLY_RX_MPDU_CMD)))
@@ -1861,9 +1888,9 @@ int iwl_mvm_exit_d0i3(struct iwl_op_mode *op_mode)
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #define IWL_MVM_COMMON_TEST_OPS					\
 	.test_ops = {						\
-		.cmd_execute = iwl_mvm_tm_cmd_execute,		\
-		.valid_hw_addr = iwl_mvm_testmode_valid_hw_addr,\
-		.get_fw_ver = iwl_mvm_testmode_get_fw_ver,	\
+		.send_hcmd = iwl_mvm_tm_send_hcmd,		\
+		.cmd_exec_start = iwl_mvm_tm_cmd_exec_start,	\
+		.cmd_exec_end = iwl_mvm_tm_cmd_exec_end,	\
 	},
 #else
 #define IWL_MVM_COMMON_TEST_OPS

@@ -203,6 +203,16 @@ static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[XVT_GROUP] = HCMD_ARR(iwl_xvt_xvt_names),
 };
 
+static int iwl_xvt_tm_send_hcmd(void *op_mode, struct iwl_host_cmd *host_cmd)
+{
+	struct iwl_xvt *xvt = (struct iwl_xvt *)op_mode;
+
+	if (WARN_ON_ONCE(!op_mode))
+		return -EINVAL;
+
+	return iwl_xvt_send_cmd(xvt, host_cmd);
+}
+
 static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 					 const struct iwl_cfg *cfg,
 					 const struct iwl_fw *fw,
@@ -284,6 +294,8 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	/* set up notification wait support */
 	iwl_notification_wait_init(&xvt->notif_wait);
+
+	iwl_tm_init(trans, xvt->fw, &xvt->mutex, xvt);
 
 	/* Init phy db */
 	xvt->phy_db = iwl_phy_db_init(xvt->trans);
@@ -683,12 +695,6 @@ static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 	return false;
 }
 
-static bool iwl_xvt_valid_hw_addr(u32 addr)
-{
-	/* TODO need to implement */
-	return true;
-}
-
 static void iwl_xvt_free_skb(struct iwl_op_mode *op_mode, struct sk_buff *skb)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
@@ -746,8 +752,8 @@ static const struct iwl_op_mode_ops iwl_xvt_ops = {
 	.queue_full = iwl_xvt_stop_sw_queue,
 	.queue_not_full = iwl_xvt_wake_sw_queue,
 	.test_ops = {
-		.cmd_execute = iwl_xvt_user_cmd_execute,
-		.valid_hw_addr = iwl_xvt_valid_hw_addr,
+		.send_hcmd = iwl_xvt_tm_send_hcmd,
+		.cmd_exec = iwl_xvt_user_cmd_execute,
 	},
 };
 

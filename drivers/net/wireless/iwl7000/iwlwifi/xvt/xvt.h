@@ -383,8 +383,6 @@ struct iwl_xvt {
 
 	u32 error_event_table[2];
 	bool fw_running;
-	u32 fw_major_ver;
-	u32 fw_minor_ver;
 	u32 umac_error_event_table;
 	bool support_umac_log;
 
@@ -447,9 +445,9 @@ void iwl_xvt_dump_umac_error_log(struct iwl_xvt *xvt,
 				 struct iwl_umac_error_event_table *table);
 
 /* User interface */
-int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
+int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 			     struct iwl_tm_data *data_in,
-			     struct iwl_tm_data *data_out);
+			     struct iwl_tm_data *data_out, bool *supported_cmd);
 
 /* FW */
 int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type,  bool cont_run);

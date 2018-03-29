@@ -1144,10 +1144,6 @@ struct iwl_mvm {
 	 */
 	struct iwl_mvm_vif *p2p_opps_test_wa_vif;
 #endif
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-	u32 fw_major_ver;
-	u32 fw_minor_ver;
-#endif
 
 	u32 ciphers[IWL_MVM_NUM_CIPHERS];
 	struct ieee80211_cipher_scheme cs[IWL_UCODE_MAX_CS];
@@ -1764,23 +1760,6 @@ iwl_mvm_vif_dbgfs_clean(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 {
 }
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
-
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd_idx,
-			   struct iwl_tm_data *data_in,
-			   struct iwl_tm_data *data_out);
-
-void iwl_tm_mvm_send_rx(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
-
-bool iwl_mvm_testmode_valid_hw_addr(u32 addr);
-u32 iwl_mvm_testmode_get_fw_ver(struct iwl_op_mode *op_mode);
-struct sk_buff *iwl_mvm_testmode_alloc_reply(struct iwl_op_mode *op_mode,
-					     int len);
-int iwl_mvm_testmode_reply(struct iwl_op_mode *op_mode, struct sk_buff *skb);
-struct sk_buff *iwl_mvm_testmode_alloc_event(struct iwl_op_mode *op_mode,
-					     int len);
-void iwl_mvm_testmode_event(struct iwl_op_mode *op_mode, struct sk_buff *skb);
-#endif
 
 /* rate scaling */
 int iwl_mvm_send_lq_cmd(struct iwl_mvm *mvm, struct iwl_lq_cmd *lq, bool sync);

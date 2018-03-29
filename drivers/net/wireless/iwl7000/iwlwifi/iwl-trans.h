@@ -83,6 +83,9 @@
 #endif
 #include "fw/api/cmdhdr.h"
 #include "fw/api/txq.h"
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+#include "fw/testmode.h"
+#endif
 
 /**
  * DOC: Transport layer - what is it ?
@@ -793,6 +796,10 @@ struct iwl_trans {
 	enum iwl_plat_pm_mode system_pm_mode;
 	enum iwl_plat_pm_mode runtime_pm_mode;
 	bool suspending;
+
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	struct iwl_testmode testmode;
+#endif
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */

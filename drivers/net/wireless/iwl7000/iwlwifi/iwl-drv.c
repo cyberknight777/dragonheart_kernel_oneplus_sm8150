@@ -79,11 +79,13 @@
 #include "iwl-op-mode.h"
 #include "iwl-agn-hw.h"
 #include "fw/img.h"
-#include "iwl-tm-gnl.h"
 #include "iwl-config.h"
 #include "iwl-modparams.h"
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 #include "iwl-dbg-cfg.h"
+#endif
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+#include "iwl-tm-gnl.h"
 #endif
 
 /******************************************************************************
