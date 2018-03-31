@@ -16,6 +16,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/iio/buffer.h>
+#include <linux/iio/common/cros_ec_sensors_core.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/kfifo_buf.h>
 #include <linux/iio/trigger_consumer.h>
@@ -26,8 +27,6 @@
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/platform_device.h>
-
-#include "cros_ec_sensors_core.h"
 
 /*
  * Hard coded to the first device to support sensor fifo.  The EC has a 2048
@@ -112,14 +111,14 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 {
 	struct device *dev = &pdev->dev;
 	struct cros_ec_sensors_core_state *state = iio_priv(indio_dev);
-	struct cros_ec_device *ec_dev = dev_get_drvdata(pdev->dev.parent);
+	struct cros_ec_dev *ec = dev_get_drvdata(pdev->dev.parent);
 	struct cros_ec_sensor_platform *sensor_platform = dev_get_platdata(dev);
 	u32 ver_mask = 0;
 	int ret = 0;
 
 	platform_set_drvdata(pdev, indio_dev);
 
-	state->ec = ec_dev;
+	state->ec = ec->ec_dev;
 	state->indio_dev = indio_dev;
 	state->msg = devm_kzalloc(&pdev->dev,
 				max((u16)sizeof(struct ec_params_motion_sense),
@@ -132,8 +131,8 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 	mutex_init(&state->cmd_lock);
 
 	/* determine what version of MOTIONSENSE CMD EC has */
-	ret = cros_ec_get_host_cmd_version_mask(ec_dev,
-						sensor_platform->cmd_offset,
+	ret = cros_ec_get_host_cmd_version_mask(state->ec,
+						ec->cmd_offset,
 						EC_CMD_MOTION_SENSE_CMD,
 						&ver_mask);
 	if (ret < 0 || ver_mask == 0) {
@@ -143,8 +142,7 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 
 	/* Set up the host command structure. */
 	state->msg->version = fls(ver_mask) - 1;
-	state->msg->command = EC_CMD_MOTION_SENSE_CMD +
-				sensor_platform->cmd_offset;
+	state->msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
 	state->msg->outsize = sizeof(struct ec_params_motion_sense);
 
 	indio_dev->dev.parent = &pdev->dev;
@@ -647,7 +645,7 @@ static int __maybe_unused cros_ec_sensors_prepare(struct device *dev)
 
 	/*
 	 * If the sensors are sampled at high frequency, we will not be able to
-	 * sleep. Set to sampling to a long period if necessary.
+	 * sleep. Set sampling to a long period if necessary.
 	 */
 	if (st->curr_sampl_freq < CROS_EC_MIN_SUSPEND_SAMPLING_FREQUENCY) {
 		mutex_lock(&st->cmd_lock);
@@ -677,16 +675,13 @@ static void __maybe_unused cros_ec_sensors_complete(struct device *dev)
 	}
 }
 
-#ifdef CONFIG_PM_SLEEP
 const struct dev_pm_ops cros_ec_sensors_pm_ops = {
+#ifdef CONFIG_PM_SLEEP
 	.prepare = cros_ec_sensors_prepare,
 	.complete = cros_ec_sensors_complete
-};
-#else
-const struct dev_pm_ops cros_ec_sensors_pm_ops = { };
 #endif
+};
 EXPORT_SYMBOL_GPL(cros_ec_sensors_pm_ops);
-
 
 MODULE_DESCRIPTION("ChromeOS EC sensor hub core functions");
 MODULE_LICENSE("GPL v2");
