@@ -1624,7 +1624,7 @@ static void iwl_mvm_probe_resp_data_iter(void *_data, u8 *mac,
 		new_data->noa_len -= sizeof(struct ieee80211_p2p_noa_desc);
 
 	old_data = rcu_dereference_protected(mvmvif->probe_resp_data,
-					     lockdep_is_held(&mvm->mutex));
+					lockdep_is_held(&mvmvif->mvm->mutex));
 	rcu_assign_pointer(mvmvif->probe_resp_data, new_data);
 
 	if (old_data)
