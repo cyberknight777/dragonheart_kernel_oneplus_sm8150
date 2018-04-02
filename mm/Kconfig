@@ -911,3 +911,15 @@ config OPLUS_MM_HACKS
 	  Tested on devices made by OEMs like Motorola and Samsung.
 
 	  If unsure, say "n".
+
+config MULTIPLE_KSWAPD
+	bool "Spawn multiple kswapd threads"
+	default y
+	help
+	 kswapd_threads allows you to control the number of kswapd threads
+	 per node running on the system. The default value is 1 and the
+	 range of acceptible values are 1-16. The number of threads can
+	 be controlled by below command:
+	 (echo <num> > /proc/sys/vm/kswapd_threads)
+
+	 Values not in the range of 1..16 are ignored.
