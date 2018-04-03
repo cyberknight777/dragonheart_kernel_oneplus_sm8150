@@ -765,12 +765,10 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 			      u8 lmac_id)
 {
 	int ret;
-	struct iwl_tx_queue_cfg_cmd cmd = {
-			.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-			.sta_id = sta_id,
-			.tid = TX_QUEUE_CFG_TID };
 
-	ret = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd, SCD_QUEUE_CFG,
+	ret = iwl_trans_txq_alloc(xvt->trans,
+				  cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+				  sta_id, TX_QUEUE_CFG_TID, SCD_QUEUE_CFG,
 				  IWL_DEFAULT_QUEUE_SIZE, 0);
 	/* ret is positive when func returns the allocated the queue number */
 	if (ret > 0) {

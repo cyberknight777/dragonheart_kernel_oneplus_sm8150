@@ -2024,14 +2024,11 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		/*TODO: add support for second lmac*/
-		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
-			.flags = cpu_to_le16(flags),
-			.sta_id = cmd->sta_id,
-			.tid = cmd->tid
-		};
-
-		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
-					       SCD_QUEUE_CFG, size, 0);
+		queue_id =
+			iwl_trans_txq_alloc(xvt->trans,
+					    cpu_to_le16(flags),
+					    cmd->sta_id, cmd->tid,
+					    SCD_QUEUE_CFG, size, 0);
 		if (queue_id < 0)
 			return queue_id;
 	} else {
