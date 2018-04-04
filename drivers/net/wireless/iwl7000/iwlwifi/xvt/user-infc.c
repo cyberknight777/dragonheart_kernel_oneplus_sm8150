@@ -954,30 +954,71 @@ static u16 iwl_xvt_get_offload_assist(struct ieee80211_hdr *hdr)
 }
 
 static struct iwl_device_cmd *
-iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
-			       u32 rate_flags, u32 flags)
+iwl_xvt_set_tx_params_gen3(struct iwl_xvt *xvt, struct sk_buff *skb,
+			   u32 rate_flags, u32 tx_flags)
+
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_tx_cmd_gen3 *cmd;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	cmd = (struct iwl_tx_cmd_gen3 *)dev_cmd->payload;
+
+	cmd->offload_assist |= cpu_to_le32(iwl_xvt_get_offload_assist(hdr));
+
+	cmd->len = cpu_to_le16((u16)skb->len);
+
+	cmd->flags = cpu_to_le16(tx_flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		/* though this flag is not supported for gen3, it is used
+		 * here for silicon feedback tests. */
+		cmd->flags |= cpu_to_le16(TX_CMD_FLG_MORE_FRAG);
+
+	cmd->rate_n_flags =  cpu_to_le32(rate_flags);
+
+	/* Copy MAC header from skb into command buffer */
+	memcpy(cmd->hdr, hdr, header_length);
+
+	 /* Saving device command address itself in the control buffer, to be
+	  * used when reclaiming the command.
+	  */
+	skb_info->dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
+			   u32 rate_flags, u32 flags)
 {
 	struct iwl_device_cmd *dev_cmd;
 	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 	struct iwl_tx_cmd_gen2 *tx_cmd;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
 
 	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
 	if (unlikely(!dev_cmd))
 		return NULL;
 
 	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
-
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
-
 	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
-
-	tx_cmd->flags = cpu_to_le32(flags | IWL_TX_FLAGS_CMD_RATE);
-
+	tx_cmd->flags = cpu_to_le32(flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		/* though this flag is not supported for gen2, it is used
+		 * for silicon feedback tests. */
+		tx_cmd->flags |= cpu_to_le32(TX_CMD_FLG_MORE_FRAG);
 	tx_cmd->rate_n_flags = cpu_to_le32(rate_flags);
 
 	/* Copy MAC header from skb into command buffer */
-	memcpy(tx_cmd->hdr, hdr, sizeof(*hdr));
+	memcpy(tx_cmd->hdr, hdr, header_length);
 
 	 /* Saving device command address itself in the
 	  * control buffer, to be used when reclaiming
@@ -1057,6 +1098,7 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 	struct iwl_device_cmd *dev_cmd;
 	int time_remain, err = 0;
 	u32 flags = 0;
+	u32 rate_flags = tx_req->rate_flags;
 
 	if (xvt->fw_error) {
 		IWL_ERR(xvt, "FW Error while sending Tx\n");
@@ -1075,17 +1117,24 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 
 	flags = tx_req->no_ack ? 0 : TX_CMD_FLG_ACK;
 
-	if (iwl_xvt_is_unified_fw(xvt))
-		dev_cmd = iwl_xvt_set_mod_tx_params_gen2(xvt,
-							 skb,
-							 tx_req->rate_flags,
-							 flags);
-	else
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		flags |= IWL_TX_FLAGS_CMD_RATE;
+
+		if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+			dev_cmd = iwl_xvt_set_tx_params_gen3(xvt, skb,
+							     rate_flags,
+							     flags);
+		else
+			dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb,
+							     rate_flags,
+							     flags);
+	} else {
 		dev_cmd = iwl_xvt_set_mod_tx_params(xvt,
 						    skb,
 						    tx_req->sta_id,
 						    tx_req->rate_flags,
 						    flags);
+	}
 	if (!dev_cmd) {
 		kfree_skb(skb);
 		*status = XVT_TX_DRIVER_ABORTED;
@@ -1140,39 +1189,6 @@ err:
 	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
 	kfree_skb(skb);
 	return err;
-}
-
-static struct iwl_device_cmd *
-iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
-			   struct iwl_xvt_tx_start *tx_start, u8 packet_index)
-{
-	struct iwl_device_cmd *dev_cmd;
-	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
-	struct iwl_tx_cmd_gen2 *tx_cmd;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
-	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
-
-	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
-	if (unlikely(!dev_cmd))
-		return NULL;
-
-	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
-	tx_cmd->len = cpu_to_le16((u16)skb->len);
-	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
-	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
-	if (ieee80211_has_morefrags(hdr->frame_control))
-		tx_cmd->flags |= cpu_to_le32(TX_CMD_FLG_MORE_FRAG);
-	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
-
-	/* Copy MAC header from skb into command buffer */
-	memcpy(tx_cmd->hdr, hdr, header_length);
-
-	 /* Saving device command address itself in the
-	  * control buffer, to be used when reclaiming
-	  * the command. */
-	skb_info->dev_cmd = dev_cmd;
-
-	return dev_cmd;
 }
 
 static struct iwl_device_cmd *
@@ -1317,17 +1333,26 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 	int time_remain, err = 0;
 	u8 queue = tx_start->frames_data[packet_index].queue;
 	struct tx_queue_data *queue_data = &xvt->queue_data[queue];
+	u32 rate_flags = tx_start->tx_data.rate_flags;
+	u32 tx_flags = tx_start->tx_data.tx_flags;
 
 	/* set tx number */
 	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb,
 			       frag_num);
 
-	if (iwl_xvt_is_unified_fw(xvt))
-		dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb, tx_start,
-						     packet_index);
-	else
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+			dev_cmd = iwl_xvt_set_tx_params_gen3(xvt, skb,
+							     rate_flags,
+							     tx_flags);
+		else
+			dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb,
+							     rate_flags,
+							     tx_flags);
+	} else {
 		dev_cmd = iwl_xvt_set_tx_params(xvt, skb, tx_start,
 						packet_index);
+	}
 	if (!dev_cmd) {
 		kfree_skb(skb);
 		*status = XVT_TX_DRIVER_ABORTED;
