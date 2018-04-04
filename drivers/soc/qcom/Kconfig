@@ -3,6 +3,14 @@
 #
 menu "Qualcomm SoC drivers"
 
+config QCOM_GENI_SE
+	bool "QCOM GENI Serial Engine Driver"
+	help
+	  This module is used to manage Generic Interface (GENI) firmware based
+	  Qualcomm Technologies, Inc. Universal Peripheral (QUP) Wrapper. This
+	  module is also used to manage the common aspects of multiple Serial
+	  Engines present in the QUP.
+
 config QCOM_GLINK_SSR
 	tristate "Qualcomm Glink SSR driver"
 	depends on RPMSG
@@ -34,6 +42,17 @@ config QCOM_PM
 	  QCOM Platform specific power driver to manage cores and L2 low power
 	  modes. It interface with various system drivers to put the cores in
 	  low power modes.
+
+config QCOM_RMTFS_MEM
+	tristate "Qualcomm Remote Filesystem memory driver"
+	depends on ARCH_QCOM
+	help
+	  The Qualcomm remote filesystem memory driver is used for allocating
+	  and exposing regions of shared memory with remote processors for the
+	  purpose of exchanging sector-data between the remote filesystem
+	  service and its clients.
+
+	  Say y here if you intend to boot the modem remoteproc.
 
 config QCOM_SMEM
 	tristate "Qualcomm Shared Memory Manager (SMEM)"

@@ -23,11 +23,12 @@
  * space.
  */
 
+#include <linux/module.h>
 #include <linux/device.h>
 #include <linux/export.h>
 #include <linux/pm_dark_resume.h>
+#include <linux/suspend.h>
 #include <linux/mutex.h>
-#include <linux/syscore_ops.h>
 #include <linux/types.h>
 
 #include "power.h"
@@ -118,20 +119,37 @@ void pm_dark_resume_set_enabled(bool enabled)
 	dark_resume_enabled = enabled;
 }
 
-int dark_resume_syscore_suspend(void)
+static int dark_resume_dvr_suspend(void)
 {
 	pm_dark_resume_set_enabled(true);
-	return 0;
+	return NOTIFY_OK;
 }
 
-static struct syscore_ops dark_resume_syscore_ops = {
-	.suspend = dark_resume_syscore_suspend,
+static int dark_resume_pm_notifier(struct notifier_block *this,
+			   unsigned long event, void *ptr)
+{
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		return dark_resume_dvr_suspend();
+	default:
+		return NOTIFY_DONE;
+	}
+}
+
+static struct notifier_block pm_notifier = {
+	.notifier_call = dark_resume_pm_notifier,
 };
 
-static int __init dark_resume_syscore_init(void)
+static int __init dark_resume_init(void)
 {
-	register_syscore_ops(&dark_resume_syscore_ops);
+	register_pm_notifier(&pm_notifier);
 	return 0;
 }
 
-late_initcall(dark_resume_syscore_init);
+static void __exit dark_resume_exit(void)
+{
+	unregister_pm_notifier(&pm_notifier);
+}
+
+late_initcall(dark_resume_init);
+module_exit(dark_resume_exit);

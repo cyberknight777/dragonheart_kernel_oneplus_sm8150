@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Advanced Micro Devices, Inc.
+ * Copyright 2017 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -27,6 +27,7 @@
 #define __DAL_IPP_H__
 
 #include "hw_shared.h"
+#include "dc_hw_types.h"
 
 #define MAXTRIX_COEFFICIENTS_NUMBER 12
 #define MAXTRIX_COEFFICIENTS_WRAP_NUMBER (MAXTRIX_COEFFICIENTS_NUMBER + 4)
@@ -37,8 +38,6 @@ struct input_pixel_processor {
 	struct  dc_context *ctx;
 	unsigned int inst;
 	const struct ipp_funcs *funcs;
-
-	unsigned int cusor_width;
 };
 
 enum ipp_prescale_mode {
@@ -55,12 +54,7 @@ struct ipp_prescale_params {
 	uint16_t scale;
 };
 
-enum ipp_degamma_mode {
-	IPP_DEGAMMA_MODE_BYPASS,
-	IPP_DEGAMMA_MODE_HW_sRGB,
-	IPP_DEGAMMA_MODE_HW_xvYCC,
-	IPP_DEGAMMA_MODE_USER_PWL
-};
+
 
 enum ovl_color_space {
 	OVL_COLOR_SPACE_UNKNOWN = 0,
@@ -69,16 +63,6 @@ enum ovl_color_space {
 	OVL_COLOR_SPACE_YUV709
 };
 
-enum expansion_mode {
-	EXPANSION_MODE_DYNAMIC,
-	EXPANSION_MODE_ZERO
-};
-
-enum ipp_output_format {
-	IPP_OUTPUT_FORMAT_12_BIT_FIX,
-	IPP_OUTPUT_FORMAT_16_BIT_BYPASS,
-	IPP_OUTPUT_FORMAT_FLOAT
-};
 
 struct ipp_funcs {
 
@@ -88,7 +72,7 @@ struct ipp_funcs {
 		const struct dc_cursor_position *position,
 		const struct dc_cursor_mi_param *param);
 
-	bool (*ipp_cursor_set_attributes)(
+	void (*ipp_cursor_set_attributes)(
 		struct input_pixel_processor *ipp,
 		const struct dc_cursor_attributes *attributes);
 
@@ -102,8 +86,7 @@ struct ipp_funcs {
 	void (*ipp_setup)(
 		struct input_pixel_processor *ipp,
 		enum surface_pixel_format input_format,
-		enum expansion_mode mode,
-		enum ipp_output_format output_format);
+		enum expansion_mode mode);
 
 	/* DCE function to setup IPP.  TODO: see if we can consolidate to setup */
 	void (*ipp_program_prescale)(
@@ -115,14 +98,15 @@ struct ipp_funcs {
 			const struct dc_gamma *gamma);
 
 	/*** DEGAMMA RELATED ***/
-	bool (*ipp_set_degamma)(
+	void (*ipp_set_degamma)(
 		struct input_pixel_processor *ipp,
 		enum ipp_degamma_mode mode);
 
-	bool (*ipp_program_degamma_pwl)(
+	void (*ipp_program_degamma_pwl)(
 		struct input_pixel_processor *ipp,
 		const struct pwl_params *params);
 
+	void (*ipp_destroy)(struct input_pixel_processor **ipp);
 };
 
 #endif /* __DAL_IPP_H__ */

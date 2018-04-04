@@ -278,13 +278,16 @@ int i915_vma_bind(struct i915_vma *vma, enum i915_cache_level cache_level,
 void __iomem *i915_vma_pin_iomap(struct i915_vma *vma)
 {
 	void __iomem *ptr;
+	int err;
 
 	/* Access through the GTT requires the device to be awake. */
 	assert_rpm_wakelock_held(vma->vm->i915);
 
 	lockdep_assert_held(&vma->vm->i915->drm.struct_mutex);
-	if (WARN_ON(!i915_vma_is_map_and_fenceable(vma)))
-		return IO_ERR_PTR(-ENODEV);
+	if (WARN_ON(!i915_vma_is_map_and_fenceable(vma))) {
+		err = -ENODEV;
+		goto err;
+	}
 
 	GEM_BUG_ON(!i915_vma_is_ggtt(vma));
 	GEM_BUG_ON((vma->flags & I915_VMA_GLOBAL_BIND) == 0);
@@ -294,14 +297,49 @@ void __iomem *i915_vma_pin_iomap(struct i915_vma *vma)
 		ptr = io_mapping_map_wc(&i915_vm_to_ggtt(vma->vm)->mappable,
 					vma->node.start,
 					vma->node.size);
-		if (ptr == NULL)
-			return IO_ERR_PTR(-ENOMEM);
+		if (ptr == NULL) {
+			err = -ENOMEM;
+			goto err;
+		}
 
 		vma->iomap = ptr;
 	}
 
 	__i915_vma_pin(vma);
+
+	err = i915_vma_pin_fence(vma);
+	if (err)
+		goto err_unpin;
+
+	i915_vma_set_ggtt_write(vma);
 	return ptr;
+
+err_unpin:
+	__i915_vma_unpin(vma);
+err:
+	return IO_ERR_PTR(err);
+}
+
+void i915_vma_flush_writes(struct i915_vma *vma)
+{
+	if (!i915_vma_has_ggtt_write(vma))
+		return;
+
+	i915_gem_flush_ggtt_writes(vma->vm->i915);
+
+	i915_vma_unset_ggtt_write(vma);
+}
+
+void i915_vma_unpin_iomap(struct i915_vma *vma)
+{
+	lockdep_assert_held(&vma->obj->base.dev->struct_mutex);
+
+	GEM_BUG_ON(vma->iomap == NULL);
+
+	i915_vma_flush_writes(vma);
+
+	i915_vma_unpin_fence(vma);
+	i915_vma_unpin(vma);
 }
 
 void i915_vma_unpin_and_release(struct i915_vma **p_vma)
@@ -620,6 +658,30 @@ static void __i915_vma_iounmap(struct i915_vma *vma)
 	vma->iomap = NULL;
 }
 
+void i915_vma_revoke_mmap(struct i915_vma *vma)
+{
+	struct drm_vma_offset_node *node = &vma->obj->base.vma_node;
+	u64 vma_offset;
+
+	lockdep_assert_held(&vma->vm->i915->drm.struct_mutex);
+
+	if (!i915_vma_has_userfault(vma))
+		return;
+
+	GEM_BUG_ON(!i915_vma_is_map_and_fenceable(vma));
+	GEM_BUG_ON(!vma->obj->userfault_count);
+
+	vma_offset = vma->ggtt_view.partial.offset << PAGE_SHIFT;
+	unmap_mapping_range(vma->vm->i915->drm.anon_inode->i_mapping,
+			    drm_vma_node_offset_addr(node) + vma_offset,
+			    vma->size,
+			    1);
+
+	i915_vma_unset_userfault(vma);
+	if (!--vma->obj->userfault_count)
+		list_del(&vma->obj->userfault_link);
+}
+
 int i915_vma_unbind(struct i915_vma *vma)
 {
 	struct drm_i915_gem_object *obj = vma->obj;
@@ -677,17 +739,28 @@ int i915_vma_unbind(struct i915_vma *vma)
 	GEM_BUG_ON(!i915_gem_object_has_pinned_pages(obj));
 
 	if (i915_vma_is_map_and_fenceable(vma)) {
+		/*
+		 * Check that we have flushed all writes through the GGTT
+		 * before the unbind, other due to non-strict nature of those
+		 * indirect writes they may end up referencing the GGTT PTE
+		 * after the unbind.
+		 */
+		i915_vma_flush_writes(vma);
+		GEM_BUG_ON(i915_vma_has_ggtt_write(vma));
+
 		/* release the fence reg _after_ flushing */
 		ret = i915_vma_put_fence(vma);
 		if (ret)
 			return ret;
 
 		/* Force a pagefault for domain tracking on next user access */
-		i915_gem_release_mmap(obj);
+		i915_vma_revoke_mmap(vma);
 
 		__i915_vma_iounmap(vma);
 		vma->flags &= ~I915_VMA_CAN_FENCE;
 	}
+	GEM_BUG_ON(vma->fence);
+	GEM_BUG_ON(i915_vma_has_userfault(vma));
 
 	if (likely(!vma->vm->closed)) {
 		trace_i915_vma_unbind(vma);

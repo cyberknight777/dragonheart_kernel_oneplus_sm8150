@@ -32,6 +32,7 @@ struct dc_context;
 struct dc_link;
 struct dc_surface_update;
 struct resource_context;
+struct dc_state;
 
 /*
  *
@@ -39,9 +40,11 @@ struct resource_context;
  *
  */
 
-struct dal_logger *dal_logger_create(struct dc_context *ctx);
+struct dal_logger *dal_logger_create(struct dc_context *ctx, uint32_t log_mask);
 
 uint32_t dal_logger_destroy(struct dal_logger **logger);
+
+void dm_logger_flush_buffer(struct dal_logger *logger, bool should_warn);
 
 void dm_logger_write(
 		struct dal_logger *logger,
@@ -75,21 +78,24 @@ void logger_write(struct dal_logger *logger,
 		void *paralist);
 
 void pre_surface_trace(
-		const struct dc *dc,
-		const struct dc_surface *const *surfaces,
+		struct dc *dc,
+		const struct dc_plane_state *const *plane_states,
 		int surface_count);
 
 void update_surface_trace(
-		const struct dc *dc,
+		struct dc *dc,
 		const struct dc_surface_update *updates,
 		int surface_count);
 
-void post_surface_trace(const struct dc *dc);
+void post_surface_trace(struct dc *dc);
 
 void context_timing_trace(
-		const struct dc *dc,
+		struct dc *dc,
 		struct resource_context *res_ctx);
 
+void context_clock_trace(
+		struct dc *dc,
+		struct dc_state *context);
 
 /* Any function which is empty or have incomplete implementation should be
  * marked by this macro.
@@ -112,12 +118,11 @@ void context_timing_trace(
 
 #define DC_ERROR(...) \
 	dm_logger_write(dc_ctx->logger, LOG_ERROR, \
-		__VA_ARGS__);
+		__VA_ARGS__)
 
 #define DC_SYNC_INFO(...) \
 	dm_logger_write(dc_ctx->logger, LOG_SYNC, \
-		__VA_ARGS__);
-
+		__VA_ARGS__)
 
 /* Connectivity log format:
  * [time stamp]   [drm] [Major_minor] [connector name] message.....
@@ -127,19 +132,57 @@ void context_timing_trace(
  */
 
 #define CONN_DATA_DETECT(link, hex_data, hex_len, ...) \
-		dc_conn_log(link->ctx, &link->public, hex_data, hex_len, \
+		dc_conn_log(link->ctx, link, hex_data, hex_len, \
 				LOG_EVENT_DETECTION, ##__VA_ARGS__)
 
 #define CONN_DATA_LINK_LOSS(link, hex_data, hex_len, ...) \
-		dc_conn_log(link->ctx, &link->public, hex_data, hex_len, \
+		dc_conn_log(link->ctx, link, hex_data, hex_len, \
 				LOG_EVENT_LINK_LOSS, ##__VA_ARGS__)
 
 #define CONN_MSG_LT(link, ...) \
-		dc_conn_log(link->ctx, &link->public, NULL, 0, \
+		dc_conn_log(link->ctx, link, NULL, 0, \
 				LOG_EVENT_LINK_TRAINING, ##__VA_ARGS__)
 
 #define CONN_MSG_MODE(link, ...) \
-		dc_conn_log(link->ctx, &link->public, NULL, 0, \
+		dc_conn_log(link->ctx, link, NULL, 0, \
 				LOG_EVENT_MODE_SET, ##__VA_ARGS__)
+
+/*
+ * Display Test Next logging
+ */
+#define DTN_INFO_BEGIN() \
+	dm_dtn_log_begin(dc_ctx)
+
+#define DTN_INFO(msg, ...) \
+	dm_dtn_log_append_v(dc_ctx, msg, ##__VA_ARGS__)
+
+#define DTN_INFO_END() \
+	dm_dtn_log_end(dc_ctx)
+
+#define PERFORMANCE_TRACE_START() \
+	unsigned long long perf_trc_start_stmp = dm_get_timestamp(dc->ctx); \
+	unsigned long long perf_trc_start_log_msk = dc->ctx->logger->mask; \
+	unsigned int perf_trc_start_log_flags = dc->ctx->logger->flags.value; \
+	if (dc->debug.performance_trace) {\
+		dm_logger_flush_buffer(dc->ctx->logger, false);\
+		dc->ctx->logger->mask = 1<<LOG_PERF_TRACE;\
+		dc->ctx->logger->flags.bits.ENABLE_CONSOLE = 0;\
+		dc->ctx->logger->flags.bits.ENABLE_BUFFER = 1;\
+	}
+
+#define PERFORMANCE_TRACE_END() do {\
+	unsigned long long perf_trc_end_stmp = dm_get_timestamp(dc->ctx);\
+	if (dc->debug.performance_trace) {\
+		dm_logger_write(dc->ctx->logger, \
+				LOG_PERF_TRACE, \
+				"%s duration: %d ticks\n", __func__,\
+				perf_trc_end_stmp - perf_trc_start_stmp); \
+		if (perf_trc_start_log_msk != 1<<LOG_PERF_TRACE) {\
+			dc->ctx->logger->mask = perf_trc_start_log_msk;\
+			dc->ctx->logger->flags.value = perf_trc_start_log_flags;\
+			dm_logger_flush_buffer(dc->ctx->logger, false);\
+		} \
+	} \
+} while (0)
 
 #endif /* __DAL_LOGGER_INTERFACE_H__ */

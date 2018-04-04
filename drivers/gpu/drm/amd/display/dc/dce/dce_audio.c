@@ -179,19 +179,19 @@ static void check_audio_bandwidth_hdmi(
 	/* Number of Audio Packets (multiplied by 10) per Line (for 8 ch number
 	 * of Audio samples per line multiplied by 10 - Layout 1)
 	 */
-	 samples /= 32;
-	 samples *= crtc_info->v_active;
-	 /*Number of samples multiplied by 10, per second */
-	 samples *= crtc_info->refresh_rate;
-	 /*Number of Audio samples per second */
-	 samples /= 10;
+	samples /= 32;
+	samples *= crtc_info->v_active;
+	/*Number of samples multiplied by 10, per second */
+	samples *= crtc_info->refresh_rate;
+	/*Number of Audio samples per second */
+	samples /= 10;
 
-	 /* @todo do it after deep color is implemented
-	  * 8xx - deep color bandwidth scaling
-	  * Extra bandwidth is avaliable in deep color b/c link runs faster than
-	  * pixel rate. This has the effect of allowing more tmds characters to
-	  * be transmitted during blank
-	  */
+	/* @todo do it after deep color is implemented
+	 * 8xx - deep color bandwidth scaling
+	 * Extra bandwidth is avaliable in deep color b/c link runs faster than
+	 * pixel rate. This has the effect of allowing more tmds characters to
+	 * be transmitted during blank
+	 */
 
 	switch (crtc_info->color_depth) {
 	case COLOR_DEPTH_888:
@@ -348,29 +348,44 @@ static void set_audio_latency(
 
 void dce_aud_az_enable(struct audio *audio)
 {
+	struct dce_audio *aud = DCE_AUD(audio);
 	uint32_t value = AZ_REG_READ(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL);
 
-	if (get_reg_field_value(value,
+	set_reg_field_value(value, 1,
 			AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL,
-			AUDIO_ENABLED) != 1)
+			CLOCK_GATING_DISABLE);
 		set_reg_field_value(value, 1,
 			AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL,
 			AUDIO_ENABLED);
 
 	AZ_REG_WRITE(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL, value);
+	value = AZ_REG_READ(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL);
+
+	dm_logger_write(CTX->logger, LOG_HW_AUDIO,
+			"\n\t========= AUDIO:dce_aud_az_enable: index: %u  data: 0x%x\n",
+			audio->inst, value);
 }
 
 void dce_aud_az_disable(struct audio *audio)
 {
 	uint32_t value;
+	struct dce_audio *aud = DCE_AUD(audio);
 
 	value = AZ_REG_READ(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL);
 
 	set_reg_field_value(value, 0,
 		AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL,
 		AUDIO_ENABLED);
-
 	AZ_REG_WRITE(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL, value);
+
+	set_reg_field_value(value, 0,
+			AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL,
+			CLOCK_GATING_DISABLE);
+	AZ_REG_WRITE(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL, value);
+	value = AZ_REG_READ(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL);
+	dm_logger_write(CTX->logger, LOG_HW_AUDIO,
+			"\n\t========= AUDIO:dce_aud_az_disable: index: %u  data: 0x%x\n",
+			audio->inst, value);
 }
 
 void dce_aud_az_configure(
@@ -390,6 +405,11 @@ void dce_aud_az_configure(
 	bool is_ac3_supported = false;
 	union audio_sample_rates sample_rate;
 	uint32_t strlen = 0;
+	value = AZ_REG_READ(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL);
+	set_reg_field_value(value, 1,
+			AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL,
+			CLOCK_GATING_DISABLE);
+	AZ_REG_WRITE(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL, value);
 
 	/* Speaker Allocation */
 	/*
@@ -703,14 +723,11 @@ void dce_aud_az_configure(
 */
 
 /* search pixel clock value for Azalia HDMI Audio */
-static bool get_azalia_clock_info_hdmi(
+static void get_azalia_clock_info_hdmi(
 	uint32_t crtc_pixel_clock_in_khz,
 	uint32_t actual_pixel_clock_in_khz,
 	struct azalia_clock_info *azalia_clock_info)
 {
-	if (azalia_clock_info == NULL)
-		return false;
-
 	/* audio_dto_phase= 24 * 10,000;
 	 *   24MHz in [100Hz] units */
 	azalia_clock_info->audio_dto_phase =
@@ -720,18 +737,13 @@ static bool get_azalia_clock_info_hdmi(
 	 *  [khz] -> [100Hz] */
 	azalia_clock_info->audio_dto_module =
 			actual_pixel_clock_in_khz * 10;
-
-	return true;
 }
 
-static bool get_azalia_clock_info_dp(
+static void get_azalia_clock_info_dp(
 	uint32_t requested_pixel_clock_in_khz,
 	const struct audio_pll_info *pll_info,
 	struct azalia_clock_info *azalia_clock_info)
 {
-	if (pll_info == NULL || azalia_clock_info == NULL)
-		return false;
-
 	/* Reported dpDtoSourceClockInkhz value for
 	 * DCE8 already adjusted for SS, do not need any
 	 * adjustment here anymore
@@ -745,8 +757,6 @@ static bool get_azalia_clock_info_dp(
 	 *  [khz] ->[100Hz] */
 	azalia_clock_info->audio_dto_module =
 		pll_info->dp_dto_source_clock_in_khz * 10;
-
-	return true;
 }
 
 void dce_aud_wall_dto_setup(
@@ -773,8 +783,8 @@ void dce_aud_wall_dto_setup(
 			crtc_info->calculated_pixel_clock,
 			&clock_info);
 
-		dm_logger_write(audio->ctx->logger, LOG_HW_SET_MODE,\
-				"\n************************%s:Input::requested_pixel_clock = %d"\
+		dm_logger_write(audio->ctx->logger, LOG_HW_AUDIO,\
+				"\n%s:Input::requested_pixel_clock = %d"\
 				"calculated_pixel_clock =%d\n"\
 				"audio_dto_module = %d audio_dto_phase =%d \n\n", __func__,\
 				crtc_info->requested_pixel_clock,\
@@ -843,8 +853,7 @@ void dce_aud_wall_dto_setup(
 	}
 }
 
-bool dce_aud_endpoint_valid(
-		struct audio *audio)
+static bool dce_aud_endpoint_valid(struct audio *audio)
 {
 	uint32_t value;
 	uint32_t port_connectivity;
@@ -863,6 +872,7 @@ bool dce_aud_endpoint_valid(
 void dce_aud_hw_init(
 		struct audio *audio)
 {
+	uint32_t value;
 	struct dce_audio *aud = DCE_AUD(audio);
 
 	/* we only need to program the following registers once, so we only do
@@ -874,6 +884,12 @@ void dce_aud_hw_init(
 	 * Suport R6 - 44.1khz
 	 * Suport R7 - 48khz
 	 */
+	/*disable clock gating before write to endpoint register*/
+	value = AZ_REG_READ(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL);
+	set_reg_field_value(value, 1,
+			AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL,
+			CLOCK_GATING_DISABLE);
+	AZ_REG_WRITE(AZALIA_F0_CODEC_PIN_CONTROL_HOT_PLUG_CONTROL, value);
 	REG_UPDATE(AZALIA_F0_CODEC_FUNCTION_PARAMETER_SUPPORTED_SIZE_RATES,
 			AUDIO_RATE_CAPABILITIES, 0x70);
 
@@ -897,7 +913,7 @@ void dce_aud_destroy(struct audio **audio)
 {
 	struct dce_audio *aud = DCE_AUD(*audio);
 
-	dm_free(aud);
+	kfree(aud);
 	*audio = NULL;
 }
 
@@ -909,7 +925,7 @@ struct audio *dce_audio_create(
 		const struct dce_aduio_mask *masks
 		)
 {
-	struct dce_audio *audio = dm_alloc(sizeof(*audio));
+	struct dce_audio *audio = kzalloc(sizeof(*audio), GFP_KERNEL);
 
 	if (audio == NULL) {
 		ASSERT_CRITICAL(audio);

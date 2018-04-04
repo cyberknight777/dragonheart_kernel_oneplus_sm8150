@@ -667,10 +667,12 @@ static int cros_ec_spi_probe(struct spi_device *spi)
 			   sizeof(struct ec_response_get_protocol_info);
 	ec_dev->dout_size = sizeof(struct ec_host_request);
 
+	ec_spi->last_transfer_ns = ktime_get_ns();
 
 	err = cros_ec_register(ec_dev);
 	if (err) {
-		dev_err(dev, "cannot register EC\n");
+		dev_err(dev, "cannot register EC, fallback to spidev\n");
+		strncpy(spi->modalias, "spidev", SPI_NAME_SIZE);
 		return err;
 	}
 

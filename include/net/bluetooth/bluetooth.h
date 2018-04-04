@@ -131,10 +131,21 @@ void bt_err(const char *fmt, ...);
 __printf(1, 2)
 void bt_err_ratelimited(const char *fmt, ...);
 
-#define BT_INFO(fmt, ...)	bt_info(fmt "\n", ##__VA_ARGS__)
-#define BT_WARN(fmt, ...)	bt_warn(fmt "\n", ##__VA_ARGS__)
-#define BT_ERR(fmt, ...)	bt_err(fmt "\n", ##__VA_ARGS__)
-#define BT_DBG(fmt, ...)	pr_debug(fmt "\n", ##__VA_ARGS__)
+static inline const char *basename(const char *path)
+{
+	const char *str = strrchr(path, '/');
+
+	return str ? (str + 1) : path;
+}
+
+#define BT_INFO(fmt, ...)	bt_info("%s:%s() " fmt "\n",		\
+				basename(__FILE__), __func__, ##__VA_ARGS__)
+#define BT_WARN(fmt, ...)	bt_warn("%s:%s() " fmt "\n",		\
+				basename(__FILE__), __func__, ##__VA_ARGS__)
+#define BT_ERR(fmt, ...)	bt_err("%s:%s() " fmt "\n",		\
+				basename(__FILE__), __func__, ##__VA_ARGS__)
+#define BT_DBG(fmt, ...)	pr_debug("%s:%s() " fmt "\n",		\
+				basename(__FILE__), __func__, ##__VA_ARGS__)
 
 #define BT_ERR_RATELIMITED(fmt, ...) bt_err_ratelimited(fmt "\n", ##__VA_ARGS__)
 

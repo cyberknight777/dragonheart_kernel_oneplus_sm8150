@@ -26,9 +26,9 @@
 #ifndef __AMDGPU_DM_H__
 #define __AMDGPU_DM_H__
 
-/*
-#include "linux/switch.h"
-*/
+#include <drm/drmP.h>
+#include <drm/drm_atomic.h>
+#include "dc.h"
 
 /*
  * This file contains the definition for amdgpu_display_manager
@@ -71,6 +71,38 @@ struct irq_list_head {
 	/* In case this interrupt needs post-processing, 'work' will be queued*/
 	struct work_struct work;
 };
+
+#if defined(CONFIG_DRM_AMD_DC_FBC)
+struct dm_comressor_info {
+	void *cpu_addr;
+	struct amdgpu_bo *bo_ptr;
+	uint64_t gpu_addr;
+};
+#endif
+
+/**
+ * for_each_oldnew_plane_in_state_reverse - iterate over all planes in an atomic
+ * update in reverse order
+ * @__state: &struct drm_atomic_state pointer
+ * @plane: &struct drm_plane iteration cursor
+ * @old_plane_state: &struct drm_plane_state iteration cursor for the old state
+ * @new_plane_state: &struct drm_plane_state iteration cursor for the new state
+ * @__i: int iteration cursor, for macro-internal use
+ *
+ * This iterates over all planes in an atomic update in reverse order,
+ * tracking both old and  new state. This is useful in places where the
+ * state delta needs to be considered, for example in atomic check functions.
+ */
+#ifndef for_each_oldnew_plane_in_state_reverse
+#define for_each_oldnew_plane_in_state_reverse(__state, plane, old_plane_state, new_plane_state, __i) \
+	for ((__i) = ((__state)->dev->mode_config.num_total_plane - 1);	\
+	     (__i) >= 0;						\
+	     (__i)--)							\
+		for_each_if ((__state)->planes[__i].ptr &&		\
+			     ((plane) = (__state)->planes[__i].ptr,	\
+			      (old_plane_state) = (__state)->planes[__i].old_state,\
+			      (new_plane_state) = (__state)->planes[__i].new_state, 1))
+#endif
 
 struct amdgpu_display_manager {
 	struct dal *dal;
@@ -128,44 +160,123 @@ struct amdgpu_display_manager {
 	struct work_struct mst_hotplug_work;
 
 	struct mod_freesync *freesync_module;
+
+	/**
+	 * Caches device atomic state for suspend/resume
+	 */
+	struct drm_atomic_state *cached_state;
+#if defined(CONFIG_DRM_AMD_DC_FBC)
+	struct dm_comressor_info compressor;
+#endif
 };
 
-/* basic init/fini API */
-int amdgpu_dm_init(struct amdgpu_device *adev);
+struct amdgpu_dm_connector {
 
-void amdgpu_dm_fini(struct amdgpu_device *adev);
+	struct drm_connector base;
+	uint32_t connector_id;
 
-void amdgpu_dm_destroy(void);
+	/* we need to mind the EDID between detect
+	   and get modes due to analog/digital/tvencoder */
+	struct edid *edid;
 
-/* initializes drm_device display related structures, based on the information
- * provided by DAL. The drm strcutures are: drm_crtc, drm_connector,
- * drm_encoder, drm_mode_config
- *
- * Returns 0 on success
- */
-int amdgpu_dm_initialize_drm_device(
-	struct amdgpu_device *adev);
+	/* shared with amdgpu */
+	struct amdgpu_hpd hpd;
 
-/* removes and deallocates the drm structures, created by the above function */
-void amdgpu_dm_destroy_drm_device(
-	struct amdgpu_display_manager *dm);
+	/* number of modes generated from EDID at 'dc_sink' */
+	int num_modes;
 
-/* Locking/Mutex */
-bool amdgpu_dm_acquire_dal_lock(struct amdgpu_display_manager *dm);
+	/* The 'old' sink - before an HPD.
+	 * The 'current' sink is in dc_link->sink. */
+	struct dc_sink *dc_sink;
+	struct dc_link *dc_link;
+	struct dc_sink *dc_em_sink;
 
-bool amdgpu_dm_release_dal_lock(struct amdgpu_display_manager *dm);
+	/* DM only */
+	struct drm_dp_mst_topology_mgr mst_mgr;
+	struct amdgpu_dm_dp_aux dm_dp_aux;
+	struct drm_dp_mst_port *port;
+	struct amdgpu_dm_connector *mst_port;
+	struct amdgpu_encoder *mst_encoder;
 
-/* Register "Backlight device" accessible by user-mode. */
-void amdgpu_dm_register_backlight_device(struct amdgpu_display_manager *dm);
+	/* TODO see if we can merge with ddc_bus or make a dm_connector */
+	struct amdgpu_i2c_adapter *i2c;
+
+	/* Monitor range limits */
+	int min_vfreq ;
+	int max_vfreq ;
+	int pixel_clock_mhz;
+
+	/*freesync caps*/
+	struct mod_freesync_caps caps;
+
+	struct mutex hpd_lock;
+
+	bool fake_enable;
+};
+
+#define to_amdgpu_dm_connector(x) container_of(x, struct amdgpu_dm_connector, base)
 
 extern const struct amdgpu_ip_block_version dm_ip_block;
 
-void amdgpu_dm_update_connector_after_detect(
-	struct amdgpu_connector *aconnector);
+struct amdgpu_framebuffer;
+struct amdgpu_display_manager;
+struct dc_validation_set;
+struct dc_plane_state;
 
-struct amdgpu_connector *amdgpu_dm_find_first_crct_matching_connector(
-	struct drm_atomic_state *state,
-	struct drm_crtc *crtc,
-	bool from_state_var);
+struct dm_plane_state {
+	struct drm_plane_state base;
+	struct dc_plane_state *dc_state;
+};
+
+struct dm_crtc_state {
+	struct drm_crtc_state base;
+	struct dc_stream_state *stream;
+};
+
+#define to_dm_crtc_state(x)    container_of(x, struct dm_crtc_state, base)
+
+struct dm_atomic_state {
+	struct drm_atomic_state base;
+
+	struct dc_state *context;
+};
+
+#define to_dm_atomic_state(x) container_of(x, struct dm_atomic_state, base)
+
+
+void amdgpu_dm_connector_funcs_reset(struct drm_connector *connector);
+struct drm_connector_state *
+amdgpu_dm_connector_atomic_duplicate_state(struct drm_connector *connector);
+int amdgpu_dm_connector_atomic_set_property(struct drm_connector *connector,
+					    struct drm_connector_state *state,
+					    struct drm_property *property,
+					    uint64_t val);
+
+int amdgpu_dm_connector_atomic_get_property(struct drm_connector *connector,
+					    const struct drm_connector_state *state,
+					    struct drm_property *property,
+					    uint64_t *val);
+
+int amdgpu_dm_get_encoder_crtc_mask(struct amdgpu_device *adev);
+
+void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
+				     struct amdgpu_dm_connector *aconnector,
+				     int connector_type,
+				     struct dc_link *link,
+				     int link_index);
+
+int amdgpu_dm_connector_mode_valid(struct drm_connector *connector,
+				   struct drm_display_mode *mode);
+
+void dm_restore_drm_connector_state(struct drm_device *dev,
+				    struct drm_connector *connector);
+
+void amdgpu_dm_add_sink_to_freesync_module(struct drm_connector *connector,
+					   struct edid *edid);
+
+void
+amdgpu_dm_remove_sink_from_freesync_module(struct drm_connector *connector);
+
+extern const struct drm_encoder_helper_funcs amdgpu_dm_encoder_helper_funcs;
 
 #endif /* __AMDGPU_DM_H__ */

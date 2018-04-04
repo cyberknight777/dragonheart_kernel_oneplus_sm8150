@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
+#include <linux/hw_random.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/platform_device.h>
@@ -34,6 +35,7 @@
 #include <linux/acpi.h>
 #include <linux/cdev.h>
 #include <linux/highmem.h>
+#include <linux/tpm_eventlog.h>
 #include <crypto/hash_info.h>
 
 #ifdef CONFIG_X86
@@ -239,6 +241,9 @@ struct tpm_chip {
 
 	unsigned long is_suspended;
 
+	char hwrng_name[64];
+	struct hwrng hwrng;
+
 	struct mutex tpm_mutex;	/* tpm is processing */
 
 	unsigned long timeout_a; /* jiffies */
@@ -414,10 +419,6 @@ struct tpm_cmd_t {
 	tpm_cmd_params	params;
 } __packed;
 
-struct tpm2_digest {
-	u16 alg_id;
-	u8 digest[SHA512_DIGEST_SIZE];
-} __packed;
 
 /* A string buffer type for constructing TPM commands. This is based on the
  * ideas of string buffer code in security/keys/trusted.h but is heap based
@@ -550,7 +551,7 @@ static inline void tpm_msleep(unsigned int delay_msec)
 		     (delay_msec * 1000) + TPM_TIMEOUT_RANGE_US);
 };
 
-struct tpm_chip *tpm_chip_find_get(int chip_num);
+struct tpm_chip *tpm_chip_find_get(struct tpm_chip *chip);
 __must_check int tpm_try_get_ops(struct tpm_chip *chip);
 void tpm_put_ops(struct tpm_chip *chip);
 
@@ -604,4 +605,26 @@ int tpm2_prepare_space(struct tpm_chip *chip, struct tpm_space *space, u32 cc,
 		       u8 *cmd);
 int tpm2_commit_space(struct tpm_chip *chip, struct tpm_space *space,
 		      u32 cc, u8 *buf, size_t *bufsiz);
+
+extern const struct seq_operations tpm2_binary_b_measurements_seqops;
+
+#if defined(CONFIG_ACPI)
+int tpm_read_log_acpi(struct tpm_chip *chip);
+#else
+static inline int tpm_read_log_acpi(struct tpm_chip *chip)
+{
+	return -ENODEV;
+}
+#endif
+#if defined(CONFIG_OF)
+int tpm_read_log_of(struct tpm_chip *chip);
+#else
+static inline int tpm_read_log_of(struct tpm_chip *chip)
+{
+	return -ENODEV;
+}
+#endif
+
+int tpm_bios_log_setup(struct tpm_chip *chip);
+void tpm_bios_log_teardown(struct tpm_chip *chip);
 #endif

@@ -29,130 +29,141 @@
 				##__VA_ARGS__); \
 } while (0)
 
+#define CLOCK_TRACE(...) do {\
+	if (dc->debug.clock_trace) \
+		dm_logger_write(logger, \
+				LOG_BANDWIDTH_CALCS, \
+				##__VA_ARGS__); \
+} while (0)
+
 void pre_surface_trace(
-		const struct dc *dc,
-		const struct dc_surface *const *surfaces,
+		struct dc *dc,
+		const struct dc_plane_state *const *plane_states,
 		int surface_count)
 {
 	int i;
-	struct core_dc *core_dc = DC_TO_CORE(dc);
+	struct dc  *core_dc = dc;
 	struct dal_logger *logger =  core_dc->ctx->logger;
 
 	for (i = 0; i < surface_count; i++) {
-		const struct dc_surface *surface = surfaces[i];
+		const struct dc_plane_state *plane_state = plane_states[i];
 
-		SURFACE_TRACE("Surface %d:\n", i);
-
-		SURFACE_TRACE(
-				"surface->visible = %d;\n"
-				"surface->flip_immediate = %d;\n"
-				"surface->address.type = %d;\n"
-				"surface->address.grph.addr.quad_part = 0x%X;\n"
-				"surface->address.grph.meta_addr.quad_part = 0x%X;\n"
-				"surface->scaling_quality.h_taps = %d;\n"
-				"surface->scaling_quality.v_taps = %d;\n"
-				"surface->scaling_quality.h_taps_c = %d;\n"
-				"surface->scaling_quality.v_taps_c = %d;\n",
-				surface->visible,
-				surface->flip_immediate,
-				surface->address.type,
-				surface->address.grph.addr.quad_part,
-				surface->address.grph.meta_addr.quad_part,
-				surface->scaling_quality.h_taps,
-				surface->scaling_quality.v_taps,
-				surface->scaling_quality.h_taps_c,
-				surface->scaling_quality.v_taps_c);
+		SURFACE_TRACE("Planes %d:\n", i);
 
 		SURFACE_TRACE(
-				"surface->src_rect.x = %d;\n"
-				"surface->src_rect.y = %d;\n"
-				"surface->src_rect.width = %d;\n"
-				"surface->src_rect.height = %d;\n"
-				"surface->dst_rect.x = %d;\n"
-				"surface->dst_rect.y = %d;\n"
-				"surface->dst_rect.width = %d;\n"
-				"surface->dst_rect.height = %d;\n"
-				"surface->clip_rect.x = %d;\n"
-				"surface->clip_rect.y = %d;\n"
-				"surface->clip_rect.width = %d;\n"
-				"surface->clip_rect.height = %d;\n",
-				surface->src_rect.x,
-				surface->src_rect.y,
-				surface->src_rect.width,
-				surface->src_rect.height,
-				surface->dst_rect.x,
-				surface->dst_rect.y,
-				surface->dst_rect.width,
-				surface->dst_rect.height,
-				surface->clip_rect.x,
-				surface->clip_rect.y,
-				surface->clip_rect.width,
-				surface->clip_rect.height);
+				"plane_state->visible = %d;\n"
+				"plane_state->flip_immediate = %d;\n"
+				"plane_state->address.type = %d;\n"
+				"plane_state->address.grph.addr.quad_part = 0x%X;\n"
+				"plane_state->address.grph.meta_addr.quad_part = 0x%X;\n"
+				"plane_state->scaling_quality.h_taps = %d;\n"
+				"plane_state->scaling_quality.v_taps = %d;\n"
+				"plane_state->scaling_quality.h_taps_c = %d;\n"
+				"plane_state->scaling_quality.v_taps_c = %d;\n",
+				plane_state->visible,
+				plane_state->flip_immediate,
+				plane_state->address.type,
+				plane_state->address.grph.addr.quad_part,
+				plane_state->address.grph.meta_addr.quad_part,
+				plane_state->scaling_quality.h_taps,
+				plane_state->scaling_quality.v_taps,
+				plane_state->scaling_quality.h_taps_c,
+				plane_state->scaling_quality.v_taps_c);
 
 		SURFACE_TRACE(
-				"surface->plane_size.grph.surface_size.x = %d;\n"
-				"surface->plane_size.grph.surface_size.y = %d;\n"
-				"surface->plane_size.grph.surface_size.width = %d;\n"
-				"surface->plane_size.grph.surface_size.height = %d;\n"
-				"surface->plane_size.grph.surface_pitch = %d;\n",
-				surface->plane_size.grph.surface_size.x,
-				surface->plane_size.grph.surface_size.y,
-				surface->plane_size.grph.surface_size.width,
-				surface->plane_size.grph.surface_size.height,
-				surface->plane_size.grph.surface_pitch);
+				"plane_state->src_rect.x = %d;\n"
+				"plane_state->src_rect.y = %d;\n"
+				"plane_state->src_rect.width = %d;\n"
+				"plane_state->src_rect.height = %d;\n"
+				"plane_state->dst_rect.x = %d;\n"
+				"plane_state->dst_rect.y = %d;\n"
+				"plane_state->dst_rect.width = %d;\n"
+				"plane_state->dst_rect.height = %d;\n"
+				"plane_state->clip_rect.x = %d;\n"
+				"plane_state->clip_rect.y = %d;\n"
+				"plane_state->clip_rect.width = %d;\n"
+				"plane_state->clip_rect.height = %d;\n",
+				plane_state->src_rect.x,
+				plane_state->src_rect.y,
+				plane_state->src_rect.width,
+				plane_state->src_rect.height,
+				plane_state->dst_rect.x,
+				plane_state->dst_rect.y,
+				plane_state->dst_rect.width,
+				plane_state->dst_rect.height,
+				plane_state->clip_rect.x,
+				plane_state->clip_rect.y,
+				plane_state->clip_rect.width,
+				plane_state->clip_rect.height);
+
+		SURFACE_TRACE(
+				"plane_state->plane_size.grph.surface_size.x = %d;\n"
+				"plane_state->plane_size.grph.surface_size.y = %d;\n"
+				"plane_state->plane_size.grph.surface_size.width = %d;\n"
+				"plane_state->plane_size.grph.surface_size.height = %d;\n"
+				"plane_state->plane_size.grph.surface_pitch = %d;\n",
+				plane_state->plane_size.grph.surface_size.x,
+				plane_state->plane_size.grph.surface_size.y,
+				plane_state->plane_size.grph.surface_size.width,
+				plane_state->plane_size.grph.surface_size.height,
+				plane_state->plane_size.grph.surface_pitch);
 
 
 		SURFACE_TRACE(
-				"surface->tiling_info.gfx8.num_banks = %d;\n"
-				"surface->tiling_info.gfx8.bank_width = %d;\n"
-				"surface->tiling_info.gfx8.bank_width_c = %d;\n"
-				"surface->tiling_info.gfx8.bank_height = %d;\n"
-				"surface->tiling_info.gfx8.bank_height_c = %d;\n"
-				"surface->tiling_info.gfx8.tile_aspect = %d;\n"
-				"surface->tiling_info.gfx8.tile_aspect_c = %d;\n"
-				"surface->tiling_info.gfx8.tile_split = %d;\n"
-				"surface->tiling_info.gfx8.tile_split_c = %d;\n"
-				"surface->tiling_info.gfx8.tile_mode = %d;\n"
-				"surface->tiling_info.gfx8.tile_mode_c = %d;\n",
-				surface->tiling_info.gfx8.num_banks,
-				surface->tiling_info.gfx8.bank_width,
-				surface->tiling_info.gfx8.bank_width_c,
-				surface->tiling_info.gfx8.bank_height,
-				surface->tiling_info.gfx8.bank_height_c,
-				surface->tiling_info.gfx8.tile_aspect,
-				surface->tiling_info.gfx8.tile_aspect_c,
-				surface->tiling_info.gfx8.tile_split,
-				surface->tiling_info.gfx8.tile_split_c,
-				surface->tiling_info.gfx8.tile_mode,
-				surface->tiling_info.gfx8.tile_mode_c);
+				"plane_state->tiling_info.gfx8.num_banks = %d;\n"
+				"plane_state->tiling_info.gfx8.bank_width = %d;\n"
+				"plane_state->tiling_info.gfx8.bank_width_c = %d;\n"
+				"plane_state->tiling_info.gfx8.bank_height = %d;\n"
+				"plane_state->tiling_info.gfx8.bank_height_c = %d;\n"
+				"plane_state->tiling_info.gfx8.tile_aspect = %d;\n"
+				"plane_state->tiling_info.gfx8.tile_aspect_c = %d;\n"
+				"plane_state->tiling_info.gfx8.tile_split = %d;\n"
+				"plane_state->tiling_info.gfx8.tile_split_c = %d;\n"
+				"plane_state->tiling_info.gfx8.tile_mode = %d;\n"
+				"plane_state->tiling_info.gfx8.tile_mode_c = %d;\n",
+				plane_state->tiling_info.gfx8.num_banks,
+				plane_state->tiling_info.gfx8.bank_width,
+				plane_state->tiling_info.gfx8.bank_width_c,
+				plane_state->tiling_info.gfx8.bank_height,
+				plane_state->tiling_info.gfx8.bank_height_c,
+				plane_state->tiling_info.gfx8.tile_aspect,
+				plane_state->tiling_info.gfx8.tile_aspect_c,
+				plane_state->tiling_info.gfx8.tile_split,
+				plane_state->tiling_info.gfx8.tile_split_c,
+				plane_state->tiling_info.gfx8.tile_mode,
+				plane_state->tiling_info.gfx8.tile_mode_c);
 
 		SURFACE_TRACE(
-				"surface->tiling_info.gfx8.pipe_config = %d;\n"
-				"surface->tiling_info.gfx8.array_mode = %d;\n"
-				"surface->color_space = %d;\n"
-				"surface->dcc.enable = %d;\n"
-				"surface->format = %d;\n"
-				"surface->rotation = %d;\n"
-				"surface->stereo_format = %d;\n",
-				surface->tiling_info.gfx8.pipe_config,
-				surface->tiling_info.gfx8.array_mode,
-				surface->color_space,
-				surface->dcc.enable,
-				surface->format,
-				surface->rotation,
-				surface->stereo_format);
+				"plane_state->tiling_info.gfx8.pipe_config = %d;\n"
+				"plane_state->tiling_info.gfx8.array_mode = %d;\n"
+				"plane_state->color_space = %d;\n"
+				"plane_state->dcc.enable = %d;\n"
+				"plane_state->format = %d;\n"
+				"plane_state->rotation = %d;\n"
+				"plane_state->stereo_format = %d;\n",
+				plane_state->tiling_info.gfx8.pipe_config,
+				plane_state->tiling_info.gfx8.array_mode,
+				plane_state->color_space,
+				plane_state->dcc.enable,
+				plane_state->format,
+				plane_state->rotation,
+				plane_state->stereo_format);
+
+		SURFACE_TRACE("plane_state->tiling_info.gfx9.swizzle = %d;\n",
+				plane_state->tiling_info.gfx9.swizzle);
+
 		SURFACE_TRACE("\n");
 	}
 	SURFACE_TRACE("\n");
 }
 
 void update_surface_trace(
-		const struct dc *dc,
+		struct dc *dc,
 		const struct dc_surface_update *updates,
 		int surface_count)
 {
 	int i;
-	struct core_dc *core_dc = DC_TO_CORE(dc);
+	struct dc  *core_dc = dc;
 	struct dal_logger *logger =  core_dc->ctx->logger;
 
 	for (i = 0; i < surface_count; i++) {
@@ -217,10 +228,15 @@ void update_surface_trace(
 			SURFACE_TRACE(
 					"plane_info->tiling_info.gfx8.pipe_config = %d;\n"
 					"plane_info->tiling_info.gfx8.array_mode = %d;\n"
-					"plane_info->visible = %d;\n",
+					"plane_info->visible = %d;\n"
+					"plane_info->per_pixel_alpha = %d;\n",
 					update->plane_info->tiling_info.gfx8.pipe_config,
 					update->plane_info->tiling_info.gfx8.array_mode,
-					update->plane_info->visible);
+					update->plane_info->visible,
+					update->plane_info->per_pixel_alpha);
+
+			SURFACE_TRACE("surface->tiling_info.gfx9.swizzle = %d;\n",
+					update->plane_info->tiling_info.gfx9.swizzle);
 		}
 
 		if (update->scaling_info) {
@@ -263,9 +279,9 @@ void update_surface_trace(
 	SURFACE_TRACE("\n");
 }
 
-void post_surface_trace(const struct dc *dc)
+void post_surface_trace(struct dc *dc)
 {
-	struct core_dc *core_dc = DC_TO_CORE(dc);
+	struct dc  *core_dc = dc;
 	struct dal_logger *logger =  core_dc->ctx->logger;
 
 	SURFACE_TRACE("post surface process.\n");
@@ -273,21 +289,29 @@ void post_surface_trace(const struct dc *dc)
 }
 
 void context_timing_trace(
-		const struct dc *dc,
+		struct dc *dc,
 		struct resource_context *res_ctx)
 {
 	int i;
-	struct core_dc *core_dc = DC_TO_CORE(dc);
+	struct dc  *core_dc = dc;
 	struct dal_logger *logger =  core_dc->ctx->logger;
 	int h_pos[MAX_PIPES], v_pos[MAX_PIPES];
+	struct crtc_position position;
+	unsigned int underlay_idx = core_dc->res_pool->underlay_pipe_index;
+
 
 	for (i = 0; i < core_dc->res_pool->pipe_count; i++) {
 		struct pipe_ctx *pipe_ctx = &res_ctx->pipe_ctx[i];
-
-		if (pipe_ctx->stream == NULL)
+		/* get_position() returns CRTC vertical/horizontal counter
+		 * hence not applicable for underlay pipe
+		 */
+		if (pipe_ctx->stream == NULL
+				 || pipe_ctx->pipe_idx == underlay_idx)
 			continue;
 
-		pipe_ctx->tg->funcs->get_position(pipe_ctx->tg, &h_pos[i], &v_pos[i]);
+		pipe_ctx->stream_res.tg->funcs->get_position(pipe_ctx->stream_res.tg, &position);
+		h_pos[i] = position.horizontal_count;
+		v_pos[i] = position.vertical_count;
 	}
 	for (i = 0; i < core_dc->res_pool->pipe_count; i++) {
 		struct pipe_ctx *pipe_ctx = &res_ctx->pipe_ctx[i];
@@ -296,9 +320,40 @@ void context_timing_trace(
 			continue;
 
 		TIMING_TRACE("OTG_%d   H_tot:%d  V_tot:%d   H_pos:%d  V_pos:%d\n",
-				pipe_ctx->tg->inst,
-				pipe_ctx->stream->public.timing.h_total,
-				pipe_ctx->stream->public.timing.v_total,
+				pipe_ctx->stream_res.tg->inst,
+				pipe_ctx->stream->timing.h_total,
+				pipe_ctx->stream->timing.v_total,
 				h_pos[i], v_pos[i]);
 	}
+}
+
+void context_clock_trace(
+		struct dc *dc,
+		struct dc_state *context)
+{
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	struct dc  *core_dc = dc;
+	struct dal_logger *logger =  core_dc->ctx->logger;
+
+	CLOCK_TRACE("Current: dispclk_khz:%d  dppclk_div:%d  dcfclk_khz:%d\n"
+			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d\n"
+			"dram_ccm_us:%d  min_active_dram_ccm_us:%d\n",
+			context->bw.dcn.calc_clk.dispclk_khz,
+			context->bw.dcn.calc_clk.dppclk_div,
+			context->bw.dcn.calc_clk.dcfclk_khz,
+			context->bw.dcn.calc_clk.dcfclk_deep_sleep_khz,
+			context->bw.dcn.calc_clk.fclk_khz,
+			context->bw.dcn.calc_clk.dram_ccm_us,
+			context->bw.dcn.calc_clk.min_active_dram_ccm_us);
+	CLOCK_TRACE("Calculated: dispclk_khz:%d  dppclk_div:%d  dcfclk_khz:%d\n"
+			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d\n"
+			"dram_ccm_us:%d  min_active_dram_ccm_us:%d\n",
+			context->bw.dcn.calc_clk.dispclk_khz,
+			context->bw.dcn.calc_clk.dppclk_div,
+			context->bw.dcn.calc_clk.dcfclk_khz,
+			context->bw.dcn.calc_clk.dcfclk_deep_sleep_khz,
+			context->bw.dcn.calc_clk.fclk_khz,
+			context->bw.dcn.calc_clk.dram_ccm_us,
+			context->bw.dcn.calc_clk.min_active_dram_ccm_us);
+#endif
 }

@@ -24,7 +24,6 @@
 #include <linux/memblock.h>
 #include <linux/compiler.h>
 #include <linux/kernel.h>
-#include <linux/kmemcheck.h>
 #include <linux/kasan.h>
 #include <linux/module.h>
 #include <linux/suspend.h>
@@ -1023,7 +1022,6 @@ static __always_inline bool free_pages_prepare(struct page *page,
 	VM_BUG_ON_PAGE(PageTail(page), page);
 
 	trace_mm_page_free(page, order);
-	kmemcheck_free_shadow(page, order);
 
 	/*
 	 * Check tail pages before head page information is cleared to
@@ -2675,15 +2673,6 @@ void split_page(struct page *page, unsigned int order)
 	VM_BUG_ON_PAGE(PageCompound(page), page);
 	VM_BUG_ON_PAGE(!page_count(page), page);
 
-#ifdef CONFIG_KMEMCHECK
-	/*
-	 * Split shadow pages too, because free(page[0]) would
-	 * otherwise free the whole shadow.
-	 */
-	if (kmemcheck_page_is_tracked(page))
-		split_page(virt_to_page(page[0].shadow), order);
-#endif
-
 	for (i = 1; i < (1 << order); i++)
 		set_page_refcounted(page + i);
 	split_page_owner(page, order);
@@ -3012,9 +3001,6 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 		if (!area->nr_free)
 			continue;
 
-		if (alloc_harder)
-			return true;
-
 		for (mt = 0; mt < MIGRATE_PCPTYPES; mt++) {
 			if (!list_empty(&area->free_list[mt]))
 				return true;
@@ -3026,6 +3012,9 @@ bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 			return true;
 		}
 #endif
+		if (alloc_harder &&
+			!list_empty(&area->free_list[MIGRATE_HIGHATOMIC]))
+			return true;
 	}
 	return false;
 }
@@ -3544,7 +3533,7 @@ static bool __need_fs_reclaim(gfp_t gfp_mask)
 		return false;
 
 	/* this guy won't enter reclaim */
-	if ((current->flags & PF_MEMALLOC) && !(gfp_mask & __GFP_NOMEMALLOC))
+	if (current->flags & PF_MEMALLOC)
 		return false;
 
 	/* We're only interested __GFP_FS allocations for now */
@@ -4233,9 +4222,6 @@ out:
 		__free_pages(page, order);
 		page = NULL;
 	}
-
-	if (kmemcheck_enabled && page)
-		kmemcheck_pagealloc_alloc(page, order, gfp_mask);
 
 	trace_mm_page_alloc(page, order, alloc_mask, ac.migratetype);
 
@@ -5322,17 +5308,8 @@ void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		if (context != MEMMAP_EARLY)
 			goto not_early;
 
-		if (!early_pfn_valid(pfn)) {
-#ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
-			/*
-			 * Skip to the pfn preceding the next valid one (or
-			 * end_pfn), such that we hit a valid pfn (or end_pfn)
-			 * on our next iteration of the loop.
-			 */
-			pfn = memblock_next_valid_pfn(pfn, end_pfn) - 1;
-#endif
+		if (!early_pfn_valid(pfn))
 			continue;
-		}
 		if (!early_pfn_in_nid(pfn, nid))
 			continue;
 		if (!update_defer_init(pgdat, pfn, end_pfn, &nr_initialised))

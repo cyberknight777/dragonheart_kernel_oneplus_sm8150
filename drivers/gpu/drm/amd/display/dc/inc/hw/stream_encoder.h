@@ -6,7 +6,6 @@
 #ifndef STREAM_ENCODER_H_
 #define STREAM_ENCODER_H_
 
-#include "include/hw_sequencer_types.h"
 #include "audio_types.h"
 
 struct dc_bios;
@@ -118,6 +117,14 @@ struct stream_encoder_funcs {
 
 	void (*hdmi_audio_disable) (
 			struct stream_encoder *enc);
+
+	void (*setup_stereo_sync) (
+			struct stream_encoder *enc,
+			int tg_inst,
+			bool enable);
+
+	void (*set_avmute)(
+		struct stream_encoder *enc, bool enable);
 };
 
 #endif /* STREAM_ENCODER_H_ */

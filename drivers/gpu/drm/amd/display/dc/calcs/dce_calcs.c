@@ -24,7 +24,7 @@
  */
 
 #include "dm_services.h"
-#include "bandwidth_calcs.h"
+#include "dce_calcs.h"
 #include "dc.h"
 #include "core_types.h"
 #include "dal_asic_id.h"
@@ -49,6 +49,9 @@ static enum bw_calcs_version bw_calcs_version_from_asic_id(struct hw_asic_id asi
 				ASIC_REV_IS_POLARIS12_V(asic_id.hw_internal_rev))
 			return BW_CALCS_VERSION_POLARIS11;
 		return BW_CALCS_VERSION_INVALID;
+
+	case FAMILY_AI:
+		return BW_CALCS_VERSION_VEGA10;
 
 	default:
 		return BW_CALCS_VERSION_INVALID;
@@ -611,7 +614,7 @@ static void calculate_bandwidth(
 				}
 				else {
 					/*graphics portrait tiling mode*/
-					if ((data->graphics_micro_tile_mode == bw_def_rotated_micro_tiling)) {
+					if (data->graphics_micro_tile_mode == bw_def_rotated_micro_tiling) {
 						data->orthogonal_rotation[i] = 0;
 					}
 					else {
@@ -622,7 +625,7 @@ static void calculate_bandwidth(
 			else {
 				if ((i < 4)) {
 					/*underlay landscape tiling mode is only supported*/
-					if ((data->underlay_micro_tile_mode == bw_def_display_micro_tiling)) {
+					if (data->underlay_micro_tile_mode == bw_def_display_micro_tiling) {
 						data->orthogonal_rotation[i] = 0;
 					}
 					else {
@@ -631,7 +634,7 @@ static void calculate_bandwidth(
 				}
 				else {
 					/*graphics landscape tiling mode*/
-					if ((data->graphics_micro_tile_mode == bw_def_display_micro_tiling)) {
+					if (data->graphics_micro_tile_mode == bw_def_display_micro_tiling) {
 						data->orthogonal_rotation[i] = 0;
 					}
 					else {
@@ -793,11 +796,11 @@ static void calculate_bandwidth(
 			}
 			else if (bw_leq(data->vsr[i], bw_int_to_fixed(1))) {
 				data->lb_lines_in_per_line_out_in_middle_of_frame[i] = bw_int_to_fixed(1);
-			}
-			else if (bw_leq(data->vsr[i], bw_int_to_fixed(4 / 3))) {
+			} else if (bw_leq(data->vsr[i],
+					bw_frc_to_fixed(4, 3))) {
 				data->lb_lines_in_per_line_out_in_middle_of_frame[i] = bw_div(bw_int_to_fixed(4), bw_int_to_fixed(3));
-			}
-			else if (bw_leq(data->vsr[i], bw_int_to_fixed(6 / 4))) {
+			} else if (bw_leq(data->vsr[i],
+					bw_frc_to_fixed(6, 4))) {
 				data->lb_lines_in_per_line_out_in_middle_of_frame[i] = bw_div(bw_int_to_fixed(6), bw_int_to_fixed(4));
 			}
 			else if (bw_leq(data->vsr[i], bw_int_to_fixed(2))) {
@@ -935,14 +938,14 @@ static void calculate_bandwidth(
 	}
 	for (i = 0; i <= maximum_number_of_surfaces - 1; i++) {
 		if (data->enable[i]) {
-			if ((data->number_of_displays == 1 && data->number_of_underlay_surfaces == 0)) {
+			if (data->number_of_displays == 1 && data->number_of_underlay_surfaces == 0) {
 				/*set maximum chunk limit if only one graphic pipe is enabled*/
 				data->outstanding_chunk_request_limit[i] = bw_int_to_fixed(127);
 			}
 			else {
 				data->outstanding_chunk_request_limit[i] = bw_ceil2(bw_div(data->adjusted_data_buffer_size[i], data->pipe_chunk_size_in_bytes[i]), bw_int_to_fixed(1));
 				/*clamp maximum chunk limit in the graphic display pipe*/
-				if ((i >= 4)) {
+				if (i >= 4) {
 					data->outstanding_chunk_request_limit[i] = bw_max2(bw_int_to_fixed(127), data->outstanding_chunk_request_limit[i]);
 				}
 			}
@@ -1325,7 +1328,7 @@ static void calculate_bandwidth(
 	/*if stutter and dram clock state change are gated before cursor then the cursor latency hiding does not limit stutter or dram clock state change*/
 	for (i = 0; i <= maximum_number_of_surfaces - 1; i++) {
 		if (data->enable[i]) {
-			if ((dceip->graphics_lb_nodownscaling_multi_line_prefetching == 1)) {
+			if (dceip->graphics_lb_nodownscaling_multi_line_prefetching == 1) {
 				data->maximum_latency_hiding[i] = bw_add(data->minimum_latency_hiding[i], bw_mul(bw_frc_to_fixed(8, 10), data->total_dmifmc_urgent_latency));
 			}
 			else {
@@ -1338,12 +1341,12 @@ static void calculate_bandwidth(
 	/*initialize variables*/
 	number_of_displays_enabled = 0;
 	number_of_displays_enabled_with_margin = 0;
-	for (k = 0; k < maximum_number_of_surfaces; k++) {
+	for (k = 0; k <= maximum_number_of_surfaces - 1; k++) {
 		if (data->enable[k]) {
 			number_of_displays_enabled = number_of_displays_enabled + 1;
 		}
+		data->display_pstate_change_enable[k] = 0;
 	}
-	data->display_pstate_change_enable[maximum_number_of_surfaces - 1] = 0;
 	for (i = 0; i <= 2; i++) {
 		for (j = 0; j <= 7; j++) {
 			data->min_dram_speed_change_margin[i][j] = bw_int_to_fixed(9999);
@@ -1384,7 +1387,7 @@ static void calculate_bandwidth(
 	}
 	/*determine the number of displays with margin to switch in the v_active region*/
 	for (k = 0; k <= maximum_number_of_surfaces - 1; k++) {
-		if ((data->enable[k] == 1 && data->display_pstate_change_enable[k] == 1)) {
+		if (data->enable[k] == 1 && data->display_pstate_change_enable[k] == 1) {
 			number_of_displays_enabled_with_margin = number_of_displays_enabled_with_margin + 1;
 		}
 	}
@@ -1430,7 +1433,7 @@ static void calculate_bandwidth(
 		data->nbp_state_change_enable = bw_def_no;
 	}
 	/*dram clock change is possible only in vblank if all displays are aligned and have no margin*/
-	if ((number_of_aligned_displays_with_no_margin == number_of_displays_enabled)) {
+	if (number_of_aligned_displays_with_no_margin == number_of_displays_enabled) {
 		nbp_state_change_enable_blank = bw_def_yes;
 	}
 	else {
@@ -1458,7 +1461,7 @@ static void calculate_bandwidth(
 		}
 	}
 	/*compute minimum time to read one chunk from the dmif buffer*/
-	if ((number_of_displays_enabled > 2)) {
+	if (number_of_displays_enabled > 2) {
 		data->chunk_request_delay = 0;
 	}
 	else {
@@ -1792,7 +1795,7 @@ static void calculate_bandwidth(
 				data->stutter_exit_watermark[i] = bw_add(bw_sub(vbios->stutter_self_refresh_exit_latency, data->total_dmifmc_urgent_latency), data->urgent_watermark[i]);
 				data->stutter_entry_watermark[i] = bw_add(bw_sub(bw_add(vbios->stutter_self_refresh_exit_latency, vbios->stutter_self_refresh_entry_latency), data->total_dmifmc_urgent_latency), data->urgent_watermark[i]);
 				/*unconditionally remove black out time from the nb p_state watermark*/
-				if ((data->display_pstate_change_enable[i] == 1)) {
+				if (data->display_pstate_change_enable[i] == 1) {
 					data->nbp_state_change_watermark[i] = bw_add(bw_add(vbios->nbp_state_change_latency, data->dmif_burst_time[data->y_clk_level][data->sclk_level]), bw_max2(data->line_source_pixels_transfer_time, data->dram_speed_change_line_source_transfer_time[i][data->y_clk_level][data->sclk_level]));
 				}
 				else {
@@ -1804,7 +1807,7 @@ static void calculate_bandwidth(
 				data->urgent_watermark[i] = bw_add(bw_add(bw_add(bw_add(bw_add(vbios->mcifwrmc_urgent_latency, data->mcifwr_burst_time[data->y_clk_level][data->sclk_level]), bw_max2(data->line_source_pixels_transfer_time, data->line_source_transfer_time[i][data->y_clk_level][data->sclk_level])), vbios->blackout_duration), data->chunk_request_time), data->cursor_request_time);
 				data->stutter_exit_watermark[i] = bw_int_to_fixed(0);
 				data->stutter_entry_watermark[i] = bw_int_to_fixed(0);
-				if ((data->display_pstate_change_enable[i] == 1)) {
+				if (data->display_pstate_change_enable[i] == 1) {
 					data->nbp_state_change_watermark[i] = bw_add(bw_add(vbios->nbp_state_change_latency, data->mcifwr_burst_time[data->y_clk_level][data->sclk_level]), bw_max2(data->line_source_pixels_transfer_time, data->dram_speed_change_line_source_transfer_time[i][data->y_clk_level][data->sclk_level]));
 				}
 				else {
@@ -2430,6 +2433,116 @@ void bw_calcs_init(struct bw_calcs_dceip *bw_dceip,
 		dceip.scatter_gather_pte_request_rows_in_tiling_mode = 2;
 		dceip.mcifwr_all_surfaces_burst_time = bw_int_to_fixed(0);
 		break;
+	case BW_CALCS_VERSION_VEGA10:
+		vbios.memory_type = bw_def_hbm;
+		vbios.dram_channel_width_in_bits = 128;
+		vbios.number_of_dram_channels = asic_id.vram_width / vbios.dram_channel_width_in_bits;
+		vbios.number_of_dram_banks = 16;
+		vbios.high_yclk = bw_int_to_fixed(2400);
+		vbios.mid_yclk = bw_int_to_fixed(1700);
+		vbios.low_yclk = bw_int_to_fixed(1000);
+		vbios.low_sclk = bw_int_to_fixed(300);
+		vbios.mid1_sclk = bw_int_to_fixed(350);
+		vbios.mid2_sclk = bw_int_to_fixed(400);
+		vbios.mid3_sclk = bw_int_to_fixed(500);
+		vbios.mid4_sclk = bw_int_to_fixed(600);
+		vbios.mid5_sclk = bw_int_to_fixed(700);
+		vbios.mid6_sclk = bw_int_to_fixed(760);
+		vbios.high_sclk = bw_int_to_fixed(776);
+		vbios.low_voltage_max_dispclk = bw_int_to_fixed(460);
+		vbios.mid_voltage_max_dispclk = bw_int_to_fixed(670);
+		vbios.high_voltage_max_dispclk = bw_int_to_fixed(1133);
+		vbios.low_voltage_max_phyclk = bw_int_to_fixed(540);
+		vbios.mid_voltage_max_phyclk = bw_int_to_fixed(810);
+		vbios.high_voltage_max_phyclk = bw_int_to_fixed(810);
+		vbios.data_return_bus_width = bw_int_to_fixed(32);
+		vbios.trc = bw_int_to_fixed(48);
+		vbios.dmifmc_urgent_latency = bw_int_to_fixed(3);
+		vbios.stutter_self_refresh_exit_latency = bw_frc_to_fixed(75, 10);
+		vbios.stutter_self_refresh_entry_latency = bw_frc_to_fixed(19, 10);
+		vbios.nbp_state_change_latency = bw_int_to_fixed(39);
+		vbios.mcifwrmc_urgent_latency = bw_int_to_fixed(10);
+		vbios.scatter_gather_enable = false;
+		vbios.down_spread_percentage = bw_frc_to_fixed(5, 10);
+		vbios.cursor_width = 32;
+		vbios.average_compression_rate = 4;
+		vbios.number_of_request_slots_gmc_reserves_for_dmif_per_channel = 8;
+		vbios.blackout_duration = bw_int_to_fixed(0); /* us */
+		vbios.maximum_blackout_recovery_time = bw_int_to_fixed(0);
+
+		dceip.large_cursor = false;
+		dceip.dmif_request_buffer_size = bw_int_to_fixed(2304);
+		dceip.dmif_pipe_en_fbc_chunk_tracker = true;
+		dceip.cursor_max_outstanding_group_num = 1;
+		dceip.lines_interleaved_into_lb = 2;
+		dceip.chunk_width = 256;
+		dceip.number_of_graphics_pipes = 6;
+		dceip.number_of_underlay_pipes = 0;
+		dceip.low_power_tiling_mode = 0;
+		dceip.display_write_back_supported = true;
+		dceip.argb_compression_support = true;
+		dceip.underlay_vscaler_efficiency6_bit_per_component =
+			bw_frc_to_fixed(35556, 10000);
+		dceip.underlay_vscaler_efficiency8_bit_per_component =
+			bw_frc_to_fixed(34286, 10000);
+		dceip.underlay_vscaler_efficiency10_bit_per_component =
+			bw_frc_to_fixed(32, 10);
+		dceip.underlay_vscaler_efficiency12_bit_per_component =
+			bw_int_to_fixed(3);
+		dceip.graphics_vscaler_efficiency6_bit_per_component =
+			bw_frc_to_fixed(35, 10);
+		dceip.graphics_vscaler_efficiency8_bit_per_component =
+			bw_frc_to_fixed(34286, 10000);
+		dceip.graphics_vscaler_efficiency10_bit_per_component =
+			bw_frc_to_fixed(32, 10);
+		dceip.graphics_vscaler_efficiency12_bit_per_component =
+			bw_int_to_fixed(3);
+		dceip.alpha_vscaler_efficiency = bw_int_to_fixed(3);
+		dceip.max_dmif_buffer_allocated = 4;
+		dceip.graphics_dmif_size = 24576;
+		dceip.underlay_luma_dmif_size = 19456;
+		dceip.underlay_chroma_dmif_size = 23552;
+		dceip.pre_downscaler_enabled = true;
+		dceip.underlay_downscale_prefetch_enabled = false;
+		dceip.lb_write_pixels_per_dispclk = bw_int_to_fixed(1);
+		dceip.lb_size_per_component444 = bw_int_to_fixed(245952);
+		dceip.graphics_lb_nodownscaling_multi_line_prefetching = true;
+		dceip.stutter_and_dram_clock_state_change_gated_before_cursor =
+			bw_int_to_fixed(1);
+		dceip.underlay420_luma_lb_size_per_component = bw_int_to_fixed(
+			82176);
+		dceip.underlay420_chroma_lb_size_per_component =
+			bw_int_to_fixed(164352);
+		dceip.underlay422_lb_size_per_component = bw_int_to_fixed(
+			82176);
+		dceip.cursor_chunk_width = bw_int_to_fixed(64);
+		dceip.cursor_dcp_buffer_lines = bw_int_to_fixed(4);
+		dceip.underlay_maximum_width_efficient_for_tiling =
+			bw_int_to_fixed(1920);
+		dceip.underlay_maximum_height_efficient_for_tiling =
+			bw_int_to_fixed(1080);
+		dceip.peak_pte_request_to_eviction_ratio_limiting_multiple_displays_or_single_rotated_display =
+			bw_frc_to_fixed(3, 10);
+		dceip.peak_pte_request_to_eviction_ratio_limiting_single_display_no_rotation =
+			bw_int_to_fixed(25);
+		dceip.minimum_outstanding_pte_request_limit = bw_int_to_fixed(
+			2);
+		dceip.maximum_total_outstanding_pte_requests_allowed_by_saw =
+			bw_int_to_fixed(128);
+		dceip.limit_excessive_outstanding_dmif_requests = true;
+		dceip.linear_mode_line_request_alternation_slice =
+			bw_int_to_fixed(64);
+		dceip.scatter_gather_lines_of_pte_prefetching_in_linear_mode =
+			32;
+		dceip.display_write_back420_luma_mcifwr_buffer_size = 12288;
+		dceip.display_write_back420_chroma_mcifwr_buffer_size = 8192;
+		dceip.request_efficiency = bw_frc_to_fixed(8, 10);
+		dceip.dispclk_per_request = bw_int_to_fixed(2);
+		dceip.dispclk_ramping_factor = bw_frc_to_fixed(105, 100);
+		dceip.display_pipe_throughput_factor = bw_frc_to_fixed(105, 100);
+		dceip.scatter_gather_pte_request_rows_in_tiling_mode = 2;
+		dceip.mcifwr_all_surfaces_burst_time = bw_int_to_fixed(0);
+		break;
 	default:
 		break;
 	}
@@ -2444,7 +2557,7 @@ void bw_calcs_init(struct bw_calcs_dceip *bw_dceip,
  */
 static bool is_display_configuration_supported(
 	const struct bw_calcs_vbios *vbios,
-	const struct bw_calcs_output *calcs_output)
+	const struct dce_bw_output *calcs_output)
 {
 	uint32_t int_max_clk;
 
@@ -2455,7 +2568,7 @@ static bool is_display_configuration_supported(
 
 	int_max_clk = bw_fixed_to_int(vbios->high_sclk);
 	int_max_clk *= 1000; /* MHz to kHz */
-	if (calcs_output->required_sclk > int_max_clk)
+	if (calcs_output->sclk_khz > int_max_clk)
 		return false;
 
 	return true;
@@ -2481,15 +2594,15 @@ static void populate_initial_data(
 		if (!pipe[i].stream || !pipe[i].bottom_pipe)
 			continue;
 
-		ASSERT(pipe[i].surface);
+		ASSERT(pipe[i].plane_state);
 
 		if (num_displays == 0) {
-			if (!pipe[i].surface->public.visible)
+			if (!pipe[i].plane_state->visible)
 				data->d0_underlay_mode = bw_def_underlay_only;
 			else
 				data->d0_underlay_mode = bw_def_blend;
 		} else {
-			if (!pipe[i].surface->public.visible)
+			if (!pipe[i].plane_state->visible)
 				data->d1_underlay_mode = bw_def_underlay_only;
 			else
 				data->d1_underlay_mode = bw_def_blend;
@@ -2497,17 +2610,17 @@ static void populate_initial_data(
 
 		data->fbc_en[num_displays + 4] = false;
 		data->lpt_en[num_displays + 4] = false;
-		data->h_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->public.timing.h_total);
-		data->v_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->public.timing.v_total);
-		data->pixel_rate[num_displays + 4] = bw_frc_to_fixed(pipe[i].stream->public.timing.pix_clk_khz, 1000);
-		data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.viewport.width);
-		data->pitch_in_pixels[num_displays + 4] = bw_int_to_fixed(pipe[i].surface->public.plane_size.grph.surface_pitch);
-		data->src_height[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.viewport.height);
-		data->h_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.taps.h_taps);
-		data->v_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.taps.v_taps);
-		data->h_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].scl_data.ratios.horz.value);
-		data->v_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].scl_data.ratios.vert.value);
-		switch (pipe[i].surface->public.rotation) {
+		data->h_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.h_total);
+		data->v_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.v_total);
+		data->pixel_rate[num_displays + 4] = bw_frc_to_fixed(pipe[i].stream->timing.pix_clk_khz, 1000);
+		data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.viewport.width);
+		data->pitch_in_pixels[num_displays + 4] = data->src_width[num_displays + 4];
+		data->src_height[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.viewport.height);
+		data->h_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.taps.h_taps);
+		data->v_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.taps.v_taps);
+		data->h_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].plane_res.scl_data.ratios.horz.value);
+		data->v_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].plane_res.scl_data.ratios.vert.value);
+		switch (pipe[i].plane_state->rotation) {
 		case ROTATION_ANGLE_0:
 			data->rotation_angle[num_displays + 4] = bw_int_to_fixed(0);
 			break;
@@ -2523,7 +2636,7 @@ static void populate_initial_data(
 		default:
 			break;
 		}
-		switch (pipe[i].surface->public.format) {
+		switch (pipe[i].plane_state->format) {
 		case SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr:
 		case SURFACE_PIXEL_FORMAT_GRPH_ARGB1555:
 		case SURFACE_PIXEL_FORMAT_GRPH_RGB565:
@@ -2554,17 +2667,17 @@ static void populate_initial_data(
 			data->fbc_en[num_displays * 2 + j] = false;
 			data->lpt_en[num_displays * 2 + j] = false;
 
-			data->src_height[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->scl_data.viewport.height);
-			data->src_width[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->scl_data.viewport.width);
+			data->src_height[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->plane_res.scl_data.viewport.height);
+			data->src_width[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->plane_res.scl_data.viewport.width);
 			data->pitch_in_pixels[num_displays * 2 + j] = bw_int_to_fixed(
-					pipe[i].bottom_pipe->surface->public.plane_size.grph.surface_pitch);
-			data->h_taps[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->scl_data.taps.h_taps);
-			data->v_taps[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->scl_data.taps.v_taps);
+					pipe[i].bottom_pipe->plane_state->plane_size.grph.surface_pitch);
+			data->h_taps[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->plane_res.scl_data.taps.h_taps);
+			data->v_taps[num_displays * 2 + j] = bw_int_to_fixed(pipe[i].bottom_pipe->plane_res.scl_data.taps.v_taps);
 			data->h_scale_ratio[num_displays * 2 + j] = fixed31_32_to_bw_fixed(
-					pipe[i].bottom_pipe->scl_data.ratios.horz.value);
+					pipe[i].bottom_pipe->plane_res.scl_data.ratios.horz.value);
 			data->v_scale_ratio[num_displays * 2 + j] = fixed31_32_to_bw_fixed(
-					pipe[i].bottom_pipe->scl_data.ratios.vert.value);
-			switch (pipe[i].bottom_pipe->surface->public.rotation) {
+					pipe[i].bottom_pipe->plane_res.scl_data.ratios.vert.value);
+			switch (pipe[i].bottom_pipe->plane_state->rotation) {
 			case ROTATION_ANGLE_0:
 				data->rotation_angle[num_displays * 2 + j] = bw_int_to_fixed(0);
 				break;
@@ -2594,18 +2707,18 @@ static void populate_initial_data(
 
 		data->fbc_en[num_displays + 4] = false;
 		data->lpt_en[num_displays + 4] = false;
-		data->h_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->public.timing.h_total);
-		data->v_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->public.timing.v_total);
-		data->pixel_rate[num_displays + 4] = bw_frc_to_fixed(pipe[i].stream->public.timing.pix_clk_khz, 1000);
-		if (pipe[i].surface) {
-			data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.viewport.width);
-			data->pitch_in_pixels[num_displays + 4] = bw_int_to_fixed(pipe[i].surface->public.plane_size.grph.surface_pitch);
-			data->src_height[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.viewport.height);
-			data->h_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.taps.h_taps);
-			data->v_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].scl_data.taps.v_taps);
-			data->h_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].scl_data.ratios.horz.value);
-			data->v_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].scl_data.ratios.vert.value);
-			switch (pipe[i].surface->public.rotation) {
+		data->h_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.h_total);
+		data->v_total[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.v_total);
+		data->pixel_rate[num_displays + 4] = bw_frc_to_fixed(pipe[i].stream->timing.pix_clk_khz, 1000);
+		if (pipe[i].plane_state) {
+			data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.viewport.width);
+			data->pitch_in_pixels[num_displays + 4] = data->src_width[num_displays + 4];
+			data->src_height[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.viewport.height);
+			data->h_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.taps.h_taps);
+			data->v_taps[num_displays + 4] = bw_int_to_fixed(pipe[i].plane_res.scl_data.taps.v_taps);
+			data->h_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].plane_res.scl_data.ratios.horz.value);
+			data->v_scale_ratio[num_displays + 4] = fixed31_32_to_bw_fixed(pipe[i].plane_res.scl_data.ratios.vert.value);
+			switch (pipe[i].plane_state->rotation) {
 			case ROTATION_ANGLE_0:
 				data->rotation_angle[num_displays + 4] = bw_int_to_fixed(0);
 				break;
@@ -2621,7 +2734,7 @@ static void populate_initial_data(
 			default:
 				break;
 			}
-			switch (pipe[i].surface->public.format) {
+			switch (pipe[i].plane_state->format) {
 			case SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr:
 			case SURFACE_PIXEL_FORMAT_VIDEO_420_YCrCb:
 			case SURFACE_PIXEL_FORMAT_GRPH_ARGB1555:
@@ -2646,9 +2759,9 @@ static void populate_initial_data(
 				break;
 			}
 		} else {
-			data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->public.timing.h_addressable);
+			data->src_width[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.h_addressable);
 			data->pitch_in_pixels[num_displays + 4] = data->src_width[num_displays + 4];
-			data->src_height[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->public.timing.v_addressable);
+			data->src_height[num_displays + 4] = bw_int_to_fixed(pipe[i].stream->timing.v_addressable);
 			data->h_taps[num_displays + 4] = bw_int_to_fixed(1);
 			data->v_taps[num_displays + 4] = bw_int_to_fixed(1);
 			data->h_scale_ratio[num_displays + 4] = bw_int_to_fixed(1);
@@ -2677,9 +2790,12 @@ bool bw_calcs(struct dc_context *ctx,
 	const struct bw_calcs_vbios *vbios,
 	const struct pipe_ctx pipe[],
 	int pipe_count,
-	struct bw_calcs_output *calcs_output)
+	struct dce_bw_output *calcs_output)
 {
-	struct bw_calcs_data *data = dm_alloc(sizeof(struct bw_calcs_data));
+	struct bw_calcs_data *data = kzalloc(sizeof(struct bw_calcs_data),
+					     GFP_KERNEL);
+	if (!data)
+		return false;
 
 	populate_initial_data(pipe, pipe_count, data);
 
@@ -2718,20 +2834,20 @@ bool bw_calcs(struct dc_context *ctx,
 					bw_int_to_fixed(1000)));
 		calcs_output->blackout_recovery_time_us =
 			bw_fixed_to_int(data->blackout_recovery_time);
-		calcs_output->required_sclk =
+		calcs_output->sclk_khz =
 			bw_fixed_to_int(bw_mul(data->required_sclk,
 					bw_int_to_fixed(1000)));
-		calcs_output->required_sclk_deep_sleep =
+		calcs_output->sclk_deep_sleep_khz =
 			bw_fixed_to_int(bw_mul(data->sclk_deep_sleep,
 					bw_int_to_fixed(1000)));
 		if (yclk_lvl == 0)
-			calcs_output->required_yclk = bw_fixed_to_int(
+			calcs_output->yclk_khz = bw_fixed_to_int(
 				bw_mul(low_yclk, bw_int_to_fixed(1000)));
 		else if (yclk_lvl == 1)
-			calcs_output->required_yclk = bw_fixed_to_int(
+			calcs_output->yclk_khz = bw_fixed_to_int(
 				bw_mul(mid_yclk, bw_int_to_fixed(1000)));
 		else
-			calcs_output->required_yclk = bw_fixed_to_int(
+			calcs_output->yclk_khz = bw_fixed_to_int(
 				bw_mul(high_yclk, bw_int_to_fixed(1000)));
 
 		/* units: nanosecond, 16bit storage. */
@@ -3132,10 +3248,10 @@ bool bw_calcs(struct dc_context *ctx,
 		calcs_output->cpup_state_change_enable = true;
 		calcs_output->stutter_mode_enable = true;
 		calcs_output->dispclk_khz = 0;
-		calcs_output->required_sclk = 0;
+		calcs_output->sclk_khz = 0;
 	}
 
-	dm_free(data);
+	kfree(data);
 
 	return is_display_configuration_supported(vbios, calcs_output);
 }

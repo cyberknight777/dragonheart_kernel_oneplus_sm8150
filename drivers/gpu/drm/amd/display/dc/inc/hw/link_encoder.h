@@ -17,7 +17,6 @@ struct encoder_set_dp_phy_pattern_param;
 struct link_mst_stream_allocation_table;
 struct dc_link_settings;
 struct link_training_settings;
-struct core_stream;
 struct pipe_ctx;
 
 struct encoder_init_data {
@@ -38,6 +37,7 @@ struct encoder_feature_support {
 			uint32_t IS_TPS3_CAPABLE:1;
 			uint32_t IS_TPS4_CAPABLE:1;
 			uint32_t IS_YCBCR_CAPABLE:1;
+			uint32_t HDMI_6GB_EN:1;
 		} bits;
 		uint32_t raw;
 	} flags;
@@ -45,43 +45,6 @@ struct encoder_feature_support {
 	enum dc_color_depth max_hdmi_deep_color;
 	unsigned int max_hdmi_pixel_clock;
 	bool ycbcr420_supported;
-};
-
-enum physical_phy_id {
-	PHYLD_0,
-	PHYLD_1,
-	PHYLD_2,
-	PHYLD_3,
-	PHYLD_4,
-	PHYLD_5,
-	PHYLD_6,
-	PHYLD_7,
-	PHYLD_8,
-	PHYLD_9,
-	PHYLD_COUNT,
-	PHYLD_UNKNOWN = (-1L)
-};
-
-enum phy_type {
-	PHY_TYPE_UNKNOWN  = 1,
-	PHY_TYPE_PCIE_PHY = 2,
-	PHY_TYPE_UNIPHY = 3,
-};
-
-union dmcu_psr_level {
-	struct {
-		unsigned int SKIP_CRC:1;
-		unsigned int SKIP_DP_VID_STREAM_DISABLE:1;
-		unsigned int SKIP_PHY_POWER_DOWN:1;
-		unsigned int SKIP_AUX_ACK_CHECK:1;
-		unsigned int SKIP_CRTC_DISABLE:1;
-		unsigned int SKIP_AUX_RFB_CAPTURE_CHECK:1;
-		unsigned int SKIP_SMU_NOTIFICATION:1;
-		unsigned int SKIP_AUTO_STATE_ADVANCE:1;
-		unsigned int DISABLE_PSR_ENTRY_ABORT:1;
-		unsigned int RESERVED:23;
-	} bits;
-	unsigned int u32all;
 };
 
 union dpcd_psr_configuration {
@@ -116,70 +79,6 @@ union psr_sink_psr_status {
 	unsigned char raw;
 };
 
-struct psr_context {
-	/* ddc line */
-	enum channel_id channel;
-	/* Transmitter id */
-	enum transmitter transmitterId;
-	/* Engine Id is used for Dig Be source select */
-	enum engine_id engineId;
-	/* Controller Id used for Dig Fe source select */
-	enum controller_id controllerId;
-	/* Pcie or Uniphy */
-	enum phy_type phyType;
-	/* Physical PHY Id used by SMU interpretation */
-	enum physical_phy_id smuPhyId;
-	/* Vertical total pixels from crtc timing.
-	 * This is used for static screen detection.
-	 * ie. If we want to detect half a frame,
-	 * we use this to determine the hyst lines.
-	 */
-	unsigned int crtcTimingVerticalTotal;
-	/* PSR supported from panel capabilities and
-	 * current display configuration
-	 */
-	bool psrSupportedDisplayConfig;
-	/* Whether fast link training is supported by the panel */
-	bool psrExitLinkTrainingRequired;
-	/* If RFB setup time is greater than the total VBLANK time,
-	 * it is not possible for the sink to capture the video frame
-	 * in the same frame the SDP is sent. In this case,
-	 * the frame capture indication bit should be set and an extra
-	 * static frame should be transmitted to the sink.
-	 */
-	bool psrFrameCaptureIndicationReq;
-	/* Set the last possible line SDP may be transmitted without violating
-	 * the RFB setup time or entering the active video frame.
-	 */
-	unsigned int sdpTransmitLineNumDeadline;
-	/* The VSync rate in Hz used to calculate the
-	 * step size for smooth brightness feature
-	 */
-	unsigned int vsyncRateHz;
-	unsigned int skipPsrWaitForPllLock;
-	unsigned int numberOfControllers;
-	/* Unused, for future use. To indicate that first changed frame from
-	 * state3 shouldn't result in psr_inactive, but rather to perform
-	 * an automatic single frame rfb_update.
-	 */
-	bool rfb_update_auto_en;
-	/* Number of frame before entering static screen */
-	unsigned int timehyst_frames;
-	/* Partial frames before entering static screen */
-	unsigned int hyst_lines;
-	/* # of repeated AUX transaction attempts to make before
-	 * indicating failure to the driver
-	 */
-	unsigned int aux_repeats;
-	/* Controls hw blocks to power down during PSR active state */
-	union dmcu_psr_level psr_level;
-	/* Controls additional delay after remote frame capture before
-	 * continuing powerd own
-	 */
-	unsigned int frame_delay;
-};
-
-
 struct link_encoder {
 	const struct link_encoder_funcs *funcs;
 	int32_t aux_channel_offset;
@@ -195,7 +94,7 @@ struct link_encoder {
 
 struct link_encoder_funcs {
 	bool (*validate_output_with_stream)(
-		struct link_encoder *enc, struct pipe_ctx *pipe_ctx);
+		struct link_encoder *enc, const struct dc_stream_state *stream);
 	void (*hw_init)(struct link_encoder *enc);
 	void (*setup)(struct link_encoder *enc,
 		enum signal_type signal);
@@ -212,7 +111,7 @@ struct link_encoder_funcs {
 		const struct dc_link_settings *link_settings,
 		enum clock_source_id clock_source);
 	void (*disable_output)(struct link_encoder *link_enc,
-		enum signal_type signal);
+		enum signal_type signal, struct dc_link *link);
 	void (*dp_set_lane_settings)(struct link_encoder *enc,
 		const struct link_training_settings *link_settings);
 	void (*dp_set_phy_pattern)(struct link_encoder *enc,
@@ -224,10 +123,6 @@ struct link_encoder_funcs {
 			bool exit_link_training_required);
 	void (*psr_program_secondary_packet)(struct link_encoder *enc,
 				unsigned int sdp_transmit_line_num_deadline);
-	void (*backlight_control) (struct link_encoder *enc,
-		bool enable);
-	void (*power_control) (struct link_encoder *enc,
-		bool power_up);
 	void (*connect_dig_be_to_fe)(struct link_encoder *enc,
 		enum engine_id engine,
 		bool connect);

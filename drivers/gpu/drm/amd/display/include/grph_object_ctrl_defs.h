@@ -65,6 +65,7 @@ enum dal_device_type {
 struct device_id {
 	enum dal_device_type device_type:16;
 	uint32_t enum_id:16;	/* 1 based enum */
+	uint16_t raw_device_tag;
 };
 
 struct graphics_object_i2c_info {
@@ -154,7 +155,7 @@ struct embedded_panel_info {
 	bool realtek_eDPToLVDS;
 };
 
-struct firmware_info {
+struct dc_firmware_info {
 	struct pll_info {
 		uint32_t crystal_frequency; /* in KHz */
 		uint32_t min_input_pxl_clk_pll_frequency; /* in KHz */
@@ -182,9 +183,9 @@ struct firmware_info {
 };
 
 struct step_and_delay_info {
-    uint32_t step;
-    uint32_t delay;
-    uint32_t recommended_ref_div;
+	uint32_t step;
+	uint32_t delay;
+	uint32_t recommended_ref_div;
 };
 
 struct spread_spectrum_info {
@@ -264,6 +265,20 @@ struct transmitter_configuration {
 #define NUMBER_OF_DISP_CLK_VOLTAGE 4
 #define NUMBER_OF_AVAILABLE_SCLK 5
 
+struct i2c_reg_info {
+	unsigned char       i2c_reg_index;
+	unsigned char       i2c_reg_val;
+};
+
+struct ext_hdmi_settings {
+	unsigned char   slv_addr;
+	unsigned char   reg_num;
+	struct i2c_reg_info      reg_settings[9];
+	unsigned char   reg_num_6g;
+	struct i2c_reg_info      reg_settings_6g[3];
+};
+
+
 /* V6 */
 struct integrated_info {
 	struct clock_voltage_caps {
@@ -291,6 +306,8 @@ struct integrated_info {
 			struct graphics_object_id ext_encoder_obj_id;
 			/* XBAR mapping of the PHY channels */
 			union ddi_channel_mapping channel_mapping;
+
+			unsigned short caps;
 		} path[MAX_NUMBER_OF_EXT_DISPLAY_PATH];
 
 		uint8_t gu_id[NUMBER_OF_UCHAR_FOR_GUID];
@@ -357,6 +374,27 @@ struct integrated_info {
 	uint32_t lvds_pwr_off_seq_blon_to_vary_bl_in_4ms;
 	uint32_t lvds_reserved1;
 	uint32_t lvds_bit_depth_control_val;
+	//Start from V9
+	unsigned char dp0_ext_hdmi_slv_addr;
+	unsigned char dp0_ext_hdmi_reg_num;
+	struct i2c_reg_info dp0_ext_hdmi_reg_settings[9];
+	unsigned char dp0_ext_hdmi_6g_reg_num;
+	struct i2c_reg_info dp0_ext_hdmi_6g_reg_settings[3];
+	unsigned char dp1_ext_hdmi_slv_addr;
+	unsigned char dp1_ext_hdmi_reg_num;
+	struct i2c_reg_info dp1_ext_hdmi_reg_settings[9];
+	unsigned char dp1_ext_hdmi_6g_reg_num;
+	struct i2c_reg_info dp1_ext_hdmi_6g_reg_settings[3];
+	unsigned char dp2_ext_hdmi_slv_addr;
+	unsigned char dp2_ext_hdmi_reg_num;
+	struct i2c_reg_info dp2_ext_hdmi_reg_settings[9];
+	unsigned char dp2_ext_hdmi_6g_reg_num;
+	struct i2c_reg_info dp2_ext_hdmi_6g_reg_settings[3];
+	unsigned char dp3_ext_hdmi_slv_addr;
+	unsigned char dp3_ext_hdmi_reg_num;
+	struct i2c_reg_info dp3_ext_hdmi_reg_settings[9];
+	unsigned char dp3_ext_hdmi_6g_reg_num;
+	struct i2c_reg_info dp3_ext_hdmi_6g_reg_settings[3];
 };
 
 /**

@@ -1219,24 +1219,34 @@ static void pch_post_disable_hdmi(struct intel_encoder *encoder,
 	intel_disable_hdmi(encoder, old_crtc_state, old_conn_state);
 }
 
-static int intel_hdmi_source_max_tmds_clock(struct drm_i915_private *dev_priv)
+static int intel_hdmi_source_max_tmds_clock(struct intel_encoder *encoder)
 {
-	if (IS_G4X(dev_priv))
-		return 165000;
-	else if (IS_GEMINILAKE(dev_priv))
-		return 594000;
-	else if (IS_HASWELL(dev_priv) || INTEL_INFO(dev_priv)->gen >= 8)
-		return 300000;
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	const struct ddi_vbt_port_info *info =
+		&dev_priv->vbt.ddi_port_info[encoder->port];
+	int max_tmds_clock;
+
+	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
+		max_tmds_clock = 594000;
+	else if (INTEL_GEN(dev_priv) >= 8 || IS_HASWELL(dev_priv))
+		max_tmds_clock = 300000;
+	else if (INTEL_GEN(dev_priv) >= 5)
+		max_tmds_clock = 225000;
 	else
-		return 225000;
+		max_tmds_clock = 165000;
+
+	if (info->max_tmds_clock)
+		max_tmds_clock = min(max_tmds_clock, info->max_tmds_clock);
+
+	return max_tmds_clock;
 }
 
 static int hdmi_port_clock_limit(struct intel_hdmi *hdmi,
 				 bool respect_downstream_limits,
 				 bool force_dvi)
 {
-	struct drm_device *dev = intel_hdmi_to_dev(hdmi);
-	int max_tmds_clock = intel_hdmi_source_max_tmds_clock(to_i915(dev));
+	struct intel_encoder *encoder = &hdmi_to_dig_port(hdmi)->base;
+	int max_tmds_clock = intel_hdmi_source_max_tmds_clock(encoder);
 
 	if (respect_downstream_limits) {
 		struct intel_connector *connector = hdmi->attached_connector;
@@ -1487,7 +1497,8 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 
 	pipe_config->lane_count = 4;
 
-	if (scdc->scrambling.supported && IS_GEMINILAKE(dev_priv)) {
+	if (scdc->scrambling.supported && (INTEL_GEN(dev_priv) >= 10 ||
+					   IS_GEMINILAKE(dev_priv))) {
 		if (scdc->scrambling.low_rates)
 			pipe_config->hdmi_scrambling = true;
 
@@ -2016,7 +2027,7 @@ void intel_hdmi_init_connector(struct intel_digital_port *intel_dig_port,
 	connector->doublescan_allowed = 0;
 	connector->stereo_allowed = 1;
 
-	if (IS_GEMINILAKE(dev_priv))
+	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
 		connector->ycbcr_420_allowed = true;
 
 	intel_hdmi->ddc_bus = intel_hdmi_ddc_pin(dev_priv, port);

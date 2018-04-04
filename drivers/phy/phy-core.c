@@ -351,6 +351,8 @@ int phy_set_mode(struct phy *phy, enum phy_mode mode)
 
 	mutex_lock(&phy->mutex);
 	ret = phy->ops->set_mode(phy, mode);
+	if (!ret)
+		phy->attrs.mode = mode;
 	mutex_unlock(&phy->mutex);
 
 	return ret;
@@ -371,6 +373,21 @@ int phy_reset(struct phy *phy)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(phy_reset);
+
+int phy_calibrate(struct phy *phy)
+{
+	int ret;
+
+	if (!phy || !phy->ops->calibrate)
+		return 0;
+
+	mutex_lock(&phy->mutex);
+	ret = phy->ops->calibrate(phy);
+	mutex_unlock(&phy->mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(phy_calibrate);
 
 /**
  * _of_phy_get() - lookup and obtain a reference to a phy by phandle
@@ -393,6 +410,10 @@ static struct phy *_of_phy_get(struct device_node *np, int index)
 	ret = of_parse_phandle_with_args(np, "phys", "#phy-cells",
 		index, &args);
 	if (ret)
+		return ERR_PTR(-ENODEV);
+
+	/* This phy type handled by the usb-phy subsystem for now */
+	if (of_device_is_compatible(args.np, "usb-nop-xceiv"))
 		return ERR_PTR(-ENODEV);
 
 	mutex_lock(&phy_provider_mutex);

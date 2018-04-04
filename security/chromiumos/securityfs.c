@@ -27,41 +27,64 @@
 #include "inode_mark.h"
 
 static struct dentry *chromiumos_dir;
-static struct dentry *chromiumos_symlink_policy_dir;
+static struct dentry *chromiumos_inode_policy_dir;
 
-struct chromiumos_symlink_file_entry {
+struct chromiumos_inode_policy_file_entry {
 	const char *name;
-	int (*handle_write)(struct chromiumos_symlink_file_entry *,
+	int (*handle_write)(struct chromiumos_inode_policy_file_entry *,
 			    struct dentry *);
-	enum chromiumos_symlink_traversal_policy traversal_policy;
+	enum chromiumos_inode_security_policy_type type;
+	enum chromiumos_inode_security_policy policy;
 	struct dentry *dentry;
 };
 
-static int chromiumos_symlink_file_policy_write(
-	struct chromiumos_symlink_file_entry *file_entry, struct dentry *dentry)
+static int chromiumos_inode_policy_file_write(
+	struct chromiumos_inode_policy_file_entry *file_entry,
+	struct dentry *dentry)
 {
-	return chromiumos_update_symlink_traversal_policy(
-		dentry->d_inode, file_entry->traversal_policy);
+	return chromiumos_update_inode_security_policy(dentry->d_inode,
+		file_entry->type, file_entry->policy);
 }
 
-static int chromiumos_symlink_file_flush_write(
-	struct chromiumos_symlink_file_entry *file_entry, struct dentry *dentry)
+/*
+ * Causes all marks to be removed from inodes thus removing all inode security
+ * policies.
+ */
+static int chromiumos_inode_policy_file_flush_write(
+	struct chromiumos_inode_policy_file_entry *file_entry,
+	struct dentry *dentry)
 {
-	return chromiumos_flush_symlink_traversal_policy(dentry->d_sb);
+	return chromiumos_flush_inode_security_policies(dentry->d_sb);
 }
 
-static struct chromiumos_symlink_file_entry chromiumos_symlink_files[] = {
-	{.name = "block",
-	 .handle_write = chromiumos_symlink_file_policy_write,
-	 .traversal_policy = CHROMIUMOS_SYMLINK_TRAVERSAL_BLOCK},
-	{.name = "allow",
-	 .handle_write = chromiumos_symlink_file_policy_write,
-	 .traversal_policy = CHROMIUMOS_SYMLINK_TRAVERSAL_ALLOW},
-	{.name = "reset",
-	 .handle_write = chromiumos_symlink_file_policy_write,
-	 .traversal_policy = CHROMIUMOS_SYMLINK_TRAVERSAL_INHERIT},
-	{.name = "flush",
-	 .handle_write = &chromiumos_symlink_file_flush_write},
+static struct chromiumos_inode_policy_file_entry
+		chromiumos_inode_policy_files[] = {
+	{.name = "block_symlink",
+	 .handle_write = chromiumos_inode_policy_file_write,
+	 .type = CHROMIUMOS_SYMLINK_TRAVERSAL,
+	 .policy = CHROMIUMOS_INODE_POLICY_BLOCK},
+	{.name = "allow_symlink",
+	 .handle_write = chromiumos_inode_policy_file_write,
+	 .type = CHROMIUMOS_SYMLINK_TRAVERSAL,
+	 .policy = CHROMIUMOS_INODE_POLICY_ALLOW},
+	{.name = "reset_symlink",
+	 .handle_write = chromiumos_inode_policy_file_write,
+	 .type = CHROMIUMOS_SYMLINK_TRAVERSAL,
+	 .policy = CHROMIUMOS_INODE_POLICY_INHERIT},
+	{.name = "block_fifo",
+	 .handle_write = chromiumos_inode_policy_file_write,
+	 .type = CHROMIUMOS_FIFO_ACCESS,
+	 .policy = CHROMIUMOS_INODE_POLICY_BLOCK},
+	{.name = "allow_fifo",
+	 .handle_write = chromiumos_inode_policy_file_write,
+	 .type = CHROMIUMOS_FIFO_ACCESS,
+	 .policy = CHROMIUMOS_INODE_POLICY_ALLOW},
+	{.name = "reset_fifo",
+	 .handle_write = chromiumos_inode_policy_file_write,
+	 .type = CHROMIUMOS_FIFO_ACCESS,
+	 .policy = CHROMIUMOS_INODE_POLICY_INHERIT},
+	{.name = "flush_policies",
+	 .handle_write = &chromiumos_inode_policy_file_flush_write},
 };
 
 static int chromiumos_resolve_path(const char __user *buf, size_t len,
@@ -127,11 +150,13 @@ out:
 	return ret;
 }
 
-static ssize_t chromiumos_symlink_file_write(struct file *file,
-					     const char __user *buf, size_t len,
-					     loff_t *ppos)
+static ssize_t chromiumos_inode_file_write(
+	struct file *file,
+	const char __user *buf,
+	size_t len,
+	loff_t *ppos)
 {
-	struct chromiumos_symlink_file_entry *file_entry =
+	struct chromiumos_inode_policy_file_entry *file_entry =
 		file->f_inode->i_private;
 	struct path path = {};
 	int ret;
@@ -151,23 +176,23 @@ static ssize_t chromiumos_symlink_file_write(struct file *file,
 	return ret < 0 ? ret : len;
 }
 
-static const struct file_operations chromiumos_symlink_file_fops = {
-	.write = chromiumos_symlink_file_write,
+static const struct file_operations chromiumos_inode_policy_file_fops = {
+	.write = chromiumos_inode_file_write,
 };
 
 static void chromiumos_shutdown_securityfs(void)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(chromiumos_symlink_files); ++i) {
-		struct chromiumos_symlink_file_entry *entry =
-			&chromiumos_symlink_files[i];
+	for (i = 0; i < ARRAY_SIZE(chromiumos_inode_policy_files); ++i) {
+		struct chromiumos_inode_policy_file_entry *entry =
+			&chromiumos_inode_policy_files[i];
 		securityfs_remove(entry->dentry);
 		entry->dentry = NULL;
 	}
 
-	securityfs_remove(chromiumos_symlink_policy_dir);
-	chromiumos_symlink_policy_dir = NULL;
+	securityfs_remove(chromiumos_inode_policy_dir);
+	chromiumos_inode_policy_dir = NULL;
 
 	securityfs_remove(chromiumos_dir);
 	chromiumos_dir = NULL;
@@ -184,19 +209,21 @@ static int chromiumos_init_securityfs(void)
 		goto error;
 	}
 
-	chromiumos_symlink_policy_dir =
-		securityfs_create_dir("symlink_policy", chromiumos_dir);
-	if (!chromiumos_symlink_policy_dir) {
-		ret = PTR_ERR(chromiumos_symlink_policy_dir);
+	chromiumos_inode_policy_dir =
+		securityfs_create_dir(
+			"inode_security_policies",
+			chromiumos_dir);
+	if (!chromiumos_inode_policy_dir) {
+		ret = PTR_ERR(chromiumos_inode_policy_dir);
 		goto error;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(chromiumos_symlink_files); ++i) {
-		struct chromiumos_symlink_file_entry *entry =
-			&chromiumos_symlink_files[i];
+	for (i = 0; i < ARRAY_SIZE(chromiumos_inode_policy_files); ++i) {
+		struct chromiumos_inode_policy_file_entry *entry =
+			&chromiumos_inode_policy_files[i];
 		entry->dentry = securityfs_create_file(
-			entry->name, S_IWUSR, chromiumos_symlink_policy_dir,
-			entry, &chromiumos_symlink_file_fops);
+			entry->name, 0200, chromiumos_inode_policy_dir,
+			entry, &chromiumos_inode_policy_file_fops);
 		if (IS_ERR(entry->dentry)) {
 			ret = PTR_ERR(entry->dentry);
 			goto error;

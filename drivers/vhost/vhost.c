@@ -904,7 +904,7 @@ static void vhost_dev_lock_vqs(struct vhost_dev *d)
 {
 	int i = 0;
 	for (i = 0; i < d->nvqs; ++i)
-		mutex_lock(&d->vqs[i]->mutex);
+		mutex_lock_nested(&d->vqs[i]->mutex, i);
 }
 
 static void vhost_dev_unlock_vqs(struct vhost_dev *d)
@@ -1345,7 +1345,7 @@ err:
 	return -EFAULT;
 }
 
-long vhost_vring_ioctl(struct vhost_dev *d, int ioctl, void __user *argp)
+long vhost_vring_ioctl(struct vhost_dev *d, unsigned int ioctl, void __user *argp)
 {
 	struct file *eventfp, *filep = NULL;
 	bool pollstart = false, pollstop = false;

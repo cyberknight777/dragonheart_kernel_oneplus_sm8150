@@ -371,7 +371,6 @@ void dce110_timing_generator_set_drr(
 	uint32_t v_total_min = 0;
 	uint32_t v_total_max = 0;
 	uint32_t v_total_cntl = 0;
-	uint32_t static_screen_cntl = 0;
 	struct dce110_timing_generator *tg110 = DCE110TG_FROM_TG(tg);
 
 	uint32_t addr = 0;
@@ -384,9 +383,6 @@ void dce110_timing_generator_set_drr(
 
 	addr = CRTC_REG(mmCRTC_V_TOTAL_CONTROL);
 	v_total_cntl = dm_read_reg(tg->ctx, addr);
-
-	addr = CRTC_REG(mmCRTC_STATIC_SCREEN_CONTROL);
-	static_screen_cntl = dm_read_reg(tg->ctx, addr);
 
 	if (params != NULL &&
 		params->vertical_total_max > 0 &&
@@ -430,20 +426,11 @@ void dce110_timing_generator_set_drr(
 				0,
 				CRTC_V_TOTAL_CONTROL,
 				CRTC_SET_V_TOTAL_MIN_MASK);
-
-		set_reg_field_value(static_screen_cntl,
-				0x180,
-			CRTC_STATIC_SCREEN_CONTROL,
-			CRTC_STATIC_SCREEN_EVENT_MASK);
 	} else {
 		set_reg_field_value(v_total_cntl,
 			0,
 			CRTC_V_TOTAL_CONTROL,
 			CRTC_SET_V_TOTAL_MIN_MASK);
-		set_reg_field_value(static_screen_cntl,
-			0,
-			CRTC_STATIC_SCREEN_CONTROL,
-			CRTC_STATIC_SCREEN_EVENT_MASK);
 		set_reg_field_value(v_total_min,
 				0,
 				CRTC_V_TOTAL_MIN,
@@ -478,9 +465,6 @@ void dce110_timing_generator_set_drr(
 
 	addr = CRTC_REG(mmCRTC_V_TOTAL_CONTROL);
 	dm_write_reg(tg->ctx, addr, v_total_cntl);
-
-	addr = CRTC_REG(mmCRTC_STATIC_SCREEN_CONTROL);
-	dm_write_reg(tg->ctx, addr, static_screen_cntl);
 }
 
 void dce110_timing_generator_set_static_screen_control(
@@ -534,34 +518,38 @@ uint32_t dce110_timing_generator_get_vblank_counter(struct timing_generator *tg)
 
 /**
  *****************************************************************************
- *  Function: dce110_get_crtc_positions
+ *  Function: dce110_timing_generator_get_position
  *
  *  @brief
  *     Returns CRTC vertical/horizontal counters
  *
- *  @param [out] v_position, h_position
+ *  @param [out] position
  *****************************************************************************
  */
-
-void dce110_timing_generator_get_crtc_positions(
-	struct timing_generator *tg,
-	int32_t *h_position,
-	int32_t *v_position)
+void dce110_timing_generator_get_position(struct timing_generator *tg,
+	struct crtc_position *position)
 {
 	uint32_t value;
 	struct dce110_timing_generator *tg110 = DCE110TG_FROM_TG(tg);
 
 	value = dm_read_reg(tg->ctx, CRTC_REG(mmCRTC_STATUS_POSITION));
 
-	*h_position = get_reg_field_value(
+	position->horizontal_count = get_reg_field_value(
 			value,
 			CRTC_STATUS_POSITION,
 			CRTC_HORZ_COUNT);
 
-	*v_position = get_reg_field_value(
+	position->vertical_count = get_reg_field_value(
 			value,
 			CRTC_STATUS_POSITION,
 			CRTC_VERT_COUNT);
+
+	value = dm_read_reg(tg->ctx, CRTC_REG(mmCRTC_NOM_VERT_POSITION));
+
+	position->nominal_vcount = get_reg_field_value(
+			value,
+			CRTC_NOM_VERT_POSITION,
+			CRTC_VERT_COUNT_NOM);
 }
 
 /**
@@ -574,29 +562,31 @@ void dce110_timing_generator_get_crtc_positions(
  *  @param [out] vpos, hpos
  *****************************************************************************
  */
-uint32_t dce110_timing_generator_get_crtc_scanoutpos(
+void dce110_timing_generator_get_crtc_scanoutpos(
 	struct timing_generator *tg,
-	uint32_t *vbl,
-	uint32_t *position)
+	uint32_t *v_blank_start,
+	uint32_t *v_blank_end,
+	uint32_t *h_position,
+	uint32_t *v_position)
 {
 	struct dce110_timing_generator *tg110 = DCE110TG_FROM_TG(tg);
-	/* TODO 1: Update the implementation once caller is updated
-	 * WARNING!! This function is returning the whole register value
-	 * because the caller is expecting it instead of proper vertical and
-	 * horizontal position. This should be a temporary implementation
-	 * until the caller is updated. */
+	struct crtc_position position;
 
-	/* TODO 2: re-use dce110_timing_generator_get_crtc_positions() */
-
-	*vbl = dm_read_reg(tg->ctx,
+	uint32_t value  = dm_read_reg(tg->ctx,
 			CRTC_REG(mmCRTC_V_BLANK_START_END));
 
-	*position = dm_read_reg(tg->ctx,
-			CRTC_REG(mmCRTC_STATUS_POSITION));
+	*v_blank_start = get_reg_field_value(value,
+					     CRTC_V_BLANK_START_END,
+					     CRTC_V_BLANK_START);
+	*v_blank_end = get_reg_field_value(value,
+					   CRTC_V_BLANK_START_END,
+					   CRTC_V_BLANK_END);
 
-	/* @TODO: return value should indicate if current
-	 * crtc is inside vblank*/
-	return 0;
+	dce110_timing_generator_get_position(
+			tg, &position);
+
+	*h_position = position.horizontal_count;
+	*v_position = position.vertical_count;
 }
 
 /* TODO: is it safe to assume that mask/shift of Primary and Underlay
@@ -637,6 +627,27 @@ void dce110_timing_generator_program_blanking(
 		timing->v_total - 1,
 		CRTC_V_TOTAL,
 		CRTC_V_TOTAL);
+	dm_write_reg(ctx, addr, value);
+
+	/* In case of V_TOTAL_CONTROL is on, make sure V_TOTAL_MAX and
+	 * V_TOTAL_MIN are equal to V_TOTAL.
+	 */
+	addr = CRTC_REG(mmCRTC_V_TOTAL_MAX);
+	value = dm_read_reg(ctx, addr);
+	set_reg_field_value(
+		value,
+		timing->v_total - 1,
+		CRTC_V_TOTAL_MAX,
+		CRTC_V_TOTAL_MAX);
+	dm_write_reg(ctx, addr, value);
+
+	addr = CRTC_REG(mmCRTC_V_TOTAL_MIN);
+	value = dm_read_reg(ctx, addr);
+	set_reg_field_value(
+		value,
+		timing->v_total - 1,
+		CRTC_V_TOTAL_MIN,
+		CRTC_V_TOTAL_MIN);
 	dm_write_reg(ctx, addr, value);
 
 	addr = CRTC_REG(mmCRTC_H_BLANK_START_END);
@@ -1227,8 +1238,8 @@ void dce110_timing_generator_setup_global_swap_lock(
 			DCP_GSL_CONTROL,
 			DCP_GSL_HSYNC_FLIP_FORCE_DELAY);
 
-        /* Keep signal low (pending high) during 6 lines.
-         * Also defines minimum interval before re-checking signal. */
+	/* Keep signal low (pending high) during 6 lines.
+	 * Also defines minimum interval before re-checking signal. */
 	set_reg_field_value(value,
 			HFLIP_CHECK_DELAY,
 			DCP_GSL_CONTROL,
@@ -1363,15 +1374,13 @@ void dce110_timing_generator_tear_down_global_swap_lock(
  */
 bool dce110_timing_generator_is_counter_moving(struct timing_generator *tg)
 {
-	uint32_t h1 = 0;
-	uint32_t h2 = 0;
-	uint32_t v1 = 0;
-	uint32_t v2 = 0;
+	struct crtc_position position1, position2;
 
-	tg->funcs->get_position(tg, &h1, &v1);
-	tg->funcs->get_position(tg, &h2, &v2);
+	tg->funcs->get_position(tg, &position1);
+	tg->funcs->get_position(tg, &position2);
 
-	if (h1 == h2 && v1 == v2)
+	if (position1.horizontal_count == position2.horizontal_count &&
+		position1.vertical_count == position2.vertical_count)
 		return false;
 	else
 		return true;
@@ -1769,18 +1778,6 @@ void dce110_tg_set_overscan_color(struct timing_generator *tg,
 	dm_write_reg(ctx, addr, value);
 }
 
-void dce110_tg_get_position(struct timing_generator *tg,
-	struct crtc_position *position)
-{
-	int32_t h_position;
-	int32_t v_position;
-
-	dce110_timing_generator_get_crtc_positions(tg, &h_position, &v_position);
-
-	position->horizontal_count = (uint32_t)h_position;
-	position->vertical_count = (uint32_t)v_position;
-}
-
 void dce110_tg_program_timing(struct timing_generator *tg,
 	const struct dc_crtc_timing *timing,
 	bool use_vbios)
@@ -1869,13 +1866,52 @@ void dce110_tg_set_colors(struct timing_generator *tg,
 		dce110_tg_set_overscan_color(tg, overscan_color);
 }
 
+/* Gets first line of blank region of the display timing for CRTC
+ * and programms is as a trigger to fire vertical interrupt
+ */
+bool dce110_arm_vert_intr(struct timing_generator *tg, uint8_t width)
+{
+	struct dce110_timing_generator *tg110 = DCE110TG_FROM_TG(tg);
+	uint32_t v_blank_start = 0;
+	uint32_t v_blank_end = 0;
+	uint32_t val = 0;
+	uint32_t h_position, v_position;
+
+	tg->funcs->get_scanoutpos(
+			tg,
+			&v_blank_start,
+			&v_blank_end,
+			&h_position,
+			&v_position);
+
+	if (v_blank_start == 0 || v_blank_end == 0)
+		return false;
+
+	set_reg_field_value(
+		val,
+		v_blank_start,
+		CRTC_VERTICAL_INTERRUPT0_POSITION,
+		CRTC_VERTICAL_INTERRUPT0_LINE_START);
+
+	/* Set interval width for interrupt to fire to 1 scanline */
+	set_reg_field_value(
+		val,
+		v_blank_start + width,
+		CRTC_VERTICAL_INTERRUPT0_POSITION,
+		CRTC_VERTICAL_INTERRUPT0_LINE_END);
+
+	dm_write_reg(tg->ctx, CRTC_REG(mmCRTC_VERTICAL_INTERRUPT0_POSITION), val);
+
+	return true;
+}
+
 static const struct timing_generator_funcs dce110_tg_funcs = {
 		.validate_timing = dce110_tg_validate_timing,
 		.program_timing = dce110_tg_program_timing,
 		.enable_crtc = dce110_timing_generator_enable_crtc,
 		.disable_crtc = dce110_timing_generator_disable_crtc,
 		.is_counter_moving = dce110_timing_generator_is_counter_moving,
-		.get_position = dce110_timing_generator_get_crtc_positions,
+		.get_position = dce110_timing_generator_get_position,
 		.get_frame_count = dce110_timing_generator_get_vblank_counter,
 		.get_scanoutpos = dce110_timing_generator_get_crtc_scanoutpos,
 		.set_early_control = dce110_timing_generator_set_early_control,
@@ -1901,19 +1937,16 @@ static const struct timing_generator_funcs dce110_tg_funcs = {
 				dce110_timing_generator_set_drr,
 		.set_static_screen_control =
 			dce110_timing_generator_set_static_screen_control,
-		.set_test_pattern = dce110_timing_generator_set_test_pattern
-
+		.set_test_pattern = dce110_timing_generator_set_test_pattern,
+		.arm_vert_intr = dce110_arm_vert_intr,
 };
 
-bool dce110_timing_generator_construct(
+void dce110_timing_generator_construct(
 	struct dce110_timing_generator *tg110,
 	struct dc_context *ctx,
 	uint32_t instance,
 	const struct dce110_timing_generator_offsets *offsets)
 {
-	if (!tg110)
-		return false;
-
 	tg110->controller_id = CONTROLLER_ID_D0 + instance;
 	tg110->base.inst = instance;
 
@@ -1930,6 +1963,4 @@ bool dce110_timing_generator_construct(
 	tg110->min_h_blank = 56;
 	tg110->min_h_front_porch = 4;
 	tg110->min_h_back_porch = 4;
-
-	return true;
 }

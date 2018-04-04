@@ -87,21 +87,42 @@ static void destroy(
 
 	destruct(engine);
 
-	dm_free(engine);
+	kfree(engine);
 
 	*aux_engine = NULL;
 }
 
 #define SW_CAN_ACCESS_AUX 1
+#define DMCU_CAN_ACCESS_AUX 2
 
+static bool is_engine_available(
+	struct aux_engine *engine)
+{
+	struct aux_engine_dce110 *aux110 = FROM_AUX_ENGINE(engine);
+
+	uint32_t value = REG_READ(AUX_ARB_CONTROL);
+	uint32_t field = get_reg_field_value(
+			value,
+			AUX_ARB_CONTROL,
+			AUX_REG_RW_CNTL_STATUS);
+
+	return (field != DMCU_CAN_ACCESS_AUX);
+}
 static bool acquire_engine(
 	struct aux_engine *engine)
 {
 	struct aux_engine_dce110 *aux110 = FROM_AUX_ENGINE(engine);
 
+	uint32_t value = REG_READ(AUX_ARB_CONTROL);
+	uint32_t field = get_reg_field_value(
+			value,
+			AUX_ARB_CONTROL,
+			AUX_REG_RW_CNTL_STATUS);
+	if (field == DMCU_CAN_ACCESS_AUX)
+	 return false;
 	/* enable AUX before request SW to access AUX */
-	uint32_t value = REG_READ(AUX_CONTROL);
-	uint32_t field = get_reg_field_value(value,
+	value = REG_READ(AUX_CONTROL);
+	field = get_reg_field_value(value,
 				AUX_CONTROL,
 				AUX_EN);
 
@@ -297,7 +318,7 @@ static void process_channel_reply(
 				REG_GET(AUX_SW_DATA,
 						AUX_SW_DATA, &aux_sw_data_val);
 
-				 reply->data[i] = aux_sw_data_val;
+				reply->data[i] = aux_sw_data_val;
 				++i;
 			}
 
@@ -351,7 +372,7 @@ static enum aux_channel_operation_result get_channel_status(
 				10, aux110->timeout_period/10);
 
 	/* Note that the following bits are set in 'status.bits'
-	 * during CTS 4.2.1.2:
+	 * during CTS 4.2.1.2 (FW 3.3.1):
 	 * AUX_SW_RX_MIN_COUNT_VIOL, AUX_SW_RX_INVALID_STOP,
 	 * AUX_SW_RX_RECV_NO_DET, AUX_SW_RX_RECV_INVALID_H.
 	 *
@@ -395,6 +416,7 @@ static const struct aux_engine_funcs aux_engine_funcs = {
 	.submit_channel_request = submit_channel_request,
 	.process_channel_reply = process_channel_reply,
 	.get_channel_status = get_channel_status,
+	.is_engine_available = is_engine_available,
 };
 
 static const struct engine_funcs engine_funcs = {
@@ -404,27 +426,25 @@ static const struct engine_funcs engine_funcs = {
 	.acquire = dal_aux_engine_acquire,
 };
 
-static bool construct(
+static void construct(
 	struct aux_engine_dce110 *engine,
 	const struct aux_engine_dce110_init_data *aux_init_data)
 {
-	if (!dal_aux_engine_construct(
-		&engine->base, aux_init_data->ctx)) {
-		ASSERT_CRITICAL(false);
-		return false;
-	}
+	dal_aux_engine_construct(&engine->base, aux_init_data->ctx);
 	engine->base.base.funcs = &engine_funcs;
 	engine->base.funcs = &aux_engine_funcs;
 
 	engine->timeout_period = aux_init_data->timeout_period;
 	engine->regs = aux_init_data->regs;
-
-	return true;
 }
 
 static void destruct(
 	struct aux_engine_dce110 *engine)
 {
+	struct aux_engine_dce110 *aux110 = engine;
+/*temp w/a, to do*/
+	REG_UPDATE(AUX_ARB_CONTROL, AUX_DMCU_DONE_USING_AUX_REG, 1);
+	REG_UPDATE(AUX_ARB_CONTROL, AUX_SW_DONE_USING_AUX_REG, 1);
 	dal_aux_engine_destruct(&engine->base);
 }
 
@@ -438,19 +458,13 @@ struct aux_engine *dal_aux_engine_dce110_create(
 		return NULL;
 	}
 
-	engine = dm_alloc(sizeof(*engine));
+	engine = kzalloc(sizeof(*engine), GFP_KERNEL);
 
 	if (!engine) {
 		ASSERT_CRITICAL(false);
 		return NULL;
 	}
 
-	if (construct(engine, aux_init_data))
-		return &engine->base;
-
-	ASSERT_CRITICAL(false);
-
-	dm_free(engine);
-
-	return NULL;
+	construct(engine, aux_init_data);
+	return &engine->base;
 }

@@ -28,7 +28,6 @@
 
 #include "timing_generator.h"
 #include "../include/grph_object_id.h"
-#include "../include/hw_sequencer_types.h"
 
 /* GSL Sync related values */
 
@@ -108,6 +107,7 @@ struct dce110_timing_generator {
 	uint32_t min_h_front_porch;
 	uint32_t min_h_back_porch;
 
+	/* DCE 12 */
 	uint32_t min_h_sync_width;
 	uint32_t min_v_sync_width;
 	uint32_t min_v_blank;
@@ -117,7 +117,7 @@ struct dce110_timing_generator {
 #define DCE110TG_FROM_TG(tg)\
 	container_of(tg, struct dce110_timing_generator, base)
 
-bool dce110_timing_generator_construct(
+void dce110_timing_generator_construct(
 	struct dce110_timing_generator *tg,
 	struct dc_context *ctx,
 	uint32_t instance,
@@ -150,11 +150,9 @@ void dce110_timing_generator_set_early_control(
 uint32_t dce110_timing_generator_get_vblank_counter(
 		struct timing_generator *tg);
 
-/* Get current H and V position */
-void dce110_timing_generator_get_crtc_positions(
+void dce110_timing_generator_get_position(
 	struct timing_generator *tg,
-	int32_t *h_position,
-	int32_t *v_position);
+	struct crtc_position *position);
 
 /* return true if TG counter is moving. false if TG is stopped */
 bool dce110_timing_generator_is_counter_moving(struct timing_generator *tg);
@@ -229,10 +227,12 @@ void dce110_timing_generator_set_static_screen_control(
 	struct timing_generator *tg,
 	uint32_t value);
 
-uint32_t dce110_timing_generator_get_crtc_scanoutpos(
+void dce110_timing_generator_get_crtc_scanoutpos(
 	struct timing_generator *tg,
-	uint32_t *vbl,
-	uint32_t *position);
+	uint32_t *v_blank_start,
+	uint32_t *v_blank_end,
+	uint32_t *h_position,
+	uint32_t *v_position);
 
 void dce110_timing_generator_enable_advanced_request(
 	struct timing_generator *tg,
@@ -247,9 +247,6 @@ void dce110_tg_program_blank_color(struct timing_generator *tg,
 
 void dce110_tg_set_overscan_color(struct timing_generator *tg,
 	const struct tg_color *overscan_color);
-
-void dce110_tg_get_position(struct timing_generator *tg,
-	struct crtc_position *position);
 
 void dce110_tg_program_timing(struct timing_generator *tg,
 	const struct dc_crtc_timing *timing,
@@ -269,5 +266,8 @@ void dce110_tg_wait_for_state(struct timing_generator *tg,
 void dce110_tg_set_colors(struct timing_generator *tg,
 	const struct tg_color *blank_color,
 	const struct tg_color *overscan_color);
+
+bool dce110_arm_vert_intr(
+		struct timing_generator *tg, uint8_t width);
 
 #endif /* __DC_TIMING_GENERATOR_DCE110_H__ */

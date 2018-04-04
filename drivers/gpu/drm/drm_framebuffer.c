@@ -118,6 +118,10 @@ int drm_mode_addfb(struct drm_device *dev,
 	r.pixel_format = drm_mode_legacy_fb_format(or->bpp, or->depth);
 	r.handles[0] = or->handle;
 
+	if (r.pixel_format == DRM_FORMAT_XRGB2101010 &&
+	    dev->driver->driver_features & DRIVER_PREFER_XBGR_30BPP)
+		r.pixel_format = DRM_FORMAT_XBGR2101010;
+
 	ret = drm_mode_addfb2(dev, &r, file_priv);
 	if (ret)
 		return ret;
@@ -454,6 +458,12 @@ int drm_mode_getfb(struct drm_device *dev,
 	if (!fb)
 		return -ENOENT;
 
+	/* Multi-planar framebuffers need getfb2. */
+	if (fb->format->num_planes > 1) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	r->height = fb->height;
 	r->width = fb->width;
 	r->depth = fb->format->depth;
@@ -477,6 +487,7 @@ int drm_mode_getfb(struct drm_device *dev,
 		ret = -ENODEV;
 	}
 
+out:
 	drm_framebuffer_put(fb);
 
 	return ret;
@@ -765,14 +776,18 @@ static int atomic_remove_fb(struct drm_framebuffer *fb)
 	struct drm_plane *plane;
 	struct drm_connector *conn;
 	struct drm_connector_state *conn_state;
-	int i, ret = 0;
+	int i, ret;
 	unsigned plane_mask;
+	bool disable_crtcs = false;
+
+retry_disable:
+	drm_modeset_acquire_init(&ctx, 0);
 
 	state = drm_atomic_state_alloc(dev);
-	if (!state)
-		return -ENOMEM;
-
-	drm_modeset_acquire_init(&ctx, 0);
+	if (!state) {
+		ret = -ENOMEM;
+		goto out;
+	}
 	state->acquire_ctx = &ctx;
 
 retry:
@@ -793,7 +808,7 @@ retry:
 			goto unlock;
 		}
 
-		if (plane_state->crtc->primary == plane) {
+		if (disable_crtcs && plane_state->crtc->primary == plane) {
 			struct drm_crtc_state *crtc_state;
 
 			crtc_state = drm_atomic_get_existing_crtc_state(state, plane_state->crtc);
@@ -818,6 +833,7 @@ retry:
 		plane->old_fb = plane->fb;
 	}
 
+	/* This list is only filled when disable_crtcs is set. */
 	for_each_new_connector_in_state(state, conn, conn_state, i) {
 		ret = drm_atomic_set_crtc_for_connector(conn_state, NULL);
 
@@ -840,8 +856,14 @@ unlock:
 
 	drm_atomic_state_put(state);
 
+out:
 	drm_modeset_drop_locks(&ctx);
 	drm_modeset_acquire_fini(&ctx);
+
+	if (ret == -EINVAL && !disable_crtcs) {
+		disable_crtcs = true;
+		goto retry_disable;
+	}
 
 	return ret;
 }

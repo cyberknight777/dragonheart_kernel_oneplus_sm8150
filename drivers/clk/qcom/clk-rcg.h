@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013, 2017, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -23,16 +23,6 @@ struct freq_tbl {
 	u8 pre_div;
 	u16 m;
 	u16 n;
-};
-
-/**
- * struct parent_map - map table for PLL source select configuration values
- * @src: source PLL
- * @cfg: configuration value
- */
-struct parent_map {
-	u8 src;
-	u8 cfg;
 };
 
 /**
@@ -157,6 +147,8 @@ extern const struct clk_ops clk_dyn_rcg_ops;
  * @parent_map: map from software's parent index to hardware's src_sel field
  * @freq_tbl: frequency table
  * @current_freq: last cached frequency when using branches with shared RCGs
+ * @safe_src_freq_tbl : frequency table of safe source when using branches
+ *			with shared RCGs
  * @clkr: regmap clock handle
  *
  */
@@ -167,6 +159,7 @@ struct clk_rcg2 {
 	const struct parent_map	*parent_map;
 	const struct freq_tbl	*freq_tbl;
 	unsigned long		current_freq;
+	const struct freq_tbl	*safe_src_freq_tbl;
 	struct clk_regmap	clkr;
 };
 
@@ -174,11 +167,11 @@ struct clk_rcg2 {
 
 extern const struct clk_ops clk_rcg2_ops;
 extern const struct clk_ops clk_rcg2_floor_ops;
-extern const struct clk_ops clk_rcg2_shared_ops;
 extern const struct clk_ops clk_edp_pixel_ops;
 extern const struct clk_ops clk_byte_ops;
 extern const struct clk_ops clk_byte2_ops;
 extern const struct clk_ops clk_pixel_ops;
 extern const struct clk_ops clk_gfx3d_ops;
+extern const struct clk_ops clk_rcg2_shared_ops;
 
 #endif

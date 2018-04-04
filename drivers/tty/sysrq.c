@@ -467,15 +467,14 @@ static void sysrq_handle_cros_xkey(int key)
 	if (time_after(jiffies, first_jiffies + CROS_SYSRQ_WAIT * HZ)) {
 		first_jiffies = jiffies;
 		xkey_iteration = 0;
-	} else
+	} else {
 		xkey_iteration++;
+	}
 
-	if (!xkey_iteration)
+	if (!xkey_iteration) {
 		sysrq_x_cros_signal_process("chrome", "session_manager",
 					    SIGABRT);
-	else if (xkey_iteration == 1)
-		sysrq_x_cros_signal_process("X", NULL, SIGABRT);
-	else {
+	} else {
 		sysrq_handle_showstate_blocked(key);
 		sysrq_handle_sync(key);
 		/* Delay for a bit to give time for sync to complete */

@@ -2471,6 +2471,21 @@ static int __clk_core_init(struct clk_core *core)
 	core->rate = core->req_rate = rate;
 
 	/*
+	 * Enable CLK_IS_CRITICAL clocks so newly added critical clocks
+	 * don't get accidentally disabled when walking the orphan tree and
+	 * reparenting clocks
+	 */
+	if (core->flags & CLK_IS_CRITICAL) {
+		unsigned long flags;
+
+		clk_core_prepare(core);
+
+		flags = clk_enable_lock();
+		clk_core_enable(core);
+		clk_enable_unlock(flags);
+	}
+
+	/*
 	 * walk the list of orphan clocks and reparent any that newly finds a
 	 * parent.
 	 */
@@ -2478,10 +2493,13 @@ static int __clk_core_init(struct clk_core *core)
 		struct clk_core *parent = __clk_init_parent(orphan);
 
 		/*
-		 * we could call __clk_set_parent, but that would result in a
-		 * redundant call to the .set_rate op, if it exists
+		 * We need to use __clk_set_parent_before() and _after() to
+		 * to properly migrate any prepare/enable count of the orphan
+		 * clock. This is important for CLK_IS_CRITICAL clocks, which
+		 * are enabled during init but might not have a parent yet.
 		 */
 		if (parent) {
+			/* update the clk tree topology */
 			__clk_set_parent_before(orphan, parent);
 			__clk_set_parent_after(orphan, parent, NULL);
 			__clk_recalc_accuracies(orphan);
@@ -2499,16 +2517,6 @@ static int __clk_core_init(struct clk_core *core)
 	 */
 	if (core->ops->init)
 		core->ops->init(core->hw);
-
-	if (core->flags & CLK_IS_CRITICAL) {
-		unsigned long flags;
-
-		clk_core_prepare(core);
-
-		flags = clk_enable_lock();
-		clk_core_enable(core);
-		clk_enable_unlock(flags);
-	}
 
 	kref_init(&core->ref);
 out:
@@ -3177,6 +3185,37 @@ int of_clk_add_hw_provider(struct device_node *np,
 }
 EXPORT_SYMBOL_GPL(of_clk_add_hw_provider);
 
+static void devm_of_clk_release_provider(struct device *dev, void *res)
+{
+	of_clk_del_provider(*(struct device_node **)res);
+}
+
+int devm_of_clk_add_hw_provider(struct device *dev,
+			struct clk_hw *(*get)(struct of_phandle_args *clkspec,
+					      void *data),
+			void *data)
+{
+	struct device_node **ptr, *np;
+	int ret;
+
+	ptr = devres_alloc(devm_of_clk_release_provider, sizeof(*ptr),
+			   GFP_KERNEL);
+	if (!ptr)
+		return -ENOMEM;
+
+	np = dev->of_node;
+	ret = of_clk_add_hw_provider(np, get, data);
+	if (!ret) {
+		*ptr = np;
+		devres_add(dev, ptr);
+	} else {
+		devres_free(ptr);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(devm_of_clk_add_hw_provider);
+
 /**
  * of_clk_del_provider() - Remove a previously registered clock provider
  * @np: Device node pointer associated with clock provider
@@ -3197,6 +3236,27 @@ void of_clk_del_provider(struct device_node *np)
 	mutex_unlock(&of_clk_mutex);
 }
 EXPORT_SYMBOL_GPL(of_clk_del_provider);
+
+static int devm_clk_provider_match(struct device *dev, void *res, void *data)
+{
+	struct device_node **np = res;
+
+	if (WARN_ON(!np || !*np))
+		return 0;
+
+	return *np == data;
+}
+
+void devm_of_clk_del_provider(struct device *dev)
+{
+	int ret;
+
+	ret = devres_release(dev, devm_of_clk_release_provider,
+			     devm_clk_provider_match, dev->of_node);
+
+	WARN_ON(ret);
+}
+EXPORT_SYMBOL(devm_of_clk_del_provider);
 
 static struct clk_hw *
 __of_clk_get_hw_from_provider(struct of_clk_provider *provider,

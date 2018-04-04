@@ -21,9 +21,6 @@
 
 #include "tpm.h"
 
-/* Enable/disable deep-sleep. */
-int cr50_control_deep_sleep(struct tpm_chip *chip, bool enable);
-
 #ifdef CONFIG_PM_SLEEP
 /* Handle suspend/resume. */
 int cr50_resume(struct device *dev);

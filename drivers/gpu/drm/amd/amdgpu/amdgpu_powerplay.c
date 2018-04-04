@@ -148,6 +148,10 @@ static int amdgpu_pp_hw_init(void *handle)
 	if (adev->firmware.load_type == AMDGPU_FW_LOAD_SMU)
 		amdgpu_ucode_init_bo(adev);
 
+	/* Setting default min and max temperature */
+	adev->pm.dpm.thermal.min_temp = MIN_TEMP;
+	adev->pm.dpm.thermal.max_temp = MAX_TEMP;
+
 	if (adev->powerplay.ip_funcs->hw_init)
 		ret = adev->powerplay.ip_funcs->hw_init(
 					adev->powerplay.pp_handle);

@@ -26,7 +26,7 @@
 #include "dce_hwseq.h"
 #include "reg_helper.h"
 #include "hw_sequencer.h"
-#include "core_dc.h"
+#include "core_types.h"
 
 #define CTX \
 	hws->ctx
@@ -44,14 +44,17 @@ void dce_enable_fe_clock(struct dce_hwseq *hws,
 			DCFE_CLOCK_ENABLE, enable);
 }
 
-void dce_pipe_control_lock(struct core_dc *dc,
+void dce_pipe_control_lock(struct dc *dc,
 		struct pipe_ctx *pipe,
-		enum pipe_lock_control control_mask,
 		bool lock)
 {
 	uint32_t lock_val = lock ? 1 : 0;
 	uint32_t dcp_grph, scl, blnd, update_lock_mode, val;
 	struct dce_hwseq *hws = dc->hwseq;
+
+	/* Not lock pipe when blank */
+	if (lock && pipe->stream_res.tg->funcs->is_blanked(pipe->stream_res.tg))
+		return;
 
 	val = REG_GET_4(BLND_V_UPDATE_LOCK[pipe->pipe_idx],
 			BLND_DCP_GRPH_V_UPDATE_LOCK, &dcp_grph,
@@ -59,18 +62,10 @@ void dce_pipe_control_lock(struct core_dc *dc,
 			BLND_BLND_V_UPDATE_LOCK, &blnd,
 			BLND_V_UPDATE_LOCK_MODE, &update_lock_mode);
 
-	if (control_mask & PIPE_LOCK_CONTROL_GRAPHICS)
-		dcp_grph = lock_val;
-
-	if (control_mask & PIPE_LOCK_CONTROL_SCL)
-		scl = lock_val;
-
-	if (control_mask & PIPE_LOCK_CONTROL_BLENDER)
-		blnd = lock_val;
-
-	if (control_mask & PIPE_LOCK_CONTROL_MODE)
-		update_lock_mode = lock_val;
-
+	dcp_grph = lock_val;
+	scl = lock_val;
+	blnd = lock_val;
+	update_lock_mode = lock_val;
 
 	REG_SET_2(BLND_V_UPDATE_LOCK[pipe->pipe_idx], val,
 			BLND_DCP_GRPH_V_UPDATE_LOCK, dcp_grph,
@@ -82,7 +77,7 @@ void dce_pipe_control_lock(struct core_dc *dc,
 				BLND_V_UPDATE_LOCK_MODE, update_lock_mode);
 
 	if (hws->wa.blnd_crtc_trigger) {
-		if (!lock && (control_mask & PIPE_LOCK_CONTROL_BLENDER)) {
+		if (!lock) {
 			uint32_t value = REG_READ(CRTC_H_BLANK_START_END[pipe->pipe_idx]);
 			REG_WRITE(CRTC_H_BLANK_START_END[pipe->pipe_idx], value);
 		}
@@ -196,6 +191,19 @@ void dce_crtc_switch_to_clk_src(struct dce_hwseq *hws,
 			REG_UPDATE(PHYPLL_PIXEL_RATE_CNTL[tg_inst],
 					PIXEL_RATE_PLL_SOURCE, 1);
 	} else {
-		DC_ERR("unknown clock source");
+		DC_ERR("Unknown clock source. clk_src id: %d, TG_inst: %d",
+		       clk_src->id, tg_inst);
+	}
+}
+
+/* Only use LUT for 8 bit formats */
+bool dce_use_lut(const struct dc_plane_state *plane_state)
+{
+	switch (plane_state->format) {
+	case SURFACE_PIXEL_FORMAT_GRPH_ARGB8888:
+	case SURFACE_PIXEL_FORMAT_GRPH_ABGR8888:
+		return true;
+	default:
+		return false;
 	}
 }

@@ -56,6 +56,15 @@ enum {
 	LINK_RATE_REF_FREQ_IN_KHZ = 27000 /*27MHz*/
 };
 
+enum link_training_result {
+	LINK_TRAINING_SUCCESS,
+	LINK_TRAINING_CR_FAIL,
+	/* CR DONE bit is cleared during EQ step */
+	LINK_TRAINING_EQ_FAIL_CR,
+	/* other failure during EQ step */
+	LINK_TRAINING_EQ_FAIL_EQ,
+};
+
 struct link_training_settings {
 	struct dc_link_settings link_settings;
 	struct dc_lane_settings lane_settings[LANE_COUNT_DP_MAX];
@@ -75,19 +84,24 @@ enum dp_test_pattern {
 	/* Input data is pass through Scrambler
 	 * and 8b10b Encoder straight to output*/
 	DP_TEST_PATTERN_VIDEO_MODE = 0,
+
 	/* phy test patterns*/
-	DP_TEST_PATTERN_D102,
+	DP_TEST_PATTERN_PHY_PATTERN_BEGIN,
+	DP_TEST_PATTERN_D102 = DP_TEST_PATTERN_PHY_PATTERN_BEGIN,
 	DP_TEST_PATTERN_SYMBOL_ERROR,
 	DP_TEST_PATTERN_PRBS7,
-
 	DP_TEST_PATTERN_80BIT_CUSTOM,
-	DP_TEST_PATTERN_HBR2_COMPLIANCE_EYE,
+	DP_TEST_PATTERN_CP2520_1,
+	DP_TEST_PATTERN_CP2520_2,
+	DP_TEST_PATTERN_HBR2_COMPLIANCE_EYE = DP_TEST_PATTERN_CP2520_2,
+	DP_TEST_PATTERN_CP2520_3,
 
 	/* Link Training Patterns */
 	DP_TEST_PATTERN_TRAINING_PATTERN1,
 	DP_TEST_PATTERN_TRAINING_PATTERN2,
 	DP_TEST_PATTERN_TRAINING_PATTERN3,
 	DP_TEST_PATTERN_TRAINING_PATTERN4,
+	DP_TEST_PATTERN_PHY_PATTERN_END = DP_TEST_PATTERN_TRAINING_PATTERN4,
 
 	/* link test patterns*/
 	DP_TEST_PATTERN_COLOR_SQUARES,

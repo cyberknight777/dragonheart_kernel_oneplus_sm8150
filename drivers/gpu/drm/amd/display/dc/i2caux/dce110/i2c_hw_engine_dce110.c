@@ -133,13 +133,13 @@ static void release_engine(
 		safe_to_reset = (i2c_sw_status == 1);
 	}
 
-		if (safe_to_reset)
-			REG_UPDATE_2(
-					DC_I2C_CONTROL,
-					DC_I2C_SOFT_RESET, 1,
-					DC_I2C_SW_STATUS_RESET, 1);
-		else
-			REG_UPDATE(DC_I2C_CONTROL, DC_I2C_SW_STATUS_RESET, 1);
+	if (safe_to_reset)
+		REG_UPDATE_2(
+			DC_I2C_CONTROL,
+			DC_I2C_SOFT_RESET, 1,
+			DC_I2C_SW_STATUS_RESET, 1);
+	else
+		REG_UPDATE(DC_I2C_CONTROL, DC_I2C_SW_STATUS_RESET, 1);
 
 	/* HW I2c engine - clock gating feature */
 	if (!hw_engine->engine_keep_power_up_count)
@@ -301,16 +301,16 @@ static bool process_transaction(
 	 * For an I2C send operation, the LSB must be programmed to 0;
 	 * for I2C receive operation, the LSB must be programmed to 1. */
 	if (hw_engine->transaction_count == 0) {
-			value = REG_SET_4(DC_I2C_DATA, 0,
-						DC_I2C_DATA_RW, false,
-						DC_I2C_DATA, request->address,
-						DC_I2C_INDEX, 0,
-						DC_I2C_INDEX_WRITE, 1);
+		value = REG_SET_4(DC_I2C_DATA, 0,
+				  DC_I2C_DATA_RW, false,
+				  DC_I2C_DATA, request->address,
+				  DC_I2C_INDEX, 0,
+				  DC_I2C_INDEX_WRITE, 1);
 		hw_engine->buffer_used_write = 0;
 	} else
-			value = REG_SET_2(DC_I2C_DATA, 0,
-						DC_I2C_DATA_RW, false,
-						DC_I2C_DATA, request->address);
+		value = REG_SET_2(DC_I2C_DATA, 0,
+				  DC_I2C_DATA_RW, false,
+				  DC_I2C_DATA, request->address);
 
 	hw_engine->buffer_used_write++;
 
@@ -469,7 +469,7 @@ static void destroy(
 
 	dal_i2c_hw_engine_destruct(&engine_dce110->base);
 
-	dm_free(engine_dce110);
+	kfree(engine_dce110);
 
 	*i2c_engine = NULL;
 }
@@ -498,17 +498,13 @@ static const struct i2c_hw_engine_funcs i2c_hw_engine_funcs = {
 	.wait_on_operation_result = dal_i2c_hw_engine_wait_on_operation_result,
 };
 
-bool i2c_hw_engine_dce110_construct(
+static void construct(
 	struct i2c_hw_engine_dce110 *hw_engine,
 	const struct i2c_hw_engine_dce110_create_arg *arg)
 {
 	uint32_t xtal_ref_div = 0;
 
-	if (!arg->reference_frequency)
-		return false;
-
-	if (!dal_i2c_hw_engine_construct(&hw_engine->base, arg->ctx))
-		return false;
+	dal_i2c_hw_engine_construct(&hw_engine->base, arg->ctx);
 
 	hw_engine->base.base.base.funcs = &engine_funcs;
 	hw_engine->base.base.funcs = &i2c_engine_funcs;
@@ -545,8 +541,6 @@ bool i2c_hw_engine_dce110_construct(
 	 */
 	hw_engine->reference_frequency =
 		(arg->reference_frequency * 2) / xtal_ref_div;
-
-	return true;
 }
 
 struct i2c_engine *dal_i2c_hw_engine_dce110_create(
@@ -558,20 +552,19 @@ struct i2c_engine *dal_i2c_hw_engine_dce110_create(
 		ASSERT_CRITICAL(false);
 		return NULL;
 	}
+	if (!arg->reference_frequency) {
+		ASSERT_CRITICAL(false);
+		return NULL;
+	}
 
-	engine_dce10 = dm_alloc(sizeof(struct i2c_hw_engine_dce110));
+	engine_dce10 = kzalloc(sizeof(struct i2c_hw_engine_dce110),
+			       GFP_KERNEL);
 
 	if (!engine_dce10) {
 		ASSERT_CRITICAL(false);
 		return NULL;
 	}
 
-	if (i2c_hw_engine_dce110_construct(engine_dce10, arg))
-		return &engine_dce10->base.base;
-
-	ASSERT_CRITICAL(false);
-
-	dm_free(engine_dce10);
-
-	return NULL;
+	construct(engine_dce10, arg);
+	return &engine_dce10->base.base;
 }

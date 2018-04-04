@@ -2053,17 +2053,25 @@ bool amdgpu_device_asic_has_dc_support(enum amd_asic_type asic_type)
 #if defined(CONFIG_DRM_AMD_DC)
 	case CHIP_BONAIRE:
 	case CHIP_HAWAII:
+	case CHIP_KAVERI:
 	case CHIP_CARRIZO:
 	case CHIP_STONEY:
 	case CHIP_POLARIS11:
 	case CHIP_POLARIS10:
+	case CHIP_POLARIS12:
 	case CHIP_TONGA:
 	case CHIP_FIJI:
 #if defined(CONFIG_DRM_AMD_DC_PRE_VEGA)
 		return amdgpu_dc != 0;
-#else
-		return amdgpu_dc > 0;
 #endif
+	case CHIP_KABINI:
+	case CHIP_MULLINS:
+		return amdgpu_dc > 0;
+	case CHIP_VEGA10:
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	case CHIP_RAVEN:
+#endif
+		return amdgpu_dc != 0;
 #endif
 	default:
 		return false;
@@ -2138,7 +2146,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 	adev->gc_cac_wreg = &amdgpu_invalid_wreg;
 	adev->audio_endpt_rreg = &amdgpu_block_invalid_rreg;
 	adev->audio_endpt_wreg = &amdgpu_block_invalid_wreg;
-
 
 	DRM_INFO("initializing kernel modesetting (%s 0x%04X:0x%04X 0x%04X:0x%04X 0x%02X).\n",
 		 amdgpu_asic_name[adev->asic_type], pdev->vendor, pdev->device,
@@ -2221,8 +2228,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 	 * ignore it */
 	vga_client_register(adev->pdev, adev, NULL, amdgpu_vga_set_decode);
 
-	if (amdgpu_runtime_pm == 1)
-		runtime = true;
 	if (amdgpu_device_is_px(ddev))
 		runtime = true;
 	if (!pci_is_thunderbolt_attached(adev->pdev))

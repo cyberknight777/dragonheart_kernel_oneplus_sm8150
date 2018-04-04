@@ -57,6 +57,12 @@
 
 #include "dce112/i2caux_dce112.h"
 
+#include "dce120/i2caux_dce120.h"
+
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+#include "dcn10/i2caux_dcn10.h"
+#endif
+
 #include "diagnostics/i2caux_diag.h"
 
 /*
@@ -73,6 +79,8 @@ struct i2caux *dal_i2caux_create(
 
 	switch (ctx->dce_version) {
 	case DCE_VERSION_8_0:
+	case DCE_VERSION_8_1:
+	case DCE_VERSION_8_3:
 		return dal_i2caux_dce80_create(ctx);
 	case DCE_VERSION_11_2:
 		return dal_i2caux_dce112_create(ctx);
@@ -80,6 +88,13 @@ struct i2caux *dal_i2caux_create(
 		return dal_i2caux_dce110_create(ctx);
 	case DCE_VERSION_10_0:
 		return dal_i2caux_dce100_create(ctx);
+	case DCE_VERSION_12_0:
+		return dal_i2caux_dce120_create(ctx);
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	case DCN_VERSION_1_0:
+		return dal_i2caux_dcn10_create(ctx);
+#endif
+
 	default:
 		BREAK_TO_DEBUGGER();
 		return NULL;
@@ -181,6 +196,7 @@ bool dal_i2caux_submit_aux_command(
 	struct aux_engine *engine;
 	uint8_t index_of_payload = 0;
 	bool result;
+	bool mot;
 
 	if (!ddc) {
 		BREAK_TO_DEBUGGER();
@@ -203,11 +219,13 @@ bool dal_i2caux_submit_aux_command(
 	result = true;
 
 	while (index_of_payload < cmd->number_of_payloads) {
-		bool mot = (index_of_payload != cmd->number_of_payloads - 1);
-
 		struct aux_payload *payload = cmd->payloads + index_of_payload;
-
 		struct i2caux_transaction_request request = { 0 };
+
+		if (cmd->mot == I2C_MOT_UNDEF)
+			mot = (index_of_payload != cmd->number_of_payloads - 1);
+		else
+			mot = (cmd->mot == I2C_MOT_TRUE);
 
 		request.operation = payload->write ?
 			I2CAUX_TRANSACTION_WRITE :
@@ -235,6 +253,7 @@ bool dal_i2caux_submit_aux_command(
 			break;
 		}
 
+		cmd->payloads->length = request.payload.length;
 		++index_of_payload;
 	}
 
@@ -248,6 +267,8 @@ static bool get_hw_supported_ddc_line(
 	enum gpio_ddc_line *line)
 {
 	enum gpio_ddc_line line_found;
+
+	*line = GPIO_DDC_LINE_UNKNOWN;
 
 	if (!ddc) {
 		BREAK_TO_DEBUGGER();
@@ -304,7 +325,7 @@ void dal_i2caux_destroy(
 uint32_t dal_i2caux_get_reference_clock(
 		struct dc_bios *bios)
 {
-	struct firmware_info info = { { 0 } };
+	struct dc_firmware_info info = { { 0 } };
 
 	if (bios->funcs->get_firmware_info(bios, &info) != BP_RESULT_OK)
 		return 0;
@@ -321,6 +342,9 @@ enum {
 	/* following are expressed in KHz */
 	DEFAULT_I2C_SW_SPEED = 50,
 	DEFAULT_I2C_HW_SPEED = 50,
+
+	DEFAULT_I2C_SW_SPEED_100KHZ = 100,
+	DEFAULT_I2C_HW_SPEED_100KHZ = 100,
 
 	/* This is the timeout as defined in DP 1.2a,
 	 * 2.3.4 "Detailed uPacket TX AUX CH State Description". */
@@ -400,7 +424,7 @@ void dal_i2caux_release_engine(
 	engine->ddc = NULL;
 }
 
-bool dal_i2caux_construct(
+void dal_i2caux_construct(
 	struct i2caux *i2caux,
 	struct dc_context *ctx)
 {
@@ -421,10 +445,13 @@ bool dal_i2caux_construct(
 	i2caux->aux_timeout_period =
 		SW_AUX_TIMEOUT_PERIOD_MULTIPLIER * AUX_TIMEOUT_PERIOD;
 
-	i2caux->default_i2c_sw_speed = DEFAULT_I2C_SW_SPEED;
-	i2caux->default_i2c_hw_speed = DEFAULT_I2C_HW_SPEED;
-
-	return true;
+	if (ctx->dce_version >= DCE_VERSION_11_2) {
+		i2caux->default_i2c_hw_speed = DEFAULT_I2C_HW_SPEED_100KHZ;
+		i2caux->default_i2c_sw_speed = DEFAULT_I2C_SW_SPEED_100KHZ;
+	} else {
+		i2caux->default_i2c_hw_speed = DEFAULT_I2C_HW_SPEED;
+		i2caux->default_i2c_sw_speed = DEFAULT_I2C_SW_SPEED;
+	}
 }
 
 void dal_i2caux_destruct(

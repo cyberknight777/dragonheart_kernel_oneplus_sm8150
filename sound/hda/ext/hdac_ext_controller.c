@@ -274,6 +274,14 @@ int snd_hdac_ext_bus_link_get(struct hdac_ext_bus *ebus,
 		}
 
 		ret = snd_hdac_ext_bus_link_power_up(link);
+
+		/*
+		 *  wait for 521usec for codec to report status
+		 *  HDA spec section 4.3 - Codec Discovery
+		 */
+		udelay(521);
+		ebus->bus.codec_mask = snd_hdac_chip_readw(&ebus->bus, STATESTS);
+		dev_dbg(ebus->bus.dev, "codec_mask = 0x%lx\n", ebus->bus.codec_mask);
 	}
 
 	mutex_unlock(&ebus->lock);

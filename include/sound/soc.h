@@ -468,6 +468,11 @@ int snd_soc_register_codec(struct device *dev,
 		const struct snd_soc_codec_driver *codec_drv,
 		struct snd_soc_dai_driver *dai_drv, int num_dai);
 void snd_soc_unregister_codec(struct device *dev);
+int snd_soc_add_component(struct device *dev,
+		struct snd_soc_component *component,
+		const struct snd_soc_component_driver *component_driver,
+		struct snd_soc_dai_driver *dai_drv,
+		int num_dai);
 int snd_soc_register_component(struct device *dev,
 			 const struct snd_soc_component_driver *component_driver,
 			 struct snd_soc_dai_driver *dai_drv, int num_dai);
@@ -1487,6 +1492,8 @@ int snd_soc_component_set_sysclk(struct snd_soc_component *component,
 int snd_soc_component_set_pll(struct snd_soc_component *component, int pll_id,
 			      int source, unsigned int freq_in,
 			      unsigned int freq_out);
+int snd_soc_component_set_jack(struct snd_soc_component *component,
+			       struct snd_soc_jack *jack, void *data);
 
 #ifdef CONFIG_REGMAP
 
@@ -1719,6 +1726,20 @@ struct snd_soc_dai *snd_soc_find_dai(
 	const struct snd_soc_dai_link_component *dlc);
 
 #include <sound/soc-dai.h>
+
+static inline
+struct snd_soc_dai *snd_soc_card_get_codec_dai(struct snd_soc_card *card,
+					       const char *dai_name)
+{
+	struct snd_soc_pcm_runtime *rtd;
+
+	list_for_each_entry(rtd, &card->rtd_list, list) {
+		if (!strcmp(rtd->codec_dai->name, dai_name))
+			return rtd->codec_dai;
+	}
+
+	return NULL;
+}
 
 #ifdef CONFIG_DEBUG_FS
 extern struct dentry *snd_soc_debugfs_root;
