@@ -329,6 +329,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_set_robust_list	__NR_ia32_set_robust_list
 #define __NR_compat_set_tid_address	__NR_ia32_set_tid_address
 #define __NR_compat_set_thread_area	__NR_ia32_set_thread_area
+#define __NR_compat_setdomainname	__NR_ia32_setdomainname
 #define __NR_compat_setgid	__NR_ia32_setgid
 #define __NR_compat_setgroups	__NR_ia32_setgroups
 #define __NR_compat_setitimer	__NR_ia32_setitimer
@@ -737,6 +738,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(sendmmsg),
 	SYSCALL_ENTRY(set_robust_list),
 	SYSCALL_ENTRY(set_tid_address),
+	SYSCALL_ENTRY(setdomainname),
 	SYSCALL_ENTRY(setitimer),
 	SYSCALL_ENTRY(setns),
 	SYSCALL_ENTRY(setpgid),
@@ -1330,6 +1332,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(mmap2),
 	COMPAT_SYSCALL_ENTRY(_newselect),
 	COMPAT_SYSCALL_ENTRY(_llseek),
+	COMPAT_SYSCALL_ENTRY(setdomainname),
 	COMPAT_SYSCALL_ENTRY(sigaction),
 	COMPAT_SYSCALL_ENTRY(sigpending),
 	COMPAT_SYSCALL_ENTRY(sigprocmask),
