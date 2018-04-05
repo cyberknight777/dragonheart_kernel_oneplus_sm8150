@@ -19,7 +19,7 @@
 #define DRM_HDCP_RI_LEN				2
 #define DRM_HDCP_V_PRIME_PART_LEN		4
 #define DRM_HDCP_V_PRIME_NUM_PARTS		5
-#define DRM_HDCP_NUM_DOWNSTREAM(x)		(x & 0x3f)
+#define DRM_HDCP_NUM_DOWNSTREAM(x)		(x & 0x7f)
 
 /* Slave address for the HDCP registers in the receiver */
 #define DRM_HDCP_DDC_ADDR			0x3A
