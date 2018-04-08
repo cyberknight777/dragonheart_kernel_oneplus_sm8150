@@ -1122,6 +1122,13 @@ static struct snd_soc_acpi_mach sst_glk_devdata[] = {
 		.machine_quirk = snd_soc_acpi_codec_list,
 		.quirk_data = &bxt_codecs,
 	},
+	{
+		.id = "10EC5682",
+		.drv_name = "glk_rt5682_max98357a",
+		.fw_filename = "intel/dsp_fw_glk.bin",
+		.machine_quirk = snd_soc_acpi_codec_list,
+		.quirk_data = &bxt_codecs,
+        },
 	{}
 };
 
