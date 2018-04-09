@@ -49,6 +49,7 @@ format_is_yuv(uint32_t format)
 	case DRM_FORMAT_UYVY:
 	case DRM_FORMAT_VYUY:
 	case DRM_FORMAT_YVYU:
+	case DRM_FORMAT_NV12:
 		return true;
 	default:
 		return false;
