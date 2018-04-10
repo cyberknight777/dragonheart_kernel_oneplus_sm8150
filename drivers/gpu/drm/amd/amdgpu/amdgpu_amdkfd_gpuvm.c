@@ -629,7 +629,7 @@ static int init_user_pages(struct kgd_mem *mem, struct mm_struct *mm,
 
 release_out:
 	if (ret)
-		release_pages(mem->user_pages, bo->tbo.ttm->num_pages);
+		release_pages(mem->user_pages, bo->tbo.ttm->num_pages, 0);
 free_out:
 	kvfree(mem->user_pages);
 	mem->user_pages = NULL;
@@ -1298,7 +1298,8 @@ int amdgpu_amdkfd_gpuvm_free_memory_of_gpu(
 		pr_debug("%s: Freeing user_pages array\n", __func__);
 		if (mem->user_pages[0])
 			release_pages(mem->user_pages,
-					mem->bo->tbo.ttm->num_pages);
+					mem->bo->tbo.ttm->num_pages,
+					0);
 		kvfree(mem->user_pages);
 	}
 
@@ -1711,7 +1712,7 @@ static int update_invalid_user_pages(struct amdkfd_process_info *process_info,
 				return -ENOMEM;
 			}
 		} else if (mem->user_pages[0]) {
-			release_pages(mem->user_pages, bo->tbo.ttm->num_pages);
+			release_pages(mem->user_pages, bo->tbo.ttm->num_pages, 0);
 		}
 
 		/* Get updated user pages */
