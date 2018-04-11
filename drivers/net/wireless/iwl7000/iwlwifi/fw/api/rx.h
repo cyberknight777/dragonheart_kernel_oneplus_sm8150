@@ -584,11 +584,14 @@ struct iwl_rx_mpdu_desc {
 
 /**
  * enum iwl_completion_desc_transfer_status -  transfer status (bits 1-3)
+ * @IWL_CD_STTS_UNUSED: unused
+ * @IWL_CD_STTS_UNUSED_2: unused
  * @IWL_CD_STTS_END_TRANSFER: successful transfer complete.
  *	In sniffer mode, when split is used, set in last CD completion. (RX)
  * @IWL_CD_STTS_OVERFLOW: In sniffer mode, when using split - used for
  *	all CD completion. (RX)
  * @IWL_CD_STTS_ABORTED: CR abort / close flow. (RX)
+ * @IWL_CD_STTS_ERROR: general error (RX)
  */
 enum iwl_completion_desc_transfer_status {
 	IWL_CD_STTS_UNUSED,
