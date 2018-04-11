@@ -8,6 +8,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -640,7 +642,7 @@ int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 		return 0;
 	dev = trans->tmdev;
 
-	nlportid = ACCESS_ONCE(dev->nl_events_portid);
+	nlportid = READ_ONCE(dev->nl_events_portid);
 
 	if (check_notify && !dev->tst.notify)
 		return 0;
@@ -1115,13 +1117,11 @@ static struct genl_family iwl_tm_gnl_family __genl_ro_after_init = {
 	.name		= IWL_TM_GNL_FAMILY_NAME,
 	.version	= IWL_TM_GNL_VERSION_NR,
 	.maxattr	= IWL_TM_GNL_MSG_ATTR_MAX,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
 	.module		= THIS_MODULE,
 	.ops		= iwl_tm_gnl_ops,
 	.n_ops		= ARRAY_SIZE(iwl_tm_gnl_ops),
 	.mcgrps		= iwl_tm_gnl_mcgrps,
 	.n_mcgrps	= ARRAY_SIZE(iwl_tm_gnl_mcgrps),
-#endif
 };
 
 /**
@@ -1221,13 +1221,7 @@ int iwl_tm_gnl_init(void)
 	INIT_LIST_HEAD(&dev_list);
 	mutex_init(&dev_list_mtx);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
 	ret = genl_register_family(&iwl_tm_gnl_family);
-#else
-	ret = genl_register_family_with_ops_groups(&iwl_tm_gnl_family,
-						   iwl_tm_gnl_ops,
-						   iwl_tm_gnl_mcgrps);
-#endif
 	if (ret)
 		return ret;
 	ret = netlink_register_notifier(&iwl_tm_gnl_netlink_notifier);

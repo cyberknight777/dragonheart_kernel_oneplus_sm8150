@@ -179,7 +179,7 @@ ieee80211_rx_radiotap_hdrlen(struct ieee80211_local *local,
 
 	if (status->encoding == RX_ENC_HE &&
 	    status->he_format != IEEE80211_HE_FORMAT_UNKNOWN) {
-		len = ALIGN(len, 4);
+		len = ALIGN(len, 2);
 		len += 12;
 	}
 
@@ -282,7 +282,7 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 	if (!(has_fcs && ieee80211_hw_check(&local->hw, RX_INCLUDES_FCS)))
 		mpdulen += FCS_LEN;
 
-	rthdr = (struct ieee80211_radiotap_header *)skb_push(skb, rtap_len);
+	rthdr = skb_push(skb, rtap_len);
 	memset(rthdr, 0, rtap_len - rtap.len - rtap.pad);
 	it_present = &rthdr->it_present;
 
@@ -448,6 +448,10 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 			flags |= IEEE80211_RADIOTAP_AMPDU_DELIM_CRC_ERR;
 		if (status->flag & RX_FLAG_AMPDU_DELIM_CRC_KNOWN)
 			flags |= IEEE80211_RADIOTAP_AMPDU_DELIM_CRC_KNOWN;
+		if (status->flag & RX_FLAG_AMPDU_EOF_BIT_KNOWN)
+			flags |= IEEE80211_RADIOTAP_AMPDU_EOF_KNOWN;
+		if (status->flag & RX_FLAG_AMPDU_EOF_BIT)
+			flags |= IEEE80211_RADIOTAP_AMPDU_EOF;
 		put_unaligned_le16(flags, pos);
 		pos += 2;
 		if (status->flag & RX_FLAG_AMPDU_DELIM_CRC_KNOWN)
@@ -526,135 +530,103 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 
 	if (status->encoding == RX_ENC_HE &&
 	    status->he_format != IEEE80211_HE_FORMAT_UNKNOWN) {
-		u32 a1, a2, bw;
-		u16 a1_known, a2_known;
+		struct {
+			__le16 data1, data2, data3, data4, data5, data6;
+		} he = {
+			.data1 = local->hw.radiotap_he.data1,
+			.data2 = local->hw.radiotap_he.data2,
+		};
+
+		BUILD_BUG_ON(sizeof(he) != 12);
+
+#define HE_PREP(f, val)	cpu_to_le16(FIELD_PREP(IEEE80211_RADIOTAP_HE_##f, val))
 
 #define CHECK_HE_FORMAT(F) \
-	BUILD_BUG_ON((IEEE80211_HE_FORMAT_ ## F - 1) << 30 != IEEE80211_RADIOTAP_HE_FORMAT_ ## F)
+	BUILD_BUG_ON((IEEE80211_HE_FORMAT_ ## F - 1) != \
+		     IEEE80211_RADIOTAP_HE_DATA1_FORMAT_ ## F)
 
 		CHECK_HE_FORMAT(SU);
 		CHECK_HE_FORMAT(EXT_SU);
 		CHECK_HE_FORMAT(MU);
 		CHECK_HE_FORMAT(TRIG);
 
-		a1 = (status->he_format - 1) << 30;
-		a2 = 0;
+		he.data1 |= cpu_to_le16(status->he_format - 1);
+
+		if (status->enc_flags & RX_ENC_FLAG_STBC_MASK) {
+			he.data6 |= HE_PREP(DATA6_NSTS,
+					    FIELD_GET(RX_ENC_FLAG_STBC_MASK,
+						      status->enc_flags));
+			he.data3 |= HE_PREP(DATA3_STBC, 1);
+		} else {
+			he.data6 |= HE_PREP(DATA6_NSTS, status->nss);
+		}
+
+#define CHECK_GI(s) \
+	BUILD_BUG_ON(IEEE80211_RADIOTAP_HE_DATA5_GI_##s != \
+		     (int)NL80211_RATE_INFO_HE_GI_##s)
+
+		CHECK_GI(0_8);
+		CHECK_GI(1_6);
+		CHECK_GI(3_2);
+
+		he.data3 |= HE_PREP(DATA3_DATA_MCS, status->rate_idx);
+		he.data3 |= HE_PREP(DATA3_DATA_DCM, status->he_dcm);
+		he.data3 |= HE_PREP(DATA3_CODING,
+				    !!(status->enc_flags & RX_ENC_FLAG_LDPC));
+		he.data3 |= HE_PREP(DATA3_UL_DL, status->he_ul);
+		he.data1 |= HE_PREP(DATA1_UL_DL_KNOWN, status->he_ul_known);
+
+		he.data5 |= HE_PREP(DATA5_GI, status->he_gi);
+		he.data5 |= HE_PREP(DATA5_LTF_SYMS, status->he_ltf);
+		he.data5 |= HE_PREP(DATA5_TXBF, status->he_txbf);
 
 		switch (status->he_format) {
 		case IEEE80211_HE_FORMAT_SU:
 			switch (status->bw) {
 			case RATE_INFO_BW_20:
-				bw = 0;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_20MHZ);
 				break;
 			case RATE_INFO_BW_40:
-				bw = 1;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_40MHZ);
 				break;
 			case RATE_INFO_BW_80:
-				bw = 2;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_80MHZ);
 				break;
 			case RATE_INFO_BW_160:
-				bw = 3;
+				he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+						    IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_160MHZ);
 				break;
 			default:
 				WARN_ONCE(1, "Invalid SU BW %d\n", status->bw);
-				bw = 0;
 			}
 			break;
 		case IEEE80211_HE_FORMAT_EXT_SU:
-			if (status->he_ru == NL80211_RATE_INFO_HE_RU_ALLOC_242)
-				bw = 0;
-			else /* TODO - check validity? */
-				bw = 1;
+#define CHECK_RU_ALLOC(s) \
+	BUILD_BUG_ON(IEEE80211_RADIOTAP_HE_DATA5_DATA_BW_RU_ALLOC_##s##T != \
+		     NL80211_RATE_INFO_HE_RU_ALLOC_##s + 4)
+
+			CHECK_RU_ALLOC(26);
+			CHECK_RU_ALLOC(52);
+			CHECK_RU_ALLOC(106);
+			CHECK_RU_ALLOC(242);
+			CHECK_RU_ALLOC(484);
+			CHECK_RU_ALLOC(996);
+			CHECK_RU_ALLOC(2x996);
+
+			he.data5 |= HE_PREP(DATA5_DATA_BW_RU_ALLOC,
+					    status->he_ru + 4);
 			break;
 		}
 
-		switch (status->he_format) {
-		case IEEE80211_HE_FORMAT_SU:
-		case IEEE80211_HE_FORMAT_EXT_SU: {
-			u8 nsts = status->nss - 1;
-
-			a1_known = local->hw.radiotap_he.su.a1_known;
-			a2_known = local->hw.radiotap_he.su.a2_known;
-
-			a1 |= 1;
-			a1 |= status->rate_idx << 3;
-			a1 |= status->he_dcm << 7;
-			a1 |= bw << 19;
-			switch (status->he_ltf) {
-			case 0:
-				WARN_ON(status->he_gi != NL80211_RATE_INFO_HE_GI_0_8);
-				a1 |= 0 << 21;
-				break;
-			case 1:
-				switch (status->he_gi) {
-				case NL80211_RATE_INFO_HE_GI_0_8:
-					a1 |= 1 << 21;
-					break;
-				case NL80211_RATE_INFO_HE_GI_1_6:
-					a1 |= 2 << 21;
-					break;
-				case NL80211_RATE_INFO_HE_GI_3_2:
-					WARN_ON(1);
-					break;
-				}
-				break;
-			case 3:
-				a1 |= 3 << 21;
-
-				switch (status->he_gi) {
-				case NL80211_RATE_INFO_HE_GI_0_8:
-					/* also set DCM ... */
-					a1 |= 1 << 7;
-					a1_known |= 1 << 7;
-					/* ... and STBC bits */
-					a2 |= 1 << 9;
-					a2_known |= 1 << 9;
-					break;
-				case NL80211_RATE_INFO_HE_GI_1_6:
-					WARN_ON(1);
-					break;
-				case NL80211_RATE_INFO_HE_GI_3_2:
-					/* nothing else */
-					break;
-				}
-				break;
-			default:
-				WARN_ON(1);
-				break;
-			}
-
-			if (status->enc_flags & RX_ENC_FLAG_STBC_MASK)
-				nsts = ((status->enc_flags &
-						RX_ENC_FLAG_STBC_MASK) >>
-					RX_ENC_FLAG_STBC_SHIFT) - 1;
-			a1 |= nsts << 23;
-
-			a2 |= !!(status->enc_flags & RX_ENC_FLAG_LDPC) << 7;
-			a2 |= !!(status->enc_flags & RX_ENC_FLAG_STBC_MASK) << 9;
-			break;
-			}
-		case IEEE80211_HE_FORMAT_MU:
-			/* TODO */
-			a1_known = local->hw.radiotap_he.mu.a1_known;
-			a2_known = local->hw.radiotap_he.mu.a2_known;
-			break;
-		case IEEE80211_HE_FORMAT_TRIG:
-			/* TODO */
-			a1_known = local->hw.radiotap_he.trig.a1_known;
-			a2_known = local->hw.radiotap_he.trig.a2_known;
-			break;
-		default:
-			a1_known = 0;
-			a2_known = 0;
-		}
-		put_unaligned_le32(a1, pos);
-		pos += sizeof(u32);
-		put_unaligned_le32(a2, pos);
-		pos += sizeof(u32);
-		put_unaligned_le32(a1_known, pos);
-		pos += sizeof(u32);
-		put_unaligned_le32(a2_known, pos);
-		pos += sizeof(u32);
+		/* ensure 2 byte alignment */
+		while ((pos - (u8 *)rthdr) & 1)
+			pos++;
+		rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_HE);
+		memcpy(pos, &he, sizeof(he));
+		pos += sizeof(he);
 	}
 
 	for_each_set_bit(chain, &chains, IEEE80211_MAX_CHAINS) {
@@ -1327,7 +1299,7 @@ static void ieee80211_rx_reorder_ampdu(struct ieee80211_rx_data *rx,
 
 	ack_policy = *ieee80211_get_qos_ctl(hdr) &
 		     IEEE80211_QOS_CTL_ACK_POLICY_MASK;
-	tid = *ieee80211_get_qos_ctl(hdr) & IEEE80211_QOS_CTL_TID_MASK;
+	tid = ieee80211_get_tid(hdr);
 
 	tid_agg_rx = rcu_dereference(sta->ampdu_mlme.tid_rx[tid]);
 	if (!tid_agg_rx) {
@@ -1436,7 +1408,7 @@ ieee80211_rx_h_check(struct ieee80211_rx_data *rx)
 		      ieee80211_is_pspoll(hdr->frame_control)) &&
 		     rx->sdata->vif.type != NL80211_IFTYPE_ADHOC &&
 		     rx->sdata->vif.type != NL80211_IFTYPE_WDS &&
-		     rx->sdata->vif.type != NL80211_IFTYPE_OCB &&
+		     !ieee80211_viftype_ocb(rx->sdata->vif.type) &&
 		     (!rx->sta || !test_sta_flag(rx->sta, WLAN_STA_ASSOC)))) {
 		/*
 		 * accept port control frames from the AP even when it's not
@@ -1666,9 +1638,7 @@ ieee80211_rx_h_uapsd_and_pspoll(struct ieee80211_rx_data *rx)
 		   ieee80211_has_pm(hdr->frame_control) &&
 		   (ieee80211_is_data_qos(hdr->frame_control) ||
 		    ieee80211_is_qos_nullfunc(hdr->frame_control))) {
-		u8 tid;
-
-		tid = *ieee80211_get_qos_ctl(hdr) & IEEE80211_QOS_CTL_TID_MASK;
+		u8 tid = ieee80211_get_tid(hdr);
 
 		ieee80211_sta_uapsd_trigger(&rx->sta->sta, tid);
 	}
@@ -1707,7 +1677,7 @@ ieee80211_rx_h_sta_process(struct ieee80211_rx_data *rx)
 				sta->rx_stats.last_rate =
 					sta_stats_encode_rate(status);
 		}
-	} else if (rx->sdata->vif.type == NL80211_IFTYPE_OCB) {
+	} else if (ieee80211_viftype_ocb(rx->sdata->vif.type)) {
 		sta->rx_stats.last_rx = jiffies;
 	} else if (!is_multicast_ether_addr(hdr->addr1)) {
 		/*
@@ -1749,23 +1719,16 @@ ieee80211_rx_h_sta_process(struct ieee80211_rx_data *rx)
 
 	/*
 	 * Change STA power saving mode only at the end of a frame
-	 * exchange sequence.
+	 * exchange sequence, and only for a data or management
+	 * frame as specified in IEEE 802.11-2016 11.2.3.2
 	 */
 	if (!ieee80211_hw_check(&sta->local->hw, AP_LINK_PS) &&
 	    !ieee80211_has_morefrags(hdr->frame_control) &&
-	    !ieee80211_is_back_req(hdr->frame_control) &&
+	    (ieee80211_is_mgmt(hdr->frame_control) ||
+	     ieee80211_is_data(hdr->frame_control)) &&
 	    !(status->rx_flags & IEEE80211_RX_DEFERRED_RELEASE) &&
 	    (rx->sdata->vif.type == NL80211_IFTYPE_AP ||
-	     rx->sdata->vif.type == NL80211_IFTYPE_AP_VLAN) &&
-	    /*
-	     * PM bit is only checked in frames where it isn't reserved,
-	     * in AP mode it's reserved in non-bufferable management frames
-	     * (cf. IEEE 802.11-2012 8.2.4.1.7 Power Management field)
-	     * BAR frames should be ignored as specified in
-	     * IEEE 802.11-2012 10.2.1.2.
-	     */
-	    (!ieee80211_is_mgmt(hdr->frame_control) ||
-	     ieee80211_is_bufferable_mmpdu(hdr->frame_control))) {
+	     rx->sdata->vif.type == NL80211_IFTYPE_AP_VLAN)) {
 		if (test_sta_flag(sta, WLAN_STA_PS_STA)) {
 			if (!ieee80211_has_pm(hdr->frame_control))
 				sta_ps_end(sta);
@@ -2240,7 +2203,7 @@ ieee80211_rx_h_defragment(struct ieee80211_rx_data *rx)
 		}
 	}
 	while ((skb = __skb_dequeue(&entry->skb_list))) {
-		memcpy(skb_put(rx->skb, skb->len), skb->data, skb->len);
+		skb_put_data(rx->skb, skb->data, skb->len);
 		dev_kfree_skb(skb);
 	}
 
@@ -2919,8 +2882,7 @@ static void ieee80211_process_sa_query_req(struct ieee80211_sub_if_data *sdata,
 		return;
 
 	skb_reserve(skb, local->hw.extra_tx_headroom);
-	resp = (struct ieee80211_mgmt *) skb_put(skb, 24);
-	memset(resp, 0, 24);
+	resp = skb_put_zero(skb, 24);
 	memcpy(resp->da, mgmt->sa, ETH_ALEN);
 	memcpy(resp->sa, sdata->vif.addr, ETH_ALEN);
 	memcpy(resp->bssid, sdata->u.mgd.bssid, ETH_ALEN);
@@ -3373,7 +3335,7 @@ ieee80211_rx_h_mgmt(struct ieee80211_rx_data *rx)
 
 	if (!ieee80211_vif_is_mesh(&sdata->vif) &&
 	    sdata->vif.type != NL80211_IFTYPE_ADHOC &&
-	    sdata->vif.type != NL80211_IFTYPE_OCB &&
+	    !ieee80211_viftype_ocb(sdata->vif.type) &&
 	    sdata->vif.type != NL80211_IFTYPE_STATION)
 		return RX_DROP_MONITOR;
 
@@ -3771,7 +3733,10 @@ static bool ieee80211_accept_frame(struct ieee80211_rx_data *rx)
 						 BIT(rate_idx));
 		}
 		return true;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
 	case NL80211_IFTYPE_OCB:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		if (!bssid)
 			return false;
 		if (!ieee80211_is_data_present(hdr->frame_control))
@@ -3792,6 +3757,8 @@ static bool ieee80211_accept_frame(struct ieee80211_rx_data *rx)
 		}
 		return true;
 	case NL80211_IFTYPE_MESH_POINT:
+		if (ether_addr_equal(sdata->vif.addr, hdr->addr2))
+			return false;
 		if (multicast)
 			return true;
 		return ether_addr_equal(sdata->vif.addr, hdr->addr1);
@@ -3856,7 +3823,10 @@ static bool ieee80211_accept_frame(struct ieee80211_rx_data *rx)
 		       ieee80211_is_probe_req(hdr->frame_control) ||
 		       ieee80211_is_probe_resp(hdr->frame_control) ||
 		       ieee80211_is_beacon(hdr->frame_control);
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	case NL80211_IFTYPE_NAN:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* Currently no frames on NAN interface are allowed */
 		return false;
 	default:

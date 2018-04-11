@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -82,6 +84,7 @@
  *	&enum iwl_prot_offload_subcmd_ids
  * @REGULATORY_AND_NVM_GROUP: regulatory/NVM group, uses command IDs from
  *	&enum iwl_regulatory_and_nvm_subcmd_ids
+ * @XVT_GROUP: XVT group, uses command IDs from &enum iwl_xvt_subcmd_ids
  * @DEBUG_GROUP: Debug group, uses command IDs from &enum iwl_debug_cmds
  */
 enum iwl_mvm_command_groups {
@@ -95,6 +98,7 @@ enum iwl_mvm_command_groups {
 	TOF_GROUP = 0x8,
 	PROT_OFFLOAD_GROUP = 0xb,
 	REGULATORY_AND_NVM_GROUP = 0xc,
+	XVT_GROUP = 0xe,
 	DEBUG_GROUP = 0xf,
 };
 
@@ -280,6 +284,11 @@ enum iwl_legacy_cmds {
 	 * command is &struct iwl_nonqos_seq_query_cmd
 	 */
 	NON_QOS_TX_COUNTER_CMD = 0x2d,
+
+	/**
+	 * @FIPS_TEST_VECTOR_CMD: command is &struct iwl_fips_test_cmd
+	 */
+	FIPS_TEST_VECTOR_CMD = 0x3b,
 
 	/**
 	 * @LEDS_CMD: command is &struct iwl_led_cmd
@@ -503,6 +512,7 @@ enum iwl_legacy_cmds {
 
 	/**
 	 * @MARKER_CMD: trace marker command, uses &struct iwl_mvm_marker
+	 * with &struct iwl_mvm_marker_rsp
 	 */
 	MARKER_CMD = 0xcb,
 
@@ -656,6 +666,17 @@ enum iwl_system_subcmd_ids {
 	 *	&struct iwl_fseq_ver_mismatch_ntf.
 	 */
 	FSEQ_VER_MISMATCH_NTF = 0xFF,
+};
+
+/**
+ * enum iwl_xvt_subcmd_ids - XVT group command IDs
+ */
+enum iwl_xvt_subcmd_ids {
+	/**
+	 * @IQ_CALIB_CONFIG_NOTIF : Notification about IQ calibration finished
+	 * Handled by user space component
+	 */
+	IQ_CALIB_CONFIG_NOTIF = 0xFF,
 };
 
 #endif /* __iwl_fw_api_commands_h__ */

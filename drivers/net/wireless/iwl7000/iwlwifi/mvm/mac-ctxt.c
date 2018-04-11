@@ -218,7 +218,7 @@ u32 iwl_mvm_mac_get_queues_mask(struct ieee80211_vif *vif)
 		return BIT(IWL_MVM_OFFCHANNEL_QUEUE);
 
 	/* Currently NAN doesn't use queues */
-	if (vif->type == NL80211_IFTYPE_NAN)
+	if (ieee80211_viftype_nan(vif->type))
 		return 0;
 
 	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
@@ -408,7 +408,7 @@ int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	/* No need to allocate data queues to P2P Device MAC and NAN.*/
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE ||
-	    vif->type == NL80211_IFTYPE_NAN) {
+	    ieee80211_viftype_nan(vif->type)) {
 		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
 			vif->hw_queue[ac] = IEEE80211_INVAL_HW_QUEUE;
 
@@ -443,7 +443,8 @@ int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	}
 
 	/* Allocate the CAB queue for softAP and GO interfaces */
-	if (vif->type == NL80211_IFTYPE_AP) {
+	if (vif->type == NL80211_IFTYPE_AP ||
+	    vif->type == NL80211_IFTYPE_ADHOC) {
 		/*
 		 * For TVQM this will be overwritten later with the FW assigned
 		 * queue value (when queue is enabled).
@@ -793,10 +794,6 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 	if (vif->probe_req_reg && vif->bss_conf.assoc && vif->p2p)
 		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_PROBE_REQUEST);
 
-	if (vif->bss_conf.assoc && vif->bss_conf.he_support &&
-	    !iwlwifi_mod_params.disable_11ax)
-		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
-
 	return iwl_mvm_mac_ctxt_send_cmd(mvm, &cmd);
 }
 
@@ -805,7 +802,7 @@ static int iwl_mvm_mac_ctxt_cmd_listener(struct iwl_mvm *mvm,
 					 u32 action)
 {
 	struct iwl_mac_ctx_cmd cmd = {};
-	u32 tfd_queue_msk = 0;
+	u32 tfd_queue_msk = BIT(mvm->snif_queue);
 	int ret;
 
 	WARN_ON(vif->type != NL80211_IFTYPE_MONITOR);
@@ -1324,7 +1321,7 @@ int iwl_mvm_mac_ctxt_add(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	int ret;
 
-	if (WARN_ON_ONCE(vif->type == NL80211_IFTYPE_NAN))
+	if (WARN_ON_ONCE(ieee80211_viftype_nan(vif->type)))
 		return -EOPNOTSUPP;
 
 	if (WARN_ONCE(mvmvif->uploaded, "Adding active MAC %pM/%d\n",
@@ -1348,7 +1345,7 @@ int iwl_mvm_mac_ctxt_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
-	if (WARN_ON_ONCE(vif->type == NL80211_IFTYPE_NAN))
+	if (WARN_ON_ONCE(ieee80211_viftype_nan(vif->type)))
 		return -EOPNOTSUPP;
 
 	if (WARN_ONCE(!mvmvif->uploaded, "Changing inactive MAC %pM/%d\n",
@@ -1365,7 +1362,7 @@ int iwl_mvm_mac_ctxt_remove(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	struct iwl_mac_ctx_cmd cmd;
 	int ret;
 
-	if (WARN_ON_ONCE(vif->type == NL80211_IFTYPE_NAN))
+	if (WARN_ON_ONCE(ieee80211_viftype_nan(vif->type)))
 		return -EOPNOTSUPP;
 
 	if (WARN_ONCE(!mvmvif->uploaded, "Removing inactive MAC %pM/%d\n",
@@ -1589,7 +1586,7 @@ void iwl_mvm_rx_stored_beacon_notif(struct iwl_mvm *mvm,
 					       rx_status.band);
 
 	/* copy the data */
-	memcpy(skb_put(skb, size), sb->data, size);
+	skb_put_data(skb, sb->data, size);
 	memcpy(IEEE80211_SKB_RXCB(skb), &rx_status, sizeof(rx_status));
 
 	/* pass it as regular rx to mac80211 */

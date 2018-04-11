@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
 * Portions of this file
 * Copyright(c) 2016-2017 Intel Deutschland GmbH
@@ -90,7 +91,7 @@
 				STA_ENTRY						\
 				__field(u16, tid)					\
 				__field(u16, ssn)					\
-				__field(u8, buf_size)					\
+				__field(u16, buf_size)					\
 				__field(bool, amsdu)					\
 				__field(u16, timeout)					\
 				__field(u16, action)
@@ -1749,8 +1750,8 @@ TRACE_EVENT(drv_start_nan,
 		VIF_ASSIGN;
 		__entry->master_pref = conf->master_pref;
 		__entry->bands = conf->bands;
-		__entry->cdw_2g = conf->cdw_2g;
-		__entry->cdw_5g = conf->cdw_5g;
+		__entry->cdw_2g = nan_conf_cdw_2g(conf);
+		__entry->cdw_5g = nan_conf_cdw_5g(conf);
 	),
 
 	TP_printk(
@@ -1806,8 +1807,8 @@ TRACE_EVENT(drv_nan_change_conf,
 		VIF_ASSIGN;
 		__entry->master_pref = conf->master_pref;
 		__entry->bands = conf->bands;
-		__entry->cdw_2g = conf->cdw_2g;
-		__entry->cdw_5g = conf->cdw_5g;
+		__entry->cdw_2g = nan_conf_cdw_2g(conf);
+		__entry->cdw_5g = nan_conf_cdw_5g(conf);
 		__entry->changes = changes;
 	),
 

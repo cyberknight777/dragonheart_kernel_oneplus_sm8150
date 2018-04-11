@@ -8,6 +8,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -98,6 +100,9 @@ enum iwl_tm_gnl_cmd_t {
  */
 #define IWL_XVT_TX_MODULATED_INFINITE (0)
 
+#define IWL_XVT_MAX_MAC_HEADER_LENGTH (36)
+#define IWL_XVT_MAX_NUM_OF_FRAMES (32)
+
 /*
  * Periphery registers absolute lower bound. This is used in order to
  * differentiate registery access through HBUS_TARG_PRPH_.* and
@@ -139,6 +144,8 @@ enum {
 	IWL_TM_USER_CMD_NOTIF_BFE,
 	IWL_TM_USER_CMD_NOTIF_LOC_MCSI,
 	IWL_TM_USER_CMD_NOTIF_LOC_RANGE,
+	IWL_TM_USER_CMD_NOTIF_IQ_CALIB,
+	IWL_TM_USER_CMD_NOTIF_CT_KILL,
 };
 
 /*
@@ -162,6 +169,7 @@ enum {
 	IWL_XVT_CMD_GET_MAC_ADDR_INFO,
 	IWL_XVT_CMD_MOD_TX_STOP,
 	IWL_XVT_CMD_TX_QUEUE_CFG,
+	IWL_XVT_CMD_DRIVER_CMD,
 
 	/* Driver notifications */
 	IWL_XVT_CMD_SEND_REPLY_ALIVE = XVT_CMD_NOTIF_BASE,
@@ -169,6 +177,8 @@ enum {
 	IWL_XVT_CMD_SEND_NIC_ERROR,
 	IWL_XVT_CMD_SEND_NIC_UMAC_ERROR,
 	IWL_XVT_CMD_SEND_MOD_TX_DONE,
+	IWL_XVT_CMD_ENHANCED_TX_DONE,
+	IWL_XVT_CMD_TX_CMD_RESP,
 
 	/* Bus Tester Commands*/
 	IWL_TM_USER_CMD_SV_BUS_CONFIG = XVT_BUS_TESTER_BASE,
@@ -178,6 +188,18 @@ enum {
 	IWL_TM_USER_CMD_SV_RD_WR_UINT8,
 	IWL_TM_USER_CMD_SV_RD_WR_UINT32,
 	IWL_TM_USER_CMD_SV_RD_WR_BUFFER,
+};
+
+/**
+ * User space - driver interface command. These commands will be sent as
+ * sub-commands through IWL_XVT_CMD_DRIVER_CMD.
+ */
+enum {
+	IWL_DRV_CMD_CONFIG_TX_QUEUE = 0,
+	IWL_DRV_CMD_SET_TX_PAYLOAD,
+	IWL_DRV_CMD_TX_START,
+	IWL_DRV_CMD_TX_STOP,
+	IWL_DRV_CMD_GET_RX_AGG_STATS,
 };
 
 enum {
@@ -589,6 +611,203 @@ enum {
 struct iwl_xvt_tx_queue_cfg {
 	__u8 sta_id;
 	__u8 operation;
+} __packed __aligned(4);
+
+/**
+ * iwl_xvt_driver_command_req - wrapper for general driver command that are sent
+ * by IWL_XVT_CMD_DRIVER_CMD
+ * @ command_id: sub comamnd ID
+ * @ max_out_length: max size in bytes of the sub command's expected response
+ * @ input_data: place holder for the sub command's input structure
+ */
+struct iwl_xvt_driver_command_req {
+	__u32 command_id;
+	__u32 max_out_length;
+	__u8 input_data[0];
+} __packed __aligned(4);
+
+/**
+ * iwl_xvt_driver_command_resp - response of IWL_XVT_CMD_DRIVER_CMD
+ * @ command_id: sub command ID
+ * @ length: resp_data length in bytes
+ * @ resp_data: place holder for the sub command's rseponse data
+ */
+struct iwl_xvt_driver_command_resp {
+	__u32 command_id;
+	__u32 length;
+	__u8 resp_data[0];
+} __packed __aligned(4);
+
+/**
+ * iwl_xvt_txq_config - add/remove tx queue. IWL_DRV_CMD_CONFIG_TX_QUEUE input.
+ * @sta_id: station id
+ * @tid: TID
+ * @scd_queue: scheduler queue to configure
+ * @action: 1 queue enable, 0 queue disable, 2 change txq's tid owner
+ *	Value is one of &enum iwl_scd_cfg_actions options
+ * @aggregate: 1 aggregated queue, 0 otherwise
+ * @tx_fifo: &enum iwl_mvm_tx_fifo
+ * @window: BA window size
+ * @ssn: SSN for the BA agreement
+ */
+struct iwl_xvt_txq_config {
+	u8 sta_id;
+	u8 tid;
+	u8 scd_queue;
+	u8 action;
+	u8 aggregate;
+	u8 tx_fifo;
+	u8 window;
+	u8 reserved;
+	u16 ssn;
+} __packed __aligned(4);
+
+/**
+ * iwl_xvt_txq_config_resp - response from IWL_DRV_CMD_CONFIG_TX_QUEUE
+ * @sta_id: taken from command
+ * @tid: taken from command
+ * @scd_queue: queue number assigned to this RA -TID
+ * @reserved: for alignment
+ */
+struct iwl_xvt_txq_config_resp {
+	u8 sta_id;
+	u8 tid;
+	u8 scd_queue;
+	u8 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_set_tx_payload - input for TX payload configuration
+ * @index: payload's index in 'payloads' array in struct iwl_xvt
+ * @length: payload length in bytes
+ * @payload: buffer containing payload
+*/
+struct iwl_xvt_set_tx_payload {
+	u16 index;
+	u16 length;
+	u8 payload[];
+} __packed __aligned(4);
+
+/**
+ * struct tx_cmd_commom_data - Data shared between all queues for TX
+ * command configuration
+ * @rate_flags: Tx Configuration rate flags
+ * @tx_flags: TX flags configuration
+ * @initial_rate_index: Start index in TLC table
+ * @rts_retry_limit: Max retry for RTS transmit
+ * @data_retry_limit: Max retry for data transmit
+ */
+struct tx_cmd_commom_data {
+	u32 rate_flags;
+	u32 tx_flags;
+	u8 initial_rate_index;
+	u8 rts_retry_limit;
+	u8 data_retry_limit;
+	u8 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct tx_cmd_frame - frame specific transmission data
+ * @times: Number of subsequent times to transmit tx command to queue
+ * @sta_id: Station index
+ * @queue: Transmission queue
+ * @tid_tspec: TID tspec
+ * @sec_ctl: security control
+ * @payload_index: payload buffer index in 'payloads' array in struct iwl_xvt
+ * @key: security key
+ * @header: MAC header
+ */
+struct tx_cmd_frame_data {
+	u16 times;
+	u8 sta_id;
+	u8 queue;
+	u8 tid_tspec;
+	u8 sec_ctl;
+	u8 payload_index;
+	u8 reserved;
+	u8 key[16];
+	u8 header[IWL_XVT_MAX_MAC_HEADER_LENGTH];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_tx_start - Data for transmission. IWL_DRV_CMD_TX_START input.
+ * @num_of_cycles: Number of times to go over frames_data. When set to zero -
+ *  infinite transmit (max amount is ULLONG_MAX) - go over frames_data and sent
+ *  tx until stop command is received.
+ * @num_of_different_frames: actual number of entries in frames_data
+ * @send_tx_resp: Whether to send FW's tx response to user
+ * @tx_data: Tx command configuration shared data
+ * @frames_data: array of specific frame data for each queue
+*/
+struct iwl_xvt_tx_start {
+	u16 num_of_cycles;
+	u16 num_of_different_frames;
+	u8 send_tx_resp;
+	u8 reserved1;
+	u16 reserved2;
+	struct tx_cmd_commom_data tx_data;
+	struct tx_cmd_frame_data frames_data[IWL_XVT_MAX_NUM_OF_FRAMES];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_enhanced_tx_data - Data for enhanced TX task
+ * @xvt: pointer to the xvt op mode
+ * @tx_start_data: IWL_DRV_CMD_TX_START command's input
+*/
+struct iwl_xvt_enhanced_tx_data {
+	struct iwl_xvt *xvt;
+	struct iwl_xvt_tx_start tx_start_data;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_post_tx_data - transmission data per queue
+ * @num_of_packets: number of sent packets
+ * @queue: queue packets were sent on
+ */
+struct iwl_xvt_post_tx_data {
+	u64 num_of_packets;
+	u16 queue;
+	u16 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_tx_done - Notification data for sent tx
+ * @status: tx task handler error status
+ * @num_of_queues: total number of queues tx was sent from. Equals to number of
+ * entries in tx_data
+ * @tx_data: data of sent frames for each queue
+*/
+struct iwl_xvt_tx_done {
+	u32 status;
+	u32 num_of_queues;
+	struct iwl_xvt_post_tx_data tx_data[];
+} __packed __aligned(4);
+
+/*
+ * struct iwl_xvt_get_rx_agg_stats - get rx aggregation statistics
+ * @sta_id: station id of relevant ba
+ * @tid: tid of relevant ba
+ * @reserved: reserved
+ */
+struct iwl_xvt_get_rx_agg_stats {
+	u8 sta_id;
+	u8 tid;
+	u16 reserved;
+} __packed __aligned(4);
+
+/*
+ * struct iwl_xvt_get_rx_agg_stats_resp - rx aggregation statistics response
+ * @dropped: number of frames dropped (e.g. too old)
+ * @released: total number of frames released (either in-order or
+ *	out of order (after passing the reorder buffer)
+ * @skipped: number of frames skipped the reorder buffer (in-order)
+ * @reordered: number of frames gone through the reorder buffer (unordered)
+ */
+struct iwl_xvt_get_rx_agg_stats_resp {
+	u32 dropped;
+	u32 released;
+	u32 skipped;
+	u32 reordered;
 } __packed __aligned(4);
 
 #endif

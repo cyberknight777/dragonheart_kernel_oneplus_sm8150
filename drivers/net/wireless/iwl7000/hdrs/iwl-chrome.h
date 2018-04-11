@@ -4,14 +4,27 @@
  *
  * ChromeOS backport definitions
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
+ * Copyright (C) 2018      Intel Corporation
  */
 
 #include <linux/version.h>
-#include <hdrs/symbols-rename.h>
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/idr.h>
 #include <linux/vmalloc.h>
+
+/* get the CPTCFG_* preprocessor symbols */
+#include <hdrs/config.h>
+
+#include <hdrs/mac80211-exp.h>
+
+/* include rhashtable this way to get our copy if another exists */
+#include <linux/list_nulls.h>
+#ifndef NULLS_MARKER
+#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
+#endif
+#include "linux/rhashtable.h"
+
 #include <net/genetlink.h>
 #include <linux/crypto.h>
 #include <linux/moduleparam.h>
@@ -47,9 +60,6 @@ static inline u64 ktime_get_real_ns(void)
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0) */
 
-/* get the CPTCFG_* preprocessor symbols */
-#include <hdrs/config.h>
-
 /*
  * Need to include these here, otherwise we get the regular kernel ones
  * pre-including them makes it work, even though later the kernel ones
@@ -67,22 +77,12 @@ static inline u64 ktime_get_real_ns(void)
 
 /* mac80211 & backport - order matters, need this inbetween */
 #include <hdrs/mac80211-bp.h>
-#include <hdrs/uapi/linux/nl80211.h>
-#include <hdrs/net/regulatory.h>
-#include <hdrs/net/cfg80211.h>
 
 #include <hdrs/net/codel.h>
 #include <hdrs/net/codel_impl.h>
 #include <hdrs/net/fq.h>
 #include <hdrs/net/fq_impl.h>
 #include <hdrs/net/mac80211.h>
-
-/* include rhashtable this way to get our copy if another exists */
-#include <linux/list_nulls.h>
-#ifndef NULLS_MARKER
-#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
-#endif
-#include "linux/rhashtable.h"
 
 /* artifacts of backports - never in upstream */
 #define genl_info_snd_portid(__genl_info) (__genl_info->snd_portid)
@@ -217,10 +217,6 @@ _genl_register_family_with_ops_grps(struct genl_family *family,
 
 	return 0;
 }
-#define genl_register_family_with_ops_groups(family, ops, grps)		\
-	_genl_register_family_with_ops_grps((family),			\
-					    (ops), ARRAY_SIZE(ops),	\
-					    (grps), ARRAY_SIZE(grps))
 #else
 #define __genl_const const
 #endif
@@ -583,6 +579,20 @@ static inline void *nla_memdup(const struct nlattr *src, gfp_t gfp)
 #define GENLMSG_DEFAULT_SIZE (NLMSG_DEFAULT_SIZE - GENL_HDRLEN)
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,15,0)
+static inline
+void backport_genl_dump_check_consistent(struct netlink_callback *cb,
+					 void *user_hdr)
+{
+	struct genl_family dummy_family = {
+		.hdrsize = 0,
+	};
+
+	genl_dump_check_consistent(cb, user_hdr, &dummy_family);
+}
+#define genl_dump_check_consistent LINUX_BACKPORT(genl_dump_check_consistent)
+#endif /* LINUX_VERSION_IS_LESS(4,15,0) */
+
 #if LINUX_VERSION_IS_LESS(3,13,0)
 static inline int __real_genl_register_family(struct genl_family *family)
 {
@@ -643,10 +653,6 @@ _genl_register_family_with_ops_grps(struct genl_family *family,
 	_genl_register_family_with_ops_grps((family),			\
 					    (ops), ARRAY_SIZE(ops),	\
 					    NULL, 0)
-#define genl_register_family_with_ops_groups(family, ops, grps)		\
-	_genl_register_family_with_ops_grps((family),			\
-					    (ops), ARRAY_SIZE(ops),	\
-					    (grps), ARRAY_SIZE(grps))
 
 #define genl_unregister_family backport_genl_unregister_family
 int genl_unregister_family(struct genl_family *family);
@@ -659,10 +665,6 @@ int genl_unregister_family(struct genl_family *family);
 	genlmsg_put(_skb, _pid, _seq, &(_fam)->family, _flags, _cmd)
 #define genlmsg_nlhdr(_hdr, _fam)					\
 	genlmsg_nlhdr(_hdr, &(_fam)->family)
-#ifndef genl_dump_check_consistent
-#define genl_dump_check_consistent(_cb, _hdr, _fam)			\
-	genl_dump_check_consistent(_cb, _hdr, &(_fam)->family)
-#endif
 #ifndef genlmsg_put_reply /* might already be there from _info override above */
 #define genlmsg_put_reply(_skb, _info, _fam, _flags, _cmd)		\
 	genlmsg_put_reply(_skb, _info, &(_fam)->family, _flags, _cmd)
@@ -823,5 +825,93 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 #define nla_validate_nested(...) \
 	macro_dispatcher(nla_validate_nested, __VA_ARGS__)(__VA_ARGS__)
 #endif /* LINUX_VERSION_IS_LESS(4,12,0) */
+
+#ifndef offsetofend
+/**
+ * offsetofend(TYPE, MEMBER)
+ *
+ * @TYPE: The type of the structure
+ * @MEMBER: The member within the structure to get the end offset of
+ */
+#define offsetofend(TYPE, MEMBER) \
+	(offsetof(TYPE, MEMBER)	+ sizeof(((TYPE *)0)->MEMBER))
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,16,0)
+int alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
+                           size_t max_size, unsigned int cpu_mult,
+                           gfp_t gfp);
+
+void free_bucket_spinlocks(spinlock_t *locks);
+#endif /* LINUX_VERSION_IS_LESS(4,16,0) */
+
+#ifndef READ_ONCE
+#include <linux/types.h>
+
+#define __READ_ONCE_SIZE						\
+({									\
+	switch (size) {							\
+	case 1: *(__u8 *)res = *(volatile __u8 *)p; break;		\
+	case 2: *(__u16 *)res = *(volatile __u16 *)p; break;		\
+	case 4: *(__u32 *)res = *(volatile __u32 *)p; break;		\
+	case 8: *(__u64 *)res = *(volatile __u64 *)p; break;		\
+	default:							\
+		barrier();						\
+		__builtin_memcpy((void *)res, (const void *)p, size);	\
+		barrier();						\
+	}								\
+})
+
+static __always_inline
+void __read_once_size(const volatile void *p, void *res, int size)
+{
+	__READ_ONCE_SIZE;
+}
+
+#define __READ_ONCE(x, check)						\
+({									\
+	union { typeof(x) __val; char __c[1]; } __u;			\
+	__read_once_size(&(x), __u.__c, sizeof(x));			\
+	__u.__val;							\
+})
+
+#define READ_ONCE(x) __READ_ONCE(x, 1)
+
+static __always_inline void __write_once_size(volatile void *p, void *res, int size)
+{
+	switch (size) {
+	case 1: *(volatile __u8 *)p = *(__u8 *)res; break;
+	case 2: *(volatile __u16 *)p = *(__u16 *)res; break;
+	case 4: *(volatile __u32 *)p = *(__u32 *)res; break;
+	case 8: *(volatile __u64 *)p = *(__u64 *)res; break;
+	default:
+		barrier();
+		__builtin_memcpy((void *)p, (const void *)res, size);
+		barrier();
+	}
+}
+
+#define WRITE_ONCE(x, val) \
+({							\
+	union { typeof(x) __val; char __c[1]; } __u =	\
+		{ .__val = (__force typeof(x)) (val) }; \
+	__write_once_size(&(x), __u.__c, sizeof(x));	\
+	__u.__val;					\
+})
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,12,0)
+#define GENL_SET_ERR_MSG(info, msg) do { } while (0)
+
+static inline int genl_err_attr(struct genl_info *info, int err,
+				struct nlattr *attr)
+{
+#if LINUX_VERSION_IS_GEQ(4,12,0)
+	info->extack->bad_attr = attr;
+#endif
+
+	return err;
+}
+#endif
 
 #endif /* __IWL_CHROME */

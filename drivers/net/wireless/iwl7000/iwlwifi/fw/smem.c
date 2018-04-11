@@ -64,7 +64,7 @@
 #include "fw/api/commands.h"
 
 static void iwl_parse_shared_mem_22000(struct iwl_fw_runtime *fwrt,
-				      struct iwl_rx_packet *pkt)
+				       struct iwl_rx_packet *pkt)
 {
 	struct iwl_shared_mem_cfg *mem_cfg = (void *)pkt->data;
 	int i, lmac;

@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -33,6 +34,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -110,6 +112,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D0_EVENT)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D3_FLOW)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D3_EVENT)
+	IWL_DBG_CFG_NODEF(bool, enable_timestamp_marker_cmd)
 #endif
 #if IS_ENABLED(CPTCFG_IWLMVM)
 	IWL_DBG_CFG(u32, MVM_DEFAULT_PS_TX_DATA_TIMEOUT)
@@ -205,8 +208,6 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, dbgm_enable_mode)
 	IWL_DBG_CFG_NODEF(u32, dbgm_mem_power)
 	IWL_DBG_CFG_NODEF(u32, dbg_flags)
-	IWL_DBG_CFG_NODEF(bool, d0_is_usniffer)
-	IWL_DBG_CFG_NODEF(bool, use_upload_ucode)
 	IWL_DBG_CFG_NODEF(u32, dbg_mon_sample_ctl_addr)
 	IWL_DBG_CFG_NODEF(u32, dbg_mon_sample_ctl_val)
 	IWL_DBG_CFG_NODEF(u32, dbg_mon_buff_base_addr_reg_addr)
@@ -253,7 +254,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_BIN(hw_address)
 	IWL_DBG_CFG_STR(fw_dbg_conf)
 	IWL_DBG_CFG_STR(nvm_file)
-	IWL_DBG_CFG_NODEF(u8, wakelock_mode)
+	IWL_DBG_CFG_STR(fw_file_pre)
 	IWL_DBG_CFG_NODEF(u32, d0i3_debug)
 	IWL_DBG_CFG_NODEF(u32, valid_ants)
 	IWL_DBG_CFG_NODEF(u32, secure_boot_cfg)

@@ -123,8 +123,8 @@ enum iwl_uapsd_disable {
  * @lar_disable: disable LAR (regulatory), default = 0
  * @fw_monitor: allow to use firmware monitor
  * @disable_11ac: disable VHT capabilities, default = false.
- * @disable_11ax: disable HE capabilities, default = true.
  * @disable_msix: disable MSI-X and fall back to MSI on PCIe, default = false.
+ * @remove_when_gone: remove an inaccessible device from the PCIe bus.
  */
 struct iwl_mod_params {
 	int swcrypto;
@@ -149,8 +149,8 @@ struct iwl_mod_params {
 	bool lar_disable;
 	bool fw_monitor;
 	bool disable_11ac;
-	bool disable_11ax;
 	bool disable_msix;
+	bool remove_when_gone;
 };
 
 #endif /* #__iwl_modparams_h__ */

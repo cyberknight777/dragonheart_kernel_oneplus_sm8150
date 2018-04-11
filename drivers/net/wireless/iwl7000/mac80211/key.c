@@ -5,6 +5,7 @@
  * Copyright 2007-2008	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright 2015-2017	Intel Deutschland GmbH
+ * Copyright 2018	Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -178,12 +179,16 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 	if (!ret) {
 		key->flags |= KEY_FLAG_UPLOADED_TO_HARDWARE;
 
-		if (!((key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC) ||
+		if (!((key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
+					   IEEE80211_KEY_FLAG_PUT_MIC_SPACE)) ||
 		      (key->conf.flags & IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
 			decrease_tailroom_need_count(sdata, 1);
 
 		WARN_ON((key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE) &&
 			(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_IV));
+
+		WARN_ON((key->conf.flags & IEEE80211_KEY_FLAG_PUT_MIC_SPACE) &&
+			(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC));
 
 		return 0;
 	}
@@ -237,7 +242,8 @@ static void ieee80211_key_disable_hw_accel(struct ieee80211_key *key)
 	sta = key->sta;
 	sdata = key->sdata;
 
-	if (!((key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC) ||
+	if (!((key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
+				   IEEE80211_KEY_FLAG_PUT_MIC_SPACE)) ||
 	      (key->conf.flags & IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
 		increment_tailroom_need_count(sdata);
 
@@ -1104,7 +1110,8 @@ void ieee80211_remove_key(struct ieee80211_key_conf *keyconf)
 	if (key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE) {
 		key->flags &= ~KEY_FLAG_UPLOADED_TO_HARDWARE;
 
-		if (!((key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC) ||
+		if (!((key->conf.flags & (IEEE80211_KEY_FLAG_GENERATE_MMIC |
+					   IEEE80211_KEY_FLAG_PUT_MIC_SPACE)) ||
 		      (key->conf.flags & IEEE80211_KEY_FLAG_RESERVE_TAILROOM)))
 			increment_tailroom_need_count(key->sdata);
 	}
@@ -1118,12 +1125,15 @@ ieee80211_gtk_rekey_add(struct ieee80211_vif *vif,
 			struct ieee80211_key_conf *keyconf)
 {
 	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
-	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_key *key;
 	int err;
 
-	if (WARN_ON(!local->wowlan))
-		return ERR_PTR(-EINVAL);
+	/*
+	 * TODO: we should check for local->wowlan here, because
+	 * calling gtk_rekey_add() without being in wowlan can cause
+	 * problems, unless we refactor the code to unify
+	 * gtk_rekey_add() with gtk_rekey_notify().
+	 */
 
 	if (WARN_ON(vif->type != NL80211_IFTYPE_STATION))
 		return ERR_PTR(-EINVAL);

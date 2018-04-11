@@ -6,6 +6,7 @@
  * Copyright 2007-2010	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -467,6 +468,11 @@ struct ieee80211_mu_group_data {
  *
  * @bss_color: 6-bit value to mark inter-BSS frame, if BSS supports HE
  * @htc_trig_based_pkt_ext: default PE in 4us units, if BSS supports HE
+ * @multi_sta_back_32bit: supports BA bitmap of 32-bits in Multi-STA BACK
+ * @uora_exists: is the UORA element advertised by AP
+ * @ack_enabled: indicates support to receive a multi-TID that solicits either
+ *	ACK, BACK or both
+ * @uora_ocw_range: UORA element's OCW Range field
  * @frame_time_rts_th: HE duration RTS threshold, in units of 32us
  * @he_support: does this BSS support HE
  * @assoc: association status
@@ -558,6 +564,10 @@ struct ieee80211_bss_conf {
 	const u8 *bssid;
 	u8 bss_color;
 	u8 htc_trig_based_pkt_ext;
+	bool multi_sta_back_32bit;
+	bool uora_exists;
+	bool ack_enabled;
+	u8 uora_ocw_range;
 	u16 frame_time_rts_th;
 	bool he_support;
 	/* association related data */
@@ -933,21 +943,10 @@ struct ieee80211_tx_info {
 				unsigned long jiffies;
 			};
 			/* NB: vif can be NULL for injected frames */
-			union {
-				/* NB: vif can be NULL for injected frames */
-				struct ieee80211_vif *vif;
-
-				/* When packets are enqueued on txq it's easy
-				 * to re-construct the vif pointer. There's no
-				 * more space in tx_info so it can be used to
-				 * store the necessary enqueue time for packet
-				 * sojourn time computation.
-				 */
-				codel_time_t enqueue_time;
-			};
+			struct ieee80211_vif *vif;
 			struct ieee80211_key_conf *hw_key;
 			u32 flags;
-			/* 4 bytes free */
+			codel_time_t enqueue_time;
 		} control;
 		struct {
 			u64 cookie;
@@ -1123,6 +1122,9 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  *	the first subframe.
  * @RX_FLAG_ICV_STRIPPED: The ICV is stripped from this frame. CRC checking must
  *	be done in the hardware.
+ * @RX_FLAG_AMPDU_EOF_BIT: Value of the EOF bit in the A-MPDU delimiter for this
+ *	frame
+ * @RX_FLAG_AMPDU_EOF_BIT_KNOWN: The EOF value is known
  */
 enum mac80211_rx_flags {
 	RX_FLAG_MMIC_ERROR		= BIT(0),
@@ -1149,6 +1151,8 @@ enum mac80211_rx_flags {
 	RX_FLAG_MIC_STRIPPED		= BIT(21),
 	RX_FLAG_ALLOW_SAME_PN		= BIT(22),
 	RX_FLAG_ICV_STRIPPED		= BIT(23),
+	RX_FLAG_AMPDU_EOF_BIT		= BIT(24),
+	RX_FLAG_AMPDU_EOF_BIT_KNOWN	= BIT(25),
 };
 
 /**
@@ -1231,6 +1235,9 @@ enum ieee80211_he_format {
  * @he_ltf: LTF value - 1, valid LTF values are 1, 2, 4 so the corresponding
  *	values in this field are 0, 1, 3.
  *	(only used for radiotap)
+ * @he_txbf: TxBF bit for HE
+ * @he_ul: HE uplink/downlink bit (1 = uplink)
+ * @he_ul_known: HE uplink/downlink bit is known
  * @rx_flags: internal RX flags for mac80211
  * @ampdu_reference: A-MPDU reference number, must be a different value for
  *	each A-MPDU but the same for each subframe within one A-MPDU
@@ -1245,7 +1252,8 @@ struct ieee80211_rx_status {
 	u16 freq;
 	u8 enc_flags;
 	u8 encoding:2, bw:3, he_ru:3;
-	u8 he_gi:2, he_dcm:1, he_format:3, he_ltf:2;
+	u8 he_gi:2, he_dcm:1, he_format:3, he_ltf:2, he_txbf:1,
+	   he_ul:1, he_ul_known:1;
 	u8 rate_idx;
 	u8 nss;
 	u8 rx_flags;
@@ -1604,6 +1612,9 @@ struct wireless_dev *ieee80211_vif_to_wdev(struct ieee80211_vif *vif);
  * @IEEE80211_KEY_FLAG_RESERVE_TAILROOM: This flag should be set by the
  *	driver for a key to indicate that sufficient tailroom must always
  *	be reserved for ICV or MIC, even when HW encryption is enabled.
+ * @IEEE80211_KEY_FLAG_PUT_MIC_SPACE: This flag should be set by the driver for
+ *	a TKIP key if it only requires MIC space. Do not set together with
+ *	@IEEE80211_KEY_FLAG_GENERATE_MMIC on the same key.
  */
 enum ieee80211_key_flags {
 	IEEE80211_KEY_FLAG_GENERATE_IV_MGMT	= BIT(0),
@@ -1614,6 +1625,7 @@ enum ieee80211_key_flags {
 	IEEE80211_KEY_FLAG_PUT_IV_SPACE		= BIT(5),
 	IEEE80211_KEY_FLAG_RX_MGMT		= BIT(6),
 	IEEE80211_KEY_FLAG_RESERVE_TAILROOM	= BIT(7),
+	IEEE80211_KEY_FLAG_PUT_MIC_SPACE	= BIT(8),
 };
 
 /**
@@ -1645,8 +1657,8 @@ struct ieee80211_key_conf {
 	u8 icv_len;
 	u8 iv_len;
 	u8 hw_key_idx;
-	u8 flags;
 	s8 keyidx;
+	u16 flags;
 	u8 keylen;
 	u8 key[0];
 };
@@ -1845,7 +1857,7 @@ struct ieee80211_sta {
 	struct ieee80211_sta_ht_cap ht_cap;
 	struct ieee80211_sta_vht_cap vht_cap;
 	struct ieee80211_sta_he_cap he_cap;
-	u8 max_rx_aggregation_subframes;
+	u16 max_rx_aggregation_subframes;
 	bool wme;
 	u8 uapsd_queues;
 	u8 max_sp;
@@ -2110,6 +2122,17 @@ struct ieee80211_txq {
  *	The stack will not do fragmentation.
  *	The callback for @set_frag_threshold should be set as well.
  *
+ * @IEEE80211_HW_SUPPORTS_TDLS_BUFFER_STA: Hardware supports buffer STA on
+ *	TDLS links.
+ *
+ * @IEEE80211_HW_DEAUTH_NEED_MGD_TX_PREP: The driver requires the
+ *	mgd_prepare_tx() callback to be called before transmission of a
+ *	deauthentication frame in case the association was completed but no
+ *	beacon was heard. This is required in multi-channel scenarios, where the
+ *	virtual interface might not be given air time for the transmission of
+ *	the frame, as it is not synced with the AP/P2P GO yet, and thus the
+ *	deauthentication frame might not be transmitted.
+ *
  * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
  */
 enum ieee80211_hw_flags {
@@ -2152,6 +2175,8 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_TX_FRAG_LIST,
 	IEEE80211_HW_REPORTS_LOW_ACK,
 	IEEE80211_HW_SUPPORTS_TX_FRAG,
+	IEEE80211_HW_SUPPORTS_TDLS_BUFFER_STA,
+	IEEE80211_HW_DEAUTH_NEED_MGD_TX_PREP,
 
 	/* keep last, obviously */
 	NUM_IEEE80211_HW_FLAGS
@@ -2240,10 +2265,11 @@ struct ieee80211_tx_thrshld_md {
  *	it shouldn't be set.
  *
  * @max_tx_aggregation_subframes: maximum number of subframes in an
- *	aggregate an HT driver will transmit. Though ADDBA will advertise
- *	a constant value of 64 as some older APs can crash if the window
- *	size is smaller (an example is LinkSys WRT120N with FW v1.0.07
- *	build 002 Jun 18 2012).
+ *	aggregate an HT/HE device will transmit. In HT AddBA we'll
+ *	advertise a constant value of 64 as some older APs crash if
+ *	the window size is smaller (an example is LinkSys WRT120N
+ *	with FW v1.0.07 build 002 Jun 18 2012).
+ *	For AddBA to HE capable peers this value will be used.
  *
  * @max_tx_fragments: maximum number of tx buffers per (A)-MSDU, sum
  *	of 1 + skb_shinfo(skb)->nr_frags for each skb in the frag_list.
@@ -2309,8 +2335,8 @@ struct ieee80211_hw {
 	u8 max_rates;
 	u8 max_report_rates;
 	u8 max_rate_tries;
-	u8 max_rx_aggregation_subframes;
-	u8 max_tx_aggregation_subframes;
+	u16 max_rx_aggregation_subframes;
+	u16 max_tx_aggregation_subframes;
 	u8 max_tx_fragments;
 	u8 offchannel_tx_hw_queue;
 	u8 radiotap_mcs_details;
@@ -2320,9 +2346,8 @@ struct ieee80211_hw {
 		s16 accuracy;
 	} radiotap_timestamp;
 	struct {
-		struct {
-			u16 a1_known, a2_known;
-		} su, mu, trig;
+		/* these carry the "known" bits, don't set the format */
+		__le16 data1, data2;
 	} radiotap_he;
 	netdev_features_t netdev_features;
 	u8 uapsd_queues;
@@ -2955,7 +2980,7 @@ struct ieee80211_ampdu_params {
 	struct ieee80211_sta *sta;
 	u16 tid;
 	u16 ssn;
-	u8 buf_size;
+	u16 buf_size;
 	bool amsdu;
 	u16 timeout;
 };
@@ -3424,6 +3449,9 @@ enum ieee80211_reconfig_type {
  *	management frame prior to having successfully associated to allow the
  *	driver to give it channel time for the transmission, to get a response
  *	and to be able to synchronize with the GO.
+ *	For drivers that set %IEEE80211_HW_DEAUTH_NEED_MGD_TX_PREP, mac80211
+ *	would also call this function before transmitting a deauthentication
+ *	frame in case that no beacon was heard from the AP/P2P GO.
  *	The callback will be called before each transmission and upon return
  *	mac80211 will transmit the frame right away.
  *	The callback is optional and can (should!) sleep.
@@ -4569,10 +4597,15 @@ struct sk_buff *ieee80211_pspoll_get(struct ieee80211_hw *hw,
  * ieee80211_nullfunc_get - retrieve a nullfunc template
  * @hw: pointer obtained from ieee80211_alloc_hw().
  * @vif: &struct ieee80211_vif pointer from the add_interface callback.
+ * @qos_ok: QoS NDP is acceptable to the caller, this should be set
+ *	if at all possible
  *
  * Creates a Nullfunc template which can, for example, uploaded to
  * hardware. The template must be updated after association so that correct
  * BSSID and address is used.
+ *
+ * If @qos_ndp is set and the association is to an AP with QoS/WMM, the
+ * returned packet will be QoS NDP.
  *
  * Note: Caller (or hardware) is responsible for setting the
  * &IEEE80211_FCTL_PM bit as well as Duration and Sequence Control fields.
@@ -4580,7 +4613,8 @@ struct sk_buff *ieee80211_pspoll_get(struct ieee80211_hw *hw,
  * Return: The nullfunc template. %NULL on error.
  */
 struct sk_buff *ieee80211_nullfunc_get(struct ieee80211_hw *hw,
-				       struct ieee80211_vif *vif);
+				       struct ieee80211_vif *vif,
+				       bool qos_ok);
 
 /**
  * ieee80211_probereq_get - retrieve a Probe Request template

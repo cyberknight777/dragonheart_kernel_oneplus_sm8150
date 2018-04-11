@@ -8,6 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018         Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -158,12 +160,27 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 					IWL_TM_USER_CMD_NOTIF_LOC_RANGE,
 					data, size, GFP_ATOMIC);
 		break;
+	case WIDE_ID(XVT_GROUP, IQ_CALIB_CONFIG_NOTIF):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_IQ_CALIB,
+					data, size, GFP_ATOMIC);
+		break;
+	case WIDE_ID(PHY_OPS_GROUP, CT_KILL_NOTIFICATION):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_CT_KILL,
+					data, size, GFP_ATOMIC);
+		break;
 	case REPLY_RX_PHY_CMD:
 		IWL_DEBUG_INFO(xvt,
 			       "REPLY_RX_PHY_CMD received but not handled\n");
 		break;
 	case INIT_COMPLETE_NOTIF:
 		IWL_DEBUG_INFO(xvt, "received INIT_COMPLETE_NOTIF\n");
+		break;
+	case TX_CMD:
+		if (xvt->send_tx_resp)
+			iwl_xvt_user_send_notif(xvt, IWL_XVT_CMD_TX_CMD_RESP,
+						data, size, GFP_ATOMIC);
 		break;
 	default:
 		IWL_DEBUG_INFO(xvt, "xVT mode RX command 0x%x not handled\n",
@@ -888,13 +905,9 @@ static int iwl_xvt_get_phy_db(struct iwl_xvt *xvt,
 	return 0;
 }
 
-static struct iwl_device_cmd *
-iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
-			       u32 rate_flags, u32 flags)
+static struct iwl_device_cmd *iwl_xvt_init_tx_dev_cmd(struct iwl_xvt *xvt)
 {
-	struct iwl_device_cmd *dev_cmd, **cb_dev_cmd = (void *)skb->cb;
-	struct iwl_tx_cmd_gen2 *tx_cmd;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct iwl_device_cmd *dev_cmd;
 
 	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
 	if (unlikely(!dev_cmd))
@@ -902,6 +915,22 @@ iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 	memset(dev_cmd, 0, sizeof(*dev_cmd));
 	dev_cmd->hdr.cmd = TX_CMD;
+
+	return dev_cmd;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
+			       u32 rate_flags, u32 flags)
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	struct iwl_tx_cmd_gen2 *tx_cmd;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
 
 	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
 
@@ -920,7 +949,7 @@ iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
 	 /* Saving device command address itself in the
 	  * control buffer, to be used when reclaiming
 	  * the command. */
-	*cb_dev_cmd = dev_cmd;
+	skb_info->dev_cmd = dev_cmd;
 
 	return dev_cmd;
 }
@@ -932,15 +961,14 @@ static struct iwl_device_cmd *
 iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 			  u8 sta_id, u32 rate_flags, u32 flags)
 {
-	struct iwl_device_cmd *dev_cmd, **cb_dev_cmd = (void *)skb->cb;
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 	struct iwl_tx_cmd *tx_cmd;
 
-	dev_cmd = iwl_trans_alloc_tx_cmd(xvt->trans);
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
 	if (unlikely(!dev_cmd))
 		return NULL;
 
-	memset(dev_cmd, 0, sizeof(dev_cmd->hdr) + sizeof(*tx_cmd));
-	dev_cmd->hdr.cmd = TX_CMD;
 	tx_cmd = (struct iwl_tx_cmd *)dev_cmd->payload;
 
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
@@ -958,9 +986,29 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	 * control buffer, to be used when reclaiming
 	 * the command.
 	 */
-	*cb_dev_cmd = dev_cmd;
+	skb_info->dev_cmd = dev_cmd;
 
 	return dev_cmd;
+}
+
+static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
+				   struct tx_meta_data *meta_tx,
+				   struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u8 *qc, tid;
+
+	if (!ieee80211_is_data_qos(hdr->frame_control) ||
+	    is_multicast_ether_addr(hdr->addr1))
+		return;
+
+	qc = ieee80211_get_qos_ctl(hdr);
+	tid = *qc & IEEE80211_QOS_CTL_TID_MASK;
+	if (WARN_ON(tid >= IWL_MAX_TID_COUNT))
+		tid = IWL_MAX_TID_COUNT;
+
+	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid]);
+	meta_tx->seq_num[tid] += 0x10;
 }
 
 static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
@@ -983,7 +1031,9 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 		*status = XVT_TX_DRIVER_ABORTED;
 		return -ENOMEM;
 	}
+
 	memcpy(skb_put(skb, tx_req->len), tx_req->data, tx_req->len);
+	iwl_xvt_set_seq_number(xvt, meta_tx, skb);
 
 	flags = tx_req->no_ack ? 0 : TX_CMD_FLG_ACK;
 
@@ -1052,6 +1102,287 @@ err:
 	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
 	kfree_skb(skb);
 	return err;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
+			   struct iwl_xvt_tx_start *tx_start, u8 packet_index)
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	struct iwl_tx_cmd_gen2 *tx_cmd;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
+	tx_cmd->len = cpu_to_le16((u16)skb->len);
+	tx_cmd->offload_assist |= (header_length % 4) ?
+				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
+	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
+	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
+
+	/* Copy MAC header from skb into command buffer */
+	memcpy(tx_cmd->hdr, hdr, header_length);
+
+	 /* Saving device command address itself in the
+	  * control buffer, to be used when reclaiming
+	  * the command. */
+	skb_info->dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
+		      struct iwl_xvt_tx_start *tx_start, u8 packet_index)
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	struct iwl_tx_cmd *tx_cmd;
+	/* the skb should already hold the data */
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	tx_cmd = (struct iwl_tx_cmd *)dev_cmd->payload;
+
+	/* let the fw manage the seq number for non-qos/multicast */
+	if (!ieee80211_is_data_qos(hdr->frame_control) ||
+	    is_multicast_ether_addr(hdr->addr1))
+		tx_cmd->tx_flags |= cpu_to_le32(TX_CMD_FLG_SEQ_CTL);
+
+	tx_cmd->len = cpu_to_le16((u16)skb->len);
+	tx_cmd->offload_assist |= (header_length % 4) ?
+				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
+	tx_cmd->tx_flags |= cpu_to_le32(tx_start->tx_data.tx_flags);
+	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
+	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
+	tx_cmd->sec_ctl = tx_start->frames_data[packet_index].sec_ctl;
+	tx_cmd->initial_rate_index = tx_start->tx_data.initial_rate_index;
+	tx_cmd->life_time = cpu_to_le32(TX_CMD_LIFE_TIME_INFINITE);
+	tx_cmd->rts_retry_limit = tx_start->tx_data.rts_retry_limit;
+	tx_cmd->data_retry_limit = tx_start->tx_data.data_retry_limit;
+	tx_cmd->tid_tspec = tx_start->frames_data[packet_index].tid_tspec;
+	memcpy(tx_cmd->key,
+	       tx_start->frames_data[packet_index].key,
+	       sizeof(tx_cmd->key));
+
+	memcpy(tx_cmd->hdr, hdr, header_length);
+
+	/*
+	 * Saving device command address itself in the control buffer,
+	 * to be used when reclaiming the command.
+	 */
+	skb_info->dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
+				   struct iwl_xvt_tx_start *tx_start,
+				   u8 packet_index,
+				   u32 *status)
+{
+	struct sk_buff *skb;
+	struct iwl_device_cmd *dev_cmd;
+	int time_remain, err = 0;
+	struct tx_cmd_frame_data frame_data =
+		tx_start->frames_data[packet_index];
+	u32 payload_length = xvt->payloads[frame_data.payload_index]->length;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)
+		tx_start->frames_data[packet_index].header;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+	u32 packet_length  = payload_length + header_length;
+	struct tx_queue_data *queue_data = &xvt->queue_data[frame_data.queue];
+
+	skb = alloc_skb(packet_length, GFP_KERNEL);
+	if (!skb) {
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENOMEM;
+	}
+	/* copy MAC header into skb */
+	memcpy(skb_put(skb, header_length), frame_data.header, header_length);
+	/* copy frame payload into skb */
+	memcpy(skb_put(skb, payload_length),
+	       xvt->payloads[frame_data.payload_index]->payload,
+	       payload_length);
+
+	/* set tx number */
+	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb);
+
+	if (iwl_xvt_is_unified_fw(xvt))
+		dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb, tx_start,
+						     packet_index);
+	else
+		dev_cmd = iwl_xvt_set_tx_params(xvt, skb, tx_start,
+						packet_index);
+	if (!dev_cmd) {
+		kfree_skb(skb);
+		*status = XVT_TX_DRIVER_ABORTED;
+		return -ENOMEM;
+	}
+	/* wait until the tx queue isn't full */
+	time_remain = wait_event_interruptible_timeout(queue_data->tx_wq,
+						       !queue_data->txq_full,
+						       HZ);
+
+	if (time_remain <= 0) {
+		/* This should really not happen */
+		WARN_ON_ONCE(queue_data->txq_full);
+		IWL_ERR(xvt, "Error while sending Tx\n");
+		*status = XVT_TX_DRIVER_QUEUE_FULL;
+		err = -EIO;
+		goto on_err;
+	}
+
+	if (xvt->fw_error) {
+		WARN_ON_ONCE(queue_data->txq_full);
+		IWL_ERR(xvt, "FW Error while sending packet\n");
+		*status = XVT_TX_DRIVER_ABORTED;
+		err = -ENODEV;
+		goto on_err;
+	}
+	/* Assume we have one Txing thread only: the queue is not full
+	 * any more - nobody could fill it up in the meantime since we
+	 * were blocked.
+	 */
+	local_bh_disable();
+	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, frame_data.queue);
+	local_bh_enable();
+	if (err) {
+		IWL_ERR(xvt, "Tx command failed (error %d)\n", err);
+		*status = XVT_TX_DRIVER_ABORTED;
+		goto on_err;
+	}
+
+	return 0;
+
+on_err:
+	iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
+	kfree_skb(skb);
+	return err;
+}
+
+static int iwl_xvt_send_tx_done_notif(struct iwl_xvt *xvt, u32 status)
+{
+	struct iwl_xvt_tx_done *done_notif;
+	u32 i, j, done_notif_size, num_of_queues = 0;
+	int err;
+
+	for (i = 1; i < IWL_MAX_HW_QUEUES; i++) {
+		if (xvt->queue_data[i].allocated_queue)
+			num_of_queues++;
+	}
+
+	done_notif_size = sizeof(*done_notif) +
+		num_of_queues * sizeof(struct iwl_xvt_post_tx_data);
+	done_notif = kzalloc(done_notif_size, GFP_KERNEL);
+	if (!done_notif)
+		return -ENOMEM;
+
+	done_notif->status = status;
+	done_notif->num_of_queues = num_of_queues;
+
+	for (i = 1, j = 0; i <= num_of_queues; i++) {
+		if (!xvt->queue_data[i].allocated_queue)
+			continue;
+		done_notif->tx_data[j].num_of_packets =
+			xvt->queue_data[i].tx_counter;
+		done_notif->tx_data[j].queue = i;
+		j++;
+	}
+	err = iwl_xvt_user_send_notif(xvt,
+				      IWL_XVT_CMD_ENHANCED_TX_DONE,
+				      (void *)done_notif,
+				      done_notif_size, GFP_ATOMIC);
+	if (err) {
+		IWL_ERR(xvt, "Error %d sending tx_done notification\n", err);
+		kfree(done_notif);
+		return err;
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_start_tx_handler(void *data)
+{
+	struct iwl_xvt_enhanced_tx_data *task_data = data;
+	struct iwl_xvt_tx_start *tx_start = &task_data->tx_start_data;
+	struct iwl_xvt *xvt = task_data->xvt;
+	u8 num_of_frames;
+	u32 status, packets_in_cycle = 0;
+	int time_remain, err = 0, sent_packets = 0;
+	u32 num_of_cycles = tx_start->num_of_cycles;
+	u64 i, num_of_iterations;
+
+	/* reset tx parameters */
+	xvt->num_of_tx_resp = 0;
+	xvt->send_tx_resp = tx_start->send_tx_resp;
+	status = 0;
+
+	for (i = 0; i < IWL_MAX_HW_QUEUES; i++)
+		xvt->queue_data[i].tx_counter = 0;
+
+	num_of_frames = tx_start->num_of_different_frames;
+	for (i = 0; i < num_of_frames; i++)
+		packets_in_cycle += tx_start->frames_data[i].times;
+	if (WARN(packets_in_cycle == 0, "invalid packets amount to send"))
+		return -EINVAL;
+
+	if (num_of_cycles == IWL_XVT_TX_MODULATED_INFINITE)
+		num_of_cycles = XVT_MAX_TX_COUNT / packets_in_cycle;
+	xvt->expected_tx_amount = packets_in_cycle * num_of_cycles;
+	num_of_iterations = num_of_cycles * num_of_frames;
+
+	for (i = 0; (i < num_of_iterations) && !kthread_should_stop(); i++) {
+		u16 j, times;
+		u8 frame_index;
+
+		frame_index = i % num_of_frames;
+		times = tx_start->frames_data[frame_index].times;
+		for (j = 0; j < times; j++) {
+			if (xvt->fw_error) {
+				IWL_ERR(xvt, "FW Error during TX\n");
+				status = XVT_TX_DRIVER_ABORTED;
+				err = -ENODEV;
+				goto on_exit;
+			}
+
+			err = iwl_xvt_transmit_packet(xvt, tx_start,
+						      frame_index, &status);
+			sent_packets++;
+			if (err) {
+				IWL_ERR(xvt, "stop due to err %d\n", err);
+				goto on_exit;
+			}
+		}
+	}
+	time_remain = wait_event_interruptible_timeout(
+			xvt->tx_done_wq,
+			xvt->num_of_tx_resp == sent_packets,
+			5 * HZ);
+	if (time_remain <= 0) {
+		IWL_ERR(xvt, "Not all Tx messages were sent\n");
+		status = XVT_TX_DRIVER_TIMEOUT;
+	}
+
+on_exit:
+	err = iwl_xvt_send_tx_done_notif(xvt, status);
+
+	xvt->is_enhanced_tx = false;
+	kfree(data);
+	for (i = 0; i < IWL_XVT_MAX_PAYLOADS_AMOUNT; i++) {
+		kfree(xvt->payloads[i]);
+		xvt->payloads[i] = NULL;
+	}
+	do_exit(err);
 }
 
 static int iwl_xvt_modulated_tx_handler(void *data)
@@ -1173,6 +1504,79 @@ static int iwl_xvt_tx_queue_cfg(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_start_tx(struct iwl_xvt *xvt,
+			    struct iwl_xvt_driver_command_req *req)
+{
+	struct iwl_xvt_enhanced_tx_data *task_data;
+
+	if (WARN(xvt->is_enhanced_tx ||
+		 xvt->tx_meta_data[XVT_LMAC_0_ID].tx_task_operating ||
+		 xvt->tx_meta_data[XVT_LMAC_1_ID].tx_task_operating,
+		 "TX is already in progress\n"))
+		return -EINVAL;
+
+	xvt->is_enhanced_tx = true;
+
+	task_data = kzalloc(sizeof(*task_data), GFP_KERNEL);
+	if (!task_data) {
+		xvt->is_enhanced_tx = false;
+		return -ENOMEM;
+	}
+
+	task_data->xvt = xvt;
+	memcpy(&task_data->tx_start_data, req->input_data,
+	       sizeof(struct iwl_xvt_tx_start));
+
+	xvt->tx_task = kthread_run(iwl_xvt_start_tx_handler,
+				   task_data, "start enhanced tx command");
+	if (!xvt->tx_task) {
+		xvt->is_enhanced_tx = true;
+		kfree(task_data);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+static int iwl_xvt_stop_tx(struct iwl_xvt *xvt)
+{
+	int err = 0;
+
+	if (xvt->tx_task && xvt->is_enhanced_tx) {
+		err = kthread_stop(xvt->tx_task);
+		xvt->tx_task = NULL;
+	}
+
+	return err;
+}
+
+static int iwl_xvt_set_tx_payload(struct iwl_xvt *xvt,
+				  struct iwl_xvt_driver_command_req *req)
+{
+	struct iwl_xvt_set_tx_payload *input =
+		(struct iwl_xvt_set_tx_payload *)req->input_data;
+	u32 size = sizeof(struct tx_payload) + input->length;
+	struct tx_payload *payload_struct;
+
+	if (WARN(input->index >= IWL_XVT_MAX_PAYLOADS_AMOUNT,
+		 "invalid payload index\n"))
+		return -EINVAL;
+
+	/* First free payload in case index is already in use */
+	kfree(xvt->payloads[input->index]);
+
+	/* Allocate payload in xvt buffer */
+	xvt->payloads[input->index] = kzalloc(size, GFP_KERNEL);
+	if (!xvt->payloads[input->index])
+		return -ENOMEM;
+
+	payload_struct = xvt->payloads[input->index];
+	payload_struct->length = input->length;
+	memcpy(payload_struct->payload, input->payload, input->length);
+
+	return 0;
+}
+
 static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 				struct iwl_tm_data *data_in)
 {
@@ -1183,8 +1587,13 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 	struct tx_meta_data *xvt_tx = &xvt->tx_meta_data[XVT_LMAC_0_ID];
 	u8 sta_id;
 	int lmac_id;
-	struct iwl_xvt_tx_mod_task_data *task_data =
-		kzalloc(task_data_length, GFP_KERNEL);
+	struct iwl_xvt_tx_mod_task_data *task_data;
+
+	/* Verify this command was not called while tx is operating */
+	if (WARN_ON(xvt->is_enhanced_tx))
+		return -EINVAL;
+
+	task_data = kzalloc(task_data_length, GFP_KERNEL);
 	if (!task_data)
 		return -ENOMEM;
 
@@ -1444,6 +1853,209 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
+			   struct iwl_scd_txq_cfg_cmd *cmd,
+			   u16 ssn)
+{
+	int queue_id = cmd->scd_queue, ret;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		/*TODO: add support for second lmac*/
+		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
+			.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+			.sta_id = cmd->sta_id,
+			.tid = cmd->tid
+		};
+
+		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
+					       SCD_QUEUE_CFG,
+					       IWL_DEFAULT_QUEUE_SIZE, 0);
+		if (queue_id < 0)
+			return queue_id;
+	} else {
+		iwl_trans_txq_enable_cfg(xvt->trans, queue_id, ssn, NULL, 0);
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0, sizeof(*cmd),
+					   cmd);
+		if (ret) {
+			IWL_ERR(xvt, "Failed to config queue %d on FIFO %d\n",
+				cmd->scd_queue, cmd->tx_fifo);
+			return ret;
+		}
+	}
+
+	xvt->queue_data[queue_id].allocated_queue = true;
+	init_waitqueue_head(&xvt->queue_data[queue_id].tx_wq);
+
+	return queue_id;
+}
+
+static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
+			      struct iwl_scd_txq_cfg_cmd *cmd)
+{
+	int ret = 0;
+
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		iwl_trans_txq_free(xvt->trans, cmd->scd_queue);
+	} else {
+		iwl_trans_txq_disable(xvt->trans, cmd->scd_queue, false);
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0,
+					   sizeof(*cmd), cmd);
+	}
+
+	if (WARN(ret, "failed to send SCD_QUEUE_CFG"))
+		return ret;
+
+	xvt->queue_data[cmd->scd_queue].allocated_queue = false;
+
+	return 0;
+}
+
+static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
+			      struct iwl_xvt_driver_command_req *req,
+			      struct iwl_xvt_driver_command_resp *resp)
+{
+	struct iwl_xvt_txq_config *conf =
+		(struct iwl_xvt_txq_config *)req->input_data;
+	struct iwl_xvt_txq_config_resp txq_resp;
+	int queue_id = conf->scd_queue, error;
+
+	struct iwl_scd_txq_cfg_cmd cmd = {
+		.sta_id = conf->sta_id,
+		.tid = conf->tid,
+		.scd_queue = conf->scd_queue,
+		.action = conf->action,
+		.aggregate = conf->aggregate,
+		.tx_fifo = conf->tx_fifo,
+		.window = conf->window,
+		.ssn = cpu_to_le16(conf->ssn),
+	};
+
+	if (req->max_out_length < sizeof(txq_resp))
+		return -ENOBUFS;
+
+	if (conf->action == TX_QUEUE_CFG_REMOVE) {
+		error = iwl_xvt_remove_txq(xvt, &cmd);
+		if (WARN(error, "failed to remove queue"))
+			return error;
+	} else {
+		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn);
+		if (queue_id < 0)
+			return queue_id;
+	}
+
+	txq_resp.scd_queue = queue_id;
+	txq_resp.sta_id = conf->sta_id;
+	txq_resp.tid = conf->tid;
+	memcpy(resp->resp_data, &txq_resp, sizeof(txq_resp));
+	resp->length = sizeof(txq_resp);
+
+	return 0;
+}
+
+static int
+iwl_xvt_get_rx_agg_stats_cmd(struct iwl_xvt *xvt,
+			     struct iwl_xvt_driver_command_req *req,
+			     struct iwl_xvt_driver_command_resp *resp)
+{
+	struct iwl_xvt_get_rx_agg_stats *params = (void *)req->input_data;
+	struct iwl_xvt_get_rx_agg_stats_resp *stats_resp =
+						(void *)resp->resp_data;
+	struct iwl_xvt_reorder_buffer *buffer;
+	int i;
+
+	IWL_DEBUG_INFO(xvt, "get rx agg stats: sta_id=%d, tid=%d\n",
+		       params->sta_id, params->tid);
+
+	if (req->max_out_length < sizeof(stats_resp))
+		return -ENOBUFS;
+
+	for (i = 0; i < ARRAY_SIZE(xvt->reorder_bufs); i++) {
+		buffer = &xvt->reorder_bufs[i];
+		if (buffer->sta_id != params->sta_id ||
+		    buffer->tid != params->tid)
+			continue;
+
+		spin_lock_bh(&buffer->lock);
+		stats_resp->dropped = buffer->stats.dropped;
+		stats_resp->released = buffer->stats.released;
+		stats_resp->skipped = buffer->stats.skipped;
+		stats_resp->reordered = buffer->stats.reordered;
+
+		/* clear statistics */
+		memset(&buffer->stats, 0, sizeof(buffer->stats));
+		spin_unlock_bh(&buffer->lock);
+
+		break;
+	}
+
+	if (i == ARRAY_SIZE(xvt->reorder_bufs))
+		return -ENOENT;
+
+	resp->length = sizeof(*stats_resp);
+	return 0;
+}
+
+static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
+				     struct iwl_tm_data *data_in,
+				     struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_driver_command_req *req = data_in->data;
+	struct iwl_xvt_driver_command_resp *resp = NULL;
+	__u32 cmd_id = req->command_id;
+	int err = 0;
+
+	if (req->max_out_length > 0) {
+		resp = kzalloc(sizeof(*resp) + req->max_out_length, GFP_KERNEL);
+		if (!resp)
+			return -ENOMEM;
+	}
+
+	/* resp->length and resp->resp_data should be set in command handler */
+	switch (cmd_id) {
+	case IWL_DRV_CMD_CONFIG_TX_QUEUE:
+		err = iwl_xvt_config_txq(xvt, req, resp);
+		break;
+	case IWL_DRV_CMD_SET_TX_PAYLOAD:
+		err = iwl_xvt_set_tx_payload(xvt, req);
+		break;
+	case IWL_DRV_CMD_TX_START:
+		err = iwl_xvt_start_tx(xvt, req);
+		break;
+	case IWL_DRV_CMD_TX_STOP:
+		err = iwl_xvt_stop_tx(xvt);
+		break;
+	case IWL_DRV_CMD_GET_RX_AGG_STATS:
+		err = iwl_xvt_get_rx_agg_stats_cmd(xvt, req, resp);
+		break;
+	default:
+		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
+			cmd_id);
+		err = -EOPNOTSUPP;
+	}
+
+	if (err)
+		goto out_free;
+
+	if (req->max_out_length > 0) {
+		if (WARN_ONCE(resp->length == 0,
+			      "response was not set correctly\n")) {
+			err = -ENODATA;
+			goto out_free;
+		}
+
+		resp->command_id = cmd_id;
+		data_out->len = resp->length +
+			sizeof(struct iwl_xvt_driver_command_resp);
+		data_out->data = resp;
+
+		return err;
+	}
+
+out_free:
+	kfree(resp);
+	return err;
+}
+
 int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out)
@@ -1551,6 +2163,9 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	case IWL_XVT_CMD_TX_QUEUE_CFG:
 		ret = iwl_xvt_tx_queue_cfg(xvt, data_in);
+		break;
+	case IWL_XVT_CMD_DRIVER_CMD:
+		ret = iwl_xvt_handle_driver_cmd(xvt, data_in, data_out);
 		break;
 
 	default:

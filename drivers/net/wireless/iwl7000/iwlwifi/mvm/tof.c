@@ -1002,8 +1002,22 @@ void iwl_mvm_tof_range_resp(struct iwl_mvm *mvm,
 			result->tx_rate_info.flags |= RATE_INFO_FLAGS_MCS;
 		if (iwl_mvm_tof_is_vht(mvm, fw_ap->measure_bw))
 			result->tx_rate_info.flags |= RATE_INFO_FLAGS_VHT_MCS;
+#if CFG80211_VERSION < KERNEL_VERSION(3,20,0)
+		switch (iwl_mvm_tof_fw_bw_to_rate_info_bw(fw_ap->measure_bw)) {
+		default:
+		case RATE_INFO_BW_20:
+			break;
+		case RATE_INFO_BW_40:
+			result->tx_rate_info.flags |= RATE_INFO_FLAGS_40_MHZ_WIDTH;
+			break;
+		case RATE_INFO_BW_80:
+			result->tx_rate_info.flags |= RATE_INFO_FLAGS_80_MHZ_WIDTH;
+			break;
+		}
+#else
 		result->tx_rate_info.bw =
 			iwl_mvm_tof_fw_bw_to_rate_info_bw(fw_ap->measure_bw);
+#endif
 		result->rtt = (s32)le32_to_cpu(fw_ap->rtt);
 		result->rtt_variance = le32_to_cpu(fw_ap->rtt_variance);
 		result->rtt_spread = le32_to_cpu(fw_ap->rtt_spread);
