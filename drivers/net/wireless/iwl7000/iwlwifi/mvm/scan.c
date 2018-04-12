@@ -229,19 +229,13 @@ static void iwl_mvm_scan_condition_iterator(void *data, u8 *mac,
 
 static enum iwl_mvm_traffic_load iwl_mvm_get_traffic_load(struct iwl_mvm *mvm)
 {
-#ifdef CPTCFG_IWLMVM_TCM
 	return mvm->tcm.result.global_load;
-#endif /* CPTCFG_IWLMVM_TCM */
-	return IWL_MVM_TRAFFIC_LOW;
 }
 
 static enum iwl_mvm_traffic_load
 iwl_mvm_get_traffic_load_band(struct iwl_mvm *mvm, enum nl80211_band band)
 {
-#ifdef CPTCFG_IWLMVM_TCM
 	return mvm->tcm.result.band_load[band];
-#endif /* CPTCFG_IWLMVM_TCM */
-	return IWL_MVM_TRAFFIC_LOW;
 }
 
 static enum
@@ -475,9 +469,7 @@ void iwl_mvm_rx_lmac_scan_complete_notif(struct iwl_mvm *mvm,
 		ieee80211_scan_completed(mvm->hw, &info);
 		iwl_mvm_unref(mvm, IWL_MVM_REF_SCAN);
 		cancel_delayed_work(&mvm->scan_timeout_dwork);
-#ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_resume_tcm(mvm);
-#endif
 	} else {
 		IWL_ERR(mvm,
 			"got scan complete notification but no scan is running\n");
@@ -1665,9 +1657,7 @@ int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (ret)
 		return ret;
 
-#ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_pause_tcm(mvm, false);
-#endif
 
 	ret = iwl_mvm_send_cmd(mvm, &hcmd);
 	if (ret) {
@@ -1676,9 +1666,7 @@ int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		 * should try to send the command again with different params.
 		 */
 		IWL_ERR(mvm, "Scan failed! ret %d\n", ret);
-#ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_resume_tcm(mvm);
-#endif
 		return ret;
 	}
 
@@ -1826,9 +1814,7 @@ void iwl_mvm_rx_umac_scan_complete_notif(struct iwl_mvm *mvm,
 		mvm->scan_vif = NULL;
 		iwl_mvm_unref(mvm, IWL_MVM_REF_SCAN);
 		cancel_delayed_work(&mvm->scan_timeout_dwork);
-#ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_resume_tcm(mvm);
-#endif
 	} else if (mvm->scan_uid_status[uid] == IWL_MVM_SCAN_SCHED) {
 		ieee80211_sched_scan_stopped(mvm->hw);
 		mvm->sched_scan_pass_all = SCHED_SCAN_PASS_ALL_DISABLED;

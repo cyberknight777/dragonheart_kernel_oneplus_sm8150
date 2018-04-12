@@ -1053,7 +1053,6 @@ static int iwl_mvm_mac_ampdu_action(struct ieee80211_hw *hw,
 
 	switch (action) {
 	case IEEE80211_AMPDU_RX_START:
-#ifdef CPTCFG_IWLMVM_TCM
 		if (iwl_mvm_vif_from_mac80211(vif)->ap_sta_id ==
 				iwl_mvm_sta_from_mac80211(sta)->sta_id) {
 			struct iwl_mvm_vif *mvmvif;
@@ -1064,7 +1063,6 @@ static int iwl_mvm_mac_ampdu_action(struct ieee80211_hw *hw,
 			mvmvif = iwl_mvm_vif_from_mac80211(vif);
 			cancel_delayed_work(&mvmvif->uapsd_nonagg_detected_wk);
 		}
-#endif
 		if (!iwl_enable_rx_ampdu(mvm->cfg)) {
 			ret = -EINVAL;
 			break;
@@ -1559,9 +1557,7 @@ static int iwl_mvm_mac_add_interface(struct ieee80211_hw *hw,
 		mvm->p2p_device_vif = vif;
 	}
 
-#ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_tcm_add_vif(mvm, vif);
-#endif
 
 	if (vif->type == NL80211_IFTYPE_MONITOR)
 		mvm->monitor_on = true;
@@ -1624,11 +1620,9 @@ static void iwl_mvm_mac_remove_interface(struct ieee80211_hw *hw,
 		return;
 	}
 
-#ifdef CPTCFG_IWLMVM_TCM
 	if (!(vif->type == NL80211_IFTYPE_AP ||
 	      vif->type == NL80211_IFTYPE_ADHOC))
 		iwl_mvm_tcm_rm_vif(mvm, vif);
-#endif
 
 	mutex_lock(&mvm->mutex);
 
@@ -2719,7 +2713,6 @@ static void iwl_mvm_sta_pre_rcu_remove(struct ieee80211_hw *hw,
 static void iwl_mvm_check_uapsd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				const u8 *bssid)
 {
-#ifdef CPTCFG_IWLMVM_TCM
 	int i;
 
 	if (!test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
@@ -2729,7 +2722,6 @@ static void iwl_mvm_check_uapsd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		ewma_rate_init(&mdata->uapsd_nonagg_detect.rate);
 		mdata->opened_rx_ba_sessions = false;
 	}
-#endif
 
 	if (!(mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_UAPSD_SUPPORT))
 		return;
@@ -2745,14 +2737,12 @@ static void iwl_mvm_check_uapsd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		return;
 	}
 
-#ifdef CPTCFG_IWLMVM_TCM
 	for (i = 0; i < IWL_MVM_UAPSD_NOAGG_LIST_LEN; i++) {
 		if (ether_addr_equal(mvm->uapsd_noagg_bssids[i].addr, bssid)) {
 			vif->driver_flags &= ~IEEE80211_VIF_SUPPORTS_UAPSD;
 			return;
 		}
 	}
-#endif
 
 	vif->driver_flags |= IEEE80211_VIF_SUPPORTS_UAPSD;
 }

@@ -1289,13 +1289,11 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			       IWL_RX_MPDU_REORDER_BAID_MASK) >>
 			       IWL_RX_MPDU_REORDER_BAID_SHIFT);
 
-#ifdef CPTCFG_IWLMVM_TCM
 		if (!mvm->tcm.paused && len >= sizeof(*hdr) &&
 		    !is_multicast_ether_addr(hdr->addr1) &&
 		    ieee80211_is_data(hdr->frame_control) &&
 		    time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
 			schedule_delayed_work(&mvm->tcm.work, 0);
-#endif
 
 		/*
 		 * We have tx blocked stations (with CS bit). If we heard

@@ -257,7 +257,6 @@ static u32 iwl_mvm_set_mac80211_rx_flag(struct iwl_mvm *mvm,
 	return 0;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 static void iwl_mvm_rx_handle_tcm(struct iwl_mvm *mvm,
 				  struct ieee80211_sta *sta,
 				  struct ieee80211_hdr *hdr, u32 len,
@@ -324,7 +323,6 @@ static void iwl_mvm_rx_handle_tcm(struct iwl_mvm *mvm,
 	mdata->uapsd_nonagg_detect.rx_bytes += len;
 	ewma_rate_add(&mdata->uapsd_nonagg_detect.rate, thr);
 }
-#endif
 
 static void iwl_mvm_rx_csum(struct ieee80211_sta *sta,
 			    struct sk_buff *skb,
@@ -480,13 +478,11 @@ void iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct napi_struct *napi,
 							NULL);
 		}
 
-#ifdef CPTCFG_IWLMVM_TCM
 		if (!mvm->tcm.paused && len >= sizeof(*hdr) &&
 		    !is_multicast_ether_addr(hdr->addr1) &&
 		    ieee80211_is_data(hdr->frame_control))
 			iwl_mvm_rx_handle_tcm(mvm, sta, hdr, len, phy_info,
 					      rate_n_flags);
-#endif
 #ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
 		/*
 		 * these packets are from the AP or the existing TDLS peer.
@@ -748,10 +744,8 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 	int expected_size;
 	int i;
 	u8 *energy;
-#ifdef CPTCFG_IWLMVM_TCM
 	__le32 *bytes, *air_time;
 	__le32 flags;
-#endif
 
 	if (!iwl_mvm_has_new_rx_stats_api(mvm)) {
 		if (iwl_mvm_has_new_rx_api(mvm))
@@ -787,9 +781,7 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 
 		data.general = &stats->general;
 
-#ifdef CPTCFG_IWLMVM_TCM
 		flags = stats->flag;
-#endif
 	} else {
 		struct iwl_notif_statistics_cdb *stats = (void *)&pkt->data;
 
@@ -810,9 +802,7 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 
 		data.general = &stats->general;
 
-#ifdef CPTCFG_IWLMVM_TCM
 		flags = stats->flag;
-#endif
 	}
 
 	iwl_mvm_rx_stats_check_trigger(mvm, pkt);
@@ -829,18 +819,14 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 		struct iwl_notif_statistics_v11 *v11 = (void *)&pkt->data;
 
 		energy = (void *)&v11->load_stats.avg_energy;
-#ifdef CPTCFG_IWLMVM_TCM
 		bytes = (void *)&v11->load_stats.byte_count;
 		air_time = (void *)&v11->load_stats.air_time;
-#endif
 	} else {
 		struct iwl_notif_statistics_cdb *stats = (void *)&pkt->data;
 
 		energy = (void *)&stats->load_stats.avg_energy;
-#ifdef CPTCFG_IWLMVM_TCM
 		bytes = (void *)&stats->load_stats.byte_count;
 		air_time = (void *)&stats->load_stats.air_time;
-#endif
 	}
 
 	rcu_read_lock();
@@ -857,7 +843,6 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 	}
 	rcu_read_unlock();
 
-#ifdef CPTCFG_IWLMVM_TCM
 	/*
 	 * Don't update in case the statistics are not cleared, since
 	 * we will end up counting twice the same airtime, once in TCM
@@ -882,7 +867,6 @@ void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
 		}
 	}
 	spin_unlock(&mvm->tcm.lock);
-#endif
 }
 
 void iwl_mvm_rx_statistics(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)

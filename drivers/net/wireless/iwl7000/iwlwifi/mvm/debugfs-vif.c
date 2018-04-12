@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -17,11 +18,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -35,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -275,10 +272,8 @@ static ssize_t iwl_dbgfs_mac_params_read(struct file *file,
 			 mvmvif->id, mvmvif->color);
 	pos += scnprintf(buf+pos, bufsz-pos, "bssid: %pM\n",
 			 vif->bss_conf.bssid);
-#ifdef CPTCFG_IWLMVM_TCM
 	pos += scnprintf(buf+pos, bufsz-pos, "Load: %d\n",
 			 mvm->tcm.result.load[mvmvif->id]);
-#endif
 	pos += scnprintf(buf+pos, bufsz-pos, "QoS:\n");
 	for (i = 0; i < ARRAY_SIZE(mvmvif->queue_params); i++)
 		pos += scnprintf(buf+pos, bufsz-pos,

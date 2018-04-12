@@ -1806,7 +1806,6 @@ iwl_dbgfs_send_echo_cmd_write(struct iwl_mvm *mvm, char *buf,
 	return ret ?: count;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 static ssize_t
 iwl_dbgfs_uapsd_noagg_bssids_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -1827,7 +1826,6 @@ iwl_dbgfs_uapsd_noagg_bssids_read(struct file *file, char __user *user_buf,
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
-#endif
 
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 static ssize_t iwl_dbgfs_tx_power_status_read(struct file *file,
@@ -1904,9 +1902,7 @@ MVM_DEBUGFS_WRITE_FILE_OPS(inject_packet, 512);
 MVM_DEBUGFS_READ_FILE_OPS(tx_power_status);
 #endif
 
-#ifdef CPTCFG_IWLMVM_TCM
 MVM_DEBUGFS_READ_FILE_OPS(uapsd_noagg_bssids);
-#endif
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters, 256);
@@ -2131,9 +2127,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 				 mvm->debugfs_dir, &mvm->drop_bcn_ap_mode))
 		goto err;
 
-#ifdef CPTCFG_IWLMVM_TCM
 	MVM_DEBUGFS_ADD_FILE(uapsd_noagg_bssids, mvm->debugfs_dir, S_IRUSR);
-#endif
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {

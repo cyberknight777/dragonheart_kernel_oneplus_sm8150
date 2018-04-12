@@ -1080,9 +1080,7 @@ int iwl_mvm_update_low_latency(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	iwl_mvm_bt_coex_vif_change(mvm);
 
-#ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_send_tcm_event(mvm, vif);
-#endif
 
 	return iwl_mvm_power_update_mac(mvm);
 }
@@ -1467,7 +1465,6 @@ void iwl_mvm_event_frame_timeout_callback(struct iwl_mvm *mvm,
 				sta->addr, tid);
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 u8 iwl_mvm_tcm_load_percentage(u32 airtime, u32 elapsed)
 {
 	if (!elapsed)
@@ -1853,7 +1850,6 @@ void iwl_mvm_tcm_rm_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	cancel_delayed_work_sync(&mvmvif->uapsd_nonagg_detected_wk);
 }
-#endif
 
 void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 {

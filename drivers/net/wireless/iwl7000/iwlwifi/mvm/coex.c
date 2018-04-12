@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -16,11 +17,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -33,6 +29,7 @@
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -297,7 +294,6 @@ void iwl_mvm_bt_coex_enable_rssi_event(struct iwl_mvm *mvm,
 		enable ? -IWL_MVM_BT_COEX_DIS_RED_TXP_THRESH : 0;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 #define MVM_COEX_TCM_PERIOD (HZ * 10)
 
 static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
@@ -321,11 +317,6 @@ static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
 
 	swap(data->primary, data->secondary);
 }
-#else
-static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
-					 struct iwl_bt_iterator_data *data)
-{}
-#endif
 
 /* must be called under rcu_read_lock */
 static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
@@ -418,12 +409,10 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 			data->secondary = chanctx_conf;
 		}
 
-#ifdef CPTCFG_IWLMVM_TCM
 		if (data->primary == chanctx_conf)
 			data->primary_load = mvm->tcm.result.load[mvmvif->id];
 		else if (data->secondary == chanctx_conf)
 			data->secondary_load = mvm->tcm.result.load[mvmvif->id];
-#endif
 		return;
 	}
 
@@ -437,12 +426,10 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		/* if secondary is not NULL, it might be a GO */
 		data->secondary = chanctx_conf;
 
-#ifdef CPTCFG_IWLMVM_TCM
 	if (data->primary == chanctx_conf)
 		data->primary_load = mvm->tcm.result.load[mvmvif->id];
 	else if (data->secondary == chanctx_conf)
 		data->secondary_load = mvm->tcm.result.load[mvmvif->id];
-#endif
 	/*
 	 * don't reduce the Tx power if one of these is true:
 	 *  we are in LOOSE
