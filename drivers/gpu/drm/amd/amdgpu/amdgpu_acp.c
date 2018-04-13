@@ -403,7 +403,7 @@ static int acp_hw_init(void *handle)
 	adev->acp.acp_res[4].end = adev->acp.acp_res[4].start;
 
 	adev->acp.acp_cell[0].name = "acp_audio_dma";
-	adev->acp.acp_cell[0].num_resources = 6;
+	adev->acp.acp_cell[0].num_resources = 5;
 	adev->acp.acp_cell[0].resources = &adev->acp.acp_res[0];
 	adev->acp.acp_cell[0].platform_data = &adev->asic_type;
 	adev->acp.acp_cell[0].pdata_size = sizeof(adev->asic_type);
