@@ -273,8 +273,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	trans->rx_mpdu_cmd_hdr_size =
 		(trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
-		sizeof(struct iwl_rx_mpdu_desc) :
-		sizeof(struct iwl_rx_mpdu_desc_v1);
+		sizeof(struct iwl_rx_mpdu_desc) : IWL_RX_DESC_SIZE_V1;
 
 	trans_cfg.cb_data_offs = offsetof(struct iwl_xvt_skb_info, trans);
 
