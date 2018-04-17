@@ -85,7 +85,6 @@ struct iwl_nvm_data {
 	bool sku_cap_band_52ghz_enable;
 	bool sku_cap_11n_enable;
 	bool sku_cap_11ac_enable;
-	bool sku_cap_11ax_enable;
 	bool sku_cap_amt_enable;
 	bool sku_cap_ipan_enable;
 	bool sku_cap_mimo_disabled;

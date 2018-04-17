@@ -90,6 +90,11 @@ enum iwl_xvt_state {
 #define IWL_XVT_LOAD_MASK_RUNTIME BIT(1)
 
 #define NUM_OF_LMACS	(2)
+#define IWL_XVT_DBG_FLAGS_NO_DEFAULT_TXQ (BIT(2))
+#define IWL_XVT_MAX_PAYLOADS_AMOUNT (16)
+
+#define IWL_MAX_BAID 32
+#define IWL_XVT_INVALID_STA 0xFF
 
 /**
  * tx_meta_data - Holds data and member needed for tx
@@ -101,6 +106,7 @@ enum iwl_xvt_state {
  * @tot_tx: total number of packets required to sent
  * @mod_tx_done_wq: queue to wait on until all packets are sent and received
  * @txq_full: set to true when mod_tx_wq is full
+ * @seq_num: sequence number of qos frames (per-tid)
  */
 struct tx_meta_data {
 	struct task_struct *tx_mod_thread;
@@ -111,6 +117,80 @@ struct tx_meta_data {
 	u32 tot_tx;
 	wait_queue_head_t mod_tx_done_wq;
 	bool txq_full;
+	u16 seq_num[IWL_MAX_TID_COUNT];
+};
+
+/*
+ * struct iwl_xvt_reorder_statistics - reorder buffer statistics
+ * @dropped: number of frames dropped (e.g. too old)
+ * @released: total number of frames released (either in-order or
+ *	out of order (after passing the reorder buffer)
+ * @skipped: number of frames skipped the reorder buffer (in-order)
+ * @reordered: number of frames gone through the reorder buffer (unordered)
+ */
+struct iwl_xvt_reorder_statistics {
+	u32 dropped;
+	u32 released;
+	u32 skipped;
+	u32 reordered;
+};
+
+/**
+ * struct iwl_xvt_reorder_buffer - per ra/tid/queue reorder buffer
+ * @head_sn: reorder window head sn
+ * @num_stored: number of mpdus stored in the buffer
+ * @buf_size: the reorder buffer size as set by the last addba request
+ * @sta_id: sta id of this reorder buffer
+ * @tid: tid of this reorder buffer
+ * @queue: queue of this reorder buffer
+ * @last_amsdu: track last ASMDU SN for duplication detection
+ * @last_sub_index: track ASMDU sub frame index for duplication detection
+ * @entries: number of pending frames (for each index)
+ * @lock: protect reorder buffer internal state
+ * @stats: reorder buffer statistics
+ */
+struct iwl_xvt_reorder_buffer {
+	u16 head_sn;
+	u16 num_stored;
+	u8 buf_size;
+	u8 sta_id;
+	u8 tid;
+	int queue;
+	u16 last_amsdu;
+	u8 last_sub_index;
+
+	/*
+	 * we don't care about the actual frames, only their count.
+	 * avoid messing with reorder timer for that reason as well
+	 */
+	u16 entries[IEEE80211_MAX_AMPDU_BUF_HT];
+
+	spinlock_t lock; /* protect reorder buffer internal state */
+	struct iwl_xvt_reorder_statistics stats;
+};
+
+/**
+ * tx_queue_data - Holds tx data per tx queue
+ * @tx_wq: TX sw queue
+ * @tx_counter: Number of packets that were sent from this queue. Counts TX_RSP
+ * @txq_full: Set to true when tx_wq is full
+ * @allocated_queue: Whether queue is allocated
+ */
+struct tx_queue_data {
+	wait_queue_head_t tx_wq;
+	u64 tx_counter;
+	bool txq_full;
+	bool allocated_queue;
+};
+
+/**
+ * tx_payload - Holds tx payload
+ * @length: Payload length in bytes
+ * @payload: Payload buffer
+ */
+struct tx_payload {
+	u16 length;
+	u8 payload[];
 };
 
 /**
@@ -269,6 +349,16 @@ struct iwl_umac_error_event_table {
 } __packed;
 
 /**
+ * struct iwl_xvt_skb_info - driver data per skb
+ * @dev_cmd: a pointer to the iwl_dev_cmd associated with this skb
+ * @trans: transport data
+ */
+struct iwl_xvt_skb_info {
+	struct iwl_device_cmd *dev_cmd;
+	void *trans[2];
+};
+
+/**
  * struct iwl_xvt - the xvt op_mode
  *
  * @trans: pointer to the transport layer
@@ -293,7 +383,6 @@ struct iwl_xvt {
 
 	u32 error_event_table[2];
 	bool fw_running;
-	struct iwl_sf_region sf_space;
 	u32 fw_major_ver;
 	u32 fw_minor_ver;
 	u32 umac_error_event_table;
@@ -315,6 +404,18 @@ struct iwl_xvt {
 	u8 nvm_mac_addr[ETH_ALEN];
 
 	struct tx_meta_data tx_meta_data[NUM_OF_LMACS];
+
+	struct iwl_xvt_reorder_buffer reorder_bufs[IWL_MAX_BAID];
+
+	/* members for enhanced tx command */
+	struct tx_payload *payloads[IWL_XVT_MAX_PAYLOADS_AMOUNT];
+	struct task_struct *tx_task;
+	bool is_enhanced_tx;
+	bool send_tx_resp;
+	u64 num_of_tx_resp;
+	u64 expected_tx_amount;
+	wait_queue_head_t tx_done_wq;
+	struct tx_queue_data queue_data[IWL_MAX_HW_QUEUES];
 };
 
 #define IWL_OP_MODE_GET_XVT(_op_mode) \
@@ -355,6 +456,12 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type,  bool cont_run);
 /* NVM */
 int iwl_xvt_nvm_init(struct iwl_xvt *xvt);
 
+/* RX */
+bool iwl_xvt_reorder(struct iwl_xvt *xvt, struct iwl_rx_packet *pkt);
+void iwl_xvt_rx_frame_release(struct iwl_xvt *xvt, struct iwl_rx_packet *pkt);
+void iwl_xvt_destroy_reorder_buffer(struct iwl_xvt *xvt,
+				    struct iwl_xvt_reorder_buffer *buf);
+
 /* Based on mvm function: iwl_mvm_has_new_tx_api */
 static inline bool iwl_xvt_is_unified_fw(struct iwl_xvt *xvt)
 {
@@ -391,6 +498,12 @@ static inline u32 iwl_xvt_get_scd_ssn(struct iwl_xvt *xvt,
 {
 	return le32_to_cpup((__le32 *)iwl_xvt_get_agg_status(xvt, tx_resp) +
 			    tx_resp->frame_count) & 0xfff;
+}
+
+static inline bool iwl_xvt_has_default_txq(struct iwl_xvt *xvt)
+{
+	return !(xvt->sw_stack_cfg.fw_dbg_flags &
+		 IWL_XVT_DBG_FLAGS_NO_DEFAULT_TXQ);
 }
 
 void iwl_xvt_free_tx_queue(struct iwl_xvt *xvt, u8 lmac_id);

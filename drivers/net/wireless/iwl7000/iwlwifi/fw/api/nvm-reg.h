@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -193,7 +195,6 @@ struct iwl_nvm_get_info_general {
  * @NVM_MAC_SKU_FLAGS_BAND_5_2_ENABLED: true if 5.2 band enabled
  * @NVM_MAC_SKU_FLAGS_802_11N_ENABLED: true if 11n enabled
  * @NVM_MAC_SKU_FLAGS_802_11AC_ENABLED: true if 11ac enabled
- * @NVM_MAC_SKU_FLAGS_802_11AX_ENABLED: true if 11ax enabled
  * @NVM_MAC_SKU_FLAGS_MIMO_DISABLED: true if MIMO disabled
  * @NVM_MAC_SKU_FLAGS_WAPI_ENABLED: true if WAPI enabled
  * @NVM_MAC_SKU_FLAGS_REG_CHECK_ENABLED: true if regulatory checker enabled
@@ -204,7 +205,6 @@ enum iwl_nvm_mac_sku_flags {
 	NVM_MAC_SKU_FLAGS_BAND_5_2_ENABLED	= BIT(1),
 	NVM_MAC_SKU_FLAGS_802_11N_ENABLED	= BIT(2),
 	NVM_MAC_SKU_FLAGS_802_11AC_ENABLED	= BIT(3),
-	NVM_MAC_SKU_FLAGS_802_11AX_ENABLED	= BIT(4),
 	NVM_MAC_SKU_FLAGS_MIMO_DISABLED		= BIT(5),
 	NVM_MAC_SKU_FLAGS_WAPI_ENABLED		= BIT(8),
 	NVM_MAC_SKU_FLAGS_REG_CHECK_ENABLED	= BIT(14),
@@ -325,6 +325,17 @@ struct iwl_mcc_update_resp_v1  {
 } __packed; /* LAR_UPDATE_MCC_CMD_RESP_S_VER_1 */
 
 /**
+ * enum iwl_geo_information - geographic information.
+ * @GEO_NO_INFO: no special info for this geo profile.
+ * @GEO_WMM_ETSI_5GHZ_INFO: this geo profile limits the WMM params
+ *	for the 5 GHz band.
+ */
+enum iwl_geo_information {
+	GEO_NO_INFO =			0,
+	GEO_WMM_ETSI_5GHZ_INFO =	BIT(0),
+};
+
+/**
  * struct iwl_mcc_update_resp - response to MCC_UPDATE_CMD.
  * Contains the new channel control profile map, if changed, and the new MCC
  * (mobile country code).
@@ -334,7 +345,8 @@ struct iwl_mcc_update_resp_v1  {
  * @cap: capabilities for all channels which matches the MCC
  * @source_id: the MCC source, see iwl_mcc_source
  * @time: time elapsed from the MCC test start (in 30 seconds TU)
- * @reserved: reserved.
+ * @geo_info: geographic specific profile information
+ *	see &enum iwl_geo_information.
  * @n_channels: number of channels in @channels_data (may be 14, 39, 50 or 51
  *		channels, depending on platform)
  * @channels: channel control data map, DWORD for each channel. Only the first
@@ -346,10 +358,10 @@ struct iwl_mcc_update_resp {
 	u8 cap;
 	u8 source_id;
 	__le16 time;
-	__le16 reserved;
+	__le16 geo_info;
 	__le32 n_channels;
 	__le32 channels[0];
-} __packed; /* LAR_UPDATE_MCC_CMD_RESP_S_VER_2 */
+} __packed; /* LAR_UPDATE_MCC_CMD_RESP_S_VER_3 */
 
 /**
  * struct iwl_mcc_chub_notif - chub notifies of mcc change

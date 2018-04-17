@@ -47,16 +47,19 @@ static void ieee80211_tdls_add_ext_capab(struct ieee80211_sub_if_data *sdata,
 			   NL80211_FEATURE_TDLS_CHANNEL_SWITCH;
 	bool wider_band = ieee80211_hw_check(&local->hw, TDLS_WIDER_BW) &&
 			  !ifmgd->tdls_wider_bw_prohibited;
+	bool buffer_sta = ieee80211_hw_check(&local->hw,
+					     SUPPORTS_TDLS_BUFFER_STA);
 	struct ieee80211_supported_band *sband = ieee80211_get_sband(sdata);
 	bool vht = sband && sband->vht_cap.vht_supported;
-	u8 *pos = (void *)skb_put(skb, 10);
+	u8 *pos = skb_put(skb, 10);
 
 	*pos++ = WLAN_EID_EXT_CAPABILITY;
 	*pos++ = 8; /* len */
 	*pos++ = 0x0;
 	*pos++ = 0x0;
 	*pos++ = 0x0;
-	*pos++ = chan_switch ? WLAN_EXT_CAPA4_TDLS_CHAN_SWITCH : 0;
+	*pos++ = (chan_switch ? WLAN_EXT_CAPA4_TDLS_CHAN_SWITCH : 0) |
+		 (buffer_sta ? WLAN_EXT_CAPA4_TDLS_BUFFER_STA : 0);
 	*pos++ = WLAN_EXT_CAPA5_TDLS_ENABLED;
 	*pos++ = 0;
 	*pos++ = 0;
@@ -168,7 +171,7 @@ static void ieee80211_tdls_add_oper_classes(struct ieee80211_sub_if_data *sdata,
 
 static void ieee80211_tdls_add_bss_coex_ie(struct sk_buff *skb)
 {
-	u8 *pos = (void *)skb_put(skb, 3);
+	u8 *pos = skb_put(skb, 3);
 
 	*pos++ = WLAN_EID_BSS_COEX_2040;
 	*pos++ = 1; /* len */
@@ -209,7 +212,7 @@ static void ieee80211_tdls_add_link_ie(struct ieee80211_sub_if_data *sdata,
 		rsp_addr = sdata->vif.addr;
 	}
 
-	lnkid = (void *)skb_put(skb, sizeof(struct ieee80211_tdls_lnkie));
+	lnkid = skb_put(skb, sizeof(struct ieee80211_tdls_lnkie));
 
 	lnkid->ie_type = WLAN_EID_LINK_ID;
 	lnkid->ie_len = sizeof(struct ieee80211_tdls_lnkie) - 2;
@@ -223,7 +226,7 @@ static void
 ieee80211_tdls_add_aid(struct ieee80211_sub_if_data *sdata, struct sk_buff *skb)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	u8 *pos = (void *)skb_put(skb, 4);
+	u8 *pos = skb_put(skb, 4);
 
 	*pos++ = WLAN_EID_AID;
 	*pos++ = 2; /* len */
@@ -236,6 +239,7 @@ static enum ieee80211_ac_numbers ieee80211_ac_from_wmm(int ac)
 	switch (ac) {
 	default:
 		WARN_ON_ONCE(1);
+		/* fall through */
 	case 0:
 		return IEEE80211_AC_BE;
 	case 1:
@@ -271,8 +275,7 @@ static void ieee80211_tdls_add_wmm_param_ie(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_tx_queue_params *txq;
 	int i;
 
-	wmm = (void *)skb_put(skb, sizeof(*wmm));
-	memset(wmm, 0, sizeof(*wmm));
+	wmm = skb_put_zero(skb, sizeof(*wmm));
 
 	wmm->element_id = WLAN_EID_VENDOR_SPECIFIC;
 	wmm->len = sizeof(*wmm) - 2;
@@ -389,8 +392,7 @@ ieee80211_tdls_add_setup_start_ies(struct ieee80211_sub_if_data *sdata,
 					     before_ext_cap,
 					     ARRAY_SIZE(before_ext_cap),
 					     offset);
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 		offset = noffset;
 	}
 
@@ -419,8 +421,7 @@ ieee80211_tdls_add_setup_start_ies(struct ieee80211_sub_if_data *sdata,
 					     before_ht_cap,
 					     ARRAY_SIZE(before_ht_cap),
 					     offset);
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 		offset = noffset;
 	}
 
@@ -491,8 +492,7 @@ ieee80211_tdls_add_setup_start_ies(struct ieee80211_sub_if_data *sdata,
 					     before_vht_cap,
 					     ARRAY_SIZE(before_vht_cap),
 					     offset);
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 		offset = noffset;
 	}
 
@@ -533,8 +533,7 @@ ieee80211_tdls_add_setup_start_ies(struct ieee80211_sub_if_data *sdata,
 	/* add any remaining IEs */
 	if (extra_ies_len) {
 		noffset = extra_ies_len;
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 	}
 
 }
@@ -576,8 +575,7 @@ ieee80211_tdls_add_setup_cfm_ies(struct ieee80211_sub_if_data *sdata,
 					     before_qos,
 					     ARRAY_SIZE(before_qos),
 					     offset);
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 		offset = noffset;
 	}
 
@@ -597,8 +595,7 @@ ieee80211_tdls_add_setup_cfm_ies(struct ieee80211_sub_if_data *sdata,
 					     before_ht_op,
 					     ARRAY_SIZE(before_ht_op),
 					     offset);
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 		offset = noffset;
 	}
 
@@ -639,8 +636,7 @@ ieee80211_tdls_add_setup_cfm_ies(struct ieee80211_sub_if_data *sdata,
 	/* add any remaining IEs */
 	if (extra_ies_len) {
 		noffset = extra_ies_len;
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 	}
 }
 
@@ -653,7 +649,6 @@ ieee80211_tdls_add_chan_switch_req_ies(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_tdls_data *tf;
 	size_t offset = 0, noffset;
-	u8 *pos;
 
 	if (WARN_ON_ONCE(!chandef))
 		return;
@@ -671,8 +666,7 @@ ieee80211_tdls_add_chan_switch_req_ies(struct ieee80211_sub_if_data *sdata,
 					     before_lnkie,
 					     ARRAY_SIZE(before_lnkie),
 					     offset);
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 		offset = noffset;
 	}
 
@@ -681,8 +675,7 @@ ieee80211_tdls_add_chan_switch_req_ies(struct ieee80211_sub_if_data *sdata,
 	/* add any remaining IEs */
 	if (extra_ies_len) {
 		noffset = extra_ies_len;
-		pos = skb_put(skb, noffset - offset);
-		memcpy(pos, extra_ies + offset, noffset - offset);
+		skb_put_data(skb, extra_ies + offset, noffset - offset);
 	}
 }
 
@@ -697,7 +690,7 @@ ieee80211_tdls_add_chan_switch_resp_ies(struct ieee80211_sub_if_data *sdata,
 		ieee80211_tdls_add_link_ie(sdata, skb, peer, initiator);
 
 	if (extra_ies_len)
-		memcpy(skb_put(skb, extra_ies_len), extra_ies, extra_ies_len);
+		skb_put_data(skb, extra_ies, extra_ies_len);
 }
 
 static void ieee80211_tdls_add_ies(struct ieee80211_sub_if_data *sdata,
@@ -727,8 +720,7 @@ static void ieee80211_tdls_add_ies(struct ieee80211_sub_if_data *sdata,
 	case WLAN_TDLS_TEARDOWN:
 	case WLAN_TDLS_DISCOVERY_REQUEST:
 		if (extra_ies_len)
-			memcpy(skb_put(skb, extra_ies_len), extra_ies,
-			       extra_ies_len);
+			skb_put_data(skb, extra_ies, extra_ies_len);
 		if (status_code == 0 || action_code == WLAN_TDLS_TEARDOWN)
 			ieee80211_tdls_add_link_ie(sdata, skb, peer, initiator);
 		break;
@@ -756,7 +748,7 @@ ieee80211_prep_tdls_encap_data(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_tdls_data *tf;
 
-	tf = (void *)skb_put(skb, offsetof(struct ieee80211_tdls_data, u));
+	tf = skb_put(skb, offsetof(struct ieee80211_tdls_data, u));
 
 	memcpy(tf->da, peer, ETH_ALEN);
 	memcpy(tf->sa, sdata->vif.addr, ETH_ALEN);
@@ -838,8 +830,7 @@ ieee80211_prep_tdls_direct(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_mgmt *mgmt;
 
-	mgmt = (void *)skb_put(skb, 24);
-	memset(mgmt, 0, 24);
+	mgmt = skb_put_zero(skb, 24);
 	memcpy(mgmt->da, peer, ETH_ALEN);
 	memcpy(mgmt->sa, sdata->vif.addr, ETH_ALEN);
 	memcpy(mgmt->bssid, sdata->u.mgd.bssid, ETH_ALEN);
@@ -1076,7 +1067,7 @@ fail:
 
 static int
 ieee80211_tdls_mgmt_setup(struct wiphy *wiphy, struct net_device *dev,
-			  const u8 *peer, u8 action_code, u8 dialog_token,
+			  const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
 			  u16 status_code, u32 peer_capability, bool initiator,
 			  const u8 *extra_ies, size_t extra_ies_len)
 {
@@ -1194,12 +1185,23 @@ ieee80211_tdls_mgmt_teardown(struct wiphy *wiphy, struct net_device *dev,
 }
 
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-			const u8 *peer, u8 action_code, u8 dialog_token,
-			u16 status_code, u32 peer_capability,
-			bool initiator, const u8 *extra_ies,
-			size_t extra_ies_len)
+			const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
+			u16 status_code,
+#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
+			u32 peer_capability,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(3,17,0)
+			bool initiator,
+#endif
+			const u8 *extra_ies, size_t extra_ies_len)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+#if CFG80211_VERSION < KERNEL_VERSION(3,15,0)
+	u32 peer_capability = 0;
+#endif
+#if CFG80211_VERSION < KERNEL_VERSION(3,17,0)
+	bool initiator = false;
+#endif
 	int ret;
 
 	if (!(wiphy->flags & WIPHY_FLAG_SUPPORTS_TDLS))
@@ -1349,7 +1351,7 @@ iee80211_tdls_recalc_ht_protection(struct ieee80211_sub_if_data *sdata,
 }
 
 int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
-			const u8 *peer, enum nl80211_tdls_operation oper)
+			const_since_3_16 u8 *peer, enum nl80211_tdls_operation oper)
 {
 	struct sta_info *sta;
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);

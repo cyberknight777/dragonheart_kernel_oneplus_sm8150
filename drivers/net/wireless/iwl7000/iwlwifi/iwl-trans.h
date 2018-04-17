@@ -8,6 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -405,8 +407,6 @@ struct iwl_hcmd_arr {
  * @command_groups: array of command groups, each member is an array of the
  *	commands in the group; for debugging only
  * @command_groups_size: number of command groups, to avoid illegal access
- * @sdio_adma_addr: the default address to set for the ADMA in SDIO mode until
- *	we get the ALIVE from the uCode
  * @cb_data_offs: offset inside skb->cb to store transport data at, must have
  *	space for at least two pointers
  */
@@ -425,8 +425,6 @@ struct iwl_trans_config {
 	bool sw_csum_tx;
 	const struct iwl_hcmd_arr *command_groups;
 	int command_groups_size;
-
-	u32 sdio_adma_addr;
 
 	u8 cb_data_offs;
 };
@@ -546,8 +544,6 @@ struct iwl_trans_ops {
 #endif
 	int (*start_fw)(struct iwl_trans *trans, const struct fw_img *fw,
 			bool run_in_rfkill);
-	int (*update_sf)(struct iwl_trans *trans,
-			 struct iwl_sf_region *st_fwrd_space);
 	void (*fw_alive)(struct iwl_trans *trans, u32 scd_addr);
 	void (*stop_device)(struct iwl_trans *trans, bool low_power);
 
@@ -570,7 +566,7 @@ struct iwl_trans_ops {
 	/* 22000 functions */
 	int (*txq_alloc)(struct iwl_trans *trans,
 			 struct iwl_tx_queue_cfg_cmd *cmd,
-			 int cmd_id,
+			 int cmd_id, int size,
 			 unsigned int queue_wdg_timeout);
 	void (*txq_free)(struct iwl_trans *trans, int queue);
 
@@ -595,6 +591,7 @@ struct iwl_trans_ops {
 	void (*configure)(struct iwl_trans *trans,
 			  const struct iwl_trans_config *trans_cfg);
 	void (*set_pmi)(struct iwl_trans *trans, bool state);
+	void (*sw_reset)(struct iwl_trans *trans);
 	bool (*grab_nic_access)(struct iwl_trans *trans, unsigned long *flags);
 	void (*release_nic_access)(struct iwl_trans *trans,
 				   unsigned long *flags);
@@ -717,12 +714,6 @@ enum iwl_plat_pm_mode {
  * @dbg_conf_tlv: array of pointers to configuration TLVs for debug
  * @dbg_trigger_tlv: array of pointers to triggers TLVs for debug
  * @dbg_dest_reg_num: num of reg_ops in %dbg_dest_tlv
- * @paging_req_addr: The location were the FW will upload / download the pages
- *	from. The address is set by the opmode
- * @paging_db: Pointer to the opmode paging data base, the pointer is set by
- *	the opmode.
- * @paging_download_buf: Buffer used for copying all of the pages before
- *	downloading them to the FW. The buffer is allocated in the opmode
  * @system_pm_mode: the system-wide power management mode in use.
  *	This mode is set dynamically, depending on the WoWLAN values
  *	configured from the userspace at runtime.
@@ -771,20 +762,11 @@ struct iwl_trans {
 	struct iwl_dbg_cfg dbg_cfg;
 #endif
 
-	u64 dflt_pwr_limit;
-
-	const struct iwl_fw_dbg_dest_tlv *dbg_dest_tlv;
+	const struct iwl_fw_dbg_dest_tlv_v1 *dbg_dest_tlv;
 	const struct iwl_fw_dbg_conf_tlv *dbg_conf_tlv[FW_DBG_CONF_MAX];
 	struct iwl_fw_dbg_trigger_tlv * const *dbg_trigger_tlv;
+	u32 dbg_dump_mask;
 	u8 dbg_dest_reg_num;
-
-	/*
-	 * Paging parameters - All of the parameters should be set by the
-	 * opmode when paging is enabled
-	 */
-	u32 paging_req_addr;
-	struct iwl_fw_paging *paging_db;
-	void *paging_download_buf;
 
 	enum iwl_plat_pm_mode system_pm_mode;
 	enum iwl_plat_pm_mode runtime_pm_mode;
@@ -850,17 +832,6 @@ static inline int iwl_trans_start_fw(struct iwl_trans *trans,
 
 	clear_bit(STATUS_FW_ERROR, &trans->status);
 	return trans->ops->start_fw(trans, fw, run_in_rfkill);
-}
-
-static inline int iwl_trans_update_sf(struct iwl_trans *trans,
-				      struct iwl_sf_region *st_fwrd_space)
-{
-	might_sleep();
-
-	if (trans->ops->update_sf)
-		return trans->ops->update_sf(trans, st_fwrd_space);
-
-	return 0;
 }
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
@@ -1024,8 +995,8 @@ iwl_trans_txq_free(struct iwl_trans *trans, int queue)
 static inline int
 iwl_trans_txq_alloc(struct iwl_trans *trans,
 		    struct iwl_tx_queue_cfg_cmd *cmd,
-		    int cmd_id,
-		    unsigned int queue_wdg_timeout)
+		    int cmd_id, int size,
+		    unsigned int wdg_timeout)
 {
 	might_sleep();
 
@@ -1037,7 +1008,7 @@ iwl_trans_txq_alloc(struct iwl_trans *trans,
 		return -EIO;
 	}
 
-	return trans->ops->txq_alloc(trans, cmd, cmd_id, queue_wdg_timeout);
+	return trans->ops->txq_alloc(trans, cmd, cmd_id, size, wdg_timeout);
 }
 
 static inline void iwl_trans_txq_set_shared_mode(struct iwl_trans *trans,
@@ -1206,6 +1177,12 @@ static inline void iwl_trans_set_pmi(struct iwl_trans *trans, bool state)
 		trans->ops->set_pmi(trans, state);
 }
 
+static inline void iwl_trans_sw_reset(struct iwl_trans *trans)
+{
+	if (trans->ops->sw_reset)
+		trans->ops->sw_reset(trans);
+}
+
 static inline void
 iwl_trans_set_bits_mask(struct iwl_trans *trans, u32 reg, u32 mask, u32 value)
 {
@@ -1233,6 +1210,11 @@ static inline void iwl_trans_fw_error(struct iwl_trans *trans)
 		iwl_op_mode_nic_error(trans->op_mode);
 }
 
+static inline bool iwl_trans_fw_running(struct iwl_trans *trans)
+{
+	return trans->state == IWL_TRANS_FW_ALIVE;
+}
+
 /*****************************************************
  * transport helper functions
  *****************************************************/
@@ -1248,20 +1230,7 @@ void iwl_trans_unref(struct iwl_trans *trans);
 * driver (transport) register/unregister functions
 ******************************************************/
 /* PCI */
-#ifdef CPTCFG_IWLWIFI_PCIE
 int __must_check iwl_pci_register_driver(void);
 void iwl_pci_unregister_driver(void);
-
-#else
-
-static inline int __must_check iwl_pci_register_driver(void)
-{ return 0; }
-static inline void iwl_pci_unregister_driver(void)
-{}
-
-#endif /* CPTCFG_IWLWIFI_PCIE */
-
-static inline int __must_check iwl_slv_register_drivers(void) { return 0; }
-static inline void iwl_slv_unregister_drivers(void) {}
 
 #endif /* __iwl_trans_h__ */

@@ -6,7 +6,6 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -27,7 +26,6 @@
  * BSD LICENSE
  *
  * Copyright(c) 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -112,8 +110,27 @@ static ssize_t iwl_dbgfs_fw_dbg_collect_write(struct iwl_xvt *xvt,
 	return count;
 }
 
+static ssize_t iwl_dbgfs_fw_restart_write(struct iwl_xvt *xvt, char *buf,
+					  size_t count, loff_t *ppos)
+{
+	int __maybe_unused ret;
+
+	if (!xvt->fw_running)
+		return -EIO;
+
+	mutex_lock(&xvt->mutex);
+
+	/* Take the return value, though failure is expected, for compilation */
+	ret = iwl_xvt_send_cmd_pdu(xvt, REPLY_ERROR, 0, 0, NULL);
+
+	mutex_unlock(&xvt->mutex);
+
+	return count;
+}
+
 /* Device wide debugfs entries */
 XVT_DEBUGFS_WRITE_FILE_OPS(fw_dbg_collect, 64);
+XVT_DEBUGFS_WRITE_FILE_OPS(fw_restart, 10);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 int iwl_xvt_dbgfs_register(struct iwl_xvt *xvt, struct dentry *dbgfs_dir)
@@ -121,6 +138,7 @@ int iwl_xvt_dbgfs_register(struct iwl_xvt *xvt, struct dentry *dbgfs_dir)
 	xvt->debugfs_dir = dbgfs_dir;
 
 	XVT_DEBUGFS_ADD_FILE(fw_dbg_collect, xvt->debugfs_dir, S_IWUSR);
+	XVT_DEBUGFS_ADD_FILE(fw_restart, xvt->debugfs_dir, S_IWUSR);
 
 	return 0;
 err:

@@ -120,10 +120,6 @@
  *	set to %IWL_MVM_VENDOR_GSCAN_REPORT_BUFFER_COMPLETE_RESULTS.
  * @IWL_MVM_VENDOR_CMD_DBG_COLLECT: collect debug data
  * @IWL_MVM_VENDOR_CMD_NAN_FAW_CONF: Configure post NAN further availability.
- * @IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS: Starts Link Quality Measurements.
- *	Must include %IWL_MVM_VENDOR_ATTR_LQM_DURATION and
- *	%IWL_MVM_VENDOR_ATTR_LQM_TIMEOUT. The results will be notified with
- *	this same command.
  * @IWL_MVM_VENDOR_CMD_SET_SAR_PROFILE: set the NIC's tx power limits
  *	according to the specified tx power profiles. In this command
  *	%IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE and
@@ -141,6 +137,15 @@
  *	information. This command provides the user with the following
  *	information: Per band tx power offset for chain A and chain B as well as
  *	maximum allowed tx power on this band.
+ * @IWL_MVM_VENDOR_CMD_TEST_FIPS: request the output of a certain function for
+ *	the specified test vector. The test vector is specified with one of:
+ *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_SHA,
+ *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC, or
+ *	&IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF. Only one test vector shall be
+ *	specified per test command.
+ *	The result output is sent back in &IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT
+ *	attribute. In case the function failed to produce an output for the
+ *	requested test vector, &IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT is not set.
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -171,12 +176,12 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_GSCAN_BEACON_EVENT,
 	IWL_MVM_VENDOR_CMD_DBG_COLLECT,
 	IWL_MVM_VENDOR_CMD_NAN_FAW_CONF,
-	IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS,
 	IWL_MVM_VENDOR_CMD_SET_SAR_PROFILE,
 	IWL_MVM_VENDOR_CMD_GET_SAR_PROFILE_INFO,
 	IWL_MVM_VENDOR_CMD_NEIGHBOR_REPORT_REQUEST,
 	IWL_MVM_VENDOR_CMD_NEIGHBOR_REPORT_RESPONSE,
 	IWL_MVM_VENDOR_CMD_GET_SAR_GEO_PROFILE,
+	IWL_MVM_VENDOR_CMD_TEST_FIPS,
 };
 
 /**
@@ -442,57 +447,6 @@ enum iwl_mvm_vendor_rxfilter_op {
 	IWL_MVM_VENDOR_RXFILTER_OP_DROP,
 };
 
-/**
- * enum iwl_mvm_vendor_lqm_status - status of a link quality measurement
- * @IWL_MVM_VENDOR_LQM_STATUS_SUCCESS: measurement succeeded for the
- *	requested time
- * @IWL_MVM_VENDOR_LQM_STATUS_TIMEOUT: measurement succeeded but was stopped
- *	earlier than expected because of a timeout
- * @IWL_MVM_VENDOR_LQM_STATUS_UNBOUND: measurement succeeded but was stopped
- *	earlier than expected because of a deassociation
- * @IWL_MVM_VENDOR_LQM_STATUS_ABORT_CHAN_SWITCH: measurement failed because
- *	of a channel switch
- */
-enum iwl_mvm_vendor_lqm_status {
-	IWL_MVM_VENDOR_LQM_STATUS_SUCCESS,
-	IWL_MVM_VENDOR_LQM_STATUS_TIMEOUT,
-	IWL_MVM_VENDOR_LQM_STATUS_ABORT,
-};
-
-/**
- * enum iwl_mvm_vendor_lqm_result - the result of a link quality measurement
- * @IWL_MVM_VENDOR_ATTR_LQM_INVALID: invalid attribute for compatibility
- *	purpose.
- * @IWL_MVM_VENDOR_ATTR_LQM_ACTIVE_STA_AIR_TIME: the air time for the most
- *	active stations during the measurement. This is a nested attribute
- *	which is an array of u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_OTHER_STA: the air time consumed by the stations
- *	not included in %IWL_MVM_VENDOR_ATTR_LQM_ACTIVE_STA_AIR_TIME. This is a
- *	u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_MEAS_TIME: the length (in msec) of the measurement.
- *	This can be shorter than the requested
- *	%IWL_MVM_VENDOR_ATTR_LQM_DURATION in case the measurement was cut
- *	short. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_RETRY_LIMIT: the number of frames that were dropped
- *	due to retry limit during the measurement. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_MEAS_STATUS: the measurement status.
- *	One of &enum iwl_mvm_vendor_lqm_status. This is a u32.
- * @NUM_IWL_MVM_VENDOR_LQM_RESULT: num of link quality measurement attributes
- * @MAX_IWL_MVM_VENDOR_LQM_RESULT: highest link quality measurement attribute
- *	number.
- */
-enum iwl_mvm_vendor_lqm_result {
-	IWL_MVM_VENDOR_ATTR_LQM_INVALID,
-	IWL_MVM_VENDOR_ATTR_LQM_ACTIVE_STA_AIR_TIME,
-	IWL_MVM_VENDOR_ATTR_LQM_OTHER_STA,
-	IWL_MVM_VENDOR_ATTR_LQM_MEAS_TIME,
-	IWL_MVM_VENDOR_ATTR_LQM_RETRY_LIMIT,
-	IWL_MVM_VENDOR_ATTR_LQM_MEAS_STATUS,
-
-	NUM_IWL_MVM_VENDOR_LQM_RESULT,
-	MAX_IWL_MVM_VENDOR_LQM_RESULT = NUM_IWL_MVM_VENDOR_LQM_RESULT - 1,
-};
-
 /*
  * enum iwl_mvm_vendor_nr_chan_width - channel width definitions
  *
@@ -585,6 +539,109 @@ enum iwl_vendor_sar_per_chain_geo_table {
 	IWL_VENDOR_SAR_GEO_CHAIN_A_OFFSET,
 	IWL_VENDOR_SAR_GEO_CHAIN_B_OFFSET,
 	IWL_VENDOR_SAR_GEO_MAX_TXP,
+};
+
+/**
+ * enum iwl_vendor_fips_test_vector_sha_type - SHA types for FIPS tests
+ *
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA1: SHA1
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA256: SHA256
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA384: SHA384
+ */
+enum iwl_vendor_fips_test_vector_sha_type {
+	IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA1,
+	IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA256,
+	IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE_SHA384,
+};
+
+/**
+ * enum iwl_vendor_fips_test_vector_sha - test vector for SHA tests
+ *
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_INVALID: attribute number 0 is reserved.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE: which SHA function to use. One of
+ *	&enum iwl_vendor_fips_test_vector_sha_type.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_SHA_MSG: the message to generate the digest for.
+ * @NUM_IWL_VENDOR_FIPS_TEST_VECTOR_SHA: number of SHA test vector attributes.
+ * @MAX_IWL_VENDOR_FIPS_TEST_VECTOR_SHA: highest SHA test vector attribute.
+ */
+enum iwl_vendor_fips_test_vector_sha {
+	IWL_VENDOR_FIPS_TEST_VECTOR_SHA_INVALID,
+	IWL_VENDOR_FIPS_TEST_VECTOR_SHA_TYPE,
+	IWL_VENDOR_FIPS_TEST_VECTOR_SHA_MSG,
+
+	NUM_IWL_VENDOR_FIPS_TEST_VECTOR_SHA,
+	MAX_IWL_VENDOR_FIPS_TEST_VECTOR_SHA =
+		NUM_IWL_VENDOR_FIPS_TEST_VECTOR_SHA - 1,
+};
+
+/**
+ * enum iwl_vendor_fips_test_vector_hmac_kdf - test vector for HMAC/KDF tests
+ *
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_INVALID: attribute number 0 is
+ *	reserved.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_TYPE: which HMAC-SHA function to use.
+ *	One of &enum iwl_vendor_fips_test_vector_sha_type.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_KEY: key input for the HMAC-SHA
+ *	function.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_MSG: the message to generate the
+ *	digest for.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_RES_LEN: the requested digest length in
+ *	bytes.
+ * @NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF: number of HMAC/KDF test vector
+ *	attributes.
+ * @MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF: highest HMAC/KDF test vector
+ *	attribute.
+ */
+enum iwl_vendor_fips_test_vector_hmac_kdf {
+	IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_INVALID,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_TYPE,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_KEY,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_MSG,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF_RES_LEN,
+
+	NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF,
+	MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF =
+		NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HMAC_KDF - 1,
+};
+
+/**
+ * enum iwl_vendor_fips_test_vector_flags - flags for FIPS HW test vector
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_FLAGS_ENCRYPT: if this is set, the requested
+ *	operation is encryption. Otherwise the requested operation is
+ *	decryption.
+ */
+enum iwl_vendor_fips_test_vector_flags {
+	IWL_VENDOR_FIPS_TEST_VECTOR_FLAGS_ENCRYPT = BIT(0),
+};
+
+/**
+ * enum iwl_vendor_fips_test_vector_hw - test vector for FIPS HW tests
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_INVALID: attribute number 0 is reserved.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY: the key to use for
+ *	encryption/decryption. For CCM, only 128-bit key is supported.
+ *	For AES and GCM, 128-bit and 256-bit keys are supported.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE: for CCM use 13 bytes, for GCM only 12
+ *	bytes. Not valid for AES tests.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD: adata. maximum supported size is 30
+ *	bytes. Not valid for AES tests.
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD: for encryption, this is the
+ *	plaintext to encrypt. For decryption, this is the ciphertext + MIC (8
+ *	bytes of MIC for CCM, 16 bytes for GCM).
+ * @IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS: &enum iwl_vendor_fips_test_vector_flags.
+ * @NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW: number of hw test vector attributes.
+ * @MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HW: highest hw test vector attribute.
+ */
+enum iwl_vendor_fips_test_vector_hw {
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_INVALID,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_KEY,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_NONCE,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_AAD,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_PAYLOAD,
+	IWL_VENDOR_FIPS_TEST_VECTOR_HW_FLAGS,
+
+	NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW,
+	MAX_IWL_VENDOR_FIPS_TEST_VECTOR_HW =
+		NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW - 1,
 };
 
 /**
@@ -686,27 +743,11 @@ enum iwl_vendor_sar_per_chain_geo_table {
  *	channel, used for anything but 20 MHz bandwidth.
  * @IWL_MVM_VENDOR_ATTR_CENTER_FREQ2: Center frequency of the second part of
  *	the channel, used only for 80+80 MHz bandwidth.
- * @IWL_MVM_VENDOR_ATTR_LQM_DURATION: the duration in msecs of the Link
- *	Quality Measurement. Required for
- *	&IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_TIMEOUT: the maximal time in msecs that the
- *	measurement can take. Required for
- *	&IWL_MVM_VENDOR_CMD_QUALITY_MEASUREMENTS. This is a u32.
- * @IWL_MVM_VENDOR_ATTR_LQM_RESULT: result of the measurement. Nested attribute
- *	see &enum iwl_mvm_vendor_lqm_result.
  * @IWL_MVM_VENDOR_ATTR_GSCAN_REPORT_THRESHOLD_NUM: report that scan results
  *	are available when buffer is that much full. In number of scans.
  * @IWL_MVM_VENDOR_ATTR_GSCAN_CACHED_RESULTS: array of gscan cached results.
  *	Each result is a nested attribute of
  *	&enum iwl_mvm_vendor_gscan_cached_scan_res.
- * @IWL_MVM_VENDOR_ATTR_SSID: SSID (binary attribute, 0..32 octets)
- * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_LCI: Flag attribute specifying that the
- *	neighbor request shall query for LCI information.
- * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_CIVIC: Flag attribute specifying that the
- *	neighbor request shall query for CIVIC information.
- * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_REPORT: A list of neighbor APs as received in a
- *	neighbor report frame. Each AP is a nested attribute of
- *	&enum iwl_mvm_vendor_neighbor_report.
  * @IWL_MVM_VENDOR_ATTR_LAST_MSG: Indicates that this message is the last one
  *	in the series of messages. (flag)
  * @IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE: SAR table idx for chain A.
@@ -715,9 +756,30 @@ enum iwl_vendor_sar_per_chain_geo_table {
  *	This is a u8.
  * @IWL_MVM_VENDOR_ATTR_SAR_ENABLED_PROFILE_NUM: number of enabled SAR profile
  *	This is a u8.
+ * @IWL_MVM_VENDOR_ATTR_SSID: SSID (binary attribute, 0..32 octets)
+ * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_LCI: Flag attribute specifying that the
+ *	neighbor request shall query for LCI information.
+ * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_CIVIC: Flag attribute specifying that the
+ *	neighbor request shall query for CIVIC information.
+ * @IWL_MVM_VENDOR_ATTR_NEIGHBOR_REPORT: A list of neighbor APs as received in a
+ *	neighbor report frame. Each AP is a nested attribute of
+ *	&enum iwl_mvm_vendor_neighbor_report.
  * @IWL_MVM_VENDOR_ATTR_SAR_GEO_PROFILE: geo profile info.
  *	see &enum iwl_vendor_sar_per_chain_geo_table.
- *
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_SHA: data vector for FIPS SHA test.
+ *	&enum iwl_vendor_fips_test_vector_sha.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC: data vector for FIPS HMAC test.
+ *	&enum iwl_vendor_fips_test_vector_hmac_kdf.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF: data vector for FIPS KDF test.
+ *	&enum iwl_vendor_fips_test_vector_hmac_kdf.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT: FIPS test result. Contains the
+ *	output of the requested function.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES: data vector for FIPS AES HW
+ *	test. &enum iwl_vendor_fips_test_vector_hw.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM: data vector for FIPS CCM HW
+ *	test. &enum iwl_vendor_fips_test_vector_hw.
+ * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM: data vector for FIPS GCM HW
+ *	test. &enum iwl_vendor_fips_test_vector_hw.
  */
 enum iwl_mvm_vendor_attr {
 	__IWL_MVM_VENDOR_ATTR_INVALID,
@@ -772,9 +834,6 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_CHANNEL_WIDTH,
 	IWL_MVM_VENDOR_ATTR_CENTER_FREQ1,
 	IWL_MVM_VENDOR_ATTR_CENTER_FREQ2,
-	IWL_MVM_VENDOR_ATTR_LQM_DURATION,
-	IWL_MVM_VENDOR_ATTR_LQM_TIMEOUT,
-	IWL_MVM_VENDOR_ATTR_LQM_RESULT,
 	IWL_MVM_VENDOR_ATTR_GSCAN_REPORT_THRESHOLD_NUM,
 	IWL_MVM_VENDOR_ATTR_GSCAN_CACHED_RESULTS,
 	IWL_MVM_VENDOR_ATTR_LAST_MSG,
@@ -786,6 +845,13 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_NEIGHBOR_CIVIC,
 	IWL_MVM_VENDOR_ATTR_NEIGHBOR_REPORT,
 	IWL_MVM_VENDOR_ATTR_SAR_GEO_PROFILE,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_SHA,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HMAC,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_KDF,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM,
+	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,

@@ -261,7 +261,10 @@ static ssize_t iwl_dbgfs_mac_params_read(struct file *file,
 	case NL80211_IFTYPE_P2P_DEVICE:
 		pos += scnprintf(buf+pos, bufsz-pos, "type: p2p dev\n");
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	case NL80211_IFTYPE_NAN:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		pos += scnprintf(buf+pos, bufsz-pos, "type: NAN\n");
 		break;
 	default:
@@ -861,6 +864,24 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 		goto out;
 	}
 
+	data = iwl_dbgfs_is_match("common_calib=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.range_req.common_calib =
+				cpu_to_le16(value);
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("specific_calib=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.range_req.specific_calib =
+				cpu_to_le16(value);
+		goto out;
+	}
+
 	data = iwl_dbgfs_is_match("ap=", buf);
 	if (data) {
 		struct iwl_tof_range_req_ap_entry ap = {};
@@ -944,6 +965,10 @@ static ssize_t iwl_dbgfs_tof_range_request_read(struct file *file,
 			 cmd->macaddr_template);
 	pos += scnprintf(buf + pos, bufsz - pos, "macaddr_mask= %pM\n",
 			 cmd->macaddr_mask);
+	pos += scnprintf(buf + pos, bufsz - pos, "common_calib= %d\n",
+			 le16_to_cpu(cmd->common_calib));
+	pos += scnprintf(buf + pos, bufsz - pos, "specific_calib= %d\n",
+			 le16_to_cpu(cmd->specific_calib));
 	pos += scnprintf(buf + pos, bufsz - pos, "num_of_ap= %d\n",
 			 cmd->num_of_ap);
 	for (i = 0; i < cmd->num_of_ap; i++) {
@@ -1412,7 +1437,6 @@ static ssize_t iwl_dbgfs_low_latency_write(struct ieee80211_vif *vif, char *buf,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm *mvm = mvmvif->mvm;
-	bool prev;
 	u8 value;
 	int ret;
 
@@ -1423,9 +1447,7 @@ static ssize_t iwl_dbgfs_low_latency_write(struct ieee80211_vif *vif, char *buf,
 		return -EINVAL;
 
 	mutex_lock(&mvm->mutex);
-	prev = iwl_mvm_vif_low_latency(mvmvif);
-	mvmvif->low_latency_dbgfs = value;
-	iwl_mvm_update_low_latency(mvm, vif, prev);
+	iwl_mvm_update_low_latency(mvm, vif, value, LOW_LATENCY_DEBUGFS);
 	mutex_unlock(&mvm->mutex);
 
 	return count;
@@ -1442,9 +1464,9 @@ static ssize_t iwl_dbgfs_low_latency_read(struct file *file,
 
 	len = scnprintf(buf, sizeof(buf) - 1,
 			"traffic=%d\ndbgfs=%d\nvcmd=%d\n",
-			mvmvif->low_latency_traffic,
-			mvmvif->low_latency_dbgfs,
-			mvmvif->low_latency_vcmd);
+			!!(mvmvif->low_latency & LOW_LATENCY_TRAFFIC),
+			!!(mvmvif->low_latency & LOW_LATENCY_DEBUGFS),
+			!!(mvmvif->low_latency & LOW_LATENCY_VCMD));
 	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
 }
 
@@ -1591,80 +1613,6 @@ static const char * const chanwidths[] = {
 	[NL80211_CHAN_WIDTH_160] = "vht160",
 };
 
-static bool iwl_mvm_lqm_notif_wait(struct iwl_notif_wait_data *notif_wait,
-				   struct iwl_rx_packet *pkt, void *data)
-{
-	struct ieee80211_vif *vif = data;
-	struct iwl_mvm *mvm =
-		container_of(notif_wait, struct iwl_mvm, notif_wait);
-	struct iwl_link_qual_msrmnt_notif *report = (void *)pkt->data;
-	u32 num_of_stations = le32_to_cpu(report->number_of_stations);
-	int i;
-
-	IWL_INFO(mvm, "LQM report:\n");
-	IWL_INFO(mvm, "\tstatus: %d\n", report->status);
-	IWL_INFO(mvm, "\tmacID: %d\n", le32_to_cpu(report->mac_id));
-	IWL_INFO(mvm, "\ttx_frame_dropped: %d\n",
-		 le32_to_cpu(report->tx_frame_dropped));
-	IWL_INFO(mvm, "\ttime_in_measurement_window: %d us\n",
-		 le32_to_cpu(report->time_in_measurement_window));
-	IWL_INFO(mvm, "\ttotal_air_time_other_stations: %d\n",
-		 le32_to_cpu(report->total_air_time_other_stations));
-	IWL_INFO(mvm, "\tchannel_freq: %d\n",
-		 vif->bss_conf.chandef.center_freq1);
-	IWL_INFO(mvm, "\tchannel_width: %s\n",
-		 chanwidths[vif->bss_conf.chandef.width]);
-	IWL_INFO(mvm, "\tnumber_of_stations: %d\n", num_of_stations);
-	for (i = 0; i < num_of_stations; i++)
-		IWL_INFO(mvm, "\t\tsta[%d]: %d\n", i,
-			 report->frequent_stations_air_time[i]);
-
-	return true;
-}
-
-static ssize_t iwl_dbgfs_lqm_send_cmd_write(struct ieee80211_vif *vif,
-					    char *buf, size_t count,
-					    loff_t *ppos)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	struct iwl_notification_wait wait_lqm_notif;
-	static u16 lqm_notif[] = {
-		WIDE_ID(MAC_CONF_GROUP,
-			LINK_QUALITY_MEASUREMENT_COMPLETE_NOTIF)
-	};
-	int err;
-	u32 duration;
-	u32 timeout;
-
-	if (sscanf(buf, "%d,%d", &duration, &timeout) != 2)
-		return -EINVAL;
-
-	iwl_init_notification_wait(&mvm->notif_wait, &wait_lqm_notif,
-				   lqm_notif, ARRAY_SIZE(lqm_notif),
-				   iwl_mvm_lqm_notif_wait, vif);
-	mutex_lock(&mvm->mutex);
-	err = iwl_mvm_send_lqm_cmd(vif, LQM_CMD_OPERATION_START_MEASUREMENT,
-				   duration, timeout);
-	mutex_unlock(&mvm->mutex);
-
-	if (err) {
-		IWL_ERR(mvm, "Failed to send lqm cmdf(err=%d)\n", err);
-		iwl_remove_notification(&mvm->notif_wait, &wait_lqm_notif);
-		return err;
-	}
-
-	/* wait for 2 * timeout (safety guard) and convert to jiffies*/
-	timeout = msecs_to_jiffies((timeout * 2) / 1000);
-
-	err = iwl_wait_notification(&mvm->notif_wait, &wait_lqm_notif,
-				    timeout);
-	if (err)
-		IWL_ERR(mvm, "Getting lqm notif timed out\n");
-
-	return count;
-}
-
 #define MVM_DEBUGFS_WRITE_FILE_OPS(name, bufsz) \
 	_MVM_DEBUGFS_WRITE_FILE_OPS(name, bufsz, struct ieee80211_vif)
 #define MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz) \
@@ -1694,7 +1642,6 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_range_abort, 32);
 MVM_DEBUGFS_READ_FILE_OPS(tof_range_response);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_responder_params, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(quota_min, 32);
-MVM_DEBUGFS_WRITE_FILE_OPS(lqm_send_cmd, 64);
 MVM_DEBUGFS_READ_FILE_OPS(os_device_timediff);
 
 
@@ -1740,7 +1687,6 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 				 S_IRUSR | S_IWUSR);
 	MVM_DEBUGFS_ADD_FILE_VIF(quota_min, mvmvif->dbgfs_dir,
 				 S_IRUSR | S_IWUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(lqm_send_cmd, mvmvif->dbgfs_dir, S_IWUSR);
 	MVM_DEBUGFS_ADD_FILE_VIF(os_device_timediff,
 				 mvmvif->dbgfs_dir, S_IRUSR);
 
@@ -1751,7 +1697,7 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TOF_SUPPORT) &&
 	    !vif->p2p && (vif->type != NL80211_IFTYPE_P2P_DEVICE) &&
-	    (vif->type != NL80211_IFTYPE_NAN)) {
+	    (!ieee80211_viftype_nan(vif->type))) {
 		if (IWL_MVM_TOF_IS_RESPONDER && vif->type == NL80211_IFTYPE_AP)
 			MVM_DEBUGFS_ADD_FILE_VIF(tof_responder_params,
 						 mvmvif->dbgfs_dir,

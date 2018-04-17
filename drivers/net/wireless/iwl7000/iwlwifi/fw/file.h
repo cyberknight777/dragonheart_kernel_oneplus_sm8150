@@ -7,7 +7,7 @@
  *
  * Copyright(c) 2008 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright(c) 2016        Intel Deutschland GmbH
+ * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -34,7 +34,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright(c) 2016        Intel Deutschland GmbH
+ * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -136,13 +136,18 @@ enum iwl_ucode_tlv_type {
 	IWL_UCODE_TLV_N_SCAN_CHANNELS		= 31,
 	IWL_UCODE_TLV_PAGING		= 32,
 	IWL_UCODE_TLV_SEC_RT_USNIFFER	= 34,
-	IWL_UCODE_TLV_SDIO_ADMA_ADDR	= 35,
+	/* 35 is unused */
 	IWL_UCODE_TLV_FW_VERSION	= 36,
 	IWL_UCODE_TLV_FW_DBG_DEST	= 38,
 	IWL_UCODE_TLV_FW_DBG_CONF	= 39,
 	IWL_UCODE_TLV_FW_DBG_TRIGGER	= 40,
 	IWL_UCODE_TLV_FW_GSCAN_CAPA	= 50,
 	IWL_UCODE_TLV_FW_MEM_SEG	= 51,
+	/* 52 is unused */
+	IWL_UCODE_TLV_FW_FMAC_API_VERSION	= 53,
+
+	/* TLVs 0x1000-0x2000 are for internal driver usage */
+	IWL_UCODE_TLV_FW_DBG_DUMP_LST	= 0x1000,
 };
 
 struct iwl_ucode_tlv {
@@ -247,8 +252,14 @@ typedef unsigned int __bitwise iwl_ucode_tlv_api_t;
  * @IWL_UCODE_TLV_API_STA_TYPE: This ucode supports station type assignement.
  * @IWL_UCODE_TLV_API_NAN2_VER2: This ucode supports NAN API version 2
  * @IWL_UCODE_TLV_API_NEW_RX_STATS: should new RX STATISTICS API be used
- * @IWL_UCODE_TLV_API_ATS_COEX_EXTERNAL: the coex notification is enlared to
- *	include information about ACL time sharing.
+ * @IWL_UCODE_TLV_API_QUOTA_LOW_LATENCY: Quota command includes a field
+ *	indicating low latency direction.
+ * @IWL_UCODE_TLV_API_DEPRECATE_TTAK: RX status flag TTAK ok (bit 7) is
+ *	deprecated.
+ * @IWL_UCODE_TLV_API_ADAPTIVE_DWELL_V2: This ucode supports version 8
+ *	of scan request: SCAN_REQUEST_CMD_UMAC_API_S_VER_8
+ * IWL_UCODE_TLV_API_NAN_NOTIF_V2: This ucode support version 2 of the NAN
+ *      discovery notification.
  *
  * @NUM_IWL_UCODE_TLV_API: number of bits used
  */
@@ -267,7 +278,10 @@ enum iwl_ucode_tlv_api {
 	IWL_UCODE_TLV_API_OCE			= (__force iwl_ucode_tlv_api_t)33,
 	IWL_UCODE_TLV_API_NEW_BEACON_TEMPLATE	= (__force iwl_ucode_tlv_api_t)34,
 	IWL_UCODE_TLV_API_NEW_RX_STATS		= (__force iwl_ucode_tlv_api_t)35,
-	IWL_UCODE_TLV_API_COEX_ATS_EXTERNAL	= (__force iwl_ucode_tlv_api_t)37,
+	IWL_UCODE_TLV_API_QUOTA_LOW_LATENCY	= (__force iwl_ucode_tlv_api_t)38,
+	IWL_UCODE_TLV_API_DEPRECATE_TTAK	= (__force iwl_ucode_tlv_api_t)41,
+	IWL_UCODE_TLV_API_ADAPTIVE_DWELL_V2	= (__force iwl_ucode_tlv_api_t)42,
+	IWL_UCODE_TLV_API_NAN_NOTIF_V2		= (__force iwl_ucode_tlv_api_t)43,
 
 	NUM_IWL_UCODE_TLV_API
 #ifdef __CHECKER__
@@ -318,6 +332,8 @@ typedef unsigned int __bitwise iwl_ucode_tlv_capa_t;
  * @IWL_UCODE_TLV_CAPA_SOC_LATENCY_SUPPORT: the firmware supports setting
  *	stabilization latency for SoCs.
  * @IWL_UCODE_TLV_CAPA_STA_PM_NOTIF: firmware will send STA PM notification
+ * @IWL_UCODE_TLV_CAPA_TLC_OFFLOAD: firmware implements rate scaling algorithm
+ * @IWL_UCODE_TLV_CAPA_DYNAMIC_QUOTA: firmware implements quota related
  * @IWL_UCODE_TLV_CAPA_EXTENDED_DTS_MEASURE: extended DTS measurement
  * @IWL_UCODE_TLV_CAPA_SHORT_PM_TIMEOUTS: supports short PM timeouts
  * @IWL_UCODE_TLV_CAPA_BT_MPLUT_SUPPORT: supports bt-coex Multi-priority LUT
@@ -340,11 +356,17 @@ typedef unsigned int __bitwise iwl_ucode_tlv_capa_t;
  * @IWL_UCODE_TLV_CAPA_LQM_SUPPORT: supports Link Quality Measurement
  * @IWL_UCODE_TLV_CAPA_LMAC_UPLOAD: supports upload mode in lmac (1=supported,
  *	0=no support)
+#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
+ * @IWL_UCODE_TLV_CAPA_AX_SAP_TM_V2: support 11ax softap testmode APIs version 2
+#endif
  * @IWL_UCODE_TLV_CAPA_TX_POWER_ACK: reduced TX power API has larger
  *	command size (command version 4) that supports toggling ACK TX
  *	power reduction.
+#ifdef CPTCFG_IWLMVM_AX_SOFTAP_TESTMODE
  * @IWL_UCODE_TLV_CAPA_AX_SAP_TM: support 11ax softap testmode APIs
+#endif
  * @IWL_UCODE_TLV_CAPA_MLME_OFFLOAD: supports MLME offload
+ * @IWL_UCODE_TLV_CAPA_D3_DEBUG: supports debug recording during D3
  *
  * @NUM_IWL_UCODE_TLV_CAPA: number of bits used
  */
@@ -379,6 +401,8 @@ enum iwl_ucode_tlv_capa {
 	IWL_UCODE_TLV_CAPA_BINDING_CDB_SUPPORT		= (__force iwl_ucode_tlv_capa_t)39,
 	IWL_UCODE_TLV_CAPA_CDB_SUPPORT			= (__force iwl_ucode_tlv_capa_t)40,
 	IWL_UCODE_TLV_CAPA_D0I3_END_FIRST		= (__force iwl_ucode_tlv_capa_t)41,
+	IWL_UCODE_TLV_CAPA_TLC_OFFLOAD                  = (__force iwl_ucode_tlv_capa_t)43,
+	IWL_UCODE_TLV_CAPA_DYNAMIC_QUOTA                = (__force iwl_ucode_tlv_capa_t)44,
 	IWL_UCODE_TLV_CAPA_EXTENDED_DTS_MEASURE		= (__force iwl_ucode_tlv_capa_t)64,
 	IWL_UCODE_TLV_CAPA_SHORT_PM_TIMEOUTS		= (__force iwl_ucode_tlv_capa_t)65,
 	IWL_UCODE_TLV_CAPA_BT_MPLUT_SUPPORT		= (__force iwl_ucode_tlv_capa_t)67,
@@ -395,7 +419,8 @@ enum iwl_ucode_tlv_capa {
 	IWL_UCODE_TLV_CAPA_EXTEND_SHARED_MEM_CFG	= (__force iwl_ucode_tlv_capa_t)80,
 	IWL_UCODE_TLV_CAPA_LQM_SUPPORT			= (__force iwl_ucode_tlv_capa_t)81,
 	IWL_UCODE_TLV_CAPA_TX_POWER_ACK			= (__force iwl_ucode_tlv_capa_t)84,
-	IWL_UCODE_TLV_CAPA_AX_SAP_TM			= (__force iwl_ucode_tlv_capa_t)85,
+	IWL_UCODE_TLV_CAPA_LED_CMD_SUPPORT		= (__force iwl_ucode_tlv_capa_t)86,
+	IWL_UCODE_TLV_CAPA_D3_DEBUG			= (__force iwl_ucode_tlv_capa_t)87,
 	IWL_UCODE_TLV_CAPA_MLME_OFFLOAD			= (__force iwl_ucode_tlv_capa_t)96,
 
 	NUM_IWL_UCODE_TLV_CAPA
@@ -450,6 +475,7 @@ enum iwl_fw_phy_cfg {
 	FW_PHY_CFG_TX_CHAIN = 0xf << FW_PHY_CFG_TX_CHAIN_POS,
 	FW_PHY_CFG_RX_CHAIN_POS = 20,
 	FW_PHY_CFG_RX_CHAIN = 0xf << FW_PHY_CFG_RX_CHAIN_POS,
+	FW_PHY_CFG_SHARED_CLK = BIT(31),
 };
 
 #define IWL_UCODE_MAX_CS		1
@@ -554,7 +580,7 @@ struct iwl_fw_dbg_mem_seg_tlv {
 } __packed;
 
 /**
- * struct iwl_fw_dbg_dest_tlv - configures the destination of the debug data
+ * struct iwl_fw_dbg_dest_tlv_v1 - configures the destination of the debug data
  *
  * @version: version of the TLV - currently 0
  * @monitor_mode: &enum iwl_fw_dbg_monitor_mode
@@ -569,7 +595,7 @@ struct iwl_fw_dbg_mem_seg_tlv {
  *
  * This parses IWL_UCODE_TLV_FW_DBG_DEST
  */
-struct iwl_fw_dbg_dest_tlv {
+struct iwl_fw_dbg_dest_tlv_v1 {
 	u8 version;
 	u8 monitor_mode;
 	u8 size_power;
@@ -580,6 +606,26 @@ struct iwl_fw_dbg_dest_tlv {
 	__le32 wrap_count;
 	u8 base_shift;
 	u8 end_shift;
+	struct iwl_fw_dbg_reg_op reg_ops[0];
+} __packed;
+
+/* Mask of the register for defining the LDBG MAC2SMEM buffer SMEM size */
+#define IWL_LDBG_M2S_BUF_SIZE_MSK	0x0fff0000
+/* Mask of the register for defining the LDBG MAC2SMEM SMEM base address */
+#define IWL_LDBG_M2S_BUF_BA_MSK		0x00000fff
+/* The smem buffer chunks are in units of 256 bits */
+#define IWL_M2S_UNIT_SIZE			0x100
+
+struct iwl_fw_dbg_dest_tlv {
+	u8 version;
+	u8 monitor_mode;
+	u8 size_power;
+	u8 reserved;
+	__le32 cfg_reg;
+	__le32 write_ptr_reg;
+	__le32 wrap_count;
+	u8 base_shift;
+	u8 size_shift;
 	struct iwl_fw_dbg_reg_op reg_ops[0];
 } __packed;
 
@@ -605,6 +651,14 @@ enum iwl_fw_dbg_trigger_mode {
 };
 
 /**
+ * enum iwl_fw_dbg_trigger_flags - the flags supported by wrt triggers
+ * @IWL_FW_DBG_FORCE_RESTART: force a firmware restart
+ */
+enum iwl_fw_dbg_trigger_flags {
+	IWL_FW_DBG_FORCE_RESTART = BIT(0),
+};
+
+/**
  * enum iwl_fw_dbg_trigger_vif_type - define the VIF type for a trigger
  * @IWL_FW_DBG_CONF_VIF_ANY: any vif type
  * @IWL_FW_DBG_CONF_VIF_IBSS: IBSS mode
@@ -623,7 +677,9 @@ enum iwl_fw_dbg_trigger_vif_type {
 	IWL_FW_DBG_CONF_VIF_P2P_CLIENT = NL80211_IFTYPE_P2P_CLIENT,
 	IWL_FW_DBG_CONF_VIF_P2P_GO = NL80211_IFTYPE_P2P_GO,
 	IWL_FW_DBG_CONF_VIF_P2P_DEVICE = NL80211_IFTYPE_P2P_DEVICE,
+#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
 	IWL_FW_DBG_CONF_VIF_NAN = NL80211_IFTYPE_NAN,
+#endif
 };
 
 /**
@@ -642,6 +698,7 @@ enum iwl_fw_dbg_trigger_vif_type {
  * @occurrences: number of occurrences. 0 means the trigger will never fire.
  * @trig_dis_ms: the time, in milliseconds, after an occurrence of this
  *	trigger in which another occurrence should be ignored.
+ * @flags: &enum iwl_fw_dbg_trigger_flags
  */
 struct iwl_fw_dbg_trigger_tlv {
 	__le32 id;
@@ -652,7 +709,8 @@ struct iwl_fw_dbg_trigger_tlv {
 	u8 start_conf_id;
 	__le16 occurrences;
 	__le16 trig_dis_ms;
-	__le16 reserved[3];
+	u8 flags;
+	u8 reserved[5];
 
 	u8 data[0];
 } __packed;

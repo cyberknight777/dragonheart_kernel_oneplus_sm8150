@@ -1,7 +1,30 @@
+/******************************************************************************
+ *
+ * Copyright(c) 2018 Intel Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of version 2 of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ *
+ * The full GNU General Public License is included in this distribution in the
+ * file called LICENSE.
+ *
+ * Contact Information:
+ *  Intel Linux Wireless <linuxwifi@intel.com>
+ * Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
+ *
+ *****************************************************************************/
 #ifndef __IWL_CHROME_CONFIG
 #define __IWL_CHROME_CONFIG
-#define CPTCFG_CFG80211_DEBUGFS 1
-#define CPTCFG_CFG80211_MODULE 1
 /* This must match the CPTCFG_* symbols defined in the Makefile */
 #define CPTCFG_MAC80211_MODULE 1
 #define CPTCFG_MAC80211_LEDS 1
@@ -11,7 +34,6 @@
 #define CPTCFG_IWLWIFI_MODULE 1
 #define CPTCFG_IWLMVM_MODULE 1
 #define CPTCFG_IWLWIFI_OPMODE_MODULAR 1
-#define CPTCFG_IWLWIFI_PCIE 1
 #define CPTCFG_IWLWIFI_DEBUG 1
 #define CPTCFG_IWLWIFI_NUM_CHANNELS 1
 #define CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES 1
@@ -43,7 +65,15 @@
 #define CPTCFG_IWLXVT_MODULE 1
 #endif
 
-#ifdef CONFIG_IWL7000_VENDOR_CMDS
+/* cfg80211 version specific backward compat code follows */
+#ifdef CONFIG_WIRELESS_38
+#define CFG80211_VERSION KERNEL_VERSION(3,8,0)
+#else
+#define CFG80211_VERSION LINUX_VERSION_CODE
+#endif
+
+#if defined(CONFIG_IWL7000_VENDOR_CMDS) && \
+	(CFG80211_VERSION >= KERNEL_VERSION(3, 14, 0))
 #define CPTCFG_IWLMVM_VENDOR_CMDS 1
 #endif
 
