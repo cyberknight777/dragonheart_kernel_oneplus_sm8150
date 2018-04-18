@@ -553,7 +553,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NUM_NL80211_IFTYPES:
 	case NL80211_IFTYPE_P2P_CLIENT:
 	case NL80211_IFTYPE_P2P_GO:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 	case NL80211_IFTYPE_NAN_DATA:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
@@ -1565,7 +1565,7 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NUM_NL80211_IFTYPES:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 	case NL80211_IFTYPE_NAN_DATA:
 		/* keep code in case of fall-through (spatch generated) */
 #endif

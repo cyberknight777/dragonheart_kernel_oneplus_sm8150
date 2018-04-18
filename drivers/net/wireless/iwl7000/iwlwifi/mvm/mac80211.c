@@ -579,7 +579,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		hw->wiphy->n_cipher_suites++;
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 	/* Basic support of FTM is limited to driver/FW, so this flag should be
 	 * set (depending on capbilities specified in TLV).
 	 */
@@ -4677,7 +4677,7 @@ iwl_mvm_mac_start_ftm_responder(struct ieee80211_hw *hw,
 	return ret;
 }
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 static int
 iwl_mvm_mac_get_ftm_responder_stats(struct ieee80211_hw *hw,
 				    struct ieee80211_vif *vif,
@@ -4786,7 +4786,7 @@ const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.perform_ftm = iwl_mvm_perform_ftm,
 	.abort_ftm = iwl_mvm_abort_ftm,
 	.start_ftm_responder = iwl_mvm_mac_start_ftm_responder,
-#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 	.get_ftm_responder_stats = iwl_mvm_mac_get_ftm_responder_stats,
 #endif
 

@@ -2012,7 +2012,7 @@ static void sta_stats_decode_rate(struct ieee80211_local *local, u32 rate,
 		break;
 		}
 	case STA_STATS_RATE_TYPE_HE:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 		rinfo->flags |= RATE_INFO_FLAGS_HE_MCS;
 		rinfo->mcs = STA_STATS_GET(HE_MCS, rate);
 		rinfo->nss = STA_STATS_GET(HE_NSS, rate);
