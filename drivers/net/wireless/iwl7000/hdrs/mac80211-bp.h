@@ -1316,7 +1316,7 @@ cfg80211_inform_bss_frame_data(struct wiphy *wiphy,
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,4,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not really on the way upstream yet */
 #define WIPHY_FLAG_HAS_FTM_RESPONDER 0
 
@@ -1505,7 +1505,7 @@ struct cfg80211_msrment_request {
 		struct cfg80211_ftm_request ftm;
 	} u;
 };
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,99,0) */
+#endif /* CFG80211_VERSION < KERNEL_VERSION(99,0,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 #define mon_opts_flags(p)	flags
@@ -1640,7 +1640,7 @@ bool ieee80211_has_nan_iftype(unsigned int iftype)
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,9,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 #define nan_conf_cdw_2g(conf) 1
 #define nan_conf_cdw_5g(conf) 1
 #else
@@ -2308,7 +2308,7 @@ reg_query_regdb_wmm(char *alpha2, int freq, u32 *ptr,
 }
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not yet upstream */
 static inline bool ieee80211_viftype_nan_data(unsigned int iftype)
 {
@@ -2321,7 +2321,7 @@ static inline bool ieee80211_has_nan_data_iftype(unsigned int iftype)
 }
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not yet upstream */
 static inline int
 cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
