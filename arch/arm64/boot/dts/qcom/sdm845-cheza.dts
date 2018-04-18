@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Google Cheza board device tree source
+ *
+ * Copyright 2018 Google LLC.
+ */
+
+/dts-v1/;
+
+#include "sdm845.dtsi"
+
+/ {
+	model = "Google Cheza";
+	compatible = "google,cheza-rev15", "google,cheza-rev14",
+		     "google,cheza-rev13", "google,cheza-rev12",
+		     "google,cheza-rev11", "google,cheza-rev10",
+		     "google,cheza-rev9", "google,cheza-rev8",
+		     "google,cheza-rev7", "google,cheza-rev6",
+		     "google,cheza-rev5", "google,cheza-rev4",
+		     "google,cheza-rev3", "google,cheza-rev2",
+		     "google,cheza-rev1", "google,cheza-rev0",
+		     "google,cheza", "qcom,sdm845";
+
+	aliases {
+		serial0 = &uart2;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&soc {
+	geniqup@ac0000 {
+		status = "okay";
+
+		serial@a84000 {
+			status = "okay";
+		};
+	};
+
+	pinctrl@3400000 {
+		qup-uart2-default {
+			pinconf-tx {
+				pins = "gpio4";
+				drive-strength = <2>;
+				bias-disable;
+			};
+
+			pinconf-rx {
+				pins = "gpio5";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+
+		qup-uart2-sleep {
+			pinconf {
+				pins = "gpio4", "gpio5";
+				bias-pull-down;
+			};
+		};
+	};
+};
