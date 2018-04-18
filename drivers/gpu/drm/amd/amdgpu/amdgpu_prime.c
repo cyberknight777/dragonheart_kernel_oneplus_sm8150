@@ -170,7 +170,7 @@ static int amdgpu_gem_begin_cpu_access(struct dma_buf *dma_buf,
 {
 	struct amdgpu_bo *bo = gem_to_amdgpu_bo(dma_buf->priv);
 	struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
-	u32 domain = amdgpu_display_framebuffer_domains(adev);
+	u32 domain = amdgpu_display_supported_domains(adev);
 	int ret;
 	bool reads = (direction == DMA_BIDIRECTIONAL ||
 		      direction == DMA_FROM_DEVICE);
