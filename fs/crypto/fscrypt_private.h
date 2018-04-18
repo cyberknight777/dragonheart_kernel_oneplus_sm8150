@@ -83,7 +83,6 @@ struct fscrypt_completion_result {
 /* crypto.c */
 extern struct kmem_cache *fscrypt_info_cachep;
 extern int fscrypt_initialize(unsigned int cop_flags);
-extern struct workqueue_struct *fscrypt_read_workqueue;
 extern int fscrypt_do_page_crypto(const struct inode *inode,
 				  fscrypt_direction_t rw, u64 lblk_num,
 				  struct page *src_page,
