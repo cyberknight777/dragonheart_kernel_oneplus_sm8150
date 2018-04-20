@@ -2687,6 +2687,7 @@ static void amdgpu_dm_connector_destroy(struct drm_connector *connector)
 	const struct dc_link *link = aconnector->dc_link;
 	struct amdgpu_device *adev = connector->dev->dev_private;
 	struct amdgpu_display_manager *dm = &adev->dm;
+
 #if defined(CONFIG_BACKLIGHT_CLASS_DEVICE) ||\
 	defined(CONFIG_BACKLIGHT_CLASS_DEVICE_MODULE)
 
@@ -4656,7 +4657,7 @@ static int dm_update_crtcs_state(struct dc *dc,
 		if (aconnector && enable) {
 			// Make sure fake sink is created in plug-in scenario
 			drm_new_conn_state = drm_atomic_get_new_connector_state(state,
- 								    &aconnector->base);
+								    &aconnector->base);
 			drm_old_conn_state = drm_atomic_get_old_connector_state(state,
 								    &aconnector->base);
 
