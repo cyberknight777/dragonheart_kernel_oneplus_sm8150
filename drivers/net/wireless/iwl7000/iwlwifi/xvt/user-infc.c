@@ -1287,7 +1287,7 @@ static struct sk_buff *iwl_xvt_create_fragment_skb(struct iwl_xvt *xvt,
 
 	/* copy frame payload into skb */
 	memcpy(skb_put(skb, payload_chunck_size),
-	       &payload[offset],
+	       &payload->payload[offset],
 	       payload_chunck_size);
 
 	return skb;
