@@ -107,13 +107,15 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 	struct iwl_umac_alive *umac;
 	u32 rx_packet_payload_size = iwl_rx_packet_payload_len(pkt);
 	u16 status, flags;
+	u32 lmac_error_event_table, umac_error_event_table;
+
 	xvt->support_umac_log = false;
 
 	if (rx_packet_payload_size == sizeof(*palive2)) {
 
 		palive2 = (void *)pkt->data;
 
-		xvt->error_event_table[0] =
+		lmac_error_event_table =
 			le32_to_cpu(palive2->error_event_table_ptr);
 		alive_data->scd_base_addr = le32_to_cpu(palive2->scd_base_ptr);
 
@@ -121,9 +123,9 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 				    IWL_ALIVE_STATUS_OK;
 		iwl_tm_set_fw_ver(xvt->trans, palive2->ucode_major,
 				  palive2->ucode_minor);
-		xvt->umac_error_event_table =
+		umac_error_event_table =
 			le32_to_cpu(palive2->error_info_addr);
-		if (xvt->umac_error_event_table)
+		if (umac_error_event_table)
 			xvt->support_umac_log = true;
 
 		IWL_DEBUG_FW(xvt,
@@ -145,14 +147,17 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 
 			IWL_DEBUG_FW(xvt, "Alive VER3\n");
 		} else if (rx_packet_payload_size == sizeof(*palive4)) {
+			__le32 lmac2_err_ptr;
+
 			palive4 = (void *)pkt->data;
 			status = le16_to_cpu(palive4->status);
 			flags = le16_to_cpu(palive4->flags);
 			lmac1 = &palive4->lmac_data[0];
 			lmac2 = &palive4->lmac_data[1];
 			umac = &palive4->umac_data;
-			xvt->error_event_table[1] =
-				le32_to_cpu(lmac2->error_event_table_ptr);
+			lmac2_err_ptr = lmac2->dbg_ptrs.error_event_table_ptr;
+			xvt->trans->lmac_error_event_table[1] =
+				le32_to_cpu(lmac2_err_ptr);
 
 			IWL_DEBUG_FW(xvt, "Alive VER4 CDB\n");
 		} else {
@@ -161,14 +166,15 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		}
 
 		alive_data->valid = status == IWL_ALIVE_STATUS_OK;
-		xvt->error_event_table[0] =
-			le32_to_cpu(lmac1->error_event_table_ptr);
-		alive_data->scd_base_addr = le32_to_cpu(lmac1->scd_base_ptr);
+		lmac_error_event_table =
+			le32_to_cpu(lmac1->dbg_ptrs.error_event_table_ptr);
+		alive_data->scd_base_addr =
+			le32_to_cpu(lmac1->dbg_ptrs.scd_base_ptr);
 		iwl_tm_set_fw_ver(xvt->trans, le32_to_cpu(lmac1->ucode_major),
 				  le32_to_cpu(lmac1->ucode_minor));
-		xvt->umac_error_event_table =
-			le32_to_cpu(umac->error_info_addr);
-		if (xvt->umac_error_event_table)
+		umac_error_event_table =
+			le32_to_cpu(umac->dbg_ptrs.error_info_addr);
+		if (umac_error_event_table)
 			xvt->support_umac_log = true;
 
 		IWL_DEBUG_FW(xvt,
@@ -179,6 +185,11 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 			     "UMAC version: Major - 0x%x, Minor - 0x%x\n",
 			     umac->umac_major, umac->umac_minor);
 	}
+
+	iwl_fw_lmac1_set_alive_err_table(xvt->trans, lmac_error_event_table);
+	if (xvt->support_umac_log)
+		iwl_fw_umac_set_alive_err_table(xvt->trans,
+						umac_error_event_table);
 
 	return true;
 }

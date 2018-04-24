@@ -238,6 +238,12 @@ enum iwl_hcmd_dataflag {
 	IWL_HCMD_DFL_DUP	= BIT(1),
 };
 
+enum iwl_error_event_table_status {
+	IWL_ERROR_EVENT_TABLE_LMAC1 = BIT(0),
+	IWL_ERROR_EVENT_TABLE_LMAC2 = BIT(1),
+	IWL_ERROR_EVENT_TABLE_UMAC = BIT(2),
+};
+
 /**
  * struct iwl_host_cmd - Host command to the uCode
  *
@@ -767,6 +773,10 @@ struct iwl_self_init_dram {
  *	mode is set during the initialization phase and is not
  *	supposed to change during runtime.
  * @dbg_rec_on: true iff there is a fw debug recording currently active
+ * @lmac_error_event_table: addrs of lmacs error tables
+ * @umac_error_event_table: addr of umac error table
+ * @error_event_table_tlv_status: bitmap that indicates what error table
+ *	pointers was recevied via TLV. use enum &iwl_error_event_table_status
  */
 struct iwl_trans {
 	const struct iwl_trans_ops *ops;
@@ -833,6 +843,10 @@ struct iwl_trans {
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	struct iwl_testmode testmode;
 #endif
+
+	u32 lmac_error_event_table[2];
+	u32 umac_error_event_table;
+	unsigned long error_event_table_tlv_status;
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */

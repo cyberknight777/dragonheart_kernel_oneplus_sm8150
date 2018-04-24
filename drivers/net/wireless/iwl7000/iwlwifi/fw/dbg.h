@@ -440,6 +440,26 @@ void iwl_fw_dbg_collect_sync(struct iwl_fw_runtime *fwrt);
 void iwl_fw_dbg_apply_point(struct iwl_fw_runtime *fwrt,
 			    enum iwl_fw_ini_apply_point apply_point);
 
+static inline void iwl_fw_lmac1_set_alive_err_table(struct iwl_trans *trans,
+						    u32 lmac_error_event_table)
+{
+	if (!(trans->error_event_table_tlv_status &
+	      IWL_ERROR_EVENT_TABLE_LMAC1) ||
+	    WARN_ON(trans->lmac_error_event_table[0] !=
+		    lmac_error_event_table))
+		trans->lmac_error_event_table[0] = lmac_error_event_table;
+}
+
+static inline void iwl_fw_umac_set_alive_err_table(struct iwl_trans *trans,
+						   u32 umac_error_event_table)
+{
+	if (!(trans->error_event_table_tlv_status &
+	      IWL_ERROR_EVENT_TABLE_UMAC) ||
+	    WARN_ON(trans->umac_error_event_table !=
+		    umac_error_event_table))
+		trans->umac_error_event_table = umac_error_event_table;
+}
+
 #endif  /* __iwl_fw_dbg_h__ */
 
 /* This bit is used to differentiate the legacy dump from the ini dump */

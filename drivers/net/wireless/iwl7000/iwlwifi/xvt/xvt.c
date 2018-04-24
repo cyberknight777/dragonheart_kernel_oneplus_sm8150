@@ -642,7 +642,9 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 	p_table = kmemdup(&table_v2, sizeof(table_v2), GFP_ATOMIC);
 	table_size = sizeof(table_v2);
 
-	if (xvt->support_umac_log) {
+	if (xvt->support_umac_log ||
+	    (xvt->trans->error_event_table_tlv_status &
+	     IWL_ERROR_EVENT_TABLE_UMAC)) {
 		iwl_xvt_get_umac_error_log(xvt, &table_umac);
 		iwl_xvt_dump_umac_error_log(xvt, &table_umac);
 		p_table_umac = kmemdup(&table_umac, sizeof(table_umac),

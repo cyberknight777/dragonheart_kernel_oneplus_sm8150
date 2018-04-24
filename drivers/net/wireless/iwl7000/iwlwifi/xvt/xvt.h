@@ -376,9 +376,7 @@ struct iwl_xvt {
 
 	struct iwl_notif_wait_data notif_wait;
 
-	u32 error_event_table[2];
 	bool fw_running;
-	u32 umac_error_event_table;
 	bool support_umac_log;
 
 	struct iwl_sw_stack_config sw_stack_cfg;
