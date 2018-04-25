@@ -34,9 +34,11 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_CMD_VFD_NEW_CTX, /* virtio_wl_ctrl_vfd_new */
 	VIRTIO_WL_CMD_VFD_NEW_PIPE, /* virtio_wl_ctrl_vfd_new */
 	VIRTIO_WL_CMD_VFD_HUP, /* virtio_wl_ctrl_vfd */
+	VIRTIO_WL_CMD_VFD_NEW_DMABUF, /* virtio_wl_ctrl_vfd_new */
 
 	VIRTIO_WL_RESP_OK = 0x1000,
 	VIRTIO_WL_RESP_VFD_NEW = 0x1001, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_RESP_VFD_NEW_DMABUF = 0x1002, /* virtio_wl_ctrl_vfd_new */
 
 	VIRTIO_WL_RESP_ERR = 0x1100,
 	VIRTIO_WL_RESP_OUT_OF_MEMORY,
@@ -73,7 +75,19 @@ struct virtio_wl_ctrl_vfd_new {
 	__le32 vfd_id; /* MSB indicates device allocated vfd */
 	__le32 flags; /* virtio_wl_vfd_flags */
 	__le64 pfn; /* first guest physical page frame number if VFD_MAP */
-	__le32 size; /* size in bytes if VIRTIO_WL_VFD_MAP */
+	__le32 size; /* size in bytes if VIRTIO_WL_CMD_VFD_NEW* */
+	/* buffer description if VIRTIO_WL_CMD_VFD_NEW_DMABUF */
+	struct {
+		__le32 width; /* width in pixels */
+		__le32 height; /* height in pixels */
+		__le32 format; /* fourcc format */
+		__le32 stride0; /* return stride0 */
+		__le32 stride1; /* return stride1 */
+		__le32 stride2; /* return stride2 */
+		__le32 offset0; /* return offset0 */
+		__le32 offset1; /* return offset1 */
+		__le32 offset2; /* return offset2 */
+	} dmabuf;
 };
 
 struct virtio_wl_ctrl_vfd_send {

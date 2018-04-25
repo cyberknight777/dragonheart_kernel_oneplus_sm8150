@@ -111,6 +111,7 @@ static int virtwl_resp_err(unsigned int type)
 	switch (type) {
 	case VIRTIO_WL_RESP_OK:
 	case VIRTIO_WL_RESP_VFD_NEW:
+	case VIRTIO_WL_RESP_VFD_NEW_DMABUF:
 		return 0;
 	case VIRTIO_WL_RESP_ERR:
 		return -ENODEV; /* Device is no longer reliable */
@@ -875,8 +876,9 @@ static int virtwl_open(struct inode *inodep, struct file *filp)
 	return 0;
 }
 
-static struct virtwl_vfd *do_new(struct virtwl_info *vi, uint32_t type,
-				 uint32_t size, bool nonblock)
+static struct virtwl_vfd *do_new(struct virtwl_info *vi,
+				 struct virtwl_ioctl_new *ioctl_new,
+				 size_t ioctl_new_size, bool nonblock)
 {
 	struct virtio_wl_ctrl_vfd_new *ctrl_new;
 	struct virtwl_vfd *vfd;
@@ -885,10 +887,11 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi, uint32_t type,
 	struct scatterlist in_sg;
 	int ret = 0;
 
-	if (type != VIRTWL_IOCTL_NEW_CTX &&
-		type != VIRTWL_IOCTL_NEW_ALLOC &&
-		type != VIRTWL_IOCTL_NEW_PIPE_READ &&
-		type != VIRTWL_IOCTL_NEW_PIPE_WRITE)
+	if (ioctl_new->type != VIRTWL_IOCTL_NEW_CTX &&
+		ioctl_new->type != VIRTWL_IOCTL_NEW_ALLOC &&
+		ioctl_new->type != VIRTWL_IOCTL_NEW_PIPE_READ &&
+		ioctl_new->type != VIRTWL_IOCTL_NEW_PIPE_WRITE &&
+		ioctl_new->type != VIRTWL_IOCTL_NEW_DMABUF)
 		return ERR_PTR(-EINVAL);
 
 	ctrl_new = kzalloc(sizeof(*ctrl_new), GFP_KERNEL);
@@ -917,27 +920,33 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi, uint32_t type,
 	ret = 0;
 
 	ctrl_new->vfd_id = vfd->id;
-	switch (type) {
+	switch (ioctl_new->type) {
 	case VIRTWL_IOCTL_NEW_CTX:
 		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW_CTX;
 		ctrl_new->flags = VIRTIO_WL_VFD_WRITE | VIRTIO_WL_VFD_READ;
-		ctrl_new->size = 0;
 		break;
 	case VIRTWL_IOCTL_NEW_ALLOC:
 		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW;
-		ctrl_new->flags = 0;
-		ctrl_new->size = size;
+		ctrl_new->size = PAGE_ALIGN(ioctl_new->size);
 		break;
 	case VIRTWL_IOCTL_NEW_PIPE_READ:
 		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW_PIPE;
 		ctrl_new->flags = VIRTIO_WL_VFD_READ;
-		ctrl_new->size = 0;
 		break;
 	case VIRTWL_IOCTL_NEW_PIPE_WRITE:
 		ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW_PIPE;
 		ctrl_new->flags = VIRTIO_WL_VFD_WRITE;
-		ctrl_new->size = 0;
 		break;
+	case VIRTWL_IOCTL_NEW_DMABUF:
+		/* Make sure ioctl_new contains enough data for NEW_DMABUF. */
+		if (ioctl_new_size == sizeof(*ioctl_new)) {
+			ctrl_new->hdr.type = VIRTIO_WL_CMD_VFD_NEW_DMABUF;
+			/* FIXME: convert from host byte order. */
+			memcpy(&ctrl_new->dmabuf, &ioctl_new->dmabuf,
+			       sizeof(ioctl_new->dmabuf));
+			break;
+		}
+		/* fall-through */
 	default:
 		ret = -EINVAL;
 		goto remove_vfd;
@@ -962,6 +971,12 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi, uint32_t type,
 	vfd->flags = ctrl_new->flags;
 
 	mutex_unlock(&vfd->lock);
+
+	if (ioctl_new->type == VIRTWL_IOCTL_NEW_DMABUF) {
+		/* FIXME: convert to host byte order. */
+		memcpy(&ioctl_new->dmabuf, &ctrl_new->dmabuf,
+		       sizeof(ctrl_new->dmabuf));
+	}
 
 	kfree(ctrl_new);
 	return vfd;
@@ -1073,26 +1088,25 @@ static long virtwl_vfd_ioctl(struct file *filp, unsigned int cmd,
 	}
 }
 
-static long virtwl_ioctl_new(struct file *filp, void __user *ptr)
+static long virtwl_ioctl_new(struct file *filp, void __user *ptr,
+			     size_t in_size)
 {
 	struct virtwl_info *vi = filp->private_data;
 	struct virtwl_vfd *vfd;
-	struct virtwl_ioctl_new ioctl_new;
+	struct virtwl_ioctl_new ioctl_new = {};
+	size_t size = min(in_size, sizeof(ioctl_new));
 	int ret;
 
 	/* Early check for user error. */
-	ret = !access_ok(VERIFY_WRITE, ptr, sizeof(struct virtwl_ioctl_new));
+	ret = !access_ok(VERIFY_WRITE, ptr, size);
 	if (ret)
 		return -EFAULT;
 
-	ret = copy_from_user(&ioctl_new, ptr, sizeof(struct virtwl_ioctl_new));
+	ret = copy_from_user(&ioctl_new, ptr, size);
 	if (ret)
 		return -EFAULT;
 
-	ioctl_new.size = PAGE_ALIGN(ioctl_new.size);
-
-	vfd = do_new(vi, ioctl_new.type, ioctl_new.size,
-		     filp->f_flags & O_NONBLOCK);
+	vfd = do_new(vi, &ioctl_new, size, filp->f_flags & O_NONBLOCK);
 	if (IS_ERR(vfd))
 		return PTR_ERR(vfd);
 
@@ -1104,7 +1118,7 @@ static long virtwl_ioctl_new(struct file *filp, void __user *ptr)
 	}
 
 	ioctl_new.fd = ret;
-	ret = copy_to_user(ptr, &ioctl_new, sizeof(struct virtwl_ioctl_new));
+	ret = copy_to_user(ptr, &ioctl_new, size);
 	if (ret) {
 		/* The release operation will handle freeing this alloc */
 		sys_close(ioctl_new.fd);
@@ -1120,9 +1134,9 @@ static long virtwl_ioctl_ptr(struct file *filp, unsigned int cmd,
 	if (filp->f_op == &virtwl_vfd_fops)
 		return virtwl_vfd_ioctl(filp, cmd, ptr);
 
-	switch (cmd) {
-	case VIRTWL_IOCTL_NEW:
-		return virtwl_ioctl_new(filp, ptr);
+	switch (_IOC_NR(cmd)) {
+	case _IOC_NR(VIRTWL_IOCTL_NEW):
+		return virtwl_ioctl_new(filp, ptr, _IOC_SIZE(cmd));
 	default:
 		return -ENOTTY;
 	}

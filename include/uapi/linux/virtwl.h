@@ -19,13 +19,30 @@ enum virtwl_ioctl_new_type {
 	VIRTWL_IOCTL_NEW_PIPE_READ,
 	/* create a new virtwl pipe that is writable via the returned fd */
 	VIRTWL_IOCTL_NEW_PIPE_WRITE,
+	/* create a new virtwl dmabuf that is writable via the returned fd */
+	VIRTWL_IOCTL_NEW_DMABUF,
 };
 
 struct virtwl_ioctl_new {
 	__u32 type; /* VIRTWL_IOCTL_NEW_* */
 	int fd; /* return fd */
 	__u32 flags; /* currently always 0 */
-	__u32 size; /* size of allocation if type == VIRTWL_IOCTL_NEW_ALLOC */
+	union {
+		/* size of allocation if type == VIRTWL_IOCTL_NEW_ALLOC */
+		__u32 size;
+		/* buffer description if type == VIRTWL_IOCTL_NEW_DMABUF */
+		struct {
+			__u32 width; /* width in pixels */
+			__u32 height; /* height in pixels */
+			__u32 format; /* fourcc format */
+			__u32 stride0; /* return stride0 */
+			__u32 stride1; /* return stride1 */
+			__u32 stride2; /* return stride2 */
+			__u32 offset0; /* return offset0 */
+			__u32 offset1; /* return offset1 */
+			__u32 offset2; /* return offset2 */
+		} dmabuf;
+	};
 };
 
 struct virtwl_ioctl_txn {
