@@ -835,23 +835,28 @@ static inline bool iwl_mvm_scan_fits(struct iwl_mvm *mvm, int n_ssids,
 }
 
 static inline bool iwl_mvm_scan_use_ebs(struct iwl_mvm *mvm,
-					struct ieee80211_vif *vif,
-					bool frag_scan)
+					struct ieee80211_vif *vif)
 {
 	const struct iwl_ucode_capabilities *capa = &mvm->fw->ucode_capa;
+	bool low_latency;
+
+	if (iwl_mvm_is_cdb_supported(mvm))
+		low_latency = iwl_mvm_low_latency_band(mvm, NL80211_BAND_5GHZ);
+	else
+		low_latency = iwl_mvm_low_latency(mvm);
 
 	/* We can only use EBS if:
 	 *	1. the feature is supported;
 	 *	2. the last EBS was successful;
 	 *	3. if only single scan, the single scan EBS API is supported;
 	 *	4. it's not a p2p find operation.
-	 *	5. current scan is not fragmented,
+	 *	5. we are not in low latency mode,
 	 *	   or if fragmented ebs is supported by the FW
 	 */
 	return ((capa->flags & IWL_UCODE_TLV_FLAGS_EBS_SUPPORT) &&
 		mvm->last_ebs_successful && IWL_MVM_ENABLE_EBS &&
 		vif->type != NL80211_IFTYPE_P2P_DEVICE &&
-		(!frag_scan || iwl_mvm_is_frag_ebs_supported(mvm)));
+		(!low_latency || iwl_mvm_is_frag_ebs_supported(mvm)));
 }
 
 static inline bool iwl_mvm_is_regular_scan(struct iwl_mvm_scan_params *params)
@@ -957,8 +962,7 @@ static int iwl_mvm_scan_lmac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (!cmd->schedule[i - 1].iterations)
 		cmd->schedule[i - 1].iterations = 0xff;
 
-	if (iwl_mvm_scan_use_ebs(mvm, vif,
-				 params->type == IWL_SCAN_TYPE_FRAGMENTED)) {
+	if (iwl_mvm_scan_use_ebs(mvm, vif)) {
 		cmd->channel_opt[0].flags =
 			cpu_to_le16(IWL_SCAN_CHANNEL_FLAG_EBS |
 				    IWL_SCAN_CHANNEL_FLAG_EBS_ACCURATE |
@@ -1419,7 +1423,6 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	int uid, i;
 	u32 ssid_bitmap = 0;
 	u8 channel_flags = 0;
-	bool frag_scan;
 	u16 gen_flags;
 	struct iwl_mvm_vif *scan_vif = iwl_mvm_vif_from_mac80211(vif);
 
@@ -1457,13 +1460,7 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (type == IWL_MVM_SCAN_SCHED || type == IWL_MVM_SCAN_NETDETECT)
 		cmd->flags = cpu_to_le32(IWL_UMAC_SCAN_FLAG_PREEMPTIVE);
 
-	if (iwl_mvm_is_cdb_supported(mvm))
-		frag_scan = !!(gen_flags &
-			       IWL_UMAC_SCAN_GEN_FLAGS_LMAC2_FRAGMENTED);
-	else
-		frag_scan = !!(gen_flags & IWL_UMAC_SCAN_GEN_FLAGS_FRAGMENTED);
-
-	if (iwl_mvm_scan_use_ebs(mvm, vif, frag_scan))
+	if (iwl_mvm_scan_use_ebs(mvm, vif))
 		channel_flags = IWL_SCAN_CHANNEL_FLAG_EBS |
 				IWL_SCAN_CHANNEL_FLAG_EBS_ACCURATE |
 				IWL_SCAN_CHANNEL_FLAG_CACHE_ADD;
