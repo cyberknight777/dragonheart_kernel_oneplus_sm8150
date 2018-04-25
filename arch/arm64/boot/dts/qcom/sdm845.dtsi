@@ -275,6 +275,12 @@
 			cell-index = <0>;
 		};
 
+		apss_shared: mailbox@17990000 {
+			compatible = "qcom,sdm845-apss-shared";
+			reg = <0x17990000 0x1000>;
+			#mbox-cells = <1>;
+		};
+
 		intc: interrupt-controller@17a00000 {
 			compatible = "arm,gic-v3";
 			#address-cells = <1>;
