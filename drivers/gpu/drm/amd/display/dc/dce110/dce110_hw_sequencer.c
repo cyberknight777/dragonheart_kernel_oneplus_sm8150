@@ -2725,7 +2725,9 @@ static void dce110_program_front_end_for_pipe(
 	struct pipe_ctx *cur_pipe_ctx =
 					&dc->current_state->res_ctx.pipe_ctx[pipe_ctx->pipe_idx];
 	unsigned int i;
-
+#if defined(CONFIG_DRM_AMD_DC_FBC)
+       unsigned int underlay_idx = dc->res_pool->underlay_pipe_index;
+#endif
 	memset(&tbl_entry, 0, sizeof(tbl_entry));
 
 	if (dc->current_state)
@@ -2788,7 +2790,9 @@ static void dce110_program_front_end_for_pipe(
 	program_scaler(dc, pipe_ctx);
 
 #if defined(CONFIG_DRM_AMD_DC_FBC)
-	if (dc->fbc_compressor && old_pipe->stream) {
+	/* fbc not applicable on Underlay pipe */
+	if (dc->fbc_compressor && old_pipe->stream &&
+	    pipe_ctx->pipe_idx != underlay_idx) {
 		if (plane_state->tiling_info.gfx8.array_mode == DC_ARRAY_LINEAR_GENERAL)
 			dc->fbc_compressor->funcs->disable_fbc(dc->fbc_compressor);
 		else
