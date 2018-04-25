@@ -347,6 +347,7 @@ CONFIG_PCIE_PME=y
 #
 # Kernel Features
 #
+CONFIG_RANDOMIZE_BASE=y
 
 #
 # ARM errata workarounds via the alternatives framework
