@@ -188,8 +188,8 @@ ieee80211_rx_radiotap_hdrlen(struct ieee80211_local *local,
 	if (status->encoding == RX_ENC_HE &&
 	    status->flag & RX_FLAG_RADIOTAP_HE_MU) {
 		len = ALIGN(len, 2);
-		len += 8;
-		BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he_mu) != 8);
+		len += 12;
+		BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he_mu) != 12);
 	}
 
 	if (status->chains) {
