@@ -987,8 +987,6 @@ static int acp_dma_close(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *prtd = substream->private_data;
 	struct audio_drv_data *adata = dev_get_drvdata(prtd->platform->dev);
 
-	kfree(rtd);
-
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		adata->play_i2ssp_stream = NULL;
 		/*
@@ -1017,7 +1015,7 @@ static int acp_dma_close(struct snd_pcm_substream *substream)
 	 */
 	if (!adata->play_i2ssp_stream && !adata->capture_i2ssp_stream)
 		acp_reg_write(0, adata->acp_mmio, mmACP_EXTERNAL_INTR_ENB);
-
+	kfree(rtd);
 	return 0;
 }
 
