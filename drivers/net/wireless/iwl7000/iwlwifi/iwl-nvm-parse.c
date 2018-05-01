@@ -564,6 +564,18 @@ static void iwl_init_he_hw_capab(struct ieee80211_supported_band *sband,
 }
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+/* returns true iff there exists one spatial stream where MCS of a > b */
+static bool iwl_he_mcs_greater(u16 a, u16 b)
+{
+	int i;
+
+	for (i = 0; i < 16; i += 2) {
+		if ((((a >> i) + 1) & 3) > (((b >> i) + 1) & 3))
+			return true;
+	}
+	return false;
+}
+
 static void iwl_init_he_override(struct iwl_trans *trans,
 				 struct ieee80211_supported_band *sband)
 {
@@ -574,6 +586,47 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 		iftype_data = &iwl_he_capa;
 	else
 		return;
+
+	if (trans->dbg_cfg.rx_mcs_80) {
+		if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_80,
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_msc_80)))
+			IWL_ERR(trans,
+				"Cannot set dbg rx_mcs_80 = 0x%x (too big)\n",
+				trans->dbg_cfg.rx_mcs_80);
+		else
+			iftype_data->he_cap.he_mcs_nss_supp.rx_msc_80 =
+				cpu_to_le16(trans->dbg_cfg.rx_mcs_80);
+	}
+	if (trans->dbg_cfg.tx_mcs_80) {
+		if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_80,
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_msc_80)))
+			IWL_ERR(trans,
+				"Cannot set dbg tx_mcs_80 = 0x%x (too big)\n",
+				trans->dbg_cfg.tx_mcs_80);
+		else
+			iftype_data->he_cap.he_mcs_nss_supp.tx_msc_80 =
+				cpu_to_le16(trans->dbg_cfg.tx_mcs_80);
+	}
+	if (trans->dbg_cfg.rx_mcs_160) {
+		if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_160,
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_msc_160)))
+			IWL_ERR(trans,
+				"Cannot set dbg rx_mcs_160 = 0x%x (too big)\n",
+				trans->dbg_cfg.rx_mcs_160);
+		else
+			iftype_data->he_cap.he_mcs_nss_supp.rx_msc_160 =
+				cpu_to_le16(trans->dbg_cfg.rx_mcs_160);
+	}
+	if (trans->dbg_cfg.tx_mcs_160) {
+		if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_160,
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_msc_160)))
+			IWL_ERR(trans,
+				"Cannot set dbg tx_mcs_160 = 0x%x (too big)\n",
+				trans->dbg_cfg.tx_mcs_160);
+		else
+			iftype_data->he_cap.he_mcs_nss_supp.tx_msc_160 =
+				cpu_to_le16(trans->dbg_cfg.tx_mcs_160);
+	}
 
 	/*
 	 * If antennas were forced - make sure not declaring MIMO when we
