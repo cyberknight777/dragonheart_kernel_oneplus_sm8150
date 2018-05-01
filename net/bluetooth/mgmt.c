@@ -6311,12 +6311,24 @@ static void add_advertising_complete(struct hci_dev *hdev, u8 status,
 	cp = cmd->param;
 	rp.instance = cp->instance;
 
-	if (status)
+	if (status) {
 		mgmt_cmd_status(cmd->sk, cmd->index, cmd->opcode,
 				mgmt_status(status));
-	else
+		// Error codes from mgmt_status_table.
+		WARN_ONCE(status == 0x0c,
+			  "HCI error: Command Disallowed (%d)", status);
+		WARN_ONCE(status == 0x17,
+			  "HCI error: Repeated Attempts (%d)", status);
+		WARN_ONCE(status == 0x30,
+			  "HCI error: Role Switch Pending? (%d)", status);
+		WARN_ONCE(status == 0x35,
+			  "HCI error: Host Busy Pairing? (%d)", status);
+		WARN_ONCE(status == 0x37,
+			  "HCI error: Controller Busy? (%d)", status);
+	} else {
 		mgmt_cmd_complete(cmd->sk, cmd->index, cmd->opcode,
 				  mgmt_status(status), &rp, sizeof(rp));
+	}
 
 	mgmt_pending_remove(cmd);
 
@@ -6378,6 +6390,7 @@ static int add_advertising(struct sock *sk, struct hci_dev *hdev,
 	if (pending_find(MGMT_OP_ADD_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_REMOVE_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_SET_LE, hdev)) {
+		WARN_ONCE(1, "MGMT_OP_ADD_ADVERTISING error: pending command");
 		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_ADVERTISING,
 				      MGMT_STATUS_BUSY);
 		goto unlock;
@@ -6518,6 +6531,8 @@ static int remove_advertising(struct sock *sk, struct hci_dev *hdev,
 	if (pending_find(MGMT_OP_ADD_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_REMOVE_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_SET_LE, hdev)) {
+		WARN_ONCE(1,
+			  "MGMT_OP_REMOVE_ADVERTISING error: pending command");
 		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_REMOVE_ADVERTISING,
 				      MGMT_STATUS_BUSY);
 		goto unlock;
