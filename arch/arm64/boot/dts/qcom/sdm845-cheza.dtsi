@@ -7,6 +7,7 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
 #include "sdm845.dtsi"
 
 /* PMICs depend on spmi_bus label and so must come after SoC */
@@ -22,6 +23,89 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	/* FIXED REGULATORS - parents above children */
+
+	/* This is the top level supply and variable voltage */
+	ppvar_sys: ppvar-sys-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "ppvar_sys";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* This divides ppvar_sys by 2, so voltage is variable */
+	src_vph_pwr: src-vph-pwr-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "src_vph_pwr";
+
+		/* EC turns on with switchcap_on_l; always on for AP */
+		regulator-always-on;
+		regulator-boot-on;
+
+		vin-supply = <&ppvar_sys>;
+	};
+
+	pp3500_a_vbob: pp3500-a-vbob-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_bob";
+
+		/*
+		 * Comes on automatically when pp5000_ldo comes on, which
+		 * comes on automatically when ppvar_sys comes on
+		 */
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3500000>;
+		regulator-max-microvolt = <3500000>;
+
+		vin-supply = <&ppvar_sys>;
+	};
+
+	pp5000_a: pp5000-a-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "pp5000_a";
+
+		/* EC turns on with en_pp5000_a; always on for AP */
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+
+		vin-supply = <&ppvar_sys>;
+	};
+
+	src_vreg_bob: src-vreg-bob-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "src_vreg_bob";
+
+		/* EC turns on with vbob_en; always on for AP */
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3500000>;
+		regulator-max-microvolt = <3500000>;
+
+		vin-supply = <&pp3500_a_vbob>;
+	};
+
+	/*
+	 * Apparently RPMh does not provide support for PM8998 S4 because it
+	 * is always-on; model it as a fixed regulator.
+	 */
+	src_pp1800_s4a: pm8998-smps4 {
+		compatible = "regulator-fixed";
+		regulator-name = "src_pp1800_s4a";
+
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+
+		regulator-always-on;
+		regulator-boot-on;
+
+		vin-supply = <&src_vph_pwr>;
+	};
+
+	/* BOARD-SPECIFIC TOP LEVEL NODES */
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -34,6 +118,297 @@
 			linux,code = <SW_PEN_INSERTED>;
 			linux,input-type = <EV_SW>;
 			wakeup-source;
+		};
+	};
+};
+
+&apps_rsc {
+	pm8998-rpmh-regulators {
+		compatible = "qcom,pm8998-rpmh-regulators";
+		qcom,pmic-id = "a";
+
+		vdd-s1-supply = <&src_vph_pwr>;
+		vdd-s2-supply = <&src_vph_pwr>;
+		vdd-s3-supply = <&src_vph_pwr>;
+		vdd-s4-supply = <&src_vph_pwr>;
+		vdd-s5-supply = <&src_vph_pwr>;
+		vdd-s6-supply = <&src_vph_pwr>;
+		vdd-s7-supply = <&src_vph_pwr>;
+		vdd-s8-supply = <&src_vph_pwr>;
+		vdd-s9-supply = <&src_vph_pwr>;
+		vdd-s10-supply = <&src_vph_pwr>;
+		vdd-s11-supply = <&src_vph_pwr>;
+		vdd-s12-supply = <&src_vph_pwr>;
+		vdd-s13-supply = <&src_vph_pwr>;
+		vdd-l1-l27-supply = <&src_pp1025_s7a>;
+		vdd-l2-l8-l17-supply = <&src_pp1350_s3a>;
+		vdd-l3-l11-supply = <&src_pp1025_s7a>;
+		vdd-l4-l5-supply = <&src_pp1025_s7a>;
+		vdd-l6-supply = <&src_vph_pwr>;
+		vdd-l7-l12-l14-l15-supply = <&src_pp2040_s5a>;
+		vdd-l9-supply = <&src_pp2040_s5a>;
+		vdd-l10-l23-l25-supply = <&src_vreg_bob>;
+		vdd-l13-l19-l21-supply = <&src_vreg_bob>;
+		vdd-l16-l28-supply = <&src_vreg_bob>;
+		vdd-l18-l22-supply = <&src_vreg_bob>;
+		vdd-l20-l24-supply = <&src_vreg_bob>;
+		vdd-l26-supply = <&src_pp1350_s3a>;
+		vin-lvs-1-2-supply = <&src_pp1800_s4a>;
+
+		src_pp1125_s2a: smps2 {
+			regulator-min-microvolt = <1100000>;
+			regulator-max-microvolt = <1100000>;
+		};
+
+		src_pp1350_s3a: smps3 {
+			regulator-min-microvolt = <1352000>;
+			regulator-max-microvolt = <1352000>;
+		};
+
+		src_pp2040_s5a: smps5 {
+			regulator-min-microvolt = <1904000>;
+			regulator-max-microvolt = <2040000>;
+		};
+
+		src_pp1025_s7a: smps7 {
+			regulator-min-microvolt = <900000>;
+			regulator-max-microvolt = <1028000>;
+		};
+
+		vdd_qusb_hs0:
+		vdda_hp_pcie_core:
+		vdda_mipi_csi0_0p9:
+		vdda_mipi_csi1_0p9:
+		vdda_mipi_csi2_0p9:
+		vdda_mipi_dsi0_pll:
+		vdda_mipi_dsi1_pll:
+		vdda_qlink_lv:
+		vdda_qlink_lv_ck:
+		vdda_qrefs_0p875:
+		vdda_pcie_core:
+		vdda_pll_cc_ebi01:
+		vdda_pll_cc_ebi23:
+		vdda_sp_sensor:
+		vdda_ufs1_core:
+		vdda_ufs2_core:
+		vdda_usb1_ss_core:
+		vdda_usb2_ss_core:
+		src_pp875_l1a: ldo1 {
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <880000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vddpx_10:
+		src_pp1200_l2a: ldo2 {
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+
+			/* TODO: why??? */
+			regulator-always-on;
+		};
+
+		pp1000_l3a_sdr845: ldo3 {
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vdd_wcss_cx:
+		vdd_wcss_mx:
+		vdda_wcss_pll:
+		src_pp800_l5a: ldo5 {
+			regulator-min-microvolt = <800000>;
+			regulator-max-microvolt = <800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vddpx_13:
+		src_pp1800_l6a: ldo6 {
+			regulator-min-microvolt = <1856000>;
+			regulator-max-microvolt = <1856000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp1800_l7a_wcn3990: ldo7 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp1200_l8a: ldo8 {
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1248000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp1800_dx_pen:
+		src_pp1800_l9a: ldo9 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp1800_l10a: ldo10 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp1000_l11a_sdr845: ldo11 {
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1048000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vdd_qfprom:
+		vdd_qfprom_sp:
+		vdda_apc1_cs_1p8:
+		vdda_gfx_cs_1p8:
+		vdda_qrefs_1p8:
+		vdda_qusb_hs0_1p8:
+		vddpx_11:
+		src_pp1800_l12a: ldo12 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/*
+		 * NOTE: this rail should have been called
+		 * src_pp2950_l13a in the schematic
+		 */
+		vddpx_2:
+		src_pp3300_l13a: ldo13 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <2960000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp1800_l14a: ldo14 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp1800_l15a: ldo15 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp2700_l16a: ldo16 {
+			regulator-min-microvolt = <2704000>;
+			regulator-max-microvolt = <2704000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp1300_l17a: ldo17 {
+			regulator-min-microvolt = <1304000>;
+			regulator-max-microvolt = <1304000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp2700_l18a: ldo18 {
+			regulator-min-microvolt = <2704000>;
+			regulator-max-microvolt = <2960000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp3000_l19a: ldo19 {
+			regulator-min-microvolt = <2856000>;
+			regulator-max-microvolt = <3104000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp2950_l20a: ldo20 {
+			regulator-min-microvolt = <2704000>;
+			regulator-max-microvolt = <2960000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp2950_l21a: ldo21 {
+			regulator-min-microvolt = <2704000>;
+			regulator-max-microvolt = <2960000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp2850_l22a: ldo22 {
+			regulator-min-microvolt = <2864000>;
+			regulator-max-microvolt = <3312000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp3300_l23a_ch1_wcn3990: ldo23 {
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3312000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vdda_qusb_hs0_3p1:
+		src_pp3075_l24a: ldo24 {
+			regulator-min-microvolt = <3088000>;
+			regulator-max-microvolt = <3088000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		pp3300_l25a_ch0_wcn3990: ldo25 {
+			regulator-min-microvolt = <3304000>;
+			regulator-max-microvolt = <3304000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		vdda_hp_pcie_1p2:
+		vdda_hv_ebi0:
+		vdda_hv_ebi1:
+		vdda_hv_ebi2:
+		vdda_hv_ebi3:
+		vdda_mipi_csi_1p25:
+		vdda_mipi_dsi0_1p2:
+		vdda_mipi_dsi1_1p2:
+		vdda_pcie_1p2:
+		vdda_ufs1_1p2:
+		vdda_ufs2_1p2:
+		vdda_usb1_ss_1p2:
+		vdda_usb2_ss_1p2:
+		src_pp1200_l26a: ldo26 {
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* TODO: should be 3.3V, but b/112920779 */
+		pp3300_dx_pen:
+		src_pp3300_l28a: ldo28 {
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		src_pp1800_lvs1: lvs1 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+
+		src_pp1800_lvs2: lvs2 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+	};
+
+	pm8005-rpmh-regulators {
+		compatible = "qcom,pm8005-rpmh-regulators";
+		qcom,pmic-id = "c";
+
+		vdd-s1-supply = <&src_vph_pwr>;
+		vdd-s2-supply = <&src_vph_pwr>;
+		vdd-s3-supply = <&src_vph_pwr>;
+		vdd-s4-supply = <&src_vph_pwr>;
+
+		src_pp600_s3c: smps3 {
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <600000>;
 		};
 	};
 };
