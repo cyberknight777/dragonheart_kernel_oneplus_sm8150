@@ -3358,6 +3358,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 	trans->hw_rev = iwl_read32(trans, CSR_HW_REV);
 	if (trans->hw_rev == 0xffffffff) {
 		dev_err(&pdev->dev, "HW_REV=0xFFFFFFFF, PCI issues?\n");
+		ret = -EIO;
 		goto out_no_pci;
 	}
 	/*
