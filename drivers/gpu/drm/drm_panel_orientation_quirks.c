@@ -154,10 +154,9 @@ int drm_get_panel_orientation_quirk(int width, int height)
 		if (!bios_date)
 			continue;
 
-		for (i = 0; data->bios_dates[i]; i++) {
-			if (!strcmp(data->bios_dates[i], bios_date))
-				return data->orientation;
-		}
+		i = match_string(data->bios_dates, -1, bios_date);
+		if (i >= 0)
+			return data->orientation;
 	}
 
 	return DRM_MODE_PANEL_ORIENTATION_UNKNOWN;
