@@ -158,32 +158,50 @@
 		ranges = <0 0 0 0xffffffff>;
 		compatible = "simple-bus";
 
-		intc: interrupt-controller@17a00000 {
-			compatible = "arm,gic-v3";
-			#address-cells = <1>;
-			#size-cells = <1>;
-			ranges;
-			#interrupt-cells = <3>;
-			interrupt-controller;
-			reg = <0x17a00000 0x10000>,     /* GICD */
-			      <0x17a60000 0x100000>;    /* GICR * 8 */
-			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
-
-			gic-its@17a40000 {
-				compatible = "arm,gic-v3-its";
-				msi-controller;
-				#msi-cells = <1>;
-				reg = <0x17a40000 0x20000>;
-				status = "disabled";
-			};
-		};
-
 		gcc: clock-controller@100000 {
 			compatible = "qcom,gcc-sdm845";
 			reg = <0x100000 0x1f0000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 			#power-domain-cells = <1>;
+		};
+
+		geniqup@ac0000 {
+			compatible = "qcom,geni-se-qup";
+			reg = <0xac0000 0x6000>;
+			clock-names = "m-ahb", "s-ahb";
+			clocks = <&gcc 105>,
+				 <&gcc 106>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			status = "disabled";
+
+			uart2: serial@a84000 {
+				compatible = "qcom,geni-debug-uart";
+				reg = <0xa84000 0x4000>;
+				clock-names = "se";
+				clocks = <&gcc 89>;
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&qup_uart2_default>;
+				pinctrl-1 = <&qup_uart2_sleep>;
+				interrupts = <GIC_SPI 354 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+			};
+
+			i2c10: i2c@a88000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa88000 0x4000>;
+				clock-names = "se";
+				clocks = <&gcc 91>;
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&qup_i2c10_default>;
+				pinctrl-1 = <&qup_i2c10_sleep>;
+				interrupts = <GIC_SPI 355 IRQ_TYPE_LEVEL_HIGH>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+			};
 		};
 
 		tlmm: pinctrl@3400000 {
@@ -221,6 +239,45 @@
 					function = "gpio";
 					pins = "gpio4", "gpio5";
 				};
+			};
+		};
+
+		spmi_bus: spmi@c440000 {
+			compatible = "qcom,spmi-pmic-arb";
+			reg = <0xc440000 0x1100>,
+			      <0xc600000 0x2000000>,
+			      <0xe600000 0x100000>,
+			      <0xe700000 0xa0000>,
+			      <0xc40a000 0x26000>;
+			reg-names = "core", "chnls", "obsrvr", "intr", "cnfg";
+			interrupt-names = "periph_irq";
+			interrupts = <GIC_SPI 481 IRQ_TYPE_LEVEL_HIGH>;
+			qcom,ee = <0>;
+			qcom,channel = <0>;
+			#address-cells = <2>;
+			#size-cells = <0>;
+			interrupt-controller;
+			#interrupt-cells = <4>;
+			cell-index = <0>;
+		};
+
+		intc: interrupt-controller@17a00000 {
+			compatible = "arm,gic-v3";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			#interrupt-cells = <3>;
+			interrupt-controller;
+			reg = <0x17a00000 0x10000>,     /* GICD */
+			      <0x17a60000 0x100000>;    /* GICR * 8 */
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+
+			gic-its@17a40000 {
+				compatible = "arm,gic-v3-its";
+				msi-controller;
+				#msi-cells = <1>;
+				reg = <0x17a40000 0x20000>;
+				status = "disabled";
 			};
 		};
 
@@ -278,63 +335,6 @@
 				frame-number = <6>;
 				interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
 				reg = <0x17d10000 0x1000>;
-				status = "disabled";
-			};
-		};
-
-		spmi_bus: spmi@c440000 {
-			compatible = "qcom,spmi-pmic-arb";
-			reg = <0xc440000 0x1100>,
-			      <0xc600000 0x2000000>,
-			      <0xe600000 0x100000>,
-			      <0xe700000 0xa0000>,
-			      <0xc40a000 0x26000>;
-			reg-names = "core", "chnls", "obsrvr", "intr", "cnfg";
-			interrupt-names = "periph_irq";
-			interrupts = <GIC_SPI 481 IRQ_TYPE_LEVEL_HIGH>;
-			qcom,ee = <0>;
-			qcom,channel = <0>;
-			#address-cells = <2>;
-			#size-cells = <0>;
-			interrupt-controller;
-			#interrupt-cells = <4>;
-			cell-index = <0>;
-		};
-
-		geniqup@ac0000 {
-			compatible = "qcom,geni-se-qup";
-			reg = <0xac0000 0x6000>;
-			clock-names = "m-ahb", "s-ahb";
-			clocks = <&gcc 105>,
-				 <&gcc 106>;
-			#address-cells = <1>;
-			#size-cells = <1>;
-			ranges;
-			status = "disabled";
-
-			uart2: serial@a84000 {
-				compatible = "qcom,geni-debug-uart";
-				reg = <0xa84000 0x4000>;
-				clock-names = "se";
-				clocks = <&gcc 89>;
-				pinctrl-names = "default", "sleep";
-				pinctrl-0 = <&qup_uart2_default>;
-				pinctrl-1 = <&qup_uart2_sleep>;
-				interrupts = <GIC_SPI 354 IRQ_TYPE_LEVEL_HIGH>;
-				status = "disabled";
-			};
-
-			i2c10: i2c@a88000 {
-				compatible = "qcom,geni-i2c";
-				reg = <0xa88000 0x4000>;
-				clock-names = "se";
-				clocks = <&gcc 91>;
-				pinctrl-names = "default", "sleep";
-				pinctrl-0 = <&qup_i2c10_default>;
-				pinctrl-1 = <&qup_i2c10_sleep>;
-				interrupts = <GIC_SPI 355 IRQ_TYPE_LEVEL_HIGH>;
-				#address-cells = <1>;
-				#size-cells = <0>;
 				status = "disabled";
 			};
 		};
