@@ -900,7 +900,7 @@ static void iwl_mvm_decode_he_sigb(struct iwl_mvm *mvm,
 					     sigb1);
 	}
 
-	if (FIELD_GET(IWL_RX_HE_SIGB_COMMON2_CH1_CRC_OK, sigb2) &&
+	if (FIELD_GET(IWL_RX_HE_SIGB_COMMON2_CH2_CRC_OK, sigb2) &&
 	    (rate_n_flags & RATE_MCS_CHAN_WIDTH_MSK) != RATE_MCS_CHAN_WIDTH_20) {
 		he_mu->flags1 |=
 			cpu_to_le16(IEEE80211_RADIOTAP_HE_MU_FLAGS1_CH2_RU_KNOWN |
