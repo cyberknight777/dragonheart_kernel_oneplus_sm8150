@@ -276,6 +276,7 @@ struct iwl_dbg_cfg {
 	IWL_MOD_PARAM(uint, disable_11n)
 	IWL_MOD_PARAM(uint, d0i3_timeout)
 	IWL_DBG_CFG_BIN(he_ppe_thres)
+	IWL_DBG_CFG_NODEF(u8, he_chan_width_dis)
 #ifdef CPTCFG_IWLWIFI_DEBUG
 	IWL_MOD_PARAM(u32, debug_level)
 #endif /* CPTCFG_IWLWIFI_DEBUG */

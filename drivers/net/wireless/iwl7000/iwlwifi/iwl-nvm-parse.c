@@ -664,6 +664,10 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 		memcpy(iftype_data->he_cap.ppe_thres,
 		       trans->dbg_cfg.he_ppe_thres.data, len);
 	}
+
+	if (trans->dbg_cfg.he_chan_width_dis)
+		iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
+				~(trans->dbg_cfg.he_chan_width_dis << 1);
 }
 #endif
 
