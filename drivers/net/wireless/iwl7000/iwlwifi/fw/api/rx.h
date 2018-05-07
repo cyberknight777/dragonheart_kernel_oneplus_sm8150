@@ -397,10 +397,10 @@ enum iwl_rx_he_sigb_common1 {
 };
 
 enum iwl_rx_he_sigb_common2 {
-	IWL_RX_HE_SIGB_COMMON2_CH1_CTR_RU	= 0x00000001,
-	IWL_RX_HE_SIGB_COMMON2_CH2_CTR_RU	= 0x00000002,
-	IWL_RX_HE_SIGB_COMMON2_CH1_CRC_OK	= 0x00000004,
-	IWL_RX_HE_SIGB_COMMON2_CH2_CRC_OK	= 0x00000008,
+	IWL_RX_HE_SIGB_COMMON2_CH1_CTR_RU	= 0x0001,
+	IWL_RX_HE_SIGB_COMMON2_CH2_CTR_RU	= 0x0002,
+	IWL_RX_HE_SIGB_COMMON2_CH1_CRC_OK	= 0x0004,
+	IWL_RX_HE_SIGB_COMMON2_CH2_CRC_OK	= 0x0008,
 };
 
 /**
@@ -415,9 +415,9 @@ struct iwl_rx_mpdu_desc_v1 {
 		__le32 rss_hash;
 
 		/**
-		 * @sigb_common1: for HE sniffer, HE-SIG-B common part 1
+		 * @sigb_common0: for HE sniffer, HE-SIG-B common part 0
 		 */
-		__le32 sigb_common1;
+		__le32 sigb_common0;
 	};
 
 	/* DW8 - carries filter_match only when rpa_en == 1 */
@@ -428,9 +428,9 @@ struct iwl_rx_mpdu_desc_v1 {
 		__le32 filter_match;
 
 		/**
-		 * @sigb_common2: for HE sniffer, HE-SIG-B common part 1
+		 * @sigb_common1: for HE sniffer, HE-SIG-B common part 1
 		 */
-		__le32 sigb_common2;
+		__le32 sigb_common1;
 	};
 
 	/* DW9 */
@@ -489,9 +489,9 @@ struct iwl_rx_mpdu_desc_v3 {
 		__le32 filter_match;
 
 		/**
-		 * @sigb_common1: for HE sniffer, HE-SIG-B common part 1
+		 * @sigb_common0: for HE sniffer, HE-SIG-B common part 0
 		 */
-		__le32 sigb_common1;
+		__le32 sigb_common0;
 	};
 
 	/* DW8 - carries rss_hash only when rpa_en == 1 */
@@ -502,9 +502,9 @@ struct iwl_rx_mpdu_desc_v3 {
 		__le32 rss_hash;
 
 		/**
-		 * @sigb_common2: for HE sniffer, HE-SIG-B common part 2
+		 * @sigb_common1: for HE sniffer, HE-SIG-B common part 1
 		 */
-		__le32 sigb_common2;
+		__le32 sigb_common1;
 	};
 	/* DW9 */
 	/**
@@ -597,22 +597,23 @@ struct iwl_rx_mpdu_desc {
 	 */
 	u8 mac_phy_idx;
 	/* DW4 - carries csum data only when rpa_en == 1 */
-	union {
-		struct {
-			/**
-			 * @raw_csum: raw checksum (alledgedly unreliable)
-			 */
-			__le16 raw_csum;
+	struct {
+		/**
+		 * @raw_csum: raw checksum (alledgedly unreliable)
+		 */
+		__le16 raw_csum;
+
+		union {
 			/**
 			 * @l3l4_flags: &enum iwl_rx_l3l4_flags
 			 */
 			__le16 l3l4_flags;
-		};
 
-		/**
-		 * @sigb_common0: for HE sniffer, HE-SIG-B common part 0
-		 */
-		__le32 sigb_common0;
+			/**
+			 * @sigb_common2: for HE sniffer, HE-SIG-B common part 2
+			 */
+			__le16 sigb_common2;
+		};
 	};
 	/* DW5 */
 	/**

@@ -868,17 +868,18 @@ static void iwl_mvm_decode_he_sigb(struct iwl_mvm *mvm,
 				   u32 rate_n_flags,
 				   struct ieee80211_radiotap_he_mu *he_mu)
 {
-	u32 sigb0, sigb1, sigb2;
-
-	sigb0 = le32_to_cpu(desc->sigb_common0);
+	u32 sigb0, sigb1;
+	u16 sigb2;
 
 	if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) {
+		sigb0 = le32_to_cpu(desc->v3.sigb_common0);
 		sigb1 = le32_to_cpu(desc->v3.sigb_common1);
-		sigb2 = le32_to_cpu(desc->v3.sigb_common2);
 	} else {
+		sigb0 = le32_to_cpu(desc->v1.sigb_common0);
 		sigb1 = le32_to_cpu(desc->v1.sigb_common1);
-		sigb2 = le32_to_cpu(desc->v1.sigb_common2);
 	}
+
+	sigb2 = le16_to_cpu(desc->sigb_common2);
 
 	if (FIELD_GET(IWL_RX_HE_SIGB_COMMON2_CH1_CRC_OK, sigb2)) {
 		he_mu->flags1 |=
