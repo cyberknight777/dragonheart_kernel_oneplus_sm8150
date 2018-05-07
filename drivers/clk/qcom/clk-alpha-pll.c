@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015, 2018, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -891,8 +891,9 @@ static int alpha_pll_fabia_enable(struct clk_hw *hw)
 	int ret;
 	struct clk_alpha_pll *pll = to_clk_alpha_pll(hw);
 	u32 val, opmode_val;
+	struct regmap *regmap = pll->clkr.regmap;
 
-	ret = regmap_read(pll->clkr.regmap, PLL_MODE(pll), &val);
+	ret = regmap_read(regmap, PLL_MODE(pll), &val);
 	if (ret)
 		return ret;
 
@@ -904,8 +905,7 @@ static int alpha_pll_fabia_enable(struct clk_hw *hw)
 		return wait_for_pll_enable_active(pll);
 	}
 
-	/* Read opmode value */
-	ret = regmap_read(pll->clkr.regmap, PLL_OPMODE(pll), &opmode_val);
+	ret = regmap_read(regmap, PLL_OPMODE(pll), &opmode_val);
 	if (ret)
 		return ret;
 
@@ -913,30 +913,20 @@ static int alpha_pll_fabia_enable(struct clk_hw *hw)
 	if ((opmode_val & FABIA_OPMODE_RUN) && (val & PLL_OUTCTRL))
 		return 0;
 
-	/* Disable PLL output */
-	ret = regmap_update_bits(pll->clkr.regmap, PLL_MODE(pll),
-							PLL_OUTCTRL, 0);
+	ret = regmap_update_bits(regmap, PLL_MODE(pll), PLL_OUTCTRL, 0);
 	if (ret)
 		return ret;
 
-	/* Set Operation mode to STANBY */
-	ret = regmap_write(pll->clkr.regmap, PLL_OPMODE(pll),
-							FABIA_OPMODE_STANDBY);
+	ret = regmap_write(regmap, PLL_OPMODE(pll), FABIA_OPMODE_STANDBY);
 	if (ret)
 		return ret;
 
-	/* PLL should be in STANDBY mode before continuing */
-	mb();
-
-	/* Bring PLL out of reset */
-	ret = regmap_update_bits(pll->clkr.regmap, PLL_MODE(pll),
-						PLL_RESET_N, PLL_RESET_N);
+	ret = regmap_update_bits(regmap, PLL_MODE(pll), PLL_RESET_N,
+				 PLL_RESET_N);
 	if (ret)
 		return ret;
 
-	/* Set Operation mode to RUN */
-	ret = regmap_write(pll->clkr.regmap, PLL_OPMODE(pll),
-							FABIA_OPMODE_RUN);
+	ret = regmap_write(regmap, PLL_OPMODE(pll), FABIA_OPMODE_RUN);
 	if (ret)
 		return ret;
 
@@ -944,22 +934,13 @@ static int alpha_pll_fabia_enable(struct clk_hw *hw)
 	if (ret)
 		return ret;
 
-	/* Enable the main PLL output */
-	ret = regmap_update_bits(pll->clkr.regmap, PLL_USER_CTL(pll),
-				FABIA_PLL_OUT_MASK, FABIA_PLL_OUT_MASK);
+	ret = regmap_update_bits(regmap, PLL_USER_CTL(pll),
+				 FABIA_PLL_OUT_MASK, FABIA_PLL_OUT_MASK);
 	if (ret)
 		return ret;
 
-	/* Enable PLL outputs */
-	ret = regmap_update_bits(pll->clkr.regmap, PLL_MODE(pll),
-						PLL_OUTCTRL, PLL_OUTCTRL);
-	if (ret)
-		return ret;
-
-	/* Ensure that the write above goes through before returning. */
-	mb();
-
-	return ret;
+	return regmap_update_bits(regmap, PLL_MODE(pll), PLL_OUTCTRL,
+				 PLL_OUTCTRL);
 }
 
 static void alpha_pll_fabia_disable(struct clk_hw *hw)
@@ -967,8 +948,9 @@ static void alpha_pll_fabia_disable(struct clk_hw *hw)
 	int ret;
 	struct clk_alpha_pll *pll = to_clk_alpha_pll(hw);
 	u32 val;
+	struct regmap *regmap = pll->clkr.regmap;
 
-	ret = regmap_read(pll->clkr.regmap, PLL_MODE(pll), &val);
+	ret = regmap_read(regmap, PLL_MODE(pll), &val);
 	if (ret)
 		return;
 
@@ -978,23 +960,18 @@ static void alpha_pll_fabia_disable(struct clk_hw *hw)
 		return;
 	}
 
-	/* Disable PLL outputs */
-	ret = regmap_update_bits(pll->clkr.regmap, PLL_MODE(pll),
-							PLL_OUTCTRL, 0);
+	ret = regmap_update_bits(regmap, PLL_MODE(pll), PLL_OUTCTRL, 0);
 	if (ret)
 		return;
 
 	/* Disable main outputs */
-	ret = regmap_update_bits(pll->clkr.regmap, PLL_USER_CTL(pll),
-							FABIA_PLL_OUT_MASK, 0);
+	ret = regmap_update_bits(regmap, PLL_USER_CTL(pll), FABIA_PLL_OUT_MASK,
+				 0);
 	if (ret)
 		return;
 
 	/* Place the PLL in STANDBY */
-	ret = regmap_write(pll->clkr.regmap, PLL_OPMODE(pll),
-							FABIA_OPMODE_STANDBY);
-	if (ret)
-		return;
+	regmap_write(regmap, PLL_OPMODE(pll), FABIA_OPMODE_STANDBY);
 }
 
 static unsigned long alpha_pll_fabia_recalc_rate(struct clk_hw *hw,
