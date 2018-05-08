@@ -655,6 +655,10 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 		iftype_data->he_cap.he_cap_elem.mac_cap_info[2] &=
 			~IEEE80211_HE_MAC_CAP2_ACK_EN;
 
+	if (trans->dbg_cfg.no_ldpc)
+		iftype_data->he_cap.he_cap_elem.phy_cap_info[1] &=
+			~IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD;
+
 	/* Check if any HE capabilities need to be set for debug purposes */
 	if (trans->dbg_cfg.he_ppe_thres.len) {
 		u8 len = trans->dbg_cfg.he_ppe_thres.len;

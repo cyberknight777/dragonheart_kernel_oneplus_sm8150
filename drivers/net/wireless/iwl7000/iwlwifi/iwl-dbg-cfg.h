@@ -256,6 +256,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, d0i3_debug)
 	IWL_DBG_CFG_NODEF(u32, valid_ants)
 	IWL_DBG_CFG_NODEF(u32, no_ack_en)
+	IWL_DBG_CFG_NODEF(bool, no_ldpc)
 	IWL_DBG_CFG_NODEF(u16, rx_mcs_80)
 	IWL_DBG_CFG_NODEF(u16, tx_mcs_80)
 	IWL_DBG_CFG_NODEF(u16, rx_mcs_160)
