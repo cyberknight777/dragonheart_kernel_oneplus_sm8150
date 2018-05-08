@@ -964,6 +964,16 @@ static void uvd_v6_0_enc_ring_emit_fence(struct amdgpu_ring *ring, u64 addr,
 }
 
 /**
+ * uvd_v6_0_ring_emit_hdp_flush - skip HDP flushing
+ *
+ * @ring: amdgpu_ring pointer
+ */
+static void uvd_v6_0_ring_emit_hdp_flush(struct amdgpu_ring *ring)
+{
+	/* The firmware doesn't seem to like touching registers at this point. */
+}
+
+/**
  * uvd_v6_0_ring_test_ring - register write test
  *
  * @ring: amdgpu_ring pointer
@@ -1551,7 +1561,7 @@ static const struct amdgpu_ring_funcs uvd_v6_0_ring_vm_funcs = {
 	.get_wptr = uvd_v6_0_ring_get_wptr,
 	.set_wptr = uvd_v6_0_ring_set_wptr,
 	.emit_frame_size =
-		6 + 6 + /* hdp flush / invalidate */
+		6 + /* hdp invalidate */
 		10 + /* uvd_v6_0_ring_emit_pipeline_sync */
 		3 /* VI_FLUSH_GPU_TLB_NUM_WREG */ * 6 + 8 + /* uvd_v6_0_ring_emit_vm_flush */
 		14 + 14, /* uvd_v6_0_ring_emit_fence x2 vm fence */
@@ -1560,6 +1570,7 @@ static const struct amdgpu_ring_funcs uvd_v6_0_ring_vm_funcs = {
 	.emit_fence = uvd_v6_0_ring_emit_fence,
 	.emit_vm_flush = uvd_v6_0_ring_emit_vm_flush,
 	.emit_pipeline_sync = uvd_v6_0_ring_emit_pipeline_sync,
+	.emit_hdp_flush = uvd_v6_0_ring_emit_hdp_flush,
 	.test_ring = uvd_v6_0_ring_test_ring,
 	.test_ib = amdgpu_uvd_ring_test_ib,
 	.insert_nop = amdgpu_ring_insert_nop,
