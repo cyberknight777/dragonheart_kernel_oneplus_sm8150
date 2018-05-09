@@ -293,7 +293,7 @@ of_genpd_opp_to_performance_state(struct device *dev,
 
 static inline int genpd_dev_pm_attach(struct device *dev)
 {
-	return -ENODEV;
+	return 0;
 }
 
 static inline
@@ -310,7 +310,7 @@ extern void dev_pm_domain_set(struct device *dev, struct dev_pm_domain *pd);
 #else
 static inline int dev_pm_domain_attach(struct device *dev, bool power_on)
 {
-	return -ENODEV;
+	return 0;
 }
 static inline void dev_pm_domain_detach(struct device *dev, bool power_off) {}
 static inline void dev_pm_domain_set(struct device *dev,

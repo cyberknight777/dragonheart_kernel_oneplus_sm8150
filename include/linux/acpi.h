@@ -881,7 +881,7 @@ static inline struct acpi_device *acpi_dev_pm_get_node(struct device *dev)
 }
 static inline int acpi_dev_pm_attach(struct device *dev, bool power_on)
 {
-	return -ENODEV;
+	return 0;
 }
 #endif
 
