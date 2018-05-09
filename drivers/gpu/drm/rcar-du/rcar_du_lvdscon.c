@@ -69,7 +69,7 @@ int rcar_du_lvds_connector_init(struct rcar_du_device *rcdu,
 	connector = &rcon->connector;
 
 	rcon->panel = of_drm_find_panel(np);
-	if (!rcon->panel)
+	if (IS_ERR(rcon->panel))
 		return -EPROBE_DEFER;
 
 	ret = drm_connector_init(rcdu->ddev, connector, &connector_funcs,
