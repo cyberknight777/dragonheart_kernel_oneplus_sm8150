@@ -223,6 +223,7 @@ out_invalid:
 	fput(file);
 	return ERR_PTR(-EINVAL);
 }
+EXPORT_SYMBOL(proc_ns_fget);
 
 static int nsfs_show_path(struct seq_file *seq, struct dentry *dentry)
 {
