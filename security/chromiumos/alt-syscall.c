@@ -24,7 +24,6 @@
 
 #include "alt-syscall.h"
 #include "android_whitelists.h"
-#include "process_tree_whitelists.h"
 #include "read_write_test_whitelists.h"
 #include "third_party_whitelists.h"
 
@@ -320,8 +319,6 @@ static struct syscall_whitelist whitelists[] = {
 	PERMISSIVE_SYSCALL_WHITELIST(android),
 	SYSCALL_WHITELIST(third_party),
 	PERMISSIVE_SYSCALL_WHITELIST(third_party),
-	SYSCALL_WHITELIST(process_tree),
-	PERMISSIVE_SYSCALL_WHITELIST(process_tree)
 };
 
 static int alt_syscall_apply_whitelist(const struct syscall_whitelist *wl,
