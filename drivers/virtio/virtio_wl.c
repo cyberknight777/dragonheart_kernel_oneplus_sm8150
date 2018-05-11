@@ -1049,10 +1049,9 @@ static long virtwl_ioctl_recv(struct file *filp, void __user *ptr)
 		ret = anon_inode_getfd("[virtwl_vfd]", &virtwl_vfd_fops,
 				       vfds[i], virtwl_vfd_file_flags(vfds[i])
 				       | O_CLOEXEC);
-		if (ret < 0) {
-			do_vfd_close(vfds[i]);
+		if (ret < 0)
 			goto free_vfds;
-		}
+
 		vfds[i] = NULL;
 		fds[i] = ret;
 	}
