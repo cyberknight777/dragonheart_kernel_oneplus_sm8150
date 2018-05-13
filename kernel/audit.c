@@ -2269,8 +2269,7 @@ void audit_log_link_denied(const char *operation, const struct path *link)
 		return;
 
 	/* Generate AUDIT_ANOM_LINK with subject, operation, outcome. */
-	ab = audit_log_start(current->audit_context, GFP_KERNEL,
-			     AUDIT_ANOM_LINK);
+	ab = audit_log_start(audit_context(), GFP_KERNEL, AUDIT_ANOM_LINK);
 	if (!ab)
 		goto out;
 	audit_log_format(ab, "op=%s", operation);
@@ -2281,7 +2280,7 @@ void audit_log_link_denied(const char *operation, const struct path *link)
 	/* Generate AUDIT_PATH record with object. */
 	name->type = AUDIT_TYPE_NORMAL;
 	audit_copy_inode(name, link->dentry, d_backing_inode(link->dentry));
-	audit_log_name(current->audit_context, name, link, 0, NULL);
+	audit_log_name(audit_context(), name, link, 0, NULL);
 out:
 	kfree(name);
 }
