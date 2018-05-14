@@ -6,6 +6,7 @@
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/qcom,gcc-sdm845.h>
 
 / {
 	interrupt-parent = <&intc>;
@@ -182,8 +183,8 @@
 			compatible = "qcom,geni-se-qup";
 			reg = <0xac0000 0x6000>;
 			clock-names = "m-ahb", "s-ahb";
-			clocks = <&gcc 105>,
-				 <&gcc 106>;
+			clocks = <&gcc GCC_QUPV3_WRAP_1_M_AHB_CLK>,
+				 <&gcc GCC_QUPV3_WRAP_1_S_AHB_CLK>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges;
@@ -193,7 +194,7 @@
 				compatible = "qcom,geni-debug-uart";
 				reg = <0xa84000 0x4000>;
 				clock-names = "se";
-				clocks = <&gcc 89>;
+				clocks = <&gcc GCC_QUPV3_WRAP1_S1_CLK>;
 				pinctrl-names = "default", "sleep";
 				pinctrl-0 = <&qup_uart2_default>;
 				pinctrl-1 = <&qup_uart2_sleep>;
@@ -205,7 +206,7 @@
 				compatible = "qcom,geni-i2c";
 				reg = <0xa88000 0x4000>;
 				clock-names = "se";
-				clocks = <&gcc 91>;
+				clocks = <&gcc GCC_QUPV3_WRAP1_S2_CLK>;
 				pinctrl-names = "default", "sleep";
 				pinctrl-0 = <&qup_i2c10_default>;
 				pinctrl-1 = <&qup_i2c10_sleep>;
