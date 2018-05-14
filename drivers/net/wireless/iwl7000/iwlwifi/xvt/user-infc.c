@@ -2018,21 +2018,20 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 
 static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 			   struct iwl_scd_txq_cfg_cmd *cmd,
-			   u16 ssn)
+			   u16 ssn, u16 flags, int size)
 {
 	int queue_id = cmd->scd_queue, ret;
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		/*TODO: add support for second lmac*/
 		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
-			.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+			.flags = cpu_to_le16(flags),
 			.sta_id = cmd->sta_id,
 			.tid = cmd->tid
 		};
 
 		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
-					       SCD_QUEUE_CFG,
-					       IWL_DEFAULT_QUEUE_SIZE, 0);
+					       SCD_QUEUE_CFG, size, 0);
 		if (queue_id < 0)
 			return queue_id;
 	} else {
@@ -2101,7 +2100,8 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 		if (WARN(error, "failed to remove queue"))
 			return error;
 	} else {
-		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn);
+		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn,
+					   conf->flags, conf->queue_size);
 		if (queue_id < 0)
 			return queue_id;
 	}

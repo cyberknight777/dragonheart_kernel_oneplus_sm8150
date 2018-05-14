@@ -651,7 +651,11 @@ struct iwl_xvt_driver_command_resp {
  * @aggregate: 1 aggregated queue, 0 otherwise
  * @tx_fifo: &enum iwl_mvm_tx_fifo
  * @window: BA window size
+ * @reserved: reserved
  * @ssn: SSN for the BA agreement
+ * @flags: flags for iwl_tx_queue_cfg_cmd. see &enum iwl_tx_queue_cfg_actions
+ * @reserved2: reserved
+ * @queue_size: size of configured queue
  */
 struct iwl_xvt_txq_config {
 	u8 sta_id;
@@ -663,6 +667,9 @@ struct iwl_xvt_txq_config {
 	u8 window;
 	u8 reserved;
 	u16 ssn;
+	u16 flags;
+	u16 reserved2;
+	int queue_size;
 } __packed __aligned(4);
 
 /**
