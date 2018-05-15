@@ -5,8 +5,8 @@
  * Copyright (c) 2018, The Linux Foundation. All rights reserved.
  */
 
-#include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-sdm845.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
 
 / {
 	interrupt-parent = <&intc>;
