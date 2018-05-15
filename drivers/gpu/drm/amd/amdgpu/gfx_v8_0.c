@@ -2050,6 +2050,12 @@ static int gfx_v8_0_sw_init(void *handle)
 	if (r)
 		return r;
 
+	/* Add CP EDC/ECC irq  */
+	r = amdgpu_irq_add_id(adev, AMDGPU_IH_CLIENTID_LEGACY, 197,
+			      &adev->gfx.cp_ecc_error_irq);
+	if (r)
+		return r;
+
 	adev->gfx.gfx_current_status = AMDGPU_GFX_NORMAL_MODE;
 
 	gfx_v8_0_scratch_init(adev);
@@ -5142,6 +5148,8 @@ static int gfx_v8_0_hw_fini(void *handle)
 	amdgpu_irq_put(adev, &adev->gfx.priv_reg_irq, 0);
 	amdgpu_irq_put(adev, &adev->gfx.priv_inst_irq, 0);
 
+	amdgpu_irq_put(adev, &adev->gfx.cp_ecc_error_irq, 0);
+
 	/* disable KCQ to avoid CPC touch memory not valid anymore */
 	for (i = 0; i < adev->gfx.num_compute_rings; i++)
 		gfx_v8_0_kcq_disable(&adev->gfx.kiq.ring, &adev->gfx.compute_ring[i]);
@@ -5551,6 +5559,12 @@ static int gfx_v8_0_late_init(void *handle)
 	r = gfx_v8_0_do_edc_gpr_workarounds(adev);
 	if (r)
 		return r;
+
+	r = amdgpu_irq_get(adev, &adev->gfx.cp_ecc_error_irq, 0);
+	if (r) {
+		DRM_ERROR("amdgpu_irq_get() failed to get IRQ for EDC, r: %d.\n", r);
+		return r;
+	}
 
 	return 0;
 }
@@ -6814,6 +6828,51 @@ static int gfx_v8_0_set_eop_interrupt_state(struct amdgpu_device *adev,
 	return 0;
 }
 
+static int gfx_v8_0_set_cp_ecc_int_state(struct amdgpu_device *adev,
+					 struct amdgpu_irq_src *source,
+					 unsigned int type,
+					 enum amdgpu_interrupt_state state)
+{
+	int enable_flag;
+
+	switch (state) {
+	case AMDGPU_IRQ_STATE_DISABLE:
+		enable_flag = 0;
+		break;
+
+	case AMDGPU_IRQ_STATE_ENABLE:
+		enable_flag = 1;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	WREG32_FIELD(CP_INT_CNTL, CP_ECC_ERROR_INT_ENABLE, enable_flag);
+	WREG32_FIELD(CP_INT_CNTL_RING0, CP_ECC_ERROR_INT_ENABLE, enable_flag);
+	WREG32_FIELD(CP_INT_CNTL_RING1, CP_ECC_ERROR_INT_ENABLE, enable_flag);
+	WREG32_FIELD(CP_INT_CNTL_RING2, CP_ECC_ERROR_INT_ENABLE, enable_flag);
+	WREG32_FIELD(CPC_INT_CNTL, CP_ECC_ERROR_INT_ENABLE, enable_flag);
+	WREG32_FIELD(CP_ME1_PIPE0_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME1_PIPE1_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME1_PIPE2_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME1_PIPE3_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME2_PIPE0_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME2_PIPE1_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME2_PIPE2_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+	WREG32_FIELD(CP_ME2_PIPE3_INT_CNTL, CP_ECC_ERROR_INT_ENABLE,
+		     enable_flag);
+
+	return 0;
+}
+
 static int gfx_v8_0_eop_irq(struct amdgpu_device *adev,
 			    struct amdgpu_irq_src *source,
 			    struct amdgpu_iv_entry *entry)
@@ -6861,6 +6920,14 @@ static int gfx_v8_0_priv_inst_irq(struct amdgpu_device *adev,
 {
 	DRM_ERROR("Illegal instruction in command stream\n");
 	schedule_work(&adev->reset_work);
+	return 0;
+}
+
+static int gfx_v8_0_cp_ecc_error_irq(struct amdgpu_device *adev,
+				     struct amdgpu_irq_src *source,
+				     struct amdgpu_iv_entry *entry)
+{
+	DRM_ERROR("ECC error detected.");
 	return 0;
 }
 
@@ -7014,6 +7081,11 @@ static const struct amdgpu_irq_src_funcs gfx_v8_0_priv_inst_irq_funcs = {
 	.process = gfx_v8_0_priv_inst_irq,
 };
 
+static const struct amdgpu_irq_src_funcs gfx_v8_0_cp_ecc_error_irq_funcs = {
+	.set = gfx_v8_0_set_cp_ecc_int_state,
+	.process = gfx_v8_0_cp_ecc_error_irq,
+};
+
 static void gfx_v8_0_set_irq_funcs(struct amdgpu_device *adev)
 {
 	adev->gfx.eop_irq.num_types = AMDGPU_CP_IRQ_LAST;
@@ -7024,6 +7096,9 @@ static void gfx_v8_0_set_irq_funcs(struct amdgpu_device *adev)
 
 	adev->gfx.priv_inst_irq.num_types = 1;
 	adev->gfx.priv_inst_irq.funcs = &gfx_v8_0_priv_inst_irq_funcs;
+
+	adev->gfx.cp_ecc_error_irq.num_types = 1;
+	adev->gfx.cp_ecc_error_irq.funcs = &gfx_v8_0_cp_ecc_error_irq_funcs;
 }
 
 static void gfx_v8_0_set_rlc_funcs(struct amdgpu_device *adev)
