@@ -425,6 +425,97 @@
 	status = "okay";
 };
 
+&usb_1 {
+	status = "okay";
+
+	/* We'll use this as USB 2.0 only */
+	qcom,select-utmi-as-pipe-clk;
+};
+
+&usb_1_dwc3 {
+	/*
+	 * The hardware design intends this port to be hooked up in peripheral
+	 * mode, so we'll hardcode it here.  Some details:
+	 * - SDM845 expects only a single Type C connector so it has only one
+	 *   native Type C port but cheza has two Type C connectors.
+	 * - The only source of DP is the single native Type C port.
+	 * - On cheza we want to be able to hook DP up to _either_ of the
+	 *   two Type C connectors and want to be able to achieve 4 lanes of DP.
+	 * - When you configure a Type C port for 4 lanes of DP you lose USB3.
+	 * - In order to make everything work, the native Type C port is always
+	 *   configured as 4-lanes DP so it's always available.
+	 * - The extra USB3 port on SDM845 goes to a USB 3 hub which is then
+	 *   sent to the two Type C connectors.
+	 * - The extra USB2 lines from the native Type C port are always
+	 *   setup as "peripheral" so that we can mux them over to one connector
+	 *   or the other if someone needs the connector configured as a gadget
+	 *   (but they only get USB2 speeds).
+	 *
+	 * All the hardware muxes would allow us to hook things up in different
+	 * ways to some potential benefit for static configurations (you could
+	 * achieve extra USB2 bandwidth by using two different ports for the
+	 * two conenctors or possibly even get USB3 peripheral mode), but in
+	 * each case you end up forcing to disconnect/reconnect an in-use
+	 * USB session in some cases depending on what you hotplug into the
+	 * other connector.  Thus hardcoding this as peripheral makes sense.
+	 */
+	dr_mode = "peripheral";
+
+	/*
+	 * We always need the high speed pins as 4-lanes DP in case someone
+	 * hotplugs a DP peripheral.  Thus limit this port to a max of high
+	 * speed.
+	 */
+	maximum-speed = "high-speed";
+
+	/*
+	 * We don't need the usb3-phy since we run in highspeed mode always, so
+	 * re-define these properties removing the superspeed USB PHY reference.
+	 */
+	phys = <&usb_1_hsphy>;
+	phy-names = "usb2-phy";
+};
+
+&usb_1_hsphy {
+	status = "okay";
+
+	vdd-supply = <&vdda_usb1_ss_core>;
+	vdda-pll-supply = <&vdda_qusb_hs0_1p8>;
+	vdda-phy-dpdm-supply = <&vdda_qusb_hs0_3p1>;
+
+	qcom,imp-res-offset-value = <8>;
+	qcom,hstx-trim-value = <QUSB2_V2_HSTX_TRIM_21_6_MA>;
+	qcom,preemphasis-level = <QUSB2_V2_PREEMPHASIS_5_PERCENT>;
+	qcom,preemphasis-width = <QUSB2_V2_PREEMPHASIS_WIDTH_HALF_BIT>;
+};
+
+&usb_2 {
+	status = "okay";
+};
+
+&usb_2_dwc3 {
+	/* We have this hooked up to a hub and we always use in host mode */
+	dr_mode = "host";
+};
+
+&usb_2_hsphy {
+	status = "okay";
+
+	vdd-supply = <&vdda_usb2_ss_core>;
+	vdda-pll-supply = <&vdda_qusb_hs0_1p8>;
+	vdda-phy-dpdm-supply = <&vdda_qusb_hs0_3p1>;
+
+	qcom,imp-res-offset-value = <8>;
+	qcom,hstx-trim-value = <QUSB2_V2_HSTX_TRIM_22_8_MA>;
+};
+
+&usb_2_qmpphy {
+	status = "okay";
+
+	vdda-phy-supply = <&vdda_usb2_ss_1p2>;
+	vdda-pll-supply = <&vdda_usb2_ss_core>;
+};
+
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
 
 &qup_uart9_default {
