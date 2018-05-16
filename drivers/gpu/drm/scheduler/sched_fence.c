@@ -82,7 +82,7 @@ static const char *drm_sched_fence_get_timeline_name(struct dma_fence *f)
 }
 
 /**
- * amd_sched_fence_free - free up the fence memory
+ * drm_sched_fence_free - free up the fence memory
  *
  * @rcu: RCU callback head
  *
@@ -98,7 +98,7 @@ static void drm_sched_fence_free(struct rcu_head *rcu)
 }
 
 /**
- * amd_sched_fence_release_scheduled - callback that fence can be freed
+ * drm_sched_fence_release_scheduled - callback that fence can be freed
  *
  * @fence: fence
  *
@@ -113,7 +113,7 @@ static void drm_sched_fence_release_scheduled(struct dma_fence *f)
 }
 
 /**
- * amd_sched_fence_release_finished - drop extra reference
+ * drm_sched_fence_release_finished - drop extra reference
  *
  * @f: fence
  *
