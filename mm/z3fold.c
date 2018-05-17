@@ -906,7 +906,7 @@ next:
 		} else {
 			z3fold_page_lock(zhdr);
 			clear_bit(UNDER_RECLAIM, &page->private);
-			 if (kref_put(&zhdr->refcount,
+			if (kref_put(&zhdr->refcount,
 					release_z3fold_page_locked)) {
 				atomic64_dec(&pool->pages_nr);
 				return 0;
