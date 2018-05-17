@@ -79,6 +79,7 @@
 #include "iwl-op-mode.h"
 #include "iwl-agn-hw.h"
 #include "fw/img.h"
+#include "iwl-dbg-tlv.h"
 #include "iwl-config.h"
 #include "iwl-modparams.h"
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
@@ -902,6 +903,9 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 fw_dbg_conf:
 #endif
 
+	if (iwlwifi_mod_params.enable_ini)
+		iwl_alloc_dbg_tlv(drv->trans, len, data);
+
 	while (len >= sizeof(*tlv)) {
 		len -= sizeof(*tlv);
 		tlv = (void *)data;
@@ -1374,6 +1378,13 @@ fw_dbg_conf:
 				return -ENOMEM;
 			break;
 			}
+		case IWL_UCODE_TLV_TYPE_BUFFER_ALLOCATION:
+		case IWL_UCODE_TLV_TYPE_HCMD:
+		case IWL_UCODE_TLV_TYPE_REGIONS:
+		case IWL_UCODE_TLV_TYPE_TRIGGERS:
+		case IWL_UCODE_TLV_TYPE_DEBUG_FLOW:
+			if (iwlwifi_mod_params.enable_ini)
+				iwl_fw_dbg_copy_tlv(drv->trans, tlv);
 		default:
 			IWL_DEBUG_INFO(drv, "unknown TLV: %d\n", tlv_type);
 			break;
@@ -1958,6 +1969,7 @@ void iwl_drv_stop(struct iwl_drv *drv)
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	iwl_dbg_cfg_free(&drv->trans->dbg_cfg);
 #endif
+	iwl_fw_dbg_free(drv->trans);
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	iwl_remove_sysfs_file(drv);
@@ -2132,6 +2144,10 @@ module_param_named(uapsd_disable, iwlwifi_mod_params.uapsd_disable,
 		   uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(uapsd_disable,
 		 "disable U-APSD functionality bitmap 1: BSS 2: P2P Client (default: 3)");
+module_param_named(enable_ini, iwlwifi_mod_params.enable_ini,
+		   bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(enable_ini,
+		 "Enable debug INI TLV FW debug infrastructure (default: 0");
 
 /*
  * set bt_coex_active to true, uCode will do kill/defer

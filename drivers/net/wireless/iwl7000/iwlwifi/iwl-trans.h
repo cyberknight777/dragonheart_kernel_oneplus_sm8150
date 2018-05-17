@@ -86,6 +86,8 @@
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "fw/testmode.h"
 #endif
+#include "fw/api/dbg-tlv.h"
+#include "iwl-dbg-tlv.h"
 
 /**
  * DOC: Transport layer - what is it ?
@@ -800,6 +802,7 @@ struct iwl_trans {
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	struct iwl_dbg_cfg dbg_cfg;
 #endif
+	struct iwl_apply_point_data apply_points[IWL_FW_INI_APPLY_NUM];
 
 	const struct iwl_fw_dbg_dest_tlv_v1 *dbg_dest_tlv;
 	const struct iwl_fw_dbg_conf_tlv *dbg_conf_tlv[FW_DBG_CONF_MAX];
