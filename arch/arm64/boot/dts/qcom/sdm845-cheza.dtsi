@@ -424,6 +424,55 @@
 	status = "okay";
 };
 
+&spi0 {
+	status = "okay";
+	spi-max-frequency = <3000000>;  /* TODO: Drop this? */
+};
+
+&spi5 {
+	status = "okay";
+	spi-max-frequency = <800000>; /* TODO: Drop this */
+	cr50@0 {
+		compatible = "google,cr50";
+		reg = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&h1_ap_int_odl>;
+		spi-max-frequency = <800000>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <129 IRQ_TYPE_EDGE_RISING>;
+	};
+};
+
+&spi10 {
+	status = "okay";
+	spi-max-frequency = <3000000>;  /* TODO: Drop this? */
+
+	cros_ec: ec@0 {
+		compatible = "google,cros-ec-spi";
+		reg = <0>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <122 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_ap_int_l>;
+		spi-max-frequency = <3000000>;
+
+		cros_ec_pwm: ec-pwm {
+			compatible = "google,cros-ec-pwm";
+			#pwm-cells = <1>;
+		};
+
+		i2c_tunnel: i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+};
+
+#include <arm/cros-ec-keyboard.dtsi>
+#include <arm/cros-ec-sbs.dtsi>
+
 &uart9 {
 	status = "okay";
 };
@@ -521,6 +570,30 @@
 
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
 
+&qup_spi0_default {
+	pinconf {
+		pins = "gpio0", "gpio1", "gpio2", "gpio3";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
+&qup_spi5_default {
+	pinconf {
+		pins = "gpio85", "gpio86", "gpio87", "gpio88";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
+&qup_spi10_default {
+	pinconf {
+		pins = "gpio53", "gpio54", "gpio55", "gpio56";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
 &qup_uart9_default {
 	pinconf-tx {
 		pins = "gpio4";
@@ -586,6 +659,19 @@
 		};
 	};
 
+	ec_ap_int_l: ec-ap-int-l {
+		pinmux {
+		       pins = "gpio122";
+		       function = "gpio";
+		       input-enable;
+		};
+
+		pinconf {
+		       pins = "gpio122";
+		       bias-pull-up;
+		};
+	};
+
 	/* NOTE: below is still on -rev3 schematics but goes to a DNS jumper */
 	en_pp3300_dx_edp: en-pp3300-dx-edp {
 		pinmux {
@@ -597,6 +683,19 @@
 			pins = "gpio43";
 			drive-strength = <8>; /* TODO: why? */
 			bias-disable;
+		};
+	};
+
+	h1_ap_int_odl: h1-ap-int-odl {
+		pinmux {
+			pins = "gpio129";
+			function = "gpio";
+			input-enable;
+		};
+
+		pinconf {
+			pins = "gpio129";
+			bias-pull-up;
 		};
 	};
 

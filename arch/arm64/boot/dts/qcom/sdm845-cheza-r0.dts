@@ -83,6 +83,57 @@
 	/delete-node/ chromeos;
 };
 
+&spi10 {
+	status = "disabled";
+	/delete-node/ec@0;
+};
+
+/*
+ * NON-REGULATOR OVERRIDES
+ * (modifications to sdm845.dtsi) - alphabetized by dtsi label
+ */
+
+/*
+ * NOTE: spi0 is supposed to be for FP and spi10 is supposed to be for
+ * EC.  ...but spi10 was wired incorrectly in -rev0 so we've bluewired
+ * things to spi0 (and still left spi10 connected).  Hence a strange
+ * pinctrl and the fact that having the EC here doesn't match original
+ * schematics.
+ */
+&spi0 {
+	pinctrl-0 = <&qup_spi0_default>, <&qup_spi10_neuter>;
+	spi-max-frequency = <3000000>;  /* TODO: Drop this? */
+
+	cros_ec: ec@0 {
+		compatible = "google,cros-ec-spi";
+		reg = <0>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <122 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_ap_int_l>;
+		spi-max-frequency = <3000000>;
+
+		i2c_tunnel: i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+	};
+};
+
+#include <arm/cros-ec-keyboard.dtsi>
+#include <arm/cros-ec-sbs.dtsi>
+
+/* PINCTRL - additions to nodes defined in sdm845.dtsi */
+
+&qup_spi0_default {
+	pinconf {
+		/* Extra strong since there's a rework (TODO: verify?) */
+		drive-strength = <8>;
+	};
+};
+
 /* PINCTRL - board-specific pinctrl */
 
 &tlmm {
@@ -236,4 +287,17 @@
 			  "AP_RAM_ID2",
 			  "RFFE1_DATA",
 			  "RFFE1_CLK";
+
+	qup_spi10_neuter: qup-spi10-neuter {
+		pinmux {
+			pins = "gpio53", "gpio54", "gpio55", "gpio56";
+			function = "gpio";
+			input-enable; /* ? */
+		};
+
+		pinconf {
+			pins = "gpio53", "gpio54", "gpio55", "gpio56";
+			bias-disable;
+		};
+	};
 };
