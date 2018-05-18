@@ -2303,7 +2303,7 @@ static inline int
 reg_query_regdb_wmm(char *alpha2, int freq, u32 *ptr,
 		    struct ieee80211_wmm_rule *rule)
 {
-	printk(KERN_DEBUG "iwl7000: ETSI WMM data not implemented yet!\n");
+	pr_debug_once("iwl7000: ETSI WMM data not implemented yet!\n");
 	return -ENODATA;
 }
 #endif
