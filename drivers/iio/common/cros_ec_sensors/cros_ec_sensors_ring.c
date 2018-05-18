@@ -88,6 +88,10 @@ struct cros_ec_sensors_ring_state {
 	s64    fifo_timestamp[ALL_TS];
 	struct cros_ec_fifo_info fifo_info;
 	int    fifo_size;
+
+	/* Used for timestamp spreading calculations when a batch shows up */
+	s64 last_batch_timestamp[CROS_EC_SENSOR_MAX];
+	s64 last_batch_len[CROS_EC_SENSOR_MAX];
 };
 
 static const struct iio_info ec_sensors_info = {
@@ -97,9 +101,11 @@ static const struct iio_info ec_sensors_info = {
 static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
 				    bool on)
 {
-	int ret;
+	int i, ret;
 
 	mutex_lock(&state->core.cmd_lock);
+	for (i = 0; i < CROS_EC_SENSOR_MAX; i++)
+		state->last_batch_len[i] = 0;
 	state->core.param.cmd = MOTIONSENSE_CMD_FIFO_INT_ENABLE;
 	state->core.param.fifo_int_enable.enable = on;
 	ret = cros_ec_motion_send_host_cmd(&state->core, 0);
@@ -121,6 +127,7 @@ static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
  * out: outgoing event to user space.
  */
 static bool cros_ec_ring_process_event(
+				struct cros_ec_sensors_ring_state *state,
 				const struct cros_ec_fifo_info *fifo_info,
 				const s64 fifo_timestamp,
 				s64 *current_timestamp,
@@ -146,6 +153,7 @@ static bool cros_ec_ring_process_event(
 		out->sensor_id = in->sensor_num;
 		out->timestamp = *current_timestamp;
 		out->flag = in->flags;
+		state->last_batch_len[out->sensor_id] = 0;
 		/*
 		 * No other payload information provided with
 		 * flush ack.
@@ -181,6 +189,7 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 	unsigned long sensor_mask = 0;
 	struct ec_response_motion_sensor_data *in;
 	struct cros_ec_sensors_ring_sample *out, *last_out;
+	struct cros_ec_sensors_ring_sample *batch_start, *next_batch_start;
 
 
 	mutex_lock(&state->core.cmd_lock);
@@ -243,7 +252,7 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 		for (in = state->core.resp->fifo_read.data, j = 0;
 		     j < number_data; j++, in++) {
 			if (cros_ec_ring_process_event(
-					fifo_info, fifo_timestamp,
+					state, fifo_info, fifo_timestamp,
 					&current_timestamp, in, out)) {
 				sensor_mask |= (1 << in->sensor_num);
 				out++;
@@ -266,98 +275,118 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 	if ((last_out-1)->timestamp == current_timestamp)
 		current_timestamp = fifo_timestamp;
 
-	/* check if buffer is set properly */
+	/* Check if buffer is set properly. */
 	if (!indio_dev->active_scan_mask ||
 	    (bitmap_empty(indio_dev->active_scan_mask,
 			  indio_dev->masklength)))
 		goto ring_handler_end;
 
-	/*
-	 * calculate proper timestamps
-	 *
-	 * If there is a sample with a proper timestamp
-	 *                        timestamp | count
-	 * older_unprocess_out --> TS1      | 1
-	 *                         TS1      | 2
-	 * out -->                 TS1      | 3
-	 * next_out -->            TS2      |
-	 * We spread time for the samples [older_unprocess_out .. out]
-	 * between TS1 and TS2: [TS1+1/4, TS1+2/4, TS1+3/4, TS2].
-	 *
-	 * If we reach the end of the samples, we compare with the
-	 * current timestamp:
-	 *
-	 * older_unprocess_out --> TS1      | 1
-	 *                         TS1      | 2
-	 * out -->                 TS1      | 3
-	 * We know have [TS1+1/3, TS1+2/3, current timestamp]
-	 */
+	/* Warn on lost samples. */
 	for_each_set_bit(i, &sensor_mask, BITS_PER_LONG) {
-		s64 older_timestamp;
-		s64 timestamp;
-		struct cros_ec_sensors_ring_sample *older_unprocess_out =
-			state->ring;
-		struct cros_ec_sensors_ring_sample *next_out;
-		int count = 1;
-
 		if (fifo_info->info.total_lost) {
 			int lost = fifo_info->lost[i];
 
-			if (lost)
+			if (lost) {
 				dev_warn(&indio_dev->dev,
 					"Sensor %d: lost: %d out of %d\n", i,
 					lost, fifo_info->info.total_lost);
-		}
-
-		for (out = state->ring; out < last_out; out = next_out) {
-			s64 time_period;
-
-			next_out = out + 1;
-			if (out->sensor_id != i)
-				continue;
-
-			/* Timestamp to start with */
-			older_timestamp = out->timestamp;
-
-			/* find next sample */
-			while (next_out < last_out && next_out->sensor_id != i)
-				next_out++;
-
-			if (next_out >= last_out) {
-				timestamp = current_timestamp;
-			} else {
-				timestamp = next_out->timestamp;
-				if (timestamp == older_timestamp) {
-					count++;
-					continue;
-				}
+				state->last_batch_len[i] = 0;
 			}
-
-			/* The next sample has a new timestamp,
-			 * spread the unprocessed samples */
-			if (next_out < last_out)
-				count++;
-			time_period = div_s64(timestamp - older_timestamp,
-					      count);
-
-			for (; older_unprocess_out <= out;
-					older_unprocess_out++) {
-				if (older_unprocess_out->sensor_id != i)
-					continue;
-				older_timestamp += time_period;
-				older_unprocess_out->timestamp =
-					older_timestamp;
-			}
-			count = 1;
-			/* The next_out sample has a valid timestamp, skip. */
-			next_out++;
-			older_unprocess_out = next_out;
 		}
 	}
 
-	/* push the event into the kfifo */
-	for (out = state->ring; out < last_out; out++)
-		iio_push_to_buffers(indio_dev, (u8 *)out);
+	/*
+	 * Calculate proper timestamps.
+	 *
+	 * Sometimes the EC receives only one interrupt (hence timestamp) for
+	 * a batch of samples. Only the first sample will have the correct
+	 * timestamp. So we must interpolate the other samples.
+	 * We use the previous batch timestamp and our current batch timestamp
+	 * as a way to calculate period, then spread the samples evenly.
+	 *
+	 * s0 int, 0ms
+	 * s1 int, 10ms
+	 * s2 int, 20ms
+	 * 30ms point goes by, no interrupt, previous one is still asserted
+	 * downloading s2 and s3
+	 * s3 sample, 20ms (incorrect timestamp)
+	 * s4 int, 40ms
+	 *
+	 * The batches are [(s0), (s1), (s2, s3), (s4)]. Since the 3rd batch
+	 * has 2 samples in them, we adjust the timestamp of s3.
+	 * s2 - s1 = 10ms, so s3 must be s2 + 10ms => 20ms. If s1 would have
+	 * been part of a bigger batch things would have gotten a little
+	 * more complicated.
+	 *
+	 * Note: we also assume another sensor sample doesn't break up a batch
+	 * in 2 or more partitions. Example, there can't ever be a sync sensor
+	 * in between S2 and S3. This simplifies the following code.
+	 */
+	for (batch_start = state->ring; batch_start < last_out;
+	     batch_start = next_batch_start) {
+		/* for each batch (where all samples have the same timestamp) */
+		int batch_len, sample_idx = 1;
+		const int id = batch_start->sensor_id;
+		struct cros_ec_sensors_ring_sample *batch_end = batch_start;
+		struct cros_ec_sensors_ring_sample *s;
+		const s64 batch_timestamp = batch_start->timestamp;
+		s64 sample_period;
+
+		/*
+		 * Push first sample in the batch to the kfifo,
+		 * it's guaranteed to be correct, rest come later.
+		 */
+		iio_push_to_buffers(indio_dev, (u8 *)batch_start);
+
+		/* Find all samples have the same timestamp. */
+		for (s = batch_start + 1; s < last_out; s++) {
+			if (s->timestamp != batch_timestamp)
+				break; /* we discovered the next batch */
+			if (s->sensor_id != id)
+				break; /* another sensor, surely next batch */
+			batch_end = s;
+		}
+		batch_len = batch_end - batch_start + 1;
+
+		if (batch_len == 1)
+			goto done_with_this_batch;
+
+		dev_dbg(&indio_dev->dev,
+			"Adjusting samples, sensor %d last_batch @%lld (%lld samples) batch_timestamp=%lld => period=%lld\n",
+			id, state->last_batch_timestamp[id],
+			state->last_batch_len[id], batch_timestamp,
+			sample_period);
+
+		/* Can we calculate period? */
+		if (state->last_batch_len[id] == 0) {
+			dev_warn(&indio_dev->dev, "Sensor %d: lost %d samples when spreading\n",
+				 id, batch_len - 1);
+			goto done_with_this_batch;
+			/*
+			 * Note: we're dropping the rest of the samples in
+			 * this batch since we have no idea where they're
+			 * supposed to go without a period calculation.
+			 */
+		}
+
+		sample_period = div_s64(batch_timestamp -
+			state->last_batch_timestamp[id],
+			state->last_batch_len[id]);
+
+		/* Adjust timestamps of the samples then push them to kfifo. */
+		for (s = batch_start + 1; s <= batch_end; s++) {
+			s->timestamp = batch_timestamp +
+				sample_period * sample_idx;
+			sample_idx++;
+
+			iio_push_to_buffers(indio_dev, (u8 *)s);
+		}
+
+done_with_this_batch:
+		state->last_batch_timestamp[id] = batch_timestamp;
+		state->last_batch_len[id] = batch_len;
+		next_batch_start = batch_end + 1;
+	}
 
 ring_handler_end:
 	state->fifo_timestamp[LAST_TS] = current_timestamp;
