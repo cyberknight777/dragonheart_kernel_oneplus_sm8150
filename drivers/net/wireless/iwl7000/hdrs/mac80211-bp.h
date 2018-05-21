@@ -1684,6 +1684,10 @@ cfg80211_sta_support_p2p_ps(struct station_parameters *params, bool p2p_go)
 	return p2p_go;
 }
 
+#if LINUX_VERSION_IS_LESS(4,4,0)
+int match_string(const char * const *array, size_t n, const char *string);
+#endif /* LINUX_VERSION_IS_LESS(4,4,0) */
+
 #if LINUX_VERSION_IS_LESS(4,5,0)
 void *memdup_user_nul(const void __user *src, size_t len);
 #endif /* LINUX_VERSION_IS_LESS(4,5,0) */

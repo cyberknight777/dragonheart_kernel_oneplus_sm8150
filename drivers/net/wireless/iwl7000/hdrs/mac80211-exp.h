@@ -26,6 +26,7 @@
 #define tso_build_hdr __iwl7000_tso_build_hdr
 #define tso_build_data __iwl7000_tso_build_data
 #define tso_start __iwl7000_tso_start
+#define match_string __iwl7000_match_string
 #endif /* < 4.4.0 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 #define netdev_rss_key_fill __iwl7000_netdev_rss_key_fill
