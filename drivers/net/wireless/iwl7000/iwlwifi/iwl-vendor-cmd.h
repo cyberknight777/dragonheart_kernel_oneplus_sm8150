@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -17,11 +18,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -35,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -146,6 +143,10 @@
  *	The result output is sent back in &IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT
  *	attribute. In case the function failed to produce an output for the
  *	requested test vector, &IWL_MVM_VENDOR_ATTR_FIPS_TEST_RESULT is not set.
+ * @IWL_MVM_VENDOR_CMD_FMAC_CONNECT_PARAMS: set fmac specific parameters for
+ *	future connect commands. These parameters will affect all following
+ *	connect commands. To clear previous configuration, send the command with
+ *	no attributes.
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -182,6 +183,7 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_NEIGHBOR_REPORT_RESPONSE,
 	IWL_MVM_VENDOR_CMD_GET_SAR_GEO_PROFILE,
 	IWL_MVM_VENDOR_CMD_TEST_FIPS,
+	IWL_MVM_VENDOR_CMD_FMAC_CONNECT_PARAMS,
 };
 
 /**
@@ -780,6 +782,16 @@ enum iwl_vendor_fips_test_vector_hw {
  *	test. &enum iwl_vendor_fips_test_vector_hw.
  * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM: data vector for FIPS GCM HW
  *	test. &enum iwl_vendor_fips_test_vector_hw.
+ * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST: an array of BSSIDs to
+ *	blacklist. The device shall not try to connect to blacklisted BSSIDs.
+ *	This attribute shall not be set if
+ *	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST is set.
+ * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST: an array of BSSIDs to
+ *	whitelist. The device shall only try to connect to BSSIDs from the list.
+ *	This attribute shall not be set if
+ *	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST is set.
+ * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES: number of APs to try
+ *	before notifying connection failure.
  */
 enum iwl_mvm_vendor_attr {
 	__IWL_MVM_VENDOR_ATTR_INVALID,
@@ -852,6 +864,9 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES,
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM,
 	IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM,
+	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST,
+	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST,
+	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,
