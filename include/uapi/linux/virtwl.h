@@ -51,9 +51,14 @@ struct virtwl_ioctl_txn {
 	__u8 data[0];
 };
 
+struct virtwl_ioctl_dmabuf_sync {
+	__u32 flags; /* synchronization flags (see dma-buf.h) */
+};
+
 #define VIRTWL_IOCTL_NEW VIRTWL_IOWR(0x00, struct virtwl_ioctl_new)
 #define VIRTWL_IOCTL_SEND VIRTWL_IOR(0x01, struct virtwl_ioctl_txn)
 #define VIRTWL_IOCTL_RECV VIRTWL_IOW(0x02, struct virtwl_ioctl_txn)
-#define VIRTWL_IOCTL_MAXNR 3
+#define VIRTWL_IOCTL_DMABUF_SYNC VIRTWL_IOR(0x03, \
+					    struct virtwl_ioctl_dmabuf_sync)
 
 #endif /* _LINUX_VIRTWL_H */

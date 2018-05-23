@@ -35,6 +35,7 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_CMD_VFD_NEW_PIPE, /* virtio_wl_ctrl_vfd_new */
 	VIRTIO_WL_CMD_VFD_HUP, /* virtio_wl_ctrl_vfd */
 	VIRTIO_WL_CMD_VFD_NEW_DMABUF, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_CMD_VFD_DMABUF_SYNC, /* virtio_wl_ctrl_vfd_dmabuf_sync */
 
 	VIRTIO_WL_RESP_OK = 0x1000,
 	VIRTIO_WL_RESP_VFD_NEW = 0x1001, /* virtio_wl_ctrl_vfd_new */
@@ -102,6 +103,12 @@ struct virtio_wl_ctrl_vfd_recv {
 	__le32 vfd_id;
 	__le32 vfd_count; /* struct is followed by this many IDs */
 	/* the remainder is raw data */
+};
+
+struct virtio_wl_ctrl_vfd_dmabuf_sync {
+	struct virtio_wl_ctrl_hdr hdr;
+	__le32 vfd_id;
+	__le32 flags;
 };
 
 #endif /* _LINUX_VIRTIO_WL_H */

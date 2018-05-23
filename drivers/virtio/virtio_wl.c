@@ -58,6 +58,8 @@
 #include <linux/virtio.h>
 #include <linux/virtio_wl.h>
 
+#include <uapi/linux/dma-buf.h>
+
 #define VFD_ILLEGAL_SIGN_BIT 0x80000000
 #define VFD_HOST_VFD_ID_BIT 0x40000000
 
@@ -774,6 +776,46 @@ put_files:
 	return ret;
 }
 
+static int virtwl_vfd_dmabuf_sync(struct file *filp, u32 flags)
+{
+	struct virtio_wl_ctrl_vfd_dmabuf_sync *ctrl_dmabuf_sync;
+	struct virtwl_vfd *vfd = filp->private_data;
+	struct virtwl_info *vi = vfd->vi;
+	struct completion finish_completion;
+	struct scatterlist out_sg;
+	struct scatterlist in_sg;
+	int ret = 0;
+
+	ctrl_dmabuf_sync = kzalloc(sizeof(*ctrl_dmabuf_sync), GFP_KERNEL);
+	if (!ctrl_dmabuf_sync)
+		return -ENOMEM;
+
+	ctrl_dmabuf_sync->hdr.type = VIRTIO_WL_CMD_VFD_DMABUF_SYNC;
+	ctrl_dmabuf_sync->vfd_id = vfd->id;
+	ctrl_dmabuf_sync->flags = flags;
+
+	sg_init_one(&in_sg, &ctrl_dmabuf_sync->hdr,
+		    sizeof(struct virtio_wl_ctrl_vfd_dmabuf_sync));
+	sg_init_one(&out_sg, &ctrl_dmabuf_sync->hdr,
+		    sizeof(struct virtio_wl_ctrl_hdr));
+
+	init_completion(&finish_completion);
+	ret = vq_queue_out(vi, &out_sg, &in_sg, &finish_completion,
+			   false /* block */);
+	if (ret) {
+		pr_warn("virtwl: failed to queue dmabuf sync vfd id %u: %d\n",
+			vfd->id,
+			ret);
+		goto free_ctrl_dmabuf_sync;
+	}
+
+	wait_for_completion(&finish_completion);
+
+free_ctrl_dmabuf_sync:
+	kfree(ctrl_dmabuf_sync);
+	return ret;
+}
+
 static ssize_t virtwl_vfd_read(struct file *filp, char __user *buffer,
 			       size_t size, loff_t *pos)
 {
@@ -1074,6 +1116,22 @@ free_vfds:
 	return ret;
 }
 
+static long virtwl_ioctl_dmabuf_sync(struct file *filp, void __user *ptr)
+{
+	struct virtwl_ioctl_dmabuf_sync ioctl_dmabuf_sync;
+	int ret;
+
+	ret = copy_from_user(&ioctl_dmabuf_sync, ptr,
+			     sizeof(struct virtwl_ioctl_dmabuf_sync));
+	if (ret)
+		return -EFAULT;
+
+	if (ioctl_dmabuf_sync.flags & ~DMA_BUF_SYNC_VALID_FLAGS_MASK)
+		return -EINVAL;
+
+	return virtwl_vfd_dmabuf_sync(filp, ioctl_dmabuf_sync.flags);
+}
+
 static long virtwl_vfd_ioctl(struct file *filp, unsigned int cmd,
 			     void __user *ptr)
 {
@@ -1082,6 +1140,8 @@ static long virtwl_vfd_ioctl(struct file *filp, unsigned int cmd,
 		return virtwl_ioctl_send(filp, ptr);
 	case VIRTWL_IOCTL_RECV:
 		return virtwl_ioctl_recv(filp, ptr);
+	case VIRTWL_IOCTL_DMABUF_SYNC:
+		return virtwl_ioctl_dmabuf_sync(filp, ptr);
 	default:
 		return -ENOTTY;
 	}
