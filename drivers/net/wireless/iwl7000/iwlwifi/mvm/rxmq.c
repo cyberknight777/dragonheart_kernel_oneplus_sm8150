@@ -1122,7 +1122,7 @@ static void iwl_mvm_rx_he(struct iwl_mvm *mvm, struct sk_buff *skb,
 			CHECK_BW(40);
 			CHECK_BW(80);
 			CHECK_BW(160);
-			he->data2 |=
+			he_mu->flags2 |=
 				FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_BW_FROM_SIG_A_BW,
 						FIELD_GET(RATE_MCS_CHAN_WIDTH_MSK,
 							  rate_n_flags));
