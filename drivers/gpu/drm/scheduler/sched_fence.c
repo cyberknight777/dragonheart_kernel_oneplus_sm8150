@@ -93,7 +93,6 @@ static void drm_sched_fence_free(struct rcu_head *rcu)
 	struct dma_fence *f = container_of(rcu, struct dma_fence, rcu);
 	struct drm_sched_fence *fence = to_drm_sched_fence(f);
 
-	dma_fence_put(fence->parent);
 	kmem_cache_free(sched_fence_slab, fence);
 }
 
@@ -109,6 +108,7 @@ static void drm_sched_fence_release_scheduled(struct dma_fence *f)
 {
 	struct drm_sched_fence *fence = to_drm_sched_fence(f);
 
+	dma_fence_put(fence->parent);
 	call_rcu(&fence->finished.rcu, drm_sched_fence_free);
 }
 
