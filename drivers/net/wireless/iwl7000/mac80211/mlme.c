@@ -326,8 +326,9 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	struct ieee80211_supported_band *sband;
-	struct ieee80211_channel *chan;
+	struct ieee80211_channel *chan = sdata->vif.bss_conf.chandef.chan;
+	struct ieee80211_supported_band *sband =
+		local->hw.wiphy->bands[chan->band];
 	struct cfg80211_chan_def chandef;
 	u16 ht_opmode;
 	u32 flags;
@@ -359,9 +360,6 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 		*changed |= BSS_CHANGED_HT;
 		sdata->vif.bss_conf.ht_operation_mode = ht_opmode;
 	}
-
-	chan = sdata->vif.bss_conf.chandef.chan;
-	sband = local->hw.wiphy->bands[chan->band];
 
 	/* calculate new channel (type) based on HT/VHT/HE operation IEs */
 	flags = ieee80211_determine_chantype(sdata, sband, chan,
