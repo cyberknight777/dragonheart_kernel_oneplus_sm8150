@@ -416,6 +416,25 @@
 	};
 };
 
+ap_ts_i2c: &i2c14 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	touchscreen@10 {
+		compatible = "elan,ekth3500";
+		reg = <0x10>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_int_l &ts_reset_l>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <125 IRQ_TYPE_LEVEL_LOW>;
+
+		vcc33-supply = <&src_pp3300_l28a>;
+
+		reset-gpios = <&tlmm 118 GPIO_ACTIVE_LOW>;
+	};
+};
+
 &qupv3_id_0 {
 	status = "okay";
 };
@@ -570,6 +589,16 @@
 
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
 
+&qup_i2c14_default {
+	pinconf {
+		pins = "gpio33", "gpio34";
+		drive-strength = <2>;
+
+		/* Has external pullup */
+		bias-disable;
+	};
+};
+
 &qup_spi0_default {
 	pinconf {
 		pins = "gpio0", "gpio1", "gpio2", "gpio3";
@@ -704,6 +733,31 @@
 			pins = "gpio119";
 			function = "gpio";
 			bias-pull-up;
+		};
+	};
+
+	ts_int_l: ts-int-l {
+		pinmux  {
+			pins = "gpio125";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio125";
+			bias-pull-up;
+		};
+	};
+
+	ts_reset_l: ts-reset-l {
+		pinmux  {
+			pins = "gpio118";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio118";
+			bias-disable;
+			drive-strength = <2>;
 		};
 	};
 };
