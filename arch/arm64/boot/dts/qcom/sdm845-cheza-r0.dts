@@ -127,6 +127,14 @@
 
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
 
+&qup_i2c11_default {
+	pinconf {
+		/* External pull missing on rev0 */
+		/delete-property/bias-disable;
+		bias-pull-up;
+	};
+};
+
 &qup_spi0_default {
 	pinconf {
 		/* Extra strong since there's a rework (TODO: verify?) */

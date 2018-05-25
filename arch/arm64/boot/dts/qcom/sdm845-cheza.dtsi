@@ -416,6 +416,27 @@
 	};
 };
 
+ap_pen_1v8: &i2c11 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	digitizer@9 {
+		compatible = "wacom,w9013", "hid-over-i2c";
+		reg = <0x9>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pen_irq_l>, <&pen_pdct_l>, <&pen_rst_l>;
+
+		vdd-supply = <&pp3300_dx_pen>;
+		vddl-supply = <&pp1800_dx_pen>;
+		post-power-on-delay-ms = <100>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <24 IRQ_TYPE_LEVEL_LOW>;
+
+		hid-descr-addr = <0x1>;
+	};
+};
+
 ap_ts_i2c: &i2c14 {
 	status = "okay";
 	clock-frequency = <400000>;
@@ -589,6 +610,16 @@ ap_ts_i2c: &i2c14 {
 
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
 
+&qup_i2c11_default {
+	pinconf {
+		pins = "gpio31", "gpio32";
+		drive-strength = <2>;
+
+		/* Has external pullup */
+		bias-disable;
+	};
+};
+
 &qup_i2c14_default {
 	pinconf {
 		pins = "gpio33", "gpio34";
@@ -733,6 +764,60 @@ ap_ts_i2c: &i2c14 {
 			pins = "gpio119";
 			function = "gpio";
 			bias-pull-up;
+		};
+	};
+
+	pen_irq_l: pen-irq-l {
+		pinmux {
+			pins = "gpio24";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio24";
+
+			/* Has external pullup */
+			bias-disable;
+		};
+	};
+
+	pen_pdct_l: pen-pdct-l {
+		pinmux {
+			pins = "gpio63";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio63";
+
+			/* Has external pullup */
+			bias-disable;
+		};
+	};
+
+	pen_rst_l: pen-rst-l {
+		pinmux  {
+			pins = "gpio23";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio23";
+			bias-disable;
+			drive-strength = <2>;
+
+			/*
+			 * The pen driver doesn't currently support
+			 * driving this reset line.  By specifying
+			 * output-high here we're relying on the fact
+			 * that this pin has a default pulldown at boot
+			 * (which makes sure the pen was in reset if it
+			 * was powered) and then we set it high here to
+			 * take it out of reset.  Better would be if the
+			 * pen driver could control this and we could
+			 * remove "output-high" here.
+			 */
+			output-high;
 		};
 	};
 
