@@ -313,15 +313,7 @@ static int bcm_open(struct hci_uart *hu)
 
 	hu->priv = bcm;
 
-	/* If this is a serdev defined device, then only use
-	 * serdev open primitive and skip the rest.
-	 */
-	if (hu->serdev) {
-		serdev_device_open(hu->serdev);
-		goto out;
-	}
-
-	if (!hu->tty->dev)
+	if (hu->serdev || !hu->tty->dev)
 		goto out;
 
 	mutex_lock(&bcm_device_lock);
@@ -355,12 +347,6 @@ static int bcm_close(struct hci_uart *hu)
 	struct bcm_device *bdev = bcm->dev;
 
 	bt_dev_dbg(hu->hdev, "hu %p", hu);
-
-	/* If this is a serdev defined device, only use serdev
-	 * close primitive and then continue as usual.
-	 */
-	if (hu->serdev)
-		serdev_device_close(hu->serdev);
 
 	/* Protect bcm->dev against removal of the device or driver */
 	mutex_lock(&bcm_device_lock);
