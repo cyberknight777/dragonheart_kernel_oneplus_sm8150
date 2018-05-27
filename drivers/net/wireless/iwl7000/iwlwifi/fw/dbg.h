@@ -371,4 +371,5 @@ static inline void iwl_fw_resume_timestamp(struct iwl_fw_runtime *fwrt) {}
 
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
 
+void iwl_fw_alive_error_dump(struct iwl_fw_runtime *fwrt);
 #endif  /* __iwl_fw_dbg_h__ */
