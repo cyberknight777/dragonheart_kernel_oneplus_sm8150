@@ -291,7 +291,6 @@ struct evdi_drm_dmabuf_attachment {
 };
 
 static int evdi_attach_dma_buf(__always_unused struct dma_buf *dmabuf,
-			       __always_unused struct device *dev,
 			       struct dma_buf_attachment *attach)
 {
 	struct evdi_drm_dmabuf_attachment *evdi_attach;
