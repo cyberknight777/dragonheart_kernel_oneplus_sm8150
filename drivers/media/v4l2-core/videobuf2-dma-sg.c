@@ -550,7 +550,6 @@ static const struct dma_buf_ops vb2_dma_sg_dmabuf_ops = {
 	.map_dma_buf = vb2_dma_sg_dmabuf_ops_map,
 	.unmap_dma_buf = vb2_dma_sg_dmabuf_ops_unmap,
 	.map = vb2_dma_sg_dmabuf_ops_kmap,
-	.map_atomic = vb2_dma_sg_dmabuf_ops_kmap,
 	.begin_cpu_access = vb2_dma_sg_dmabuf_ops_begin_cpu_access,
 	.end_cpu_access = vb2_dma_sg_dmabuf_ops_end_cpu_access,
 	.vmap = vb2_dma_sg_dmabuf_ops_vmap,
