@@ -666,6 +666,15 @@ void hci_req_add_le_scan_disable(struct hci_request *req)
 	cp.enable = LE_SCAN_DISABLE;
 	BT_DBG("BT_DBG_DG: set scan enable tx: hci_req_add_le_scan_disable (ena=%d)\n", cp.enable);
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
+
+	/* It is possible that the only HCI command built into the command queue
+	 * is HCI_OP_LE_SET_SCAN_ENABLE. If the only command is skipped
+	 * at run time in hci_core.c:hci_cmd_work(), the corresponding event
+	 * would never be received. This would accidentally cause HCI command
+	 * timeout. Hence, it is important to add this dummy HCI command to
+	 * invoke the hci_req_sync_complete() callback.
+	 */
+	hci_req_add(req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
 }
 
 static void add_to_white_list(struct hci_request *req,
