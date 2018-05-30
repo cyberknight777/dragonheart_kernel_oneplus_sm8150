@@ -464,7 +464,8 @@ void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
 
 			if (kref_read(&ctx->refcount) == 1)
 				drm_sched_entity_do_release(&ctx->adev->rings[i]->sched,
-						  &ctx->rings[i].entity);
+						  &ctx->rings[i].entity,
+						  MAX_WAIT_SCHED_ENTITY_Q_EMPTY);
 			else
 				DRM_ERROR("ctx %p is still alive\n", ctx);
 		}
