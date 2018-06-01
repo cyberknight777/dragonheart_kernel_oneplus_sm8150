@@ -330,7 +330,9 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x24FD, 0x0012, iwl8275_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24FD, 0x0014, iwl8265_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24FD, 0x9074, iwl8265_2ac_cfg)},
+#endif /* IS_ENABLED(CPTCFG_IWLMVM) */
 
+#if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
 /* 9000 Series */
 	{IWL_PCI_DEVICE(0x2526, 0x0010, iwl9260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0x0014, iwl9260_2ac_cfg)},
@@ -673,7 +675,7 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0xA0F0, 0x00B0, iwl22000_2ax_cfg_hr)},
 	{IWL_PCI_DEVICE(0xA0F0, 0x0A10, iwl22000_2ax_cfg_hr)},
 
-#endif /* CPTCFG_IWLMVM */
+#endif /* CPTCFG_IWLMVM || CPTCFG_IWLFMAC */
 
 	{0}
 };
@@ -715,7 +717,9 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		cfg = cfg_7265d;
 		iwl_trans->cfg = cfg_7265d;
 	}
+#endif
 
+#if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
 	if (iwl_trans->cfg->rf_id && cfg == &iwl22000_2ac_cfg_hr_cdb &&
 	    iwl_trans->hw_rev != CSR_HW_REV_TYPE_HR_CDB) {
 		u32 rf_id_chp = CSR_HW_RF_ID_TYPE_CHIP_ID(iwl_trans->hw_rf_id);
