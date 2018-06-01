@@ -2000,11 +2000,8 @@ static int iwl_fill_data_tbs(struct iwl_trans *trans, struct sk_buff *skb,
 		dma_addr_t tb2_phys = dma_map_single(trans->dev,
 						     skb->data + hdr_len,
 						     tb2_len, DMA_TO_DEVICE);
-		if (unlikely(dma_mapping_error(trans->dev, tb2_phys))) {
-			iwl_pcie_tfd_unmap(trans, out_meta, txq,
-					   txq->write_ptr);
+		if (unlikely(dma_mapping_error(trans->dev, tb2_phys)))
 			return -EINVAL;
-		}
 		iwl_pcie_txq_build_tfd(trans, txq, tb2_phys, tb2_len, false);
 	}
 
@@ -2020,11 +2017,8 @@ static int iwl_fill_data_tbs(struct iwl_trans *trans, struct sk_buff *skb,
 		tb_phys = skb_frag_dma_map(trans->dev, frag, 0,
 					   skb_frag_size(frag), DMA_TO_DEVICE);
 
-		if (unlikely(dma_mapping_error(trans->dev, tb_phys))) {
-			iwl_pcie_tfd_unmap(trans, out_meta, txq,
-					   txq->write_ptr);
+		if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 			return -EINVAL;
-		}
 		tb_idx = iwl_pcie_txq_build_tfd(trans, txq, tb_phys,
 						skb_frag_size(frag), false);
 
@@ -2097,7 +2091,6 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 	u8 *start_hdr;
 	struct iwl_tso_hdr_page *hdr_page;
 	struct page **page_ptr;
-	int ret;
 	struct tso_t tso;
 
 	/* if the packet is protected, then it must be CCMP or GCMP */
@@ -2183,10 +2176,8 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 		if (trans_pcie->sw_csum_tx) {
 			csum_skb = alloc_skb(data_left + tcp_hdrlen(skb),
 					     GFP_ATOMIC);
-			if (!csum_skb) {
-				ret = -ENOMEM;
-				goto out_unmap;
-			}
+			if (!csum_skb)
+				return -ENOMEM;
 
 			iwl_compute_pseudo_hdr_csum(iph, tcph,
 						    skb->protocol ==
@@ -2207,8 +2198,7 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 					     hdr_tb_len, DMA_TO_DEVICE);
 		if (unlikely(dma_mapping_error(trans->dev, hdr_tb_phys))) {
 			dev_kfree_skb(csum_skb);
-			ret = -EINVAL;
-			goto out_unmap;
+			return -EINVAL;
 		}
 		iwl_pcie_txq_build_tfd(trans, txq, hdr_tb_phys,
 				       hdr_tb_len, false);
@@ -2233,8 +2223,7 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 						 size, DMA_TO_DEVICE);
 			if (unlikely(dma_mapping_error(trans->dev, tb_phys))) {
 				dev_kfree_skb(csum_skb);
-				ret = -EINVAL;
-				goto out_unmap;
+				return -EINVAL;
 			}
 
 			iwl_pcie_txq_build_tfd(trans, txq, tb_phys,
@@ -2268,10 +2257,6 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 	skb_push(skb, hdr_len + iv_len);
 
 	return 0;
-
-out_unmap:
-	iwl_pcie_tfd_unmap(trans, out_meta, txq, txq->write_ptr);
-	return ret;
 }
 #else /* CONFIG_INET */
 static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
@@ -2483,6 +2468,7 @@ int iwl_trans_pcie_tx(struct iwl_trans *trans, struct sk_buff *skb,
 	spin_unlock(&txq->lock);
 	return 0;
 out_err:
+	iwl_pcie_tfd_unmap(trans, out_meta, txq, txq->write_ptr);
 	spin_unlock(&txq->lock);
 	return -1;
 }
