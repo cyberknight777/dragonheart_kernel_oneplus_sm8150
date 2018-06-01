@@ -48,6 +48,11 @@
 #define CR50_I2C_RETRY_DELAY_LO	55	/* Min usecs between retries on I2C */
 #define CR50_I2C_RETRY_DELAY_HI	65	/* Max usecs between retries on I2C */
 
+static unsigned short rng_quality = 1022;
+
+module_param(rng_quality, ushort, 0644);
+MODULE_PARM_DESC(rng_quality,
+		 "Estimation of true entropy, in bits per 1024 bits.");
 
 struct priv_data {
 	int irq;
@@ -634,6 +639,8 @@ static int cr50_i2c_init(struct i2c_client *client)
 
 	dev_info(dev, "cr50 TPM 2.0 (i2c 0x%02x irq %d id 0x%x)\n",
 		 client->addr, client->irq, vendor >> 16);
+
+	chip->hwrng.quality = rng_quality;
 
 	rc = tpm_chip_register(chip);
 	if (rc)
