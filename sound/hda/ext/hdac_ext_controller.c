@@ -277,8 +277,9 @@ int snd_hdac_ext_bus_link_get(struct hdac_bus *bus,
 		 *  HDA spec section 4.3 - Codec Discovery
 		 */
 		udelay(521);
-		ebus->bus.codec_mask = snd_hdac_chip_readw(&ebus->bus, STATESTS);
-		dev_dbg(ebus->bus.dev, "codec_mask = 0x%lx\n", ebus->bus.codec_mask);
+		bus->codec_mask = snd_hdac_chip_readw(bus, STATESTS);
+		dev_dbg(bus->dev, "codec_mask = 0x%lx\n", bus->codec_mask);
+		snd_hdac_chip_writew(bus, STATESTS, bus->codec_mask);
 	}
 
 	mutex_unlock(&bus->lock);
