@@ -483,6 +483,7 @@ struct iwl_mvm_vif {
 	bool ftm_responder;
 
 	struct iwl_probe_resp_data __rcu *probe_resp_data;
+	struct ieee80211_key_conf *ap_wep_key;
 };
 
 static inline struct iwl_mvm_vif *
