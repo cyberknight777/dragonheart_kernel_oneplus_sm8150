@@ -123,7 +123,7 @@ static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
 			break;
 		return;
 	case NL80211_IFTYPE_P2P_DEVICE:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
 		/* keep code in case of fall-through (spatch generated) */
 #endif

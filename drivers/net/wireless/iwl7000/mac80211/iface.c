@@ -543,7 +543,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NL80211_IFTYPE_OCB:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
@@ -670,7 +670,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 			break;
 		case NL80211_IFTYPE_WDS:
 		case NL80211_IFTYPE_P2P_DEVICE:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 		case NL80211_IFTYPE_NAN:
 			/* keep code in case of fall-through (spatch generated) */
 #endif
@@ -975,7 +975,7 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 
 		ieee80211_adjust_monitor_flags(sdata, -1);
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
@@ -1551,7 +1551,7 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 	case NL80211_IFTYPE_WDS:
 		sdata->vif.bss_conf.bssid = NULL;
 		break;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
 		/* keep code in case of fall-through (spatch generated) */
 #endif

@@ -2115,7 +2115,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 				ieee80211_bss_info_change_notify(sdata, changed);
 			}
 			break;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 		case NL80211_IFTYPE_NAN:
 			/* keep code in case of fall-through (spatch generated) */
 #endif
