@@ -1919,7 +1919,7 @@ static int kv_dpm_set_power_state(void *handle)
 	int ret;
 
 	if (pi->bapm_enable) {
-		ret = amdgpu_kv_smc_bapm_enable(adev, adev->pm.dpm.ac_power);
+		ret = amdgpu_kv_smc_bapm_enable(adev, adev->pm.ac_power);
 		if (ret) {
 			DRM_ERROR("amdgpu_kv_smc_bapm_enable failed\n");
 			return ret;
