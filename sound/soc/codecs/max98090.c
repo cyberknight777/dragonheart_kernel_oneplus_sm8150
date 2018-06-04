@@ -838,6 +838,29 @@ static const struct snd_soc_dapm_route max98090_dapm_enable_dmic_routes[] = {
 };
 
 /*
+ * Work handler for setting DMIC enable/disable.
+ */
+static void max98090_dmic_mux_work(struct work_struct *work)
+{
+	struct max98090_priv *max98090 =
+		container_of(work, struct max98090_priv, dmic_mux_work);
+	struct snd_soc_codec *codec = max98090->codec;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
+
+	dev_info(codec->dev, "DMIC Mux: bottom half %s DMIC\n",
+		max98090->dmic_used ? "enable" : "disable");
+
+	if (max98090->dmic_used)
+		snd_soc_dapm_add_routes(dapm, max98090_dapm_enable_dmic_routes,
+			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+	else
+		snd_soc_dapm_del_routes(dapm, max98090_dapm_enable_dmic_routes,
+			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+
+	snd_soc_dapm_sync(dapm);
+}
+
+/*
  * Add or delete routes for max98090. Check comments for
  * max98090_dapm_enable_dmic_routes.
  */
@@ -845,32 +868,23 @@ static int put_dmic_mux(struct snd_kcontrol *kcontrol,
 			     struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_dapm_kcontrol_codec(kcontrol);
-	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct max98090_priv *max98090 = snd_soc_codec_get_drvdata(codec);
-	int ret = 0;
-	int use_dmic = ucontrol->value.enumerated.item[0];
+	bool dmic_used = ucontrol->value.enumerated.item[0];
 
-	/* max98091 does not suffer from DMIC enable register problem. */
-	if (max98090->devtype == MAX98091)
-		return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+	/* only max98090 suffers from DMIC enable register problem. */
+	if (max98090->devtype == MAX98090 && max98090->dmic_used != dmic_used) {
+		if (work_busy(&max98090->dmic_mux_work))
+			return -EBUSY;
 
-	dev_info(codec->dev, "DMIC Mux: put_dmic_mux %s DMIC\n",
-		use_dmic ? "enable" : "disable");
+		max98090->dmic_used = dmic_used;
+		dev_info(codec->dev, "DMIC Mux: put_dmic_mux %s DMIC\n",
+			max98090->dmic_used ? "enable" : "disable");
 
-	if (use_dmic)
-		snd_soc_dapm_add_routes(dapm, max98090_dapm_enable_dmic_routes,
-			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
-	else
-		snd_soc_dapm_del_routes(dapm, max98090_dapm_enable_dmic_routes,
-			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+		schedule_work(&max98090->dmic_mux_work);
+	}
 
-	ret = snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
-
-	snd_soc_dapm_sync(dapm);
-
-	return ret;
+	return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
 }
-
 
 static const struct snd_kcontrol_new max98090_dmic_mux =
 	SOC_DAPM_ENUM_EXT("DMIC Mux", dmic_mux_enum,
@@ -2490,6 +2504,7 @@ static int max98090_probe(struct snd_soc_codec *codec)
 	INIT_WORK(&max98090->pll_det_disable_work,
 		  max98090_pll_det_disable_work);
 	INIT_WORK(&max98090->pll_work, max98090_pll_work);
+	INIT_WORK(&max98090->dmic_mux_work, max98090_dmic_mux_work);
 
 	/* Enable jack detection */
 	snd_soc_write(codec, M98090_REG_JACK_DETECT,
@@ -2543,6 +2558,7 @@ static int max98090_remove(struct snd_soc_codec *codec)
 	cancel_delayed_work_sync(&max98090->pll_det_enable_work);
 	cancel_work_sync(&max98090->pll_det_disable_work);
 	cancel_work_sync(&max98090->pll_work);
+	cancel_work_sync(&max98090->dmic_mux_work);
 	max98090->codec = NULL;
 
 	return 0;
