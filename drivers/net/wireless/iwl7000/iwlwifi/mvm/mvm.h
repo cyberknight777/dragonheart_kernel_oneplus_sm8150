@@ -471,6 +471,8 @@ struct iwl_mvm_vif {
 	netdev_features_t features;
 
 	bool ftm_responder;
+
+	struct ieee80211_key_conf *ap_wep_key;
 };
 
 static inline struct iwl_mvm_vif *
