@@ -8,6 +8,7 @@
  * Copyright 2007, Michael Wu <flamingice@sourmilk.net>
  * Copyright 2013-2015  Intel Mobile Communications GmbH
  * Copyright 2016-2017  Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -110,8 +111,7 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 	if (!cbss)
 		return NULL;
 	/* In case the signal is invalid update the status */
-	signal_valid = abs(channel->center_freq - cbss->channel->center_freq)
-		<= local->hw.wiphy->max_adj_channel_rssi_comp;
+	signal_valid = channel == cbss->channel;
 	if (!signal_valid)
 		rx_status->flag |= RX_FLAG_NO_SIGNAL_VAL;
 
