@@ -2654,7 +2654,7 @@ error_free_root:
 	vm->root.base.bo = NULL;
 
 error_free_sched_entity:
-	drm_sched_entity_fini(&ring->sched, &vm->entity);
+	drm_sched_entity_destroy(&ring->sched, &vm->entity);
 
 	return r;
 }
@@ -2791,7 +2791,7 @@ void amdgpu_vm_fini(struct amdgpu_device *adev, struct amdgpu_vm *vm)
 		spin_unlock_irqrestore(&adev->vm_manager.pasid_lock, flags);
 	}
 
-	drm_sched_entity_fini(vm->entity.sched, &vm->entity);
+	drm_sched_entity_destroy(vm->entity.sched, &vm->entity);
 
 	if (!RB_EMPTY_ROOT(&vm->va.rb_root)) {
 		dev_err(adev->dev, "still active bo inside vm\n");
