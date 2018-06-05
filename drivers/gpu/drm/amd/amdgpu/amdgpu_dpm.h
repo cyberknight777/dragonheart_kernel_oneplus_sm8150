@@ -292,12 +292,6 @@ enum amdgpu_pcie_gen {
 #define amdgpu_dpm_force_performance_level(adev, l) \
 		((adev)->powerplay.pp_funcs->force_performance_level((adev)->powerplay.pp_handle, (l)))
 
-#define amdgpu_dpm_powergate_uvd(adev, g) \
-		((adev)->powerplay.pp_funcs->powergate_uvd((adev)->powerplay.pp_handle, (g)))
-
-#define amdgpu_dpm_powergate_vce(adev, g) \
-		((adev)->powerplay.pp_funcs->powergate_vce((adev)->powerplay.pp_handle, (g)))
-
 #define amdgpu_dpm_get_current_power_state(adev) \
 		((adev)->powerplay.pp_funcs->get_current_power_state((adev)->powerplay.pp_handle))
 
@@ -366,9 +360,9 @@ enum amdgpu_pcie_gen {
 			(adev)->powerplay.pp_handle, virtual_addr_low, \
 			virtual_addr_hi, mc_addr_low, mc_addr_hi, size)
 
-#define amdgpu_dpm_powergate_mmhub(adev) \
-		((adev)->powerplay.pp_funcs->powergate_mmhub( \
-		(adev)->powerplay.pp_handle))
+#define amdgpu_dpm_set_powergating_by_smu(adev, block_type, gate) \
+		((adev)->powerplay.pp_funcs->set_powergating_by_smu(\
+			(adev)->powerplay.pp_handle, block_type, gate))
 
 struct amdgpu_dpm {
 	struct amdgpu_ps        *ps;

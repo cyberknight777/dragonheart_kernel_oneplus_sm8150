@@ -246,6 +246,7 @@ static int pp_set_powergating_state(void *handle,
 	/* Enable/disable GFX per cu powergating through SMU */
 	return hwmgr->hwmgr_func->enable_per_cu_power_gating(hwmgr,
 			state == AMD_PG_STATE_GATE);
+
 }
 
 static int pp_suspend(void *handle)
@@ -1448,6 +1449,30 @@ static int pp_dpm_powergate_mmhub(void *handle)
 	return hwmgr->hwmgr_func->powergate_mmhub(hwmgr);
 }
 
+static int pp_set_powergating_by_smu(void *handle,
+				uint32_t block_type, bool gate)
+{
+	int ret = 0;
+
+	switch (block_type) {
+	case AMD_IP_BLOCK_TYPE_UVD:
+	case AMD_IP_BLOCK_TYPE_VCN:
+		pp_dpm_powergate_uvd(handle, gate);
+		break;
+	case AMD_IP_BLOCK_TYPE_VCE:
+		pp_dpm_powergate_vce(handle, gate);
+		break;
+	case AMD_IP_BLOCK_TYPE_GMC:
+		pp_dpm_powergate_mmhub(handle);
+		break;
+	case AMD_IP_BLOCK_TYPE_GFX:
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
+
 const struct amd_pm_funcs pp_dpm_funcs = {
 	.get_temperature = pp_dpm_get_temperature,
 	.load_firmware = pp_dpm_load_fw,
@@ -1455,8 +1480,6 @@ const struct amd_pm_funcs pp_dpm_funcs = {
 	.force_performance_level = pp_dpm_force_performance_level,
 	.get_performance_level = pp_dpm_get_performance_level,
 	.get_current_power_state = pp_dpm_get_current_power_state,
-	.powergate_vce = pp_dpm_powergate_vce,
-	.powergate_uvd = pp_dpm_powergate_uvd,
 	.dispatch_tasks = pp_dpm_dispatch_tasks,
 	.set_fan_control_mode = pp_dpm_set_fan_control_mode,
 	.get_fan_control_mode = pp_dpm_get_fan_control_mode,
@@ -1480,6 +1503,7 @@ const struct amd_pm_funcs pp_dpm_funcs = {
 	.switch_power_profile = pp_dpm_switch_power_profile,
 	.set_clockgating_by_smu = pp_set_clockgating_by_smu,
 	.notify_smu_memory_info = pp_dpm_notify_smu_memory_info,
+	.set_powergating_by_smu = pp_set_powergating_by_smu,
 /* export to DC */
 	.get_sclk = pp_dpm_get_sclk,
 	.get_mclk = pp_dpm_get_mclk,
@@ -1492,5 +1516,4 @@ const struct amd_pm_funcs pp_dpm_funcs = {
 	.set_watermarks_for_clocks_ranges = pp_set_watermarks_for_clocks_ranges,
 	.display_clock_voltage_request = pp_display_clock_voltage_request,
 	.get_display_mode_validation_clocks = pp_get_display_mode_validation_clocks,
-	.powergate_mmhub = pp_dpm_powergate_mmhub,
 };
