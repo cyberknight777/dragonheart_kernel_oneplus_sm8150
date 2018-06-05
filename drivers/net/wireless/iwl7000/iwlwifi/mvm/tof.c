@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -967,7 +969,6 @@ void iwl_mvm_tof_range_resp(struct iwl_mvm *mvm,
 	user_resp.cookie = mvm->tof_data.active_cookie;
 	user_resp.type = NL80211_MSRMENT_TYPE_FTM;
 	user_resp.status = iwl_mvm_get_msrment_status(fw_resp->request_status);
-	user_resp.u.ftm.num_of_entries = fw_resp->num_of_aps;
 	user_resp.u.ftm.entries = kzalloc(sizeof(*user_resp.u.ftm.entries) *
 					  fw_resp->num_of_aps, GFP_KERNEL);
 	if (!user_resp.u.ftm.entries) {
@@ -977,7 +978,7 @@ void iwl_mvm_tof_range_resp(struct iwl_mvm *mvm,
 
 	for (i = 0; i < fw_resp->num_of_aps && i < IWL_MVM_TOF_MAX_APS; i++) {
 		struct cfg80211_ftm_result *result =
-			&user_resp.u.ftm.entries[i];
+		       &user_resp.u.ftm.entries[user_resp.u.ftm.num_of_entries];
 		struct iwl_tof_range_rsp_ap_entry_ntfy *fw_ap = &fw_resp->ap[i];
 		struct cfg80211_ftm_target *target;
 		u32 timestamp;
@@ -985,8 +986,8 @@ void iwl_mvm_tof_range_resp(struct iwl_mvm *mvm,
 		target = iwl_mvm_tof_find_target_in_request(mvm, fw_ap->bssid);
 		if (!target) {
 			IWL_WARN(mvm,
-				 "Unknown bssid (target #%d) in FTM response\n",
-				 i);
+				 "Unknown bssid (target #%d) in FTM response. BSSID: %pM\n",
+				 i, fw_ap->bssid);
 			continue;
 		}
 
@@ -1050,6 +1051,7 @@ void iwl_mvm_tof_range_resp(struct iwl_mvm *mvm,
 				  FTM_RESP_BIT(DISTANCE_VAR) |
 				  FTM_RESP_BIT(DISTANCE_SPREAD);
 #undef FTM_RESP_BIT
+		user_resp.u.ftm.num_of_entries++;
 	}
 
 	iwl_mvm_debug_range_resp(mvm, &user_resp);
