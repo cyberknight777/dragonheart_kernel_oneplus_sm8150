@@ -289,7 +289,7 @@ struct amd_pm_funcs {
 				struct pp_display_clock_request *clock);
 	int (*get_display_mode_validation_clocks)(void *handle,
 		struct amd_pp_simple_clock_info *clocks);
-	int (*set_mmhub_powergating_by_smu)(void *handle);
+	int (*powergate_mmhub)(void *handle);
 };
 
 #endif
