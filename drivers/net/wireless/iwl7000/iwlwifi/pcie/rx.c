@@ -1404,8 +1404,12 @@ restart:
 
 	while (i != r) {
 		struct iwl_rx_mem_buffer *rxb;
+		/* number of RBDs still waiting for page allocation */
+		u32 rb_pending_alloc =
+			atomic_read(&trans_pcie->rba.req_pending) *
+			RX_CLAIM_REQ_ALLOC;
 
-		if (unlikely(rxq->used_count == rxq->queue_size / 2))
+		if (unlikely(rb_pending_alloc >= rxq->queue_size / 2))
 			emergency = true;
 
 		rxb = iwl_pcie_get_rxb(trans, rxq, i);
@@ -1438,7 +1442,7 @@ restart:
 			count++;
 			if (count == 8) {
 				count = 0;
-				if (rxq->used_count < rxq->queue_size / 3)
+				if (rb_pending_alloc < rxq->queue_size / 3)
 					emergency = false;
 
 				rxq->read = i;
