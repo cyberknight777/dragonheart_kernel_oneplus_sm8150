@@ -1379,10 +1379,6 @@ static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
 {
 	int i = 0, r;
 
-	r = amdgpu_ib_ring_tests(adev);
-	if (r)
-		DRM_ERROR("ib ring test failed (%d).\n", r);
-
 	for (i = 0; i < adev->num_ip_blocks; i++) {
 		if (!adev->ip_blocks[i].status.valid)
 			continue;
@@ -1445,6 +1441,9 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
 			adev->ip_blocks[i].status.late_initialized = true;
 		}
 	}
+
+	amdgpu_device_ip_late_set_cg_state(adev);
+	amdgpu_device_ip_late_set_pg_state(adev);
 
 	queue_delayed_work(system_wq, &adev->late_init_work,
 			   msecs_to_jiffies(AMDGPU_RESUME_MS));
@@ -1551,8 +1550,11 @@ static void amdgpu_device_ip_late_init_func_handler(struct work_struct *work)
 {
 	struct amdgpu_device *adev =
 		container_of(work, struct amdgpu_device, late_init_work.work);
-	amdgpu_device_ip_late_set_cg_state(adev);
-	amdgpu_device_ip_late_set_pg_state(adev);
+	int r;
+
+	r = amdgpu_ib_ring_tests(adev);
+	if (r)
+		DRM_ERROR("ib ring test failed (%d).\n", r);
 }
 
 /**
