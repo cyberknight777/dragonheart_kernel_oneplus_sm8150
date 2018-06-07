@@ -40,6 +40,11 @@
 #define TPM_CR50_FW_VER(l)			(0x0F90 | ((l) << 12))
 #define TPM_CR50_MAX_FW_VER_LEN			64
 
+static unsigned short rng_quality = 1022;
+module_param(rng_quality, ushort, 0644);
+MODULE_PARM_DESC(rng_quality,
+		 "Estimation of true entropy, in bits per 1024 bits.");
+
 struct cr50_spi_phy {
 	struct tpm_tis_data priv;
 	struct spi_device *spi_device;
@@ -377,6 +382,8 @@ static int cr50_spi_probe(struct spi_device *dev)
 		dev_warn(&dev->dev,
 			 "No IRQ - will use delays between transactions.\n");
 	}
+
+	phy->priv.rng_quality = rng_quality;
 
 	rc = tpm_tis_core_init(&dev->dev, &phy->priv, -1, &cr50_spi_phy_ops,
 			       NULL);
