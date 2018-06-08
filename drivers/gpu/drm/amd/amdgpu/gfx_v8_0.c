@@ -915,6 +915,7 @@ static int gfx_v8_0_ring_test_ib(struct amdgpu_ring *ring, long timeout)
 		DRM_ERROR("ib test on ring %d failed\n", ring->idx);
 		r = -EINVAL;
 	}
+
 err2:
 	amdgpu_ib_free(adev, &ib, NULL);
 	dma_fence_put(f);
