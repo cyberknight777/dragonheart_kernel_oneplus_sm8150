@@ -927,8 +927,8 @@ static int soc_pcm_hw_params(struct snd_pcm_substream *substream,
 
 
 	ret = soc_pcm_params_symmetry(substream, params);
-	if (ret)
-		goto platform_err;
+        if (ret)
+                goto platform_err;
 out:
 	mutex_unlock(&rtd->pcm_mutex);
 	return ret;
