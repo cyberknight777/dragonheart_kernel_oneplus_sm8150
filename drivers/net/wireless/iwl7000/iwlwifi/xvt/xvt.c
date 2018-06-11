@@ -325,11 +325,11 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	memset(xvt->queue_data, 0, sizeof(xvt->queue_data));
 	init_waitqueue_head(&xvt->tx_done_wq);
 
-	trans->dbg_dest_tlv = xvt->fw->dbg_dest_tlv;
-	trans->dbg_dest_reg_num = xvt->fw->dbg_dest_reg_num;
-	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg_conf_tlv,
+	trans->dbg_dest_tlv = xvt->fw->dbg.dest_tlv;
+	trans->dbg_n_dest_reg = xvt->fw->dbg.n_dest_reg;
+	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg.conf_tlv,
 	       sizeof(trans->dbg_conf_tlv));
-	trans->dbg_trigger_tlv = xvt->fw->dbg_trigger_tlv;
+	trans->dbg_trigger_tlv = xvt->fw->dbg.trigger_tlv;
 
 	IWL_INFO(xvt, "Detected %s, REV=0x%X, xVT operation mode\n",
 		 xvt->cfg->name, xvt->trans->hw_rev);

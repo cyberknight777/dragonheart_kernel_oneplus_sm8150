@@ -348,7 +348,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 
 	xvt->fwrt.dump.conf = FW_DBG_INVALID;
 	/* if we have a destination, assume EARLY START */
-	if (xvt->fw->dbg_dest_tlv)
+	if (xvt->fw->dbg.dest_tlv)
 		xvt->fwrt.dump.conf = FW_DBG_START_FROM_ALIVE;
 	iwl_fw_start_dbg_conf(&xvt->fwrt, FW_DBG_START_FROM_ALIVE);
 
