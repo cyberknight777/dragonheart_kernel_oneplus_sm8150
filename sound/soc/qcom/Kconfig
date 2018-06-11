@@ -55,12 +55,14 @@ config SND_SOC_QDSP6_AFE
 
 config SND_SOC_QDSP6_AFE_DAI
 	tristate
+	depends on BROKEN
 
 config SND_SOC_QDSP6_ADM
 	tristate
 
 config SND_SOC_QDSP6_ROUTING
 	tristate
+	depends on BROKEN
 
 config SND_SOC_QDSP6_ASM
 	tristate
@@ -71,6 +73,7 @@ config SND_SOC_QDSP6_ASM_DAI
 config SND_SOC_QDSP6
 	tristate "SoC ALSA audio driver for QDSP6"
 	depends on QCOM_APR && HAS_DMA
+	depends on BROKEN
 	select SND_SOC_QDSP6_COMMON
 	select SND_SOC_QDSP6_CORE
 	select SND_SOC_QDSP6_AFE
@@ -88,6 +91,7 @@ config SND_SOC_QDSP6
 config SND_SOC_MSM8996
 	tristate "SoC Machine driver for MSM8996 and APQ8096 boards"
 	depends on QCOM_APR
+	depends on BROKEN
 	select SND_SOC_QDSP6
 	help
           Support for Qualcomm Technologies LPASS audio block in
