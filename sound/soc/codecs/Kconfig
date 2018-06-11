@@ -13,6 +13,7 @@ menu "CODEC drivers"
 config SND_SOC_ALL_CODECS
 	tristate "Build all ASoC CODEC drivers"
 	depends on COMPILE_TEST
+	depends on BROKEN
 	select SND_SOC_88PM860X if MFD_88PM860X
 	select SND_SOC_L3
 	select SND_SOC_AB8500_CODEC if ABX500_CORE
@@ -799,6 +800,7 @@ config SND_SOC_RT5677_SPI
 	default SND_SOC_RT5677 && SPI
 
 config SND_SOC_RT5682
+	depends on BROKEN
 	tristate
 
 #Freescale sgtl5000 codec
