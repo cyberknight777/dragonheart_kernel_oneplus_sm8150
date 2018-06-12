@@ -63,6 +63,41 @@
 };
 
 /* PINCTRL - board-specific pinctrl */
+&pm8005_gpio {
+	gpio-line-names = "",
+			  "",
+			  "SLB",
+			  "";
+};
+
+&pm8998_gpio {
+	gpio-line-names = "",
+			  "",
+			  "SW_CTRL",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "",
+			  "CFG_OPT1",
+			  "WCSS_PWR_REQ",
+			  "",
+			  "CFG_OPT2",
+			  "SLB";
+};
 
 &tlmm {
 	pen_eject_odl: pen-eject-odl {
