@@ -1120,6 +1120,9 @@ int iwl_fw_dbg_collect_trig(struct iwl_fw_runtime *fwrt,
 	int ret, len = 0;
 	char buf[64];
 
+	if (fwrt->trans->ini_valid)
+		return 0;
+
 	if (fmt) {
 		va_list ap;
 
