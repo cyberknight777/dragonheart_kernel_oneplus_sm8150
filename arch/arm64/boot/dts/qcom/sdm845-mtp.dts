@@ -14,7 +14,7 @@
 	compatible = "qcom,sdm845-mtp";
 
 	aliases {
-		serial0 = &uart2;
+		serial0 = &uart9;
 	};
 
 	chosen {
@@ -22,54 +22,39 @@
 	};
 };
 
-&soc {
-	geniqup@ac0000 {
-		status = "okay";
+&i2c10 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
 
-		serial@a84000 {
-			status = "okay";
-		};
+&qupv3_id_1 {
+	status = "okay";
+};
 
-		i2c@a88000 {
-			clock-frequency = <400000>;
-			status = "okay";
-		};
+&uart9 {
+	status = "okay";
+};
+
+/* PINCTRL - additions to nodes defined in sdm845.dtsi */
+
+&qup_i2c10_default {
+	pinconf {
+		pins = "gpio55", "gpio56";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
+&qup_uart9_default {
+	pinconf-tx {
+		pins = "gpio4";
+		drive-strength = <2>;
+		bias-disable;
 	};
 
-	pinctrl@3400000 {
-		qup-i2c10-default {
-			pinconf {
-				pins = "gpio55", "gpio56";
-				drive-strength = <2>;
-				bias-disable;
-			};
-		};
-
-		qup-i2c10-sleep {
-			pinconf {
-				pins = "gpio55", "gpio56";
-			};
-		};
-
-		qup-uart2-default {
-			pinconf_tx {
-				pins = "gpio4";
-				drive-strength = <2>;
-				bias-disable;
-			};
-
-			pinconf_rx {
-				pins = "gpio5";
-				drive-strength = <2>;
-				bias-pull-up;
-			};
-		};
-
-		qup-uart2-sleep {
-			pinconf {
-				pins = "gpio4", "gpio5";
-				bias-pull-down;
-			};
-		};
+	pinconf-rx {
+		pins = "gpio5";
+		drive-strength = <2>;
+		bias-pull-up;
 	};
 };
