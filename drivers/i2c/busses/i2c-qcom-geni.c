@@ -93,14 +93,14 @@ struct geni_i2c_err_log {
 };
 
 static const struct geni_i2c_err_log gi2c_log[] = {
-	[GP_IRQ0] = {-EINVAL, "Unknown I2C err GP_IRQ0"},
-	[NACK] = {-ENOTCONN, "NACK: slv unresponsive, check its power/reset-ln"},
-	[GP_IRQ2] = {-EINVAL, "Unknown I2C err GP IRQ2"},
+	[GP_IRQ0] = {-EIO, "Unknown I2C err GP_IRQ0"},
+	[NACK] = {-ENXIO, "NACK: slv unresponsive, check its power/reset-ln"},
+	[GP_IRQ2] = {-EIO, "Unknown I2C err GP IRQ2"},
 	[BUS_PROTO] = {-EPROTO, "Bus proto err, noisy/unepxected start/stop"},
-	[ARB_LOST] = {-EBUSY, "Bus arbitration lost, clock line undriveable"},
-	[GP_IRQ5] = {-EINVAL, "Unknown I2C err GP IRQ5"},
+	[ARB_LOST] = {-EAGAIN, "Bus arbitration lost, clock line undriveable"},
+	[GP_IRQ5] = {-EIO, "Unknown I2C err GP IRQ5"},
 	[GENI_OVERRUN] = {-EIO, "Cmd overrun, check GENI cmd-state machine"},
-	[GENI_ILLEGAL_CMD] = {-EILSEQ, "Illegal cmd, check GENI cmd-state machine"},
+	[GENI_ILLEGAL_CMD] = {-EIO, "Illegal cmd, check GENI cmd-state machine"},
 	[GENI_ABORT_DONE] = {-ETIMEDOUT, "Abort after timeout successful"},
 	[GENI_TIMEOUT] = {-ETIMEDOUT, "I2C TXN timed out"},
 };
@@ -377,7 +377,7 @@ static int geni_i2c_rx_one_msg(struct geni_i2c_dev *gi2c, struct i2c_msg *msg,
 
 		ret = geni_se_rx_dma_prep(&gi2c->se, msg->buf, msg->len,
 								&rx_dma);
-		if (!ret) {
+		if (ret) {
 			mode = GENI_SE_FIFO;
 			geni_se_select_mode(&gi2c->se, mode);
 		}
@@ -413,7 +413,7 @@ static int geni_i2c_tx_one_msg(struct geni_i2c_dev *gi2c, struct i2c_msg *msg,
 
 		ret = geni_se_tx_dma_prep(&gi2c->se, msg->buf, msg->len,
 								&tx_dma);
-		if (!ret) {
+		if (ret) {
 			mode = GENI_SE_FIFO;
 			geni_se_select_mode(&gi2c->se, mode);
 		}
