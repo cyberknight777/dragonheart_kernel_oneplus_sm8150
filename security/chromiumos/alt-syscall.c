@@ -245,6 +245,9 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_inotify_init1	__NR_ia32_inotify_init1
 #define __NR_compat_inotify_rm_watch	__NR_ia32_inotify_rm_watch
 #define __NR_compat_ioctl	__NR_ia32_ioctl
+#define __NR_compat_io_destroy	__NR_ia32_io_destroy
+#define __NR_compat_io_setup	__NR_ia32_io_setup
+#define __NR_compat_io_submit	__NR_ia32_io_submit
 #define __NR_compat_ioprio_set	__NR_ia32_ioprio_set
 #define __NR_compat_kill	__NR_ia32_kill
 #define __NR_compat_lgetxattr	__NR_ia32_lgetxattr
@@ -688,6 +691,9 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(inotify_init1),
 	SYSCALL_ENTRY(inotify_rm_watch),
 	SYSCALL_ENTRY(ioctl),
+	SYSCALL_ENTRY(io_destroy),
+	SYSCALL_ENTRY(io_setup),
+	SYSCALL_ENTRY(io_submit),
 	SYSCALL_ENTRY(ioprio_set),
 	SYSCALL_ENTRY(kill),
 	SYSCALL_ENTRY(lgetxattr),
@@ -1203,6 +1209,9 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(inotify_init),
 	COMPAT_SYSCALL_ENTRY(inotify_init1),
 	COMPAT_SYSCALL_ENTRY(inotify_rm_watch),
+	COMPAT_SYSCALL_ENTRY(io_destroy),
+	COMPAT_SYSCALL_ENTRY(io_setup),
+	COMPAT_SYSCALL_ENTRY(io_submit),
 	COMPAT_SYSCALL_ENTRY(ioctl),
 	COMPAT_SYSCALL_ENTRY(ioprio_set),
 	COMPAT_SYSCALL_ENTRY(kill),
