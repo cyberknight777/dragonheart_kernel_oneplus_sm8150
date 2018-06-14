@@ -236,14 +236,7 @@ static int pp_set_powergating_state(void *handle,
 			pr_err("gfx off control failed!\n");
 	}
 
-	if (hwmgr->hwmgr_func->powergate_gfx == NULL) {
-		pr_info("%s was not implemented.\n", __func__);
-		return 0;
-	}
-
-	/* Enable/disable GFX per cu powergating through SMU */
-	return hwmgr->hwmgr_func->powergate_gfx(hwmgr,
-			state == AMD_PG_STATE_GATE);
+	return 0;
 }
 
 static int pp_suspend(void *handle)
@@ -1188,6 +1181,21 @@ static int pp_dpm_powergate_mmhub(void *handle)
 	return hwmgr->hwmgr_func->powergate_mmhub(hwmgr);
 }
 
+static int pp_dpm_powergate_gfx(void *handle, bool gate)
+{
+	struct pp_hwmgr *hwmgr = handle;
+
+	if (!hwmgr || !hwmgr->pm_en)
+		return 0;
+
+	if (hwmgr->hwmgr_func->powergate_gfx == NULL) {
+		pr_info("%s was not implemented.\n", __func__);
+		return 0;
+	}
+
+	return hwmgr->hwmgr_func->powergate_gfx(hwmgr, gate);
+}
+
 static void pp_dpm_powergate_acp(void *handle, bool gate)
 {
 	struct pp_hwmgr *hwmgr = handle;
@@ -1221,6 +1229,7 @@ static int pp_set_powergating_by_smu(void *handle,
 		pp_dpm_powergate_mmhub(hwmgr);
 		break;
 	case AMD_IP_BLOCK_TYPE_GFX:
+		ret = pp_dpm_powergate_gfx(handle, gate);
 		break;
 	case AMD_IP_BLOCK_TYPE_ACP:
 		pp_dpm_powergate_acp(handle, gate);
