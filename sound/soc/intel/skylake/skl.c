@@ -728,6 +728,12 @@ static void skl_probe_work(struct work_struct *work)
 		}
 	}
 
+	/*
+	 * we are done probing so decrement link counts
+	 */
+	list_for_each_entry(hlink, &ebus->hlink_list, list)
+		snd_hdac_ext_bus_link_put(ebus, hlink);
+
 	if (IS_ENABLED(CONFIG_SND_SOC_HDAC_HDMI)) {
 		err = snd_hdac_display_power(bus, false);
 		if (err < 0) {
@@ -736,12 +742,6 @@ static void skl_probe_work(struct work_struct *work)
 			return;
 		}
 	}
-
-	/*
-	 * we are done probing so decrement link counts
-	 */
-	list_for_each_entry(hlink, &ebus->hlink_list, list)
-		snd_hdac_ext_bus_link_put(ebus, hlink);
 
 	/* configure PM */
 	pm_runtime_put_noidle(bus->dev);
