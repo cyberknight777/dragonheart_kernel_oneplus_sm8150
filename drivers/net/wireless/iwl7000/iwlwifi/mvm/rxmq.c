@@ -1016,17 +1016,14 @@ static void iwl_mvm_rx_he(struct iwl_mvm *mvm, struct sk_buff *skb,
 		if (sigb_data)
 			iwl_mvm_decode_he_sigb(mvm, desc, rate_n_flags, he_mu);
 	}
-	if (he_phy_data != HE_PHY_DATA_INVAL &&
-	    (he_type == RATE_MCS_HE_TYPE_SU ||
-	     he_type == RATE_MCS_HE_TYPE_MU)) {
-		u8 bss_color = FIELD_GET(IWL_RX_HE_PHY_BSS_COLOR_MASK,
-					 he_phy_data);
 
-		if (bss_color) {
-			he->data1 |=
-				cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_BSS_COLOR_KNOWN);
-			he->data3 |= cpu_to_le16(bss_color);
-		}
+	if (he_phy_data != HE_PHY_DATA_INVAL) {
+		he->data1 |=
+			cpu_to_le16(IEEE80211_RADIOTAP_HE_DATA1_BSS_COLOR_KNOWN);
+		he->data3 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_DATA3_BSS_COLOR,
+					FIELD_GET(IWL_RX_HE_PHY_BSS_COLOR_MASK,
+						  he_phy_data));
 	}
 
 	/* update aggregation data for monitor sake on default queue */
