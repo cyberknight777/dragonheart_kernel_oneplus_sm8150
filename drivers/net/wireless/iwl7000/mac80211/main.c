@@ -4,6 +4,7 @@
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (C) 2017     Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1286,7 +1287,7 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
 
 	ieee80211_free_led_names(local);
 
-	kfree(local->uapsd_black_list);
+	kfree(rcu_access_pointer(local->uapsd_black_list));
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
 	intel_regulatory_deregister(local);
