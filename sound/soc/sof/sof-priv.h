@@ -153,6 +153,12 @@ struct snd_sof_dsp_ops {
 	int num_drv;
 };
 
+struct sof_arch_ops {
+	void (*dsp_oops)(struct snd_sof_dev *sdev, void *oops);
+	void (*dsp_stack)(struct snd_sof_dev *sdev, void *oops,
+			  u32 *stack, u32 stack_words);
+};
+
 struct snd_sof_pdata;
 
 struct sof_ops_table {
@@ -292,6 +298,7 @@ struct snd_sof_dev {
 	struct snd_sof_pdata *pdata;
 	const struct snd_sof_dsp_ops *ops;
 	struct sof_intel_hda_dev *hda;	/* for HDA based DSP HW */
+	const struct sof_arch_ops *arch_ops;
 
 	/* IPC */
 	struct snd_sof_ipc *ipc;
@@ -512,4 +519,5 @@ extern const struct sof_arch_ops sof_xtensa_arch_ops;
  * Utilities
  */
 int sof_create_platform_device(struct sof_platform_priv *priv);
+
 #endif
