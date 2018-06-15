@@ -977,7 +977,7 @@ static int rs_rate_from_ucode_rate(const u32 ucode_rate,
 	}
 
 	WARN_ON_ONCE(rate->bw == RATE_MCS_CHAN_WIDTH_80 &&
-		     !is_vht(rate));
+		     !is_he(rate) && !is_vht(rate));
 
 	return 0;
 }

@@ -1807,6 +1807,35 @@ iwl_dbgfs_send_echo_cmd_write(struct iwl_mvm *mvm, char *buf,
 }
 
 static ssize_t
+iwl_dbgfs_set_aid_write(struct iwl_mvm *mvm, char *buf,
+			size_t count, loff_t *ppos)
+{
+	struct iwl_he_monitor_cmd he_mon_cmd = {};
+	u32 aid;
+	int ret;
+
+	if (!iwl_mvm_firmware_running(mvm))
+		return -EIO;
+
+	ret = sscanf(buf, "%x %2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx", &aid,
+		     &he_mon_cmd.bssid[0], &he_mon_cmd.bssid[1],
+		     &he_mon_cmd.bssid[2], &he_mon_cmd.bssid[3],
+		     &he_mon_cmd.bssid[4], &he_mon_cmd.bssid[5]);
+	if (ret != 7)
+		return -EINVAL;
+
+	he_mon_cmd.aid = cpu_to_le16(aid);
+
+	mutex_lock(&mvm->mutex);
+	ret = iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(HE_AIR_SNIFFER_CONFIG_CMD,
+						   DATA_PATH_GROUP, 0), 0,
+				   sizeof(he_mon_cmd), &he_mon_cmd);
+	mutex_unlock(&mvm->mutex);
+
+	return ret ?: count;
+}
+
+static ssize_t
 iwl_dbgfs_uapsd_noagg_bssids_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
 {
@@ -1915,6 +1944,8 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(d3_sram, 8);
 #ifdef CONFIG_ACPI
 MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
+
+MVM_DEBUGFS_WRITE_FILE_OPS(set_aid, 32);
 
 static ssize_t iwl_dbgfs_mem_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -2117,6 +2148,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, S_IRUSR);
 #endif
+	MVM_DEBUGFS_ADD_FILE(set_aid, mvm->debugfs_dir, S_IWUSR);
 
 	if (!debugfs_create_bool("enable_scan_iteration_notif",
 				 S_IRUSR | S_IWUSR,

@@ -2179,6 +2179,10 @@ module_param_named(disable_11ac, iwlwifi_mod_params.disable_11ac, bool,
 		   S_IRUGO);
 MODULE_PARM_DESC(disable_11ac, "Disable VHT capabilities (default: false)");
 
+module_param_named(disable_11ax, iwlwifi_mod_params.disable_11ax, bool,
+		   S_IRUGO);
+MODULE_PARM_DESC(disable_11ax, "Disable HE capabilities (default: false)");
+
 module_param_named(disable_msix, iwlwifi_mod_params.disable_msix, bool,
 		   S_IRUGO);
 MODULE_PARM_DESC(disable_msix, "Disable MSI-X and use MSI instead (default: false)");
