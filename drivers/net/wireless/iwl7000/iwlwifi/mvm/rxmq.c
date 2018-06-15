@@ -990,16 +990,16 @@ static void iwl_mvm_rx_he(struct iwl_mvm *mvm, struct sk_buff *skb,
 		}
 	} else if (he_phy_data != HE_PHY_DATA_INVAL && he_mu) {
 		he_mu->flags1 |=
-			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_SIG_B_SYMS_USERS,
-					FIELD_GET(IWL_RX_HE_PHY_MU_SIBG_SYM_OR_USER_NUM_MASK,
-						  he_phy_data));
-		he_mu->flags1 |=
 			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_DCM,
 					FIELD_GET(IWL_RX_HE_PHY_MU_SIGB_DCM,
 						  he_phy_data));
 		he_mu->flags1 |=
 			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS1_SIG_B_MCS,
 					FIELD_GET(IWL_RX_HE_PHY_MU_SIGB_MCS_MASK,
+						  he_phy_data));
+		he_mu->flags2 |=
+			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_SIG_B_SYMS_USERS,
+					FIELD_GET(IWL_RX_HE_PHY_MU_SIBG_SYM_OR_USER_NUM_MASK,
 						  he_phy_data));
 		he_mu->flags2 |=
 			FIELD_LE16_PREP(IEEE80211_RADIOTAP_HE_MU_FLAGS2_SIG_B_COMP,
