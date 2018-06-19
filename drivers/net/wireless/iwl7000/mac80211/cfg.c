@@ -63,7 +63,7 @@ static int ieee80211_set_mon_options(struct ieee80211_sub_if_data *sdata,
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 				     u32 flags,
 #endif
-				     struct vif_params *params)
+struct vif_params *params)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_sub_if_data *monitor_sdata;
@@ -126,7 +126,7 @@ static struct wireless_dev *ieee80211_add_iface(struct wiphy *wiphy,
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 						u32 *flags,
 #endif
-						struct vif_params *params)
+struct vif_params *params)
 {
 #if CFG80211_VERSION <= KERNEL_VERSION(4,0,0)
 	unsigned char name_assign_type = NET_NAME_UNKNOWN;
@@ -167,7 +167,7 @@ static int ieee80211_change_iface(struct wiphy *wiphy,
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 				  u32 *flags,
 #endif
-				  struct vif_params *params)
+struct vif_params *params)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	int ret;
@@ -4021,6 +4021,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 #else
 	.mgmt_tx = _wrap_mgmt_tx,
 #endif
+
 	.mgmt_tx_cancel_wait = ieee80211_mgmt_tx_cancel_wait,
 	.set_cqm_rssi_config = ieee80211_set_cqm_rssi_config,
 #if CFG80211_VERSION >= KERNEL_VERSION(4,12,0)
