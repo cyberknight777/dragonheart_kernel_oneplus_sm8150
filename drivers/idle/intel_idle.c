@@ -67,6 +67,7 @@
 #include <asm/mwait.h>
 #include <asm/msr.h>
 #include <asm/pmc_core.h>
+#include <asm/intel_pmc_ipc.h>
 
 #define INTEL_IDLE_VERSION "0.4.1"
 
@@ -973,11 +974,23 @@ static int intel_idle_s2idle(struct cpuidle_device *dev,
 	return 0;
 }
 
-static int check_slp_s0(u32 slp_s0_saved_count)
+static int get_slpS0_count(u64* slp_s0_count)
 {
-	u32 slp_s0_new_count;
-	if (intel_pmc_slp_s0_counter_read(&slp_s0_new_count)) {
-		pr_warn("Unable to read SLP S0 residency counter\n");
+	switch (boot_cpu_data.x86_model) {
+
+	case INTEL_FAM6_ATOM_GEMINI_LAKE:
+		return intel_pmc_s0ix_counter_read(slp_s0_count);
+	default:
+		return intel_pmc_slp_s0_counter_read((u32*)slp_s0_count);
+	}
+}
+
+static int check_slp_s0(u64 slp_s0_saved_count)
+{
+	u64 slp_s0_new_count;
+
+	if (get_slpS0_count(&slp_s0_new_count)) {
+		pr_warn("After s2idle attempt: Unable to read SLP S0 residency counter\n");
 		return -EIO;
 	}
 
@@ -1006,7 +1019,7 @@ static int intel_idle_s2idle_and_check(struct cpuidle_device *dev,
 				       struct cpuidle_driver *drv, int index)
 {
 	bool check_on_this_cpu = false;
-	u32 slp_s0_saved_count;
+	u64 slp_s0_saved_count;
 	unsigned long flags;
 	int cpu = smp_processor_id();
 	int ret;
@@ -1014,10 +1027,11 @@ static int intel_idle_s2idle_and_check(struct cpuidle_device *dev,
 	/* The last CPU to freeze sets up checking SLP S0 assertion. */
 	spin_lock_irqsave(&slp_s0_check_lock, flags);
 	slp_s0_num_cpus++;
+
 	if (slp_s0_seconds &&
 	    slp_s0_num_cpus == num_online_cpus() &&
 	    !slp_s0_check_inprogress &&
-	    !intel_pmc_slp_s0_counter_read(&slp_s0_saved_count)) {
+	    !get_slpS0_count(&slp_s0_saved_count)) {
 		ret = tick_set_freeze_event(cpu, ktime_set(slp_s0_seconds, 0));
 		if (ret < 0) {
 			spin_unlock_irqrestore(&slp_s0_check_lock, flags);
