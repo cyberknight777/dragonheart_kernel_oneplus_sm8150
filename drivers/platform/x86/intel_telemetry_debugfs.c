@@ -502,7 +502,6 @@ static const struct file_operations telem_pss_ops = {
 	.release	= single_release,
 };
 
-
 static int telem_ioss_states_show(struct seq_file *s, void *unused)
 {
 	struct telemetry_evtlog evtlog[TELEM_MAX_OS_ALLOCATED_EVENTS];
@@ -541,6 +540,104 @@ static const struct file_operations telem_ioss_ops = {
 	.llseek		= seq_lseek,
 	.release	= single_release,
 };
+
+int telem_soc_states_display(void)
+{
+	u32 d3_sts[TELEM_IOSS_DX_D0IX_EVTS], d0ix_sts[TELEM_IOSS_DX_D0IX_EVTS];
+	u32 pg_sts[TELEM_IOSS_PG_EVTS], pss_idle[TELEM_PSS_IDLE_EVTS];
+	struct telemetry_evtlog evtlog[TELEM_MAX_OS_ALLOCATED_EVENTS];
+	struct telemetry_debugfs_conf *conf = debugfs_conf;
+	struct pci_dev *dev = NULL;
+	int index, idx, ret;
+	u32 d3_state;
+	u16 pmcsr;
+	ret = telemetry_raw_read_eventlog(TELEM_IOSS, evtlog,
+				      TELEM_MAX_OS_ALLOCATED_EVENTS);
+	if (ret < 0)
+		return ret;
+
+	for (index = 0; index < ret; index++) {
+		TELEM_CHECK_AND_PARSE_EVTS(conf->ioss_d3_id,
+					   conf->ioss_d0ix_evts,
+					   d3_sts, evtlog[index].telem_evtlog,
+					   conf->ioss_d0ix_data,
+					   TELEM_MASK_BIT);
+
+		TELEM_CHECK_AND_PARSE_EVTS(conf->ioss_pg_id, conf->ioss_pg_evts,
+					   pg_sts, evtlog[index].telem_evtlog,
+					   conf->ioss_pg_data, TELEM_MASK_BIT);
+
+		TELEM_CHECK_AND_PARSE_EVTS(conf->ioss_d0ix_id,
+					   conf->ioss_d0ix_evts,
+					   d0ix_sts, evtlog[index].telem_evtlog,
+					   conf->ioss_d0ix_data,
+					   TELEM_MASK_BIT);
+
+	}
+
+	pr_warn("\n---------------------------------------------------\n");
+	pr_warn("\t\tDEVICE STATES\n");
+	pr_warn("\n---------------------------------------------------\n");
+
+	for_each_pci_dev(dev) {
+		pci_read_config_word(dev, dev->pm_cap + PCI_PM_CTRL, &pmcsr);
+		d3_state = ((pmcsr & PCI_PM_CTRL_STATE_MASK) ==
+			    (__force int)PCI_D3hot) ? 1 : 0;
+
+		pr_warn("pci %04x %04X %s %20.20s: ",
+			   dev->vendor, dev->device, dev_name(&dev->dev),
+			   dev_driver_string(&dev->dev));
+		pr_warn("d3:%x\n", d3_state);
+	}
+
+	pr_warn("\n---------------------------------------------------\n");
+	pr_warn("D3/D0i3 Status\n");
+	pr_warn("\n---------------------------------------------------\n");
+	pr_warn(" Block\t\t D3\t D0i3\n");
+	for (index = 0; index < conf->ioss_d0ix_evts; index++) {
+		pr_warn("%-10s\t %u\t %u\n",
+			   conf->ioss_d0ix_data[index].name,
+			   d3_sts[index], d0ix_sts[index]);
+	}
+
+	pr_warn("\n---------------------------------------------------\n");
+	pr_warn("South Complex PowerGate Status\n");
+	pr_warn("\n---------------------------------------------------\n");
+	pr_warn("Device\t\t PG\n");
+	pr_warn("\n---------------------------------------------------\n");
+	for (index = 0; index < conf->ioss_pg_evts; index++) {
+		pr_warn("%-10s\t %u\n",
+			   conf->ioss_pg_data[index].name,
+			   pg_sts[index]);
+	}
+
+	evtlog->telem_evtid = conf->pss_idle_id;
+	ret = telemetry_raw_read_events(TELEM_PSS, evtlog, 1);
+	if (ret < 0)
+		return ret;
+
+	pr_warn("\n---------------------------------------------------\n");
+	pr_warn("North Idle Status\n");
+	pr_warn("\n---------------------------------------------------\n");
+	for (idx = 0; idx < conf->pss_idle_evts - 1; idx++) {
+		pss_idle[idx] =	(evtlog->telem_evtlog >>
+				conf->pss_idle_data[idx].bit_pos) &
+				TELEM_MASK_BIT;
+	}
+
+	pss_idle[idx] = (evtlog->telem_evtlog >>
+			conf->pss_idle_data[idx].bit_pos) &
+			TELEM_APL_MASK_PCS_STATE;
+
+	for (index = 0; index < conf->pss_idle_evts; index++) {
+		pr_warn("%-30s %u\n",
+			   conf->pss_idle_data[index].name,
+			   pss_idle[index]);
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(telem_soc_states_display);
 
 static int telem_soc_states_show(struct seq_file *s, void *unused)
 {
