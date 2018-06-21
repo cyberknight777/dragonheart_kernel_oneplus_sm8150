@@ -59,6 +59,17 @@
 		regulator-always-on; // HACK
 		regulator-boot-on;   // HACK
 	};
+
+	/* NON-REGULATOR TOP LEVEL NODES */
+
+	/delete-node/backlight;
+	backlight: backlight {
+		compatible = "gpio-backlight";
+		pinctrl-names = "default";
+		pinctrl-0 = <&edp_bkltctl>;
+		gpios = <&tlmm 9 GPIO_ACTIVE_HIGH>;
+		default-on;
+	};
 };
 
 /* FIXED REGULATOR OVERRIDES (modifications to sdm845-cheza.dtsi) */
@@ -295,6 +306,19 @@
 			  "AP_RAM_ID2",
 			  "RFFE1_DATA",
 			  "RFFE1_CLK";
+
+	edp_bkltctl: edp-bkltctl {
+		pinmux {
+			pins = "gpio9";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio9";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
 
 	qup_spi10_neuter: qup-spi10-neuter {
 		pinmux {

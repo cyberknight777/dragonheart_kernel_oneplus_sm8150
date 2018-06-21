@@ -23,6 +23,15 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&cros_ec_pwm 0>;
+		enable-gpios = <&tlmm 37 GPIO_ACTIVE_HIGH>;
+		power-supply = <&ppvar_sys>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap_edp_bklten>;
+	};
+
 	/* FIXED REGULATORS - parents above children */
 
 	/* This is the top level supply and variable voltage */
@@ -721,6 +730,19 @@ ap_ts_i2c: &i2c14 {
 };
 
 &tlmm {
+	ap_edp_bklten: ap-edp-bklten {
+		pinmux {
+			pins = "gpio37";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio37";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
 	bios_flash_wp_r_l: bios-flash-wp-r-l {
 		pinmux {
 			pins = "gpio128";
