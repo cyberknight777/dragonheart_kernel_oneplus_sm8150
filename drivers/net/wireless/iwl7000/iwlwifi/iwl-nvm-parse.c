@@ -1330,9 +1330,10 @@ struct iwl_nvm_data *iwl_get_nvm(struct iwl_trans *trans,
 	/* Initialize general data */
 	nvm->nvm_version = le16_to_cpu(rsp->general.nvm_version);
 	nvm->n_hw_addrs = rsp->general.n_hw_addrs;
-	WARN_ONCE(nvm->n_hw_addrs == 0,
-		  "Firmware declares no reserved mac addresses. OTP is empty: %d\n",
-		  empty_otp);
+	if (nvm->n_hw_addrs == 0)
+		IWL_WARN(trans,
+			 "Firmware declares no reserved mac addresses. OTP is empty: %d\n",
+			 empty_otp);
 
 	/* Initialize MAC sku data */
 	mac_flags = le32_to_cpu(rsp->mac_sku.mac_sku_flags);
