@@ -447,6 +447,32 @@ bool dm_pp_apply_clock_for_voltage_request(
 		return false;
 	return true;
 }
+static enum dm_pp_clocks_state pp_to_dc_powerlevel_state(
+	enum PP_DAL_POWERLEVEL max_clocks_state)
+{
+	switch (max_clocks_state) {
+	case PP_DAL_POWERLEVEL_0:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_0;
+	case PP_DAL_POWERLEVEL_1:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_1;
+	case PP_DAL_POWERLEVEL_2:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_2;
+	case PP_DAL_POWERLEVEL_3:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_3;
+	case PP_DAL_POWERLEVEL_4:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_4;
+	case PP_DAL_POWERLEVEL_5:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_5;
+	case PP_DAL_POWERLEVEL_6:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_6;
+	case PP_DAL_POWERLEVEL_7:
+		return DM_PP_CLOCKS_DPM_STATE_LEVEL_7;
+	default:
+		DRM_ERROR("DM_PPLIB: invalid powerlevel state: %d!\n",
+				max_clocks_state);
+		return DM_PP_CLOCKS_STATE_INVALID;
+	}
+}
 
 bool dm_pp_get_static_clocks(
 	const struct dc_context *ctx,
@@ -463,7 +489,7 @@ bool dm_pp_get_static_clocks(
 	if (ret)
 		return false;
 
-	static_clk_info->max_clocks_state = pp_clk_info.max_clocks_state;
+	static_clk_info->max_clocks_state = pp_to_dc_powerlevel_state(pp_clk_info.max_clocks_state);
 	static_clk_info->max_mclk_khz = pp_clk_info.max_memory_clock;
 	static_clk_info->max_sclk_khz = pp_clk_info.max_engine_clock;
 
