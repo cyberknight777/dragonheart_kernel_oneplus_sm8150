@@ -687,6 +687,11 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	num_mac = (mvm->nvm_data->n_hw_addrs > 1) ?
 		min(IWL_MVM_MAX_ADDRESSES, mvm->nvm_data->n_hw_addrs) : 1;
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.hw_address.len)
+		num_mac = IWL_MVM_MAX_ADDRESSES;
+#endif
+
 	for (i = 1; i < num_mac; i++) {
 		memcpy(mvm->addresses[i].addr, mvm->addresses[i-1].addr,
 		       ETH_ALEN);
