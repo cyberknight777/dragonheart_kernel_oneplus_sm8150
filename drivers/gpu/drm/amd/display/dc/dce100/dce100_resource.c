@@ -588,7 +588,7 @@ struct output_pixel_processor *dce100_opp_create(
 	return &opp->base;
 }
 
-struct engine *dce100_aux_engine_create(
+struct aux_engine *dce100_aux_engine_create(
 	struct dc_context *ctx,
 	uint32_t inst)
 {
@@ -602,7 +602,7 @@ struct engine *dce100_aux_engine_create(
 				    SW_AUX_TIMEOUT_PERIOD_MULTIPLIER * AUX_TIMEOUT_PERIOD,
 				    &aux_engine_regs[inst]);
 
-	return &aux_engine->base.base;
+	return &aux_engine->base;
 }
 
 struct clock_source *dce100_clock_source_create(
