@@ -32,6 +32,16 @@
 		pinctrl-0 = <&ap_edp_bklten>;
 	};
 
+	reserved-memory {
+		rmtfs@88f00000 {
+			compatible = "qcom,rmtfs-mem";
+			reg = <0x0 0x88f00000 0x0 0x200000>;
+			no-map;
+
+			qcom,client-id = <1>;
+		};
+	};
+
 	/* FIXED REGULATORS - parents above children */
 
 	/* This is the top level supply and variable voltage */
