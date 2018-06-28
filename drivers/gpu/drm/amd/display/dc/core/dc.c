@@ -1049,7 +1049,7 @@ bool dc_commit_planes_to_stream(
 struct dc_state *dc_create_state(void)
 {
 	struct dc_state *context = kzalloc(sizeof(struct dc_state),
-					   GFP_ATOMIC);
+					   GFP_KERNEL);
 
 	if (!context)
 		return NULL;
