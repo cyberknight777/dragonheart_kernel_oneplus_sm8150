@@ -1045,32 +1045,35 @@ int iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 		       struct iwl_fw_dbg_trigger_tlv *trigger)
 {
 	struct iwl_fw_dump_desc *desc;
+	unsigned int delay = 0;
 
-	if (trigger && !le16_to_cpu(trigger->occurrences))
-		return 0;
+	if (trigger) {
+		u16 occurrences = le16_to_cpu(trigger->occurrences) - 1;
 
-	if (trigger && trigger->flags & IWL_FW_DBG_FORCE_RESTART) {
-		IWL_WARN(fwrt, "Force restart: trigger %d fired.\n", trig);
-		iwl_force_nmi(fwrt->trans);
-		return 0;
+		if (!le16_to_cpu(trigger->occurrences))
+			return 0;
+
+		if (trigger->flags & IWL_FW_DBG_FORCE_RESTART) {
+			IWL_WARN(fwrt, "Force restart: trigger %d fired.\n",
+				 trig);
+			iwl_force_nmi(fwrt->trans);
+			return 0;
+		}
+
+		trigger->occurrences = cpu_to_le16(occurrences);
+		delay = le16_to_cpu(trigger->trig_dis_ms);
 	}
 
 	desc = kzalloc(sizeof(*desc) + len, GFP_ATOMIC);
 	if (!desc)
 		return -ENOMEM;
 
-	if (trigger) {
-		u16 occurrences = le16_to_cpu(trigger->occurrences) - 1;
-
-		trigger->occurrences = cpu_to_le16(occurrences);
-	}
 
 	desc->len = len;
 	desc->trig_desc.type = cpu_to_le32(trig);
 	memcpy(desc->trig_desc.data, str, len);
 
-	return iwl_fw_dbg_collect_desc(fwrt, desc, trigger,
-				       le16_to_cpu(trigger->trig_dis_ms));
+	return iwl_fw_dbg_collect_desc(fwrt, desc, trigger, delay);
 }
 IWL_EXPORT_SYMBOL(iwl_fw_dbg_collect);
 
