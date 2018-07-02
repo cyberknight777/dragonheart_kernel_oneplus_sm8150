@@ -855,13 +855,10 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 	(offsetof(TYPE, MEMBER)	+ sizeof(((TYPE *)0)->MEMBER))
 #endif
 
-#if LINUX_VERSION_IS_LESS(4,16,0)
 int alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
                            size_t max_size, unsigned int cpu_mult,
                            gfp_t gfp);
-
 void free_bucket_spinlocks(spinlock_t *locks);
-#endif /* LINUX_VERSION_IS_LESS(4,16,0) */
 
 #ifndef READ_ONCE
 #include <linux/types.h>
