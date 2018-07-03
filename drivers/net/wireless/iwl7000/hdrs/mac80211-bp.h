@@ -2425,6 +2425,29 @@ struct sta_opmode_info {
 
 #define cfg_control_port_over_nl80211(params) 0
 #else
+#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0) && \
+	CFG80211_VERSION < KERNEL_VERSION(4,18,0)
+static inline bool iwl7000_cfg80211_rx_control_port(struct net_device *dev,
+				    struct sk_buff *skb, bool unencrypted)
+{
+	struct ethhdr *ehdr;
+
+	/*
+	 * Try to linearize the skb, because in 4.17
+	 * cfg80211_rx_control_port() is broken and needs it to be
+	 * linear.  If it fails, too bad, we fail too.
+	 */
+	if (skb_linearize(skb))
+		return false;
+
+	ehdr = eth_hdr(skb);
+
+	return cfg80211_rx_control_port(dev, skb->data, skb->len,
+				ehdr->h_source,
+				be16_to_cpu(skb->protocol), unencrypted);
+}
+#define cfg80211_rx_control_port iwl7000_cfg80211_rx_control_port
+#endif
 #define cfg_control_port_over_nl80211(params) (params)->control_port_over_nl80211
 #endif
 
