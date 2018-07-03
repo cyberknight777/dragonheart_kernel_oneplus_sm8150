@@ -1413,7 +1413,7 @@ static int amdgpu_dm_initialize_drm_device(struct amdgpu_device *adev)
 	struct amdgpu_encoder *aencoder = NULL;
 	struct amdgpu_mode_info *mode_info = &adev->mode_info;
 	uint32_t link_cnt;
-	int32_t total_overlay_planes, total_primary_planes;
+	int32_t total_primary_planes;
 
 	link_cnt = dm->dc->caps.max_links;
 	if (amdgpu_dm_mode_config_init(dm->adev)) {
@@ -1422,16 +1422,7 @@ static int amdgpu_dm_initialize_drm_device(struct amdgpu_device *adev)
 	}
 
 	/* Identify the number of planes to be initialized */
-	total_overlay_planes = dm->dc->caps.max_slave_planes;
 	total_primary_planes = dm->dc->caps.max_planes - dm->dc->caps.max_slave_planes;
-
-	/* First initialize overlay planes, index starting after primary planes */
-	for (i = (total_overlay_planes - 1); i >= 0; i--) {
-		if (initialize_plane(dm, mode_info, (total_primary_planes + i))) {
-			DRM_ERROR("KMS: Failed to initialize overlay plane\n");
-			goto fail;
-		}
-	}
 
 	/* Initialize primary planes */
 	for (i = (total_primary_planes - 1); i >= 0; i--) {
