@@ -753,6 +753,7 @@ static int vega10_hwmgr_backend_init(struct pp_hwmgr *hwmgr)
 	uint32_t config_telemetry = 0;
 	struct pp_atomfwctrl_voltage_table vol_table;
 	struct cgs_system_info sys_info = {0};
+	uint32_t reg;
 
 	data = kzalloc(sizeof(struct vega10_hwmgr), GFP_KERNEL);
 	if (data == NULL)
@@ -858,6 +859,16 @@ static int vega10_hwmgr_backend_init(struct pp_hwmgr *hwmgr)
 			hwmgr->thermal_controller.
 			advanceFanControlParameters.usFanPWMMinLimit *
 			hwmgr->thermal_controller.fanInfo.ulMaxRPM / 100;
+
+	reg = soc15_get_register_offset(DF_HWID, 0,
+			mmDF_CS_AON0_DramBaseAddress0_BASE_IDX,
+			mmDF_CS_AON0_DramBaseAddress0);
+	data->mem_channels = (cgs_read_register(hwmgr->device, reg) &
+			DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK) >>
+			DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
+	PP_ASSERT_WITH_CODE(data->mem_channels < ARRAY_SIZE(channel_number),
+			"Mem Channel Index Exceeded maximum!",
+			return -EINVAL);
 
 	return result;
 }
@@ -1777,7 +1788,7 @@ static int vega10_populate_all_memory_levels(struct pp_hwmgr *hwmgr)
 	struct vega10_single_dpm_table *dpm_table =
 			&(data->dpm_table.mem_table);
 	int result = 0;
-	uint32_t i, j, reg, mem_channels;
+	uint32_t i, j;
 
 	for (i = 0; i < dpm_table->count; i++) {
 		result = vega10_populate_single_memory_level(hwmgr,
@@ -1801,16 +1812,10 @@ static int vega10_populate_all_memory_levels(struct pp_hwmgr *hwmgr)
 		i++;
 	}
 
-	reg = soc15_get_register_offset(DF_HWID, 0,
-			mmDF_CS_AON0_DramBaseAddress0_BASE_IDX,
-			mmDF_CS_AON0_DramBaseAddress0);
-	mem_channels = (cgs_read_register(hwmgr->device, reg) &
-			DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK) >>
-			DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
-	pp_table->NumMemoryChannels = cpu_to_le16(mem_channels);
+	pp_table->NumMemoryChannels = (uint16_t)(data->mem_channels);
 	pp_table->MemoryChannelWidth =
-			cpu_to_le16(HBM_MEMORY_CHANNEL_WIDTH *
-					channel_number[mem_channels]);
+			(uint16_t)(HBM_MEMORY_CHANNEL_WIDTH *
+					channel_number[data->mem_channels]);
 
 	pp_table->LowestUclkReservedForUlv =
 			(uint8_t)(data->lowest_uclk_reserved_for_ulv);
@@ -3134,6 +3139,8 @@ static int vega10_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 	minimum_clocks.memoryClock = hwmgr->display_config.min_mem_set_clock;
 
 	if (PP_CAP(PHM_PlatformCaps_StablePState)) {
+		stable_pstate_sclk_dpm_percentage =
+			data->registry_data.stable_pstate_sclk_dpm_percentage;
 		PP_ASSERT_WITH_CODE(
 			data->registry_data.stable_pstate_sclk_dpm_percentage >= 1 &&
 			data->registry_data.stable_pstate_sclk_dpm_percentage <= 100,
@@ -3201,10 +3208,13 @@ static int vega10_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 	disable_mclk_switching_for_vr = PP_CAP(PHM_PlatformCaps_DisableMclkSwitchForVR);
 	force_mclk_high = PP_CAP(PHM_PlatformCaps_ForceMclkHigh);
 
-	disable_mclk_switching = (info.display_count > 1) ||
-				    disable_mclk_switching_for_frame_lock ||
-				    disable_mclk_switching_for_vr ||
-				    force_mclk_high;
+	if (info.display_count == 0)
+		disable_mclk_switching = false;
+	else
+		disable_mclk_switching = (info.display_count > 1) ||
+			disable_mclk_switching_for_frame_lock ||
+			disable_mclk_switching_for_vr ||
+			force_mclk_high;
 
 	sclk = vega10_ps->performance_levels[0].gfx_clock;
 	mclk = vega10_ps->performance_levels[0].mem_clock;

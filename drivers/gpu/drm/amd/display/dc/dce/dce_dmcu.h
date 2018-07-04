@@ -48,6 +48,10 @@
 	DMCU_COMMON_REG_LIST_DCE_BASE(), \
 	SR(DCI_MEM_PWR_STATUS)
 
+#define DMCU_DCN10_REG_LIST()\
+	DMCU_COMMON_REG_LIST_DCE_BASE(), \
+	SR(DMU_MEM_PWR_CNTL)
+
 #define DMCU_SF(reg_name, field_name, post_fix)\
 	.field_name = reg_name ## __ ## field_name ## post_fix
 
@@ -75,6 +79,11 @@
 	DMCU_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(mask_sh), \
 	DMCU_SF(DCI_MEM_PWR_STATUS, \
 		DMCU_IRAM_MEM_PWR_STATE, mask_sh)
+
+#define DMCU_MASK_SH_LIST_DCN10(mask_sh) \
+	DMCU_COMMON_MASK_SH_LIST_DCE_COMMON_BASE(mask_sh), \
+	DMCU_SF(DMU_MEM_PWR_CNTL, \
+			DMCU_IRAM_MEM_PWR_STATE, mask_sh)
 
 #define DMCU_REG_FIELD_LIST(type) \
 	type DMCU_IRAM_MEM_PWR_STATE; \
@@ -184,7 +193,21 @@ union dce_dmcu_psr_config_data_reg3 {
 	unsigned int u32All;
 };
 
+union dce_dmcu_psr_config_data_wait_loop_reg1 {
+	struct {
+		unsigned int wait_loop:16; /* [15:0] */
+		unsigned int reserved:16; /* [31:16] */
+	} bits;
+	unsigned int u32;
+};
+
 struct dmcu *dce_dmcu_create(
+	struct dc_context *ctx,
+	const struct dce_dmcu_registers *regs,
+	const struct dce_dmcu_shift *dmcu_shift,
+	const struct dce_dmcu_mask *dmcu_mask);
+
+struct dmcu *dcn10_dmcu_create(
 	struct dc_context *ctx,
 	const struct dce_dmcu_registers *regs,
 	const struct dce_dmcu_shift *dmcu_shift,

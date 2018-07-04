@@ -230,8 +230,8 @@ static int cros_ec_pd_enter_gfu(struct device *dev, struct cros_ec_dev *pd_dev,
 				int port)
 {
 	int rv;
-
 	struct ec_params_usb_pd_set_mode_request set_mode_request;
+
 	set_mode_request.port = port;
 	set_mode_request.svid = USB_VID_GOOGLE;
 	/* TODO(tbroch) Will GFU always be '1'? */
@@ -404,7 +404,7 @@ static int cros_ec_pd_fw_update(struct cros_ec_pd_update_data *drv_data,
 	/*
 	 * Wait for the charger to reboot.
 	 * TODO(shawnn): Instead of waiting for a fixed period of time, wait
-	 * to recieve an interrupt that signals the charger is back online.
+	 * to receive an interrupt that signals the charger is back online.
 	 */
 	msleep(4000);
 
@@ -517,9 +517,8 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 			 * reflash.
 			 */
 			return PD_DO_UPDATE;
-		else
-			/* Device is already updated */
-			return PD_ALREADY_HAVE_LATEST;
+		/* Device is already updated */
+		return PD_ALREADY_HAVE_LATEST;
 	}
 
 	/* Always update if PD device is stuck in RO. */
@@ -746,7 +745,7 @@ static ssize_t disable_firmware_update(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(disable, S_IWUSR, NULL, disable_firmware_update);
+static DEVICE_ATTR(disable, 0200, NULL, disable_firmware_update);
 
 static struct attribute *pd_attrs[] = {
 	&dev_attr_disable.attr,
@@ -893,7 +892,7 @@ static ssize_t show_firmware_images(struct device *dev,
 }
 
 
-static DEVICE_ATTR(firmware_images, S_IRUGO, show_firmware_images, NULL);
+static DEVICE_ATTR(firmware_images, 0444, show_firmware_images, NULL);
 
 static struct attribute *__pd_attrs[] = {
 	&dev_attr_firmware_images.attr,

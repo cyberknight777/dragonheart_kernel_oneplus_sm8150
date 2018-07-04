@@ -533,7 +533,7 @@ static int amdgpu_wb_init(struct amdgpu_device *adev)
 }
 
 /**
- * amdgpu_wb_get - Allocate a wb entry
+ * amdgpu_device_wb_get - Allocate a wb entry
  *
  * @adev: amdgpu_device pointer
  * @wb: wb index
@@ -541,7 +541,7 @@ static int amdgpu_wb_init(struct amdgpu_device *adev)
  * Allocate a wb slot for use by the driver (all asics).
  * Returns 0 on success or -EINVAL on failure.
  */
-int amdgpu_wb_get(struct amdgpu_device *adev, u32 *wb)
+int amdgpu_device_wb_get(struct amdgpu_device *adev, u32 *wb)
 {
 	unsigned long offset = find_first_zero_bit(adev->wb.used, adev->wb.num_wb);
 
@@ -555,14 +555,14 @@ int amdgpu_wb_get(struct amdgpu_device *adev, u32 *wb)
 }
 
 /**
- * amdgpu_wb_free - Free a wb entry
+ * amdgpu_device_wb_free - Free a wb entry
  *
  * @adev: amdgpu_device pointer
  * @wb: wb index
  *
  * Free a wb slot allocated for use by the driver (all asics)
  */
-void amdgpu_wb_free(struct amdgpu_device *adev, u32 wb)
+void amdgpu_device_wb_free(struct amdgpu_device *adev, u32 wb)
 {
 	if (wb < adev->wb.num_wb)
 		__clear_bit(wb >> 3, adev->wb.used);
@@ -829,237 +829,6 @@ void amdgpu_dummy_page_fini(struct amdgpu_device *adev)
 			PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
 	__free_page(adev->dummy_page.page);
 	adev->dummy_page.page = NULL;
-}
-
-
-/* ATOM accessor methods */
-/*
- * ATOM is an interpreted byte code stored in tables in the vbios.  The
- * driver registers callbacks to access registers and the interpreter
- * in the driver parses the tables and executes then to program specific
- * actions (set display modes, asic init, etc.).  See amdgpu_atombios.c,
- * atombios.h, and atom.c
- */
-
-/**
- * cail_pll_read - read PLL register
- *
- * @info: atom card_info pointer
- * @reg: PLL register offset
- *
- * Provides a PLL register accessor for the atom interpreter (r4xx+).
- * Returns the value of the PLL register.
- */
-static uint32_t cail_pll_read(struct card_info *info, uint32_t reg)
-{
-	return 0;
-}
-
-/**
- * cail_pll_write - write PLL register
- *
- * @info: atom card_info pointer
- * @reg: PLL register offset
- * @val: value to write to the pll register
- *
- * Provides a PLL register accessor for the atom interpreter (r4xx+).
- */
-static void cail_pll_write(struct card_info *info, uint32_t reg, uint32_t val)
-{
-
-}
-
-/**
- * cail_mc_read - read MC (Memory Controller) register
- *
- * @info: atom card_info pointer
- * @reg: MC register offset
- *
- * Provides an MC register accessor for the atom interpreter (r4xx+).
- * Returns the value of the MC register.
- */
-static uint32_t cail_mc_read(struct card_info *info, uint32_t reg)
-{
-	return 0;
-}
-
-/**
- * cail_mc_write - write MC (Memory Controller) register
- *
- * @info: atom card_info pointer
- * @reg: MC register offset
- * @val: value to write to the pll register
- *
- * Provides a MC register accessor for the atom interpreter (r4xx+).
- */
-static void cail_mc_write(struct card_info *info, uint32_t reg, uint32_t val)
-{
-
-}
-
-/**
- * cail_reg_write - write MMIO register
- *
- * @info: atom card_info pointer
- * @reg: MMIO register offset
- * @val: value to write to the pll register
- *
- * Provides a MMIO register accessor for the atom interpreter (r4xx+).
- */
-static void cail_reg_write(struct card_info *info, uint32_t reg, uint32_t val)
-{
-	struct amdgpu_device *adev = info->dev->dev_private;
-
-	WREG32(reg, val);
-}
-
-/**
- * cail_reg_read - read MMIO register
- *
- * @info: atom card_info pointer
- * @reg: MMIO register offset
- *
- * Provides an MMIO register accessor for the atom interpreter (r4xx+).
- * Returns the value of the MMIO register.
- */
-static uint32_t cail_reg_read(struct card_info *info, uint32_t reg)
-{
-	struct amdgpu_device *adev = info->dev->dev_private;
-	uint32_t r;
-
-	r = RREG32(reg);
-	return r;
-}
-
-/**
- * cail_ioreg_write - write IO register
- *
- * @info: atom card_info pointer
- * @reg: IO register offset
- * @val: value to write to the pll register
- *
- * Provides a IO register accessor for the atom interpreter (r4xx+).
- */
-static void cail_ioreg_write(struct card_info *info, uint32_t reg, uint32_t val)
-{
-	struct amdgpu_device *adev = info->dev->dev_private;
-
-	WREG32_IO(reg, val);
-}
-
-/**
- * cail_ioreg_read - read IO register
- *
- * @info: atom card_info pointer
- * @reg: IO register offset
- *
- * Provides an IO register accessor for the atom interpreter (r4xx+).
- * Returns the value of the IO register.
- */
-static uint32_t cail_ioreg_read(struct card_info *info, uint32_t reg)
-{
-	struct amdgpu_device *adev = info->dev->dev_private;
-	uint32_t r;
-
-	r = RREG32_IO(reg);
-	return r;
-}
-
-static ssize_t amdgpu_atombios_get_vbios_version(struct device *dev,
-						 struct device_attribute *attr,
-						 char *buf)
-{
-	struct drm_device *ddev = dev_get_drvdata(dev);
-	struct amdgpu_device *adev = ddev->dev_private;
-	struct atom_context *ctx = adev->mode_info.atom_context;
-
-	return snprintf(buf, PAGE_SIZE, "%s\n", ctx->vbios_version);
-}
-
-static DEVICE_ATTR(vbios_version, 0444, amdgpu_atombios_get_vbios_version,
-		   NULL);
-
-/**
- * amdgpu_atombios_fini - free the driver info and callbacks for atombios
- *
- * @adev: amdgpu_device pointer
- *
- * Frees the driver info and register access callbacks for the ATOM
- * interpreter (r4xx+).
- * Called at driver shutdown.
- */
-static void amdgpu_atombios_fini(struct amdgpu_device *adev)
-{
-	if (adev->mode_info.atom_context) {
-		kfree(adev->mode_info.atom_context->scratch);
-		kfree(adev->mode_info.atom_context->iio);
-	}
-	kfree(adev->mode_info.atom_context);
-	adev->mode_info.atom_context = NULL;
-	kfree(adev->mode_info.atom_card_info);
-	adev->mode_info.atom_card_info = NULL;
-	device_remove_file(adev->dev, &dev_attr_vbios_version);
-}
-
-/**
- * amdgpu_atombios_init - init the driver info and callbacks for atombios
- *
- * @adev: amdgpu_device pointer
- *
- * Initializes the driver info and register access callbacks for the
- * ATOM interpreter (r4xx+).
- * Returns 0 on sucess, -ENOMEM on failure.
- * Called at driver startup.
- */
-static int amdgpu_atombios_init(struct amdgpu_device *adev)
-{
-	struct card_info *atom_card_info =
-	    kzalloc(sizeof(struct card_info), GFP_KERNEL);
-	int ret;
-
-	if (!atom_card_info)
-		return -ENOMEM;
-
-	adev->mode_info.atom_card_info = atom_card_info;
-	atom_card_info->dev = adev->ddev;
-	atom_card_info->reg_read = cail_reg_read;
-	atom_card_info->reg_write = cail_reg_write;
-	/* needed for iio ops */
-	if (adev->rio_mem) {
-		atom_card_info->ioreg_read = cail_ioreg_read;
-		atom_card_info->ioreg_write = cail_ioreg_write;
-	} else {
-		DRM_INFO("PCI I/O BAR is not found. Using MMIO to access ATOM BIOS\n");
-		atom_card_info->ioreg_read = cail_reg_read;
-		atom_card_info->ioreg_write = cail_reg_write;
-	}
-	atom_card_info->mc_read = cail_mc_read;
-	atom_card_info->mc_write = cail_mc_write;
-	atom_card_info->pll_read = cail_pll_read;
-	atom_card_info->pll_write = cail_pll_write;
-
-	adev->mode_info.atom_context = amdgpu_atom_parse(atom_card_info, adev->bios);
-	if (!adev->mode_info.atom_context) {
-		amdgpu_atombios_fini(adev);
-		return -ENOMEM;
-	}
-
-	mutex_init(&adev->mode_info.atom_context->mutex);
-	if (adev->is_atom_fw) {
-		amdgpu_atomfirmware_scratch_regs_init(adev);
-		amdgpu_atomfirmware_allocate_fb_scratch(adev);
-	} else {
-		amdgpu_atombios_scratch_regs_init(adev);
-		amdgpu_atombios_allocate_fb_scratch(adev);
-	}
-
-	ret = device_create_file(adev->dev, &dev_attr_vbios_version);
-	if (ret) {
-		DRM_ERROR("Failed to create device file for VBIOS version\n");
-		return ret;
-	}
-
-	return 0;
 }
 
 /* if we get transitioned to only one device, take VGA back */
@@ -1734,6 +1503,10 @@ static int amdgpu_late_set_cg_state(struct amdgpu_device *adev)
 {
 	int i = 0, r;
 
+	r = amdgpu_ib_ring_tests(adev);
+	if (r)
+		DRM_ERROR("ib ring test failed (%d).\n", r);
+
 	for (i = 0; i < adev->num_ip_blocks; i++) {
 		if (!adev->ip_blocks[i].status.valid)
 			continue;
@@ -1771,8 +1544,8 @@ static int amdgpu_late_init(struct amdgpu_device *adev)
 		}
 	}
 
-	mod_delayed_work(system_wq, &adev->late_init_work,
-			msecs_to_jiffies(AMDGPU_RESUME_MS));
+	queue_delayed_work(system_wq, &adev->late_init_work,
+			   msecs_to_jiffies(AMDGPU_RESUME_MS));
 
 	amdgpu_fill_reset_magic(adev);
 
@@ -2053,17 +1826,25 @@ bool amdgpu_device_asic_has_dc_support(enum amd_asic_type asic_type)
 #if defined(CONFIG_DRM_AMD_DC)
 	case CHIP_BONAIRE:
 	case CHIP_HAWAII:
+	case CHIP_KAVERI:
 	case CHIP_CARRIZO:
 	case CHIP_STONEY:
 	case CHIP_POLARIS11:
 	case CHIP_POLARIS10:
+	case CHIP_POLARIS12:
 	case CHIP_TONGA:
 	case CHIP_FIJI:
 #if defined(CONFIG_DRM_AMD_DC_PRE_VEGA)
 		return amdgpu_dc != 0;
-#else
-		return amdgpu_dc > 0;
 #endif
+	case CHIP_KABINI:
+	case CHIP_MULLINS:
+		return amdgpu_dc > 0;
+	case CHIP_VEGA10:
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	case CHIP_RAVEN:
+#endif
+		return amdgpu_dc != 0;
 #endif
 	default:
 		return false;
@@ -2138,7 +1919,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 	adev->gc_cac_wreg = &amdgpu_invalid_wreg;
 	adev->audio_endpt_rreg = &amdgpu_block_invalid_rreg;
 	adev->audio_endpt_wreg = &amdgpu_block_invalid_wreg;
-
 
 	DRM_INFO("initializing kernel modesetting (%s 0x%04X:0x%04X 0x%04X:0x%04X 0x%02X).\n",
 		 amdgpu_asic_name[adev->asic_type], pdev->vendor, pdev->device,
@@ -2221,8 +2001,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 	 * ignore it */
 	vga_client_register(adev->pdev, adev, NULL, amdgpu_vga_set_decode);
 
-	if (amdgpu_runtime_pm == 1)
-		runtime = true;
 	if (amdgpu_device_is_px(ddev))
 		runtime = true;
 	if (!pci_is_thunderbolt_attached(adev->pdev))
@@ -2260,8 +2038,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 			dev_err(adev->dev, "gpu post error!\n");
 			goto failed;
 		}
-	} else {
-		DRM_INFO("GPU post is not needed\n");
 	}
 
 	if (adev->is_atom_fw) {
@@ -2322,10 +2098,6 @@ int amdgpu_device_init(struct amdgpu_device *adev,
 		amdgpu_vf_error_put(adev, AMDGIM_ERROR_VF_IB_INIT_FAIL, 0, r);
 		goto failed;
 	}
-
-	r = amdgpu_ib_ring_tests(adev);
-	if (r)
-		DRM_ERROR("ib ring test failed (%d).\n", r);
 
 	if (amdgpu_sriov_vf(adev))
 		amdgpu_virt_init_data_exchange(adev);
@@ -2522,7 +2294,6 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
 	 */
 	amdgpu_bo_evict_vram(adev);
 
-	amdgpu_atombios_scratch_regs_save(adev);
 	pci_save_state(dev->pdev);
 	if (suspend) {
 		/* Shut down the device */
@@ -2571,7 +2342,6 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
 		if (r)
 			goto unlock;
 	}
-	amdgpu_atombios_scratch_regs_restore(adev);
 
 	/* post card */
 	if (amdgpu_need_post(adev)) {
@@ -2587,11 +2357,6 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
 	}
 	amdgpu_fence_driver_resume(adev);
 
-	if (resume) {
-		r = amdgpu_ib_ring_tests(adev);
-		if (r)
-			DRM_ERROR("ib ring test failed (%d).\n", r);
-	}
 
 	r = amdgpu_late_init(adev);
 	if (r)
@@ -2812,163 +2577,170 @@ err:
 	return r;
 }
 
-/**
- * amdgpu_sriov_gpu_reset - reset the asic
+/*
+ * amdgpu_reset - reset ASIC/GPU for bare-metal or passthrough
  *
  * @adev: amdgpu device pointer
- * @job: which job trigger hang
+ * @reset_flags: output param tells caller the reset result
  *
- * Attempt the reset the GPU if it has hung (all asics).
- * for SRIOV case.
- * Returns 0 for success or an error on failure.
- */
-int amdgpu_sriov_gpu_reset(struct amdgpu_device *adev, struct amdgpu_job *job)
+ * attempt to do soft-reset or full-reset and reinitialize Asic
+ * return 0 means successed otherwise failed
+*/
+static int amdgpu_reset(struct amdgpu_device *adev, uint64_t* reset_flags)
 {
-	int i, j, r = 0;
-	int resched;
-	struct amdgpu_bo *bo, *tmp;
-	struct amdgpu_ring *ring;
-	struct dma_fence *fence = NULL, *next = NULL;
+	bool need_full_reset, vram_lost = 0;
+	int r;
 
-	mutex_lock(&adev->virt.lock_reset);
-	atomic_inc(&adev->gpu_reset_counter);
-	adev->in_sriov_reset = true;
+	need_full_reset = amdgpu_need_full_reset(adev);
 
-	/* block TTM */
-	resched = ttm_bo_lock_delayed_workqueue(&adev->mman.bdev);
-
-	/* we start from the ring trigger GPU hang */
-	j = job ? job->ring->idx : 0;
-
-	/* block scheduler */
-	for (i = j; i < j + AMDGPU_MAX_RINGS; ++i) {
-		ring = adev->rings[i % AMDGPU_MAX_RINGS];
-		if (!ring || !ring->sched.thread)
-			continue;
-
-		kthread_park(ring->sched.thread);
-
-		if (job && j != i)
-			continue;
-
-		/* here give the last chance to check if job removed from mirror-list
-		 * since we already pay some time on kthread_park */
-		if (job && list_empty(&job->base.node)) {
-			kthread_unpark(ring->sched.thread);
-			goto give_up_reset;
+	if (!need_full_reset) {
+		amdgpu_pre_soft_reset(adev);
+		r = amdgpu_soft_reset(adev);
+		amdgpu_post_soft_reset(adev);
+		if (r || amdgpu_check_soft_reset(adev)) {
+			DRM_INFO("soft reset failed, will fallback to full reset!\n");
+			need_full_reset = true;
 		}
 
-		if (amd_sched_invalidate_job(&job->base, amdgpu_job_hang_limit))
-			amd_sched_job_kickout(&job->base);
-
-		/* only do job_reset on the hang ring if @job not NULL */
-		amd_sched_hw_job_reset(&ring->sched);
-
-		/* after all hw jobs are reset, hw fence is meaningless, so force_completion */
-		amdgpu_fence_driver_force_completion_ring(ring);
 	}
 
-	/* request to take full control of GPU before re-initialization  */
-	if (job)
-		amdgpu_virt_reset_gpu(adev);
-	else
-		amdgpu_virt_request_full_gpu(adev, true);
+	if (need_full_reset) {
+		r = amdgpu_suspend(adev);
 
+retry:
+		r = amdgpu_asic_reset(adev);
+		/* post card */
+		amdgpu_atom_asic_init(adev->mode_info.atom_context);
+
+		if (!r) {
+			dev_info(adev->dev, "GPU reset succeeded, trying to resume\n");
+			r = amdgpu_resume_phase1(adev);
+			if (r)
+				goto out;
+
+			vram_lost = amdgpu_check_vram_lost(adev);
+			if (vram_lost) {
+				DRM_ERROR("VRAM is lost!\n");
+				atomic_inc(&adev->vram_lost_counter);
+			}
+
+			r = amdgpu_ttm_recover_gart(adev);
+			if (r)
+				goto out;
+
+			r = amdgpu_resume_phase2(adev);
+			if (r)
+				goto out;
+
+			if (vram_lost)
+				amdgpu_fill_reset_magic(adev);
+		}
+	}
+
+out:
+	if (!r) {
+		amdgpu_irq_gpu_reset_resume_helper(adev);
+		r = amdgpu_ib_ring_tests(adev);
+		if (r) {
+			dev_err(adev->dev, "ib ring test failed (%d).\n", r);
+			r = amdgpu_suspend(adev);
+			need_full_reset = true;
+			goto retry;
+		}
+	}
+
+	if (reset_flags) {
+		if (vram_lost)
+			(*reset_flags) |= AMDGPU_RESET_INFO_VRAM_LOST;
+
+		if (need_full_reset)
+			(*reset_flags) |= AMDGPU_RESET_INFO_FULLRESET;
+	}
+
+	return r;
+}
+
+/*
+ * amdgpu_reset_sriov - reset ASIC for SR-IOV vf
+ *
+ * @adev: amdgpu device pointer
+ * @reset_flags: output param tells caller the reset result
+ *
+ * do VF FLR and reinitialize Asic
+ * return 0 means successed otherwise failed
+*/
+static int amdgpu_reset_sriov(struct amdgpu_device *adev, uint64_t *reset_flags, bool from_hypervisor)
+{
+	int r;
+
+	if (from_hypervisor)
+		r = amdgpu_virt_request_full_gpu(adev, true);
+	else
+		r = amdgpu_virt_reset_gpu(adev);
+	if (r)
+		return r;
 
 	/* Resume IP prior to SMC */
-	amdgpu_sriov_reinit_early(adev);
+	r = amdgpu_sriov_reinit_early(adev);
+	if (r)
+		goto error;
 
 	/* we need recover gart prior to run SMC/CP/SDMA resume */
 	amdgpu_ttm_recover_gart(adev);
 
 	/* now we are okay to resume SMC/CP/SDMA */
-	amdgpu_sriov_reinit_late(adev);
+	r = amdgpu_sriov_reinit_late(adev);
+	if (r)
+		goto error;
 
 	amdgpu_irq_gpu_reset_resume_helper(adev);
-
-	if (amdgpu_ib_ring_tests(adev))
+	r = amdgpu_ib_ring_tests(adev);
+	if (r)
 		dev_err(adev->dev, "[GPU_RESET] ib ring test failed (%d).\n", r);
 
+error:
 	/* release full control of GPU after ib test */
 	amdgpu_virt_release_full_gpu(adev, true);
 
-	DRM_INFO("recover vram bo from shadow\n");
+	if (reset_flags) {
+		/* will get vram_lost from GIM in future, now all
+		 * reset request considered VRAM LOST
+		 */
+		(*reset_flags) |= ~AMDGPU_RESET_INFO_VRAM_LOST;
+		atomic_inc(&adev->vram_lost_counter);
 
-	ring = adev->mman.buffer_funcs_ring;
-	mutex_lock(&adev->shadow_list_lock);
-	list_for_each_entry_safe(bo, tmp, &adev->shadow_list, shadow_list) {
-		next = NULL;
-		amdgpu_recover_vram_from_shadow(adev, ring, bo, &next);
-		if (fence) {
-			r = dma_fence_wait(fence, false);
-			if (r) {
-				WARN(r, "recovery from shadow isn't completed\n");
-				break;
-			}
-		}
-
-		dma_fence_put(fence);
-		fence = next;
-	}
-	mutex_unlock(&adev->shadow_list_lock);
-
-	if (fence) {
-		r = dma_fence_wait(fence, false);
-		if (r)
-			WARN(r, "recovery from shadow isn't completed\n");
-	}
-	dma_fence_put(fence);
-
-	for (i = j; i < j + AMDGPU_MAX_RINGS; ++i) {
-		ring = adev->rings[i % AMDGPU_MAX_RINGS];
-		if (!ring || !ring->sched.thread)
-			continue;
-
-		if (job && j != i) {
-			kthread_unpark(ring->sched.thread);
-			continue;
-		}
-
-		amd_sched_job_recovery(&ring->sched);
-		kthread_unpark(ring->sched.thread);
+		/* VF FLR or hotlink reset is always full-reset */
+		(*reset_flags) |= AMDGPU_RESET_INFO_FULLRESET;
 	}
 
-	drm_helper_resume_force_mode(adev->ddev);
-give_up_reset:
-	ttm_bo_unlock_delayed_workqueue(&adev->mman.bdev, resched);
-	if (r) {
-		/* bad news, how to tell it to userspace ? */
-		dev_info(adev->dev, "GPU reset failed\n");
-	} else {
-		dev_info(adev->dev, "GPU reset successed!\n");
-	}
-
-	adev->in_sriov_reset = false;
-	mutex_unlock(&adev->virt.lock_reset);
 	return r;
 }
 
 /**
- * amdgpu_gpu_reset - reset the asic
+ * amdgpu_gpu_recover - reset the asic and recover scheduler
  *
  * @adev: amdgpu device pointer
+ * @job: which job trigger hang
  *
- * Attempt the reset the GPU if it has hung (all asics).
+ * Attempt to reset the GPU if it has hung (all asics).
  * Returns 0 for success or an error on failure.
  */
-int amdgpu_gpu_reset(struct amdgpu_device *adev)
+int amdgpu_gpu_recover(struct amdgpu_device *adev, struct amdgpu_job *job)
 {
 	struct drm_atomic_state *state = NULL;
-	int i, r;
-	int resched;
-	bool need_full_reset, vram_lost = false;
+	uint64_t reset_flags = 0;
+	int i, r, resched;
 
 	if (!amdgpu_check_soft_reset(adev)) {
 		DRM_INFO("No hardware hang detected. Did some blocks stall?\n");
 		return 0;
 	}
 
+	dev_info(adev->dev, "GPU reset begin!\n");
+
+	mutex_lock(&adev->virt.lock_reset);
 	atomic_inc(&adev->gpu_reset_counter);
+	adev->in_sriov_reset = 1;
 
 	/* block TTM */
 	resched = ttm_bo_lock_delayed_workqueue(&adev->mman.bdev);
@@ -2982,69 +2754,26 @@ int amdgpu_gpu_reset(struct amdgpu_device *adev)
 
 		if (!ring || !ring->sched.thread)
 			continue;
+
+		/* only focus on the ring hit timeout if &job not NULL */
+		if (job && job->ring->idx != i)
+			continue;
+
 		kthread_park(ring->sched.thread);
-		amd_sched_hw_job_reset(&ring->sched);
-	}
-	/* after all hw jobs are reset, hw fence is meaningless, so force_completion */
-	amdgpu_fence_driver_force_completion(adev);
+		amd_sched_hw_job_reset(&ring->sched, &job->base);
 
-	need_full_reset = amdgpu_need_full_reset(adev);
-
-	if (!need_full_reset) {
-		amdgpu_pre_soft_reset(adev);
-		r = amdgpu_soft_reset(adev);
-		amdgpu_post_soft_reset(adev);
-		if (r || amdgpu_check_soft_reset(adev)) {
-			DRM_INFO("soft reset failed, will fallback to full reset!\n");
-			need_full_reset = true;
-		}
+		/* after all hw jobs are reset, hw fence is meaningless, so force_completion */
+		amdgpu_fence_driver_force_completion(ring);
 	}
 
-	if (need_full_reset) {
-		r = amdgpu_suspend(adev);
+	if (amdgpu_sriov_vf(adev))
+		r = amdgpu_reset_sriov(adev, &reset_flags, job ? false : true);
+	else
+		r = amdgpu_reset(adev, &reset_flags);
 
-retry:
-		amdgpu_atombios_scratch_regs_save(adev);
-		r = amdgpu_asic_reset(adev);
-		amdgpu_atombios_scratch_regs_restore(adev);
-		/* post card */
-		amdgpu_atom_asic_init(adev->mode_info.atom_context);
-
-		if (!r) {
-			dev_info(adev->dev, "GPU reset succeeded, trying to resume\n");
-			r = amdgpu_resume_phase1(adev);
-			if (r)
-				goto out;
-			vram_lost = amdgpu_check_vram_lost(adev);
-			if (vram_lost) {
-				DRM_ERROR("VRAM is lost!\n");
-				atomic_inc(&adev->vram_lost_counter);
-			}
-			r = amdgpu_ttm_recover_gart(adev);
-			if (r)
-				goto out;
-			r = amdgpu_resume_phase2(adev);
-			if (r)
-				goto out;
-			if (vram_lost)
-				amdgpu_fill_reset_magic(adev);
-		}
-	}
-out:
 	if (!r) {
-		amdgpu_irq_gpu_reset_resume_helper(adev);
-		r = amdgpu_ib_ring_tests(adev);
-		if (r) {
-			dev_err(adev->dev, "ib ring test failed (%d).\n", r);
-			r = amdgpu_suspend(adev);
-			need_full_reset = true;
-			goto retry;
-		}
-		/**
-		 * recovery vm page tables, since we cannot depend on VRAM is
-		 * consistent after gpu full reset.
-		 */
-		if (need_full_reset && amdgpu_need_backup(adev)) {
+		if (((reset_flags & AMDGPU_RESET_INFO_FULLRESET) && !(adev->flags & AMD_IS_APU)) ||
+			(reset_flags & AMDGPU_RESET_INFO_VRAM_LOST)) {
 			struct amdgpu_ring *ring = adev->mman.buffer_funcs_ring;
 			struct amdgpu_bo *bo, *tmp;
 			struct dma_fence *fence = NULL, *next = NULL;
@@ -3073,40 +2802,56 @@ out:
 			}
 			dma_fence_put(fence);
 		}
+
 		for (i = 0; i < AMDGPU_MAX_RINGS; ++i) {
 			struct amdgpu_ring *ring = adev->rings[i];
 
 			if (!ring || !ring->sched.thread)
 				continue;
 
+			/* only focus on the ring hit timeout if &job not NULL */
+			if (job && job->ring->idx != i)
+				continue;
+
 			amd_sched_job_recovery(&ring->sched);
 			kthread_unpark(ring->sched.thread);
 		}
 	} else {
-		dev_err(adev->dev, "asic resume failed (%d).\n", r);
 		for (i = 0; i < AMDGPU_MAX_RINGS; ++i) {
-			if (adev->rings[i] && adev->rings[i]->sched.thread) {
-				kthread_unpark(adev->rings[i]->sched.thread);
-			}
+			struct amdgpu_ring *ring = adev->rings[i];
+
+			if (!ring || !ring->sched.thread)
+				continue;
+
+			/* only focus on the ring hit timeout if &job not NULL */
+			if (job && job->ring->idx != i)
+				continue;
+
+			kthread_unpark(adev->rings[i]->sched.thread);
 		}
 	}
 
 	if (amdgpu_device_has_dc_support(adev)) {
-		r = drm_atomic_helper_resume(adev->ddev, state);
+		if (drm_atomic_helper_resume(adev->ddev, state))
+			dev_info(adev->dev, "drm resume failed:%d\n", r);
 		amdgpu_dm_display_resume(adev);
-	} else
+	} else {
 		drm_helper_resume_force_mode(adev->ddev);
+	}
 
 	ttm_bo_unlock_delayed_workqueue(&adev->mman.bdev, resched);
+
 	if (r) {
 		/* bad news, how to tell it to userspace ? */
-		dev_info(adev->dev, "GPU reset failed\n");
-	}
-	else {
-		dev_info(adev->dev, "GPU reset successed!\n");
+		dev_info(adev->dev, "GPU reset(%d) failed\n", atomic_read(&adev->gpu_reset_counter));
+		amdgpu_vf_error_put(adev, AMDGIM_ERROR_VF_GPU_RESET_FAIL, 0, r);
+	} else {
+		dev_info(adev->dev, "GPU reset(%d) successed!\n",atomic_read(&adev->gpu_reset_counter));
 	}
 
 	amdgpu_vf_error_trans_all(adev);
+	adev->in_sriov_reset = 0;
+	mutex_unlock(&adev->virt.lock_reset);
 	return r;
 }
 
@@ -3254,9 +2999,9 @@ static ssize_t amdgpu_debugfs_regs_read(struct file *f, char __user *buf,
 	pm_pg_lock = (*pos >> 23) & 1;
 
 	if (*pos & (1ULL << 62)) {
-		se_bank = (*pos >> 24) & 0x3FF;
-		sh_bank = (*pos >> 34) & 0x3FF;
-		instance_bank = (*pos >> 44) & 0x3FF;
+		se_bank = (*pos & GENMASK_ULL(33, 24)) >> 24;
+		sh_bank = (*pos & GENMASK_ULL(43, 34)) >> 34;
+		instance_bank = (*pos & GENMASK_ULL(53, 44)) >> 44;
 
 		if (se_bank == 0x3FF)
 			se_bank = 0xFFFFFFFF;
@@ -3330,9 +3075,9 @@ static ssize_t amdgpu_debugfs_regs_write(struct file *f, const char __user *buf,
 	pm_pg_lock = (*pos >> 23) & 1;
 
 	if (*pos & (1ULL << 62)) {
-		se_bank = (*pos >> 24) & 0x3FF;
-		sh_bank = (*pos >> 34) & 0x3FF;
-		instance_bank = (*pos >> 44) & 0x3FF;
+		se_bank = (*pos & GENMASK_ULL(33, 24)) >> 24;
+		sh_bank = (*pos & GENMASK_ULL(43, 34)) >> 34;
+		instance_bank = (*pos & GENMASK_ULL(53, 44)) >> 44;
 
 		if (se_bank == 0x3FF)
 			se_bank = 0xFFFFFFFF;
@@ -3680,12 +3425,12 @@ static ssize_t amdgpu_debugfs_wave_read(struct file *f, char __user *buf,
 		return -EINVAL;
 
 	/* decode offset */
-	offset = (*pos & 0x7F);
-	se = ((*pos >> 7) & 0xFF);
-	sh = ((*pos >> 15) & 0xFF);
-	cu = ((*pos >> 23) & 0xFF);
-	wave = ((*pos >> 31) & 0xFF);
-	simd = ((*pos >> 37) & 0xFF);
+	offset = (*pos & GENMASK_ULL(6, 0));
+	se = (*pos & GENMASK_ULL(14, 7)) >> 7;
+	sh = (*pos & GENMASK_ULL(22, 15)) >> 15;
+	cu = (*pos & GENMASK_ULL(30, 23)) >> 23;
+	wave = (*pos & GENMASK_ULL(36, 31)) >> 31;
+	simd = (*pos & GENMASK_ULL(44, 37)) >> 37;
 
 	/* switch to the specific se/sh/cu */
 	mutex_lock(&adev->grbm_idx_mutex);
@@ -3730,14 +3475,14 @@ static ssize_t amdgpu_debugfs_gpr_read(struct file *f, char __user *buf,
 		return -EINVAL;
 
 	/* decode offset */
-	offset = (*pos & 0xFFF);       /* in dwords */
-	se = ((*pos >> 12) & 0xFF);
-	sh = ((*pos >> 20) & 0xFF);
-	cu = ((*pos >> 28) & 0xFF);
-	wave = ((*pos >> 36) & 0xFF);
-	simd = ((*pos >> 44) & 0xFF);
-	thread = ((*pos >> 52) & 0xFF);
-	bank = ((*pos >> 60) & 1);
+	offset = *pos & GENMASK_ULL(11, 0);
+	se = (*pos & GENMASK_ULL(19, 12)) >> 12;
+	sh = (*pos & GENMASK_ULL(27, 20)) >> 20;
+	cu = (*pos & GENMASK_ULL(35, 28)) >> 28;
+	wave = (*pos & GENMASK_ULL(43, 36)) >> 36;
+	simd = (*pos & GENMASK_ULL(51, 44)) >> 44;
+	thread = (*pos & GENMASK_ULL(59, 52)) >> 52;
+	bank = (*pos & GENMASK_ULL(61, 60)) >> 60;
 
 	data = kmalloc_array(1024, sizeof(*data), GFP_KERNEL);
 	if (!data)

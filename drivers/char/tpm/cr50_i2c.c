@@ -48,6 +48,11 @@
 #define CR50_I2C_RETRY_DELAY_LO	55	/* Min usecs between retries on I2C */
 #define CR50_I2C_RETRY_DELAY_HI	65	/* Max usecs between retries on I2C */
 
+static unsigned short rng_quality = 1022;
+
+module_param(rng_quality, ushort, 0644);
+MODULE_PARM_DESC(rng_quality,
+		 "Estimation of true entropy, in bits per 1024 bits.");
 
 struct priv_data {
 	int irq;
@@ -632,15 +637,15 @@ static int cr50_i2c_init(struct i2c_client *client)
 		return -ENODEV;
 	}
 
-	dev_info(dev, "cr50 TPM 2.0 (i2c 0x%02x irq %d id 0x%x)\n",
+	dev_info(dev,
+		 "cr50 TPM 2.0 (i2c 0x%02x irq %d id 0x%x) [gentle shutdown]\n",
 		 client->addr, client->irq, vendor >> 16);
+
+	chip->hwrng.quality = rng_quality;
 
 	rc = tpm_chip_register(chip);
 	if (rc)
 		return rc;
-
-	/* Disable deep-sleep, ignore if command failed. */
-	cr50_control_deep_sleep(chip, 0);
 
 	return 0;
 }
@@ -677,14 +682,19 @@ static int cr50_i2c_probe(struct i2c_client *client,
 	return cr50_i2c_init(client);
 }
 
-static int cr50_i2c_remove(struct i2c_client *client)
+static void cr50_i2c_shutdown(struct i2c_client *client)
 {
 	struct tpm_chip *chip = i2c_get_clientdata(client);
+	struct device *dev = &client->dev;
 
-	cr50_control_deep_sleep(chip, 1);
 	tpm_chip_unregister(chip);
 	release_locality(chip, 1);
+	dev_info(dev, "gentle shutdown done\n");
+}
 
+static int cr50_i2c_remove(struct i2c_client *client)
+{
+	cr50_i2c_shutdown(client);
 	return 0;
 }
 
@@ -694,6 +704,7 @@ static struct i2c_driver cr50_i2c_driver = {
 	.id_table = cr50_i2c_table,
 	.probe = cr50_i2c_probe,
 	.remove = cr50_i2c_remove,
+	.shutdown = cr50_i2c_shutdown,
 	.driver = {
 		.name = "cr50_i2c",
 		.pm = &cr50_i2c_pm,

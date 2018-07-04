@@ -28,6 +28,23 @@
 
 #include "dm_services_types.h"
 
+
+struct clocks_value {
+	int dispclk_in_khz;
+	int max_pixelclk_in_khz;
+	int max_non_dp_phyclk_in_khz;
+	int max_dp_phyclk_in_khz;
+	bool dispclk_notify_pplib_done;
+	bool pixelclk_notify_pplib_done;
+	bool phyclk_notigy_pplib_done;
+	int dcfclock_in_khz;
+	int dppclk_in_khz;
+	int mclk_in_khz;
+	int phyclk_in_khz;
+	int common_vdd_level;
+};
+
+
 /* Structure containing all state-dependent clocks
  * (dependent on "enum clocks_state") */
 struct state_dependent_clocks {
@@ -41,10 +58,11 @@ struct display_clock {
 
 	enum dm_pp_clocks_state max_clks_state;
 	enum dm_pp_clocks_state cur_min_clks_state;
+	struct clocks_value cur_clocks_value;
 };
 
 struct display_clock_funcs {
-	void (*set_clock)(struct display_clock *disp_clk,
+	int (*set_clock)(struct display_clock *disp_clk,
 		int requested_clock_khz);
 
 	enum dm_pp_clocks_state (*get_required_clocks_state)(
@@ -56,6 +74,12 @@ struct display_clock_funcs {
 
 	int (*get_dp_ref_clk_frequency)(struct display_clock *disp_clk);
 
+	bool (*apply_clock_voltage_request)(
+		struct display_clock *disp_clk,
+		enum dm_pp_clock_type clocks_type,
+		int clocks_in_khz,
+		bool pre_mode_set,
+		bool update_dp_phyclk);
 };
 
 #endif /* __DISPLAY_CLOCK_H__ */

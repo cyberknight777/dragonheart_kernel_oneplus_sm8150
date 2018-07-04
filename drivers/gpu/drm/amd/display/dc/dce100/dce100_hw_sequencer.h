@@ -28,9 +28,15 @@
 
 #include "core_types.h"
 
-struct core_dc;
+struct dc;
+struct dc_state;
 
-bool dce100_hw_sequencer_construct(struct core_dc *dc);
+void dce100_hw_sequencer_construct(struct dc *dc);
+
+void dce100_set_bandwidth(
+		struct dc *dc,
+		struct dc_state *context,
+		bool decrease_allowed);
 
 #endif /* __DC_HWSS_DCE100_H__ */
 

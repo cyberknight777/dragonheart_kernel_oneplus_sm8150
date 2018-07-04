@@ -69,6 +69,12 @@ bool dal_aux_engine_acquire(
 	struct aux_engine *aux_engine = FROM_ENGINE(engine);
 
 	enum gpio_result result;
+	if (aux_engine->funcs->is_engine_available) {
+		/*check whether SW could use the engine*/
+		if (!aux_engine->funcs->is_engine_available(aux_engine)) {
+			return false;
+		}
+	}
 
 	result = dal_ddc_open(ddc, GPIO_MODE_HARDWARE,
 		GPIO_DDC_CONFIG_TYPE_MODE_AUX);
@@ -120,20 +126,8 @@ static void process_read_reply(
 			ctx->status =
 				I2CAUX_TRANSACTION_STATUS_FAILED_PROTOCOL_ERROR;
 			ctx->operation_succeeded = false;
-		} else if (ctx->returned_byte < ctx->current_read_length) {
-			ctx->current_read_length -= ctx->returned_byte;
-
-			ctx->offset += ctx->returned_byte;
-
-			++ctx->invalid_reply_retry_aux_on_ack;
-
-			if (ctx->invalid_reply_retry_aux_on_ack >
-				AUX_INVALID_REPLY_RETRY_COUNTER) {
-				ctx->status =
-				I2CAUX_TRANSACTION_STATUS_FAILED_PROTOCOL_ERROR;
-				ctx->operation_succeeded = false;
-			}
 		} else {
+			ctx->current_read_length = ctx->returned_byte;
 			ctx->status = I2CAUX_TRANSACTION_STATUS_SUCCEEDED;
 			ctx->transaction_complete = true;
 			ctx->operation_succeeded = true;
@@ -278,6 +272,7 @@ static bool read_command(
 				msleep(engine->delay);
 	} while (ctx.operation_succeeded && !ctx.transaction_complete);
 
+	request->payload.length = ctx.reply.length;
 	return ctx.operation_succeeded;
 }
 
@@ -549,15 +544,13 @@ bool dal_aux_engine_submit_request(
 	return result;
 }
 
-bool dal_aux_engine_construct(
+void dal_aux_engine_construct(
 	struct aux_engine *engine,
 	struct dc_context *ctx)
 {
-	if (!dal_i2caux_construct_engine(&engine->base, ctx))
-		return false;
+	dal_i2caux_construct_engine(&engine->base, ctx);
 	engine->delay = 0;
 	engine->max_defer_write_retry = 0;
-	return true;
 }
 
 void dal_aux_engine_destruct(

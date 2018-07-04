@@ -3171,7 +3171,11 @@ static noinline int check_delayed_ref(struct btrfs_root *root,
 	struct btrfs_transaction *cur_trans;
 	int ret = 0;
 
+	spin_lock(&root->fs_info->trans_lock);
 	cur_trans = root->fs_info->running_transaction;
+	if (cur_trans)
+		refcount_inc(&cur_trans->use_count);
+	spin_unlock(&root->fs_info->trans_lock);
 	if (!cur_trans)
 		return 0;
 
@@ -3180,6 +3184,7 @@ static noinline int check_delayed_ref(struct btrfs_root *root,
 	head = btrfs_find_delayed_ref_head(delayed_refs, bytenr);
 	if (!head) {
 		spin_unlock(&delayed_refs->lock);
+		btrfs_put_transaction(cur_trans);
 		return 0;
 	}
 
@@ -3196,6 +3201,7 @@ static noinline int check_delayed_ref(struct btrfs_root *root,
 		mutex_lock(&head->mutex);
 		mutex_unlock(&head->mutex);
 		btrfs_put_delayed_ref(&head->node);
+		btrfs_put_transaction(cur_trans);
 		return -EAGAIN;
 	}
 	spin_unlock(&delayed_refs->lock);
@@ -3223,6 +3229,7 @@ static noinline int check_delayed_ref(struct btrfs_root *root,
 	}
 	spin_unlock(&head->lock);
 	mutex_unlock(&head->mutex);
+	btrfs_put_transaction(cur_trans);
 	return ret;
 }
 
@@ -4016,16 +4023,9 @@ void btrfs_dec_nocow_writers(struct btrfs_fs_info *fs_info, u64 bytenr)
 	btrfs_put_block_group(bg);
 }
 
-static int btrfs_wait_nocow_writers_atomic_t(atomic_t *a)
-{
-	schedule();
-	return 0;
-}
-
 void btrfs_wait_nocow_writers(struct btrfs_block_group_cache *bg)
 {
-	wait_on_atomic_t(&bg->nocow_writers,
-			 btrfs_wait_nocow_writers_atomic_t,
+	wait_on_atomic_t(&bg->nocow_writers, atomic_t_wait,
 			 TASK_UNINTERRUPTIBLE);
 }
 
@@ -4668,6 +4668,7 @@ again:
 	if (wait_for_alloc) {
 		mutex_unlock(&fs_info->chunk_mutex);
 		wait_for_alloc = 0;
+		cond_resched();
 		goto again;
 	}
 
@@ -6609,12 +6610,6 @@ void btrfs_dec_block_group_reservations(struct btrfs_fs_info *fs_info,
 	btrfs_put_block_group(bg);
 }
 
-static int btrfs_wait_bg_reservations_atomic_t(atomic_t *a)
-{
-	schedule();
-	return 0;
-}
-
 void btrfs_wait_block_group_reservations(struct btrfs_block_group_cache *bg)
 {
 	struct btrfs_space_info *space_info = bg->space_info;
@@ -6637,8 +6632,7 @@ void btrfs_wait_block_group_reservations(struct btrfs_block_group_cache *bg)
 	down_write(&space_info->groups_sem);
 	up_write(&space_info->groups_sem);
 
-	wait_on_atomic_t(&bg->reservations,
-			 btrfs_wait_bg_reservations_atomic_t,
+	wait_on_atomic_t(&bg->reservations, atomic_t_wait,
 			 TASK_UNINTERRUPTIBLE);
 }
 
@@ -11121,12 +11115,6 @@ int btrfs_start_write_no_snapshotting(struct btrfs_root *root)
 	return 1;
 }
 
-static int wait_snapshotting_atomic_t(atomic_t *a)
-{
-	schedule();
-	return 0;
-}
-
 void btrfs_wait_for_snapshot_creation(struct btrfs_root *root)
 {
 	while (true) {
@@ -11135,8 +11123,7 @@ void btrfs_wait_for_snapshot_creation(struct btrfs_root *root)
 		ret = btrfs_start_write_no_snapshotting(root);
 		if (ret)
 			break;
-		wait_on_atomic_t(&root->will_be_snapshotted,
-				 wait_snapshotting_atomic_t,
+		wait_on_atomic_t(&root->will_be_snapshotted, atomic_t_wait,
 				 TASK_UNINTERRUPTIBLE);
 	}
 }

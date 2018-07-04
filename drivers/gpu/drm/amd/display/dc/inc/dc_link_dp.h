@@ -29,32 +29,36 @@
 #define LINK_TRAINING_ATTEMPTS 4
 #define LINK_TRAINING_RETRY_DELAY 50 /* ms */
 
-struct core_link;
-struct core_stream;
+struct dc_link;
+struct dc_stream_state;
 struct dc_link_settings;
 
 bool dp_hbr_verify_link_cap(
-	struct core_link *link,
+	struct dc_link *link,
 	struct dc_link_settings *known_limit_link_setting);
 
 bool dp_validate_mode_timing(
-	struct core_link *link,
+	struct dc_link *link,
 	const struct dc_crtc_timing *timing);
 
 void decide_link_settings(
-	struct core_stream *stream,
+	struct dc_stream_state *stream,
 	struct dc_link_settings *link_setting);
 
 bool perform_link_training_with_retries(
-	struct core_link *link,
+	struct dc_link *link,
 	const struct dc_link_settings *link_setting,
 	bool skip_video_pattern,
 	int attempts);
 
-bool is_mst_supported(struct core_link *link);
+bool is_mst_supported(struct dc_link *link);
 
-void detect_dp_sink_caps(struct core_link *link);
+void detect_dp_sink_caps(struct dc_link *link);
 
-bool is_dp_active_dongle(const struct core_link *link);
+void detect_edp_sink_caps(struct dc_link *link);
+
+bool is_dp_active_dongle(const struct dc_link *link);
+
+void dp_enable_mst_on_sink(struct dc_link *link, bool enable);
 
 #endif /* __DC_LINK_DP_H__ */

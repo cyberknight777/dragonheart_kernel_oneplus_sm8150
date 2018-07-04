@@ -1,3 +1,26 @@
+/*
+ * Copyright 2017 Advanced Micro Devices, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ */
+
 #include "dm_services.h"
 
 /* include DCE11 register header files */
@@ -571,26 +594,6 @@ static void dce110_timing_generator_v_set_early_control(
 	dm_write_reg(tg->ctx, address, regval);
 }
 
-static void dce110_timing_generator_v_get_crtc_positions(
-	struct timing_generator *tg,
-	int32_t *h_position,
-	int32_t *v_position)
-{
-	uint32_t value;
-
-	value = dm_read_reg(tg->ctx, mmCRTCV_STATUS_POSITION);
-
-	*h_position = get_reg_field_value(
-			value,
-			CRTCV_STATUS_POSITION,
-			CRTC_HORZ_COUNT);
-
-	*v_position = get_reg_field_value(
-			value,
-			CRTCV_STATUS_POSITION,
-			CRTC_VERT_COUNT);
-}
-
 static uint32_t dce110_timing_generator_v_get_vblank_counter(struct timing_generator *tg)
 {
 	uint32_t addr = mmCRTCV_STATUS_FRAME_COUNT;
@@ -649,12 +652,6 @@ static void dce110_timing_generator_v_disable_vga(
 	return;
 }
 
-static bool dce110_tg_v_is_blanked(struct timing_generator *tg)
-{
-	/* Signal comes from the primary pipe, underlay is never blanked. */
-	return false;
-}
-
 /** ********************************************************************************************
  *
  * DCE11 Timing Generator Constructor / Destructor
@@ -666,12 +663,11 @@ static const struct timing_generator_funcs dce110_tg_v_funcs = {
 		.enable_crtc = dce110_timing_generator_v_enable_crtc,
 		.disable_crtc = dce110_timing_generator_v_disable_crtc,
 		.is_counter_moving = dce110_timing_generator_v_is_counter_moving,
-		.get_position = dce110_timing_generator_v_get_crtc_positions,
+		.get_position = NULL, /* Not to be implemented for underlay*/
 		.get_frame_count = dce110_timing_generator_v_get_vblank_counter,
 		.set_early_control = dce110_timing_generator_v_set_early_control,
 		.wait_for_state = dce110_timing_generator_v_wait_for_state,
 		.set_blank = dce110_timing_generator_v_set_blank,
-		.is_blanked = dce110_tg_v_is_blanked,
 		.set_colors = dce110_timing_generator_v_set_colors,
 		.set_overscan_blank_color =
 				dce110_timing_generator_v_set_overscan_color_black,
@@ -689,13 +685,10 @@ static const struct timing_generator_funcs dce110_tg_v_funcs = {
 				dce110_timing_generator_v_enable_advanced_request
 };
 
-bool dce110_timing_generator_v_construct(
+void dce110_timing_generator_v_construct(
 	struct dce110_timing_generator *tg110,
 	struct dc_context *ctx)
 {
-	if (!tg110)
-		return false;
-
 	tg110->controller_id = CONTROLLER_ID_UNDERLAY0;
 
 	tg110->base.funcs = &dce110_tg_v_funcs;
@@ -709,6 +702,4 @@ bool dce110_timing_generator_v_construct(
 	tg110->min_h_blank = 56;
 	tg110->min_h_front_porch = 4;
 	tg110->min_h_back_porch = 4;
-
-	return true;
 }

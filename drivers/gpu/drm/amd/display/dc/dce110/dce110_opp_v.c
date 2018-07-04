@@ -37,29 +37,18 @@
 /*****************************************/
 
 static const struct opp_funcs funcs = {
-		.opp_power_on_regamma_lut = dce110_opp_power_on_regamma_lut_v,
-		.opp_program_regamma_pwl = dce110_opp_program_regamma_pwl_v,
-		.opp_set_csc_default = dce110_opp_v_set_csc_default,
-		.opp_set_csc_adjustment = dce110_opp_v_set_csc_adjustment,
 		.opp_set_dyn_expansion = dce110_opp_set_dyn_expansion,
-		.opp_set_regamma_mode = dce110_opp_set_regamma_mode_v,
 		.opp_destroy = dce110_opp_destroy,
 		.opp_program_fmt = dce110_opp_program_fmt,
 		.opp_program_bit_depth_reduction =
 				dce110_opp_program_bit_depth_reduction
 };
 
-bool dce110_opp_v_construct(struct dce110_opp *opp110,
+void dce110_opp_v_construct(struct dce110_opp *opp110,
 	struct dc_context *ctx)
 {
 	opp110->base.funcs = &funcs;
 
 	opp110->base.ctx = ctx;
-
-	opp110->base.regamma_params = dm_alloc(sizeof(struct pwl_params));
-	if (opp110->base.regamma_params == NULL)
-		return false;
-
-	return true;
 }
 

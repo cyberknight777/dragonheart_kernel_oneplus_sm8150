@@ -579,12 +579,13 @@ static int vrf_finish_output(struct net *net, struct sock *sk, struct sk_buff *s
 	if (!IS_ERR(neigh)) {
 		sock_confirm_neigh(skb, neigh);
 		ret = neigh_output(neigh, skb);
+		rcu_read_unlock_bh();
+		return ret;
 	}
 
 	rcu_read_unlock_bh();
 err:
-	if (unlikely(ret < 0))
-		vrf_tx_error(skb->dev, skb);
+	vrf_tx_error(skb->dev, skb);
 	return ret;
 }
 
@@ -674,8 +675,9 @@ static struct sk_buff *vrf_ip_out(struct net_device *vrf_dev,
 				  struct sock *sk,
 				  struct sk_buff *skb)
 {
-	/* don't divert multicast */
-	if (ipv4_is_multicast(ip_hdr(skb)->daddr))
+	/* don't divert multicast or local broadcast */
+	if (ipv4_is_multicast(ip_hdr(skb)->daddr) ||
+	    ipv4_is_lbcast(ip_hdr(skb)->daddr))
 		return skb;
 
 	if (qdisc_tx_is_default(vrf_dev))
@@ -765,7 +767,8 @@ static void cycle_netdev(struct net_device *dev)
 	}
 }
 
-static int do_vrf_add_slave(struct net_device *dev, struct net_device *port_dev)
+static int do_vrf_add_slave(struct net_device *dev, struct net_device *port_dev,
+			    struct netlink_ext_ack *extack)
 {
 	int ret;
 
@@ -776,7 +779,7 @@ static int do_vrf_add_slave(struct net_device *dev, struct net_device *port_dev)
 		return -EOPNOTSUPP;
 
 	port_dev->priv_flags |= IFF_L3MDEV_SLAVE;
-	ret = netdev_master_upper_dev_link(port_dev, dev, NULL, NULL);
+	ret = netdev_master_upper_dev_link(port_dev, dev, NULL, NULL, extack);
 	if (ret < 0)
 		goto err;
 
@@ -789,12 +792,13 @@ err:
 	return ret;
 }
 
-static int vrf_add_slave(struct net_device *dev, struct net_device *port_dev)
+static int vrf_add_slave(struct net_device *dev, struct net_device *port_dev,
+			 struct netlink_ext_ack *extack)
 {
 	if (netif_is_l3_master(port_dev) || netif_is_l3_slave(port_dev))
 		return -EINVAL;
 
-	return do_vrf_add_slave(dev, port_dev);
+	return do_vrf_add_slave(dev, port_dev, extack);
 }
 
 /* inverse of do_vrf_add_slave */

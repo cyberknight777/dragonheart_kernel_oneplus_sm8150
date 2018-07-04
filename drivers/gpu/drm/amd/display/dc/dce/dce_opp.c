@@ -55,31 +55,9 @@ enum {
 	OUTPUT_CSC_MATRIX_SIZE = 12
 };
 
-static const struct out_csc_color_matrix global_color_matrix[] = {
-{ COLOR_SPACE_SRGB,
-	{ 0x2000, 0, 0, 0, 0, 0x2000, 0, 0, 0, 0, 0x2000, 0} },
-{ COLOR_SPACE_SRGB_LIMITED,
-	{ 0x1B60, 0, 0, 0x200, 0, 0x1B60, 0, 0x200, 0, 0, 0x1B60, 0x200} },
-{ COLOR_SPACE_YCBCR601,
-	{ 0xE00, 0xF447, 0xFDB9, 0x1000, 0x82F, 0x1012, 0x31F, 0x200, 0xFB47,
-		0xF6B9, 0xE00, 0x1000} },
-{ COLOR_SPACE_YCBCR709, { 0xE00, 0xF349, 0xFEB7, 0x1000, 0x5D2, 0x1394, 0x1FA,
-	0x200, 0xFCCB, 0xF535, 0xE00, 0x1000} },
-/* TODO: correct values below */
-{ COLOR_SPACE_YCBCR601_LIMITED, { 0xE00, 0xF447, 0xFDB9, 0x1000, 0x991,
-	0x12C9, 0x3A6, 0x200, 0xFB47, 0xF6B9, 0xE00, 0x1000} },
-{ COLOR_SPACE_YCBCR709_LIMITED, { 0xE00, 0xF349, 0xFEB7, 0x1000, 0x6CE, 0x16E3,
-	0x24F, 0x200, 0xFCCB, 0xF535, 0xE00, 0x1000} }
-};
 
-enum csc_color_mode {
-	/* 00 - BITS2:0 Bypass */
-	CSC_COLOR_MODE_GRAPHICS_BYPASS,
-	/* 01 - hard coded coefficient TV RGB */
-	CSC_COLOR_MODE_GRAPHICS_PREDEFINED,
-	/* 04 - programmable OUTPUT CSC coefficient */
-	CSC_COLOR_MODE_GRAPHICS_OUTPUT_CSC,
-};
+
+
 
 
 
@@ -114,242 +92,8 @@ enum csc_color_mode {
  *
  *****************************************************************************
  */
-static void regamma_config_regions_and_segments(
-	struct dce110_opp *opp110,
-	const struct pwl_params *params)
-{
-	const struct gamma_curve *curve;
 
-	{
-		REG_SET_2(REGAMMA_CNTLA_START_CNTL, 0,
-			REGAMMA_CNTLA_EXP_REGION_START, params->arr_points[0].custom_float_x,
-			REGAMMA_CNTLA_EXP_REGION_START_SEGMENT, 0);
-	}
-	{
-		REG_SET(REGAMMA_CNTLA_SLOPE_CNTL, 0,
-			REGAMMA_CNTLA_EXP_REGION_LINEAR_SLOPE, params->arr_points[0].custom_float_slope);
 
-	}
-	{
-		REG_SET(REGAMMA_CNTLA_END_CNTL1, 0,
-			REGAMMA_CNTLA_EXP_REGION_END, params->arr_points[1].custom_float_x);
-	}
-	{
-		REG_SET_2(REGAMMA_CNTLA_END_CNTL2, 0,
-			REGAMMA_CNTLA_EXP_REGION_END_BASE, params->arr_points[1].custom_float_y,
-			REGAMMA_CNTLA_EXP_REGION_END_SLOPE, params->arr_points[2].custom_float_slope);
-	}
-
-	curve = params->arr_curve_points;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_0_1, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_2_3, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_4_5, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_6_7, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_8_9, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_10_11, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_12_13, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-
-	}
-
-	curve += 2;
-
-	{
-		REG_SET_4(REGAMMA_CNTLA_REGION_14_15, 0,
-			REGAMMA_CNTLA_EXP_REGION0_LUT_OFFSET, curve[0].offset,
-			REGAMMA_CNTLA_EXP_REGION0_NUM_SEGMENTS, curve[0].segments_num,
-			REGAMMA_CNTLA_EXP_REGION1_LUT_OFFSET, curve[1].offset,
-			REGAMMA_CNTLA_EXP_REGION1_NUM_SEGMENTS, curve[1].segments_num);
-	}
-}
-
-static void program_pwl(
-	struct dce110_opp *opp110,
-	const struct pwl_params *params)
-{
-	uint32_t value;
-	int retval;
-
-	{
-		uint8_t max_tries = 10;
-		uint8_t counter = 0;
-
-		/* Power on LUT memory */
-		if (REG(DCFE_MEM_PWR_CTRL))
-			REG_UPDATE(DCFE_MEM_PWR_CTRL,
-				DCP_REGAMMA_MEM_PWR_DIS, 1);
-		else
-			REG_UPDATE(DCFE_MEM_LIGHT_SLEEP_CNTL,
-				REGAMMA_LUT_LIGHT_SLEEP_DIS, 1);
-
-		while (counter < max_tries) {
-			if (REG(DCFE_MEM_PWR_STATUS)) {
-				value = REG_READ(DCFE_MEM_PWR_STATUS);
-				REG_GET(DCFE_MEM_PWR_STATUS,
-						DCP_REGAMMA_MEM_PWR_STATE,
-						&retval);
-
-				if (retval == 0)
-						break;
-				++counter;
-			} else {
-				value = REG_READ(DCFE_MEM_LIGHT_SLEEP_CNTL);
-				REG_GET(DCFE_MEM_LIGHT_SLEEP_CNTL,
-						REGAMMA_LUT_MEM_PWR_STATE,
-						&retval);
-
-				if (retval == 0)
-						break;
-				++counter;
-			}
-		}
-
-		if (counter == max_tries) {
-			dm_logger_write(opp110->base.ctx->logger, LOG_WARNING,
-				"%s: regamma lut was not powered on "
-				"in a timely manner,"
-				" programming still proceeds\n",
-				__func__);
-		}
-	}
-
-	REG_UPDATE(REGAMMA_LUT_WRITE_EN_MASK,
-			REGAMMA_LUT_WRITE_EN_MASK, 7);
-
-	REG_WRITE(REGAMMA_LUT_INDEX, 0);
-
-	/* Program REGAMMA_LUT_DATA */
-	{
-		uint32_t i = 0;
-		const struct pwl_result_data *rgb = params->rgb_resulted;
-
-		while (i != params->hw_points_num) {
-
-			REG_WRITE(REGAMMA_LUT_DATA, rgb->red_reg);
-			REG_WRITE(REGAMMA_LUT_DATA, rgb->green_reg);
-			REG_WRITE(REGAMMA_LUT_DATA, rgb->blue_reg);
-			REG_WRITE(REGAMMA_LUT_DATA, rgb->delta_red_reg);
-			REG_WRITE(REGAMMA_LUT_DATA, rgb->delta_green_reg);
-			REG_WRITE(REGAMMA_LUT_DATA, rgb->delta_blue_reg);
-
-			++rgb;
-			++i;
-		}
-	}
-
-	/*  we are done with DCP LUT memory; re-enable low power mode */
-	if (REG(DCFE_MEM_PWR_CTRL))
-		REG_UPDATE(DCFE_MEM_PWR_CTRL,
-			DCP_REGAMMA_MEM_PWR_DIS, 0);
-	else
-		REG_UPDATE(DCFE_MEM_LIGHT_SLEEP_CNTL,
-			REGAMMA_LUT_LIGHT_SLEEP_DIS, 0);
-}
-
-bool dce110_opp_program_regamma_pwl(
-	struct output_pixel_processor *opp,
-	const struct pwl_params *params)
-{
-	struct dce110_opp *opp110 = TO_DCE110_OPP(opp);
-
-	/* Setup regions */
-	regamma_config_regions_and_segments(opp110, params);
-
-	/* Program PWL */
-	program_pwl(opp110, params);
-
-	return true;
-}
-
-void dce110_opp_power_on_regamma_lut(
-	struct output_pixel_processor *opp,
-	bool power_on)
-{
-	struct dce110_opp *opp110 = TO_DCE110_OPP(opp);
-
-	if (REG(DCFE_MEM_PWR_CTRL))
-		REG_UPDATE_2(DCFE_MEM_PWR_CTRL,
-			DCP_REGAMMA_MEM_PWR_DIS, power_on,
-			DCP_LUT_MEM_PWR_DIS, power_on);
-	else
-		REG_UPDATE_2(DCFE_MEM_LIGHT_SLEEP_CNTL,
-			REGAMMA_LUT_LIGHT_SLEEP_DIS, power_on,
-			DCP_LUT_LIGHT_SLEEP_DIS, power_on);
-
-}
-
-void dce110_opp_set_regamma_mode(struct output_pixel_processor *opp,
-		enum opp_regamma mode)
-{
-	struct dce110_opp *opp110 = TO_DCE110_OPP(opp);
-
-	REG_SET(REGAMMA_CONTROL, 0,
-			GRPH_REGAMMA_MODE, mode);
-}
 
 /**
  *	set_truncation
@@ -781,181 +525,8 @@ void dce110_opp_program_fmt(
 	return;
 }
 
-static void program_color_matrix(
-	struct dce110_opp *opp110,
-	const struct out_csc_color_matrix *tbl_entry,
-	enum grph_color_adjust_option options)
-{
-	{
-		REG_SET_2(OUTPUT_CSC_C11_C12, 0,
-			OUTPUT_CSC_C11, tbl_entry->regval[0],
-			OUTPUT_CSC_C12, tbl_entry->regval[1]);
-	}
-	{
-		REG_SET_2(OUTPUT_CSC_C13_C14, 0,
-			OUTPUT_CSC_C11, tbl_entry->regval[2],
-			OUTPUT_CSC_C12, tbl_entry->regval[3]);
-	}
-	{
-		REG_SET_2(OUTPUT_CSC_C21_C22, 0,
-			OUTPUT_CSC_C11, tbl_entry->regval[4],
-			OUTPUT_CSC_C12, tbl_entry->regval[5]);
-	}
-	{
-		REG_SET_2(OUTPUT_CSC_C23_C24, 0,
-			OUTPUT_CSC_C11, tbl_entry->regval[6],
-			OUTPUT_CSC_C12, tbl_entry->regval[7]);
-	}
-	{
-		REG_SET_2(OUTPUT_CSC_C31_C32, 0,
-			OUTPUT_CSC_C11, tbl_entry->regval[8],
-			OUTPUT_CSC_C12, tbl_entry->regval[9]);
-	}
-	{
-		REG_SET_2(OUTPUT_CSC_C33_C34, 0,
-			OUTPUT_CSC_C11, tbl_entry->regval[10],
-			OUTPUT_CSC_C12, tbl_entry->regval[11]);
-	}
-}
 
-static bool configure_graphics_mode(
-	struct dce110_opp *opp110,
-	enum csc_color_mode config,
-	enum graphics_csc_adjust_type csc_adjust_type,
-	enum dc_color_space color_space)
-{
-	REG_SET(OUTPUT_CSC_CONTROL, 0,
-		OUTPUT_CSC_GRPH_MODE, 0);
 
-	if (csc_adjust_type == GRAPHICS_CSC_ADJUST_TYPE_SW) {
-		if (config == CSC_COLOR_MODE_GRAPHICS_OUTPUT_CSC) {
-			REG_SET(OUTPUT_CSC_CONTROL, 0,
-				OUTPUT_CSC_GRPH_MODE, 4);
-		} else {
-
-			switch (color_space) {
-			case COLOR_SPACE_SRGB:
-				/* by pass */
-				REG_SET(OUTPUT_CSC_CONTROL, 0,
-					OUTPUT_CSC_GRPH_MODE, 0);
-				break;
-			case COLOR_SPACE_SRGB_LIMITED:
-				/* TV RGB */
-				REG_SET(OUTPUT_CSC_CONTROL, 0,
-					OUTPUT_CSC_GRPH_MODE, 1);
-				break;
-			case COLOR_SPACE_YCBCR601:
-			case COLOR_SPACE_YCBCR601_LIMITED:
-				/* YCbCr601 */
-				REG_SET(OUTPUT_CSC_CONTROL, 0,
-					OUTPUT_CSC_GRPH_MODE, 2);
-				break;
-			case COLOR_SPACE_YCBCR709:
-			case COLOR_SPACE_YCBCR709_LIMITED:
-				/* YCbCr709 */
-				REG_SET(OUTPUT_CSC_CONTROL, 0,
-					OUTPUT_CSC_GRPH_MODE, 3);
-				break;
-			default:
-				return false;
-			}
-		}
-	} else if (csc_adjust_type == GRAPHICS_CSC_ADJUST_TYPE_HW) {
-		switch (color_space) {
-		case COLOR_SPACE_SRGB:
-			/* by pass */
-			REG_SET(OUTPUT_CSC_CONTROL, 0,
-				OUTPUT_CSC_GRPH_MODE, 0);
-			break;
-			break;
-		case COLOR_SPACE_SRGB_LIMITED:
-			/* TV RGB */
-			REG_SET(OUTPUT_CSC_CONTROL, 0,
-				OUTPUT_CSC_GRPH_MODE, 1);
-			break;
-		case COLOR_SPACE_YCBCR601:
-		case COLOR_SPACE_YCBCR601_LIMITED:
-			/* YCbCr601 */
-			REG_SET(OUTPUT_CSC_CONTROL, 0,
-				OUTPUT_CSC_GRPH_MODE, 2);
-			break;
-		case COLOR_SPACE_YCBCR709:
-		case COLOR_SPACE_YCBCR709_LIMITED:
-			 /* YCbCr709 */
-			REG_SET(OUTPUT_CSC_CONTROL, 0,
-				OUTPUT_CSC_GRPH_MODE, 3);
-			break;
-		default:
-			return false;
-		}
-
-	} else
-		/* by pass */
-		REG_SET(OUTPUT_CSC_CONTROL, 0,
-			OUTPUT_CSC_GRPH_MODE, 0);
-
-	return true;
-}
-
-void dce110_opp_set_csc_adjustment(
-	struct output_pixel_processor *opp,
-	const struct out_csc_color_matrix *tbl_entry)
-{
-	struct dce110_opp *opp110 = TO_DCE110_OPP(opp);
-	enum csc_color_mode config =
-			CSC_COLOR_MODE_GRAPHICS_OUTPUT_CSC;
-
-	program_color_matrix(
-			opp110, tbl_entry, GRAPHICS_CSC_ADJUST_TYPE_SW);
-
-	/*  We did everything ,now program DxOUTPUT_CSC_CONTROL */
-	configure_graphics_mode(opp110, config, GRAPHICS_CSC_ADJUST_TYPE_SW,
-			tbl_entry->color_space);
-}
-
-void dce110_opp_set_csc_default(
-	struct output_pixel_processor *opp,
-	const struct default_adjustment *default_adjust)
-{
-	struct dce110_opp *opp110 = TO_DCE110_OPP(opp);
-	enum csc_color_mode config =
-			CSC_COLOR_MODE_GRAPHICS_PREDEFINED;
-
-	if (default_adjust->force_hw_default == false) {
-		const struct out_csc_color_matrix *elm;
-		/* currently parameter not in use */
-		enum grph_color_adjust_option option =
-			GRPH_COLOR_MATRIX_HW_DEFAULT;
-		uint32_t i;
-		/*
-		 * HW default false we program locally defined matrix
-		 * HW default true  we use predefined hw matrix and we
-		 * do not need to program matrix
-		 * OEM wants the HW default via runtime parameter.
-		 */
-		option = GRPH_COLOR_MATRIX_SW;
-
-		for (i = 0; i < ARRAY_SIZE(global_color_matrix); ++i) {
-			elm = &global_color_matrix[i];
-			if (elm->color_space != default_adjust->out_color_space)
-				continue;
-			/* program the matrix with default values from this
-			 * file */
-			program_color_matrix(opp110, elm, option);
-			config = CSC_COLOR_MODE_GRAPHICS_OUTPUT_CSC;
-			break;
-		}
-	}
-
-	/* configure the what we programmed :
-	 * 1. Default values from this file
-	 * 2. Use hardware default from ROM_A and we do not need to program
-	 * matrix */
-
-	configure_graphics_mode(opp110, config,
-		default_adjust->csc_adjust_type,
-		default_adjust->out_color_space);
-}
 
 
 /*****************************************/
@@ -963,18 +534,13 @@ void dce110_opp_set_csc_default(
 /*****************************************/
 
 static const struct opp_funcs funcs = {
-	.opp_power_on_regamma_lut = dce110_opp_power_on_regamma_lut,
-	.opp_set_csc_adjustment = dce110_opp_set_csc_adjustment,
-	.opp_set_csc_default = dce110_opp_set_csc_default,
 	.opp_set_dyn_expansion = dce110_opp_set_dyn_expansion,
-	.opp_program_regamma_pwl = dce110_opp_program_regamma_pwl,
-	.opp_set_regamma_mode = dce110_opp_set_regamma_mode,
 	.opp_destroy = dce110_opp_destroy,
 	.opp_program_fmt = dce110_opp_program_fmt,
 	.opp_program_bit_depth_reduction = dce110_opp_program_bit_depth_reduction
 };
 
-bool dce110_opp_construct(struct dce110_opp *opp110,
+void dce110_opp_construct(struct dce110_opp *opp110,
 	struct dc_context *ctx,
 	uint32_t inst,
 	const struct dce_opp_registers *regs,
@@ -987,25 +553,15 @@ bool dce110_opp_construct(struct dce110_opp *opp110,
 
 	opp110->base.inst = inst;
 
-	opp110->base.regamma_params = dm_alloc(sizeof(struct pwl_params));
-	if (opp110->base.regamma_params == NULL)
-		return false;
-
 	opp110->regs = regs;
 	opp110->opp_shift = opp_shift;
 	opp110->opp_mask = opp_mask;
-
-	return true;
 }
 
 void dce110_opp_destroy(struct output_pixel_processor **opp)
 {
-	if (*opp) {
-		if ((*opp)->regamma_params)
-			dm_free((*opp)->regamma_params);
-		(*opp)->regamma_params = NULL;
-		dm_free(FROM_DCE11_OPP(*opp));
-	}
+	if (*opp)
+		kfree(FROM_DCE11_OPP(*opp));
 	*opp = NULL;
 }
 

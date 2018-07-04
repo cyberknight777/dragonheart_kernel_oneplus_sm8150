@@ -27,9 +27,35 @@
 
 #include "dc.h"
 #include "include/grph_object_id.h"
-#include "inc/bandwidth_calcs.h"
 
-#include "dce/dce_mem_input.h" /* temporary */
+#include "dml/display_mode_structs.h"
+
+struct dchub_init_data;
+struct cstate_pstate_watermarks_st {
+	uint32_t cstate_exit_ns;
+	uint32_t cstate_enter_plus_exit_ns;
+	uint32_t pstate_change_ns;
+};
+
+struct dcn_watermarks {
+	uint32_t pte_meta_urgent_ns;
+	uint32_t urgent_ns;
+	struct cstate_pstate_watermarks_st cstate_pstate;
+};
+
+struct dcn_watermark_set {
+	struct dcn_watermarks a;
+	struct dcn_watermarks b;
+	struct dcn_watermarks c;
+	struct dcn_watermarks d;
+};
+
+struct dce_watermarks {
+	int a_mark;
+	int b_mark;
+	int c_mark;
+	int d_mark;
+};
 
 struct stutter_modes {
 	bool enhanced;
@@ -42,28 +68,50 @@ struct mem_input {
 	struct dc_context *ctx;
 	struct dc_plane_address request_address;
 	struct dc_plane_address current_address;
-	uint32_t inst;
+	int inst;
 	struct stutter_modes stutter_mode;
+};
 
-	const struct dce_mem_input_registers *regs;
-	const struct dce_mem_input_shift *shifts;
-	const struct dce_mem_input_mask *masks;
-	struct dce_mem_input_wa wa;
+struct vm_system_aperture_param {
+	PHYSICAL_ADDRESS_LOC sys_default;
+	PHYSICAL_ADDRESS_LOC sys_low;
+	PHYSICAL_ADDRESS_LOC sys_high;
+};
+
+struct vm_context0_param {
+	PHYSICAL_ADDRESS_LOC pte_base;
+	PHYSICAL_ADDRESS_LOC pte_start;
+	PHYSICAL_ADDRESS_LOC pte_end;
+	PHYSICAL_ADDRESS_LOC fault_default;
 };
 
 struct mem_input_funcs {
+	void (*mem_input_setup)(
+			struct mem_input *mem_input,
+			struct _vcs_dpi_display_dlg_regs_st *dlg_regs,
+			struct _vcs_dpi_display_ttu_regs_st *ttu_regs,
+			struct _vcs_dpi_display_rq_regs_st *rq_regs,
+			struct _vcs_dpi_display_pipe_dest_params_st *pipe_dest);
+
+	void (*dcc_control)(struct mem_input *mem_input, bool enable,
+			bool independent_64b_blks);
+	void (*mem_program_viewport)(
+			struct mem_input *mem_input,
+			const struct rect *viewport,
+			const struct rect *viewport_c);
+
 	void (*mem_input_program_display_marks)(
 		struct mem_input *mem_input,
-		struct bw_watermarks nbp,
-		struct bw_watermarks stutter,
-		struct bw_watermarks urgent,
+		struct dce_watermarks nbp,
+		struct dce_watermarks stutter,
+		struct dce_watermarks urgent,
 		uint32_t total_dest_line_time_ns);
 
 	void (*mem_input_program_chroma_display_marks)(
 			struct mem_input *mem_input,
-			struct bw_watermarks nbp,
-			struct bw_watermarks stutter,
-			struct bw_watermarks urgent,
+			struct dce_watermarks nbp,
+			struct dce_watermarks stutter,
+			struct dce_watermarks urgent,
 			uint32_t total_dest_line_time_ns);
 
 	void (*allocate_mem_input)(
@@ -88,6 +136,14 @@ struct mem_input_funcs {
 		union dc_tiling_info *tiling_info,
 		enum dc_rotation_angle rotation);
 
+	void (*mem_input_set_vm_system_aperture_settings)(
+			struct mem_input *mem_input,
+			struct vm_system_aperture_param *apt);
+
+	void (*mem_input_set_vm_context0_settings)(
+			struct mem_input *mem_input,
+			const struct vm_context0_param *vm0);
+
 	void (*mem_input_program_surface_config)(
 		struct mem_input *mem_input,
 		enum surface_pixel_format format,
@@ -95,10 +151,24 @@ struct mem_input_funcs {
 		union plane_size *plane_size,
 		enum dc_rotation_angle rotation,
 		struct dc_plane_dcc_param *dcc,
-		bool horizontal_mirror,
-		bool visible);
+		bool horizontal_mirror);
 
 	bool (*mem_input_is_flip_pending)(struct mem_input *mem_input);
+
+	void (*mem_input_update_dchub)(struct mem_input *mem_input,
+				struct dchub_init_data *dh_data);
+
+	void (*set_blank)(struct mem_input *mi, bool blank);
+	void (*set_hubp_blank_en)(struct mem_input *mi, bool blank);
+
+	void (*set_cursor_attributes)(
+			struct mem_input *mem_input,
+			const struct dc_cursor_attributes *attr);
+
+	void (*set_cursor_position)(
+			struct mem_input *mem_input,
+			const struct dc_cursor_position *pos,
+			const struct dc_cursor_mi_param *param);
 
 };
 

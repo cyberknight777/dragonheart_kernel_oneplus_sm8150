@@ -881,7 +881,7 @@ static inline struct acpi_device *acpi_dev_pm_get_node(struct device *dev)
 }
 static inline int acpi_dev_pm_attach(struct device *dev, bool power_on)
 {
-	return -ENODEV;
+	return 0;
 }
 #endif
 
@@ -1239,9 +1239,12 @@ static inline bool acpi_has_watchdog(void) { return false; }
 
 #ifdef CONFIG_ACPI_SPCR_TABLE
 extern bool qdf2400_e44_present;
-int parse_spcr(bool earlycon);
+int acpi_parse_spcr(bool enable_earlycon, bool enable_console);
 #else
-static inline int parse_spcr(bool earlycon) { return 0; }
+static inline int acpi_parse_spcr(bool enable_earlycon, bool enable_console)
+{
+	return 0;
+}
 #endif
 
 #if IS_ENABLED(CONFIG_ACPI_GENERIC_GSI)

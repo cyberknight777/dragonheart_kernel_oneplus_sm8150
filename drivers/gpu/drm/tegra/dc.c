@@ -500,8 +500,8 @@ static int tegra_plane_state_add(struct tegra_plane *plane,
 	clip.y2 = crtc_state->mode.vdisplay;
 
 	/* Check plane state for visibility and calculate clipping bounds */
-	err = drm_plane_helper_check_state(state, &clip, 0, INT_MAX,
-					   true, true);
+	err = drm_atomic_helper_check_plane_state(state, crtc_state, &clip,
+						  0, INT_MAX, true, true);
 	if (err < 0)
 		return err;
 
@@ -1756,7 +1756,7 @@ static int tegra_dc_init(struct host1x_client *client)
 	struct drm_plane *cursor = NULL;
 	int err;
 
-	dc->syncpt = host1x_syncpt_request(dc->dev, flags);
+	dc->syncpt = host1x_syncpt_request(client, flags);
 	if (!dc->syncpt)
 		dev_warn(dc->dev, "failed to allocate syncpoint\n");
 

@@ -31,6 +31,11 @@
 #define TO_DCE110_LINK_ENC(link_encoder)\
 	container_of(link_encoder, struct dce110_link_encoder, base)
 
+/* Not found regs in dce120 spec
+ * BIOS_SCRATCH_2
+ * DP_DPHY_INTERNAL_CTRL
+ */
+
 #define AUX_REG_LIST(id)\
 	SRI(AUX_CONTROL, DP_AUX, id), \
 	SRI(AUX_DPHY_RX_CONTROL0, DP_AUX, id)
@@ -39,13 +44,10 @@
 	SRI(DC_HPD_CONTROL, HPD, id)
 
 #define LE_COMMON_REG_LIST_BASE(id) \
-	SR(LVTMA_PWRSEQ_CNTL), \
-	SR(LVTMA_PWRSEQ_STATE), \
 	SR(DMCU_RAM_ACCESS_CTRL), \
 	SR(DMCU_IRAM_RD_CTRL), \
 	SR(DMCU_IRAM_RD_DATA), \
 	SR(DMCU_INTERRUPT_TO_UC_EN_MASK), \
-	SR(SMU_INTERRUPT_CONTROL), \
 	SRI(DIG_BE_CNTL, DIG, id), \
 	SRI(DIG_BE_EN_CNTL, DIG, id), \
 	SRI(DP_CONFIG, DP, id), \
@@ -73,16 +75,34 @@
 	SRI(DP_DPHY_INTERNAL_CTRL, DP, id), \
 	SR(DCI_MEM_PWR_STATUS)
 
-#define LE_DCE110_REG_LIST(id)\
+#define LE_DCE80_REG_LIST(id)\
+	SRI(DP_DPHY_INTERNAL_CTRL, DP, id), \
+	LE_COMMON_REG_LIST_BASE(id)
+
+#define LE_DCE100_REG_LIST(id)\
 	LE_COMMON_REG_LIST_BASE(id), \
 	SRI(DP_DPHY_BS_SR_SWAP_CNTL, DP, id), \
 	SRI(DP_DPHY_INTERNAL_CTRL, DP, id), \
 	SR(DCI_MEM_PWR_STATUS)
 
-	#define LE_DCE80_REG_LIST(id)\
-		SRI(DP_DPHY_INTERNAL_CTRL, DP, id), \
-		LE_COMMON_REG_LIST_BASE(id)
+#define LE_DCE110_REG_LIST(id)\
+	LE_COMMON_REG_LIST_BASE(id), \
+	SRI(DP_DPHY_BS_SR_SWAP_CNTL, DP, id), \
+	SRI(DP_DPHY_INTERNAL_CTRL, DP, id), \
+	SRI(DP_DPHY_HBR2_PATTERN_CONTROL, DP, id), \
+	SR(DCI_MEM_PWR_STATUS)
 
+#define LE_DCE120_REG_LIST(id)\
+	LE_COMMON_REG_LIST_BASE(id), \
+	SRI(DP_DPHY_BS_SR_SWAP_CNTL, DP, id), \
+	SRI(DP_DPHY_HBR2_PATTERN_CONTROL, DP, id), \
+	SR(DCI_MEM_PWR_STATUS)
+
+#define LE_DCN10_REG_LIST(id)\
+	LE_COMMON_REG_LIST_BASE(id), \
+	SRI(DP_DPHY_BS_SR_SWAP_CNTL, DP, id), \
+	SRI(DP_DPHY_INTERNAL_CTRL, DP, id), \
+	SRI(DP_DPHY_HBR2_PATTERN_CONTROL, DP, id)
 
 struct dce110_link_enc_aux_registers {
 	uint32_t AUX_CONTROL;
@@ -94,10 +114,6 @@ struct dce110_link_enc_hpd_registers {
 };
 
 struct dce110_link_enc_registers {
-	/* Backlight registers */
-	uint32_t LVTMA_PWRSEQ_CNTL;
-	uint32_t LVTMA_PWRSEQ_STATE;
-
 	/* DMCU registers */
 	uint32_t MASTER_COMM_DATA_REG1;
 	uint32_t MASTER_COMM_DATA_REG2;
@@ -110,7 +126,6 @@ struct dce110_link_enc_registers {
 	uint32_t DMCU_IRAM_RD_CTRL;
 	uint32_t DMCU_IRAM_RD_DATA;
 	uint32_t DMCU_INTERRUPT_TO_UC_EN_MASK;
-	uint32_t SMU_INTERRUPT_CONTROL;
 
 	/* Common DP registers */
 	uint32_t DIG_BE_CNTL;
@@ -134,6 +149,7 @@ struct dce110_link_enc_registers {
 	uint32_t DP_VID_STREAM_CNTL;
 	uint32_t DP_DPHY_FAST_TRAINING;
 	uint32_t DP_DPHY_BS_SR_SWAP_CNTL;
+	uint32_t DP_DPHY_HBR2_PATTERN_CONTROL;
 	uint32_t DP_SEC_CNTL1;
 };
 
@@ -145,7 +161,7 @@ struct dce110_link_encoder {
 };
 
 
-bool dce110_link_encoder_construct(
+void dce110_link_encoder_construct(
 	struct dce110_link_encoder *enc110,
 	const struct encoder_init_data *init_data,
 	const struct encoder_feature_support *enc_features,
@@ -173,7 +189,7 @@ bool dce110_link_encoder_validate_wireless_output(
 
 bool dce110_link_encoder_validate_output_with_stream(
 	struct link_encoder *enc,
-	struct pipe_ctx *pipe_ctx);
+	const struct dc_stream_state *stream);
 
 /****************** HW programming ************************/
 
@@ -213,7 +229,8 @@ void dce110_link_encoder_enable_dp_mst_output(
 /* disable PHY output */
 void dce110_link_encoder_disable_output(
 	struct link_encoder *link_enc,
-	enum signal_type signal);
+	enum signal_type signal,
+	struct dc_link *link);
 
 /* set DP lane settings */
 void dce110_link_encoder_dp_set_lane_settings(
@@ -228,14 +245,6 @@ void dce110_link_encoder_dp_set_phy_pattern(
 void dce110_link_encoder_update_mst_stream_allocation_table(
 	struct link_encoder *enc,
 	const struct link_mst_stream_allocation_table *table);
-
-void dce110_link_encoder_edp_backlight_control(
-	struct link_encoder *enc,
-	bool enable);
-
-void dce110_link_encoder_edp_power_control(
-	struct link_encoder *enc,
-	bool power_up);
 
 void dce110_link_encoder_connect_dig_be_to_fe(
 	struct link_encoder *enc,

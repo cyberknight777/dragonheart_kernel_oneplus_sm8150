@@ -35,6 +35,8 @@
 
 #include "ivsrcid/ivsrcid_vislands30.h"
 
+#include "dc_types.h"
+
 static bool hpd_ack(
 	struct irq_service *irq_service,
 	const struct irq_source_info *info)
@@ -78,7 +80,7 @@ static const struct irq_source_info_funcs pflip_irq_info_funcs = {
 };
 
 static const struct irq_source_info_funcs vblank_irq_info_funcs = {
-	.set = NULL,
+	.set = dce110_vblank_set,
 	.ack = NULL
 };
 
@@ -145,18 +147,19 @@ static const struct irq_source_info_funcs vblank_irq_info_funcs = {
 
 #define vblank_int_entry(reg_num)\
 	[DC_IRQ_SOURCE_VBLANK1 + reg_num] = {\
-		.enable_reg = mmLB ## reg_num ## _LB_INTERRUPT_MASK,\
+		.enable_reg = mmCRTC ## reg_num ## _CRTC_VERTICAL_INTERRUPT0_CONTROL,\
 		.enable_mask =\
-			LB_INTERRUPT_MASK__VBLANK_INTERRUPT_MASK_MASK,\
+		CRTC_VERTICAL_INTERRUPT0_CONTROL__CRTC_VERTICAL_INTERRUPT0_INT_ENABLE_MASK,\
 		.enable_value = {\
-			LB_INTERRUPT_MASK__VBLANK_INTERRUPT_MASK_MASK,\
-			~LB_INTERRUPT_MASK__VBLANK_INTERRUPT_MASK_MASK},\
-		.ack_reg = mmLB ## reg_num ## _LB_VBLANK_STATUS,\
+			CRTC_VERTICAL_INTERRUPT0_CONTROL__CRTC_VERTICAL_INTERRUPT0_INT_ENABLE_MASK,\
+			~CRTC_VERTICAL_INTERRUPT0_CONTROL__CRTC_VERTICAL_INTERRUPT0_INT_ENABLE_MASK},\
+		.ack_reg = mmCRTC ## reg_num ## _CRTC_VERTICAL_INTERRUPT0_CONTROL,\
 		.ack_mask =\
-		LB_VBLANK_STATUS__VBLANK_ACK_MASK,\
+		CRTC_VERTICAL_INTERRUPT0_CONTROL__CRTC_VERTICAL_INTERRUPT0_CLEAR_MASK,\
 		.ack_value =\
-		LB_VBLANK_STATUS__VBLANK_ACK_MASK,\
-		.funcs = &vblank_irq_info_funcs\
+		CRTC_VERTICAL_INTERRUPT0_CONTROL__CRTC_VERTICAL_INTERRUPT0_CLEAR_MASK,\
+		.funcs = &vblank_irq_info_funcs,\
+		.src_id = VISLANDS30_IV_SRCID_D1_VERTICAL_INTERRUPT0 + reg_num\
 	}
 
 #define dummy_irq_entry() \
@@ -274,32 +277,27 @@ static const struct irq_service_funcs irq_service_funcs_dce80 = {
 		.to_dal_irq_source = to_dal_irq_source_dce110
 };
 
-static bool construct(
+static void construct(
 	struct irq_service *irq_service,
 	struct irq_service_init_data *init_data)
 {
-	if (!dal_irq_service_construct(irq_service, init_data))
-		return false;
+	dal_irq_service_construct(irq_service, init_data);
 
 	irq_service->info = irq_source_info_dce80;
 	irq_service->funcs = &irq_service_funcs_dce80;
-
-	return true;
 }
 
 struct irq_service *dal_irq_service_dce80_create(
 	struct irq_service_init_data *init_data)
 {
-	struct irq_service *irq_service = dm_alloc(sizeof(*irq_service));
+	struct irq_service *irq_service = kzalloc(sizeof(*irq_service),
+						  GFP_KERNEL);
 
 	if (!irq_service)
 		return NULL;
 
-	if (construct(irq_service, init_data))
-		return irq_service;
-
-	dm_free(irq_service);
-	return NULL;
+	construct(irq_service, init_data);
+	return irq_service;
 }
 
 

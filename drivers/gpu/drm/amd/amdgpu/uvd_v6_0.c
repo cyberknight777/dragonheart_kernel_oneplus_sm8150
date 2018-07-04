@@ -184,7 +184,7 @@ static int uvd_v6_0_enc_ring_test_ring(struct amdgpu_ring *ring)
 	}
 
 	if (i < adev->usec_timeout) {
-		DRM_INFO("ring test on %d succeeded in %d usecs\n",
+		DRM_DEBUG("ring test on %d succeeded in %d usecs\n",
 			 ring->idx, i);
 	} else {
 		DRM_ERROR("amdgpu: ring %d test failed\n",
@@ -360,7 +360,7 @@ static int uvd_v6_0_enc_ring_test_ib(struct amdgpu_ring *ring, long timeout)
 	} else if (r < 0) {
 		DRM_ERROR("amdgpu: fence wait failed (%ld).\n", r);
 	} else {
-		DRM_INFO("ib test on ring %d succeeded\n", ring->idx);
+		DRM_DEBUG("ib test on ring %d succeeded\n", ring->idx);
 		r = 0;
 	}
 error:
@@ -416,7 +416,7 @@ static int uvd_v6_0_sw_init(void *handle)
 		ring = &adev->uvd.ring_enc[0];
 		rq = &ring->sched.sched_rq[AMD_SCHED_PRIORITY_NORMAL];
 		r = amd_sched_entity_init(&ring->sched, &adev->uvd.entity_enc,
-					  rq, amdgpu_sched_jobs);
+					  rq, amdgpu_sched_jobs, NULL);
 		if (r) {
 			DRM_ERROR("Failed setting up UVD ENC run queue.\n");
 			return r;
@@ -1008,7 +1008,7 @@ static int uvd_v6_0_ring_test_ring(struct amdgpu_ring *ring)
 	}
 
 	if (i < adev->usec_timeout) {
-		DRM_INFO("ring test on %d succeeded in %d usecs\n",
+		DRM_DEBUG("ring test on %d succeeded in %d usecs\n",
 			 ring->idx, i);
 	} else {
 		DRM_ERROR("amdgpu: ring %d test failed (0x%08X)\n",
@@ -1549,8 +1549,7 @@ static const struct amdgpu_ring_funcs uvd_v6_0_ring_phys_funcs = {
 	.set_wptr = uvd_v6_0_ring_set_wptr,
 	.parse_cs = amdgpu_uvd_ring_parse_cs,
 	.emit_frame_size =
-		2 + /* uvd_v6_0_ring_emit_hdp_flush */
-		2 + /* uvd_v6_0_ring_emit_hdp_invalidate */
+		6 + 6 + /* hdp flush / invalidate */
 		10 + /* uvd_v6_0_ring_emit_pipeline_sync */
 		14, /* uvd_v6_0_ring_emit_fence x1 no user fence */
 	.emit_ib_size = 8, /* uvd_v6_0_ring_emit_ib */
@@ -1564,6 +1563,7 @@ static const struct amdgpu_ring_funcs uvd_v6_0_ring_phys_funcs = {
 	.pad_ib = amdgpu_ring_generic_pad_ib,
 	.begin_use = amdgpu_uvd_ring_begin_use,
 	.end_use = amdgpu_uvd_ring_end_use,
+	/* .emit_wreg = uvd_v6_0_ring_emit_wreg, */
 };
 
 static const struct amdgpu_ring_funcs uvd_v6_0_ring_vm_funcs = {
@@ -1578,7 +1578,7 @@ static const struct amdgpu_ring_funcs uvd_v6_0_ring_vm_funcs = {
 		2 + /* uvd_v6_0_ring_emit_hdp_flush */
 		2 + /* uvd_v6_0_ring_emit_hdp_invalidate */
 		10 + /* uvd_v6_0_ring_emit_pipeline_sync */
-		20 + /* uvd_v6_0_ring_emit_vm_flush */
+		3 /* VI_FLUSH_GPU_TLB_NUM_WREG */ * 6 + 8 + /* uvd_v6_0_ring_emit_vm_flush */
 		14 + 14, /* uvd_v6_0_ring_emit_fence x2 vm fence */
 	.emit_ib_size = 8, /* uvd_v6_0_ring_emit_ib */
 	.emit_ib = uvd_v6_0_ring_emit_ib,

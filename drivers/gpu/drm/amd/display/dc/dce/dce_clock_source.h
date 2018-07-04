@@ -55,6 +55,31 @@
 	CS_SF(PHYPLLA_PIXCLK_RESYNC_CNTL, PHYPLLA_DCCG_DEEP_COLOR_CNTL, mask_sh),\
 	CS_SF(PHYPLLA_PIXCLK_RESYNC_CNTL, PHYPLLA_PIXCLK_DOUBLE_RATE_ENABLE, mask_sh)
 
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+
+#define CS_COMMON_REG_LIST_DCN1_0(index, pllid) \
+		SRI(PIXCLK_RESYNC_CNTL, PHYPLL, pllid),\
+		SRII(PHASE, DP_DTO, 0),\
+		SRII(PHASE, DP_DTO, 1),\
+		SRII(PHASE, DP_DTO, 2),\
+		SRII(PHASE, DP_DTO, 3),\
+		SRII(MODULO, DP_DTO, 0),\
+		SRII(MODULO, DP_DTO, 1),\
+		SRII(MODULO, DP_DTO, 2),\
+		SRII(MODULO, DP_DTO, 3),\
+		SRII(PIXEL_RATE_CNTL, OTG, 0), \
+		SRII(PIXEL_RATE_CNTL, OTG, 1), \
+		SRII(PIXEL_RATE_CNTL, OTG, 2), \
+		SRII(PIXEL_RATE_CNTL, OTG, 3)
+
+#define CS_COMMON_MASK_SH_LIST_DCN1_0(mask_sh)\
+	CS_SF(DP_DTO0_PHASE, DP_DTO0_PHASE, mask_sh),\
+	CS_SF(DP_DTO0_MODULO, DP_DTO0_MODULO, mask_sh),\
+	CS_SF(PHYPLLA_PIXCLK_RESYNC_CNTL, PHYPLLA_DCCG_DEEP_COLOR_CNTL, mask_sh),\
+	CS_SF(OTG0_PIXEL_RATE_CNTL, DP_DTO0_ENABLE, mask_sh)
+
+#endif
+
 #define CS_REG_FIELD_LIST(type) \
 	type PLL_REF_DIV_SRC; \
 	type DCCG_DEEP_COLOR_CNTL1; \
@@ -62,6 +87,8 @@
 	type PHYPLLA_PIXCLK_DOUBLE_RATE_ENABLE; \
 	type PLL_POST_DIV_PIXCLK; \
 	type PLL_REF_DIV; \
+	type DP_DTO0_PHASE; \
+	type DP_DTO0_MODULO; \
 	type DP_DTO0_ENABLE;
 
 struct dce110_clk_src_shift {
@@ -80,9 +107,9 @@ struct dce110_clk_src_regs {
 	/* below are for DTO.
 	 * todo: should probably use different struct to not waste space
 	 */
-	uint32_t PHASE[4];
-	uint32_t MODULO[4];
-	uint32_t PIXEL_RATE_CNTL[4];
+	uint32_t PHASE[MAX_PIPES];
+	uint32_t MODULO[MAX_PIPES];
+	uint32_t PIXEL_RATE_CNTL[MAX_PIPES];
 };
 
 struct dce110_clk_src {

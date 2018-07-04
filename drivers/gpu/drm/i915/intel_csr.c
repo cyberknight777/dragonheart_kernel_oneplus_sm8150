@@ -37,8 +37,9 @@
 #define I915_CSR_GLK "i915/glk_dmc_ver1_04.bin"
 #define GLK_CSR_VERSION_REQUIRED	CSR_VERSION(1, 4)
 
-#define I915_CSR_CNL "i915/cnl_dmc_ver1_04.bin"
-#define CNL_CSR_VERSION_REQUIRED	CSR_VERSION(1, 4)
+#define I915_CSR_CNL "i915/cnl_dmc_ver1_07.bin"
+MODULE_FIRMWARE(I915_CSR_CNL);
+#define CNL_CSR_VERSION_REQUIRED	CSR_VERSION(1, 7)
 
 #define I915_CSR_KBL "i915/kbl_dmc_ver1_01.bin"
 MODULE_FIRMWARE(I915_CSR_KBL);
@@ -252,8 +253,14 @@ void intel_csr_load_program(struct drm_i915_private *dev_priv)
 	}
 
 	fw_size = dev_priv->csr.dmc_fw_size;
+	assert_rpm_wakelock_held(dev_priv);
+
+	preempt_disable();
+
 	for (i = 0; i < fw_size; i++)
-		I915_WRITE(CSR_PROGRAM(i), payload[i]);
+		I915_WRITE_FW(CSR_PROGRAM(i), payload[i]);
+
+	preempt_enable();
 
 	for (i = 0; i < dev_priv->csr.mmio_count; i++) {
 		I915_WRITE(dev_priv->csr.mmioaddr[i],
@@ -397,6 +404,7 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 
 static void csr_load_work_fn(struct work_struct *work)
 {
+	static const unsigned rootfs_timeout_ms = 60 * 1000;
 	struct drm_i915_private *dev_priv;
 	struct intel_csr *csr;
 	const struct firmware *fw = NULL;
@@ -404,7 +412,15 @@ static void csr_load_work_fn(struct work_struct *work)
 	dev_priv = container_of(work, typeof(*dev_priv), csr.work);
 	csr = &dev_priv->csr;
 
+	/* Wait until root filesystem is loaded in case the firmware
+	 * is not built-in but in /lib/firmware */
+	WARN(_wait_for(system_state == SYSTEM_RUNNING,
+		       rootfs_timeout_ms * 1000, 100 * 1000),
+	     "Timing out after waiting %dms for SYSTEM_RUNNING",
+	     rootfs_timeout_ms);
+
 	request_firmware(&fw, dev_priv->csr.fw_path, &dev_priv->drm.pdev->dev);
+
 	if (fw)
 		dev_priv->csr.dmc_payload = parse_csr_fw(dev_priv, fw);
 

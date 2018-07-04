@@ -32,15 +32,16 @@
 #include "include/irq_service_interface.h"
 #include "dce110/dce110_resource.h"
 #include "dce110/dce110_timing_generator.h"
-#include "dce112/dce112_mem_input.h"
 
 #include "irq/dce110/irq_service_dce110.h"
+
+#include "dce/dce_mem_input.h"
 #include "dce/dce_transform.h"
 #include "dce/dce_link_encoder.h"
 #include "dce/dce_stream_encoder.h"
 #include "dce/dce_audio.h"
 #include "dce/dce_opp.h"
-#include "dce110/dce110_ipp.h"
+#include "dce/dce_ipp.h"
 #include "dce/dce_clocks.h"
 #include "dce/dce_clock_source.h"
 
@@ -53,6 +54,8 @@
 
 #include "dce/dce_11_2_d.h"
 #include "dce/dce_11_2_sh_mask.h"
+
+#include "dce100/dce100_resource.h"
 
 #ifndef mmDP_DPHY_INTERNAL_CTRL
 	#define mmDP_DPHY_INTERNAL_CTRL 0x4aa7
@@ -132,73 +135,6 @@ static const struct dce110_timing_generator_offsets dce112_tg_offsets[] = {
 	}
 };
 
-static const struct dce110_mem_input_reg_offsets dce112_mi_reg_offsets[] = {
-	{
-		.dcp = (mmDCP0_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG0_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE0_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP1_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG1_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE1_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP2_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG2_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE2_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP3_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG3_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE3_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP4_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG4_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE4_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	},
-	{
-		.dcp = (mmDCP5_GRPH_CONTROL - mmGRPH_CONTROL),
-		.dmif = (mmDMIF_PG5_DPG_WATERMARK_MASK_CONTROL
-				- mmDPG_WATERMARK_MASK_CONTROL),
-		.pipe = (mmPIPE5_DMIF_BUFFER_CONTROL
-				- mmPIPE0_DMIF_BUFFER_CONTROL),
-	}
-};
-
-static const struct dce110_ipp_reg_offsets ipp_reg_offsets[] = {
-{
-	.dcp_offset = (mmDCP0_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP1_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP2_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP3_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP4_CUR_CONTROL - mmCUR_CONTROL),
-},
-{
-	.dcp_offset = (mmDCP5_CUR_CONTROL - mmCUR_CONTROL),
-}
-};
-
-
 /* set register offset */
 #define SR(reg_name)\
 	.reg_name = mm ## reg_name
@@ -242,6 +178,28 @@ static const struct dce_abm_shift abm_shift = {
 
 static const struct dce_abm_mask abm_mask = {
 		ABM_MASK_SH_LIST_DCE110(_MASK)
+};
+
+#define ipp_regs(id)\
+[id] = {\
+		IPP_DCE110_REG_LIST_DCE_BASE(id)\
+}
+
+static const struct dce_ipp_registers ipp_regs[] = {
+		ipp_regs(0),
+		ipp_regs(1),
+		ipp_regs(2),
+		ipp_regs(3),
+		ipp_regs(4),
+		ipp_regs(5)
+};
+
+static const struct dce_ipp_shift ipp_shift = {
+		IPP_DCE100_MASK_SH_LIST_DCE_COMMON_BASE(__SHIFT)
+};
+
+static const struct dce_ipp_mask ipp_mask = {
+		IPP_DCE100_MASK_SH_LIST_DCE_COMMON_BASE(_MASK)
 };
 
 #define transform_regs(id)\
@@ -452,17 +410,13 @@ static struct timing_generator *dce112_timing_generator_create(
 		const struct dce110_timing_generator_offsets *offsets)
 {
 	struct dce110_timing_generator *tg110 =
-		dm_alloc(sizeof(struct dce110_timing_generator));
+		kzalloc(sizeof(struct dce110_timing_generator), GFP_KERNEL);
 
 	if (!tg110)
 		return NULL;
 
-	if (dce110_timing_generator_construct(tg110, ctx, instance, offsets))
-		return &tg110->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(tg110);
-	return NULL;
+	dce110_timing_generator_construct(tg110, ctx, instance, offsets);
+	return &tg110->base;
 }
 
 static struct stream_encoder *dce112_stream_encoder_create(
@@ -470,19 +424,15 @@ static struct stream_encoder *dce112_stream_encoder_create(
 	struct dc_context *ctx)
 {
 	struct dce110_stream_encoder *enc110 =
-		dm_alloc(sizeof(struct dce110_stream_encoder));
+		kzalloc(sizeof(struct dce110_stream_encoder), GFP_KERNEL);
 
 	if (!enc110)
 		return NULL;
-
-	if (dce110_stream_encoder_construct(
-			enc110, ctx, ctx->dc_bios, eng_id,
-			&stream_enc_regs[eng_id], &se_shift, &se_mask))
-		return &enc110->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(enc110);
-	return NULL;
+	
+	dce110_stream_encoder_construct(enc110, ctx, ctx->dc_bios, eng_id,
+					&stream_enc_regs[eng_id],
+					&se_shift, &se_mask);
+	return &enc110->base;
 }
 
 #define SRII(reg_name, block, id)\
@@ -503,7 +453,7 @@ static const struct dce_hwseq_mask hwseq_mask = {
 static struct dce_hwseq *dce112_hwseq_create(
 	struct dc_context *ctx)
 {
-	struct dce_hwseq *hws = dm_alloc(sizeof(struct dce_hwseq));
+	struct dce_hwseq *hws = kzalloc(sizeof(struct dce_hwseq), GFP_KERNEL);
 
 	if (hws) {
 		hws->ctx = ctx;
@@ -541,32 +491,23 @@ static const struct dce_mem_input_mask mi_masks = {
 
 static struct mem_input *dce112_mem_input_create(
 	struct dc_context *ctx,
-	uint32_t inst,
-	const struct dce110_mem_input_reg_offsets *offset)
+	uint32_t inst)
 {
-	struct dce110_mem_input *mem_input110 =
-		dm_alloc(sizeof(struct dce110_mem_input));
+	struct dce_mem_input *dce_mi = kzalloc(sizeof(struct dce_mem_input),
+					       GFP_KERNEL);
 
-	if (!mem_input110)
+	if (!dce_mi) {
+		BREAK_TO_DEBUGGER();
 		return NULL;
-
-	if (dce112_mem_input_construct(mem_input110, ctx, inst, offset)) {
-		struct mem_input *mi = &mem_input110->base;
-
-		mi->regs = &mi_regs[inst];
-		mi->shifts = &mi_shifts;
-		mi->masks = &mi_masks;
-		return mi;
 	}
 
-	BREAK_TO_DEBUGGER();
-	dm_free(mem_input110);
-	return NULL;
+	dce112_mem_input_construct(dce_mi, ctx, inst, &mi_regs[inst], &mi_shifts, &mi_masks);
+	return &dce_mi->base;
 }
 
 static void dce112_transform_destroy(struct transform **xfm)
 {
-	dm_free(TO_DCE_TRANSFORM(*xfm));
+	kfree(TO_DCE_TRANSFORM(*xfm));
 	*xfm = NULL;
 }
 
@@ -575,20 +516,15 @@ static struct transform *dce112_transform_create(
 	uint32_t inst)
 {
 	struct dce_transform *transform =
-		dm_alloc(sizeof(struct dce_transform));
+		kzalloc(sizeof(struct dce_transform), GFP_KERNEL);
 
 	if (!transform)
 		return NULL;
 
-	if (dce_transform_construct(transform, ctx, inst,
-			&xfm_regs[inst], &xfm_shift, &xfm_mask)) {
-		transform->lb_memory_size = 0x1404; /*5124*/
-		return &transform->base;
-	}
-
-	BREAK_TO_DEBUGGER();
-	dm_free(transform);
-	return NULL;
+	dce_transform_construct(transform, ctx, inst,
+				&xfm_regs[inst], &xfm_shift, &xfm_mask);
+	transform->lb_memory_size = 0x1404; /*5124*/
+	return &transform->base;
 }
 
 static const struct encoder_feature_support link_enc_feature = {
@@ -606,50 +542,33 @@ struct link_encoder *dce112_link_encoder_create(
 	const struct encoder_init_data *enc_init_data)
 {
 	struct dce110_link_encoder *enc110 =
-		dm_alloc(sizeof(struct dce110_link_encoder));
+		kzalloc(sizeof(struct dce110_link_encoder), GFP_KERNEL);
 
 	if (!enc110)
 		return NULL;
 
-	if (dce110_link_encoder_construct(
-			enc110,
-			enc_init_data,
-			&link_enc_feature,
-			&link_enc_regs[enc_init_data->transmitter],
-			&link_enc_aux_regs[enc_init_data->channel - 1],
-			&link_enc_hpd_regs[enc_init_data->hpd_source])) {
+	dce110_link_encoder_construct(enc110,
+				      enc_init_data,
+				      &link_enc_feature,
+				      &link_enc_regs[enc_init_data->transmitter],
+				      &link_enc_aux_regs[enc_init_data->channel - 1],
+				      &link_enc_hpd_regs[enc_init_data->hpd_source]);
+	return &enc110->base;
+}
 
-		return &enc110->base;
+static struct input_pixel_processor *dce112_ipp_create(
+	struct dc_context *ctx, uint32_t inst)
+{
+	struct dce_ipp *ipp = kzalloc(sizeof(struct dce_ipp), GFP_KERNEL);
+
+	if (!ipp) {
+		BREAK_TO_DEBUGGER();
+		return NULL;
 	}
 
-	BREAK_TO_DEBUGGER();
-	dm_free(enc110);
-	return NULL;
-}
-
-struct input_pixel_processor *dce112_ipp_create(
-	struct dc_context *ctx,
-	uint32_t inst,
-	const struct dce110_ipp_reg_offsets *offset)
-{
-	struct dce110_ipp *ipp =
-		dm_alloc(sizeof(struct dce110_ipp));
-
-	if (!ipp)
-		return NULL;
-
-	if (dce110_ipp_construct(ipp, ctx, inst, offset))
-			return &ipp->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(ipp);
-	return NULL;
-}
-
-void dce112_ipp_destroy(struct input_pixel_processor **ipp)
-{
-	dm_free(TO_DCE110_IPP(*ipp));
-	*ipp = NULL;
+	dce_ipp_construct(ipp, ctx, inst,
+			&ipp_regs[inst], &ipp_shift, &ipp_mask);
+	return &ipp->base;
 }
 
 struct output_pixel_processor *dce112_opp_create(
@@ -657,18 +576,14 @@ struct output_pixel_processor *dce112_opp_create(
 	uint32_t inst)
 {
 	struct dce110_opp *opp =
-		dm_alloc(sizeof(struct dce110_opp));
+		kzalloc(sizeof(struct dce110_opp), GFP_KERNEL);
 
 	if (!opp)
 		return NULL;
 
-	if (dce110_opp_construct(opp,
-			ctx, inst, &opp_regs[inst], &opp_shift, &opp_mask))
-		return &opp->base;
-
-	BREAK_TO_DEBUGGER();
-	dm_free(opp);
-	return NULL;
+	dce110_opp_construct(opp,
+			     ctx, inst, &opp_regs[inst], &opp_shift, &opp_mask);
+	return &opp->base;
 }
 
 struct clock_source *dce112_clock_source_create(
@@ -679,7 +594,7 @@ struct clock_source *dce112_clock_source_create(
 	bool dp_clk_src)
 {
 	struct dce110_clk_src *clk_src =
-		dm_alloc(sizeof(struct dce110_clk_src));
+		kzalloc(sizeof(struct dce110_clk_src), GFP_KERNEL);
 
 	if (!clk_src)
 		return NULL;
@@ -696,7 +611,7 @@ struct clock_source *dce112_clock_source_create(
 
 void dce112_clock_source_destroy(struct clock_source **clk_src)
 {
-	dm_free(TO_DCE110_CLK_SRC(*clk_src));
+	kfree(TO_DCE110_CLK_SRC(*clk_src));
 	*clk_src = NULL;
 }
 
@@ -712,22 +627,22 @@ static void destruct(struct dce110_resource_pool *pool)
 			dce112_transform_destroy(&pool->base.transforms[i]);
 
 		if (pool->base.ipps[i] != NULL)
-			dce112_ipp_destroy(&pool->base.ipps[i]);
+			dce_ipp_destroy(&pool->base.ipps[i]);
 
 		if (pool->base.mis[i] != NULL) {
-			dm_free(TO_DCE110_MEM_INPUT(pool->base.mis[i]));
+			kfree(TO_DCE_MEM_INPUT(pool->base.mis[i]));
 			pool->base.mis[i] = NULL;
 		}
 
 		if (pool->base.timing_generators[i] != NULL) {
-			dm_free(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
+			kfree(DCE110TG_FROM_TG(pool->base.timing_generators[i]));
 			pool->base.timing_generators[i] = NULL;
 		}
 	}
 
 	for (i = 0; i < pool->base.stream_enc_count; i++) {
 		if (pool->base.stream_enc[i] != NULL)
-			dm_free(DCE110STRENC_FROM_STRENC(pool->base.stream_enc[i]));
+			kfree(DCE110STRENC_FROM_STRENC(pool->base.stream_enc[i]));
 	}
 
 	for (i = 0; i < pool->base.clk_src_count; i++) {
@@ -759,22 +674,24 @@ static void destruct(struct dce110_resource_pool *pool)
 	}
 }
 
-static struct clock_source *find_matching_pll(struct resource_context *res_ctx,
-		const struct core_stream *const stream)
+static struct clock_source *find_matching_pll(
+		struct resource_context *res_ctx,
+		const struct resource_pool *pool,
+		const struct dc_stream_state *const stream)
 {
 	switch (stream->sink->link->link_enc->transmitter) {
 	case TRANSMITTER_UNIPHY_A:
-		return res_ctx->pool->clock_sources[DCE112_CLK_SRC_PLL0];
+		return pool->clock_sources[DCE112_CLK_SRC_PLL0];
 	case TRANSMITTER_UNIPHY_B:
-		return res_ctx->pool->clock_sources[DCE112_CLK_SRC_PLL1];
+		return pool->clock_sources[DCE112_CLK_SRC_PLL1];
 	case TRANSMITTER_UNIPHY_C:
-		return res_ctx->pool->clock_sources[DCE112_CLK_SRC_PLL2];
+		return pool->clock_sources[DCE112_CLK_SRC_PLL2];
 	case TRANSMITTER_UNIPHY_D:
-		return res_ctx->pool->clock_sources[DCE112_CLK_SRC_PLL3];
+		return pool->clock_sources[DCE112_CLK_SRC_PLL3];
 	case TRANSMITTER_UNIPHY_E:
-		return res_ctx->pool->clock_sources[DCE112_CLK_SRC_PLL4];
+		return pool->clock_sources[DCE112_CLK_SRC_PLL4];
 	case TRANSMITTER_UNIPHY_F:
-		return res_ctx->pool->clock_sources[DCE112_CLK_SRC_PLL5];
+		return pool->clock_sources[DCE112_CLK_SRC_PLL5];
 	default:
 		return NULL;
 	};
@@ -782,63 +699,26 @@ static struct clock_source *find_matching_pll(struct resource_context *res_ctx,
 	return 0;
 }
 
-static enum dc_status validate_mapped_resource(
-		const struct core_dc *dc,
-		struct validate_context *context)
+static enum dc_status build_mapped_resource(
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream)
 {
-	enum dc_status status = DC_OK;
-	uint8_t i, j;
+	struct pipe_ctx *pipe_ctx = resource_get_head_pipe_for_stream(&context->res_ctx, stream);
 
-	for (i = 0; i < context->stream_count; i++) {
-		struct core_stream *stream = context->streams[i];
-		struct core_link *link = stream->sink->link;
+	if (!pipe_ctx)
+		return DC_ERROR_UNEXPECTED;
 
-		if (resource_is_stream_unchanged(dc->current_context, stream))
-			continue;
+	dce110_resource_build_pipe_hw_param(pipe_ctx);
 
-		for (j = 0; j < MAX_PIPES; j++) {
-			struct pipe_ctx *pipe_ctx =
-				&context->res_ctx.pipe_ctx[j];
-
-			if (context->res_ctx.pipe_ctx[j].stream != stream)
-				continue;
-
-			if (!pipe_ctx->tg->funcs->validate_timing(
-				pipe_ctx->tg, &stream->public.timing))
-				return DC_FAIL_CONTROLLER_VALIDATE;
-
-			status = dce110_resource_build_pipe_hw_param(pipe_ctx);
-
-			if (status != DC_OK)
-				return status;
-
-			if (!link->link_enc->funcs->validate_output_with_stream(
-				link->link_enc,
-				pipe_ctx))
-				return DC_FAIL_ENC_VALIDATE;
-
-			/* TODO: validate audio ASIC caps, encoder */
-
-			status = dc_link_validate_mode_timing(stream,
-							      link,
-							      &stream->public.timing);
-
-			if (status != DC_OK)
-				return status;
-
-			resource_build_info_frame(pipe_ctx);
-
-			/* do not need to validate non root pipes */
-			break;
-		}
-	}
+	resource_build_info_frame(pipe_ctx);
 
 	return DC_OK;
 }
 
 bool dce112_validate_bandwidth(
-	const struct core_dc *dc,
-	struct validate_context *context)
+	struct dc *dc,
+	struct dc_state *context)
 {
 	bool result = false;
 
@@ -849,21 +729,20 @@ bool dce112_validate_bandwidth(
 
 	if (bw_calcs(
 			dc->ctx,
-			&dc->bw_dceip,
-			&dc->bw_vbios,
+			dc->bw_dceip,
+			dc->bw_vbios,
 			context->res_ctx.pipe_ctx,
-			context->res_ctx.pool->pipe_count,
-			&context->bw_results))
+			dc->res_pool->pipe_count,
+			&context->bw.dce))
 		result = true;
-	context->dispclk_khz = context->bw_results.dispclk_khz;
 
 	if (!result)
 		dm_logger_write(dc->ctx->logger, LOG_BANDWIDTH_VALIDATION,
 			"%s: Bandwidth validation failed!",
 			__func__);
 
-	if (memcmp(&dc->current_context->bw_results,
-			&context->bw_results, sizeof(context->bw_results))) {
+	if (memcmp(&dc->current_state->bw.dce,
+			&context->bw.dce, sizeof(context->bw.dce))) {
 		struct log_entry log_entry;
 		dm_logger_open(
 			dc->ctx->logger,
@@ -873,111 +752,94 @@ bool dce112_validate_bandwidth(
 			"nbpMark_b: %d nbpMark_a: %d urgentMark_b: %d urgentMark_a: %d\n"
 			"stutMark_b: %d stutMark_a: %d\n",
 			__func__,
-			context->bw_results.nbp_state_change_wm_ns[0].b_mark,
-			context->bw_results.nbp_state_change_wm_ns[0].a_mark,
-			context->bw_results.urgent_wm_ns[0].b_mark,
-			context->bw_results.urgent_wm_ns[0].a_mark,
-			context->bw_results.stutter_exit_wm_ns[0].b_mark,
-			context->bw_results.stutter_exit_wm_ns[0].a_mark);
+			context->bw.dce.nbp_state_change_wm_ns[0].b_mark,
+			context->bw.dce.nbp_state_change_wm_ns[0].a_mark,
+			context->bw.dce.urgent_wm_ns[0].b_mark,
+			context->bw.dce.urgent_wm_ns[0].a_mark,
+			context->bw.dce.stutter_exit_wm_ns[0].b_mark,
+			context->bw.dce.stutter_exit_wm_ns[0].a_mark);
 		dm_logger_append(&log_entry,
 			"nbpMark_b: %d nbpMark_a: %d urgentMark_b: %d urgentMark_a: %d\n"
 			"stutMark_b: %d stutMark_a: %d\n",
-			context->bw_results.nbp_state_change_wm_ns[1].b_mark,
-			context->bw_results.nbp_state_change_wm_ns[1].a_mark,
-			context->bw_results.urgent_wm_ns[1].b_mark,
-			context->bw_results.urgent_wm_ns[1].a_mark,
-			context->bw_results.stutter_exit_wm_ns[1].b_mark,
-			context->bw_results.stutter_exit_wm_ns[1].a_mark);
+			context->bw.dce.nbp_state_change_wm_ns[1].b_mark,
+			context->bw.dce.nbp_state_change_wm_ns[1].a_mark,
+			context->bw.dce.urgent_wm_ns[1].b_mark,
+			context->bw.dce.urgent_wm_ns[1].a_mark,
+			context->bw.dce.stutter_exit_wm_ns[1].b_mark,
+			context->bw.dce.stutter_exit_wm_ns[1].a_mark);
 		dm_logger_append(&log_entry,
 			"nbpMark_b: %d nbpMark_a: %d urgentMark_b: %d urgentMark_a: %d\n"
 			"stutMark_b: %d stutMark_a: %d stutter_mode_enable: %d\n",
-			context->bw_results.nbp_state_change_wm_ns[2].b_mark,
-			context->bw_results.nbp_state_change_wm_ns[2].a_mark,
-			context->bw_results.urgent_wm_ns[2].b_mark,
-			context->bw_results.urgent_wm_ns[2].a_mark,
-			context->bw_results.stutter_exit_wm_ns[2].b_mark,
-			context->bw_results.stutter_exit_wm_ns[2].a_mark,
-			context->bw_results.stutter_mode_enable);
+			context->bw.dce.nbp_state_change_wm_ns[2].b_mark,
+			context->bw.dce.nbp_state_change_wm_ns[2].a_mark,
+			context->bw.dce.urgent_wm_ns[2].b_mark,
+			context->bw.dce.urgent_wm_ns[2].a_mark,
+			context->bw.dce.stutter_exit_wm_ns[2].b_mark,
+			context->bw.dce.stutter_exit_wm_ns[2].a_mark,
+			context->bw.dce.stutter_mode_enable);
 		dm_logger_append(&log_entry,
 			"cstate: %d pstate: %d nbpstate: %d sync: %d dispclk: %d\n"
 			"sclk: %d sclk_sleep: %d yclk: %d blackout_recovery_time_us: %d\n",
-			context->bw_results.cpuc_state_change_enable,
-			context->bw_results.cpup_state_change_enable,
-			context->bw_results.nbp_state_change_enable,
-			context->bw_results.all_displays_in_sync,
-			context->bw_results.dispclk_khz,
-			context->bw_results.required_sclk,
-			context->bw_results.required_sclk_deep_sleep,
-			context->bw_results.required_yclk,
-			context->bw_results.blackout_recovery_time_us);
+			context->bw.dce.cpuc_state_change_enable,
+			context->bw.dce.cpup_state_change_enable,
+			context->bw.dce.nbp_state_change_enable,
+			context->bw.dce.all_displays_in_sync,
+			context->bw.dce.dispclk_khz,
+			context->bw.dce.sclk_khz,
+			context->bw.dce.sclk_deep_sleep_khz,
+			context->bw.dce.yclk_khz,
+			context->bw.dce.blackout_recovery_time_us);
 		dm_logger_close(&log_entry);
 	}
 	return result;
 }
 
 enum dc_status resource_map_phy_clock_resources(
-		const struct core_dc *dc,
-		struct validate_context *context)
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream)
 {
-	uint8_t i, j;
 
 	/* acquire new resources */
-	for (i = 0; i < context->stream_count; i++) {
-		struct core_stream *stream = context->streams[i];
+	struct pipe_ctx *pipe_ctx = resource_get_head_pipe_for_stream(
+			&context->res_ctx, stream);
 
-		if (resource_is_stream_unchanged(dc->current_context, stream))
-			continue;
+	if (!pipe_ctx)
+		return DC_ERROR_UNEXPECTED;
 
-		for (j = 0; j < MAX_PIPES; j++) {
-			struct pipe_ctx *pipe_ctx =
-				&context->res_ctx.pipe_ctx[j];
+	if (dc_is_dp_signal(pipe_ctx->stream->signal)
+		|| pipe_ctx->stream->signal == SIGNAL_TYPE_VIRTUAL)
+		pipe_ctx->clock_source =
+				dc->res_pool->dp_clock_source;
+	else
+		pipe_ctx->clock_source = find_matching_pll(
+			&context->res_ctx, dc->res_pool,
+			stream);
 
-			if (context->res_ctx.pipe_ctx[j].stream != stream)
-				continue;
+	if (pipe_ctx->clock_source == NULL)
+		return DC_NO_CLOCK_SOURCE_RESOURCE;
 
-			if (dc_is_dp_signal(pipe_ctx->stream->signal)
-				|| pipe_ctx->stream->signal == SIGNAL_TYPE_VIRTUAL)
-				pipe_ctx->clock_source =
-					context->res_ctx.pool->dp_clock_source;
-			else
-				pipe_ctx->clock_source =
-					find_matching_pll(&context->res_ctx,
-							  stream);
-
-			if (pipe_ctx->clock_source == NULL)
-				return DC_NO_CLOCK_SOURCE_RESOURCE;
-
-			resource_reference_clock_source(
-				&context->res_ctx,
-				pipe_ctx->clock_source);
-
-			/* only one cs per stream regardless of mpo */
-			break;
-		}
-	}
+	resource_reference_clock_source(
+		&context->res_ctx,
+		dc->res_pool,
+		pipe_ctx->clock_source);
 
 	return DC_OK;
 }
 
 static bool dce112_validate_surface_sets(
-		const struct dc_validation_set set[],
-		int set_count)
+		struct dc_state *context)
 {
 	int i;
 
-	for (i = 0; i < set_count; i++) {
-		if (set[i].surface_count == 0)
+	for (i = 0; i < context->stream_count; i++) {
+		if (context->stream_status[i].plane_count == 0)
 			continue;
 
-		if (set[i].surface_count > 1)
+		if (context->stream_status[i].plane_count > 1)
 			return false;
 
-		if (set[i].surfaces[0]->clip_rect.width
-				> set[i].stream->src.width
-				|| set[i].surfaces[0]->clip_rect.height
-				> set[i].stream->src.height)
-			return false;
-		if (set[i].surfaces[0]->format
+		if (context->stream_status[i].plane_states[0]->format
 				>= SURFACE_PIXEL_FORMAT_VIDEO_BEGIN)
 			return false;
 	}
@@ -985,43 +847,49 @@ static bool dce112_validate_surface_sets(
 	return true;
 }
 
-enum dc_status dce112_validate_with_context(
-		const struct core_dc *dc,
-		const struct dc_validation_set set[],
-		int set_count,
-		struct validate_context *context)
+enum dc_status dce112_add_stream_to_ctx(
+		struct dc *dc,
+		struct dc_state *new_ctx,
+		struct dc_stream_state *dc_stream)
 {
-	struct dc_context *dc_ctx = dc->ctx;
 	enum dc_status result = DC_ERROR_UNEXPECTED;
-	int i;
 
-	if (!dce112_validate_surface_sets(set, set_count))
-		return DC_FAIL_SURFACE_VALIDATE;
-
-	context->res_ctx.pool = dc->res_pool;
-
-	for (i = 0; i < set_count; i++) {
-		context->streams[i] = DC_STREAM_TO_CORE(set[i].stream);
-		dc_stream_retain(&context->streams[i]->public);
-		context->stream_count++;
-	}
-
-	result = resource_map_pool_resources(dc, context);
+	result = resource_map_pool_resources(dc, new_ctx, dc_stream);
 
 	if (result == DC_OK)
-		result = resource_map_phy_clock_resources(dc, context);
+		result = resource_map_phy_clock_resources(dc, new_ctx, dc_stream);
 
-	if (!resource_validate_attach_surfaces(
-			set, set_count, dc->current_context, context)) {
-		DC_ERROR("Failed to attach surface to stream!\n");
-		return DC_FAIL_ATTACH_SURFACES;
-	}
 
 	if (result == DC_OK)
-		result = validate_mapped_resource(dc, context);
+		result = build_mapped_resource(dc, new_ctx, dc_stream);
+
+	return result;
+}
+
+enum dc_status dce112_validate_guaranteed(
+		struct dc *dc,
+		struct dc_stream_state *stream,
+		struct dc_state *context)
+{
+	enum dc_status result = DC_ERROR_UNEXPECTED;
+
+	context->streams[0] = stream;
+	dc_stream_retain(context->streams[0]);
+	context->stream_count++;
+
+	result = resource_map_pool_resources(dc, context, stream);
 
 	if (result == DC_OK)
+		result = resource_map_phy_clock_resources(dc, context, stream);
+
+	if (result == DC_OK)
+		result = build_mapped_resource(dc, context, stream);
+
+	if (result == DC_OK) {
+		validate_guaranteed_copy_streams(
+				context, dc->caps.max_streams);
 		result = resource_build_scaling_params_for_context(dc, context);
+	}
 
 	if (result == DC_OK)
 		if (!dce112_validate_bandwidth(dc, context))
@@ -1030,38 +898,14 @@ enum dc_status dce112_validate_with_context(
 	return result;
 }
 
-enum dc_status dce112_validate_guaranteed(
-		const struct core_dc *dc,
-		const struct dc_stream *dc_stream,
-		struct validate_context *context)
+enum dc_status dce112_validate_global(
+		struct dc *dc,
+		struct dc_state *context)
 {
-	enum dc_status result = DC_ERROR_UNEXPECTED;
+	if (!dce112_validate_surface_sets(context))
+		return DC_FAIL_SURFACE_VALIDATE;
 
-	context->res_ctx.pool = dc->res_pool;
-
-	context->streams[0] = DC_STREAM_TO_CORE(dc_stream);
-	dc_stream_retain(&context->streams[0]->public);
-	context->stream_count++;
-
-	result = resource_map_pool_resources(dc, context);
-
-	if (result == DC_OK)
-		result = resource_map_phy_clock_resources(dc, context);
-
-	if (result == DC_OK)
-		result = validate_mapped_resource(dc, context);
-
-	if (result == DC_OK) {
-		validate_guaranteed_copy_streams(
-				context, dc->public.caps.max_streams);
-		result = resource_build_scaling_params_for_context(dc, context);
-	}
-
-	if (result == DC_OK)
-		if (!dce112_validate_bandwidth(dc, context))
-			result = DC_FAIL_BANDWIDTH_VALIDATE;
-
-	return result;
+	return DC_OK;
 }
 
 static void dce112_destroy_resource_pool(struct resource_pool **pool)
@@ -1069,19 +913,21 @@ static void dce112_destroy_resource_pool(struct resource_pool **pool)
 	struct dce110_resource_pool *dce110_pool = TO_DCE110_RES_POOL(*pool);
 
 	destruct(dce110_pool);
-	dm_free(dce110_pool);
+	kfree(dce110_pool);
 	*pool = NULL;
 }
 
 static const struct resource_funcs dce112_res_pool_funcs = {
 	.destroy = dce112_destroy_resource_pool,
 	.link_enc_create = dce112_link_encoder_create,
-	.validate_with_context = dce112_validate_with_context,
 	.validate_guaranteed = dce112_validate_guaranteed,
-	.validate_bandwidth = dce112_validate_bandwidth
+	.validate_bandwidth = dce112_validate_bandwidth,
+	.validate_plane = dce100_validate_plane,
+	.add_stream_to_ctx = dce112_add_stream_to_ctx,
+	.validate_global = dce112_validate_global
 };
 
-static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
+static void bw_calcs_data_update_from_pplib(struct dc *dc)
 {
 	struct dm_pp_clock_levels_with_latency eng_clks = {0};
 	struct dm_pp_clock_levels_with_latency mem_clks = {0};
@@ -1102,21 +948,21 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 				DM_PP_CLOCK_TYPE_ENGINE_CLK,
 				&clks);
 		/* convert all the clock fro kHz to fix point mHz */
-		dc->bw_vbios.high_sclk = bw_frc_to_fixed(
+		dc->bw_vbios->high_sclk = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels-1], 1000);
-		dc->bw_vbios.mid1_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->mid1_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels/8], 1000);
-		dc->bw_vbios.mid2_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->mid2_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels*2/8], 1000);
-		dc->bw_vbios.mid3_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->mid3_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels*3/8], 1000);
-		dc->bw_vbios.mid4_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->mid4_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels*4/8], 1000);
-		dc->bw_vbios.mid5_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->mid5_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels*5/8], 1000);
-		dc->bw_vbios.mid6_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->mid6_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[clks.num_levels*6/8], 1000);
-		dc->bw_vbios.low_sclk  = bw_frc_to_fixed(
+		dc->bw_vbios->low_sclk  = bw_frc_to_fixed(
 				clks.clocks_in_khz[0], 1000);
 
 		/*do memory clock*/
@@ -1125,12 +971,12 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 				DM_PP_CLOCK_TYPE_MEMORY_CLK,
 				&clks);
 
-		dc->bw_vbios.low_yclk = bw_frc_to_fixed(
+		dc->bw_vbios->low_yclk = bw_frc_to_fixed(
 			clks.clocks_in_khz[0] * MEMORY_TYPE_MULTIPLIER, 1000);
-		dc->bw_vbios.mid_yclk = bw_frc_to_fixed(
+		dc->bw_vbios->mid_yclk = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels>>1] * MEMORY_TYPE_MULTIPLIER,
 			1000);
-		dc->bw_vbios.high_yclk = bw_frc_to_fixed(
+		dc->bw_vbios->high_yclk = bw_frc_to_fixed(
 			clks.clocks_in_khz[clks.num_levels-1] * MEMORY_TYPE_MULTIPLIER,
 			1000);
 
@@ -1138,21 +984,21 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 	}
 
 	/* convert all the clock fro kHz to fix point mHz  TODO: wloop data */
-	dc->bw_vbios.high_sclk = bw_frc_to_fixed(
+	dc->bw_vbios->high_sclk = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels-1].clocks_in_khz, 1000);
-	dc->bw_vbios.mid1_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid1_sclk  = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels/8].clocks_in_khz, 1000);
-	dc->bw_vbios.mid2_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid2_sclk  = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels*2/8].clocks_in_khz, 1000);
-	dc->bw_vbios.mid3_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid3_sclk  = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels*3/8].clocks_in_khz, 1000);
-	dc->bw_vbios.mid4_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid4_sclk  = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels*4/8].clocks_in_khz, 1000);
-	dc->bw_vbios.mid5_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid5_sclk  = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels*5/8].clocks_in_khz, 1000);
-	dc->bw_vbios.mid6_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->mid6_sclk  = bw_frc_to_fixed(
 		eng_clks.data[eng_clks.num_levels*6/8].clocks_in_khz, 1000);
-	dc->bw_vbios.low_sclk  = bw_frc_to_fixed(
+	dc->bw_vbios->low_sclk  = bw_frc_to_fixed(
 			eng_clks.data[0].clocks_in_khz, 1000);
 
 	/*do memory clock*/
@@ -1166,12 +1012,12 @@ static void bw_calcs_data_update_from_pplib(struct core_dc *dc)
 	 * ALSO always convert UMA clock (from PPLIB)  to YCLK (HW formula):
 	 * YCLK = UMACLK*m_memoryTypeMultiplier
 	 */
-	dc->bw_vbios.low_yclk = bw_frc_to_fixed(
+	dc->bw_vbios->low_yclk = bw_frc_to_fixed(
 		mem_clks.data[0].clocks_in_khz * MEMORY_TYPE_MULTIPLIER, 1000);
-	dc->bw_vbios.mid_yclk = bw_frc_to_fixed(
+	dc->bw_vbios->mid_yclk = bw_frc_to_fixed(
 		mem_clks.data[mem_clks.num_levels>>1].clocks_in_khz * MEMORY_TYPE_MULTIPLIER,
 		1000);
-	dc->bw_vbios.high_yclk = bw_frc_to_fixed(
+	dc->bw_vbios->high_yclk = bw_frc_to_fixed(
 		mem_clks.data[mem_clks.num_levels-1].clocks_in_khz * MEMORY_TYPE_MULTIPLIER,
 		1000);
 
@@ -1237,7 +1083,7 @@ const struct resource_caps *dce112_resource_cap(
 
 static bool construct(
 	uint8_t num_virtual_links,
-	struct core_dc *dc,
+	struct dc *dc,
 	struct dce110_resource_pool *pool)
 {
 	unsigned int i;
@@ -1254,9 +1100,9 @@ static bool construct(
 	 *************************************************/
 	pool->base.underlay_pipe_index = NO_UNDERLAY_PIPE;
 	pool->base.pipe_count = pool->base.res_cap->num_timing_generator;
-	dc->public.caps.max_downscale_ratio = 200;
-	dc->public.caps.i2c_speed_in_khz = 100;
-	dc->public.caps.max_cursor_size = 128;
+	dc->caps.max_downscale_ratio = 200;
+	dc->caps.i2c_speed_in_khz = 100;
+	dc->caps.max_cursor_size = 128;
 
 	/*************************************************
 	 *  Create resources                             *
@@ -1364,10 +1210,7 @@ static bool construct(
 			goto res_create_fail;
 		}
 
-		pool->base.mis[i] = dce112_mem_input_create(
-			ctx,
-			i,
-			&dce112_mi_reg_offsets[i]);
+		pool->base.mis[i] = dce112_mem_input_create(ctx, i);
 		if (pool->base.mis[i] == NULL) {
 			BREAK_TO_DEBUGGER();
 			dm_error(
@@ -1375,10 +1218,7 @@ static bool construct(
 			goto res_create_fail;
 		}
 
-		pool->base.ipps[i] = dce112_ipp_create(
-			ctx,
-			i,
-			&ipp_reg_offsets[i]);
+		pool->base.ipps[i] = dce112_ipp_create(ctx, i);
 		if (pool->base.ipps[i] == NULL) {
 			BREAK_TO_DEBUGGER();
 			dm_error(
@@ -1409,11 +1249,12 @@ static bool construct(
 			  &res_create_funcs))
 		goto res_create_fail;
 
-	/* Create hardware sequencer */
-	if (!dce112_hw_sequencer_construct(dc))
-		goto res_create_fail;
+	dc->caps.max_planes =  pool->base.pipe_count;
 
-	bw_calcs_init(&dc->bw_dceip, &dc->bw_vbios, dc->ctx->asic_id);
+	/* Create hardware sequencer */
+	dce112_hw_sequencer_construct(dc);
+
+	bw_calcs_init(dc->bw_dceip, dc->bw_vbios, dc->ctx->asic_id);
 
 	bw_calcs_data_update_from_pplib(dc);
 
@@ -1426,10 +1267,10 @@ res_create_fail:
 
 struct resource_pool *dce112_create_resource_pool(
 	uint8_t num_virtual_links,
-	struct core_dc *dc)
+	struct dc *dc)
 {
 	struct dce110_resource_pool *pool =
-		dm_alloc(sizeof(struct dce110_resource_pool));
+		kzalloc(sizeof(struct dce110_resource_pool), GFP_KERNEL);
 
 	if (!pool)
 		return NULL;

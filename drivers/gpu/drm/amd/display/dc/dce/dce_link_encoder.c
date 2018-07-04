@@ -80,13 +80,7 @@
 #define DCE110_DIG_FE_SOURCE_SELECT_DIGD 0x08
 #define DCE110_DIG_FE_SOURCE_SELECT_DIGE 0x10
 #define DCE110_DIG_FE_SOURCE_SELECT_DIGF 0x20
-
-/* all values are in milliseconds */
-/* For eDP, after power-up/power/down,
- * 300/500 msec max. delay from LCDVCC to black video generation */
-#define PANEL_POWER_UP_TIMEOUT 300
-#define PANEL_POWER_DOWN_TIMEOUT 500
-#define HPD_CHECK_INTERVAL 10
+#define DCE110_DIG_FE_SOURCE_SELECT_DIGG 0x40
 
 /* Minimum pixel clock, in KHz. For TMDS signal is 25.00 MHz */
 #define TMDS_MIN_PIXEL_CLOCK 25000
@@ -121,8 +115,6 @@ static const struct link_encoder_funcs dce110_lnk_enc_funcs = {
 	.psr_program_dp_dphy_fast_training =
 			dce110_psr_program_dp_dphy_fast_training,
 	.psr_program_secondary_packet = dce110_psr_program_secondary_packet,
-	.backlight_control = dce110_link_encoder_edp_backlight_control,
-	.power_control = dce110_link_encoder_edp_power_control,
 	.connect_dig_be_to_fe = dce110_link_encoder_connect_dig_be_to_fe,
 	.enable_hpd = dce110_link_encoder_enable_hpd,
 	.disable_hpd = dce110_link_encoder_disable_hpd,
@@ -169,9 +161,6 @@ static void disable_prbs_symbols(
 static void disable_prbs_mode(
 	struct dce110_link_encoder *enc110)
 {
-	/* This register resides in DP back end block;
-	 * transmitter is used for the offset */
-
 	REG_UPDATE(DP_DPHY_PRBS_CNTL, DPHY_PRBS_EN, 0);
 }
 
@@ -216,9 +205,7 @@ static void set_dp_phy_pattern_d102(
 
 	disable_prbs_symbols(enc110, true);
 
-	/* Disable PRBS mode,
-	 * make sure DPHY_PRBS_CNTL.DPHY_PRBS_EN=0 */
-
+	/* Disable PRBS mode */
 	disable_prbs_mode(enc110);
 
 	/* Program debug symbols to be output */
@@ -264,43 +251,54 @@ void dce110_link_encoder_set_dp_phy_pattern_training_pattern(
 
 	enable_phy_bypass_mode(enc110, false);
 
-	/* Disable PRBS mode,
-	 * make sure DPHY_PRBS_CNTL.DPHY_PRBS_EN=0 */
-
+	/* Disable PRBS mode */
 	disable_prbs_mode(enc110);
+}
+
+static void setup_panel_mode(
+	struct dce110_link_encoder *enc110,
+	enum dp_panel_mode panel_mode)
+{
+	uint32_t value;
+
+	ASSERT(REG(DP_DPHY_INTERNAL_CTRL));
+	value = REG_READ(DP_DPHY_INTERNAL_CTRL);
+
+	switch (panel_mode) {
+	case DP_PANEL_MODE_EDP:
+		value = 0x1;
+		break;
+	case DP_PANEL_MODE_SPECIAL:
+		value = 0x11;
+		break;
+	default:
+		value = 0x0;
+		break;
+	}
+
+	REG_WRITE(DP_DPHY_INTERNAL_CTRL, value);
 }
 
 static void set_dp_phy_pattern_symbol_error(
 	struct dce110_link_encoder *enc110)
 {
 	/* Disable PHY Bypass mode to setup the test pattern */
-	uint32_t value = 0x0;
-
 	enable_phy_bypass_mode(enc110, false);
 
 	/* program correct panel mode*/
-	{
-		ASSERT(REG(DP_DPHY_INTERNAL_CTRL));
-		/*DCE 120 does not have this reg*/
-
-		REG_WRITE(DP_DPHY_INTERNAL_CTRL, value);
-	}
+	setup_panel_mode(enc110, DP_PANEL_MODE_DEFAULT);
 
 	/* A PRBS23 pattern is used for most DP electrical measurements. */
 
 	/* Enable PRBS symbols on the lanes */
-
 	disable_prbs_symbols(enc110, false);
 
 	/* For PRBS23 Set bit DPHY_PRBS_SEL=1 and Set bit DPHY_PRBS_EN=1 */
-	{
-		REG_UPDATE_2(DP_DPHY_PRBS_CNTL,
-					DPHY_PRBS_SEL, 1,
-					DPHY_PRBS_EN, 1);
-	}
+	REG_UPDATE_2(DP_DPHY_PRBS_CNTL,
+			DPHY_PRBS_SEL, 1,
+			DPHY_PRBS_EN, 1);
 
 	/* Enable phy bypass mode to enable the test pattern */
-
 	enable_phy_bypass_mode(enc110, true);
 }
 
@@ -308,24 +306,19 @@ static void set_dp_phy_pattern_prbs7(
 	struct dce110_link_encoder *enc110)
 {
 	/* Disable PHY Bypass mode to setup the test pattern */
-
 	enable_phy_bypass_mode(enc110, false);
 
 	/* A PRBS7 pattern is used for most DP electrical measurements. */
 
 	/* Enable PRBS symbols on the lanes */
-
 	disable_prbs_symbols(enc110, false);
 
 	/* For PRBS7 Set bit DPHY_PRBS_SEL=0 and Set bit DPHY_PRBS_EN=1 */
-	{
-		REG_UPDATE_2(DP_DPHY_PRBS_CNTL,
-					DPHY_PRBS_SEL, 0,
-					DPHY_PRBS_EN, 1);
-	}
+	REG_UPDATE_2(DP_DPHY_PRBS_CNTL,
+			DPHY_PRBS_SEL, 0,
+			DPHY_PRBS_EN, 1);
 
 	/* Enable phy bypass mode to enable the test pattern */
-
 	enable_phy_bypass_mode(enc110, true);
 }
 
@@ -374,8 +367,9 @@ static void set_dp_phy_pattern_80bit_custom(
 	enable_phy_bypass_mode(enc110, true);
 }
 
-static void set_dp_phy_pattern_hbr2_compliance(
-	struct dce110_link_encoder *enc110)
+static void set_dp_phy_pattern_hbr2_compliance_cp2520_2(
+	struct dce110_link_encoder *enc110,
+	unsigned int cp2520_pattern)
 {
 
 	/* previously there is a register DP_HBR2_EYE_PATTERN
@@ -391,56 +385,37 @@ static void set_dp_phy_pattern_hbr2_compliance(
 	enable_phy_bypass_mode(enc110, false);
 
 	/* Setup DIG encoder in DP SST mode */
-
 	enc110->base.funcs->setup(&enc110->base, SIGNAL_TYPE_DISPLAY_PORT);
 
-	/* program correct panel mode*/
-	{
-		ASSERT(REG(DP_DPHY_INTERNAL_CTRL));
-
-		REG_WRITE(DP_DPHY_INTERNAL_CTRL, 0x0);
-	}
+	/* ensure normal panel mode. */
+	setup_panel_mode(enc110, DP_PANEL_MODE_DEFAULT);
 
 	/* no vbid after BS (SR)
 	 * DP_LINK_FRAMING_CNTL changed history Sandra Liu
 	 * 11000260 / 11000104 / 110000FC */
+	REG_UPDATE_3(DP_LINK_FRAMING_CNTL,
+			DP_IDLE_BS_INTERVAL, 0xFC,
+			DP_VBID_DISABLE, 1,
+			DP_VID_ENHANCED_FRAME_MODE, 1);
 
-	/* TODO DP_LINK_FRAMING_CNTL should always use hardware default value
-	 * output  except output hbr2_compliance pattern for physical PHY
-	 * measurement. This is not normal usage case. SW should reset this
-	 * register to hardware default value after end use of HBR2 eye
-	 */
-	BREAK_TO_DEBUGGER();
-	/* TODO: do we still need this, find out at compliance test
-	addr = mmDP_LINK_FRAMING_CNTL + fe_addr_offset;
-
-	value = dal_read_reg(ctx, addr);
-
-	set_reg_field_value(value, 0xFC,
-			DP_LINK_FRAMING_CNTL, DP_IDLE_BS_INTERVAL);
-	set_reg_field_value(value, 1,
-			DP_LINK_FRAMING_CNTL, DP_VBID_DISABLE);
-	set_reg_field_value(value, 1,
-			DP_LINK_FRAMING_CNTL, DP_VID_ENHANCED_FRAME_MODE);
-
-	dal_write_reg(ctx, addr, value);
-	 */
 	/* swap every BS with SR */
-
 	REG_UPDATE(DP_DPHY_SCRAM_CNTL, DPHY_SCRAMBLER_BS_COUNT, 0);
 
-	/*TODO add support for this test pattern
-	 * support_dp_hbr2_eye_pattern
-	 */
+	/* select cp2520 patterns */
+	if (REG(DP_DPHY_HBR2_PATTERN_CONTROL))
+		REG_UPDATE(DP_DPHY_HBR2_PATTERN_CONTROL,
+				DP_DPHY_HBR2_PATTERN_CONTROL, cp2520_pattern);
+	else
+		/* pre-DCE11 can only generate CP2520 pattern 2 */
+		ASSERT(cp2520_pattern == 2);
 
 	/* set link training complete */
 	set_link_training_complete(enc110, true);
-	/* do not enable video stream */
 
+	/* disable video stream */
 	REG_UPDATE(DP_VID_STREAM_CNTL, DP_VID_STREAM_ENABLE, 0);
 
 	/* Disable PHY Bypass mode to setup the test pattern */
-
 	enable_phy_bypass_mode(enc110, false);
 }
 
@@ -448,41 +423,26 @@ static void set_dp_phy_pattern_passthrough_mode(
 	struct dce110_link_encoder *enc110,
 	enum dp_panel_mode panel_mode)
 {
-	uint32_t value;
-
 	/* program correct panel mode */
-	{
-		ASSERT(REG(DP_DPHY_INTERNAL_CTRL));
-		value = REG_READ(DP_DPHY_INTERNAL_CTRL);
+	setup_panel_mode(enc110, panel_mode);
 
-		switch (panel_mode) {
-		case DP_PANEL_MODE_EDP:
-			value = 0x1;
-		break;
-		case DP_PANEL_MODE_SPECIAL:
-			value = 0x11;
-		break;
-		default:
-			value = 0x0;
-			break;
-		}
-
-		REG_WRITE(DP_DPHY_INTERNAL_CTRL, value);
-	}
+	/* restore LINK_FRAMING_CNTL and DPHY_SCRAMBLER_BS_COUNT
+	 * in case we were doing HBR2 compliance pattern before
+	 */
+	REG_UPDATE_3(DP_LINK_FRAMING_CNTL,
+			DP_IDLE_BS_INTERVAL, 0x2000,
+			DP_VBID_DISABLE, 0,
+			DP_VID_ENHANCED_FRAME_MODE, 1);
 
 	REG_UPDATE(DP_DPHY_SCRAM_CNTL, DPHY_SCRAMBLER_BS_COUNT, 0x1FF);
 
 	/* set link training complete */
-
 	set_link_training_complete(enc110, true);
 
 	/* Disable PHY Bypass mode to setup the test pattern */
-
 	enable_phy_bypass_mode(enc110, false);
 
-	/* Disable PRBS mode,
-	 * make sure DPHY_PRBS_CNTL.DPHY_PRBS_EN=0 */
-
+	/* Disable PRBS mode */
 	disable_prbs_mode(enc110);
 }
 
@@ -503,6 +463,8 @@ static uint8_t get_frontend_source(
 		return DCE110_DIG_FE_SOURCE_SELECT_DIGE;
 	case ENGINE_ID_DIGF:
 		return DCE110_DIG_FE_SOURCE_SELECT_DIGF;
+	case ENGINE_ID_DIGG:
+		return DCE110_DIG_FE_SOURCE_SELECT_DIGG;
 	default:
 		ASSERT_CRITICAL(false);
 		return DCE110_DIG_FE_SOURCE_SELECT_INVALID;
@@ -520,165 +482,6 @@ static void configure_encoder(
 
 	/* setup scrambler */
 	REG_UPDATE(DP_DPHY_SCRAM_CNTL, DPHY_SCRAMBLER_ADVANCE, 1);
-}
-
-static bool is_panel_powered_on(struct dce110_link_encoder *enc110)
-{
-	bool ret;
-	uint32_t value;
-
-	REG_GET(LVTMA_PWRSEQ_STATE, LVTMA_PWRSEQ_TARGET_STATE_R, &value);
-	ret = value;
-
-	return ret == 1;
-}
-
-
-/* TODO duplicate of dc_link.c version */
-static struct gpio *get_hpd_gpio(const struct link_encoder *enc)
-{
-	enum bp_result bp_result;
-	struct dc_bios *dcb = enc->ctx->dc_bios;
-	struct graphics_object_hpd_info hpd_info;
-	struct gpio_pin_info pin_info;
-
-	if (dcb->funcs->get_hpd_info(dcb, enc->connector, &hpd_info) != BP_RESULT_OK)
-		return NULL;
-
-	bp_result = dcb->funcs->get_gpio_pin_info(dcb,
-		hpd_info.hpd_int_gpio_uid, &pin_info);
-
-	if (bp_result != BP_RESULT_OK) {
-		ASSERT(bp_result == BP_RESULT_NORECORD);
-		return NULL;
-	}
-
-	return dal_gpio_service_create_irq(
-		enc->ctx->gpio_service,
-		pin_info.offset,
-		pin_info.mask);
-}
-
-/*
- * @brief
- * eDP only.
- */
-static void link_encoder_edp_wait_for_hpd_ready(
-	struct dce110_link_encoder *enc110,
-	bool power_up)
-{
-	struct dc_context *ctx = enc110->base.ctx;
-	struct graphics_object_id connector = enc110->base.connector;
-	struct gpio *hpd;
-	bool edp_hpd_high = false;
-	uint32_t time_elapsed = 0;
-	uint32_t timeout = power_up ?
-		PANEL_POWER_UP_TIMEOUT : PANEL_POWER_DOWN_TIMEOUT;
-
-	if (dal_graphics_object_id_get_connector_id(connector) !=
-		CONNECTOR_ID_EDP) {
-		BREAK_TO_DEBUGGER();
-		return;
-	}
-
-	if (!power_up)
-		/* from KV, we will not HPD low after turning off VCC -
-		 * instead, we will check the SW timer in power_up(). */
-		return;
-
-	/* when we power on/off the eDP panel,
-	 * we need to wait until SENSE bit is high/low */
-
-	/* obtain HPD */
-	/* TODO what to do with this? */
-	hpd = get_hpd_gpio(&enc110->base);
-
-	if (!hpd) {
-		BREAK_TO_DEBUGGER();
-		return;
-	}
-
-	dal_gpio_open(hpd, GPIO_MODE_INTERRUPT);
-
-	/* wait until timeout or panel detected */
-
-	do {
-		uint32_t detected = 0;
-
-		dal_gpio_get_value(hpd, &detected);
-
-		if (!(detected ^ power_up)) {
-			edp_hpd_high = true;
-			break;
-		}
-
-		msleep(HPD_CHECK_INTERVAL);
-
-		time_elapsed += HPD_CHECK_INTERVAL;
-	} while (time_elapsed < timeout);
-
-	dal_gpio_close(hpd);
-
-	dal_gpio_destroy_irq(&hpd);
-
-	if (false == edp_hpd_high) {
-		dm_logger_write(ctx->logger, LOG_ERROR,
-				"%s: wait timed out!\n", __func__);
-	}
-}
-
-/*
- * @brief
- * eDP only. Control the power of the eDP panel.
- */
-void dce110_link_encoder_edp_power_control(
-	struct link_encoder *enc,
-	bool power_up)
-{
-	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
-	struct bp_transmitter_control cntl = { 0 };
-	enum bp_result bp_result;
-
-	if (dal_graphics_object_id_get_connector_id(enc110->base.connector) !=
-		CONNECTOR_ID_EDP) {
-		BREAK_TO_DEBUGGER();
-		return;
-	}
-
-	if ((power_up && !is_panel_powered_on(enc110)) ||
-		(!power_up && is_panel_powered_on(enc110))) {
-
-		/* Send VBIOS command to prompt eDP panel power */
-
-		dm_logger_write(ctx->logger, LOG_HW_RESUME_S3,
-				"%s: Panel Power action: %s\n",
-				__func__, (power_up ? "On":"Off"));
-
-		cntl.action = power_up ?
-			TRANSMITTER_CONTROL_POWER_ON :
-			TRANSMITTER_CONTROL_POWER_OFF;
-		cntl.transmitter = enc110->base.transmitter;
-		cntl.connector_obj_id = enc110->base.connector;
-		cntl.coherent = false;
-		cntl.lanes_number = LANE_COUNT_FOUR;
-		cntl.hpd_sel = enc110->base.hpd_source;
-
-		bp_result = link_transmitter_control(enc110, &cntl);
-
-		if (BP_RESULT_OK != bp_result) {
-
-			dm_logger_write(ctx->logger, LOG_ERROR,
-					"%s: Panel Power bp_result: %d\n",
-					__func__, bp_result);
-		}
-	} else {
-		dm_logger_write(ctx->logger, LOG_HW_RESUME_S3,
-				"%s: Skipping Panel Power action: %s\n",
-				__func__, (power_up ? "On":"Off"));
-	}
-
-	link_encoder_edp_wait_for_hpd_ready(enc110, true);
 }
 
 static void aux_initialize(
@@ -701,16 +504,6 @@ static void aux_initialize(
 			AUX_DPHY_RX_CONTROL0, AUX_RX_RECEIVE_WINDOW);
 	dm_write_reg(ctx, addr, value);
 
-}
-
-/*todo: cloned in stream enc, fix*/
-static bool is_panel_backlight_on(struct dce110_link_encoder *enc110)
-{
-	uint32_t value;
-
-	REG_GET(LVTMA_PWRSEQ_CNTL, LVTMA_BLON, &value);
-
-	return value;
 }
 
 void dce110_psr_program_dp_dphy_fast_training(struct link_encoder *enc,
@@ -747,69 +540,6 @@ void dce110_psr_program_secondary_packet(struct link_encoder *enc,
 		DP_SEC_GSP0_PRIORITY, 1);
 }
 
-/*todo: cloned in stream enc, fix*/
-/*
- * @brief
- * eDP only. Control the backlight of the eDP panel
- */
-void dce110_link_encoder_edp_backlight_control(
-	struct link_encoder *enc,
-	bool enable)
-{
-	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
-	struct dc_context *ctx = enc110->base.ctx;
-	struct bp_transmitter_control cntl = { 0 };
-
-	if (dal_graphics_object_id_get_connector_id(enc110->base.connector)
-		!= CONNECTOR_ID_EDP) {
-		BREAK_TO_DEBUGGER();
-		return;
-	}
-
-	if (enable && is_panel_backlight_on(enc110)) {
-		dm_logger_write(ctx->logger, LOG_HW_RESUME_S3,
-				"%s: panel already powered up. Do nothing.\n",
-				__func__);
-		return;
-	}
-
-	if (!enable && !is_panel_powered_on(enc110)) {
-		dm_logger_write(ctx->logger, LOG_HW_RESUME_S3,
-				"%s: panel already powered down. Do nothing.\n",
-				__func__);
-		return;
-	}
-
-	/* Send VBIOS command to control eDP panel backlight */
-
-	dm_logger_write(ctx->logger, LOG_HW_RESUME_S3,
-			"%s: backlight action: %s\n",
-			__func__, (enable ? "On":"Off"));
-
-	cntl.action = enable ?
-		TRANSMITTER_CONTROL_BACKLIGHT_ON :
-		TRANSMITTER_CONTROL_BACKLIGHT_OFF;
-	/*cntl.engine_id = ctx->engine;*/
-	cntl.transmitter = enc110->base.transmitter;
-	cntl.connector_obj_id = enc110->base.connector;
-	/*todo: unhardcode*/
-	cntl.lanes_number = LANE_COUNT_FOUR;
-	cntl.hpd_sel = enc110->base.hpd_source;
-
-	/* For eDP, the following delays might need to be considered
-	 * after link training completed:
-	 * idle period - min. accounts for required BS-Idle pattern,
-	 * max. allows for source frame synchronization);
-	 * 50 msec max. delay from valid video data from source
-	 * to video on dislpay or backlight enable.
-	 *
-	 * Disable the delay for now.
-	 * Enable it in the future if necessary.
-	 */
-	/* dc_service_sleep_in_milliseconds(50); */
-	link_transmitter_control(enc110, &cntl);
-}
-
 static bool is_dig_enabled(const struct dce110_link_encoder *enc110)
 {
 	uint32_t value;
@@ -828,8 +558,7 @@ static void link_encoder_disable(struct dce110_link_encoder *enc110)
 	REG_UPDATE(DP_LINK_CNTL, DP_LINK_TRAINING_COMPLETE, 0);
 
 	/* reset panel mode */
-	ASSERT(REG(DP_DPHY_INTERNAL_CTRL));
-	REG_WRITE(DP_DPHY_INTERNAL_CTRL, 0);
+	setup_panel_mode(enc110, DP_PANEL_MODE_DEFAULT);
 }
 
 static void hpd_initialize(
@@ -863,6 +592,12 @@ bool dce110_link_encoder_validate_dvi_output(
 	if (crtc_timing->pixel_encoding != PIXEL_ENCODING_RGB)
 		return false;
 
+	/*connect DVI via adpater's HDMI connector*/
+	if ((connector_signal == SIGNAL_TYPE_DVI_SINGLE_LINK ||
+		connector_signal == SIGNAL_TYPE_HDMI_TYPE_A) &&
+		signal != SIGNAL_TYPE_HDMI_TYPE_A &&
+		crtc_timing->pix_clk_khz > TMDS_MAX_PIXEL_CLOCK)
+		return false;
 	if (crtc_timing->pix_clk_khz < TMDS_MIN_PIXEL_CLOCK)
 		return false;
 
@@ -911,6 +646,9 @@ static bool dce110_link_encoder_validate_hdmi_output(
 			crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
 		return false;
 
+	if (!enc110->base.features.flags.bits.HDMI_6GB_EN &&
+		adjusted_pix_clk_khz >= 300000)
+		return false;
 	return true;
 }
 
@@ -935,7 +673,7 @@ bool dce110_link_encoder_validate_dp_output(
 	return false;
 }
 
-bool dce110_link_encoder_construct(
+void dce110_link_encoder_construct(
 	struct dce110_link_encoder *enc110,
 	const struct encoder_init_data *init_data,
 	const struct encoder_feature_support *enc_features,
@@ -1011,57 +749,57 @@ bool dce110_link_encoder_construct(
 	case TRANSMITTER_UNIPHY_F:
 		enc110->base.preferred_engine = ENGINE_ID_DIGF;
 	break;
+	case TRANSMITTER_UNIPHY_G:
+		enc110->base.preferred_engine = ENGINE_ID_DIGG;
+	break;
 	default:
 		ASSERT_CRITICAL(false);
 		enc110->base.preferred_engine = ENGINE_ID_UNKNOWN;
 	}
-
-	dm_logger_write(init_data->ctx->logger, LOG_I2C_AUX,
-			"Using channel: %s [%d]\n",
-			DECODE_CHANNEL_ID(init_data->channel),
-			init_data->channel);
 
 	/* Override features with DCE-specific values */
 	if (BP_RESULT_OK == bp_funcs->get_encoder_cap_info(
 			enc110->base.ctx->dc_bios, enc110->base.id,
 			&bp_cap_info)) {
 		enc110->base.features.flags.bits.IS_HBR2_CAPABLE =
-				bp_cap_info.DP_HBR2_CAP;
+				bp_cap_info.DP_HBR2_EN;
 		enc110->base.features.flags.bits.IS_HBR3_CAPABLE =
 				bp_cap_info.DP_HBR3_EN;
+		enc110->base.features.flags.bits.HDMI_6GB_EN = bp_cap_info.HDMI_6GB_EN;
 	}
-
-	return true;
 }
 
 bool dce110_link_encoder_validate_output_with_stream(
 	struct link_encoder *enc,
-	struct pipe_ctx *pipe_ctx)
+	const struct dc_stream_state *stream)
 {
-	struct core_stream *stream = pipe_ctx->stream;
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
 	bool is_valid;
 
-	switch (pipe_ctx->stream->signal) {
+	switch (stream->signal) {
 	case SIGNAL_TYPE_DVI_SINGLE_LINK:
 	case SIGNAL_TYPE_DVI_DUAL_LINK:
 		is_valid = dce110_link_encoder_validate_dvi_output(
 			enc110,
-			stream->sink->link->public.connector_signal,
-			pipe_ctx->stream->signal,
-			&stream->public.timing);
+			stream->sink->link->connector_signal,
+			stream->signal,
+			&stream->timing);
 	break;
 	case SIGNAL_TYPE_HDMI_TYPE_A:
 		is_valid = dce110_link_encoder_validate_hdmi_output(
 				enc110,
-				&stream->public.timing,
+				&stream->timing,
 				stream->phy_pix_clk);
 	break;
 	case SIGNAL_TYPE_DISPLAY_PORT:
 	case SIGNAL_TYPE_DISPLAY_PORT_MST:
-	case SIGNAL_TYPE_EDP:
 		is_valid = dce110_link_encoder_validate_dp_output(
-			enc110, &stream->public.timing);
+					enc110, &stream->timing);
+	break;
+	case SIGNAL_TYPE_EDP:
+		is_valid =
+			(stream->timing.
+				pixel_encoding == PIXEL_ENCODING_RGB) ? true : false;
 	break;
 	case SIGNAL_TYPE_VIRTUAL:
 		is_valid = true;
@@ -1108,7 +846,7 @@ void dce110_link_encoder_hw_init(
 		ASSERT(result == BP_RESULT_OK);
 
 	} else if (enc110->base.connector.id == CONNECTOR_ID_EDP) {
-		enc->funcs->power_control(&enc110->base, true);
+		ctx->dc->hwss.edp_power_control(enc, true);
 	}
 	aux_initialize(enc110);
 
@@ -1122,7 +860,7 @@ void dce110_link_encoder_hw_init(
 
 void dce110_link_encoder_destroy(struct link_encoder **enc)
 {
-	dm_free(TO_DCE110_LINK_ENC(*enc));
+	kfree(TO_DCE110_LINK_ENC(*enc));
 	*enc = NULL;
 }
 
@@ -1295,7 +1033,8 @@ void dce110_link_encoder_enable_dp_mst_output(
  */
 void dce110_link_encoder_disable_output(
 	struct link_encoder *enc,
-	enum signal_type signal)
+	enum signal_type signal,
+	struct dc_link *link)
 {
 	struct dce110_link_encoder *enc110 = TO_DCE110_LINK_ENC(enc);
 	struct dc_context *ctx = enc110->base.ctx;
@@ -1306,6 +1045,8 @@ void dce110_link_encoder_disable_output(
 		/* OF_SKIP_POWER_DOWN_INACTIVE_ENCODER */
 		return;
 	}
+	if (enc110->base.connector.id == CONNECTOR_ID_EDP)
+		ctx->dc->hwss.edp_backlight_control(link, false);
 	/* Power-down RX and disable GPU PHY should be paired.
 	 * Disabling PHY without powering down RX may cause
 	 * symbol lock loss, on which we will get DP Sink interrupt. */
@@ -1432,8 +1173,14 @@ void dce110_link_encoder_dp_set_phy_pattern(
 		set_dp_phy_pattern_80bit_custom(
 			enc110, param->custom_pattern);
 		break;
-	case DP_TEST_PATTERN_HBR2_COMPLIANCE_EYE:
-		set_dp_phy_pattern_hbr2_compliance(enc110);
+	case DP_TEST_PATTERN_CP2520_1:
+		set_dp_phy_pattern_hbr2_compliance_cp2520_2(enc110, 1);
+		break;
+	case DP_TEST_PATTERN_CP2520_2:
+		set_dp_phy_pattern_hbr2_compliance_cp2520_2(enc110, 2);
+		break;
+	case DP_TEST_PATTERN_CP2520_3:
+		set_dp_phy_pattern_hbr2_compliance_cp2520_2(enc110, 3);
 		break;
 	case DP_TEST_PATTERN_VIDEO_MODE: {
 		set_dp_phy_pattern_passthrough_mode(

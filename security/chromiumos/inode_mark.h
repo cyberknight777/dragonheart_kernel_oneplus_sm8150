@@ -16,16 +16,32 @@
  * GNU General Public License for more details.
  */
 
-/* Indicates symlink traversal policy. */
-enum chromiumos_symlink_traversal_policy {
-	CHROMIUMOS_SYMLINK_TRAVERSAL_INHERIT, /* Inherit from parent dir */
-	CHROMIUMOS_SYMLINK_TRAVERSAL_ALLOW,
-	CHROMIUMOS_SYMLINK_TRAVERSAL_BLOCK,
+/* FS feature availability policy for inode. */
+enum chromiumos_inode_security_policy {
+	CHROMIUMOS_INODE_POLICY_INHERIT, /* Inherit policy from parent dir */
+	CHROMIUMOS_INODE_POLICY_ALLOW,
+	CHROMIUMOS_INODE_POLICY_BLOCK,
 };
 
-extern int chromiumos_update_symlink_traversal_policy(
-	struct inode *inode, enum chromiumos_symlink_traversal_policy policy);
-int chromiumos_flush_symlink_traversal_policy(struct super_block *sb);
+/*
+ * Inode security policy types available for use. To add an additional
+ * security policy, simply add a new member here, add the corresponding policy
+ * files in securityfs.c, and associate the files being added with the new enum
+ * member.
+ */
+enum chromiumos_inode_security_policy_type {
+	CHROMIUMOS_SYMLINK_TRAVERSAL = 0,
+	CHROMIUMOS_FIFO_ACCESS,
+	CHROMIUMOS_NUMBER_OF_POLICIES, /* Do not add entries after this line. */
+};
 
-extern enum chromiumos_symlink_traversal_policy
-chromiumos_get_symlink_traversal_policy(struct dentry *dentry);
+extern int chromiumos_update_inode_security_policy(
+	struct inode *inode,
+	enum chromiumos_inode_security_policy_type type,
+	enum chromiumos_inode_security_policy policy);
+int chromiumos_flush_inode_security_policies(struct super_block *sb);
+
+extern enum chromiumos_inode_security_policy
+chromiumos_get_inode_security_policy(
+	struct dentry *dentry,
+	enum chromiumos_inode_security_policy_type type);

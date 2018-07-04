@@ -1142,6 +1142,7 @@ static int bond_option_primary_set(struct bonding *bond,
 				   slave->dev->name);
 			rcu_assign_pointer(bond->primary_slave, slave);
 			strcpy(bond->params.primary, slave->dev->name);
+			bond->force_primary = true;
 			bond_select_active_slave(bond);
 			goto out;
 		}
@@ -1383,7 +1384,7 @@ static int bond_option_slaves_set(struct bonding *bond,
 	switch (command[0]) {
 	case '+':
 		netdev_dbg(bond->dev, "Adding slave %s\n", dev->name);
-		ret = bond_enslave(bond->dev, dev);
+		ret = bond_enslave(bond->dev, dev, NULL);
 		break;
 
 	case '-':

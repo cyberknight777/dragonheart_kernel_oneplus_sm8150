@@ -304,7 +304,24 @@ struct bdb_general_features {
 #define DVO_PORT_MIPIC		23				/* 171 */
 #define DVO_PORT_MIPID		24				/* 171 */
 
+#define HDMI_MAX_DATA_RATE_PLATFORM	0			/* 204 */
+#define HDMI_MAX_DATA_RATE_297		1			/* 204 */
+#define HDMI_MAX_DATA_RATE_165		2			/* 204 */
+
 #define LEGACY_CHILD_DEVICE_CONFIG_SIZE		33
+
+/* DDC Bus DDI Type 155+ */
+enum vbt_gmbus_ddi {
+	DDC_BUS_DDI_B = 0x1,
+	DDC_BUS_DDI_C,
+	DDC_BUS_DDI_D,
+	DDC_BUS_DDI_F,
+};
+
+#define VBT_DP_MAX_LINK_RATE_HBR3	0
+#define VBT_DP_MAX_LINK_RATE_HBR2	1
+#define VBT_DP_MAX_LINK_RATE_HBR	2
+#define VBT_DP_MAX_LINK_RATE_LBR	3
 
 /*
  * The child device config, aka the display device data structure, provides a
@@ -400,6 +417,8 @@ struct child_device_config {
 	u16 dp_gpio_pin_num;					/* 195 */
 	u8 dp_iboost_level:4;					/* 196 */
 	u8 hdmi_iboost_level:4;					/* 196 */
+	u8 dp_max_link_rate:2;					/* 216 CNL+ */
+	u8 dp_max_link_rate_reserved:6;				/* 216 */
 } __packed;
 
 struct bdb_general_definitions {

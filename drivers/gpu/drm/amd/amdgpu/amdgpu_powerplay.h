@@ -28,6 +28,9 @@
 
 #include "amd_shared.h"
 
+#define MIN_TEMP 0
+#define MAX_TEMP 95
+
 extern const struct amdgpu_ip_block_version amdgpu_pp_ip_block;
 
 #endif /* __AMDGPU_POWERPLAY_H__ */

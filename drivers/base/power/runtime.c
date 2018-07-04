@@ -276,7 +276,8 @@ static int rpm_get_suppliers(struct device *dev)
 			continue;
 
 		retval = pm_runtime_get_sync(link->supplier);
-		if (retval < 0) {
+		/* Ignore suppliers with disabled runtime PM. */
+		if (retval < 0 && retval != -EACCES) {
 			pm_runtime_put_noidle(link->supplier);
 			return retval;
 		}
@@ -1616,6 +1617,8 @@ void pm_runtime_new_link(struct device *dev)
 
 void pm_runtime_drop_link(struct device *dev)
 {
+	rpm_put_suppliers(dev);
+
 	spin_lock_irq(&dev->power.lock);
 	WARN_ON(dev->power.links_count == 0);
 	dev->power.links_count--;

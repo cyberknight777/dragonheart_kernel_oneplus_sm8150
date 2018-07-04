@@ -33,6 +33,12 @@
 
 #include "dce80/irq_service_dce80.h"
 
+#include "dce120/irq_service_dce120.h"
+
+
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+#include "dcn10/irq_service_dcn10.h"
+#endif
 
 #include "reg_helper.h"
 #include "irq_service.h"
@@ -42,15 +48,16 @@
 #define CTX \
 		irq_service->ctx
 
-bool dal_irq_service_construct(
+void dal_irq_service_construct(
 	struct irq_service *irq_service,
 	struct irq_service_init_data *init_data)
 {
-	if (!init_data || !init_data->ctx)
-		return false;
+	if (!init_data || !init_data->ctx) {
+		BREAK_TO_DEBUGGER();
+		return;
+	}
 
 	irq_service->ctx = init_data->ctx;
-	return true;
 }
 
 void dal_irq_service_destroy(struct irq_service **irq_service)
@@ -60,7 +67,7 @@ void dal_irq_service_destroy(struct irq_service **irq_service)
 		return;
 	}
 
-	dm_free(*irq_service);
+	kfree(*irq_service);
 
 	*irq_service = NULL;
 }

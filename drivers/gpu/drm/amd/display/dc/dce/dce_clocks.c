@@ -29,6 +29,13 @@
 #include "fixed32_32.h"
 #include "bios_parser_interface.h"
 #include "dc.h"
+#include "dce_abm.h"
+#include "dmcu.h"
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+#include "dcn_calcs.h"
+#endif
+#include "core_types.h"
+
 
 #define TO_DCE_CLOCKS(clocks)\
 	container_of(clocks, struct dce_disp_clk, base)
@@ -44,7 +51,7 @@
 	clk_dce->base.ctx
 
 /* Max clock values for each state indexed by "enum clocks_state": */
-static struct state_dependent_clocks dce80_max_clks_by_state[] = {
+static const struct state_dependent_clocks dce80_max_clks_by_state[] = {
 /* ClocksStateInvalid - should not be used */
 { .display_clk_khz = 0, .pixel_clk_khz = 0 },
 /* ClocksStateUltraLow - not expected to be used for DCE 8.0 */
@@ -56,7 +63,7 @@ static struct state_dependent_clocks dce80_max_clks_by_state[] = {
 /* ClocksStatePerformance */
 { .display_clk_khz = 600000, .pixel_clk_khz = 400000 } };
 
-static struct state_dependent_clocks dce110_max_clks_by_state[] = {
+static const struct state_dependent_clocks dce110_max_clks_by_state[] = {
 /*ClocksStateInvalid - should not be used*/
 { .display_clk_khz = 0, .pixel_clk_khz = 0 },
 /*ClocksStateUltraLow - currently by HW design team not supposed to be used*/
@@ -68,7 +75,7 @@ static struct state_dependent_clocks dce110_max_clks_by_state[] = {
 /*ClocksStatePerformance*/
 { .display_clk_khz = 643000, .pixel_clk_khz = 400000 } };
 
-static struct state_dependent_clocks dce112_max_clks_by_state[] = {
+static const struct state_dependent_clocks dce112_max_clks_by_state[] = {
 /*ClocksStateInvalid - should not be used*/
 { .display_clk_khz = 0, .pixel_clk_khz = 0 },
 /*ClocksStateUltraLow - currently by HW design team not supposed to be used*/
@@ -79,6 +86,18 @@ static struct state_dependent_clocks dce112_max_clks_by_state[] = {
 { .display_clk_khz = 667000, .pixel_clk_khz = 600000 },
 /*ClocksStatePerformance*/
 { .display_clk_khz = 1132000, .pixel_clk_khz = 600000 } };
+
+static const struct state_dependent_clocks dce120_max_clks_by_state[] = {
+/*ClocksStateInvalid - should not be used*/
+{ .display_clk_khz = 0, .pixel_clk_khz = 0 },
+/*ClocksStateUltraLow - currently by HW design team not supposed to be used*/
+{ .display_clk_khz = 0, .pixel_clk_khz = 0 },
+/*ClocksStateLow*/
+{ .display_clk_khz = 460000, .pixel_clk_khz = 400000 },
+/*ClocksStateNominal*/
+{ .display_clk_khz = 670000, .pixel_clk_khz = 600000 },
+/*ClocksStatePerformance*/
+{ .display_clk_khz = 1133000, .pixel_clk_khz = 600000 } };
 
 /* Starting point for each divider range.*/
 enum dce_divider_range_start {
@@ -206,11 +225,11 @@ static int dce_clocks_get_dp_ref_freq(struct display_clock *clk)
 	 (should not be case with CIK) then SW should program all rates
 	 generated according to average value (case as with previous ASICs)
 	  */
-	if (clk_dce->ss_on_gpu_pll && clk_dce->gpu_pll_ss_divider != 0) {
+	if (clk_dce->ss_on_dprefclk && clk_dce->dprefclk_ss_divider != 0) {
 		struct fixed32_32 ss_percentage = dal_fixed32_32_div_int(
 				dal_fixed32_32_from_fraction(
-						clk_dce->gpu_pll_ss_percentage,
-						clk_dce->gpu_pll_ss_divider), 200);
+						clk_dce->dprefclk_ss_percentage,
+						clk_dce->dprefclk_ss_divider), 200);
 		struct fixed32_32 adj_dp_ref_clk_khz;
 
 		ss_percentage = dal_fixed32_32_sub(dal_fixed32_32_one,
@@ -225,6 +244,33 @@ static int dce_clocks_get_dp_ref_freq(struct display_clock *clk)
 	return dp_ref_clk_khz;
 }
 
+/* TODO: This is DCN DPREFCLK: it could be program by DENTIST by VBIOS
+ * or CLK0_CLK11 by SMU. For DCE120, it is wlays 600Mhz. Will re-visit
+ * clock implementation
+ */
+static int dce_clocks_get_dp_ref_freq_wrkaround(struct display_clock *clk)
+{
+	struct dce_disp_clk *clk_dce = TO_DCE_CLOCKS(clk);
+	int dp_ref_clk_khz = 600000;
+
+	if (clk_dce->ss_on_dprefclk && clk_dce->dprefclk_ss_divider != 0) {
+		struct fixed32_32 ss_percentage = dal_fixed32_32_div_int(
+				dal_fixed32_32_from_fraction(
+						clk_dce->dprefclk_ss_percentage,
+						clk_dce->dprefclk_ss_divider), 200);
+		struct fixed32_32 adj_dp_ref_clk_khz;
+
+		ss_percentage = dal_fixed32_32_sub(dal_fixed32_32_one,
+								ss_percentage);
+		adj_dp_ref_clk_khz =
+			dal_fixed32_32_mul_int(
+				ss_percentage,
+				dp_ref_clk_khz);
+		dp_ref_clk_khz = dal_fixed32_32_floor(adj_dp_ref_clk_khz);
+	}
+
+	return dp_ref_clk_khz;
+}
 static enum dm_pp_clocks_state dce_get_required_clocks_state(
 	struct display_clock *clk,
 	struct state_dependent_clocks *req_clocks)
@@ -279,13 +325,14 @@ static bool dce_clock_set_min_clocks_state(
 	return true;
 }
 
-static void dce_set_clock(
+static int dce_set_clock(
 	struct display_clock *clk,
 	int requested_clk_khz)
 {
 	struct dce_disp_clk *clk_dce = TO_DCE_CLOCKS(clk);
 	struct bp_pixel_clock_parameters pxl_clk_params = { 0 };
 	struct dc_bios *bp = clk->ctx->dc_bios;
+	int actual_clock = requested_clk_khz;
 
 	/* Make sure requested clock isn't lower than minimum threshold*/
 	if (requested_clk_khz > 0)
@@ -303,62 +350,43 @@ static void dce_set_clock(
 		/* Cache the fixed display clock*/
 		clk_dce->dfs_bypass_disp_clk =
 			pxl_clk_params.dfs_bypass_display_clock;
+		actual_clock = pxl_clk_params.dfs_bypass_display_clock;
 	}
 
 	/* from power down, we need mark the clock state as ClocksStateNominal
 	 * from HWReset, so when resume we will call pplib voltage regulator.*/
 	if (requested_clk_khz == 0)
 		clk->cur_min_clks_state = DM_PP_CLOCKS_STATE_NOMINAL;
+	return actual_clock;
 }
 
-#define PSR_SET_WAITLOOP 0x31
-
-union dce110_dmcu_psr_config_data_wait_loop_reg1 {
-	struct {
-		unsigned int wait_loop:16; /* [15:0] */
-		unsigned int reserved:16; /* [31:16] */
-	} bits;
-	unsigned int u32;
-};
-
-static void dce_psr_wait_loop(
-		struct dce_disp_clk *clk_dce, unsigned int display_clk_khz)
-{
-	struct dc_context *ctx = clk_dce->base.ctx;
-	union dce110_dmcu_psr_config_data_wait_loop_reg1 masterCmdData1;
-
-	/* waitDMCUReadyForCmd */
-	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 0, 100, 100);
-
-	masterCmdData1.u32 = 0;
-	masterCmdData1.bits.wait_loop = display_clk_khz / 1000 / 7;
-	dm_write_reg(ctx, REG(MASTER_COMM_DATA_REG1), masterCmdData1.u32);
-
-	/* setDMCUParam_Cmd */
-	REG_UPDATE(MASTER_COMM_CMD_REG, MASTER_COMM_CMD_REG_BYTE0, PSR_SET_WAITLOOP);
-
-	/* notifyDMCUMsg */
-	REG_UPDATE(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 1);
-}
-
-static void dce_psr_set_clock(
+static int dce_psr_set_clock(
 	struct display_clock *clk,
 	int requested_clk_khz)
 {
 	struct dce_disp_clk *clk_dce = TO_DCE_CLOCKS(clk);
+	struct dc_context *ctx = clk_dce->base.ctx;
+	struct dc *core_dc = ctx->dc;
+	struct dmcu *dmcu = core_dc->res_pool->dmcu;
+	int actual_clk_khz = requested_clk_khz;
 
-	dce_set_clock(clk, requested_clk_khz);
-	dce_psr_wait_loop(clk_dce, requested_clk_khz);
+	actual_clk_khz = dce_set_clock(clk, requested_clk_khz);
+
+	dmcu->funcs->set_psr_wait_loop(dmcu, actual_clk_khz / 1000 / 7);
+	return actual_clk_khz;
 }
 
-static void dce112_set_clock(
+static int dce112_set_clock(
 	struct display_clock *clk,
 	int requested_clk_khz)
 {
 	struct dce_disp_clk *clk_dce = TO_DCE_CLOCKS(clk);
 	struct bp_set_dce_clock_parameters dce_clk_params;
 	struct dc_bios *bp = clk->ctx->dc_bios;
-
+	struct dc *core_dc = clk->ctx->dc;
+	struct abm *abm =  core_dc->res_pool->abm;
+	struct dmcu *dmcu = core_dc->res_pool->dmcu;
+	int actual_clock = requested_clk_khz;
 	/* Prepare to program display clock*/
 	memset(&dce_clk_params, 0, sizeof(dce_clk_params));
 
@@ -372,6 +400,7 @@ static void dce112_set_clock(
 	dce_clk_params.clock_type = DCECLOCK_TYPE_DISPLAY_CLOCK;
 
 	bp->funcs->set_dce_clock(bp, &dce_clk_params);
+	actual_clock = dce_clk_params.target_clock_frequency;
 
 	/* from power down, we need mark the clock state as ClocksStateNominal
 	 * from HWReset, so when resume we will call pplib voltage regulator.*/
@@ -387,6 +416,12 @@ static void dce112_set_clock(
 					CLOCK_SOURCE_COMBO_DISPLAY_PLL0);
 
 	bp->funcs->set_dce_clock(bp, &dce_clk_params);
+
+	if (abm->funcs->is_dmcu_initialized(abm) && clk_dce->dfs_bypass_disp_clk != actual_clock)
+		dmcu->funcs->set_psr_wait_loop(dmcu,
+				actual_clock / 1000 / 7);
+	clk_dce->dfs_bypass_disp_clk = actual_clock;
+	return actual_clock;
 }
 
 static void dce_clock_read_integrated_info(struct dce_disp_clk *clk_dce)
@@ -394,7 +429,7 @@ static void dce_clock_read_integrated_info(struct dce_disp_clk *clk_dce)
 	struct dc_debug *debug = &clk_dce->base.ctx->dc->debug;
 	struct dc_bios *bp = clk_dce->base.ctx->dc_bios;
 	struct integrated_info info = { { { 0 } } };
-	struct firmware_info fw_info = { { 0 } };
+	struct dc_firmware_info fw_info = { { 0 } };
 	int i;
 
 	if (bp->integrated_info)
@@ -467,20 +502,147 @@ static void dce_clock_read_ss_info(struct dce_disp_clk *clk_dce)
 		 */
 		if (result == BP_RESULT_OK &&
 				info.spread_spectrum_percentage != 0) {
-			clk_dce->ss_on_gpu_pll = true;
-			clk_dce->gpu_pll_ss_divider = info.spread_percentage_divider;
+			clk_dce->ss_on_dprefclk = true;
+			clk_dce->dprefclk_ss_divider = info.spread_percentage_divider;
+
+			if (info.type.CENTER_MODE == 0) {
+				/* TODO: Currently for DP Reference clock we
+				 * need only SS percentage for
+				 * downspread */
+				clk_dce->dprefclk_ss_percentage =
+						info.spread_spectrum_percentage;
+			}
+
+			return;
+		}
+
+		result = bp->funcs->get_spread_spectrum_info(
+				bp, AS_SIGNAL_TYPE_DISPLAY_PORT, 0, &info);
+
+		/* Based on VBIOS, VBIOS will keep entry for DPREFCLK SS
+		 * even if SS not enabled and in that case
+		 * SSInfo.spreadSpectrumPercentage !=0 would be sign
+		 * that SS is enabled
+		 */
+		if (result == BP_RESULT_OK &&
+				info.spread_spectrum_percentage != 0) {
+			clk_dce->ss_on_dprefclk = true;
+			clk_dce->dprefclk_ss_divider = info.spread_percentage_divider;
 
 			if (info.type.CENTER_MODE == 0) {
 				/* Currently for DP Reference clock we
 				 * need only SS percentage for
 				 * downspread */
-				clk_dce->gpu_pll_ss_percentage =
+				clk_dce->dprefclk_ss_percentage =
 						info.spread_spectrum_percentage;
 			}
 		}
-
 	}
 }
+
+static bool dce_apply_clock_voltage_request(
+	struct display_clock *clk,
+	enum dm_pp_clock_type clocks_type,
+	int clocks_in_khz,
+	bool pre_mode_set,
+	bool update_dp_phyclk)
+{
+	bool send_request = false;
+	struct dm_pp_clock_for_voltage_req clock_voltage_req = {0};
+
+	switch (clocks_type) {
+	case DM_PP_CLOCK_TYPE_DISPLAY_CLK:
+	case DM_PP_CLOCK_TYPE_PIXELCLK:
+	case DM_PP_CLOCK_TYPE_DISPLAYPHYCLK:
+		break;
+	default:
+		BREAK_TO_DEBUGGER();
+		return false;
+	}
+
+	clock_voltage_req.clk_type = clocks_type;
+	clock_voltage_req.clocks_in_khz = clocks_in_khz;
+
+	/* to pplib */
+	if (pre_mode_set) {
+		switch (clocks_type) {
+		case DM_PP_CLOCK_TYPE_DISPLAY_CLK:
+			if (clocks_in_khz > clk->cur_clocks_value.dispclk_in_khz) {
+				clk->cur_clocks_value.dispclk_notify_pplib_done = true;
+				send_request = true;
+			} else
+				clk->cur_clocks_value.dispclk_notify_pplib_done = false;
+			/* no matter incrase or decrase clock, update current clock value */
+			clk->cur_clocks_value.dispclk_in_khz = clocks_in_khz;
+			break;
+		case DM_PP_CLOCK_TYPE_PIXELCLK:
+			if (clocks_in_khz > clk->cur_clocks_value.max_pixelclk_in_khz) {
+				clk->cur_clocks_value.pixelclk_notify_pplib_done = true;
+				send_request = true;
+			} else
+				clk->cur_clocks_value.pixelclk_notify_pplib_done = false;
+			/* no matter incrase or decrase clock, update current clock value */
+			clk->cur_clocks_value.max_pixelclk_in_khz = clocks_in_khz;
+			break;
+		case DM_PP_CLOCK_TYPE_DISPLAYPHYCLK:
+			if (clocks_in_khz > clk->cur_clocks_value.max_non_dp_phyclk_in_khz) {
+				clk->cur_clocks_value.phyclk_notigy_pplib_done = true;
+				send_request = true;
+			} else
+				clk->cur_clocks_value.phyclk_notigy_pplib_done = false;
+			/* no matter incrase or decrase clock, update current clock value */
+			clk->cur_clocks_value.max_non_dp_phyclk_in_khz = clocks_in_khz;
+			break;
+		default:
+			ASSERT(0);
+			break;
+		}
+
+	} else {
+		switch (clocks_type) {
+		case DM_PP_CLOCK_TYPE_DISPLAY_CLK:
+			if (!clk->cur_clocks_value.dispclk_notify_pplib_done)
+				send_request = true;
+			break;
+		case DM_PP_CLOCK_TYPE_PIXELCLK:
+			if (!clk->cur_clocks_value.pixelclk_notify_pplib_done)
+				send_request = true;
+			break;
+		case DM_PP_CLOCK_TYPE_DISPLAYPHYCLK:
+			if (!clk->cur_clocks_value.phyclk_notigy_pplib_done)
+				send_request = true;
+			break;
+		default:
+			ASSERT(0);
+			break;
+		}
+	}
+	if (send_request) {
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+		if (clk->ctx->dce_version >= DCN_VERSION_1_0) {
+			struct dc *core_dc = clk->ctx->dc;
+			/*use dcfclk request voltage*/
+			clock_voltage_req.clk_type = DM_PP_CLOCK_TYPE_DCFCLK;
+			clock_voltage_req.clocks_in_khz =
+				dcn_find_dcfclk_suits_all(core_dc, &clk->cur_clocks_value);
+		}
+#endif
+		dm_pp_apply_clock_for_voltage_request(
+			clk->ctx, &clock_voltage_req);
+	}
+	if (update_dp_phyclk && (clocks_in_khz >
+	clk->cur_clocks_value.max_dp_phyclk_in_khz))
+		clk->cur_clocks_value.max_dp_phyclk_in_khz = clocks_in_khz;
+
+	return true;
+}
+
+
+static const struct display_clock_funcs dce120_funcs = {
+	.get_dp_ref_clk_frequency = dce_clocks_get_dp_ref_freq_wrkaround,
+	.apply_clock_voltage_request = dce_apply_clock_voltage_request,
+	.set_clock = dce112_set_clock
+};
 
 static const struct display_clock_funcs dce112_funcs = {
 	.get_dp_ref_clk_frequency = dce_clocks_get_dp_ref_freq,
@@ -520,9 +682,11 @@ static void dce_disp_clk_construct(
 	clk_dce->clk_mask = clk_mask;
 
 	clk_dce->dfs_bypass_disp_clk = 0;
-	clk_dce->gpu_pll_ss_percentage = 0;
-	clk_dce->gpu_pll_ss_divider = 1000;
-	clk_dce->ss_on_gpu_pll = false;
+
+	clk_dce->dprefclk_ss_percentage = 0;
+	clk_dce->dprefclk_ss_divider = 1000;
+	clk_dce->ss_on_dprefclk = false;
+
 	base->max_clks_state = DM_PP_CLOCKS_STATE_NOMINAL;
 	base->cur_min_clks_state = DM_PP_CLOCKS_STATE_INVALID;
 
@@ -555,7 +719,7 @@ struct display_clock *dce_disp_clk_create(
 	const struct dce_disp_clk_shift *clk_shift,
 	const struct dce_disp_clk_mask *clk_mask)
 {
-	struct dce_disp_clk *clk_dce = dm_alloc(sizeof(*clk_dce));
+	struct dce_disp_clk *clk_dce = kzalloc(sizeof(*clk_dce), GFP_KERNEL);
 
 	if (clk_dce == NULL) {
 		BREAK_TO_DEBUGGER();
@@ -578,7 +742,7 @@ struct display_clock *dce110_disp_clk_create(
 	const struct dce_disp_clk_shift *clk_shift,
 	const struct dce_disp_clk_mask *clk_mask)
 {
-	struct dce_disp_clk *clk_dce = dm_alloc(sizeof(*clk_dce));
+	struct dce_disp_clk *clk_dce = kzalloc(sizeof(*clk_dce), GFP_KERNEL);
 
 	if (clk_dce == NULL) {
 		BREAK_TO_DEBUGGER();
@@ -603,7 +767,7 @@ struct display_clock *dce112_disp_clk_create(
 	const struct dce_disp_clk_shift *clk_shift,
 	const struct dce_disp_clk_mask *clk_mask)
 {
-	struct dce_disp_clk *clk_dce = dm_alloc(sizeof(*clk_dce));
+	struct dce_disp_clk *clk_dce = kzalloc(sizeof(*clk_dce), GFP_KERNEL);
 
 	if (clk_dce == NULL) {
 		BREAK_TO_DEBUGGER();
@@ -622,10 +786,42 @@ struct display_clock *dce112_disp_clk_create(
 	return &clk_dce->base;
 }
 
+struct display_clock *dce120_disp_clk_create(struct dc_context *ctx)
+{
+	struct dce_disp_clk *clk_dce = kzalloc(sizeof(*clk_dce), GFP_KERNEL);
+	struct dm_pp_clock_levels_with_voltage clk_level_info = {0};
+
+	if (clk_dce == NULL) {
+		BREAK_TO_DEBUGGER();
+		return NULL;
+	}
+
+	memcpy(clk_dce->max_clks_by_state,
+		dce120_max_clks_by_state,
+		sizeof(dce120_max_clks_by_state));
+
+	dce_disp_clk_construct(
+		clk_dce, ctx, NULL, NULL, NULL);
+
+	clk_dce->base.funcs = &dce120_funcs;
+
+	/* new in dce120 */
+	if (!ctx->dc->debug.disable_pplib_clock_request  &&
+			dm_pp_get_clock_levels_by_type_with_voltage(
+			ctx, DM_PP_CLOCK_TYPE_DISPLAY_CLK, &clk_level_info)
+						&& clk_level_info.num_levels)
+		clk_dce->max_displ_clk_in_khz =
+			clk_level_info.data[clk_level_info.num_levels - 1].clocks_in_khz;
+	else
+		clk_dce->max_displ_clk_in_khz = 1133000;
+
+	return &clk_dce->base;
+}
+
 void dce_disp_clk_destroy(struct display_clock **disp_clk)
 {
 	struct dce_disp_clk *clk_dce = TO_DCE_CLOCKS(*disp_clk);
 
-	dm_free(clk_dce);
+	kfree(clk_dce);
 	*disp_clk = NULL;
 }

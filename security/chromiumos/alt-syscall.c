@@ -245,6 +245,10 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_inotify_init1	__NR_ia32_inotify_init1
 #define __NR_compat_inotify_rm_watch	__NR_ia32_inotify_rm_watch
 #define __NR_compat_ioctl	__NR_ia32_ioctl
+#define __NR_compat_io_destroy	__NR_ia32_io_destroy
+#define __NR_compat_io_getevents	__NR_ia32_io_getevents
+#define __NR_compat_io_setup	__NR_ia32_io_setup
+#define __NR_compat_io_submit	__NR_ia32_io_submit
 #define __NR_compat_ioprio_set	__NR_ia32_ioprio_set
 #define __NR_compat_kill	__NR_ia32_kill
 #define __NR_compat_lgetxattr	__NR_ia32_lgetxattr
@@ -320,6 +324,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_sched_getparam	__NR_ia32_sched_getparam
 #define __NR_compat_sched_getscheduler	__NR_ia32_sched_getscheduler
 #define __NR_compat_sched_setaffinity	__NR_ia32_sched_setaffinity
+#define __NR_compat_sched_setparam	__NR_ia32_sched_setparam
 #define __NR_compat_sched_setscheduler	__NR_ia32_sched_setscheduler
 #define __NR_compat_sched_yield	__NR_ia32_sched_yield
 #define __NR_compat_seccomp	__NR_ia32_seccomp
@@ -329,6 +334,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_set_robust_list	__NR_ia32_set_robust_list
 #define __NR_compat_set_tid_address	__NR_ia32_set_tid_address
 #define __NR_compat_set_thread_area	__NR_ia32_set_thread_area
+#define __NR_compat_setdomainname	__NR_ia32_setdomainname
 #define __NR_compat_setgid	__NR_ia32_setgid
 #define __NR_compat_setgroups	__NR_ia32_setgroups
 #define __NR_compat_setitimer	__NR_ia32_setitimer
@@ -352,6 +358,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_symlink	__NR_ia32_symlink
 #define __NR_compat_symlinkat	__NR_ia32_symlinkat
 #define __NR_compat_sync_file_range	__NR_ia32_sync_file_range
+#define __NR_compat_syncfs	__NR_ia32_syncfs
 #define __NR_compat_sysinfo	__NR_ia32_sysinfo
 #define __NR_compat_syslog	__NR_ia32_syslog
 #define __NR_compat_tee		__NR_ia32_tee
@@ -520,16 +527,13 @@ static asmlinkage long android_setpriority(int which, int who, int niceval)
 }
 
 static asmlinkage long
-android_sched_setscheduler(pid_t pid, int policy,
-			   struct sched_param __user *param)
+do_android_sched_setscheduler(pid_t pid, int policy,
+			      struct sched_param __user *param)
 {
 	struct sched_param lparam;
 	struct task_struct *p;
 	long retval;
 
-	/* negative values for policy are not valid */
-	if (policy < 0)
-		return -EINVAL;
 	if (!param || pid < 0)
 		return -EINVAL;
 	if (copy_from_user(&lparam, param, sizeof(struct sched_param)))
@@ -562,6 +566,28 @@ android_sched_setscheduler(pid_t pid, int policy,
 	rcu_read_unlock();
 
 	return retval;
+}
+
+static asmlinkage long
+android_sched_setscheduler(pid_t pid, int policy,
+			   struct sched_param __user *param)
+{
+	/* negative values for policy are not valid */
+	if (policy < 0)
+		return -EINVAL;
+	return do_android_sched_setscheduler(pid, policy, param);
+}
+
+/*
+ * sched_setparam() passes in -1 for its policy, to let the functions
+ * it calls know not to change it.
+ */
+#define SETPARAM_POLICY -1
+
+static asmlinkage long android_sched_setparam(pid_t pid,
+					      struct sched_param __user *param)
+{
+	return do_android_sched_setscheduler(pid, SETPARAM_POLICY, param);
 }
 
 static asmlinkage long
@@ -666,6 +692,10 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(inotify_init1),
 	SYSCALL_ENTRY(inotify_rm_watch),
 	SYSCALL_ENTRY(ioctl),
+	SYSCALL_ENTRY(io_destroy),
+	SYSCALL_ENTRY(io_getevents),
+	SYSCALL_ENTRY(io_setup),
+	SYSCALL_ENTRY(io_submit),
 	SYSCALL_ENTRY(ioprio_set),
 	SYSCALL_ENTRY(kill),
 	SYSCALL_ENTRY(lgetxattr),
@@ -730,6 +760,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(sched_getparam),
 	SYSCALL_ENTRY(sched_getscheduler),
 	SYSCALL_ENTRY(sched_setaffinity),
+	SYSCALL_ENTRY_ALT(sched_setparam, android_sched_setparam),
 	SYSCALL_ENTRY_ALT(sched_setscheduler, android_sched_setscheduler),
 	SYSCALL_ENTRY(sched_yield),
 	SYSCALL_ENTRY(seccomp),
@@ -737,6 +768,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(sendmmsg),
 	SYSCALL_ENTRY(set_robust_list),
 	SYSCALL_ENTRY(set_tid_address),
+	SYSCALL_ENTRY(setdomainname),
 	SYSCALL_ENTRY(setitimer),
 	SYSCALL_ENTRY(setns),
 	SYSCALL_ENTRY(setpgid),
@@ -752,6 +784,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(symlinkat),
 	SYSCALL_ENTRY(sysinfo),
 	SYSCALL_ENTRY(syslog),
+	SYSCALL_ENTRY(syncfs),
 	SYSCALL_ENTRY(tee),
 	SYSCALL_ENTRY(tgkill),
 	SYSCALL_ENTRY(tkill),
@@ -1178,6 +1211,10 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(inotify_init),
 	COMPAT_SYSCALL_ENTRY(inotify_init1),
 	COMPAT_SYSCALL_ENTRY(inotify_rm_watch),
+	COMPAT_SYSCALL_ENTRY(io_destroy),
+	COMPAT_SYSCALL_ENTRY(io_getevents),
+	COMPAT_SYSCALL_ENTRY(io_setup),
+	COMPAT_SYSCALL_ENTRY(io_submit),
 	COMPAT_SYSCALL_ENTRY(ioctl),
 	COMPAT_SYSCALL_ENTRY(ioprio_set),
 	COMPAT_SYSCALL_ENTRY(kill),
@@ -1253,6 +1290,8 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(sched_getparam),
 	COMPAT_SYSCALL_ENTRY(sched_getscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_setaffinity),
+	COMPAT_SYSCALL_ENTRY_ALT(sched_setparam,
+				 android_sched_setparam),
 	COMPAT_SYSCALL_ENTRY_ALT(sched_setscheduler,
 				 android_sched_setscheduler),
 	COMPAT_SYSCALL_ENTRY(sched_yield),
@@ -1330,6 +1369,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(mmap2),
 	COMPAT_SYSCALL_ENTRY(_newselect),
 	COMPAT_SYSCALL_ENTRY(_llseek),
+	COMPAT_SYSCALL_ENTRY(setdomainname),
 	COMPAT_SYSCALL_ENTRY(sigaction),
 	COMPAT_SYSCALL_ENTRY(sigpending),
 	COMPAT_SYSCALL_ENTRY(sigprocmask),
@@ -1344,6 +1384,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(setuid32),
 	COMPAT_SYSCALL_ENTRY(stat64),
 	COMPAT_SYSCALL_ENTRY(statfs64),
+	COMPAT_SYSCALL_ENTRY(syncfs),
 	COMPAT_SYSCALL_ENTRY(truncate64),
 	COMPAT_SYSCALL_ENTRY(ugetrlimit),
 

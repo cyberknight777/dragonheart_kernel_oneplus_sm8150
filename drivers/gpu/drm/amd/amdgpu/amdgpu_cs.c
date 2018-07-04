@@ -90,6 +90,12 @@ static int amdgpu_cs_parser_init(struct amdgpu_cs_parser *p, void *data)
 		goto free_chunk;
 	}
 
+	/* skip guilty context job */
+	if (atomic_read(&p->ctx->guilty) == 1) {
+		ret = -ECANCELED;
+		goto free_chunk;
+	}
+
 	mutex_lock(&p->ctx->lock);
 
 	/* get chunks */
@@ -409,6 +415,10 @@ static bool amdgpu_cs_try_evict(struct amdgpu_cs_parser *p,
 		if (candidate->robj == validated)
 			break;
 
+		/* We can't move pinned BOs here */
+		if (bo->pin_count)
+			continue;
+
 		other = amdgpu_mem_type_to_domain(bo->tbo.mem.mem_type);
 
 		/* Check if this BO is in one of the domains we need space for */
@@ -528,7 +538,7 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
 	INIT_LIST_HEAD(&duplicates);
 	amdgpu_vm_get_pd_bo(&fpriv->vm, &p->validated, &p->vm_pd);
 
-	if (p->uf_entry.robj)
+	if (p->uf_entry.robj && !p->uf_entry.robj->parent)
 		list_add(&p->uf_entry.tv.head, &p->validated);
 
 	while (1) {
@@ -863,8 +873,8 @@ static int amdgpu_cs_ib_vm_chunk(struct amdgpu_device *adev,
 			struct amdgpu_bo_va_mapping *m;
 			struct amdgpu_bo *aobj = NULL;
 			struct amdgpu_cs_chunk *chunk;
+			uint64_t offset, va_start;
 			struct amdgpu_ib *ib;
-			uint64_t offset;
 			uint8_t *kptr;
 
 			chunk = &p->chunks[i];
@@ -874,14 +884,14 @@ static int amdgpu_cs_ib_vm_chunk(struct amdgpu_device *adev,
 			if (chunk->chunk_id != AMDGPU_CHUNK_ID_IB)
 				continue;
 
-			r = amdgpu_cs_find_mapping(p, chunk_ib->va_start,
-						   &aobj, &m);
+			va_start = chunk_ib->va_start & AMDGPU_VA_HOLE_MASK;
+			r = amdgpu_cs_find_mapping(p, va_start, &aobj, &m);
 			if (r) {
 				DRM_ERROR("IB va_start is invalid\n");
 				return r;
 			}
 
-			if ((chunk_ib->va_start + chunk_ib->ib_bytes) >
+			if ((va_start + chunk_ib->ib_bytes) >
 			    (m->last + 1) * AMDGPU_GPU_PAGE_SIZE) {
 				DRM_ERROR("IB va_start+ib_bytes is invalid\n");
 				return -EINVAL;
@@ -894,7 +904,7 @@ static int amdgpu_cs_ib_vm_chunk(struct amdgpu_device *adev,
 			}
 
 			offset = m->start * AMDGPU_GPU_PAGE_SIZE;
-			kptr += chunk_ib->va_start - offset;
+			kptr += va_start - offset;
 
 			memcpy(ib->ptr, kptr, chunk_ib->ib_bytes);
 			amdgpu_bo_kunmap(aobj);
@@ -1192,11 +1202,10 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
 	job->uf_sequence = seq;
 
 	amdgpu_job_free_resources(job);
-	amdgpu_ring_priority_get(job->ring,
-				 amd_sched_get_job_priority(&job->base));
+	amdgpu_ring_priority_get(job->ring, job->base.s_priority);
 
 	trace_amdgpu_cs_ioctl(job);
-	amd_sched_entity_push_job(&job->base);
+	amd_sched_entity_push_job(&job->base, entity);
 
 	ttm_eu_fence_buffer_objects(&p->ticket, &p->validated, p->fence);
 	amdgpu_mn_unlock(p->mn);
@@ -1497,8 +1506,11 @@ out:
 	memset(wait, 0, sizeof(*wait));
 	wait->out.status = (r > 0);
 	wait->out.first_signaled = first;
-	/* set return value 0 to indicate success */
-	r = array[first]->error;
+
+	if (first < fence_count && array[first])
+		r = array[first]->error;
+	else
+		r = 0;
 
 err_free_fence_array:
 	for (i = 0; i < fence_count; i++)

@@ -473,7 +473,8 @@ static int recv_data(struct tpm_chip *chip, u8 *buf, size_t count)
 static int tpm_tis_i2c_recv(struct tpm_chip *chip, u8 *buf, size_t count)
 {
 	int size = 0;
-	int expected, status;
+	int status;
+	u32 expected;
 
 	if (count < TPM_HEADER_SIZE) {
 		size = -EIO;
@@ -488,7 +489,7 @@ static int tpm_tis_i2c_recv(struct tpm_chip *chip, u8 *buf, size_t count)
 	}
 
 	expected = be32_to_cpu(*(__be32 *)(buf + 2));
-	if ((size_t) expected > count) {
+	if (((size_t) expected > count) || (expected < TPM_HEADER_SIZE)) {
 		size = -EIO;
 		goto out;
 	}
@@ -652,7 +653,8 @@ static int tpm_tis_i2c_init(struct device *dev)
 		goto out_release;
 	}
 
-	dev_info(dev, "1.2 TPM (device-id 0x%X)\n", vendor >> 16);
+	dev_info(dev, "1.2 TPM (device-id 0x%X) [gentle shutdown]\n",
+		 vendor >> 16);
 
 	tpm_dev.chip = chip;
 
@@ -725,14 +727,20 @@ static int tpm_tis_i2c_probe(struct i2c_client *client,
 	return rc;
 }
 
-static int tpm_tis_i2c_remove(struct i2c_client *client)
+static void tpm_tis_i2c_shutdown(struct i2c_client *client)
 {
 	struct tpm_chip *chip = tpm_dev.chip;
+	struct device *dev = &(client->dev);
 
 	tpm_chip_unregister(chip);
 	release_locality(chip, tpm_dev.locality, 1);
 	tpm_dev.client = NULL;
+	dev_info(dev, "gentle shutdown done\n");
+}
 
+static int tpm_tis_i2c_remove(struct i2c_client *client)
+{
+	tpm_tis_i2c_shutdown(client);
 	return 0;
 }
 
@@ -740,6 +748,7 @@ static struct i2c_driver tpm_tis_i2c_driver = {
 	.id_table = tpm_tis_i2c_table,
 	.probe = tpm_tis_i2c_probe,
 	.remove = tpm_tis_i2c_remove,
+	.shutdown = tpm_tis_i2c_shutdown,
 	.driver = {
 		   .name = "tpm_i2c_infineon",
 		   .pm = &tpm_tis_i2c_ops,

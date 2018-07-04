@@ -28,6 +28,7 @@
 
 #include "os_types.h"
 #include "fixed31_32.h"
+#include "signal_types.h"
 
 /******************************************************************************
  * Data types for Virtual HW Layer of DAL3.
@@ -65,6 +66,7 @@ enum dc_plane_addr_type {
 
 struct dc_plane_address {
 	enum dc_plane_addr_type type;
+	bool tmz_surface;
 	union {
 		struct{
 			PHYSICAL_ADDRESS_LOC addr;
@@ -98,15 +100,15 @@ struct dc_plane_address {
 };
 
 struct dc_size {
-	uint32_t width;
-	uint32_t height;
+	int width;
+	int height;
 };
 
 struct rect {
 	int x;
 	int y;
-	uint32_t width;
-	uint32_t height;
+	int width;
+	int height;
 };
 
 union plane_size {
@@ -122,7 +124,7 @@ union plane_size {
 		 * In LINEAR_GENERAL mode, pitch
 		 * is 32 pixel aligned.
 		 */
-		uint32_t surface_pitch;
+		int surface_pitch;
 	} grph;
 
 	struct {
@@ -131,14 +133,14 @@ union plane_size {
 		 * In LINEAR_GENERAL mode, pitch is
 		 * 32 pixel aligned.
 		 */
-		uint32_t luma_pitch;
+		int luma_pitch;
 
 		struct rect chroma_size;
 		/* Graphic surface pitch in pixels.
 		 * In LINEAR_GENERAL mode, pitch is
 		 * 32 pixel aligned.
 		 */
-		uint32_t chroma_pitch;
+		int chroma_pitch;
 	} video;
 };
 
@@ -147,15 +149,15 @@ struct dc_plane_dcc_param {
 
 	union {
 		struct {
-			uint32_t meta_pitch;
+			int meta_pitch;
 			bool independent_64b_blks;
 		} grph;
 
 		struct {
-			uint32_t meta_pitch_l;
+			int meta_pitch_l;
 			bool independent_64b_blks_l;
 
-			uint32_t meta_pitch_c;
+			int meta_pitch_c;
 			bool independent_64b_blks_c;
 		} video;
 	};
@@ -202,6 +204,8 @@ enum surface_pixel_format {
 	/*grow 444 video here if necessary */
 };
 
+
+
 /* Pixel format */
 enum pixel_format {
 	/*graph*/
@@ -213,15 +217,15 @@ enum pixel_format {
 	PIXEL_FORMAT_ARGB2101010_XRBIAS,
 	PIXEL_FORMAT_FP16,
 	/*video*/
-	PIXEL_FORMAT_420BPP12,
-	PIXEL_FORMAT_420BPP15,
+	PIXEL_FORMAT_420BPP8,
+	PIXEL_FORMAT_420BPP10,
 	/*end of pixel format definition*/
 	PIXEL_FORMAT_INVALID,
 
 	PIXEL_FORMAT_GRPH_BEGIN = PIXEL_FORMAT_INDEX8,
 	PIXEL_FORMAT_GRPH_END = PIXEL_FORMAT_FP16,
-	PIXEL_FORMAT_VIDEO_BEGIN = PIXEL_FORMAT_420BPP12,
-	PIXEL_FORMAT_VIDEO_END = PIXEL_FORMAT_420BPP15,
+	PIXEL_FORMAT_VIDEO_BEGIN = PIXEL_FORMAT_420BPP8,
+	PIXEL_FORMAT_VIDEO_END = PIXEL_FORMAT_420BPP10,
 	PIXEL_FORMAT_UNKNOWN
 };
 
@@ -257,6 +261,34 @@ enum array_mode_values {
 enum tile_mode_values {
 	DC_ADDR_SURF_MICRO_TILING_DISPLAY = 0x0,
 	DC_ADDR_SURF_MICRO_TILING_NON_DISPLAY = 0x1,
+};
+
+enum swizzle_mode_values {
+	DC_SW_LINEAR = 0,
+	DC_SW_256B_S = 1,
+	DC_SW_256_D = 2,
+	DC_SW_256_R = 3,
+	DC_SW_4KB_S = 5,
+	DC_SW_4KB_D = 6,
+	DC_SW_4KB_R = 7,
+	DC_SW_64KB_S = 9,
+	DC_SW_64KB_D = 10,
+	DC_SW_64KB_R = 11,
+	DC_SW_VAR_S = 13,
+	DC_SW_VAR_D = 14,
+	DC_SW_VAR_R = 15,
+	DC_SW_64KB_S_T = 17,
+	DC_SW_64KB_D_T = 18,
+	DC_SW_4KB_S_X = 21,
+	DC_SW_4KB_D_X = 22,
+	DC_SW_4KB_R_X = 23,
+	DC_SW_64KB_S_X = 25,
+	DC_SW_64KB_D_X = 26,
+	DC_SW_64KB_R_X = 27,
+	DC_SW_VAR_S_X = 29,
+	DC_SW_VAR_D_X = 30,
+	DC_SW_VAR_R_X = 31,
+	DC_SW_MAX
 };
 
 union dc_tiling_info {
@@ -323,6 +355,20 @@ union dc_tiling_info {
 		enum array_mode_values array_mode;
 	} gfx8;
 
+	struct {
+		unsigned int num_pipes;
+		unsigned int num_banks;
+		unsigned int pipe_interleave;
+		unsigned int num_shader_engines;
+		unsigned int num_rb_per_se;
+		unsigned int max_compressed_frags;
+		bool shaderEnable;
+
+		enum swizzle_mode_values swizzle;
+		bool meta_linear;
+		bool rb_aligned;
+		bool pipe_aligned;
+	} gfx9;
 };
 
 /* Rotation angle */
@@ -352,11 +398,6 @@ struct dc_cursor_position {
 	 */
 	bool enable;
 
-	/*
-	 * This parameter indicates whether cursor hot spot should be
-	 * programmed
-	 */
-	bool hot_spot_enable;
 };
 
 struct dc_cursor_mi_param {
@@ -370,13 +411,29 @@ struct dc_cursor_mi_param {
 /* IPP related types */
 
 enum {
-	INPUT_LUT_ENTRIES = 256
+	GAMMA_RGB_256_ENTRIES = 256,
+	GAMMA_RGB_FLOAT_1024_ENTRIES = 1024,
+	GAMMA_MAX_ENTRIES = 1024
+};
+
+enum dc_gamma_type {
+	GAMMA_RGB_256 = 1,
+	GAMMA_RGB_FLOAT_1024 = 2
 };
 
 struct dc_gamma {
-	uint16_t red[INPUT_LUT_ENTRIES];
-	uint16_t green[INPUT_LUT_ENTRIES];
-	uint16_t blue[INPUT_LUT_ENTRIES];
+	struct kref refcount;
+	enum dc_gamma_type type;
+	unsigned int num_entries;
+
+	struct dc_gamma_entries {
+		struct fixed31_32 red[GAMMA_MAX_ENTRIES];
+		struct fixed31_32 green[GAMMA_MAX_ENTRIES];
+		struct fixed31_32 blue[GAMMA_MAX_ENTRIES];
+	} entries;
+
+	/* private to DC core */
+	struct dc_context *ctx;
 };
 
 /* Used by both ipp amd opp functions*/
@@ -421,8 +478,6 @@ struct dc_cursor_attributes {
 	/* Width and height should correspond to cursor surface width x heigh */
 	uint32_t width;
 	uint32_t height;
-	uint32_t x_hot;
-	uint32_t y_hot;
 
 	enum dc_cursor_color_format color_format;
 
@@ -448,6 +503,35 @@ enum dc_color_space {
 	COLOR_SPACE_ADOBERGB,
 };
 
+enum dc_dither_option {
+	DITHER_OPTION_DEFAULT,
+	DITHER_OPTION_DISABLE,
+	DITHER_OPTION_FM6,
+	DITHER_OPTION_FM8,
+	DITHER_OPTION_FM10,
+	DITHER_OPTION_SPATIAL6_FRAME_RANDOM,
+	DITHER_OPTION_SPATIAL8_FRAME_RANDOM,
+	DITHER_OPTION_SPATIAL10_FRAME_RANDOM,
+	DITHER_OPTION_SPATIAL6,
+	DITHER_OPTION_SPATIAL8,
+	DITHER_OPTION_SPATIAL10,
+	DITHER_OPTION_TRUN6,
+	DITHER_OPTION_TRUN8,
+	DITHER_OPTION_TRUN10,
+	DITHER_OPTION_TRUN10_SPATIAL8,
+	DITHER_OPTION_TRUN10_SPATIAL6,
+	DITHER_OPTION_TRUN10_FM8,
+	DITHER_OPTION_TRUN10_FM6,
+	DITHER_OPTION_TRUN10_SPATIAL8_FM6,
+	DITHER_OPTION_SPATIAL10_FM8,
+	DITHER_OPTION_SPATIAL10_FM6,
+	DITHER_OPTION_TRUN8_SPATIAL6,
+	DITHER_OPTION_TRUN8_FM6,
+	DITHER_OPTION_SPATIAL8_FM6,
+	DITHER_OPTION_MAX = DITHER_OPTION_SPATIAL8_FM6,
+	DITHER_OPTION_INVALID
+};
+
 enum dc_quantization_range {
 	QUANTIZATION_RANGE_UNKNOWN,
 	QUANTIZATION_RANGE_FULL,
@@ -456,7 +540,7 @@ enum dc_quantization_range {
 
 /* XFM */
 
-/* used in  struct dc_surface */
+/* used in  struct dc_plane_state */
 struct scaling_taps {
 	uint32_t v_taps;
 	uint32_t h_taps;
@@ -486,27 +570,7 @@ enum dc_timing_standard {
 	TIMING_STANDARD_MAX
 };
 
-enum dc_timing_3d_format {
-	TIMING_3D_FORMAT_NONE,
-	TIMING_3D_FORMAT_FRAME_ALTERNATE, /* No stereosync at all*/
-	TIMING_3D_FORMAT_INBAND_FA, /* Inband Frame Alternate (DVI/DP)*/
-	TIMING_3D_FORMAT_DP_HDMI_INBAND_FA, /* Inband FA to HDMI Frame Pack*/
-	/* for active DP-HDMI dongle*/
-	TIMING_3D_FORMAT_SIDEBAND_FA, /* Sideband Frame Alternate (eDP)*/
-	TIMING_3D_FORMAT_HW_FRAME_PACKING,
-	TIMING_3D_FORMAT_SW_FRAME_PACKING,
-	TIMING_3D_FORMAT_ROW_INTERLEAVE,
-	TIMING_3D_FORMAT_COLUMN_INTERLEAVE,
-	TIMING_3D_FORMAT_PIXEL_INTERLEAVE,
-	TIMING_3D_FORMAT_SIDE_BY_SIDE,
-	TIMING_3D_FORMAT_TOP_AND_BOTTOM,
-	TIMING_3D_FORMAT_SBS_SW_PACKED,
-	/* Side-by-side, packed by application/driver into 2D frame*/
-	TIMING_3D_FORMAT_TB_SW_PACKED,
-	/* Top-and-bottom, packed by application/driver into 2D frame*/
 
-	TIMING_3D_FORMAT_MAX,
-};
 
 enum dc_color_depth {
 	COLOR_DEPTH_UNDEFINED,
@@ -570,11 +634,36 @@ struct dc_crtc_timing_flags {
 	uint32_t YCBCR420 :1; /* TODO: shouldn't need this flag, should be a separate pixel format */
 	uint32_t DTD_COUNTER :5; /* values 1 to 16 */
 
+	uint32_t FORCE_HDR :1;
+
 	/* HDMI 2.0 - Support scrambling for TMDS character
 	 * rates less than or equal to 340Mcsc */
 	uint32_t LTE_340MCSC_SCRAMBLE:1;
 
 };
+
+enum dc_timing_3d_format {
+	TIMING_3D_FORMAT_NONE,
+	TIMING_3D_FORMAT_FRAME_ALTERNATE, /* No stereosync at all*/
+	TIMING_3D_FORMAT_INBAND_FA, /* Inband Frame Alternate (DVI/DP)*/
+	TIMING_3D_FORMAT_DP_HDMI_INBAND_FA, /* Inband FA to HDMI Frame Pack*/
+	/* for active DP-HDMI dongle*/
+	TIMING_3D_FORMAT_SIDEBAND_FA, /* Sideband Frame Alternate (eDP)*/
+	TIMING_3D_FORMAT_HW_FRAME_PACKING,
+	TIMING_3D_FORMAT_SW_FRAME_PACKING,
+	TIMING_3D_FORMAT_ROW_INTERLEAVE,
+	TIMING_3D_FORMAT_COLUMN_INTERLEAVE,
+	TIMING_3D_FORMAT_PIXEL_INTERLEAVE,
+	TIMING_3D_FORMAT_SIDE_BY_SIDE,
+	TIMING_3D_FORMAT_TOP_AND_BOTTOM,
+	TIMING_3D_FORMAT_SBS_SW_PACKED,
+	/* Side-by-side, packed by application/driver into 2D frame*/
+	TIMING_3D_FORMAT_TB_SW_PACKED,
+	/* Top-and-bottom, packed by application/driver into 2D frame*/
+
+	TIMING_3D_FORMAT_MAX,
+};
+
 
 struct dc_crtc_timing {
 
@@ -603,6 +692,14 @@ struct dc_crtc_timing {
 	enum scanning_type scan_type;
 
 	struct dc_crtc_timing_flags flags;
+};
+
+#define MAX_TG_COLOR_VALUE 0x3FF
+struct tg_color {
+	/* Maximum 10 bits color value */
+	uint16_t color_r_cr;
+	uint16_t color_g_y;
+	uint16_t color_b_cb;
 };
 
 #endif /* DC_HW_TYPES_H */

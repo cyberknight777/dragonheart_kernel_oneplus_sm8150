@@ -114,18 +114,19 @@ void amdgpu_virt_init_setting(struct amdgpu_device *adev)
 uint32_t amdgpu_virt_kiq_rreg(struct amdgpu_device *adev, uint32_t reg)
 {
 	signed long r;
+	unsigned long flags;
 	uint32_t val, seq;
 	struct amdgpu_kiq *kiq = &adev->gfx.kiq;
 	struct amdgpu_ring *ring = &kiq->ring;
 
 	BUG_ON(!ring->funcs->emit_rreg);
 
-	spin_lock(&kiq->ring_lock);
+	spin_lock_irqsave(&kiq->ring_lock, flags);
 	amdgpu_ring_alloc(ring, 32);
 	amdgpu_ring_emit_rreg(ring, reg);
 	amdgpu_fence_emit_polling(ring, &seq);
 	amdgpu_ring_commit(ring);
-	spin_unlock(&kiq->ring_lock);
+	spin_unlock_irqrestore(&kiq->ring_lock, flags);
 
 	r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
 	if (r < 1) {
@@ -140,18 +141,19 @@ uint32_t amdgpu_virt_kiq_rreg(struct amdgpu_device *adev, uint32_t reg)
 void amdgpu_virt_kiq_wreg(struct amdgpu_device *adev, uint32_t reg, uint32_t v)
 {
 	signed long r;
+	unsigned long flags;
 	uint32_t seq;
 	struct amdgpu_kiq *kiq = &adev->gfx.kiq;
 	struct amdgpu_ring *ring = &kiq->ring;
 
 	BUG_ON(!ring->funcs->emit_wreg);
 
-	spin_lock(&kiq->ring_lock);
+	spin_lock_irqsave(&kiq->ring_lock, flags);
 	amdgpu_ring_alloc(ring, 32);
 	amdgpu_ring_emit_wreg(ring, reg, v);
 	amdgpu_fence_emit_polling(ring, &seq);
 	amdgpu_ring_commit(ring);
-	spin_unlock(&kiq->ring_lock);
+	spin_unlock_irqrestore(&kiq->ring_lock, flags);
 
 	r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
 	if (r < 1)
@@ -223,6 +225,22 @@ int amdgpu_virt_reset_gpu(struct amdgpu_device *adev)
 	}
 
 	return 0;
+}
+
+/**
+ * amdgpu_virt_wait_reset() - wait for reset gpu completed
+ * @amdgpu:	amdgpu device.
+ * Wait for GPU reset completed.
+ * Return: Zero if reset success, otherwise will return error.
+ */
+int amdgpu_virt_wait_reset(struct amdgpu_device *adev)
+{
+	struct amdgpu_virt *virt = &adev->virt;
+
+	if (!virt->ops || !virt->ops->wait_reset)
+		return -EINVAL;
+
+	return virt->ops->wait_reset(adev);
 }
 
 /**

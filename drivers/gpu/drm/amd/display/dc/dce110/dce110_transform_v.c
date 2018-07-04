@@ -59,7 +59,7 @@ static void calculate_viewport(
 	chroma_viewport->height = luma_viewport->height;
 	chroma_viewport->width = luma_viewport->width;
 
-	if (scl_data->format == PIXEL_FORMAT_420BPP12) {
+	if (scl_data->format == PIXEL_FORMAT_420BPP8) {
 		luma_viewport->height += luma_viewport->height % 2;
 		luma_viewport->width += luma_viewport->width % 2;
 		/*for 420 video chroma is 1/4 the area of luma, scaled
@@ -184,7 +184,7 @@ static bool setup_scaling_configuration(
 		set_reg_field_value(value, 1, SCLV_MODE, SCL_MODE_C);
 		set_reg_field_value(value, 1, SCLV_MODE, SCL_PSCL_EN_C);
 		is_scaling_needed = true;
-	} else if (data->format != PIXEL_FORMAT_420BPP12) {
+	} else if (data->format != PIXEL_FORMAT_420BPP8) {
 		set_reg_field_value(
 			value,
 			get_reg_field_value(value, SCLV_MODE, SCL_MODE),
@@ -489,7 +489,7 @@ static const uint16_t *get_filter_coeffs_64p(int taps, struct fixed31_32 ratio)
 	if (taps == 4)
 		return get_filter_4tap_64p(ratio);
 	else if (taps == 2)
-		return filter_2tap_64p;
+		return get_filter_2tap_64p();
 	else if (taps == 1)
 		return NULL;
 	else {
@@ -681,6 +681,11 @@ static const struct transform_funcs dce110_xfmv_funcs = {
 	.transform_set_scaler = dce110_xfmv_set_scaler,
 	.transform_set_gamut_remap =
 		dce110_xfmv_set_gamut_remap,
+	.opp_set_csc_default = dce110_opp_v_set_csc_default,
+	.opp_set_csc_adjustment = dce110_opp_v_set_csc_adjustment,
+	.opp_power_on_regamma_lut = dce110_opp_power_on_regamma_lut_v,
+	.opp_program_regamma_pwl = dce110_opp_program_regamma_pwl_v,
+	.opp_set_regamma_mode = dce110_opp_set_regamma_mode_v,
 	.transform_set_pixel_storage_depth =
 			dce110_xfmv_set_pixel_storage_depth,
 	.transform_get_optimal_number_of_taps =

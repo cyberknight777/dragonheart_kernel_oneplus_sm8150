@@ -38,6 +38,8 @@
 
 #include <linux/vga_switcheroo.h>
 
+#include "amdgpu_display.h"
+
 /* object hierarchy -
    this contains a helper + a amdgpu fb
    the helper contains a pointer to amdgpu framebuffer baseclass.
@@ -124,7 +126,7 @@ static int amdgpufb_create_pinned_object(struct amdgpu_fbdev *rfbdev,
 	struct drm_gem_object *gobj = NULL;
 	struct amdgpu_bo *abo = NULL;
 	bool fb_tiled = false; /* useful for testing */
-	u32 tiling_flags = 0;
+	u32 tiling_flags = 0, domain;
 	int ret;
 	int aligned_size, size;
 	int height = mode_cmd->height;
@@ -135,12 +137,12 @@ static int amdgpufb_create_pinned_object(struct amdgpu_fbdev *rfbdev,
 	/* need to align pitch with crtc limits */
 	mode_cmd->pitches[0] = amdgpu_align_pitch(adev, mode_cmd->width, cpp,
 						  fb_tiled);
+	domain = amdgpu_display_supported_domains(adev);
 
 	height = ALIGN(mode_cmd->height, 8);
 	size = mode_cmd->pitches[0] * height;
 	aligned_size = ALIGN(size, PAGE_SIZE);
-	ret = amdgpu_gem_object_create(adev, aligned_size, 0,
-				       AMDGPU_GEM_DOMAIN_VRAM,
+	ret = amdgpu_gem_object_create(adev, aligned_size, 0, domain,
 				       AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED |
 				       AMDGPU_GEM_CREATE_VRAM_CONTIGUOUS |
 				       AMDGPU_GEM_CREATE_VRAM_CLEARED,
@@ -166,7 +168,7 @@ static int amdgpufb_create_pinned_object(struct amdgpu_fbdev *rfbdev,
 	}
 
 
-	ret = amdgpu_bo_pin(abo, AMDGPU_GEM_DOMAIN_VRAM, NULL);
+	ret = amdgpu_bo_pin(abo, domain, NULL);
 	if (ret) {
 		amdgpu_bo_unreserve(abo);
 		goto out_unref;
@@ -348,7 +350,8 @@ int amdgpu_fbdev_init(struct amdgpu_device *adev)
 	drm_fb_helper_single_add_all_connectors(&rfbdev->helper);
 
 	/* disable all the possible outputs/crtcs before entering KMS mode */
-	drm_helper_disable_unused_functions(adev->ddev);
+	if (!amdgpu_device_has_dc_support(adev))
+		drm_helper_disable_unused_functions(adev->ddev);
 
 	drm_fb_helper_initial_config(&rfbdev->helper, bpp_sel);
 	return 0;

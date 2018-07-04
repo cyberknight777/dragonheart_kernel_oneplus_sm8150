@@ -301,10 +301,10 @@ static const struct ddi_buf_trans skl_y_ddi_translations_hdmi[] = {
 };
 
 struct bxt_ddi_buf_trans {
-	u32 margin;	/* swing value */
-	u32 scale;	/* scale value */
-	u32 enable;	/* scale enable */
-	u32 deemphasis;
+	u8 margin;	/* swing value */
+	u8 scale;	/* scale value */
+	u8 enable;	/* scale enable */
+	u8 deemphasis;
 	bool default_index; /* true if the entry represents default value */
 };
 
@@ -354,11 +354,11 @@ static const struct bxt_ddi_buf_trans bxt_ddi_translations_hdmi[] = {
 };
 
 struct cnl_ddi_buf_trans {
-	u32 dw2_swing_sel;
-	u32 dw7_n_scalar;
-	u32 dw4_cursor_coeff;
-	u32 dw4_post_cursor_2;
-	u32 dw4_post_cursor_1;
+	u8 dw2_swing_sel;
+	u8 dw7_n_scalar;
+	u8 dw4_cursor_coeff;
+	u8 dw4_post_cursor_2;
+	u8 dw4_post_cursor_1;
 };
 
 /* Voltage Swing Programming for VccIO 0.85V for DP */
@@ -602,8 +602,10 @@ cnl_get_buf_trans_hdmi(struct drm_i915_private *dev_priv, int *n_entries)
 	} else if (voltage == VOLTAGE_INFO_1_05V) {
 		*n_entries = ARRAY_SIZE(cnl_ddi_translations_hdmi_1_05V);
 		return cnl_ddi_translations_hdmi_1_05V;
-	} else
+	} else {
+		*n_entries = 1; /* shut up gcc */
 		MISSING_CASE(voltage);
+	}
 	return NULL;
 }
 
@@ -621,8 +623,10 @@ cnl_get_buf_trans_dp(struct drm_i915_private *dev_priv, int *n_entries)
 	} else if (voltage == VOLTAGE_INFO_1_05V) {
 		*n_entries = ARRAY_SIZE(cnl_ddi_translations_dp_1_05V);
 		return cnl_ddi_translations_dp_1_05V;
-	} else
+	} else {
+		*n_entries = 1; /* shut up gcc */
 		MISSING_CASE(voltage);
+	}
 	return NULL;
 }
 
@@ -641,8 +645,10 @@ cnl_get_buf_trans_edp(struct drm_i915_private *dev_priv, int *n_entries)
 		} else if (voltage == VOLTAGE_INFO_1_05V) {
 			*n_entries = ARRAY_SIZE(cnl_ddi_translations_edp_1_05V);
 			return cnl_ddi_translations_edp_1_05V;
-		} else
+		} else {
+			*n_entries = 1; /* shut up gcc */
 			MISSING_CASE(voltage);
+		}
 		return NULL;
 	} else {
 		return cnl_get_buf_trans_dp(dev_priv, n_entries);
@@ -1212,7 +1218,10 @@ static int cnl_calc_wrpll_link(struct drm_i915_private *dev_priv,
 	dco_freq = (cfgcr0 & DPLL_CFGCR0_DCO_INTEGER_MASK) * ref_clock;
 
 	dco_freq += (((cfgcr0 & DPLL_CFGCR0_DCO_FRACTION_MASK) >>
-		      DPLL_CFGCR0_DCO_FRAC_SHIFT) * ref_clock) / 0x8000;
+		      DPLL_CFGCR0_DCO_FRACTION_SHIFT) * ref_clock) / 0x8000;
+
+	if (WARN_ON(p0 == 0 || p1 == 0 || p2 == 0))
+		return 0;
 
 	return dco_freq / (p0 * p1 * p2 * 5);
 }
@@ -1901,20 +1910,21 @@ u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder)
 		DP_TRAIN_VOLTAGE_SWING_MASK;
 }
 
-static void cnl_ddi_vswing_program(struct drm_i915_private *dev_priv,
-				    u32 level, enum port port, int type)
+static void cnl_ddi_vswing_program(struct intel_encoder *encoder,
+				   int level, enum intel_output_type type)
 {
-	const struct cnl_ddi_buf_trans *ddi_translations = NULL;
-	u32 n_entries, val;
-	int ln;
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	enum port port = intel_ddi_get_encoder_port(encoder);
+	const struct cnl_ddi_buf_trans *ddi_translations;
+	int n_entries, ln;
+	u32 val;
 
-	if (type == INTEL_OUTPUT_HDMI) {
+	if (type == INTEL_OUTPUT_HDMI)
 		ddi_translations = cnl_get_buf_trans_hdmi(dev_priv, &n_entries);
-	} else if (type == INTEL_OUTPUT_DP) {
-		ddi_translations = cnl_get_buf_trans_dp(dev_priv, &n_entries);
-	} else if (type == INTEL_OUTPUT_EDP) {
+	else if (type == INTEL_OUTPUT_EDP)
 		ddi_translations = cnl_get_buf_trans_edp(dev_priv, &n_entries);
-	}
+	else
+		ddi_translations = cnl_get_buf_trans_dp(dev_priv, &n_entries);
 
 	if (WARN_ON(ddi_translations == NULL))
 		return;
@@ -1940,7 +1950,7 @@ static void cnl_ddi_vswing_program(struct drm_i915_private *dev_priv,
 	val |= RCOMP_SCALAR(0x98);
 	I915_WRITE(CNL_PORT_TX_DW2_GRP(port), val);
 
-        /* Program PORT_TX_DW4 */
+	/* Program PORT_TX_DW4 */
 	/* We cannot write to GRP. It would overrite individual loadgen */
 	for (ln = 0; ln < 4; ln++) {
 		val = I915_READ(CNL_PORT_TX_DW4_LN(port, ln));
@@ -1952,7 +1962,7 @@ static void cnl_ddi_vswing_program(struct drm_i915_private *dev_priv,
 		I915_WRITE(CNL_PORT_TX_DW4_LN(port, ln), val);
 	}
 
-        /* Program PORT_TX_DW5 */
+	/* Program PORT_TX_DW5 */
 	/* All DW5 values are fixed for every table entry */
 	val = I915_READ(CNL_PORT_TX_DW5_LN0(port));
 	val &= ~RTERM_SELECT_MASK;
@@ -1960,33 +1970,29 @@ static void cnl_ddi_vswing_program(struct drm_i915_private *dev_priv,
 	val |= TAP3_DISABLE;
 	I915_WRITE(CNL_PORT_TX_DW5_GRP(port), val);
 
-        /* Program PORT_TX_DW7 */
+	/* Program PORT_TX_DW7 */
 	val = I915_READ(CNL_PORT_TX_DW7_LN0(port));
 	val &= ~N_SCALAR_MASK;
 	val |= N_SCALAR(ddi_translations[level].dw7_n_scalar);
 	I915_WRITE(CNL_PORT_TX_DW7_GRP(port), val);
 }
 
-static void cnl_ddi_vswing_sequence(struct intel_encoder *encoder, u32 level)
+static void cnl_ddi_vswing_sequence(struct intel_encoder *encoder,
+				    int level, enum intel_output_type type)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_dp *intel_dp = enc_to_intel_dp(&encoder->base);
 	enum port port = intel_ddi_get_encoder_port(encoder);
-	int type = encoder->type;
-	int width = 0;
-	int rate = 0;
+	int width, rate, ln;
 	u32 val;
-	int ln = 0;
 
-	if ((intel_dp) && (type == INTEL_OUTPUT_EDP || type == INTEL_OUTPUT_DP)) {
+	if (type == INTEL_OUTPUT_HDMI) {
+		width = 4;
+		rate = 0; /* Rate is always < than 6GHz for HDMI */
+	} else {
+		struct intel_dp *intel_dp = enc_to_intel_dp(&encoder->base);
+
 		width = intel_dp->lane_count;
 		rate = intel_dp->link_rate;
-	} else if (type == INTEL_OUTPUT_HDMI) {
-		width = 4;
-		/* Rate is always < than 6GHz for HDMI */
-	} else {
-		MISSING_CASE(type);
-		return;
 	}
 
 	/*
@@ -1995,7 +2001,7 @@ static void cnl_ddi_vswing_sequence(struct intel_encoder *encoder, u32 level)
 	 * else clear to 0b.
 	 */
 	val = I915_READ(CNL_PORT_PCS_DW1_LN0(port));
-	if (type == INTEL_OUTPUT_EDP || type == INTEL_OUTPUT_DP)
+	if (type != INTEL_OUTPUT_HDMI)
 		val |= COMMON_KEEPER_EN;
 	else
 		val &= ~COMMON_KEEPER_EN;
@@ -2030,7 +2036,7 @@ static void cnl_ddi_vswing_sequence(struct intel_encoder *encoder, u32 level)
 	I915_WRITE(CNL_PORT_TX_DW5_GRP(port), val);
 
 	/* 5. Program swing and de-emphasis */
-	cnl_ddi_vswing_program(dev_priv, level, port, type);
+	cnl_ddi_vswing_program(encoder, level, type);
 
 	/* 6. Set training enable to trigger update */
 	val = I915_READ(CNL_PORT_TX_DW5_LN0(port));
@@ -2071,7 +2077,7 @@ u32 bxt_signal_levels(struct intel_dp *intel_dp)
 	u32 level = intel_ddi_dp_level(intel_dp);
 
 	if (IS_CANNONLAKE(dev_priv))
-		cnl_ddi_vswing_sequence(encoder, level);
+		cnl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else
 		bxt_ddi_vswing_sequence(dev_priv, level, port, encoder->type);
 
@@ -2101,9 +2107,12 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 	if (WARN_ON(!pll))
 		return;
 
+	 mutex_lock(&dev_priv->dpll_lock);
+
 	if (IS_CANNONLAKE(dev_priv)) {
 		/* Configure DPCLKA_CFGCR0 to map the DPLL to the DDI. */
 		val = I915_READ(DPCLKA_CFGCR0);
+		val &= ~DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);
 		val |= DPCLKA_CFGCR0_DDI_CLK_SEL(pll->id, port);
 		I915_WRITE(DPCLKA_CFGCR0, val);
 
@@ -2129,6 +2138,8 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 	} else if (INTEL_INFO(dev_priv)->gen < 9) {
 		I915_WRITE(PORT_CLK_SEL(port), hsw_pll_to_ddi_pll_sel(pll));
 	}
+
+	mutex_unlock(&dev_priv->dpll_lock);
 }
 
 static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
@@ -2154,7 +2165,7 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
 	if (IS_CANNONLAKE(dev_priv))
-		cnl_ddi_vswing_sequence(encoder, level);
+		cnl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else if (IS_GEN9_LP(dev_priv))
 		bxt_ddi_vswing_sequence(dev_priv, level, port, encoder->type);
 	else
@@ -2186,7 +2197,7 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
 	if (IS_CANNONLAKE(dev_priv))
-		cnl_ddi_vswing_sequence(encoder, level);
+		cnl_ddi_vswing_sequence(encoder, level, INTEL_OUTPUT_HDMI);
 	else if (IS_GEN9_LP(dev_priv))
 		bxt_ddi_vswing_sequence(dev_priv, level, port,
 					INTEL_OUTPUT_HDMI);
@@ -2456,6 +2467,13 @@ bool intel_ddi_is_audio_enabled(struct drm_i915_private *dev_priv,
 	return false;
 }
 
+void intel_ddi_compute_min_voltage_level(struct drm_i915_private *dev_priv,
+					 struct intel_crtc_state *crtc_state)
+{
+	if (IS_CANNONLAKE(dev_priv) && crtc_state->port_clock > 594000)
+		crtc_state->min_voltage_level = 2;
+}
+
 void intel_ddi_get_config(struct intel_encoder *encoder,
 			  struct intel_crtc_state *pipe_config)
 {
@@ -2555,6 +2573,8 @@ void intel_ddi_get_config(struct intel_encoder *encoder,
 	if (IS_GEN9_LP(dev_priv))
 		pipe_config->lane_lat_optim_mask =
 			bxt_ddi_phy_get_lane_lat_optim_mask(encoder);
+
+	intel_ddi_compute_min_voltage_level(dev_priv, pipe_config);
 }
 
 static bool intel_ddi_compute_config(struct intel_encoder *encoder,
@@ -2580,6 +2600,8 @@ static bool intel_ddi_compute_config(struct intel_encoder *encoder,
 		pipe_config->lane_lat_optim_mask =
 			bxt_ddi_phy_calc_lane_lat_optim_mask(encoder,
 							     pipe_config->lane_count);
+
+	intel_ddi_compute_min_voltage_level(dev_priv, pipe_config);
 
 	return ret;
 
@@ -2623,6 +2645,34 @@ intel_ddi_init_hdmi_connector(struct intel_digital_port *intel_dig_port)
 	intel_hdmi_init_connector(intel_dig_port, connector);
 
 	return connector;
+}
+
+static bool intel_ddi_a_force_4_lanes(struct intel_digital_port *dport)
+{
+	struct drm_i915_private *dev_priv = to_i915(dport->base.base.dev);
+
+	if (dport->port != PORT_A)
+		return false;
+
+	if (dport->saved_port_bits & DDI_A_4_LANES)
+		return false;
+
+	/* Broxton/Geminilake: Bspec says that DDI_A_4_LANES is the only
+	 *                     supported configuration
+	 */
+	if (IS_GEN9_LP(dev_priv))
+		return true;
+
+	/* Cannonlake: Most of SKUs don't support DDI_E, and the only
+	 *             one who does also have a full A/E split called
+	 *             DDI_F what makes DDI_E useless. However for this
+	 *             case let's trust VBT info.
+	 */
+	if (IS_CANNONLAKE(dev_priv) &&
+	    !intel_bios_is_port_present(dev_priv, PORT_E))
+		return true;
+
+	return false;
 }
 
 void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
@@ -2734,18 +2784,14 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 	}
 
 	/*
-	 * Bspec says that DDI_A_4_LANES is the only supported configuration
-	 * for Broxton.  Yet some BIOS fail to set this bit on port A if eDP
-	 * wasn't lit up at boot.  Force this bit on in our internal
-	 * configuration so that we use the proper lane count for our
-	 * calculations.
+	 * Some BIOS might fail to set this bit on port A if eDP
+	 * wasn't lit up at boot.  Force this bit set when needed
+	 * so we use the proper lane count for our calculations.
 	 */
-	if (IS_GEN9_LP(dev_priv) && port == PORT_A) {
-		if (!(intel_dig_port->saved_port_bits & DDI_A_4_LANES)) {
-			DRM_DEBUG_KMS("BXT BIOS forgot to set DDI_A_4_LANES for port A; fixing\n");
-			intel_dig_port->saved_port_bits |= DDI_A_4_LANES;
-			max_lanes = 4;
-		}
+	if (intel_ddi_a_force_4_lanes(intel_dig_port)) {
+		DRM_DEBUG_KMS("Forcing DDI_A_4_LANES for port A\n");
+		intel_dig_port->saved_port_bits |= DDI_A_4_LANES;
+		max_lanes = 4;
 	}
 
 	intel_dig_port->max_lanes = max_lanes;

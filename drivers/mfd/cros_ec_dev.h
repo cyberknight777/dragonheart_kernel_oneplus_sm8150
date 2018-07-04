@@ -42,6 +42,7 @@ struct cros_ec_readmem {
 #define CROS_EC_DEV_IOC       0xEC
 #define CROS_EC_DEV_IOCXCMD   _IOWR(CROS_EC_DEV_IOC, 0, struct cros_ec_command)
 #define CROS_EC_DEV_IOCRDMEM  _IOWR(CROS_EC_DEV_IOC, 1, struct cros_ec_readmem)
+#define CROS_EC_DEV_IOCEVENTMASK _IO(CROS_EC_DEV_IOC, 2)
 
 /* Lightbar utilities */
 extern bool ec_has_lightbar(struct cros_ec_dev *ec);

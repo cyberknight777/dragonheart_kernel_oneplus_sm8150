@@ -31,10 +31,11 @@
 #include "dc_dp_types.h"
 #include "dc_hw_types.h"
 #include "dal_types.h"
+#include "grph_object_defs.h"
 
 /* forward declarations */
-struct dc_surface;
-struct dc_stream;
+struct dc_plane_state;
+struct dc_stream_state;
 struct dc_link;
 struct dc_sink;
 struct dal;
@@ -91,12 +92,15 @@ struct dc_context {
 	bool created_bios;
 	struct gpio_service *gpio_service;
 	struct i2caux *i2caux;
+#if defined(CONFIG_DRM_AMD_DC_FBC)
+	uint64_t fbc_gpu_addr;
+#endif
 };
 
 
 #define MAX_EDID_BUFFER_SIZE 512
 #define EDID_BLOCK_SIZE 128
-#define MAX_SURFACE_NUM 2
+#define MAX_SURFACE_NUM 4
 #define NUM_PIXEL_FORMATS 10
 
 #include "dc_ddc_types.h"
@@ -147,6 +151,7 @@ enum dc_edid_status {
 	EDID_BAD_INPUT,
 	EDID_NO_RESPONSE,
 	EDID_BAD_CHECKSUM,
+	EDID_THE_SAME,
 };
 
 /* audio capability from EDID*/
@@ -176,6 +181,18 @@ struct dc_edid {
 
 #define AUDIO_INFO_DISPLAY_NAME_SIZE_IN_CHARS 20
 
+union display_content_support {
+	unsigned int raw;
+	struct {
+		unsigned int valid_content_type :1;
+		unsigned int game_content :1;
+		unsigned int cinema_content :1;
+		unsigned int photo_content :1;
+		unsigned int graphics_content :1;
+		unsigned int reserved :27;
+	} bits;
+};
+
 struct dc_edid_caps {
 	/* sink identification */
 	uint16_t manufacturer_id;
@@ -191,6 +208,11 @@ struct dc_edid_caps {
 	struct dc_cea_audio_mode audio_modes[DC_MAX_AUDIO_DESC_COUNT];
 	uint32_t audio_latency;
 	uint32_t video_latency;
+
+	union display_content_support content_support;
+
+	uint8_t qs_bit;
+	uint8_t qy_bit;
 
 	/*HDMI 2.0 caps*/
 	bool lte_340mcsc_scramble;
@@ -271,6 +293,15 @@ enum dc_timing_source {
 	TIMING_SOURCE_COUNT
 };
 
+
+struct stereo_3d_features {
+	bool supported			;
+	bool allTimings			;
+	bool cloneMode			;
+	bool scaling			;
+	bool singleFrameSWPacked;
+};
+
 enum dc_timing_support_method {
 	TIMING_SUPPORT_METHOD_UNDEFINED,
 	TIMING_SUPPORT_METHOD_EXPLICIT,
@@ -338,6 +369,26 @@ enum {
 	LAYER_INDEX_PRIMARY = -1,
 };
 
+enum dpcd_downstream_port_max_bpc {
+	DOWN_STREAM_MAX_8BPC = 0,
+	DOWN_STREAM_MAX_10BPC,
+	DOWN_STREAM_MAX_12BPC,
+	DOWN_STREAM_MAX_16BPC
+};
+struct dc_dongle_caps {
+	/* dongle type (DP converter, CV smart dongle) */
+	enum display_dongle_type dongle_type;
+	bool extendedCapValid;
+	/* If dongle_type == DISPLAY_DONGLE_DP_HDMI_CONVERTER,
+	indicates 'Frame Sequential-to-lllFrame Pack' conversion capability.*/
+	bool is_dp_hdmi_s3d_converter;
+	bool is_dp_hdmi_ycbcr422_pass_through;
+	bool is_dp_hdmi_ycbcr420_pass_through;
+	bool is_dp_hdmi_ycbcr422_converter;
+	bool is_dp_hdmi_ycbcr420_converter;
+	uint32_t dp_hdmi_max_bpc;
+	uint32_t dp_hdmi_max_pixel_clk;
+};
 /* Scaling format */
 enum scaling_transformation {
 	SCALING_TRANSFORMATION_UNINITIALIZED,
@@ -352,6 +403,14 @@ enum scaling_transformation {
 	SCALING_TRANSFORMATION_BEGING = SCALING_TRANSFORMATION_IDENTITY,
 	SCALING_TRANSFORMATION_END =
 		SCALING_TRANSFORMATION_PRESERVE_ASPECT_RATIO_SCALE
+};
+
+enum display_content_type {
+	DISPLAY_CONTENT_TYPE_NO_DATA = 0,
+	DISPLAY_CONTENT_TYPE_GRAPHICS = 1,
+	DISPLAY_CONTENT_TYPE_PHOTO = 2,
+	DISPLAY_CONTENT_TYPE_CINEMA = 4,
+	DISPLAY_CONTENT_TYPE_GAME = 8
 };
 
 /* audio*/
@@ -371,14 +430,14 @@ union audio_sample_rates {
 };
 
 struct audio_speaker_flags {
-    uint32_t FL_FR:1;
-    uint32_t LFE:1;
-    uint32_t FC:1;
-    uint32_t RL_RR:1;
-    uint32_t RC:1;
-    uint32_t FLC_FRC:1;
-    uint32_t RLC_RRC:1;
-    uint32_t SUPPORT_AI:1;
+	uint32_t FL_FR:1;
+	uint32_t LFE:1;
+	uint32_t FC:1;
+	uint32_t RL_RR:1;
+	uint32_t RC:1;
+	uint32_t FLC_FRC:1;
+	uint32_t RLC_RRC:1;
+	uint32_t SUPPORT_AI:1;
 };
 
 struct audio_speaker_info {
@@ -464,6 +523,116 @@ struct freesync_context {
 	unsigned int nominal_refresh_in_micro_hz;
 };
 
+struct psr_config {
+	unsigned char psr_version;
+	unsigned int psr_rfb_setup_time;
+	bool psr_exit_link_training_required;
+
+	bool psr_frame_capture_indication_req;
+	unsigned int psr_sdp_transmit_line_num_deadline;
+};
+
+union dmcu_psr_level {
+	struct {
+		unsigned int SKIP_CRC:1;
+		unsigned int SKIP_DP_VID_STREAM_DISABLE:1;
+		unsigned int SKIP_PHY_POWER_DOWN:1;
+		unsigned int SKIP_AUX_ACK_CHECK:1;
+		unsigned int SKIP_CRTC_DISABLE:1;
+		unsigned int SKIP_AUX_RFB_CAPTURE_CHECK:1;
+		unsigned int SKIP_SMU_NOTIFICATION:1;
+		unsigned int SKIP_AUTO_STATE_ADVANCE:1;
+		unsigned int DISABLE_PSR_ENTRY_ABORT:1;
+		unsigned int SKIP_SINGLE_OTG_DISABLE:1;
+		unsigned int RESERVED:22;
+	} bits;
+	unsigned int u32all;
+};
+
+enum physical_phy_id {
+	PHYLD_0,
+	PHYLD_1,
+	PHYLD_2,
+	PHYLD_3,
+	PHYLD_4,
+	PHYLD_5,
+	PHYLD_6,
+	PHYLD_7,
+	PHYLD_8,
+	PHYLD_9,
+	PHYLD_COUNT,
+	PHYLD_UNKNOWN = (-1L)
+};
+
+enum phy_type {
+	PHY_TYPE_UNKNOWN  = 1,
+	PHY_TYPE_PCIE_PHY = 2,
+	PHY_TYPE_UNIPHY = 3,
+};
+
+struct psr_context {
+	/* ddc line */
+	enum channel_id channel;
+	/* Transmitter id */
+	enum transmitter transmitterId;
+	/* Engine Id is used for Dig Be source select */
+	enum engine_id engineId;
+	/* Controller Id used for Dig Fe source select */
+	enum controller_id controllerId;
+	/* Pcie or Uniphy */
+	enum phy_type phyType;
+	/* Physical PHY Id used by SMU interpretation */
+	enum physical_phy_id smuPhyId;
+	/* Vertical total pixels from crtc timing.
+	 * This is used for static screen detection.
+	 * ie. If we want to detect half a frame,
+	 * we use this to determine the hyst lines.
+	 */
+	unsigned int crtcTimingVerticalTotal;
+	/* PSR supported from panel capabilities and
+	 * current display configuration
+	 */
+	bool psrSupportedDisplayConfig;
+	/* Whether fast link training is supported by the panel */
+	bool psrExitLinkTrainingRequired;
+	/* If RFB setup time is greater than the total VBLANK time,
+	 * it is not possible for the sink to capture the video frame
+	 * in the same frame the SDP is sent. In this case,
+	 * the frame capture indication bit should be set and an extra
+	 * static frame should be transmitted to the sink.
+	 */
+	bool psrFrameCaptureIndicationReq;
+	/* Set the last possible line SDP may be transmitted without violating
+	 * the RFB setup time or entering the active video frame.
+	 */
+	unsigned int sdpTransmitLineNumDeadline;
+	/* The VSync rate in Hz used to calculate the
+	 * step size for smooth brightness feature
+	 */
+	unsigned int vsyncRateHz;
+	unsigned int skipPsrWaitForPllLock;
+	unsigned int numberOfControllers;
+	/* Unused, for future use. To indicate that first changed frame from
+	 * state3 shouldn't result in psr_inactive, but rather to perform
+	 * an automatic single frame rfb_update.
+	 */
+	bool rfb_update_auto_en;
+	/* Number of frame before entering static screen */
+	unsigned int timehyst_frames;
+	/* Partial frames before entering static screen */
+	unsigned int hyst_lines;
+	/* # of repeated AUX transaction attempts to make before
+	 * indicating failure to the driver
+	 */
+	unsigned int aux_repeats;
+	/* Controls hw blocks to power down during PSR active state */
+	union dmcu_psr_level psr_level;
+	/* Controls additional delay after remote frame capture before
+	 * continuing powerd own
+	 */
+	unsigned int frame_delay;
+};
+
 struct colorspace_transform {
 	struct fixed31_32 matrix[12];
 	bool enable_remap;
@@ -474,19 +643,10 @@ struct csc_transform {
 	bool enable_adjustment;
 };
 
-struct psr_caps {
-	/* These parameters are from PSR capabilities reported by Sink DPCD */
-	unsigned char psr_version;
-	unsigned int psr_rfb_setup_time;
-	bool psr_exit_link_training_required;
-
-	/* These parameters are calculated in Driver,
-	 * based on display timing and Sink capabilities.
-	 * If VBLANK region is too small and Sink takes a long time
-	 * to set up RFB, it may take an extra frame to enter PSR state.
-	 */
-	bool psr_frame_capture_indication_req;
-	unsigned int psr_sdp_transmit_line_num_deadline;
+enum i2c_mot_mode {
+	I2C_MOT_UNDEF,
+	I2C_MOT_TRUE,
+	I2C_MOT_FALSE
 };
 
 #endif /* DC_TYPES_H_ */

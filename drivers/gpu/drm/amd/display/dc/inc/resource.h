@@ -27,8 +27,8 @@
 
 #include "core_types.h"
 #include "core_status.h"
-#include "core_dc.h"
 #include "dal_asic_id.h"
+#include "dm_pp_smu.h"
 
 /* TODO unhardcode, 4 for CZ*/
 #define MEMORY_TYPE_MULTIPLIER 4
@@ -42,6 +42,7 @@ struct resource_caps {
 	int num_audio;
 	int num_stream_encoder;
 	int num_pll;
+	int num_dwb;
 };
 
 struct resource_straps {
@@ -66,100 +67,106 @@ struct resource_create_funcs {
 
 bool resource_construct(
 	unsigned int num_virtual_links,
-	struct core_dc *dc,
+	struct dc *dc,
 	struct resource_pool *pool,
 	const struct resource_create_funcs *create_funcs);
 
 struct resource_pool *dc_create_resource_pool(
-				struct core_dc *dc,
+				struct dc *dc,
 				int num_virtual_links,
 				enum dce_version dc_version,
 				struct hw_asic_id asic_id);
 
-void dc_destroy_resource_pool(struct core_dc *dc);
+void dc_destroy_resource_pool(struct dc *dc);
 
 enum dc_status resource_map_pool_resources(
-		const struct core_dc *dc,
-		struct validate_context *context);
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream);
 
-bool resource_build_scaling_params(
-		const struct dc_surface *surface,
-		struct pipe_ctx *pipe_ctx);
+bool resource_build_scaling_params(struct pipe_ctx *pipe_ctx);
 
 enum dc_status resource_build_scaling_params_for_context(
-		const struct core_dc *dc,
-		struct validate_context *context);
+		const struct dc *dc,
+		struct dc_state *context);
 
 void resource_build_info_frame(struct pipe_ctx *pipe_ctx);
 
 void resource_unreference_clock_source(
 		struct resource_context *res_ctx,
-		struct clock_source **clock_source);
+		const struct resource_pool *pool,
+		struct clock_source *clock_source);
 
 void resource_reference_clock_source(
 		struct resource_context *res_ctx,
+		const struct resource_pool *pool,
 		struct clock_source *clock_source);
 
 bool resource_are_streams_timing_synchronizable(
-		const struct core_stream *stream1,
-		const struct core_stream *stream2);
+		struct dc_stream_state *stream1,
+		struct dc_stream_state *stream2);
 
 struct clock_source *resource_find_used_clk_src_for_sharing(
 		struct resource_context *res_ctx,
 		struct pipe_ctx *pipe_ctx);
 
 struct clock_source *dc_resource_find_first_free_pll(
-		struct resource_context *res_ctx);
+		struct resource_context *res_ctx,
+		const struct resource_pool *pool);
 
 struct pipe_ctx *resource_get_head_pipe_for_stream(
 		struct resource_context *res_ctx,
-		const struct core_stream *stream);
+		struct dc_stream_state *stream);
 
 bool resource_attach_surfaces_to_context(
-		const struct dc_surface *const *surfaces,
+		struct dc_plane_state *const *plane_state,
 		int surface_count,
-		const struct dc_stream *dc_stream,
-		struct validate_context *context);
+		struct dc_stream_state *dc_stream,
+		struct dc_state *context,
+		const struct resource_pool *pool);
 
-struct pipe_ctx *find_idle_secondary_pipe(struct resource_context *res_ctx);
+struct pipe_ctx *find_idle_secondary_pipe(
+		struct resource_context *res_ctx,
+		const struct resource_pool *pool);
 
 bool resource_is_stream_unchanged(
-	const struct validate_context *old_context, const struct core_stream *stream);
-
-bool is_stream_unchanged(
-	const struct core_stream *old_stream, const struct core_stream *stream);
+	struct dc_state *old_context, struct dc_stream_state *stream);
 
 bool resource_validate_attach_surfaces(
 		const struct dc_validation_set set[],
 		int set_count,
-		const struct validate_context *old_context,
-		struct validate_context *context);
+		const struct dc_state *old_context,
+		struct dc_state *context,
+		const struct resource_pool *pool);
 
 void validate_guaranteed_copy_streams(
-		struct validate_context *context,
+		struct dc_state *context,
 		int max_streams);
 
 void resource_validate_ctx_update_pointer_after_copy(
-		const struct validate_context *src_ctx,
-		struct validate_context *dst_ctx);
-
-void resource_validate_ctx_copy_construct(
-		const struct validate_context *src_ctx,
-		struct validate_context *dst_ctx);
-
-void resource_validate_ctx_destruct(struct validate_context *context);
+		const struct dc_state *src_ctx,
+		struct dc_state *dst_ctx);
 
 enum dc_status resource_map_clock_resources(
-		const struct core_dc *dc,
-		struct validate_context *context);
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream);
 
 enum dc_status resource_map_phy_clock_resources(
-		const struct core_dc *dc,
-		struct validate_context *context);
+		const struct dc *dc,
+		struct dc_state *context,
+		struct dc_stream_state *stream);
 
 bool pipe_need_reprogram(
 		struct pipe_ctx *pipe_ctx_old,
 		struct pipe_ctx *pipe_ctx);
 
+void resource_build_bit_depth_reduction_params(struct dc_stream_state *stream,
+		struct bit_depth_reduction_params *fmt_bit_depth);
 
+void update_audio_usage(
+		struct resource_context *res_ctx,
+		const struct resource_pool *pool,
+		struct audio *audio,
+		bool acquired);
 #endif /* DRIVERS_GPU_DRM_AMD_DC_DEV_DC_INC_RESOURCE_H_ */

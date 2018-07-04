@@ -578,6 +578,8 @@ static uint32_t dce110_get_pix_clk_dividers(
 
 	switch (cs->ctx->dce_version) {
 	case DCE_VERSION_8_0:
+	case DCE_VERSION_8_1:
+	case DCE_VERSION_8_3:
 	case DCE_VERSION_10_0:
 	case DCE_VERSION_11_0:
 		pll_calc_error =
@@ -585,6 +587,11 @@ static uint32_t dce110_get_pix_clk_dividers(
 			pll_settings, pix_clk_params);
 		break;
 	case DCE_VERSION_11_2:
+	case DCE_VERSION_12_0:
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	case DCN_VERSION_1_0:
+#endif
+
 		dce112_get_pix_clk_dividers_helper(clk_src,
 				pll_settings, pix_clk_params);
 		break;
@@ -593,6 +600,90 @@ static uint32_t dce110_get_pix_clk_dividers(
 	}
 
 	return pll_calc_error;
+}
+
+static uint32_t dce110_get_pll_pixel_rate_in_hz(
+	struct clock_source *cs,
+	struct pixel_clk_params *pix_clk_params,
+	struct pll_settings *pll_settings)
+{
+	uint32_t inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+	struct dc *dc_core = cs->ctx->dc;
+	struct dc_state *context = dc_core->current_state;
+	struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[inst];
+
+	/* This function need separate to different DCE version, before separate, just use pixel clock */
+	return pipe_ctx->stream->phy_pix_clk;
+
+}
+
+static uint32_t dce110_get_dp_pixel_rate_from_combo_phy_pll(
+	struct clock_source *cs,
+	struct pixel_clk_params *pix_clk_params,
+	struct pll_settings *pll_settings)
+{
+	uint32_t inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+	struct dc *dc_core = cs->ctx->dc;
+	struct dc_state *context = dc_core->current_state;
+	struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[inst];
+
+	/* This function need separate to different DCE version, before separate, just use pixel clock */
+	return pipe_ctx->stream->phy_pix_clk;
+}
+
+static uint32_t dce110_get_d_to_pixel_rate_in_hz(
+	struct clock_source *cs,
+	struct pixel_clk_params *pix_clk_params,
+	struct pll_settings *pll_settings)
+{
+	uint32_t inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+	struct dce110_clk_src *clk_src = TO_DCE110_CLK_SRC(cs);
+	int dto_enabled = 0;
+	struct fixed31_32 pix_rate;
+
+	REG_GET(PIXEL_RATE_CNTL[inst], DP_DTO0_ENABLE, &dto_enabled);
+
+	if (dto_enabled) {
+		uint32_t phase = 0;
+		uint32_t modulo = 0;
+		REG_GET(PHASE[inst], DP_DTO0_PHASE, &phase);
+		REG_GET(MODULO[inst], DP_DTO0_MODULO, &modulo);
+
+		if (modulo == 0) {
+			return 0;
+		}
+
+		pix_rate = dal_fixed31_32_from_int(clk_src->ref_freq_khz);
+		pix_rate = dal_fixed31_32_mul_int(pix_rate, 1000);
+		pix_rate = dal_fixed31_32_mul_int(pix_rate, phase);
+		pix_rate = dal_fixed31_32_div_int(pix_rate, modulo);
+
+		return dal_fixed31_32_round(pix_rate);
+	} else {
+		return dce110_get_dp_pixel_rate_from_combo_phy_pll(cs, pix_clk_params, pll_settings);
+	}
+}
+
+static uint32_t dce110_get_pix_rate_in_hz(
+	struct clock_source *cs,
+	struct pixel_clk_params *pix_clk_params,
+	struct pll_settings *pll_settings)
+{
+	uint32_t pix_rate = 0;
+	switch (pix_clk_params->signal_type) {
+	case	SIGNAL_TYPE_DISPLAY_PORT:
+	case	SIGNAL_TYPE_DISPLAY_PORT_MST:
+	case	SIGNAL_TYPE_EDP:
+	case	SIGNAL_TYPE_VIRTUAL:
+		pix_rate = dce110_get_d_to_pixel_rate_in_hz(cs, pix_clk_params, pll_settings);
+		break;
+	case	SIGNAL_TYPE_HDMI_TYPE_A:
+	default:
+		pix_rate = dce110_get_pll_pixel_rate_in_hz(cs, pix_clk_params, pll_settings);
+		break;
+	}
+
+	return pix_rate;
 }
 
 static bool disable_spread_spectrum(struct dce110_clk_src *clk_src)
@@ -814,6 +905,31 @@ static bool dce110_program_pix_clk(
 	struct dce110_clk_src *clk_src = TO_DCE110_CLK_SRC(clock_source);
 	struct bp_pixel_clock_parameters bp_pc_params = {0};
 
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	if (IS_FPGA_MAXIMUS_DC(clock_source->ctx->dce_environment)) {
+		unsigned int inst = pix_clk_params->controller_id - CONTROLLER_ID_D0;
+		unsigned dp_dto_ref_kHz = 600000;
+		/* DPREF clock from FPGA TODO: Does FPGA have this value? */
+		unsigned clock_kHz = pll_settings->actual_pix_clk;
+
+		/* For faster simulation, if mode pixe clock less than 290MHz,
+		 * pixel clock can be hard coded to 290Mhz. For 4K mode, pixel clock
+		 * is greater than 500Mhz, need real pixel clock
+		 * clock_kHz = 290000;
+		 */
+		/* TODO: un-hardcode when we can set display clock properly*/
+		/*clock_kHz = pix_clk_params->requested_pix_clk;*/
+		clock_kHz = 290000;
+
+		/* Set DTO values: phase = target clock, modulo = reference clock */
+		REG_WRITE(PHASE[inst], clock_kHz);
+		REG_WRITE(MODULO[inst], dp_dto_ref_kHz);
+
+		/* Enable DTO */
+		REG_UPDATE(PIXEL_RATE_CNTL[inst], DP_DTO0_ENABLE, 1);
+		return true;
+	}
+#endif
 	/* First disable SS
 	 * ATOMBIOS will enable by default SS on PLL for DP,
 	 * do not disable it here
@@ -832,6 +948,8 @@ static bool dce110_program_pix_clk(
 
 	switch (clock_source->ctx->dce_version) {
 	case DCE_VERSION_8_0:
+	case DCE_VERSION_8_1:
+	case DCE_VERSION_8_3:
 	case DCE_VERSION_10_0:
 	case DCE_VERSION_11_0:
 		bp_pc_params.reference_divider = pll_settings->reference_divider;
@@ -868,6 +986,11 @@ static bool dce110_program_pix_clk(
 
 		break;
 	case DCE_VERSION_11_2:
+	case DCE_VERSION_12_0:
+#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
+	case DCN_VERSION_1_0:
+#endif
+
 		if (clock_source->id != CLOCK_SOURCE_ID_DP_DTO) {
 			bp_pc_params.flags.SET_GENLOCK_REF_DIV_SRC =
 							pll_settings->use_external_clk;
@@ -923,7 +1046,8 @@ static bool dce110_clock_source_power_down(
 static const struct clock_source_funcs dce110_clk_src_funcs = {
 	.cs_power_down = dce110_clock_source_power_down,
 	.program_pix_clk = dce110_program_pix_clk,
-	.get_pix_clk_dividers = dce110_get_pix_clk_dividers
+	.get_pix_clk_dividers = dce110_get_pix_clk_dividers,
+	.get_pix_rate_in_hz = dce110_get_pix_rate_in_hz
 };
 
 static void get_ss_info_from_atombios(
@@ -960,12 +1084,14 @@ static void get_ss_info_from_atombios(
 	if (*ss_entries_num == 0)
 		return;
 
-	ss_info = dm_alloc(sizeof(struct spread_spectrum_info) * (*ss_entries_num));
+	ss_info = kzalloc(sizeof(struct spread_spectrum_info) * (*ss_entries_num),
+			  GFP_KERNEL);
 	ss_info_cur = ss_info;
 	if (ss_info == NULL)
 		return;
 
-	ss_data = dm_alloc(sizeof(struct spread_spectrum_data) * (*ss_entries_num));
+	ss_data = kzalloc(sizeof(struct spread_spectrum_data) * (*ss_entries_num),
+			  GFP_KERNEL);
 	if (ss_data == NULL)
 		goto out_free_info;
 
@@ -1033,14 +1159,14 @@ static void get_ss_info_from_atombios(
 	}
 
 	*spread_spectrum_data = ss_data;
-	dm_free(ss_info);
+	kfree(ss_info);
 	return;
 
 out_free_data:
-	dm_free(ss_data);
+	kfree(ss_data);
 	*ss_entries_num = 0;
 out_free_info:
-	dm_free(ss_info);
+	kfree(ss_info);
 }
 
 static void ss_info_from_atombios_create(
@@ -1068,7 +1194,7 @@ static bool calc_pll_max_vco_construct(
 			struct calc_pll_clock_source_init_data *init_data)
 {
 	uint32_t i;
-	struct firmware_info fw_info = { { 0 } };
+	struct dc_firmware_info fw_info = { { 0 } };
 	if (calc_pll_cs == NULL ||
 			init_data == NULL ||
 			init_data->bp == NULL)
@@ -1150,7 +1276,7 @@ bool dce110_clk_src_construct(
 	const struct dce110_clk_src_shift *cs_shift,
 	const struct dce110_clk_src_mask *cs_mask)
 {
-	struct firmware_info fw_info = { { 0 } };
+	struct dc_firmware_info fw_info = { { 0 } };
 	struct calc_pll_clock_source_init_data calc_pll_cs_init_data_hdmi;
 	struct calc_pll_clock_source_init_data calc_pll_cs_init_data;
 
@@ -1174,6 +1300,8 @@ bool dce110_clk_src_construct(
 
 	switch (clk_src->base.ctx->dce_version) {
 	case DCE_VERSION_8_0:
+	case DCE_VERSION_8_1:
+	case DCE_VERSION_8_3:
 	case DCE_VERSION_10_0:
 	case DCE_VERSION_11_0:
 
@@ -1230,17 +1358,12 @@ bool dce110_clk_src_construct(
 			goto unexpected_failure;
 		}
 
-		if (clk_src->ref_freq_khz == 48000) {
-			calc_pll_cs_init_data_hdmi.
-				min_override_input_pxl_clk_pll_freq_khz = 24000;
-			calc_pll_cs_init_data_hdmi.
-				max_override_input_pxl_clk_pll_freq_khz = 48000;
-		} else if (clk_src->ref_freq_khz == 100000) {
-			calc_pll_cs_init_data_hdmi.
-				min_override_input_pxl_clk_pll_freq_khz = 25000;
-			calc_pll_cs_init_data_hdmi.
-				max_override_input_pxl_clk_pll_freq_khz = 50000;
-		}
+
+		calc_pll_cs_init_data_hdmi.
+				min_override_input_pxl_clk_pll_freq_khz = clk_src->ref_freq_khz/2;
+		calc_pll_cs_init_data_hdmi.
+				max_override_input_pxl_clk_pll_freq_khz = clk_src->ref_freq_khz;
+
 
 		if (!calc_pll_max_vco_construct(
 				&clk_src->calc_pll_hdmi, &calc_pll_cs_init_data_hdmi)) {

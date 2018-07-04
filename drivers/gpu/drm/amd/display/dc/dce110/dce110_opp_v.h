@@ -29,28 +29,11 @@
 #include "opp.h"
 #include "core_types.h"
 
-bool dce110_opp_v_construct(struct dce110_opp *opp110,
+void dce110_opp_v_construct(struct dce110_opp *opp110,
 	struct dc_context *ctx);
 
 /* underlay callbacks */
-void dce110_opp_v_set_csc_default(
-	struct output_pixel_processor *opp,
-	const struct default_adjustment *default_adjust);
 
-void dce110_opp_v_set_csc_adjustment(
-	struct output_pixel_processor *opp,
-	const struct out_csc_color_matrix *tbl_entry);
 
-bool dce110_opp_program_regamma_pwl_v(
-	struct output_pixel_processor *opp,
-	const struct pwl_params *params);
-
-void dce110_opp_power_on_regamma_lut_v(
-	struct output_pixel_processor *opp,
-	bool power_on);
-
-void dce110_opp_set_regamma_mode_v(
-	struct output_pixel_processor *opp,
-	enum opp_regamma mode);
 
 #endif /* __DC_OPP_DCE110_V_H__ */

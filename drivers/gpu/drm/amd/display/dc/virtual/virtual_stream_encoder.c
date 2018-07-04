@@ -53,6 +53,9 @@ static void virtual_stream_encoder_update_hdmi_info_packets(
 static void virtual_stream_encoder_stop_hdmi_info_packets(
 	struct stream_encoder *enc) {}
 
+static void virtual_stream_encoder_set_avmute(
+	struct stream_encoder *enc,
+	bool enable) {}
 static void virtual_stream_encoder_update_dp_info_packets(
 	struct stream_encoder *enc,
 	const struct encoder_info_frame *info_frame) {}
@@ -94,6 +97,7 @@ static const struct stream_encoder_funcs virtual_str_enc_funcs = {
 		virtual_stream_encoder_dp_unblank,
 
 	.audio_mute_control = virtual_audio_mute_control,
+	.set_avmute = virtual_stream_encoder_set_avmute,
 };
 
 bool virtual_stream_encoder_construct(
@@ -117,7 +121,7 @@ bool virtual_stream_encoder_construct(
 struct stream_encoder *virtual_stream_encoder_create(
 	struct dc_context *ctx, struct dc_bios *bp)
 {
-	struct stream_encoder *enc = dm_alloc(sizeof(*enc));
+	struct stream_encoder *enc = kzalloc(sizeof(*enc), GFP_KERNEL);
 
 	if (!enc)
 		return NULL;
@@ -126,7 +130,7 @@ struct stream_encoder *virtual_stream_encoder_create(
 		return enc;
 
 	BREAK_TO_DEBUGGER();
-	dm_free(enc);
+	kfree(enc);
 	return NULL;
 }
 

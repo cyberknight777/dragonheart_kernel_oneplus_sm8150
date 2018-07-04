@@ -26,6 +26,7 @@
 #include "core_types.h"
 #include "logger.h"
 #include "include/logger_interface.h"
+#include "dm_helpers.h"
 
 #define NUM_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -74,6 +75,9 @@ void dc_conn_log(struct dc_context *ctx,
 		if (signal == signal_type_info_tbl[i].type)
 			break;
 
+	if (i == NUM_ELEMENTS(signal_type_info_tbl))
+		goto fail;
+
 	dm_logger_append(&entry, "[%s][ConnIdx:%d] ",
 			signal_type_info_tbl[i].name,
 			link->link_index);
@@ -94,6 +98,10 @@ void dc_conn_log(struct dc_context *ctx,
 			dm_logger_append(&entry, "%2.2X ", hex_data[i]);
 
 	dm_logger_append(&entry, "^\n");
+	dm_helpers_dc_conn_log(ctx, &entry, event);
+
+fail:
 	dm_logger_close(&entry);
+
 	va_end(args);
 }
