@@ -509,7 +509,7 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 					 skb_headlen(frag), DMA_TO_DEVICE);
 		if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 			goto out_err;
-		iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, frag->len);
+		iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, skb_headlen(frag));
 		if (iwl_pcie_gen2_tx_add_frags(trans, frag, tfd, out_meta))
 			goto out_err;
 	}
