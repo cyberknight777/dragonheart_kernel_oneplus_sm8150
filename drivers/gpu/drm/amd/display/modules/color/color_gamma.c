@@ -1727,8 +1727,8 @@ bool  mod_color_calculate_curve(enum dc_transfer_func_predefined trans,
 		kvfree(rgb_regamma);
 	} else if (trans == TRANSFER_FUNCTION_HLG ||
 		trans == TRANSFER_FUNCTION_HLG12) {
-		rgb_regamma = kvzalloc(sizeof(*rgb_regamma) *
-				       (MAX_HW_POINTS + _EXTRA_POINTS),
+		rgb_regamma = kvcalloc(MAX_HW_POINTS + _EXTRA_POINTS,
+				       sizeof(*rgb_regamma),
 				       GFP_KERNEL);
 		if (!rgb_regamma)
 			goto rgb_regamma_alloc_fail;
@@ -1806,8 +1806,8 @@ bool  mod_color_calculate_degamma_curve(enum dc_transfer_func_predefined trans,
 		kvfree(rgb_degamma);
 	} else if (trans == TRANSFER_FUNCTION_HLG ||
 		trans == TRANSFER_FUNCTION_HLG12) {
-		rgb_degamma = kvzalloc(sizeof(*rgb_degamma) *
-				       (MAX_HW_POINTS + _EXTRA_POINTS),
+		rgb_degamma = kvcalloc(MAX_HW_POINTS + _EXTRA_POINTS,
+				       sizeof(*rgb_degamma),
 				       GFP_KERNEL);
 		if (!rgb_degamma)
 			goto rgb_degamma_alloc_fail;
