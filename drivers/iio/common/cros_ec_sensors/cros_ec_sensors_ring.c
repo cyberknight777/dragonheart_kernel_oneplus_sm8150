@@ -480,75 +480,109 @@ static bool cros_ec_ring_process_event(
  */
 static void cros_ec_ring_spread_add(
 				struct cros_ec_sensors_ring_state *state,
+				unsigned long sensor_mask,
 				struct cros_ec_sensors_ring_sample *last_out)
 {
 	struct iio_dev *indio_dev = state->core.indio_dev;
 	struct cros_ec_sensors_ring_sample *batch_start, *next_batch_start;
+	int id;
 
-	for (batch_start = state->ring; batch_start < last_out;
-	     batch_start = next_batch_start) {
-		/* for each batch (where all samples have the same timestamp) */
-		int batch_len, sample_idx = 1;
-		const int id = batch_start->sensor_id;
-		struct cros_ec_sensors_ring_sample *batch_end = batch_start;
-		struct cros_ec_sensors_ring_sample *s;
-		const s64 batch_timestamp = batch_start->timestamp;
-		s64 sample_period;
-
-		/*
-		 * Push first sample in the batch to the kfifo,
-		 * it's guaranteed to be correct, rest come later.
-		 */
-		iio_push_to_buffers(indio_dev, (u8 *)batch_start);
-
-		/* Find all samples have the same timestamp. */
-		for (s = batch_start + 1; s < last_out; s++) {
-			if (s->timestamp != batch_timestamp)
-				break; /* we discovered the next batch */
-			if (s->sensor_id != id)
-				break; /* another sensor, surely next batch */
-			batch_end = s;
-		}
-		batch_len = batch_end - batch_start + 1;
-
-		if (batch_len == 1)
-			goto done_with_this_batch;
-
-		dev_dbg(&indio_dev->dev,
-			"Adjusting samples, sensor %d last_batch @%lld (%d samples) batch_timestamp=%lld => period=%lld\n",
-			id, state->last_batch_timestamp[id],
-			state->last_batch_len[id], batch_timestamp,
-			sample_period);
-
-		/* Can we calculate period? */
-		if (state->last_batch_len[id] == 0) {
-			dev_warn(&indio_dev->dev, "Sensor %d: lost %d samples when spreading\n",
-				 id, batch_len - 1);
-			goto done_with_this_batch;
+	for_each_set_bit(id, &sensor_mask, BITS_PER_LONG) {
+		for (batch_start = state->ring; batch_start < last_out;
+		     batch_start = next_batch_start) {
 			/*
-			 * Note: we're dropping the rest of the samples in
-			 * this batch since we have no idea where they're
-			 * supposed to go without a period calculation.
+			 * For each batch (where all samples have the same
+			 * timestamp).
 			 */
-		}
+			int batch_len = 1, sample_idx = 1;
+			struct cros_ec_sensors_ring_sample *batch_end =
+				batch_start;
+			struct cros_ec_sensors_ring_sample *s;
+			const s64 batch_timestamp = batch_start->timestamp;
+			s64 sample_period;
 
-		sample_period = div_s64(batch_timestamp -
-			state->last_batch_timestamp[id],
-			state->last_batch_len[id]);
+			/*
+			 * Skip over batches that start with the sensor types
+			 * we're not looking at right now.
+			 */
+			if (batch_start->sensor_id != id) {
+				next_batch_start = batch_start + 1;
+				continue;
+			}
 
-		/* Adjust timestamps of the samples then push them to kfifo. */
-		for (s = batch_start + 1; s <= batch_end; s++) {
-			s->timestamp = batch_timestamp +
-				sample_period * sample_idx;
-			sample_idx++;
+			/*
+			 * Push first sample in the batch to the kfifo,
+			 * it's guaranteed to be correct, rest come later.
+			 */
+			iio_push_to_buffers(indio_dev, (u8 *)batch_start);
 
-			iio_push_to_buffers(indio_dev, (u8 *)s);
-		}
+			/* Find all samples have the same timestamp. */
+			for (s = batch_start + 1; s < last_out; s++) {
+				if (s->sensor_id != id)
+					/*
+					 * Skip over other sensor types that
+					 * are interleaved, don't count them.
+					 */
+					continue;
+				if (s->timestamp != batch_timestamp)
+					/* we discovered the next batch */
+					break;
+				batch_end = s;
+				batch_len++;
+			}
+
+			if (batch_len == 1)
+				goto done_with_this_batch;
+
+			dev_dbg(&indio_dev->dev,
+					"Adjusting %d samples, sensor %d last_batch @%lld (%d samples) batch_timestamp=%lld => period=%lld\n",
+					batch_len, id,
+					state->last_batch_timestamp[id],
+					state->last_batch_len[id],
+					batch_timestamp,
+					sample_period);
+
+			/* Can we calculate period? */
+			if (state->last_batch_len[id] == 0) {
+				dev_warn(&indio_dev->dev, "Sensor %d: lost %d samples when spreading\n",
+						id, batch_len - 1);
+				goto done_with_this_batch;
+				/*
+				 * Note: we're dropping the rest of the samples
+				 * in this batch since we have no idea where
+				 * they're supposed to go without a period
+				 * calculation.
+				 */
+			}
+
+			sample_period = div_s64(batch_timestamp -
+					state->last_batch_timestamp[id],
+					state->last_batch_len[id]);
+
+			/*
+			 * Adjust timestamps of the samples then push them to
+			 * kfifo.
+			 */
+			for (s = batch_start + 1; s <= batch_end; s++) {
+				if (s->sensor_id != id)
+					/*
+					 * Skip over other sensor types that
+					 * are interleaved, don't change them.
+					 */
+					continue;
+
+				s->timestamp = batch_timestamp +
+					sample_period * sample_idx;
+				sample_idx++;
+
+				iio_push_to_buffers(indio_dev, (u8 *)s);
+			}
 
 done_with_this_batch:
-		state->last_batch_timestamp[id] = batch_timestamp;
-		state->last_batch_len[id] = batch_len;
-		next_batch_start = batch_end + 1;
+			state->last_batch_timestamp[id] = batch_timestamp;
+			state->last_batch_len[id] = batch_len;
+			next_batch_start = batch_end + 1;
+		}
 	}
 }
 
@@ -771,7 +805,7 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 	 * Spread samples in case of batching, then add them to the ringbuffer.
 	 */
 	if (state->tight_timestamps)
-		cros_ec_ring_spread_add(state, last_out);
+		cros_ec_ring_spread_add(state, sensor_mask, last_out);
 	else
 		cros_ec_ring_spread_add_legacy(state, sensor_mask,
 					       current_timestamp, last_out);
