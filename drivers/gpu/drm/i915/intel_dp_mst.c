@@ -480,7 +480,7 @@ static struct drm_connector *intel_dp_add_mst_connector(struct drm_dp_mst_topolo
 	drm_object_attach_property(&connector->base, dev->mode_config.path_property, 0);
 	drm_object_attach_property(&connector->base, dev->mode_config.tile_property, 0);
 
-	drm_mode_connector_set_path_property(connector, pathprop);
+	drm_connector_set_path_property(connector, pathprop);
 	return connector;
 }
 
