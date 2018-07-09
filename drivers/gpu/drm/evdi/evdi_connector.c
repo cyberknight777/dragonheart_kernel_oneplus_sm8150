@@ -119,7 +119,7 @@ int evdi_connector_init(struct drm_device *dev, struct drm_encoder *encoder)
 	connector->polled = DRM_CONNECTOR_POLL_HPD;
 
 	drm_connector_register(connector);
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 
 	return 0;
 }
