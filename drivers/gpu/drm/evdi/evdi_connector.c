@@ -32,11 +32,11 @@ static int evdi_get_modes(struct drm_connector *connector)
 	edid = (struct edid *)evdi_painter_get_edid_copy(evdi);
 
 	if (!edid) {
-		drm_mode_connector_update_edid_property(connector, NULL);
+		drm_connector_update_edid_property(connector, NULL);
 		return 0;
 	}
 
-	ret = drm_mode_connector_update_edid_property(connector, edid);
+	ret = drm_connector_update_edid_property(connector, edid);
 	if (!ret)
 		drm_add_edid_modes(connector, edid);
 	else
