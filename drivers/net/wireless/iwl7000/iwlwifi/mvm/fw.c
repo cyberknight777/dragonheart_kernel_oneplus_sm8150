@@ -361,6 +361,14 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	 */
 	ret = iwl_wait_notification(&mvm->notif_wait, &alive_wait,
 				    MVM_UCODE_ALIVE_TIMEOUT);
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	/* let's force the timeout if required */
+	if (unlikely(mvm->trans->dbg_cfg.fw_alive_timeout)) {
+		IWL_INFO(mvm, "Forcing fw alive notification timeout\n");
+		ret = -ETIMEDOUT;
+	}
+#endif
 	if (ret) {
 		struct iwl_trans *trans = mvm->trans;
 

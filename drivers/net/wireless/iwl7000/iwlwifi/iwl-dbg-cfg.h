@@ -257,6 +257,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, valid_ants)
 	IWL_DBG_CFG_NODEF(u32, no_ack_en)
 	IWL_DBG_CFG_NODEF(u32, secure_boot_cfg)
+	IWL_DBG_CFG_NODEF(bool, fw_alive_timeout)
 	IWL_MOD_PARAM(u32, uapsd_disable)
 	IWL_MOD_PARAM(bool, d0i3_disable)
 	IWL_MOD_PARAM(bool, lar_disable)
