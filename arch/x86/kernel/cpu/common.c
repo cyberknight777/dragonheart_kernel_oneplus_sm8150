@@ -1583,12 +1583,6 @@ static int __init dodisablevmx(char *value)
 }
 early_param("disablevmx", dodisablevmx);
 
-static void clear_feature_vmx(int cpu)
-{
-	if (disablevmx && cpu == boot_cpu_data.cpu_index)
-		setup_clear_cpu_cap(X86_FEATURE_VMX);
-}
-
 void cpu_control_vmx(int cpu)
 {
 	int ret;
@@ -1614,11 +1608,9 @@ void cpu_control_vmx(int cpu)
 			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX;
 	bits |= FEATURE_CONTROL_LOCKED;
 
-	/* If nothing to do, check if VMX Feature flag needs to be disabled. */
-	if (msr == bits) {
-		clear_feature_vmx(cpu);
+	/* If nothing to do, do nothing. */
+	if (msr == bits)
 		return;
-	}
 
 	/* if it's locked, there's really nothing we can do. */
 	if ((msr & FEATURE_CONTROL_LOCKED) && (msr != bits)) {
@@ -1632,7 +1624,8 @@ void cpu_control_vmx(int cpu)
 			disablevmx ? "Disabling" : "Enabling", cpu);
 	ret = wrmsrl_safe(MSR_IA32_FEATURE_CONTROL, bits);
 	if (!ret) {
-		clear_feature_vmx(cpu);
+		if (disablevmx && cpu == boot_cpu_data.cpu_index)
+			setup_clear_cpu_cap(X86_FEATURE_VMX);
 		return;
 	}
 
