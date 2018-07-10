@@ -1258,9 +1258,6 @@ static void identify_cpu(struct cpuinfo_x86 *c)
 	setup_smep(c);
 	setup_smap(c);
 
-	/* Enable or disable virtualization extensions */
-	cpu_control_vmx(c->cpu_index);
-
 	/*
 	 * The vendor-specific functions might have changed features.
 	 * Now we do "generic changes."
@@ -1623,11 +1620,8 @@ void cpu_control_vmx(int cpu)
 	pr_info("%s VMX on cpu %d\n",
 			disablevmx ? "Disabling" : "Enabling", cpu);
 	ret = wrmsrl_safe(MSR_IA32_FEATURE_CONTROL, bits);
-	if (!ret) {
-		if (disablevmx && cpu == boot_cpu_data.cpu_index)
-			setup_clear_cpu_cap(X86_FEATURE_VMX);
+	if (!ret)
 		return;
-	}
 
 	pr_warn("wrmsrl_safe (MSR_IA32_FEATURE_CONTROL, %08llx) failed error %d\n",
 		bits, ret);
@@ -1775,6 +1769,8 @@ void cpu_init(void)
 		uv_cpu_init();
 
 	load_fixmap_gdt(cpu);
+
+	cpu_control_vmx(cpu);
 }
 
 #else
@@ -1836,6 +1832,8 @@ void cpu_init(void)
 	fpu__init_cpu();
 
 	load_fixmap_gdt(cpu);
+
+	cpu_control_vmx(cpu);
 }
 #endif
 
