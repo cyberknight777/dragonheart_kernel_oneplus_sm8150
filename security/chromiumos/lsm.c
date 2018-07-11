@@ -83,20 +83,32 @@ static int chromiumos_security_sb_mount(const char *dev_name,
 #endif
 
 #ifdef CONFIG_SECURITY_CHROMIUMOS_NO_UNPRIVILEGED_UNSAFE_MOUNTS
-	if (!(flags & (MS_BIND | MS_MOVE | MS_SHARED | MS_PRIVATE | MS_SLAVE |
-		       MS_UNBINDABLE)) &&
+	if ((!(flags & (MS_BIND | MS_MOVE | MS_SHARED | MS_PRIVATE | MS_SLAVE |
+			MS_UNBINDABLE)) ||
+	     ((flags & MS_REMOUNT) && (flags & MS_BIND))) &&
 	    !capable(CAP_SYS_ADMIN)) {
+		int required_mnt_flags = MNT_NOEXEC | MNT_NOSUID | MNT_NODEV;
+
+		if (flags & MS_REMOUNT) {
+			/*
+			 * If this is a remount, we only require that the
+			 * requested flags are a superset of the original mount
+			 * flags.
+			 */
+			required_mnt_flags &= path->mnt->mnt_flags;
+		}
 		/*
 		 * The three flags we are interested in disallowing in
 		 * unprivileged user namespaces (MS_NOEXEC, MS_NOSUID, MS_NODEV)
-		 * cannot be modified when doing a remount/bind. The kernel
+		 * cannot be modified when doing a bind-mount. The kernel
 		 * attempts to dispatch calls to do_mount() within
 		 * fs/namespace.c in the following order:
 		 *
 		 * * If the MS_REMOUNT flag is present, it calls do_remount().
-		 *   When MS_BIND is also present, it only allows to set/unset
-		 *   MS_RDONLY. Otherwise it bails in the absence of the
-		 *   CAP_SYS_ADMIN in the init ns.
+		 *   When MS_BIND is also present, it only allows to modify the
+		 *   per-mount flags, which are copied into
+		 *   |required_mnt_flags|.  Otherwise it bails in the absence of
+		 *   the CAP_SYS_ADMIN in the init ns.
 		 * * If the MS_BIND flag is present, the only other flag checked
 		 *   is MS_REC.
 		 * * If any of the mount propagation flags are present
@@ -105,21 +117,22 @@ static int chromiumos_security_sb_mount(const char *dev_name,
 		 *   flags.
 		 * * If MS_MOVE flag is present, all other flags are ignored.
 		 */
-		if (!(flags & MS_NOEXEC)) {
+		if ((required_mnt_flags & MNT_NOEXEC) && !(flags & MS_NOEXEC)) {
 			report("sb_mount", path,
 			       "Mounting a filesystem with 'exec' flag requires CAP_SYS_ADMIN in init ns");
 			pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
 				  dev_name, type, flags);
 			return -EPERM;
 		}
-		if (!(flags & MS_NOSUID)) {
+		if ((required_mnt_flags & MNT_NOSUID) && !(flags & MS_NOSUID)) {
 			report("sb_mount", path,
 			       "Mounting a filesystem with 'suid' flag requires CAP_SYS_ADMIN in init ns");
 			pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
 				  dev_name, type, flags);
 			return -EPERM;
 		}
-		if (!(flags & MS_NODEV) && strcmp(type, "devpts")) {
+		if ((required_mnt_flags & MNT_NODEV) && !(flags & MS_NODEV) &&
+		    strcmp(type, "devpts")) {
 			report("sb_mount", path,
 			       "Mounting a filesystem with 'dev' flag requires CAP_SYS_ADMIN in init ns");
 			pr_notice("sb_mount dev=%s type=%s flags=%#lx\n",
