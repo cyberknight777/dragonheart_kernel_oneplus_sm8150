@@ -15,7 +15,6 @@
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/clk-provider.h>
-#include <linux/dmi.h>
 #include <linux/i2c.h>
 #include <linux/of_device.h>
 #include <linux/property.h>
@@ -1980,6 +1979,54 @@ static int da7219_remove(struct snd_soc_codec *codec)
 	return regulator_bulk_disable(DA7219_NUM_SUPPLIES, da7219->supplies);
 }
 
+#ifdef CONFIG_PM
+static int da7219_suspend(struct snd_soc_codec *codec)
+{
+	struct da7219_priv *da7219 = snd_soc_codec_get_drvdata(codec);
+
+	/* Suspend AAD if we're not a wake-up source */
+	if (!da7219->wakeup_source)
+		da7219_aad_suspend(codec);
+
+	snd_soc_codec_force_bias_level(codec, SND_SOC_BIAS_OFF);
+
+	return 0;
+}
+
+static int da7219_resume(struct snd_soc_codec *codec)
+{
+	struct da7219_priv *da7219 = snd_soc_codec_get_drvdata(codec);
+
+	snd_soc_codec_force_bias_level(codec, SND_SOC_BIAS_STANDBY);
+
+	/* Resume AAD if previously suspended */
+	if (!da7219->wakeup_source)
+		da7219_aad_resume(codec);
+
+	return 0;
+}
+#else
+#define da7219_suspend NULL
+#define da7219_resume NULL
+#endif
+
+static const struct snd_soc_codec_driver soc_codec_dev_da7219 = {
+	.probe			= da7219_probe,
+	.remove			= da7219_remove,
+	.suspend		= da7219_suspend,
+	.resume			= da7219_resume,
+	.set_bias_level		= da7219_set_bias_level,
+
+	.component_driver = {
+		.controls		= da7219_snd_controls,
+		.num_controls		= ARRAY_SIZE(da7219_snd_controls),
+		.dapm_widgets		= da7219_dapm_widgets,
+		.num_dapm_widgets	= ARRAY_SIZE(da7219_dapm_widgets),
+		.dapm_routes		= da7219_audio_map,
+		.num_dapm_routes	= ARRAY_SIZE(da7219_audio_map),
+	},
+};
+
 
 /*
  * Regmap configs
@@ -2116,86 +2163,6 @@ static const struct regmap_config da7219_regmap_config = {
 	.cache_type = REGCACHE_RBTREE,
 };
 
-
-#ifdef CONFIG_PM
-static const struct dmi_system_id dmi_platform_google_grunt[] = {
-	{
-		.ident = "Google Grunt",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "Google"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Grunt"),
-		},
-	},
-	{}
-};
-
-static int da7219_suspend(struct snd_soc_codec *codec)
-{
-	struct da7219_priv *da7219 = snd_soc_codec_get_drvdata(codec);
-	unsigned int i;
-
-	if (dmi_check_system(dmi_platform_google_grunt)) {
-		da7219->reg_state = kzalloc(sizeof(unsigned int) *
-					da7219_regmap_config.num_reg_defaults,
-					GFP_KERNEL);
-		for (i = 0; i < da7219_regmap_config.num_reg_defaults; i++)
-			da7219->reg_state[i] = snd_soc_read(codec,
-						da7219_reg_defaults[i].reg);
-	}
-
-	/* Suspend AAD if we're not a wake-up source */
-	if (!da7219->wakeup_source)
-		da7219_aad_suspend(codec);
-
-	snd_soc_codec_force_bias_level(codec, SND_SOC_BIAS_OFF);
-
-	return 0;
-}
-
-static int da7219_resume(struct snd_soc_codec *codec)
-{
-	struct da7219_priv *da7219 = snd_soc_codec_get_drvdata(codec);
-	unsigned int i, ret;
-
-	snd_soc_codec_force_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	/* Resume AAD if previously suspended */
-	if (!da7219->wakeup_source)
-		da7219_aad_resume(codec);
-
-	if (dmi_check_system(dmi_platform_google_grunt)) {
-		ret = da7219_handle_supplies(codec);
-		if (ret)
-			return ret;
-		for (i = 0; i < da7219_regmap_config.num_reg_defaults; i++)
-			snd_soc_write(codec, da7219_reg_defaults[i].reg,
-				      da7219->reg_state[i]);
-		kfree(da7219->reg_state);
-	}
-
-	return 0;
-}
-#else
-#define da7219_suspend NULL
-#define da7219_resume NULL
-#endif
-
-static const struct snd_soc_codec_driver soc_codec_dev_da7219 = {
-	.probe			= da7219_probe,
-	.remove			= da7219_remove,
-	.suspend		= da7219_suspend,
-	.resume			= da7219_resume,
-	.set_bias_level		= da7219_set_bias_level,
-
-	.component_driver = {
-		.controls		= da7219_snd_controls,
-		.num_controls		= ARRAY_SIZE(da7219_snd_controls),
-		.dapm_widgets		= da7219_dapm_widgets,
-		.num_dapm_widgets	= ARRAY_SIZE(da7219_dapm_widgets),
-		.dapm_routes		= da7219_audio_map,
-		.num_dapm_routes	= ARRAY_SIZE(da7219_audio_map),
-	},
-};
 
 /*
  * I2C layer

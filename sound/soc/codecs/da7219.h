@@ -829,8 +829,6 @@ struct da7219_priv {
 	bool master;
 	bool alc_en;
 	u8 gain_ramp_ctrl;
-
-	unsigned int *reg_state;
 };
 
 int da7219_set_pll(struct snd_soc_codec *codec, int source, unsigned int fout);
