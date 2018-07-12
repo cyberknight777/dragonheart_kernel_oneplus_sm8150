@@ -20,8 +20,8 @@ extern unsigned int low_mem_ram_vs_swap_weight;
 static inline unsigned long get_available_file_mem(int lru_base)
 {
 	unsigned long file_mem =
-			global_zone_page_state(lru_base + LRU_ACTIVE_FILE) +
-			global_zone_page_state(lru_base + LRU_INACTIVE_FILE);
+			global_node_page_state(lru_base + LRU_ACTIVE_FILE) +
+			global_node_page_state(lru_base + LRU_INACTIVE_FILE);
 	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
 	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
 	unsigned long clean_file_mem = file_mem - dirty_mem;
@@ -73,8 +73,8 @@ static inline bool _is_low_mem_situation(void)
 
 	if (unlikely(is_low_mem && !was_low_mem)) {
 		unsigned long anon_mem =
-			global_zone_page_state(lru_base + LRU_ACTIVE_ANON) +
-			global_zone_page_state(lru_base + LRU_INACTIVE_ANON);
+			global_node_page_state(lru_base + LRU_ACTIVE_ANON) +
+			global_node_page_state(lru_base + LRU_INACTIVE_ANON);
 		if (unlikely(anon_mem < low_mem_lowest_seen_anon_mem)) {
 			printk(KERN_INFO "entering low_mem "
 			       "(avail RAM = %lu kB, avail swap %lu kB, "
