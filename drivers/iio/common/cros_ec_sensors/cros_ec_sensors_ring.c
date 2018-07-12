@@ -82,8 +82,20 @@ struct cros_ec_sensors_ec_overflow_state {
 	s64 last;
 };
 
+/* Precision of fixed point for the m values from the filter */
 #define M_PRECISION (1 << 23)
+
+/* Length of the filter, how long to remember entries for */
 #define TS_HISTORY_SIZE 64
+
+/* Only activate the filter once we have at least this many elements. */
+#define TS_HISTORY_THRESHOLD 8
+
+/*
+ * If we don't have any history entries for this long, empty the filter to
+ * make sure there are no big discontinuities.
+ */
+#define TS_HISTORY_BORED_US 500000
 
 struct cros_ec_sensors_ts_filter_state {
 	s64 x_offset, y_offset;
@@ -286,6 +298,10 @@ static void cros_ec_ring_ts_filter_update(
 	dy = (state->y_history[0] + state->y_offset) - y;
 	m = div64_s64(dy * M_PRECISION, dx);
 
+	/* Empty filter if we haven't seen any action in a while. */
+	if (-dx < TS_HISTORY_BORED_US)
+		state->history_len = 0;
+
 	/* Move everything over, also update offset to all absolute coords .*/
 	for (i = state->history_len - 1; i >= 1; i--) {
 		state->x_history[i] = state->x_history[i-1] + dx;
@@ -312,19 +328,25 @@ static void cros_ec_ring_ts_filter_update(
 		state->history_len++;
 
 	/* Precalculate things for the filter. */
-	state->median_m =
-		cros_ec_ring_median(m_history_copy, state->history_len);
+	if (state->history_len > TS_HISTORY_THRESHOLD) {
+		state->median_m =
+		    cros_ec_ring_median(m_history_copy, state->history_len - 1);
 
-	/*
-	 * Calculate y-intercepts as if m_median is the slope and points in
-	 * the history are on the line. median_error will still be in the
-	 * offset coordinate system.
-	 */
-	for (i = 0; i < state->history_len; i++)
-		error[i] = state->y_history[i] -
-			   div_s64(state->median_m * state->x_history[i],
-				   M_PRECISION);
-	state->median_error = cros_ec_ring_median(error, state->history_len);
+		/*
+		 * Calculate y-intercepts as if m_median is the slope and
+		 * points in the history are on the line. median_error will
+		 * still be in the offset coordinate system.
+		 */
+		for (i = 0; i < state->history_len; i++)
+			error[i] = state->y_history[i] -
+				div_s64(state->median_m * state->x_history[i],
+					M_PRECISION);
+		state->median_error =
+			cros_ec_ring_median(error, state->history_len);
+	} else {
+		state->median_m = 0;
+		state->median_error = 0;
+	}
 }
 
 /*
@@ -337,6 +359,10 @@ static void cros_ec_ring_ts_filter_update(
  *                           should have happened on the AP, with low jitter
  *
  * @returns timestamp in AP timebase (ns)
+ *
+ * Note: The filter will only activate once state->history_len goes
+ * over TS_HISTORY_THRESHOLD. Otherwise it'll just do the naive c - b + a
+ * transform.
  *
  * How to derive the formula, starting from:
  *   f(x) = median_m * x + median_error
@@ -534,14 +560,6 @@ static void cros_ec_ring_spread_add(
 			if (batch_len == 1)
 				goto done_with_this_batch;
 
-			dev_dbg(&indio_dev->dev,
-					"Adjusting %d samples, sensor %d last_batch @%lld (%d samples) batch_timestamp=%lld => period=%lld\n",
-					batch_len, id,
-					state->last_batch_timestamp[id],
-					state->last_batch_len[id],
-					batch_timestamp,
-					sample_period);
-
 			/* Can we calculate period? */
 			if (state->last_batch_len[id] == 0) {
 				dev_warn(&indio_dev->dev, "Sensor %d: lost %d samples when spreading\n",
@@ -558,6 +576,13 @@ static void cros_ec_ring_spread_add(
 			sample_period = div_s64(batch_timestamp -
 					state->last_batch_timestamp[id],
 					state->last_batch_len[id]);
+			dev_dbg(&indio_dev->dev,
+					"Adjusting %d samples, sensor %d last_batch @%lld (%d samples) batch_timestamp=%lld => period=%lld\n",
+					batch_len, id,
+					state->last_batch_timestamp[id],
+					state->last_batch_len[id],
+					batch_timestamp,
+					sample_period);
 
 			/*
 			 * Adjust timestamps of the samples then push them to
