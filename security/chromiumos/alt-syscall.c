@@ -358,6 +358,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_statfs	__NR_ia32_statfs
 #define __NR_compat_symlink	__NR_ia32_symlink
 #define __NR_compat_symlinkat	__NR_ia32_symlinkat
+#define __NR_compat_sync	__NR_ia32_sync
 #define __NR_compat_sync_file_range	__NR_ia32_sync_file_range
 #define __NR_compat_syncfs	__NR_ia32_syncfs
 #define __NR_compat_sysinfo	__NR_ia32_sysinfo
@@ -794,6 +795,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(symlinkat),
 	SYSCALL_ENTRY(sysinfo),
 	SYSCALL_ENTRY(syslog),
+	SYSCALL_ENTRY(sync),
 	SYSCALL_ENTRY(syncfs),
 	SYSCALL_ENTRY(tee),
 	SYSCALL_ENTRY(tgkill),
@@ -1395,6 +1397,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(setuid32),
 	COMPAT_SYSCALL_ENTRY(stat64),
 	COMPAT_SYSCALL_ENTRY(statfs64),
+	COMPAT_SYSCALL_ENTRY(sync),
 	COMPAT_SYSCALL_ENTRY(syncfs),
 	COMPAT_SYSCALL_ENTRY(truncate64),
 	COMPAT_SYSCALL_ENTRY(ugetrlimit),
