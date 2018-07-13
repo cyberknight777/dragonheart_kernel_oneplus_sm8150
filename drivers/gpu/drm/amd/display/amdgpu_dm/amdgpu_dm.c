@@ -2741,9 +2741,10 @@ static const struct drm_crtc_funcs amdgpu_dm_crtc_funcs = {
 	.page_flip = drm_atomic_helper_page_flip,
 	.atomic_duplicate_state = dm_crtc_duplicate_state,
 	.atomic_destroy_state = dm_crtc_destroy_state,
+	.set_crc_source = amdgpu_dm_crtc_set_crc_source,
+	.verify_crc_source = amdgpu_dm_crtc_verify_crc_source,
 	.enable_vblank = dm_enable_vblank,
 	.disable_vblank = dm_disable_vblank,
-	.set_crc_source = amdgpu_dm_crtc_set_crc_source,
 };
 
 static enum drm_connector_status
