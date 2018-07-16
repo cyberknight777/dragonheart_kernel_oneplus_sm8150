@@ -703,7 +703,7 @@ _iwl_fw_error_dump(struct iwl_fw_runtime *fwrt,
 				 sizeof(struct iwl_fw_error_dump_mem);
 
 		/* Dump SRAM only if no mem_tlvs */
-		if (fwrt->fw->dbg.n_mem_tlv)
+		if (!fwrt->fw->dbg.n_mem_tlv)
 			ADD_LEN(file_len, sram_len, hdr_len);
 
 		/* Make room for all mem types that exist */
