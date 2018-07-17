@@ -146,6 +146,27 @@
 	};
 };
 
+&qspi {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&qspi_clk &qspi_cs0 &qspi_data01>;
+
+	flash@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+
+		/*
+		 * In theory chip supports up to 104 MHz and controller up
+		 * to 80 MHz, but above 25 MHz wasn't reliable so we'll use
+		 * that for now.  b:117440651
+		 */
+		spi-max-frequency = <25000000>;
+		spi-tx-bus-width = <2>;
+		spi-rx-bus-width = <2>;
+	};
+};
+
+
 &apps_rsc {
 	pm8998-rpmh-regulators {
 		compatible = "qcom,pm8998-rpmh-regulators";
@@ -652,6 +673,29 @@ ap_ts_i2c: &i2c14 {
 };
 
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
+
+&qspi_cs0 {
+	pinconf {
+		pins = "gpio90";
+		bias-disable;
+	};
+};
+
+&qspi_clk {
+	pinconf {
+		pins = "gpio95";
+		bias-disable;
+	};
+};
+
+&qspi_data01 {
+	pinconf {
+		pins = "gpio91", "gpio92";
+
+		/* High-Z when no transfers; nice to park the lines */
+		bias-pull-up;
+	};
+};
 
 &qup_i2c3_default {
 	pinconf {
