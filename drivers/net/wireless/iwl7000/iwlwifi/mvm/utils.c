@@ -1250,7 +1250,7 @@ void iwl_mvm_connection_loss(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	trig = iwl_fw_dbg_trigger_on(&mvm->fwrt, ieee80211_vif_to_wdev(vif),
 				     FW_DBG_TRIGGER_MLME);
 	if (!trig)
-		return;
+		goto out;
 
 	trig_mlme = (void *)trig->data;
 
