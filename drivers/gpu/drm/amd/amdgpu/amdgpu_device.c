@@ -2308,15 +2308,12 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
 	if (dev->switch_power_state == DRM_SWITCH_POWER_OFF)
 		return 0;
 
-	if (fbcon)
-		console_lock();
-
 	if (resume) {
 		pci_set_power_state(dev->pdev, PCI_D0);
 		pci_restore_state(dev->pdev);
 		r = pci_enable_device(dev->pdev);
 		if (r)
-			goto unlock;
+			return r;
 	}
 
 	/* post card */
@@ -2329,14 +2326,14 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
 	r = amdgpu_device_ip_resume(adev);
 	if (r) {
 		DRM_ERROR("amdgpu_device_ip_resume failed (%d).\n", r);
-		goto unlock;
+		return r;
 	}
 	amdgpu_fence_driver_resume(adev);
 
 
 	r = amdgpu_device_ip_late_init(adev);
 	if (r)
-		goto unlock;
+		return r;
 
 	if (!amdgpu_device_has_dc_support(adev)) {
 		/* pin cursors */
@@ -2377,6 +2374,9 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
 			}
 			drm_modeset_unlock_all(dev);
 		}
+		console_lock();
+		amdgpu_fbdev_set_suspend(adev, 0);
+		console_unlock();
 	}
 
 	drm_kms_helper_poll_enable(dev);
@@ -2400,15 +2400,7 @@ int amdgpu_device_resume(struct drm_device *dev, bool resume, bool fbcon)
 #ifdef CONFIG_PM
 	dev->dev->power.disable_depth--;
 #endif
-
-	if (fbcon)
-		amdgpu_fbdev_set_suspend(adev, 0);
-
-unlock:
-	if (fbcon)
-		console_unlock();
-
-	return r;
+	return 0;
 }
 
 static bool amdgpu_device_ip_check_soft_reset(struct amdgpu_device *adev)
