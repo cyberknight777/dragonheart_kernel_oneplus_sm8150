@@ -61,7 +61,6 @@ struct snd_sof_debugfs_map;
 struct snd_soc_tplg_ops;
 struct snd_soc_component;
 
-
 /*
  * SOF DSP HW abstraction operations.
  * Used to abstract DSP HW architecture and any IO busses between host CPU
@@ -201,7 +200,7 @@ struct snd_sof_pcm {
 	struct snd_soc_tplg_pcm pcm;
 	struct snd_sof_pcm_stream stream[2];
 	u32 posn_offset[2];
-	struct mutex mutex;
+	struct mutex mutex;	/* access mutex */
 	struct list_head list;	/* list in sdev pcm list */
 };
 
@@ -215,7 +214,7 @@ struct snd_sof_control {
 	enum sof_ipc_ctrl_cmd cmd;
 	u32 *volume_table; /* volume table computed from tlv data*/
 
-	struct mutex mutex;
+	struct mutex mutex;	/* access mutex */
 	struct list_head list;	/* list in sdev control list */
 };
 
@@ -227,7 +226,7 @@ struct snd_sof_widget {
 	int id;
 
 	struct snd_soc_dapm_widget *widget;
-	struct mutex mutex;
+	struct mutex mutex;	/* access mutex */
 	struct list_head list;	/* list in sdev widget list */
 
 	void *private;			/* core does not touch this */
