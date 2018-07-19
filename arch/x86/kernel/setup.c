@@ -1026,6 +1026,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	init_hypervisor_platform();
 
+	tsc_early_init();
 	x86_init.resources.probe_roms();
 
 	/* after parse_early_param, so could debug it */
@@ -1215,7 +1216,6 @@ void __init setup_arch(char **cmdline_p)
 	kvmclock_init();
 #endif
 
-	tsc_early_delay_calibrate();
 	if (!early_xdbc_setup_hardware())
 		early_xdbc_register_console();
 
