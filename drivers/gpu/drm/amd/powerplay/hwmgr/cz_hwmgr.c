@@ -672,8 +672,12 @@ static void cz_init_power_gate_state(struct pp_hwmgr *hwmgr)
 	cz_hwmgr->uvd_power_gated = false;
 	cz_hwmgr->vce_power_gated = false;
 	cz_hwmgr->samu_power_gated = false;
+#ifdef CONFIG_DRM_AMD_ACP
 	cz_hwmgr->acp_power_gated = false;
-	cz_hwmgr->pgacpinit = true;
+#else
+	smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerOFF);
+	cz_hwmgr->acp_power_gated = true;
+#endif
 }
 
 static void cz_init_sclk_threshold(struct pp_hwmgr *hwmgr)
@@ -1859,6 +1863,18 @@ static int cz_notify_cac_buffer_info(struct pp_hwmgr *hwmgr,
 	return 0;
 }
 
+static void cz_dpm_powergate_acp(struct pp_hwmgr *hwmgr, bool bgate)
+{
+	struct cz_hwmgr *data = hwmgr->backend;
+
+	if (data->acp_power_gated == bgate)
+		return;
+
+	if (bgate)
+		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerOFF);
+	else
+		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerON);
+}
 
 static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.backend_init = cz_hwmgr_backend_init,
@@ -1869,6 +1885,7 @@ static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.powerdown_uvd = cz_dpm_powerdown_uvd,
 	.powergate_uvd = cz_dpm_powergate_uvd,
 	.powergate_vce = cz_dpm_powergate_vce,
+	.powergate_acp = cz_dpm_powergate_acp,
 	.get_mclk = cz_dpm_get_mclk,
 	.get_sclk = cz_dpm_get_sclk,
 	.patch_boot_state = cz_dpm_patch_boot_state,
