@@ -854,7 +854,7 @@ unsigned long native_calibrate_cpu_early(void)
 /**
  * native_calibrate_cpu - calibrate the cpu
  */
-unsigned long native_calibrate_cpu(void)
+static unsigned long native_calibrate_cpu(void)
 {
 	unsigned long tsc_freq = native_calibrate_cpu_early();
 
@@ -1331,7 +1331,7 @@ unreg:
  */
 device_initcall(init_tsc_clocksource);
 
-static bool __init determine_cpu_tsc_frequencies(void)
+static bool __init determine_cpu_tsc_frequencies(bool early)
 {
 	u64 initial_tsc;
 
@@ -1340,8 +1340,14 @@ static bool __init determine_cpu_tsc_frequencies(void)
 
 	rdtscll(initial_tsc);
 
-	cpu_khz = x86_platform.calibrate_cpu();
-	tsc_khz = x86_platform.calibrate_tsc();
+	if (early) {
+		cpu_khz = x86_platform.calibrate_cpu();
+		tsc_khz = x86_platform.calibrate_tsc();
+	} else {
+		/* We should not be here with non-native cpu calibration */
+		WARN_ON(x86_platform.calibrate_cpu != native_calibrate_cpu);
+		cpu_khz = pit_hpet_ptimer_calibrate_cpu();
+	}
 
 	/*
 	 * Trust non-zero tsc_khz as authorative,
@@ -1384,7 +1390,7 @@ void __init tsc_early_init(void)
 {
 	if (!boot_cpu_has(X86_FEATURE_TSC))
 		return;
-	if (!determine_cpu_tsc_frequencies())
+	if (!determine_cpu_tsc_frequencies(true))
 		return;
 	loops_per_jiffy = get_loops_per_jiffy();
 
@@ -1396,6 +1402,13 @@ void __init tsc_early_init(void)
 
 void __init tsc_init(void)
 {
+	/*
+	 * native_calibrate_cpu_early can only calibrate using methods that are
+	 * available early in boot.
+	 */
+	if (x86_platform.calibrate_cpu == native_calibrate_cpu_early)
+		x86_platform.calibrate_cpu = native_calibrate_cpu;
+
 	if (!boot_cpu_has(X86_FEATURE_TSC)) {
 		setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 		return;
@@ -1403,7 +1416,7 @@ void __init tsc_init(void)
 
 	if (!tsc_khz) {
 		/* We failed to determine frequencies earlier, try again */
-		if (!determine_cpu_tsc_frequencies()) {
+		if (!determine_cpu_tsc_frequencies(false)) {
 			mark_tsc_unstable("could not calculate TSC khz");
 			setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 			return;
