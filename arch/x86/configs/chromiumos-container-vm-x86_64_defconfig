@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86 4.14.53 Kernel Configuration
+# Linux/x86 4.14.55 Kernel Configuration
 #
 CONFIG_64BIT=y
 CONFIG_X86_64=y
@@ -1622,7 +1622,8 @@ CONFIG_NET_CORE=y
 # CONFIG_NET_TEAM is not set
 CONFIG_MACVLAN=y
 CONFIG_MACVTAP=y
-# CONFIG_IPVLAN is not set
+CONFIG_IPVLAN=y
+CONFIG_IPVTAP=y
 CONFIG_VXLAN=y
 # CONFIG_GENEVE is not set
 # CONFIG_GTP is not set
@@ -2527,6 +2528,7 @@ CONFIG_NVMEM=y
 #
 # CONFIG_FSI is not set
 # CONFIG_PKGLIST is not set
+# CONFIG_DRM_EVDI is not set
 
 #
 # Firmware Drivers
