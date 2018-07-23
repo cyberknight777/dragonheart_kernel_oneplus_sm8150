@@ -1961,7 +1961,7 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	if (iwl_mvm_check_rt_status(mvm, vif)) {
 		iwl_mvm_dump_nic_error_log(mvm);
 		iwl_fw_dbg_collect_desc(&mvm->fwrt, &iwl_dump_desc_assert,
-					NULL, 0);
+					false, 0);
 		ret = 1;
 		goto err;
 	}

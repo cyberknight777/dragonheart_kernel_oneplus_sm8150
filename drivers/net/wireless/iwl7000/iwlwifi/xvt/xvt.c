@@ -677,7 +677,7 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 		kfree(p_table_umac);
 	}
 
-	iwl_fw_dbg_collect_desc(&xvt->fwrt, &iwl_dump_desc_assert, NULL, 0);
+	iwl_fw_dbg_collect_desc(&xvt->fwrt, &iwl_dump_desc_assert, false, 0);
 }
 
 static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
