@@ -1437,6 +1437,13 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 		}
 	}
 
+	if (params->ext_capab_len >= 10) {
+		sta->sta.twt_req_support = params->ext_capab[9] &
+			WLAN_EXT_CAPA10_TWT_REQUESTER_SUPPORT;
+		sta->sta.twt_resp_support = params->ext_capab[9] &
+			WLAN_EXT_CAPA10_TWT_RESPONDER_SUPPORT;
+	}
+
 	/*
 	 * cfg80211 validates this (1-2007) and allows setting the AID
 	 * only when creating a new station entry
