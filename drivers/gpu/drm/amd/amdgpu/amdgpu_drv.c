@@ -90,7 +90,7 @@ int amdgpu_disp_priority = 0;
 int amdgpu_hw_i2c = 0;
 int amdgpu_pcie_gen2 = -1;
 int amdgpu_msi = -1;
-int amdgpu_lockup_timeout = 0;
+int amdgpu_lockup_timeout = 10000;
 int amdgpu_dpm = -1;
 int amdgpu_fw_load_type = -1;
 int amdgpu_aspm = -1;
@@ -128,6 +128,7 @@ int amdgpu_param_buf_per_se = 0;
 int amdgpu_job_hang_limit = 0;
 int amdgpu_lbpw = -1;
 int amdgpu_compute_multipipe = -1;
+int amdgpu_gpu_recovery = -1; /* auto */
 
 MODULE_PARM_DESC(vramlimit, "Restrict VRAM for testing, in megabytes");
 module_param_named(vramlimit, amdgpu_vram_limit, int, 0600);
@@ -165,7 +166,7 @@ module_param_named(pcie_gen2, amdgpu_pcie_gen2, int, 0444);
 MODULE_PARM_DESC(msi, "MSI support (1 = enable, 0 = disable, -1 = auto)");
 module_param_named(msi, amdgpu_msi, int, 0444);
 
-MODULE_PARM_DESC(lockup_timeout, "GPU lockup timeout in ms (default 0 = disable)");
+MODULE_PARM_DESC(lockup_timeout, "GPU lockup timeout in ms > 0 (default 10000)");
 module_param_named(lockup_timeout, amdgpu_lockup_timeout, int, 0444);
 
 MODULE_PARM_DESC(dpm, "DPM support (1 = enable, 0 = disable, -1 = auto)");
@@ -216,7 +217,7 @@ module_param_named(exp_hw_support, amdgpu_exp_hw_support, int, 0444);
 MODULE_PARM_DESC(dc, "Display Core driver (1 = enable, 0 = disable, -1 = auto (default))");
 module_param_named(dc, amdgpu_dc, int, 0444);
 
-MODULE_PARM_DESC(dc, "Display Core Log Level (0 = minimal (default), 1 = chatty");
+MODULE_PARM_DESC(dc_log, "Display Core Log Level (0 = minimal (default), 1 = chatty");
 module_param_named(dc_log, amdgpu_dc_log, int, 0444);
 
 MODULE_PARM_DESC(sched_jobs, "the max number of jobs supported in the sw queue (default 32)");
@@ -279,6 +280,9 @@ module_param_named(lbpw, amdgpu_lbpw, int, 0444);
 
 MODULE_PARM_DESC(compute_multipipe, "Force compute queues to be spread across pipes (1 = enable, 0 = disable, -1 = auto)");
 module_param_named(compute_multipipe, amdgpu_compute_multipipe, int, 0444);
+
+MODULE_PARM_DESC(gpu_recovery, "Enable GPU recovery mechanism, (1 = enable, 0 = disable, -1 = auto");
+module_param_named(gpu_recovery, amdgpu_gpu_recovery, int, 0444);
 
 #ifdef CONFIG_DRM_AMDGPU_SI
 
@@ -570,7 +574,7 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
 {
 	struct drm_device *dev;
 	unsigned long flags = ent->driver_data;
-	int ret;
+	int ret, retry = 0;
 	bool supports_atomic = false;
 
 	if (!amdgpu_virtual_display &&
@@ -615,8 +619,14 @@ static int amdgpu_pci_probe(struct pci_dev *pdev,
 
 	pci_set_drvdata(pdev, dev);
 
+retry_init:
 	ret = drm_dev_register(dev, ent->driver_data);
-	if (ret)
+	if (ret == -EAGAIN && ++retry <= 3) {
+		DRM_INFO("retry init %d\n", retry);
+		/* Don't request EX mode too frequently which is attacking */
+		msleep(5000);
+		goto retry_init;
+	} else if (ret)
 		goto err_pci;
 
 	return 0;
@@ -650,7 +660,7 @@ amdgpu_pci_shutdown(struct pci_dev *pdev)
 	 * unfortunately we can't detect certain
 	 * hypervisors so just do this all the time.
 	 */
-	amdgpu_suspend(adev);
+	amdgpu_device_ip_suspend(adev);
 }
 
 static int amdgpu_pmops_suspend(struct device *dev)
@@ -855,9 +865,6 @@ static struct drm_driver kms_driver = {
 	.disable_vblank = amdgpu_disable_vblank_kms,
 	.get_vblank_timestamp = drm_calc_vbltimestamp_from_scanoutpos,
 	.get_scanout_position = amdgpu_get_crtc_scanout_position,
-#if defined(CONFIG_DEBUG_FS)
-	.debugfs_init = amdgpu_debugfs_init,
-#endif
 	.irq_preinstall = amdgpu_irq_preinstall,
 	.irq_postinstall = amdgpu_irq_postinstall,
 	.irq_uninstall = amdgpu_irq_uninstall,
@@ -917,10 +924,6 @@ static int __init amdgpu_init(void)
 	if (r)
 		goto error_fence;
 
-	r = amd_sched_fence_slab_init();
-	if (r)
-		goto error_sched;
-
 	if (vgacon_text_force()) {
 		DRM_ERROR("VGACON disables amdgpu kernel modesetting.\n");
 		return -EINVAL;
@@ -932,9 +935,6 @@ static int __init amdgpu_init(void)
 	amdgpu_register_atpx_handler();
 	/* let modprobe override vga console setting */
 	return pci_register_driver(pdriver);
-
-error_sched:
-	amdgpu_fence_slab_fini();
 
 error_fence:
 	amdgpu_sync_fini();
@@ -949,7 +949,6 @@ static void __exit amdgpu_exit(void)
 	pci_unregister_driver(pdriver);
 	amdgpu_unregister_atpx_handler();
 	amdgpu_sync_fini();
-	amd_sched_fence_slab_fini();
 	amdgpu_fence_slab_fini();
 }
 

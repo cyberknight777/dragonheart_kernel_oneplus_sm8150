@@ -250,6 +250,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_io_setup	__NR_ia32_io_setup
 #define __NR_compat_io_submit	__NR_ia32_io_submit
 #define __NR_compat_ioprio_set	__NR_ia32_ioprio_set
+#define __NR_compat_keyctl	__NR_ia32_keyctl
 #define __NR_compat_kill	__NR_ia32_kill
 #define __NR_compat_lgetxattr	__NR_ia32_lgetxattr
 #define __NR_compat_link	__NR_ia32_link
@@ -357,6 +358,7 @@ static asmlinkage long alt_sys_prctl(int option, unsigned long arg2,
 #define __NR_compat_statfs	__NR_ia32_statfs
 #define __NR_compat_symlink	__NR_ia32_symlink
 #define __NR_compat_symlinkat	__NR_ia32_symlinkat
+#define __NR_compat_sync	__NR_ia32_sync
 #define __NR_compat_sync_file_range	__NR_ia32_sync_file_range
 #define __NR_compat_syncfs	__NR_ia32_syncfs
 #define __NR_compat_sysinfo	__NR_ia32_sysinfo
@@ -513,6 +515,14 @@ static asmlinkage long android_getpriority(int which, int who)
 	}
 
 	return -nice + 20;
+}
+
+/* Android does not get to call keyctl. */
+static asmlinkage long android_keyctl(int cmd, unsigned long arg2,
+				      unsigned long arg3, unsigned long arg4,
+				      unsigned long arg5)
+{
+	return -EACCES;
 }
 
 /* Make sure nothing sets a nice value more favorable than -10. */
@@ -697,6 +707,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(io_setup),
 	SYSCALL_ENTRY(io_submit),
 	SYSCALL_ENTRY(ioprio_set),
+	SYSCALL_ENTRY_ALT(keyctl, android_keyctl),
 	SYSCALL_ENTRY(kill),
 	SYSCALL_ENTRY(lgetxattr),
 	SYSCALL_ENTRY(linkat),
@@ -784,6 +795,7 @@ static struct syscall_whitelist_entry android_whitelist[] = {
 	SYSCALL_ENTRY(symlinkat),
 	SYSCALL_ENTRY(sysinfo),
 	SYSCALL_ENTRY(syslog),
+	SYSCALL_ENTRY(sync),
 	SYSCALL_ENTRY(syncfs),
 	SYSCALL_ENTRY(tee),
 	SYSCALL_ENTRY(tgkill),
@@ -1217,6 +1229,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(io_submit),
 	COMPAT_SYSCALL_ENTRY(ioctl),
 	COMPAT_SYSCALL_ENTRY(ioprio_set),
+	COMPAT_SYSCALL_ENTRY_ALT(keyctl, android_keyctl),
 	COMPAT_SYSCALL_ENTRY(kill),
 	COMPAT_SYSCALL_ENTRY(lgetxattr),
 	COMPAT_SYSCALL_ENTRY(link),
@@ -1384,6 +1397,7 @@ static struct syscall_whitelist_entry android_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(setuid32),
 	COMPAT_SYSCALL_ENTRY(stat64),
 	COMPAT_SYSCALL_ENTRY(statfs64),
+	COMPAT_SYSCALL_ENTRY(sync),
 	COMPAT_SYSCALL_ENTRY(syncfs),
 	COMPAT_SYSCALL_ENTRY(truncate64),
 	COMPAT_SYSCALL_ENTRY(ugetrlimit),

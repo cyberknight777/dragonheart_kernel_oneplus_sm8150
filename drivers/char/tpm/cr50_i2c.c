@@ -17,7 +17,7 @@
  */
 
 /*
- * cr50 is a TPM 2.0 capable device that requries special
+ * cr50 is a firmware for H1 secure modules that requires special
  * handling for the I2C interface.
  *
  * - Use an interrupt for transaction status instead of hardcoded delays
@@ -637,8 +637,7 @@ static int cr50_i2c_init(struct i2c_client *client)
 		return -ENODEV;
 	}
 
-	dev_info(dev,
-		 "cr50 TPM 2.0 (i2c 0x%02x irq %d id 0x%x) [gentle shutdown]\n",
+	dev_info(dev, "cr50 TPM 2.0 (i2c 0x%02x irq %d id 0x%x)\n",
 		 client->addr, client->irq, vendor >> 16);
 
 	chip->hwrng.quality = rng_quality;
@@ -682,19 +681,13 @@ static int cr50_i2c_probe(struct i2c_client *client,
 	return cr50_i2c_init(client);
 }
 
-static void cr50_i2c_shutdown(struct i2c_client *client)
+static int cr50_i2c_remove(struct i2c_client *client)
 {
 	struct tpm_chip *chip = i2c_get_clientdata(client);
-	struct device *dev = &client->dev;
 
 	tpm_chip_unregister(chip);
 	release_locality(chip, 1);
-	dev_info(dev, "gentle shutdown done\n");
-}
 
-static int cr50_i2c_remove(struct i2c_client *client)
-{
-	cr50_i2c_shutdown(client);
 	return 0;
 }
 
@@ -704,7 +697,6 @@ static struct i2c_driver cr50_i2c_driver = {
 	.id_table = cr50_i2c_table,
 	.probe = cr50_i2c_probe,
 	.remove = cr50_i2c_remove,
-	.shutdown = cr50_i2c_shutdown,
 	.driver = {
 		.name = "cr50_i2c",
 		.pm = &cr50_i2c_pm,

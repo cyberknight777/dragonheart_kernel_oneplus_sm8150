@@ -254,6 +254,8 @@ static inline bool idle_should_enter_s2idle(void)
 extern void __init pm_states_init(void);
 extern void s2idle_set_ops(const struct platform_s2idle_ops *ops);
 extern void s2idle_wake(void);
+int tick_set_freeze_event(int cpu, ktime_t expires);
+int tick_clear_freeze_event(int cpu);
 
 /**
  * arch_suspend_disable_irqs - disable IRQs for suspend

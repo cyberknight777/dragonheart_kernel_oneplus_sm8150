@@ -70,10 +70,9 @@ static int platform_clock_control(struct snd_soc_dapm_widget *w,
 	}
 
 	if (SND_SOC_DAPM_EVENT_OFF(event)) {
-		ret = snd_soc_dai_set_pll(codec_dai, 0,
-				     RT5682_PLL1_S_MCLK, 0, 0);
+		ret = snd_soc_dai_set_sysclk(codec_dai, 0, 0, 0);
 		if (ret)
-			dev_err(card->dev, "failed to stop PLL: %d\n", ret);
+			dev_err(card->dev, "failed to stop sysclk: %d\n", ret);
 	} else if (SND_SOC_DAPM_EVENT_ON(event)) {
 		ret = snd_soc_dai_set_pll(codec_dai, 0, RT5682_PLL1_S_MCLK,
 					GLK_PLAT_CLK_FREQ, RT5682_PLL_FREQ);

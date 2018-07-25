@@ -189,8 +189,7 @@ static ssize_t low_mem_available_show(struct kobject *kobj,
 				      struct kobj_attribute *attr,
 				      char *buf)
 {
-	const int lru_base = NR_LRU_BASE - LRU_BASE;
-	unsigned long available_mem = get_available_mem_adj(lru_base);
+	unsigned long available_mem = get_available_mem_adj();
 
 	return sprintf(buf, "%lu\n",
 		       available_mem / (1024 * 1024 / PAGE_SIZE));

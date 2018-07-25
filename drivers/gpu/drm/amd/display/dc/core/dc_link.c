@@ -677,8 +677,6 @@ bool dc_link_detect(struct dc_link *link, enum dc_detect_reason reason)
 		case EDID_NO_RESPONSE:
 			dm_logger_write(link->ctx->logger, LOG_ERROR,
 				"No EDID read.\n");
-			return false;
-
 		default:
 			break;
 		}
@@ -938,8 +936,9 @@ static bool construct(
 	link->link_id = bios->funcs->get_connector_id(bios, init_params->connector_index);
 
 	if (link->link_id.type != OBJECT_TYPE_CONNECTOR) {
-		dm_error("%s: Invalid Connector ObjectID from Adapter Service for connector index:%d!\n",
-				__func__, init_params->connector_index);
+		dm_error("%s: Invalid Connector ObjectID from Adapter Service for connector index:%d! type %d expected %d\n",
+			 __func__, init_params->connector_index,
+			 link->link_id.type, OBJECT_TYPE_CONNECTOR);
 		goto create_fail;
 	}
 
@@ -1267,6 +1266,24 @@ static enum dc_status enable_link_dp(
 		status = DC_FAIL_DP_LINK_TRAINING;
 
 	enable_stream_features(pipe_ctx);
+
+	return status;
+}
+
+static enum dc_status enable_link_edp(
+		struct dc_state *state,
+		struct pipe_ctx *pipe_ctx)
+{
+	enum dc_status status;
+	struct dc_stream_state *stream = pipe_ctx->stream;
+	struct dc_link *link = stream->sink->link;
+
+	link->dc->hwss.edp_power_control(link, true);
+	link->dc->hwss.edp_wait_for_hpd_ready(link, true);
+
+	status = enable_link_dp(state, pipe_ctx);
+
+	link->dc->hwss.edp_backlight_control(link, true);
 
 	return status;
 }
@@ -1730,8 +1747,7 @@ static void enable_link_hdmi(struct pipe_ctx *pipe_ctx)
 			link->link_enc,
 			pipe_ctx->clock_source->id,
 			display_color_depth,
-			pipe_ctx->stream->signal == SIGNAL_TYPE_HDMI_TYPE_A,
-			pipe_ctx->stream->signal == SIGNAL_TYPE_DVI_DUAL_LINK,
+			pipe_ctx->stream->signal,
 			stream->phy_pix_clk);
 
 	if (pipe_ctx->stream->signal == SIGNAL_TYPE_HDMI_TYPE_A)
@@ -1746,8 +1762,10 @@ static enum dc_status enable_link(
 	enum dc_status status = DC_ERROR_UNEXPECTED;
 	switch (pipe_ctx->stream->signal) {
 	case SIGNAL_TYPE_DISPLAY_PORT:
-	case SIGNAL_TYPE_EDP:
 		status = enable_link_dp(state, pipe_ctx);
+		break;
+	case SIGNAL_TYPE_EDP:
+		status = enable_link_edp(state, pipe_ctx);
 		break;
 	case SIGNAL_TYPE_DISPLAY_PORT_MST:
 		status = enable_link_dp_mst(state, pipe_ctx);
@@ -1798,7 +1816,7 @@ static void disable_link(struct dc_link *link, enum signal_type signal)
 		else
 			dp_disable_link_phy_mst(link, signal);
 	} else
-		link->link_enc->funcs->disable_output(link->link_enc, signal, link);
+		link->link_enc->funcs->disable_output(link->link_enc, signal);
 }
 
 static bool dp_active_dongle_validate_timing(
@@ -1871,7 +1889,7 @@ enum dc_status dc_link_validate_mode_timing(
 		const struct dc_crtc_timing *timing)
 {
 	uint32_t max_pix_clk = stream->sink->dongle_max_pix_clk;
-	struct dc_dongle_caps *dongle_caps = &link->link_status.dpcd_caps->dongle_caps;
+	struct dc_dongle_caps *dongle_caps = &link->dpcd_caps.dongle_caps;
 
 	/* A hack to avoid failing any modes for EDID override feature on
 	 * topology change such as lower quality cable for DP or different dongle
@@ -1909,11 +1927,17 @@ bool dc_link_set_backlight_level(const struct dc_link *link, uint32_t level,
 {
 	struct dc  *core_dc = link->ctx->dc;
 	struct abm *abm = core_dc->res_pool->abm;
+	struct dmcu *dmcu = core_dc->res_pool->dmcu;
 	unsigned int controller_id = 0;
+	bool use_smooth_brightness = true;
 	int i;
 
-	if ((abm == NULL) || (abm->funcs->set_backlight_level == NULL))
+	if ((dmcu == NULL) ||
+		(abm == NULL) ||
+		(abm->funcs->set_backlight_level == NULL))
 		return false;
+
+	use_smooth_brightness = dmcu->funcs->is_dmcu_initialized(dmcu);
 
 	dm_logger_write(link->ctx->logger, LOG_BACKLIGHT,
 			"New Backlight level: %d (0x%X)\n", level, level);
@@ -1937,7 +1961,8 @@ bool dc_link_set_backlight_level(const struct dc_link *link, uint32_t level,
 				abm,
 				level,
 				frame_ramp,
-				controller_id);
+				controller_id,
+				use_smooth_brightness);
 	}
 
 	return true;
@@ -2281,6 +2306,9 @@ void core_link_disable_stream(struct pipe_ctx *pipe_ctx, int option)
 
 	if (pipe_ctx->stream->signal == SIGNAL_TYPE_DISPLAY_PORT_MST)
 		deallocate_mst_payload(pipe_ctx);
+
+	if (pipe_ctx->stream->signal == SIGNAL_TYPE_EDP)
+		core_dc->hwss.edp_backlight_control(pipe_ctx->stream->sink->link, false);
 
 	core_dc->hwss.disable_stream(pipe_ctx, option);
 

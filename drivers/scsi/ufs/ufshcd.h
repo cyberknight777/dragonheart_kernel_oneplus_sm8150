@@ -362,6 +362,7 @@ struct ufs_clk_gating {
 	struct device_attribute enable_attr;
 	bool is_enabled;
 	int active_reqs;
+	struct workqueue_struct *clk_gating_workq;
 };
 
 struct ufs_saved_pwr_info {
@@ -499,6 +500,7 @@ struct ufs_stats {
  * @urgent_bkops_lvl: keeps track of urgent bkops level for device
  * @is_urgent_bkops_lvl_checked: keeps track if the urgent bkops level for
  *  device is known or not.
+ * @scsi_block_reqs_cnt: reference counting for scsi block requests
  */
 struct ufs_hba {
 	void __iomem *mmio_base;
@@ -683,6 +685,7 @@ struct ufs_hba {
 
 	struct rw_semaphore clk_scaling_lock;
 	struct ufs_desc_size desc_size;
+	atomic_t scsi_block_reqs_cnt;
 };
 
 /* Returns true if clocks can be gated. Otherwise false */

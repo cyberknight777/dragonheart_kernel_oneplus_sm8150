@@ -410,10 +410,8 @@ static void acp_dma_start(void __iomem *acp_mmio, u16 ch_num)
 	switch (ch_num) {
 	case ACP_TO_I2S_DMA_CH_NUM:
 	case ACP_TO_SYSRAM_CH_NUM:
-	case I2S_TO_ACP_DMA_CH_NUM:
 	case ACP_TO_I2S_DMA_BT_INSTANCE_CH_NUM:
 	case ACP_TO_SYSRAM_BT_INSTANCE_CH_NUM:
-	case I2S_TO_ACP_DMA_BT_INSTANCE_CH_NUM:
 		dma_ctrl |= ACP_DMA_CNTL_0__DMAChIOCEn_MASK;
 		break;
 	default:
@@ -695,29 +693,16 @@ static irqreturn_t dma_irq_handler(int irq, void *arg)
 			      acp_mmio, mmACP_EXTERNAL_INTR_STAT);
 	}
 
-	if ((intr_flag & BIT(I2S_TO_ACP_DMA_CH_NUM)) != 0) {
-		valid_irq = true;
-		snd_pcm_period_elapsed(irq_data->capture_i2ssp_stream);
-		acp_reg_write((intr_flag & BIT(I2S_TO_ACP_DMA_CH_NUM)) << 16,
-			      acp_mmio, mmACP_EXTERNAL_INTR_STAT);
-	}
-
 	if ((intr_flag & BIT(ACP_TO_SYSRAM_CH_NUM)) != 0) {
 		valid_irq = true;
+		snd_pcm_period_elapsed(irq_data->capture_i2ssp_stream);
 		acp_reg_write((intr_flag & BIT(ACP_TO_SYSRAM_CH_NUM)) << 16,
-			      acp_mmio, mmACP_EXTERNAL_INTR_STAT);
-	}
-
-	if ((intr_flag & BIT(I2S_TO_ACP_DMA_BT_INSTANCE_CH_NUM)) != 0) {
-		valid_irq = true;
-		snd_pcm_period_elapsed(irq_data->capture_i2sbt_stream);
-		acp_reg_write((intr_flag &
-			      BIT(I2S_TO_ACP_DMA_BT_INSTANCE_CH_NUM)) << 16,
 			      acp_mmio, mmACP_EXTERNAL_INTR_STAT);
 	}
 
 	if ((intr_flag & BIT(ACP_TO_SYSRAM_BT_INSTANCE_CH_NUM)) != 0) {
 		valid_irq = true;
+		snd_pcm_period_elapsed(irq_data->capture_i2sbt_stream);
 		acp_reg_write((intr_flag &
 			      BIT(ACP_TO_SYSRAM_BT_INSTANCE_CH_NUM)) << 16,
 			      acp_mmio, mmACP_EXTERNAL_INTR_STAT);
@@ -894,8 +879,8 @@ static int acp_dma_hw_params(struct snd_pcm_substream *substream,
 		switch (rtd->i2s_instance) {
 		case I2S_BT_INSTANCE:
 			rtd->pte_offset = ACP_ST_BT_CAPTURE_PTE_OFFSET;
-			rtd->ch1 = ACP_TO_SYSRAM_BT_INSTANCE_CH_NUM;
-			rtd->ch2 = I2S_TO_ACP_DMA_BT_INSTANCE_CH_NUM;
+			rtd->ch1 = I2S_TO_ACP_DMA_BT_INSTANCE_CH_NUM;
+			rtd->ch2 = ACP_TO_SYSRAM_BT_INSTANCE_CH_NUM;
 			rtd->sram_bank = ACP_SRAM_BANK_4_ADDRESS;
 			rtd->destination = FROM_BLUETOOTH;
 			rtd->dma_dscr_idx_1 = CAPTURE_START_DMA_DESCR_CH10;
@@ -909,8 +894,8 @@ static int acp_dma_hw_params(struct snd_pcm_substream *substream,
 		case I2S_SP_INSTANCE:
 		default:
 			rtd->pte_offset = ACP_CAPTURE_PTE_OFFSET;
-			rtd->ch1 = ACP_TO_SYSRAM_CH_NUM;
-			rtd->ch2 = I2S_TO_ACP_DMA_CH_NUM;
+			rtd->ch1 = I2S_TO_ACP_DMA_CH_NUM;
+			rtd->ch2 = ACP_TO_SYSRAM_CH_NUM;
 			switch (adata->asic_type) {
 			case CHIP_STONEY:
 				rtd->pte_offset = ACP_ST_CAPTURE_PTE_OFFSET;
@@ -990,8 +975,7 @@ static snd_pcm_uframes_t acp_dma_pointer(struct snd_pcm_substream *substream)
 	buffersize = frames_to_bytes(runtime, runtime->buffer_size);
 	bytescount = acp_get_byte_count(rtd);
 
-	if (bytescount > rtd->bytescount)
-		bytescount -= rtd->bytescount;
+	bytescount -= rtd->bytescount;
 	pos = do_div(bytescount, buffersize);
 	return bytes_to_frames(runtime, pos);
 }
@@ -1024,7 +1008,6 @@ static int acp_dma_prepare(struct snd_pcm_substream *substream)
 static int acp_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	int ret;
-	u64 bytescount = 0;
 
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct audio_substream_data *rtd = runtime->private_data;
@@ -1035,13 +1018,8 @@ static int acp_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 	case SNDRV_PCM_TRIGGER_RESUME:
-		bytescount = acp_get_byte_count(rtd);
-		if (rtd->bytescount == 0)
-			rtd->bytescount = bytescount;
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			acp_dma_start(rtd->acp_mmio, rtd->ch1);
-			acp_dma_start(rtd->acp_mmio, rtd->ch2);
-		} else {
+		rtd->bytescount = acp_get_byte_count(rtd);
+		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 			if (rtd->capture_channel == CAP_CHANNEL0) {
 				acp_dma_cap_channel_disable(rtd->acp_mmio,
 							    CAP_CHANNEL1);
@@ -1054,30 +1032,16 @@ static int acp_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 				acp_dma_cap_channel_enable(rtd->acp_mmio,
 							   CAP_CHANNEL1);
 			}
-			acp_dma_start(rtd->acp_mmio, rtd->ch2);
-			acp_dma_start(rtd->acp_mmio, rtd->ch1);
 		}
+		acp_dma_start(rtd->acp_mmio, rtd->ch1);
+		acp_dma_start(rtd->acp_mmio, rtd->ch2);
 		ret = 0;
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
-		/* For playback, non circular dma should be stopped first
-		 * i.e Sysram to acp dma transfer channel(rtd->ch1) should be
-		 * stopped before stopping cirular dma which is acp sram to i2s
-		 * fifo dma transfer channel(rtd->ch2). Where as in Capture
-		 * scenario, i2s fifo to acp sram dma channel(rtd->ch2) stopped
-		 * first before stopping acp sram to sysram which is circular
-		 * dma(rtd->ch1).
-		 */
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			acp_dma_stop(rtd->acp_mmio, rtd->ch1);
-			ret =  acp_dma_stop(rtd->acp_mmio, rtd->ch2);
-		} else {
-			acp_dma_stop(rtd->acp_mmio, rtd->ch2);
-			ret = acp_dma_stop(rtd->acp_mmio, rtd->ch1);
-		}
-		rtd->bytescount = 0;
+		acp_dma_stop(rtd->acp_mmio, rtd->ch2);
+		ret = acp_dma_stop(rtd->acp_mmio, rtd->ch1);
 		break;
 	default:
 		ret = -EINVAL;

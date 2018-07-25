@@ -3551,6 +3551,7 @@ static void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		del_timer_sync(&virt_dev->eps[i].stop_cmd_timer);
 	}
 
+	virt_dev->udev = NULL;
 	xhci_disable_slot(xhci, udev->slot_id);
 	/*
 	 * Event command completion handler will free any data structures
@@ -4943,6 +4944,7 @@ static const struct hc_driver xhci_hc_driver = {
 	.hub_status_data =	xhci_hub_status_data,
 	.bus_suspend =		xhci_bus_suspend,
 	.bus_resume =		xhci_bus_resume,
+	.get_resuming_ports =	xhci_get_resuming_ports,
 
 	/*
 	 * call back when device connected and addressed

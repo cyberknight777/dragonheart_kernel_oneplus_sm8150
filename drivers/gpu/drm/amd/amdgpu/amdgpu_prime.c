@@ -170,6 +170,7 @@ static int amdgpu_gem_begin_cpu_access(struct dma_buf *dma_buf,
 {
 	struct amdgpu_bo *bo = gem_to_amdgpu_bo(dma_buf->priv);
 	struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
+	struct ttm_operation_ctx ctx = { true, false };
 	u32 domain = amdgpu_display_supported_domains(adev);
 	int ret;
 	bool reads = (direction == DMA_BIDIRECTIONAL ||
@@ -185,7 +186,7 @@ static int amdgpu_gem_begin_cpu_access(struct dma_buf *dma_buf,
 
 	if (!bo->pin_count && (bo->allowed_domains & AMDGPU_GEM_DOMAIN_GTT)) {
 		amdgpu_ttm_placement_from_domain(bo, AMDGPU_GEM_DOMAIN_GTT);
-		ret = ttm_bo_validate(&bo->tbo, &bo->placement, true, false);
+		ret = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
 	}
 
 	amdgpu_bo_unreserve(bo);

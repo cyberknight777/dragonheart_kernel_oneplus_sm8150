@@ -552,7 +552,8 @@ static irqreturn_t amd_gpio_irq_handler(int irq, void *dev_id)
 		/* Each status bit covers four pins */
 		for (i = 0; i < 4; i++) {
 			regval = readl(regs + i);
-			if (!(regval & PIN_IRQ_PENDING))
+			if (!(regval & PIN_IRQ_PENDING) ||
+			    !(regval & BIT(INTERRUPT_MASK_OFF)))
 				continue;
 			irq = irq_find_mapping(gc->irq.domain, irqnr + i);
 			generic_handle_irq(irq);
@@ -775,7 +776,7 @@ static bool amd_gpio_should_save(struct amd_gpio *gpio_dev, unsigned int pin)
 	return false;
 }
 
-int amd_gpio_suspend(struct device *dev)
+static int amd_gpio_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct amd_gpio *gpio_dev = platform_get_drvdata(pdev);
@@ -794,7 +795,7 @@ int amd_gpio_suspend(struct device *dev)
 	return 0;
 }
 
-int amd_gpio_resume(struct device *dev)
+static int amd_gpio_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct amd_gpio *gpio_dev = platform_get_drvdata(pdev);

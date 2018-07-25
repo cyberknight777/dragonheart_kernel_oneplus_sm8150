@@ -165,6 +165,24 @@ static const struct edid_quirk {
 
 	/* HTC Vive VR Headset */
 	{ "HVR", 0xaa01, EDID_QUIRK_NON_DESKTOP },
+
+	/* Oculus Rift DK1, DK2, and CV1 VR Headsets */
+	{ "OVR", 0x0001, EDID_QUIRK_NON_DESKTOP },
+	{ "OVR", 0x0003, EDID_QUIRK_NON_DESKTOP },
+	{ "OVR", 0x0004, EDID_QUIRK_NON_DESKTOP },
+
+	/* Windows Mixed Reality Headsets */
+	{ "ACR", 0x7fce, EDID_QUIRK_NON_DESKTOP },
+	{ "HPN", 0x3515, EDID_QUIRK_NON_DESKTOP },
+	{ "LEN", 0x0408, EDID_QUIRK_NON_DESKTOP },
+	{ "LEN", 0xb800, EDID_QUIRK_NON_DESKTOP },
+	{ "FUJ", 0x1970, EDID_QUIRK_NON_DESKTOP },
+	{ "DEL", 0x7fce, EDID_QUIRK_NON_DESKTOP },
+	{ "SEC", 0x144a, EDID_QUIRK_NON_DESKTOP },
+	{ "AUS", 0xc102, EDID_QUIRK_NON_DESKTOP },
+
+	/* Sony PlayStation VR Headset */
+	{ "SNY", 0x0704, EDID_QUIRK_NON_DESKTOP },
 };
 
 /*
@@ -4873,6 +4891,11 @@ EXPORT_SYMBOL(drm_hdmi_avi_infoframe_from_display_mode);
  * @mode: DRM display mode
  * @rgb_quant_range: RGB quantization range (Q)
  * @rgb_quant_range_selectable: Sink support selectable RGB quantization range (QS)
+ * @is_hdmi2_sink: HDMI 2.0 sink, which has different default recommendations
+ *
+ * Note that @is_hdmi2_sink can be derived by looking at the
+ * &drm_scdc.supported flag stored in &drm_hdmi_info.scdc,
+ * &drm_display_info.hdmi, which can be found in &drm_connector.display_info.
  */
 void
 drm_hdmi_avi_infoframe_quant_range(struct hdmi_avi_infoframe *frame,
