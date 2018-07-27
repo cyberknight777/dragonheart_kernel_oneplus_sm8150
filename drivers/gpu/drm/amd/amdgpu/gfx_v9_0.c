@@ -3887,6 +3887,9 @@ static int gfx_v9_0_set_powergating_state(void *handle,
 
 	switch (adev->asic_type) {
 	case CHIP_RAVEN:
+		if (!enable) {
+			amdgpu_gfx_off_ctrl(adev, false);
+		}
 		if (adev->pg_flags & AMD_PG_SUPPORT_RLC_SMU_HS) {
 			gfx_v9_0_enable_sck_slow_down_on_power_up(adev, true);
 			gfx_v9_0_enable_sck_slow_down_on_power_down(adev, true);
@@ -3906,14 +3909,16 @@ static int gfx_v9_0_set_powergating_state(void *handle,
 		/* update mgcg state */
 		gfx_v9_0_update_gfx_mg_power_gating(adev, enable);
 
-		/* set gfx off through smu */
-		if (enable && adev->powerplay.pp_funcs->set_powergating_by_smu)
-			amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, true);
+		if (enable)
+			amdgpu_gfx_off_ctrl(adev, true);
 		break;
 	case CHIP_VEGA12:
-		/* set gfx off through smu */
-		if (enable && adev->powerplay.pp_funcs->set_powergating_by_smu)
-			amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_GFX, true);
+		if (!enable) {
+			amdgpu_gfx_off_ctrl(adev, false);
+			cancel_delayed_work_sync(&adev->gfx.gfx_off_delay_work);
+		} else {
+			amdgpu_gfx_off_ctrl(adev, true);
+		}
 		break;
 	default:
 		break;
