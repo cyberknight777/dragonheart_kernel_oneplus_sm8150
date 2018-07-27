@@ -758,9 +758,9 @@ _iwl_fw_error_dump(struct iwl_fw_runtime *fwrt,
 		memcpy(dump_info->fw_human_readable, fwrt->fw->human_readable,
 		       sizeof(dump_info->fw_human_readable));
 		strncpy(dump_info->dev_human_readable, fwrt->trans->cfg->name,
-			sizeof(dump_info->dev_human_readable));
+			sizeof(dump_info->dev_human_readable) - 1);
 		strncpy(dump_info->bus_human_readable, fwrt->dev->bus->name,
-			sizeof(dump_info->bus_human_readable));
+			sizeof(dump_info->bus_human_readable) - 1);
 
 		dump_data = iwl_fw_error_next_data(dump_data);
 	}
