@@ -291,6 +291,8 @@ static inline bool idle_should_enter_s2idle(void) { return false; }
 static inline void __init pm_states_init(void) {}
 static inline void s2idle_set_ops(const struct platform_s2idle_ops *ops) {}
 static inline void s2idle_wake(void) {}
+static inline int tick_set_freeze_event(int cpu, ktime_t expires) { return 0; }
+static inline int tick_clear_freeze_event(int cpu) { return 0; }
 #endif /* !CONFIG_SUSPEND */
 
 /* struct pbe is used for creating lists of pages that should be restored
