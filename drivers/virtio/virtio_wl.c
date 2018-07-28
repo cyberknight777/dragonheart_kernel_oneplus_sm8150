@@ -946,13 +946,12 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi,
 		goto free_ctrl_new;
 	}
 
+	mutex_lock(&vi->vfds_lock);
 	/*
 	 * Take the lock before adding it to the vfds list where others might
 	 * reference it.
 	 */
 	mutex_lock(&vfd->lock);
-
-	mutex_lock(&vi->vfds_lock);
 	ret = idr_alloc(&vi->vfds, vfd, 1, VIRTWL_MAX_ALLOC, GFP_KERNEL);
 	mutex_unlock(&vi->vfds_lock);
 	if (ret <= 0)
