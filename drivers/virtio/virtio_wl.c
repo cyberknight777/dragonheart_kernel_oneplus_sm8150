@@ -440,6 +440,7 @@ static void virtwl_vfd_lock_unlink(struct virtwl_vfd *vfd)
 	mutex_lock(&vi->vfds_lock);
 	mutex_lock(&vfd->lock);
 	idr_remove(&vi->vfds, vfd->id);
+	mutex_unlock(&vfd->lock);
 	mutex_unlock(&vi->vfds_lock);
 }
 
