@@ -829,7 +829,7 @@ void iwl_fw_error_dump(struct iwl_fw_runtime *fwrt)
 	}
 
 	/* We only dump the FIFOs if the FW is in error state */
-	if (test_bit(STATUS_FW_ERROR, &fwrt->trans->status)) {
+	if (fifo_data_len) {
 		iwl_fw_dump_fifos(fwrt, &dump_data);
 		if (radio_len)
 			iwl_read_radio_regs(fwrt, &dump_data);
@@ -1041,7 +1041,7 @@ int iwl_fw_dbg_collect_desc(struct iwl_fw_runtime *fwrt,
 	 * If the loading of the FW completed successfully, the next step is to
 	 * get the SMEM config data. Thus, if fwrt->smem_cfg.num_lmacs is non
 	 * zero, the FW was already loaded successully. If the state is "NO_FW"
-	 * in such a case - WARN and exit, since FW may be dead. Otherwise, we
+	 * in such a case - exit, since FW may be dead. Otherwise, we
 	 * can try to collect the data, since FW might just not be fully
 	 * loaded (no "ALIVE" yet), and the debug data is accessible.
 	 *
@@ -1049,9 +1049,8 @@ int iwl_fw_dbg_collect_desc(struct iwl_fw_runtime *fwrt,
 	 *	config. In such a case, due to HW access problems, we might
 	 *	collect garbage.
 	 */
-	if (WARN((fwrt->trans->state == IWL_TRANS_NO_FW) &&
-		 fwrt->smem_cfg.num_lmacs,
-		 "Can't collect dbg data when FW isn't alive\n"))
+	if (fwrt->trans->state == IWL_TRANS_NO_FW &&
+	    fwrt->smem_cfg.num_lmacs)
 		return -EIO;
 
 	if (test_and_set_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
@@ -1075,9 +1074,12 @@ IWL_EXPORT_SYMBOL(iwl_fw_dbg_collect_desc);
 int iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 		       enum iwl_fw_dbg_trigger trig,
 		       const char *str, size_t len,
-		       const struct iwl_fw_dbg_trigger_tlv *trigger)
+		       struct iwl_fw_dbg_trigger_tlv *trigger)
 {
 	struct iwl_fw_dump_desc *desc;
+
+	if (trigger && !le16_to_cpu(trigger->occurrences))
+		return 0;
 
 	if (trigger && trigger->flags & IWL_FW_DBG_FORCE_RESTART) {
 		IWL_WARN(fwrt, "Force restart: trigger %d fired.\n", trig);
@@ -1088,6 +1090,12 @@ int iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 	desc = kzalloc(sizeof(*desc) + len, GFP_ATOMIC);
 	if (!desc)
 		return -ENOMEM;
+
+	if (trigger) {
+		u16 occurrences = le16_to_cpu(trigger->occurrences) - 1;
+
+		trigger->occurrences = cpu_to_le16(occurrences);
+	}
 
 	desc->len = len;
 	desc->trig_desc.type = cpu_to_le32(trig);
@@ -1101,12 +1109,8 @@ int iwl_fw_dbg_collect_trig(struct iwl_fw_runtime *fwrt,
 			    struct iwl_fw_dbg_trigger_tlv *trigger,
 			    const char *fmt, ...)
 {
-	u16 occurrences = le16_to_cpu(trigger->occurrences);
 	int ret, len = 0;
 	char buf[64];
-
-	if (!occurrences)
-		return 0;
 
 	if (fmt) {
 		va_list ap;
@@ -1130,7 +1134,6 @@ int iwl_fw_dbg_collect_trig(struct iwl_fw_runtime *fwrt,
 	if (ret)
 		return ret;
 
-	trigger->occurrences = cpu_to_le16(occurrences - 1);
 	return 0;
 }
 IWL_EXPORT_SYMBOL(iwl_fw_dbg_collect_trig);

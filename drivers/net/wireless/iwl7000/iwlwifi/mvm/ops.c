@@ -813,10 +813,6 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
 	}
 
-	/* the hardware splits the A-MSDU */
-	if (mvm->cfg->mq_rx_supported)
-		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
-
 	trans->wide_cmd_header = true;
 	trans_cfg.bc_table_dword = true;
 

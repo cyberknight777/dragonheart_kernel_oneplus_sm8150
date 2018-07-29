@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -121,7 +123,7 @@ static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
 			break;
 		return;
 	case NL80211_IFTYPE_P2P_DEVICE:
-#if CFG80211_VERSION >= KERNEL_VERSION(4,9,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
@@ -168,9 +170,12 @@ static void iwl_mvm_adjust_quota_for_p2p_wa(struct iwl_mvm *mvm,
 
 	phy_id = mvm->p2p_opps_test_wa_vif->phy_ctxt->id;
 	for (i = 0; i < MAX_BINDINGS; i++) {
+		u32 id;
+		u32 id_n_c;
+
 		quota = iwl_mvm_quota_cmd_get_quota(mvm, cmd, i);
-		u32 id_n_c = le32_to_cpu(quota->id_and_color);
-		u32 id = (id_n_c & FW_CTXT_ID_MSK) >> FW_CTXT_ID_POS;
+		id_n_c = le32_to_cpu(quota->id_and_color);
+		id = (id_n_c & FW_CTXT_ID_MSK) >> FW_CTXT_ID_POS;
 
 		if (id != phy_id)
 			continue;

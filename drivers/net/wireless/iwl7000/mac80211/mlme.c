@@ -325,8 +325,9 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	struct ieee80211_supported_band *sband;
-	struct ieee80211_channel *chan;
+	struct ieee80211_channel *chan = sdata->vif.bss_conf.chandef.chan;
+	struct ieee80211_supported_band *sband =
+		local->hw.wiphy->bands[chan->band];
 	struct cfg80211_chan_def chandef;
 	u16 ht_opmode;
 	u32 flags;
@@ -358,9 +359,6 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 		*changed |= BSS_CHANGED_HT;
 		sdata->vif.bss_conf.ht_operation_mode = ht_opmode;
 	}
-
-	chan = sdata->vif.bss_conf.chandef.chan;
-	sband = local->hw.wiphy->bands[chan->band];
 
 	/* calculate new channel (type) based on HT/VHT/HE operation IEs */
 	flags = ieee80211_determine_chantype(sdata, sband, chan,
@@ -697,6 +695,9 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 			2 + 2 * sband->n_channels + /* supported channels */
 			2 + sizeof(struct ieee80211_ht_cap) + /* HT */
 			2 + sizeof(struct ieee80211_vht_cap) + /* VHT */
+			2 + 1 + sizeof(struct ieee80211_he_cap_elem) + /* HE */
+				sizeof(struct ieee80211_he_mcs_nss_supp) +
+				IEEE80211_HE_PPE_THRES_MAX_LEN +
 			assoc_data->ie_len + /* extra IEs */
 			(assoc_data->fils_kek_len ? 16 /* AES-SIV */ : 0) +
 			9, /* WMM */

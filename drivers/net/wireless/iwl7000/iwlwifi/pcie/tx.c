@@ -1092,7 +1092,7 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 
 	if (!iwl_queue_used(txq, last_to_free)) {
 		IWL_ERR(trans,
-			"%s: Read index for DMA queue txq id (%d), last_to_free %d is out of range [0-%d] %d %d.\n",
+			"%s: Read index for txq id (%d), last_to_free %d is out of range [0-%d] %d %d.\n",
 			__func__, txq_id, last_to_free, TFD_QUEUE_SIZE_MAX,
 			txq->write_ptr, txq->read_ptr);
 		goto out;
@@ -2007,6 +2007,8 @@ static int iwl_fill_data_tbs(struct iwl_trans *trans, struct sk_buff *skb,
 		}
 		tb_idx = iwl_pcie_txq_build_tfd(trans, txq, tb_phys,
 						skb_frag_size(frag), false);
+		if (tb_idx < 0)
+			return tb_idx;
 
 		out_meta->tbs |= BIT(tb_idx);
 	}
