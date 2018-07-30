@@ -85,6 +85,7 @@ struct geni_i2c_dev {
 	spinlock_t lock;
 	u32 clk_freq_out;
 	const struct geni_i2c_clk_fld *clk_fld;
+	int suspended;
 };
 
 struct geni_i2c_err_log {
@@ -567,14 +568,25 @@ static int geni_i2c_probe(struct platform_device *pdev)
 	geni_se_init(&gi2c->se, gi2c->tx_wm, tx_depth);
 	geni_se_config_packing(&gi2c->se, BITS_PER_BYTE, PACKING_BYTES_PW,
 							true, true, true);
-	geni_se_resources_off(&gi2c->se);
+	ret = geni_se_resources_off(&gi2c->se);
+	if (ret) {
+		dev_err(&pdev->dev, "Error turning off resources %d\n", ret);
+		return ret;
+	}
+
 	dev_dbg(&pdev->dev, "i2c fifo/se-dma mode. fifo depth:%d\n", tx_depth);
 
+	ret = i2c_add_adapter(&gi2c->adap);
+	if (ret) {
+		dev_err(&pdev->dev, "Error adding i2c adapter %d\n", ret);
+		return ret;
+	}
+
+	gi2c->suspended = 1;
 	pm_runtime_set_suspended(gi2c->se.dev);
 	pm_runtime_set_autosuspend_delay(gi2c->se.dev, I2C_AUTO_SUSPEND_DELAY);
 	pm_runtime_use_autosuspend(gi2c->se.dev);
 	pm_runtime_enable(gi2c->se.dev);
-	i2c_add_adapter(&gi2c->adap);
 
 	return 0;
 }
@@ -590,10 +602,19 @@ static int geni_i2c_remove(struct platform_device *pdev)
 
 static int __maybe_unused geni_i2c_runtime_suspend(struct device *dev)
 {
+	int ret;
 	struct geni_i2c_dev *gi2c = dev_get_drvdata(dev);
 
 	disable_irq(gi2c->irq);
-	geni_se_resources_off(&gi2c->se);
+	ret = geni_se_resources_off(&gi2c->se);
+	if (ret) {
+		enable_irq(gi2c->irq);
+		return ret;
+
+	} else {
+		gi2c->suspended = 1;
+	}
+
 	return 0;
 }
 
@@ -607,12 +628,15 @@ static int __maybe_unused geni_i2c_runtime_resume(struct device *dev)
 		return ret;
 
 	enable_irq(gi2c->irq);
+	gi2c->suspended = 0;
 	return 0;
 }
 
 static int __maybe_unused geni_i2c_suspend_noirq(struct device *dev)
 {
-	if (!pm_runtime_suspended(dev)) {
+	struct geni_i2c_dev *gi2c = dev_get_drvdata(dev);
+
+	if (!gi2c->suspended) {
 		geni_i2c_runtime_suspend(dev);
 		pm_runtime_disable(dev);
 		pm_runtime_set_suspended(dev);
