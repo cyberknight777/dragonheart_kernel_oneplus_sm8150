@@ -1321,16 +1321,6 @@ ieee80211_sta_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 	ch_switch.count = csa_ie.count;
 
 	if (drv_pre_channel_switch(sdata, &ch_switch)) {
-		/*
-		 * This is just so that the disconnect flow will know that
-		 * we were trying to switch channel and failed. In case the
-		 * mode is 1 (we are not allowed to Tx), we will know not to
-		 * send a deauthentication frame. Those two fields will be
-		 * reset when the disconnection worker runs.
-		 */
-		sdata->vif.csa_active = true;
-		sdata->csa_block_tx = csa_ie.mode;
-
 		sdata_info(sdata,
 			   "preparing for channel switch failed, disconnecting\n");
 		goto drop_connection;
@@ -1374,6 +1364,16 @@ ieee80211_sta_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 					 cbss->beacon_interval));
 	return;
  drop_connection:
+	/*
+	 * This is just so that the disconnect flow will know that
+	 * we were trying to switch channel and failed. In case the
+	 * mode is 1 (we are not allowed to Tx), we will know not to
+	 * send a deauthentication frame. Those two fields will be
+	 * reset when the disconnection worker runs.
+	 */
+	sdata->vif.csa_active = true;
+	sdata->csa_block_tx = csa_ie.mode;
+
 	ieee80211_queue_work(&local->hw, &ifmgd->csa_connection_drop_work);
 	mutex_unlock(&local->chanctx_mtx);
 	mutex_unlock(&local->mtx);
