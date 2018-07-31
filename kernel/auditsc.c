@@ -958,6 +958,7 @@ int audit_alloc(struct task_struct *tsk)
 		return -ENOMEM;
 	info->loginuid = audit_get_loginuid(current);
 	info->sessionid = audit_get_sessionid(current);
+	info->contid = audit_get_contid(current);
 	tsk->audit = info;
 
 	if (likely(!audit_ever_enabled))
@@ -987,6 +988,7 @@ int audit_alloc(struct task_struct *tsk)
 struct audit_task_info init_struct_audit = {
 	.loginuid = INVALID_UID,
 	.sessionid = AUDIT_SID_UNSET,
+	.contid = AUDIT_CID_UNSET,
 	.ctx = NULL,
 };
 
@@ -2094,6 +2096,72 @@ int audit_set_loginuid(kuid_t loginuid)
 	task->audit->loginuid = loginuid;
 out:
 	audit_log_set_loginuid(oldloginuid, loginuid, oldsessionid, sessionid, rc);
+	return rc;
+}
+
+/**
+ * audit_set_contid - set current task's audit_context contid
+ * @contid: contid value
+ *
+ * Returns 0 on success, -EPERM on permission failure.
+ *
+ * Called (set) from fs/proc/base.c::proc_contid_write().
+ */
+int audit_set_contid(struct task_struct *task, u64 contid)
+{
+	u64 oldcontid;
+	int rc = 0;
+	struct audit_buffer *ab;
+	uid_t uid;
+	struct tty_struct *tty;
+	char comm[sizeof(current->comm)];
+
+	task_lock(task);
+	/* Can't set if audit disabled */
+	if (!task->audit) {
+		task_unlock(task);
+		return -ENOPROTOOPT;
+	}
+	oldcontid = audit_get_contid(task);
+	read_lock(&tasklist_lock);
+	/* Don't allow the audit containerid to be unset */
+	if (!audit_contid_valid(contid))
+		rc = -EINVAL;
+	/* if we don't have caps, reject */
+	else if (!capable(CAP_AUDIT_CONTROL))
+		rc = -EPERM;
+	/* if task has children or is not single-threaded, deny */
+	else if (!list_empty(&task->children))
+		rc = -EBUSY;
+	else if (!(thread_group_leader(task) && thread_group_empty(task)))
+		rc = -EALREADY;
+	read_unlock(&tasklist_lock);
+	if (!rc)
+		task->audit->contid = contid;
+	task_unlock(task);
+
+	if (!audit_enabled)
+		return rc;
+
+	ab = audit_log_start(audit_context(), GFP_KERNEL, AUDIT_CONTAINER_OP);
+	if (!ab)
+		return rc;
+
+	uid = from_kuid(&init_user_ns, task_uid(current));
+	tty = audit_get_tty(current);
+	audit_log_format(ab, "op=set opid=%d old-contid=%llu contid=%llu pid=%d uid=%u auid=%u tty=%s ses=%u",
+			 task_tgid_nr(task), oldcontid, contid,
+			 task_tgid_nr(current), uid,
+			 from_kuid(&init_user_ns, audit_get_loginuid(current)),
+			 tty ? tty_name(tty) : "(none)",
+			 audit_get_sessionid(current));
+	audit_put_tty(tty);
+	audit_log_task_context(ab);
+	audit_log_format(ab, " comm=");
+	audit_log_untrustedstring(ab, get_task_comm(comm, current));
+	audit_log_d_path_exe(ab, current->mm);
+	audit_log_format(ab, " res=%d", !rc);
+	audit_log_end(ab);
 	return rc;
 }
 

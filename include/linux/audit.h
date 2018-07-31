@@ -229,6 +229,7 @@ static inline void audit_log_task_info(struct audit_buffer *ab,
 struct audit_task_info {
 	kuid_t			loginuid;
 	unsigned int		sessionid;
+	u64			contid;
 	struct audit_context	*ctx;
 };
 extern struct audit_task_info init_struct_audit;
@@ -345,6 +346,7 @@ extern unsigned int audit_serial(void);
 extern int auditsc_get_stamp(struct audit_context *ctx,
 			      struct timespec64 *t, unsigned int *serial);
 extern int audit_set_loginuid(kuid_t loginuid);
+extern int audit_set_contid(struct task_struct *tsk, u64 contid);
 
 static inline kuid_t audit_get_loginuid(struct task_struct *tsk)
 {
@@ -360,6 +362,14 @@ static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
 		return tsk->audit->sessionid;
 	else
 		return AUDIT_SID_UNSET;
+}
+
+static inline u64 audit_get_contid(struct task_struct *tsk)
+{
+	if (!tsk->audit)
+		return AUDIT_CID_UNSET;
+	else
+		return tsk->audit->contid;
 }
 
 extern void __audit_ipc_obj(struct kern_ipc_perm *ipcp);
@@ -548,6 +558,10 @@ static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
 {
 	return AUDIT_SID_UNSET;
 }
+static inline u64 audit_get_contid(struct task_struct *tsk)
+{
+	return AUDIT_CID_UNSET;
+}
 static inline void audit_ipc_obj(struct kern_ipc_perm *ipcp)
 { }
 static inline void audit_ipc_set_perm(unsigned long qbytes, uid_t uid,
@@ -607,6 +621,16 @@ static inline void audit_ptrace(struct task_struct *t)
 static inline bool audit_loginuid_set(struct task_struct *tsk)
 {
 	return uid_valid(audit_get_loginuid(tsk));
+}
+
+static inline bool audit_contid_valid(u64 contid)
+{
+	return contid != AUDIT_CID_UNSET;
+}
+
+static inline bool audit_contid_set(struct task_struct *tsk)
+{
+	return audit_contid_valid(audit_get_contid(tsk));
 }
 
 static inline void audit_log_string(struct audit_buffer *ab, const char *buf)
