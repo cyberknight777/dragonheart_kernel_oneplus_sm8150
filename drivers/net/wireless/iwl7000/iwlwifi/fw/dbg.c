@@ -228,17 +228,13 @@ static void iwl_fwrt_dump_txf(struct iwl_fw_runtime *fwrt,
 	*dump_data = iwl_fw_error_next_data(*dump_data);
 }
 
-static void iwl_fw_dump_fifos(struct iwl_fw_runtime *fwrt,
-			      struct iwl_fw_error_dump_data **dump_data)
+static void iwl_fw_dump_rxf(struct iwl_fw_runtime *fwrt,
+			    struct iwl_fw_error_dump_data **dump_data)
 {
-	struct iwl_fw_error_dump_fifo *fifo_hdr;
 	struct iwl_fwrt_shared_mem_cfg *cfg = &fwrt->smem_cfg;
-	u32 *fifo_data;
-	u32 fifo_len;
 	unsigned long flags;
-	int i, j;
 
-	IWL_DEBUG_INFO(fwrt, "WRT FIFO dump\n");
+	IWL_DEBUG_INFO(fwrt, "WRT RX FIFO dump\n");
 
 	if (!iwl_trans_grab_nic_access(fwrt->trans, &flags))
 		return;
@@ -256,6 +252,24 @@ static void iwl_fw_dump_fifos(struct iwl_fw_runtime *fwrt,
 					  cfg->lmac[1].rxfifo1_size,
 					  LMAC2_PRPH_OFFSET, 2);
 	}
+
+	iwl_trans_release_nic_access(fwrt->trans, &flags);
+}
+
+static void iwl_fw_dump_txf(struct iwl_fw_runtime *fwrt,
+			    struct iwl_fw_error_dump_data **dump_data)
+{
+	struct iwl_fw_error_dump_fifo *fifo_hdr;
+	struct iwl_fwrt_shared_mem_cfg *cfg = &fwrt->smem_cfg;
+	u32 *fifo_data;
+	u32 fifo_len;
+	unsigned long flags;
+	int i, j;
+
+	IWL_DEBUG_INFO(fwrt, "WRT TX FIFO dump\n");
+
+	if (!iwl_trans_grab_nic_access(fwrt->trans, &flags))
+		return;
 
 	if (iwl_fw_dbg_type_on(fwrt, IWL_FW_ERROR_DUMP_TXF)) {
 		/* Pull TXF data from LMAC1 */
@@ -598,8 +612,8 @@ static void iwl_fw_dump_mem(struct iwl_fw_runtime *fwrt,
 	do {size_t item = item_len; len += (!!item) * const_len + item; } \
 	while (0)
 
-static int iwl_fw_fifo_len(struct iwl_fw_runtime *fwrt,
-			   struct iwl_fwrt_shared_mem_cfg *mem_cfg)
+static int iwl_fw_rxf_len(struct iwl_fw_runtime *fwrt,
+			  struct iwl_fwrt_shared_mem_cfg *mem_cfg)
 {
 	size_t hdr_len = sizeof(struct iwl_fw_error_dump_data) +
 			 sizeof(struct iwl_fw_error_dump_fifo);
@@ -607,7 +621,7 @@ static int iwl_fw_fifo_len(struct iwl_fw_runtime *fwrt,
 	int i;
 
 	if (!iwl_fw_dbg_type_on(fwrt, IWL_FW_ERROR_DUMP_RXF))
-		goto dump_txf;
+		return 0;
 
 	/* Count RXF2 size */
 	ADD_LEN(fifo_len, mem_cfg->rxfifo2_size, hdr_len);
@@ -616,7 +630,17 @@ static int iwl_fw_fifo_len(struct iwl_fw_runtime *fwrt,
 	for (i = 0; i < mem_cfg->num_lmacs; i++)
 		ADD_LEN(fifo_len, mem_cfg->lmac[i].rxfifo1_size, hdr_len);
 
-dump_txf:
+	return fifo_len;
+}
+
+static int iwl_fw_txf_len(struct iwl_fw_runtime *fwrt,
+			  struct iwl_fwrt_shared_mem_cfg *mem_cfg)
+{
+	size_t hdr_len = sizeof(struct iwl_fw_error_dump_data) +
+			 sizeof(struct iwl_fw_error_dump_fifo);
+	u32 fifo_len = 0;
+	int i;
+
 	if (!iwl_fw_dbg_type_on(fwrt, IWL_FW_ERROR_DUMP_TXF))
 		goto dump_internal_txf;
 
@@ -700,7 +724,8 @@ _iwl_fw_error_dump(struct iwl_fw_runtime *fwrt,
 
 	/* reading RXF/TXF sizes */
 	if (test_bit(STATUS_FW_ERROR, &fwrt->trans->status)) {
-		fifo_len = iwl_fw_fifo_len(fwrt, mem_cfg);
+		fifo_len = iwl_fw_rxf_len(fwrt, mem_cfg);
+		fifo_len += iwl_fw_txf_len(fwrt, mem_cfg);
 
 		/* Make room for PRPH registers */
 		if (!fwrt->trans->cfg->gen2 &&
@@ -820,7 +845,8 @@ _iwl_fw_error_dump(struct iwl_fw_runtime *fwrt,
 
 	/* We only dump the FIFOs if the FW is in error state */
 	if (fifo_len) {
-		iwl_fw_dump_fifos(fwrt, &dump_data);
+		iwl_fw_dump_rxf(fwrt, &dump_data);
+		iwl_fw_dump_txf(fwrt, &dump_data);
 		if (radio_len)
 			iwl_read_radio_regs(fwrt, &dump_data);
 	}
