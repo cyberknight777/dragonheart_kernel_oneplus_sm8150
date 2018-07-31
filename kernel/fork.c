@@ -1678,7 +1678,9 @@ static __latent_entropy struct task_struct *copy_process(
 	posix_cpu_timers_init(p);
 
 	p->io_context = NULL;
-	audit_set_context(p, NULL);
+#ifdef CONFIG_AUDITSYSCALL
+	p->audit = NULL;
+#endif /* CONFIG_AUDITSYSCALL */
 	cgroup_fork(p);
 #ifdef CONFIG_NUMA
 	p->mempolicy = mpol_dup(p->mempolicy);

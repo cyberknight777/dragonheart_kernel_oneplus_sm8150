@@ -226,8 +226,15 @@ static inline void audit_log_task_info(struct audit_buffer *ab,
 
 /* These are defined in auditsc.c */
 				/* Public API */
+struct audit_task_info {
+	kuid_t			loginuid;
+	unsigned int		sessionid;
+	struct audit_context	*ctx;
+};
+extern struct audit_task_info init_struct_audit;
+extern void __init audit_task_init(void);
 extern int  audit_alloc(struct task_struct *task);
-extern void __audit_free(struct task_struct *task);
+extern void audit_free(struct task_struct *task);
 extern void __audit_syscall_entry(int major, unsigned long a0, unsigned long a1,
 				  unsigned long a2, unsigned long a3);
 extern void __audit_syscall_exit(int ret_success, long ret_value);
@@ -247,12 +254,15 @@ extern void __audit_ptrace(struct task_struct *t);
 
 static inline void audit_set_context(struct task_struct *task, struct audit_context *ctx)
 {
-	task->audit_context = ctx;
+	task->audit->ctx = ctx;
 }
 
 static inline struct audit_context *audit_context(void)
 {
-	return current->audit_context;
+	if (current->audit)
+		return current->audit->ctx;
+	else
+		return NULL;
 }
 
 static inline bool audit_dummy_context(void)
@@ -260,11 +270,7 @@ static inline bool audit_dummy_context(void)
 	void *p = audit_context();
 	return !p || *(int *)p;
 }
-static inline void audit_free(struct task_struct *task)
-{
-	if (unlikely(task->audit_context))
-		__audit_free(task);
-}
+
 static inline void audit_syscall_entry(int major, unsigned long a0,
 				       unsigned long a1, unsigned long a2,
 				       unsigned long a3)
@@ -342,12 +348,18 @@ extern int audit_set_loginuid(kuid_t loginuid);
 
 static inline kuid_t audit_get_loginuid(struct task_struct *tsk)
 {
-	return tsk->loginuid;
+	if (tsk->audit)
+		return tsk->audit->loginuid;
+	else
+		return INVALID_UID;
 }
 
 static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
 {
-	return tsk->sessionid;
+	if (tsk->audit)
+		return tsk->audit->sessionid;
+	else
+		return AUDIT_SID_UNSET;
 }
 
 extern void __audit_ipc_obj(struct kern_ipc_perm *ipcp);
@@ -465,6 +477,8 @@ static inline void audit_log_kern_module(char *name)
 extern int audit_n_rules;
 extern int audit_signals;
 #else /* CONFIG_AUDITSYSCALL */
+static inline void __init audit_task_init(void)
+{ }
 static inline int audit_alloc(struct task_struct *task)
 {
 	return 0;

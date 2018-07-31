@@ -841,7 +841,9 @@ static inline struct audit_context *audit_take_context(struct task_struct *tsk,
 						      int return_valid,
 						      long return_code)
 {
-	struct audit_context *context = tsk->audit_context;
+	struct audit_context *context;
+
+	context = tsk->audit->ctx;
 
 	if (!context)
 		return NULL;
@@ -926,6 +928,15 @@ static inline struct audit_context *audit_alloc_context(enum audit_state state)
 	return context;
 }
 
+static struct kmem_cache *audit_task_cache;
+
+void __init audit_task_init(void)
+{
+	audit_task_cache = kmem_cache_create("audit_task",
+					     sizeof(struct audit_task_info),
+					     0, SLAB_PANIC, NULL);
+}
+
 /**
  * audit_alloc - allocate an audit context block for a task
  * @tsk: task
@@ -940,17 +951,28 @@ int audit_alloc(struct task_struct *tsk)
 	struct audit_context *context;
 	enum audit_state     state;
 	char *key = NULL;
+	struct audit_task_info *info;
+
+	info = kmem_cache_zalloc(audit_task_cache, GFP_KERNEL);
+	if (!info)
+		return -ENOMEM;
+	info->loginuid = audit_get_loginuid(current);
+	info->sessionid = audit_get_sessionid(current);
+	tsk->audit = info;
 
 	if (likely(!audit_ever_enabled))
 		return 0; /* Return if not auditing. */
 
 	state = audit_filter_task(tsk, &key);
 	if (state == AUDIT_DISABLED) {
+		audit_set_context(tsk, NULL);
 		clear_tsk_thread_flag(tsk, TIF_SYSCALL_AUDIT);
 		return 0;
 	}
 
 	if (!(context = audit_alloc_context(state))) {
+		tsk->audit = NULL;
+		kmem_cache_free(audit_task_cache, info);
 		kfree(key);
 		audit_log_lost("out of memory in audit_alloc");
 		return -ENOMEM;
@@ -961,6 +983,12 @@ int audit_alloc(struct task_struct *tsk)
 	set_tsk_thread_flag(tsk, TIF_SYSCALL_AUDIT);
 	return 0;
 }
+
+struct audit_task_info init_struct_audit = {
+	.loginuid = INVALID_UID,
+	.sessionid = AUDIT_SID_UNSET,
+	.ctx = NULL,
+};
 
 static inline void audit_free_context(struct audit_context *context)
 {
@@ -1473,26 +1501,33 @@ static void audit_log_exit(struct audit_context *context, struct task_struct *ts
 }
 
 /**
- * __audit_free - free a per-task audit context
+ * audit_free - free a per-task audit context
  * @tsk: task whose audit context block to free
  *
  * Called from copy_process and do_exit
  */
-void __audit_free(struct task_struct *tsk)
+void audit_free(struct task_struct *tsk)
 {
 	struct audit_context *context;
+	struct audit_task_info *info;
 
 	context = audit_take_context(tsk, 0, 0);
-	if (!context)
-		return;
-
 	/* Check for system calls that do not go through the exit
 	 * function (e.g., exit_group), then free context block.
 	 * We use GFP_ATOMIC here because we might be doing this
 	 * in the context of the idle thread */
 	/* that can happen only if we are called from do_exit() */
-	if (context->in_syscall && context->current_state == AUDIT_RECORD_CONTEXT)
+	if (context && context->in_syscall &&
+	    context->current_state == AUDIT_RECORD_CONTEXT)
 		audit_log_exit(context, tsk);
+	/* Freeing the audit_task_info struct must be performed after
+	 * audit_log_exit() due to need for loginuid and sessionid.
+	 */
+	info = tsk->audit;
+	tsk->audit = NULL;
+	kmem_cache_free(audit_task_cache, info);
+	if (!context)
+		return;
 	if (!list_empty(&context->killed_trees))
 		audit_kill_trees(&context->killed_trees);
 
@@ -2055,8 +2090,8 @@ int audit_set_loginuid(kuid_t loginuid)
 			sessionid = (unsigned int)atomic_inc_return(&session_id);
 	}
 
-	task->sessionid = sessionid;
-	task->loginuid = loginuid;
+	task->audit->sessionid = sessionid;
+	task->audit->loginuid = loginuid;
 out:
 	audit_log_set_loginuid(oldloginuid, loginuid, oldsessionid, sessionid, rc);
 	return rc;
