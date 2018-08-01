@@ -676,12 +676,11 @@ static ssize_t virtwl_vfd_recv(struct file *filp, char __user *buffer,
 			force_to_wait = true;
 	}
 
-	if (vfd_count)
-		*vfd_count = vfd_read_count;
-
 out_unlock:
 	mutex_unlock(&vfd->lock);
 	mutex_unlock(&vi->vfds_lock);
+	if (vfd_count)
+		*vfd_count = vfd_read_count;
 	return read_count;
 }
 
