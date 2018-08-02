@@ -955,7 +955,7 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi,
 	ret = idr_alloc(&vi->vfds, vfd, 1, VIRTWL_MAX_ALLOC, GFP_KERNEL);
 	mutex_unlock(&vi->vfds_lock);
 	if (ret <= 0)
-		goto free_vfd;
+		goto remove_vfd;
 
 	vfd->id = ret;
 	ret = 0;
@@ -1023,10 +1023,14 @@ static struct virtwl_vfd *do_new(struct virtwl_info *vi,
 	return vfd;
 
 remove_vfd:
-	/* unlock the vfd to avoid deadlock when unlinking it */
+	/*
+	 * unlock the vfd to avoid deadlock when unlinking it
+	 * or freeing a held lock
+	 */
 	mutex_unlock(&vfd->lock);
-	virtwl_vfd_lock_unlink(vfd);
-free_vfd:
+	/* this is safe since the id cannot change after the vfd is created */
+	if (vfd->id)
+		virtwl_vfd_lock_unlink(vfd);
 	virtwl_vfd_free(vfd);
 free_ctrl_new:
 	kfree(ctrl_new);
