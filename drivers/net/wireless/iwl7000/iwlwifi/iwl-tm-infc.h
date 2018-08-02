@@ -497,11 +497,12 @@ struct iwl_tm_mod_tx_request {
 
 /**
  * struct iwl_xvt_tx_mod_task_data - Data for modulated tx task handler
- * @xvt:	  pointer to the xvt op mode
- * @tx_req:	  pointer to data of transmission request
+ * @lmac_id:	lmac index
+ * @xvt:	pointer to the xvt op mode
+ * @tx_req:	pointer to data of transmission request
  */
 struct iwl_xvt_tx_mod_task_data {
-	__u8 lmac_id;
+	__u32 lmac_id;
 	struct iwl_xvt *xvt;
 	struct iwl_tm_mod_tx_request tx_req;
 } __packed __aligned(4);
@@ -520,7 +521,7 @@ enum {
  * struct iwl_xvt_tx_mod_done - Notification data for modulated tx
  * @num_of_packets: number of sent packets
  * @status: tx task handler error status
- & @lmac_id: lmac index
+ * @lmac_id: lmac index
  */
 struct iwl_xvt_tx_mod_done {
 	__u64 num_of_packets;
