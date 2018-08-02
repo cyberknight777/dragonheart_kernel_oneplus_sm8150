@@ -458,7 +458,7 @@ void iwl_xvt_destroy_reorder_buffer(struct iwl_xvt *xvt,
 static inline bool iwl_xvt_is_unified_fw(struct iwl_xvt *xvt)
 {
 	/* TODO - replace with TLV once defined */
-	return xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22000;
+	return xvt->trans->cfg->trans.device_family >= IWL_DEVICE_FAMILY_22000;
 }
 
 static inline bool iwl_xvt_is_cdb_supported(struct iwl_xvt *xvt)

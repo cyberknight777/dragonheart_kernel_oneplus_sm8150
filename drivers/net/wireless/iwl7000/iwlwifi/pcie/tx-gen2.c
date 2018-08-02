@@ -119,7 +119,7 @@ void iwl_pcie_gen2_update_byte_tbl(struct iwl_trans_pcie *trans_pcie,
 	num_fetch_chunks = DIV_ROUND_UP(filled_tfd_size, 64) - 1;
 
 	bc_ent = cpu_to_le16(len | (num_fetch_chunks << 12));
-	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+	if (trans->cfg->trans.device_family >= IWL_DEVICE_FAMILY_22560)
 		scd_bc_tbl_gen3->tfd_offset[idx] = bc_ent;
 	else
 		scd_bc_tbl->tfd_offset[idx] = bc_ent;
@@ -557,7 +557,7 @@ struct iwl_tfh_tfd *iwl_pcie_gen2_build_tfd(struct iwl_trans *trans,
 
 	memset(tfd, 0, sizeof(*tfd));
 
-	if (trans->cfg->device_family < IWL_DEVICE_FAMILY_22560)
+	if (trans->cfg->trans.device_family < IWL_DEVICE_FAMILY_22560)
 		len = sizeof(struct iwl_tx_cmd_gen2);
 	else
 		len = sizeof(struct iwl_tx_cmd_gen3);
@@ -638,7 +638,7 @@ int iwl_trans_pcie_gen2_tx(struct iwl_trans *trans, struct sk_buff *skb,
 		return -1;
 	}
 
-	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) {
+	if (trans->cfg->trans.device_family >= IWL_DEVICE_FAMILY_22560) {
 		struct iwl_tx_cmd_gen3 *tx_cmd_gen3 =
 			(void *)dev_cmd->payload;
 
@@ -1138,7 +1138,7 @@ int iwl_trans_pcie_dyn_txq_alloc_dma(struct iwl_trans *trans,
 	if (!txq)
 		return -ENOMEM;
 	ret = iwl_pcie_alloc_dma_ptr(trans, &txq->bc_tbl,
-				     (trans->cfg->device_family >=
+				     (trans->cfg->trans.device_family >=
 				      IWL_DEVICE_FAMILY_22560) ?
 				     sizeof(struct iwl_gen3_bc_tbl) :
 				     sizeof(struct iwlagn_scd_bc_tbl));
@@ -1202,7 +1202,7 @@ int iwl_trans_pcie_txq_alloc_response(struct iwl_trans *trans,
 
 	txq->id = qid;
 	trans_pcie->txq[qid] = txq;
-	wr_ptr &= (trans->cfg->base_params->max_tfd_queue_size - 1);
+	wr_ptr &= (trans->cfg->trans.base_params->max_tfd_queue_size - 1);
 
 	/* Place first TFD at index corresponding to start sequence number */
 	txq->read_ptr = wr_ptr;

@@ -924,7 +924,8 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		flags |= IWL_TX_FLAGS_CMD_RATE;
 
-		if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+		if (xvt->trans->cfg->trans.device_family >=
+		    IWL_DEVICE_FAMILY_22560)
 			dev_cmd = iwl_xvt_set_tx_params_gen3(xvt, skb,
 							     rate_flags,
 							     flags);
@@ -1145,7 +1146,8 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 			       frag_num);
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
-		if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+		if (xvt->trans->cfg->trans.device_family >=
+		    IWL_DEVICE_FAMILY_22560)
 			dev_cmd = iwl_xvt_set_tx_params_gen3(xvt, skb,
 							     rate_flags,
 							     tx_flags);
