@@ -3535,7 +3535,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 	 * "dash" value). To keep hw_rev backwards compatible - we'll store it
 	 * in the old format.
 	 */
-	if (trans->cfg->trans.device_family >= IWL_DEVICE_FAMILY_8000) {
+	if (cfg->trans.device_family >= IWL_DEVICE_FAMILY_8000) {
 		unsigned long flags;
 
 		trans->hw_rev = (trans->hw_rev & 0xfff0) |
@@ -3551,7 +3551,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		 * in-order to recognize C step driver should read chip version
 		 * id located at the AUX bus MISC address space.
 		 */
-		ret = iwl_finish_nic_init(trans, &trans->cfg->trans);
+		ret = iwl_finish_nic_init(trans, &cfg->trans);
 		if (ret)
 			goto out_no_pci;
 
@@ -3578,7 +3578,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 #if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
 	trans->hw_rf_id = iwl_read32(trans, CSR_HW_RF_ID);
 
-	if (trans->cfg == &iwlax210_2ax_cfg_so_hr_a0) {
+	if (cfg == &iwlax210_2ax_cfg_so_hr_a0) {
 		if (trans->hw_rev == CSR_HW_REV_TYPE_TY) {
 			trans->cfg = &iwlax210_2ax_cfg_ty_gf_a0;
 		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
@@ -3621,10 +3621,10 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		}
 	} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
 		   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_HR) &&
-		   ((trans->cfg != &iwl_ax200_cfg_cc &&
-		     trans->cfg != &killer1650x_2ax_cfg &&
-		     trans->cfg != &killer1650w_2ax_cfg &&
-		     trans->cfg != &iwl_ax201_cfg_quz_hr) ||
+		   ((cfg != &iwl_ax200_cfg_cc &&
+		     cfg != &killer1650x_2ax_cfg &&
+		     cfg != &killer1650w_2ax_cfg &&
+		     cfg != &iwl_ax201_cfg_quz_hr) ||
 		    trans->hw_rev == CSR_HW_REV_TYPE_QNJ_B0)) {
 		u32 hw_status;
 
@@ -3650,7 +3650,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 	 * The RF_ID is set to zero in blank OTP so read version
 	 * to extract the RF_ID.
 	 */
-	if (trans->cfg->trans.rf_id && !CSR_HW_RFID_TYPE(trans->hw_rf_id)) {
+	if (cfg->trans.rf_id && !CSR_HW_RFID_TYPE(trans->hw_rf_id)) {
 		unsigned long flags;
 
 		if (iwl_trans_grab_nic_access(trans, &flags)) {
