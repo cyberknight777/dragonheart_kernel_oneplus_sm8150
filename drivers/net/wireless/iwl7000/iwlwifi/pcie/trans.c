@@ -3461,7 +3461,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		iwl_set_bit(trans, CSR_HOST_CHICKEN,
 			    CSR_HOST_CHICKEN_PM_IDLE_SRC_DIS_SB_PME);
 
-#if IS_ENABLED(CPTCFG_IWLMVM)
+#if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
 	trans->hw_rf_id = iwl_read32(trans, CSR_HW_RF_ID);
 
 	if (cfg == &iwl22000_2ax_cfg_hr) {
@@ -3503,7 +3503,6 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 			trans->cfg = &iwl22000_2ac_cfg_hr;
 		}
 	}
-#endif
 
 	/*
 	 * The RF_ID is set to zero in blank OTP so read version
@@ -3532,6 +3531,7 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 			iwl_trans_release_nic_access(trans, &flags);
 		}
 	}
+#endif
 
 	iwl_pcie_set_interrupt_capa(pdev, trans);
 	trans->hw_id = (pdev->device << 16) + pdev->subsystem_device;
