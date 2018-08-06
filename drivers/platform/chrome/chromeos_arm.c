@@ -188,15 +188,13 @@ static int chromeos_arm_probe(struct platform_device *pdev)
 	u32 elog_panic_event[2];
 	struct device_node *np = pdev->dev.of_node;
 
-	if (!np) {
-		err = -ENODEV;
-		goto err;
-	}
+	if (!np)
+		return -ENODEV;
 
 	err = dt_gpio_init(pdev, "write-protect-gpio",
 			   "firmware-write-protect", "write-protect");
 	if (err)
-		goto err;
+		return err;
 	err = dt_gpio_init(pdev, "recovery-switch",
 			   "firmware-recovery-switch", "recovery-switch");
 	err = dt_gpio_init(pdev, "developer-switch",
@@ -208,16 +206,12 @@ static int chromeos_arm_probe(struct platform_device *pdev)
 		err = chromeos_arm_panic_init(pdev, elog_panic_event[0],
 					      elog_panic_event[1]);
 		if (err)
-			goto err;
+			return err;
 	}
 
 	dev_info(&pdev->dev, "chromeos system detected\n");
 
-	err = 0;
-err:
-	of_node_put(np);
-
-	return err;
+	return 0;
 }
 
 static int chromeos_arm_remove(struct platform_device *pdev)
@@ -236,28 +230,22 @@ static int chromeos_arm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id chromeos_of_match[] = {
+	{ .compatible = "chromeos-firmware" },
+	{}
+};
+
 static struct platform_driver chromeos_arm_driver = {
 	.probe = chromeos_arm_probe,
 	.remove = chromeos_arm_remove,
 	.driver = {
 		.name = "chromeos_arm",
+		.of_match_table = chromeos_of_match,
 	},
 };
 
 static int __init chromeos_arm_init(void)
 {
-	struct device_node *fw_dn;
-	struct platform_device *pdev;
-
-	fw_dn = of_find_compatible_node(NULL, NULL, "chromeos-firmware");
-	if (!fw_dn)
-		return -ENODEV;
-
-	pdev = platform_device_register_simple("chromeos_arm", -1, NULL, 0);
-	pdev->dev.of_node = fw_dn;
-
-	platform_driver_register(&chromeos_arm_driver);
-
-	return 0;
+	return platform_driver_register(&chromeos_arm_driver);
 }
 subsys_initcall(chromeos_arm_init);
