@@ -10,8 +10,15 @@
 #include "sdm845-cheza.dtsi"
 
 / {
-	model = "Google Cheza (rev1)";
-	compatible = "google,cheza-rev1", "google,cheza", "qcom,sdm845";
+	model = "Google Cheza (rev2+)";
+	compatible = "google,cheza-rev15", "google,cheza-rev14",
+		     "google,cheza-rev13", "google,cheza-rev12",
+		     "google,cheza-rev11", "google,cheza-rev10",
+		     "google,cheza-rev9", "google,cheza-rev8",
+		     "google,cheza-rev7", "google,cheza-rev6",
+		     "google,cheza-rev5", "google,cheza-rev4",
+		     "google,cheza-rev3", "google,cheza-rev2",
+		     "google,cheza", "qcom,sdm845";
 };
 
 /* PINCTRL - board-specific pinctrl */
@@ -23,7 +30,7 @@
 			  "AP_SPI_FP_CS_L",
 			  "UART_AP_TX_DBG_RX",
 			  "UART_DBG_TX_AP_RX",
-			  "",
+			  "BRIJ_SUSPEND",
 			  "FP_RST_L",
 			  "FCAM_EN",
 			  "",
@@ -39,10 +46,10 @@
 			  "CCI1_SDA",
 			  "CCI1_SCL",
 			  "FCAM_RST_L",
-			  "",
+			  "FPMCU_BOOT0",
 			  "PEN_RST_L",
 			  "PEN_IRQ_L",
-			  "",
+			  "FPMCU_SEL_OD",
 			  "RCAM_VSYNC",
 			  "ESIM_MISO",
 			  "ESIM_MOSI",

@@ -10,7 +10,7 @@
 #include "sdm845-cheza.dtsi"
 
 / {
-	model = "Google Cheza";
+	model = "Google Cheza (rev0)";
 	compatible = "google,cheza-rev0", "google,cheza", "qcom,sdm845";
 };
 
