@@ -974,6 +974,9 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 	sdata->vif.bss_conf.beacon_int = params->beacon_interval;
 
+	if (cfg_he_cap(params))
+		sdata->vif.bss_conf.he_support = true;
+
 	mutex_lock(&local->mtx);
 	err = ieee80211_vif_use_channel(sdata, &params->chandef,
 					IEEE80211_CHANCTX_SHARED);

@@ -2366,3 +2366,9 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 #define VHT_MUMIMO_GROUPS_DATA_LEN (WLAN_MEMBERSHIP_LEN +\
 				    WLAN_USER_POSITION_LEN)
 #endif
+
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
+#define cfg_he_cap(params) params->he_cap
+#else
+#define cfg_he_cap(params) NULL
+#endif
