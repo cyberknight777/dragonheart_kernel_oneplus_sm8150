@@ -1989,13 +1989,6 @@ unlock:
 	hci_dev_unlock(hdev);
 }
 
-static void disable_advertising(struct hci_request *req)
-{
-	u8 enable = 0x00;
-
-	hci_req_add(req, HCI_OP_LE_SET_ADV_ENABLE, sizeof(enable), &enable);
-}
-
 static int active_scan(struct hci_request *req, unsigned long opt)
 {
 	uint16_t interval = opt;
@@ -2006,23 +1999,6 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 	int err;
 
 	BT_DBG("%s", hdev->name);
-
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
-		hci_dev_lock(hdev);
-
-		/* Don't let discovery abort an outgoing connection attempt
-		 * that's using directed advertising.
-		 */
-		if (hci_lookup_le_connect(hdev)) {
-			hci_dev_unlock(hdev);
-			return -EBUSY;
-		}
-
-		cancel_adv_timeout(hdev);
-		hci_dev_unlock(hdev);
-
-		disable_advertising(req);
-	}
 
 	/* If controller is scanning, it means the background scanning is
 	 * running. Thus, we should temporarily stop it in order to set the
