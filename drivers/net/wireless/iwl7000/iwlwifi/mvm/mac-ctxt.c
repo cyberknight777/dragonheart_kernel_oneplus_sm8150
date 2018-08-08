@@ -796,8 +796,25 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_PROBE_REQUEST);
 
 	if (vif->bss_conf.assoc && vif->bss_conf.he_support &&
-	    !iwlwifi_mod_params.disable_11ax)
+	    !iwlwifi_mod_params.disable_11ax) {
+		struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+		u8 sta_id = mvmvif->ap_sta_id;
+
 		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
+		if (sta_id != IWL_MVM_INVALID_STA) {
+			struct ieee80211_sta *sta;
+
+			sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[sta_id],
+				lockdep_is_held(&mvm->mutex));
+
+			if (sta && sta->twt_resp_support &&
+			    (sta->he_cap.he_cap_elem.mac_cap_info[0] &
+			     IEEE80211_HE_MAC_CAP0_TWT_RES))
+				ctxt_sta->data_policy |=
+					cpu_to_le32(TWT_SUPPORTED);
+		}
+	}
+
 
 	return iwl_mvm_mac_ctxt_send_cmd(mvm, &cmd);
 }
