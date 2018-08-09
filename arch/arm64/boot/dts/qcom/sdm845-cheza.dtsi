@@ -16,6 +16,7 @@
 
 / {
 	aliases {
+		hsuart0 = &uart6;
 		serial0 = &uart9;
 	};
 
@@ -577,6 +578,10 @@ ap_ts_i2c: &i2c14 {
 #include <arm/cros-ec-keyboard.dtsi>
 #include <arm/cros-ec-sbs.dtsi>
 
+&uart6 {
+	status = "okay";
+};
+
 &uart9 {
 	status = "okay";
 };
@@ -758,6 +763,31 @@ ap_ts_i2c: &i2c14 {
 		pins = "gpio53", "gpio54", "gpio55", "gpio56";
 		drive-strength = <2>;
 		bias-disable;
+	};
+};
+
+&qup_uart6_default {
+	/* Change pinmux to all 4 pins since CTS and RTS are connected */
+	pinmux {
+		pins = "gpio45", "gpio46",
+		       "gpio47", "gpio48";
+	};
+
+	pinconf-tx {
+		/* We'll drive 46 (RTS) and 47 (TX), so no pull */
+		pins = "gpio46", "gpio47";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	pinconf-rx {
+		/*
+		 * Put a pull on 45 (CTS) and 48 (RX) in case other side
+		 * stop driving.
+		 */
+		pins = "gpio45", "gpio48";
+		drive-strength = <2>;
+		bias-pull-up;
 	};
 };
 
