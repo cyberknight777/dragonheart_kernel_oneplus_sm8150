@@ -1316,7 +1316,7 @@ cfg80211_inform_bss_frame_data(struct wiphy *wiphy,
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,4,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not really on the way upstream yet */
 #define WIPHY_FLAG_HAS_FTM_RESPONDER 0
 
@@ -1505,7 +1505,7 @@ struct cfg80211_msrment_request {
 		struct cfg80211_ftm_request ftm;
 	} u;
 };
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,99,0) */
+#endif /* CFG80211_VERSION < KERNEL_VERSION(99,0,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 #define mon_opts_flags(p)	flags
@@ -1547,6 +1547,7 @@ static inline bool ieee80211_has_nan_iftype(unsigned int iftype)
 	return false;
 }
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
 struct cfg80211_nan_conf {
 	u8 master_pref;
 	u8 bands;
@@ -1627,6 +1628,7 @@ enum nl80211_nan_publish_type {
 	NL80211_NAN_SOLICITED_PUBLISH = 1 << 0,
 	NL80211_NAN_UNSOLICITED_PUBLISH = 1 << 1,
 };
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,4,0) */
 #else
 static inline bool ieee80211_viftype_nan(unsigned int iftype)
 {
@@ -1640,7 +1642,7 @@ bool ieee80211_has_nan_iftype(unsigned int iftype)
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,9,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 #define nan_conf_cdw_2g(conf) 1
 #define nan_conf_cdw_5g(conf) 1
 #else
@@ -1743,7 +1745,7 @@ ieee80211_operating_class_to_band(u8 operating_class,
 #define NUM_NL80211_BANDS ((enum nl80211_band)IEEE80211_NUM_BANDS)
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,8,0)
+#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
 struct cfg80211_scan_info {
 	u64 scan_start_tsf;
 	u8 tsf_bssid[ETH_ALEN] __aligned(2);
@@ -1761,7 +1763,7 @@ backport_cfg80211_scan_done(struct cfg80211_scan_request *request,
 #define NL80211_EXT_FEATURE_SCAN_START_TIME -1
 #define NL80211_EXT_FEATURE_BSS_PARENT_TSF -1
 #define NL80211_EXT_FEATURE_SET_SCAN_DWELL -1
-#endif
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,4,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,9,0)
 static inline
@@ -1853,6 +1855,14 @@ static inline bool wdev_running(struct wireless_dev *wdev)
 	return wdev->p2p_started;
 }
 
+static inline const u8 *cfg80211_find_ext_ie(u8 ext_eid, const u8 *ies, int len)
+{
+	return cfg80211_find_ie_match(WLAN_EID_EXTENSION, ies, len,
+				      &ext_eid, 1, 2);
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,10,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
 struct iface_combination_params {
 	int num_different_channels;
 	u8 radar_detect;
@@ -1886,13 +1896,7 @@ int iwl7000_iter_combinations(struct wiphy *wiphy,
 }
 
 #define cfg80211_iter_combinations iwl7000_iter_combinations
-
-static inline const u8 *cfg80211_find_ext_ie(u8 ext_eid, const u8 *ies, int len)
-{
-	return cfg80211_find_ie_match(WLAN_EID_EXTENSION, ies, len,
-				      &ext_eid, 1, 2);
-}
-#endif
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,4,0) */
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,11,0) || \
      CFG80211_VERSION < KERNEL_VERSION(4,9,0)
@@ -2286,7 +2290,9 @@ static inline void __percpu *__alloc_gfp_warn(void)
 #define NL80211_SCAN_FLAG_OCE_PROBE_REQ_DEFERRAL_SUPPRESSION BIT(7)
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
+#if CFG80211_VERSION < KERNEL_VERSION(4,4,0) ||		\
+	(CFG80211_VERSION >= KERNEL_VERSION(4,5,0) &&	\
+	 CFG80211_VERSION < KERNEL_VERSION(4,17,0))
 struct ieee80211_wmm_ac {
 	u16 cw_min;
 	u16 cw_max;
@@ -2303,12 +2309,13 @@ static inline int
 reg_query_regdb_wmm(char *alpha2, int freq, u32 *ptr,
 		    struct ieee80211_wmm_rule *rule)
 {
-	pr_debug_once("iwl7000: ETSI WMM data not implemented yet!\n");
+	pr_debug_once(KERN_DEBUG
+		      "iwl7000: ETSI WMM data not implemented yet!\n");
 	return -ENODATA;
 }
-#endif
+#endif /* < 4.4.0 || (>= 4.5.0 && < 4.17.0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not yet upstream */
 static inline bool ieee80211_viftype_nan_data(unsigned int iftype)
 {
@@ -2321,7 +2328,7 @@ static inline bool ieee80211_has_nan_data_iftype(unsigned int iftype)
 }
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not yet upstream */
 static inline int
 cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
