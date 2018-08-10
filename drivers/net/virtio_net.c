@@ -1655,8 +1655,8 @@ static void virtnet_clean_affinity(struct virtnet_info *vi, long hcpu)
 
 	if (vi->affinity_hint_set) {
 		for (i = 0; i < vi->max_queue_pairs; i++) {
-			virtqueue_set_affinity(vi->rq[i].vq, -1);
-			virtqueue_set_affinity(vi->sq[i].vq, -1);
+			virtqueue_set_affinity(vi->rq[i].vq, NULL);
+			virtqueue_set_affinity(vi->sq[i].vq, NULL);
 		}
 
 		vi->affinity_hint_set = false;
@@ -1680,8 +1680,8 @@ static void virtnet_set_affinity(struct virtnet_info *vi)
 
 	i = 0;
 	for_each_online_cpu(cpu) {
-		virtqueue_set_affinity(vi->rq[i].vq, cpu);
-		virtqueue_set_affinity(vi->sq[i].vq, cpu);
+		virtqueue_set_affinity(vi->rq[i].vq, cpumask_of(cpu));
+		virtqueue_set_affinity(vi->sq[i].vq, cpumask_of(cpu));
 		netif_set_xps_queue(vi->dev, cpumask_of(cpu), i);
 		i++;
 	}
