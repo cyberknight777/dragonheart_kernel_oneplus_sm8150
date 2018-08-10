@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/cpu.h>
 #include <linux/average.h>
+#include <linux/kernel.h>
 #include <net/route.h>
 
 static int napi_weight = NAPI_POLL_WEIGHT;
@@ -1665,28 +1666,41 @@ static void virtnet_clean_affinity(struct virtnet_info *vi, long hcpu)
 
 static void virtnet_set_affinity(struct virtnet_info *vi)
 {
-	int i;
-	int cpu;
+	cpumask_var_t mask;
+	int stragglers;
+	int group_size;
+	int i, j, cpu;
+	int num_cpu;
+	int stride;
 
-	/* In multiqueue mode, when the number of cpu is equal to the number of
-	 * queue pairs, we let the queue pairs to be private to one cpu by
-	 * setting the affinity hint to eliminate the contention.
-	 */
-	if (vi->curr_queue_pairs == 1 ||
-	    vi->max_queue_pairs != num_online_cpus()) {
+	if (!zalloc_cpumask_var(&mask, GFP_KERNEL)) {
 		virtnet_clean_affinity(vi, -1);
 		return;
 	}
 
-	i = 0;
-	for_each_online_cpu(cpu) {
-		virtqueue_set_affinity(vi->rq[i].vq, cpumask_of(cpu));
-		virtqueue_set_affinity(vi->sq[i].vq, cpumask_of(cpu));
-		netif_set_xps_queue(vi->dev, cpumask_of(cpu), i);
-		i++;
+	num_cpu = num_online_cpus();
+	stride = max_t(int, num_cpu / vi->curr_queue_pairs, 1);
+	stragglers = num_cpu >= vi->curr_queue_pairs ?
+			num_cpu % vi->curr_queue_pairs :
+			0;
+	cpu = cpumask_next(-1, cpu_online_mask);
+
+	for (i = 0; i < vi->curr_queue_pairs; i++) {
+		group_size = stride + (i < stragglers ? 1 : 0);
+
+		for (j = 0; j < group_size; j++) {
+			cpumask_set_cpu(cpu, mask);
+			cpu = cpumask_next_wrap(cpu, cpu_online_mask,
+						nr_cpu_ids, false);
+		}
+		virtqueue_set_affinity(vi->rq[i].vq, mask);
+		virtqueue_set_affinity(vi->sq[i].vq, mask);
+		netif_set_xps_queue(vi->dev, mask, i);
+		cpumask_clear(mask);
 	}
 
 	vi->affinity_hint_set = true;
+	free_cpumask_var(mask);
 }
 
 static int virtnet_cpu_online(unsigned int cpu, struct hlist_node *node)
