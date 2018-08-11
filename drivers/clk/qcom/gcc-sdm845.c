@@ -418,18 +418,27 @@ static const struct freq_tbl ftbl_gcc_qupv3_wrap0_s0_clk_src[] = {
 	{ }
 };
 
+static struct clk_init_data gcc_qupv3_wrap0_s0_clk_init = {
+	.name = "gcc_qupv3_wrap0_s0_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
+};
+
 static struct clk_rcg2 gcc_qupv3_wrap0_s0_clk_src = {
 	.cmd_rcgr = 0x17034,
 	.mnd_width = 16,
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s0_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s0_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s1_clk_init = {
+	.name = "gcc_qupv3_wrap0_s1_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s1_clk_src = {
@@ -438,12 +447,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s1_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s1_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s1_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s2_clk_init = {
+	.name = "gcc_qupv3_wrap0_s2_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s2_clk_src = {
@@ -452,12 +463,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s2_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s2_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s2_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s3_clk_init = {
+	.name = "gcc_qupv3_wrap0_s3_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s3_clk_src = {
@@ -466,12 +479,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s3_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s3_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s3_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s4_clk_init = {
+	.name = "gcc_qupv3_wrap0_s4_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s4_clk_src = {
@@ -480,12 +495,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s4_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s4_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s4_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s5_clk_init = {
+	.name = "gcc_qupv3_wrap0_s5_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s5_clk_src = {
@@ -494,12 +511,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s5_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s5_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s5_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s6_clk_init = {
+	.name = "gcc_qupv3_wrap0_s6_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s6_clk_src = {
@@ -508,12 +527,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s6_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s6_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s6_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap0_s7_clk_init = {
+	.name = "gcc_qupv3_wrap0_s7_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap0_s7_clk_src = {
@@ -522,12 +543,14 @@ static struct clk_rcg2 gcc_qupv3_wrap0_s7_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap0_s7_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap0_s7_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s0_clk_init = {
+	.name = "gcc_qupv3_wrap1_s0_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s0_clk_src = {
@@ -536,12 +559,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s0_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s0_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s0_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s1_clk_init = {
+	.name = "gcc_qupv3_wrap1_s1_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s1_clk_src = {
@@ -550,12 +575,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s1_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s1_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s1_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s2_clk_init = {
+	.name = "gcc_qupv3_wrap1_s2_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s2_clk_src = {
@@ -564,12 +591,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s2_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s2_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s2_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s3_clk_init = {
+	.name = "gcc_qupv3_wrap1_s3_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s3_clk_src = {
@@ -578,12 +607,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s3_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s3_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s3_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s4_clk_init = {
+	.name = "gcc_qupv3_wrap1_s4_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s4_clk_src = {
@@ -592,12 +623,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s4_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s4_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s4_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s5_clk_init = {
+	.name = "gcc_qupv3_wrap1_s5_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s5_clk_src = {
@@ -606,12 +639,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s5_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s5_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s5_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s6_clk_init = {
+	.name = "gcc_qupv3_wrap1_s6_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s6_clk_src = {
@@ -620,12 +655,14 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s6_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s6_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s6_clk_init,
+};
+
+static struct clk_init_data gcc_qupv3_wrap1_s7_clk_init = {
+	.name = "gcc_qupv3_wrap1_s7_clk_src",
+	.parent_names = gcc_parent_names_0,
+	.num_parents = 4,
+	.ops = &clk_rcg2_shared_ops,
 };
 
 static struct clk_rcg2 gcc_qupv3_wrap1_s7_clk_src = {
@@ -634,12 +671,7 @@ static struct clk_rcg2 gcc_qupv3_wrap1_s7_clk_src = {
 	.hid_width = 5,
 	.parent_map = gcc_parent_map_0,
 	.freq_tbl = ftbl_gcc_qupv3_wrap0_s0_clk_src,
-	.clkr.hw.init = &(struct clk_init_data){
-		.name = "gcc_qupv3_wrap1_s7_clk_src",
-		.parent_names = gcc_parent_names_0,
-		.num_parents = 4,
-		.ops = &clk_rcg2_shared_ops,
-	},
+	.clkr.hw.init = &gcc_qupv3_wrap1_s7_clk_init,
 };
 
 static const struct freq_tbl ftbl_gcc_sdcc2_apps_clk_src[] = {
@@ -3514,9 +3546,29 @@ static const struct of_device_id gcc_sdm845_match_table[] = {
 };
 MODULE_DEVICE_TABLE(of, gcc_sdm845_match_table);
 
+static const struct clk_rcg_dfs_data gcc_dfs_clocks[] = {
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s0_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s1_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s2_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s3_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s4_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s5_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s6_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap0_s7_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s0_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s1_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s2_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s3_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s4_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s5_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s6_clk),
+	DEFINE_RCG_DFS(gcc_qupv3_wrap1_s7_clk),
+};
+
 static int gcc_sdm845_probe(struct platform_device *pdev)
 {
 	struct regmap *regmap;
+	int ret;
 
 	regmap = qcom_cc_map(pdev, &gcc_sdm845_desc);
 	if (IS_ERR(regmap))
@@ -3525,6 +3577,11 @@ static int gcc_sdm845_probe(struct platform_device *pdev)
 	/* Disable the GPLL0 active input to MMSS and GPU via MISC registers */
 	regmap_update_bits(regmap, 0x09ffc, 0x3, 0x3);
 	regmap_update_bits(regmap, 0x71028, 0x3, 0x3);
+
+	ret = qcom_cc_register_rcg_dfs(regmap, gcc_dfs_clocks,
+					ARRAY_SIZE(gcc_dfs_clocks));
+	if (ret)
+		return ret;
 
 	return qcom_cc_really_probe(pdev, &gcc_sdm845_desc, regmap);
 }
