@@ -5,7 +5,6 @@
 #include <linux/device.h>
 #include <linux/string.h>
 #include <linux/export.h>
-#include <linux/pm_dark_resume.h>
 #include <linux/pm_qos.h>
 #include <linux/pm_runtime.h>
 #include <linux/atomic.h>
@@ -341,11 +340,6 @@ static DEVICE_ATTR(pm_qos_remote_wakeup, 0644,
 static const char _enabled[] = "enabled";
 static const char _disabled[] = "disabled";
 
-static const char unknown[] = "unknown";
-static const char invalid[] = "invalid";
-static const char automatic[] = "automatic";
-static const char user[] = "user";
-
 static ssize_t
 wake_show(struct device * dev, struct device_attribute *attr, char * buf)
 {
@@ -518,45 +512,6 @@ static ssize_t wakeup_last_time_show(struct device *dev,
 
 static DEVICE_ATTR(wakeup_last_time_ms, 0444, wakeup_last_time_show, NULL);
 
-static ssize_t wakeup_type_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	switch (dev->power.wakeup_source_type) {
-	case WAKEUP_UNKNOWN:
-		return sprintf(buf, "%s\n", unknown);
-	case WAKEUP_AUTOMATIC:
-		return sprintf(buf, "%s\n", automatic);
-	case WAKEUP_USER:
-		return sprintf(buf, "%s\n", user);
-	default:
-		return sprintf(buf, "%s\n", invalid);
-	}
-}
-
-static ssize_t wakeup_type_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t n)
-{
-	enum pm_wakeup_type type;
-
-	if (sysfs_streq(unknown, buf))
-		type = WAKEUP_UNKNOWN;
-	else if (sysfs_streq(automatic, buf))
-		type = WAKEUP_AUTOMATIC;
-	else if (sysfs_streq(user, buf))
-		type = WAKEUP_USER;
-	else
-		return -EINVAL;
-
-	if (device_set_wakeup_type(dev, type))
-		return -EINVAL;
-
-	return n;
-}
-
-static DEVICE_ATTR(wakeup_type, 0644, wakeup_type_show,
-		   wakeup_type_store);
-
 #ifdef CONFIG_PM_AUTOSLEEP
 static ssize_t wakeup_prevent_sleep_time_show(struct device *dev,
 					      struct device_attribute *attr,
@@ -577,30 +532,6 @@ static ssize_t wakeup_prevent_sleep_time_show(struct device *dev,
 static DEVICE_ATTR(wakeup_prevent_sleep_time_ms, 0444,
 		   wakeup_prevent_sleep_time_show, NULL);
 #endif /* CONFIG_PM_AUTOSLEEP */
-
-static ssize_t dark_resume_active_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	return dev->power.use_dark_resume ? sprintf(buf, "%s\n", _enabled) :
-			sprintf(buf, "%s\n", _disabled);
-}
-
-static ssize_t dark_resume_active_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t n)
-{
-	if (sysfs_streq(_enabled, buf))
-		dev_dark_resume_set_active(dev, true);
-	else if (sysfs_streq(_disabled, buf))
-		dev_dark_resume_set_active(dev, false);
-	else
-		return -EINVAL;
-	return n;
-}
-
-static DEVICE_ATTR(dark_resume_active, 0644,
-		   dark_resume_active_show, dark_resume_active_store);
-
 #endif /* CONFIG_PM_SLEEP */
 
 #ifdef CONFIG_PM_ADVANCED_DEBUG
@@ -694,27 +625,15 @@ static struct attribute *wakeup_attrs[] = {
 	&dev_attr_wakeup_total_time_ms.attr,
 	&dev_attr_wakeup_max_time_ms.attr,
 	&dev_attr_wakeup_last_time_ms.attr,
-	&dev_attr_wakeup_type.attr,
 #ifdef CONFIG_PM_AUTOSLEEP
 	&dev_attr_wakeup_prevent_sleep_time_ms.attr,
 #endif
-#endif /* CONFIG_PM_SLEEP */
+#endif
 	NULL,
 };
 static const struct attribute_group pm_wakeup_attr_group = {
 	.name	= power_group_name,
 	.attrs	= wakeup_attrs,
-};
-
-static struct attribute *dark_resume_consumer_attrs[] = {
-#ifdef CONFIG_PM_SLEEP
-	&dev_attr_dark_resume_active.attr,
-#endif
-	NULL,
-};
-static struct attribute_group pm_dark_resume_consumer_attr_group = {
-	.name	= power_group_name,
-	.attrs	= dark_resume_consumer_attrs,
 };
 
 static struct attribute *runtime_attrs[] = {
@@ -848,14 +767,4 @@ void dpm_sysfs_remove(struct device *dev)
 	rpm_sysfs_remove(dev);
 	sysfs_unmerge_group(&dev->kobj, &pm_wakeup_attr_group);
 	sysfs_remove_group(&dev->kobj, &pm_attr_group);
-}
-
-void dark_resume_consumer_sysfs_add(struct device *dev)
-{
-	sysfs_merge_group(&dev->kobj, &pm_dark_resume_consumer_attr_group);
-}
-
-void dark_resume_consumer_sysfs_remove(struct device *dev)
-{
-	sysfs_unmerge_group(&dev->kobj, &pm_dark_resume_consumer_attr_group);
 }
