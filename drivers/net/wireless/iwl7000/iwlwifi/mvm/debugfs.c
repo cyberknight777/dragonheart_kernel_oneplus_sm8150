@@ -2153,6 +2153,9 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	if (!debugfs_create_blob("nvm_phy_sku", 0400,
 				 mvm->debugfs_dir, &mvm->nvm_phy_sku_blob))
 		goto err;
+	if (!debugfs_create_blob("nvm_reg", S_IRUSR,
+				 mvm->debugfs_dir, &mvm->nvm_reg_blob))
+		goto err;
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
 	if (!debugfs_create_u32("ct_kill_exit", 0600,
