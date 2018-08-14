@@ -766,6 +766,7 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm *mvm = mvmvif->mvm;
 	u32 value;
+	s16 svalue;
 	int ret = 0;
 	char *data;
 
@@ -861,19 +862,19 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 
 	data = iwl_dbgfs_is_match("common_calib=", buf);
 	if (data) {
-		ret = kstrtou32(data, 10, &value);
+		ret = kstrtos16(data, 10, &svalue);
 		if (ret == 0)
 			mvm->tof_data.range_req.common_calib =
-				cpu_to_le16(value);
+				cpu_to_le16(svalue);
 		goto out;
 	}
 
 	data = iwl_dbgfs_is_match("specific_calib=", buf);
 	if (data) {
-		ret = kstrtou32(data, 10, &value);
+		ret = kstrtos16(data, 10, &svalue);
 		if (ret == 0)
 			mvm->tof_data.range_req.specific_calib =
-				cpu_to_le16(value);
+				cpu_to_le16(svalue);
 		goto out;
 	}
 
@@ -1288,6 +1289,7 @@ static ssize_t iwl_dbgfs_tof_responder_config_write(
 	struct iwl_mvm *mvm = mvmvif->mvm;
 	u32 cmd_valid_fields;
 	u32 responder_cfg_flags;
+	s16 common_calib;
 	int ret = 0;
 	char *data;
 
@@ -1309,6 +1311,16 @@ static ssize_t iwl_dbgfs_tof_responder_config_write(
 		if (ret == 0)
 			mvm->tof_data.responder_cfg.responder_cfg_flags =
 				cpu_to_le32(responder_cfg_flags);
+		else
+			goto out;
+	}
+
+	data = iwl_dbgfs_is_match("common_calib=", buf);
+	if (data) {
+		ret = kstrtos16(data, 0, &common_calib);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.common_calib =
+				cpu_to_le16(responder_cfg_flags);
 		else
 			goto out;
 	}
