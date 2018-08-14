@@ -251,12 +251,7 @@ static int pp_set_powergating_state(void *handle,
 static int pp_suspend(void *handle)
 {
 	struct pp_instance *pp_handle = (struct pp_instance *)handle;
-	int ret = 0;
-
-	ret = pp_check(pp_handle);
-	if (ret == 0)
-		hwmgr_hw_suspend(pp_handle);
-	return 0;
+	return hwmgr_hw_suspend(pp_handle);
 }
 
 static int pp_resume(void *handle)
