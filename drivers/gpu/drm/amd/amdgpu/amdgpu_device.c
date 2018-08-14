@@ -1375,11 +1375,24 @@ static bool amdgpu_device_check_vram_lost(struct amdgpu_device *adev)
 			AMDGPU_RESET_MAGIC_NUM);
 }
 
-static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
+/**
+ * amdgpu_device_set_cg_state - set clockgating for amdgpu device
+ *
+ * @adev: amdgpu_device pointer
+ *
+ * The list of all the hardware IPs that make up the asic is walked and the
+ * set_clockgating_state callbacks are run.
+ * Late initialization pass enabling clockgating for hardware IPs.
+ * Fini or suspend, pass disabling clockgating for hardware IPs.
+ * Returns 0 on success, negative error code on failure.
+ */
+static int amdgpu_device_set_cg_state(struct amdgpu_device *adev,
+						enum amd_clockgating_state state)
 {
-	int i = 0, r;
+	int i, j, r;
 
-	for (i = 0; i < adev->num_ip_blocks; i++) {
+	for (j = 0; j < adev->num_ip_blocks; j++) {
+		i = state == AMD_CG_STATE_GATE ? j : adev->num_ip_blocks - j - 1;
 		if (!adev->ip_blocks[i].status.valid)
 			continue;
 		/* skip CG for VCE/UVD, it's handled specially */
@@ -1387,7 +1400,7 @@ static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
 		    adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCE) {
 			/* enable clockgating to save power */
 			r = adev->ip_blocks[i].version->funcs->set_clockgating_state((void *)adev,
-										     AMD_CG_STATE_GATE);
+										     state);
 			if (r) {
 				DRM_ERROR("set_clockgating_state(gate) of IP block <%s> failed %d\n",
 					  adev->ip_blocks[i].version->funcs->name, r);
@@ -1399,11 +1412,12 @@ static int amdgpu_device_ip_late_set_cg_state(struct amdgpu_device *adev)
 	return 0;
 }
 
-static int amdgpu_device_ip_late_set_pg_state(struct amdgpu_device *adev)
+static int amdgpu_device_set_pg_state(struct amdgpu_device *adev, enum amd_powergating_state state)
 {
-	int i = 0, r;
+	int i, j, r;
 
-	for (i = 0; i < adev->num_ip_blocks; i++) {
+	for (j = 0; j < adev->num_ip_blocks; j++) {
+		i = state == AMD_PG_STATE_GATE ? j : adev->num_ip_blocks - j - 1;
 		if (!adev->ip_blocks[i].status.valid)
 			continue;
 		/* skip CG for VCE/UVD, it's handled specially */
@@ -1413,7 +1427,7 @@ static int amdgpu_device_ip_late_set_pg_state(struct amdgpu_device *adev)
 		    adev->ip_blocks[i].version->funcs->set_powergating_state) {
 			/* enable powergating to save power */
 			r = adev->ip_blocks[i].version->funcs->set_powergating_state((void *)adev,
-										     AMD_PG_STATE_GATE);
+											state);
 			if (r) {
 				DRM_ERROR("set_powergating_state(gate) of IP block <%s> failed %d\n",
 					  adev->ip_blocks[i].version->funcs->name, r);
@@ -1442,8 +1456,8 @@ static int amdgpu_device_ip_late_init(struct amdgpu_device *adev)
 		}
 	}
 
-	amdgpu_device_ip_late_set_cg_state(adev);
-	amdgpu_device_ip_late_set_pg_state(adev);
+	amdgpu_device_set_cg_state(adev, AMD_CG_STATE_GATE);
+	amdgpu_device_set_pg_state(adev, AMD_PG_STATE_GATE);
 
 	queue_delayed_work(system_wq, &adev->late_init_work,
 			   msecs_to_jiffies(AMDGPU_RESUME_MS));
@@ -1546,6 +1560,11 @@ static int amdgpu_device_ip_fini(struct amdgpu_device *adev)
 	return 0;
 }
 
+/**
+ * amdgpu_device_ip_late_init_func_handler - work handler for ib test
+ *
+ * @work: work_struct.
+ */
 static void amdgpu_device_ip_late_init_func_handler(struct work_struct *work)
 {
 	struct amdgpu_device *adev =
