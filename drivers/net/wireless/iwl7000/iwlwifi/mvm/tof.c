@@ -102,6 +102,7 @@ void iwl_mvm_tof_init(struct iwl_mvm *mvm)
 
 	tof_data->range_req.req_timeout = 1;
 	tof_data->range_req.initiator = 1;
+	tof_data->range_req.macaddr_random = 1;
 	tof_data->range_req.report_policy = IWL_MVM_TOF_RESPONSE_COMPLETE;
 
 	tof_data->range_req_ext.tsf_timer_offset_msec =
@@ -526,7 +527,6 @@ int iwl_mvm_tof_perform_ftm(struct iwl_mvm *mvm, u64 cookie,
 	cmd->req_timeout = req->timeout;
 	cmd->report_policy = IWL_MVM_TOF_RESPONSE_COMPLETE;
 	cmd->num_of_ap = req->num_of_targets;
-	cmd->macaddr_random = 1;
 	memcpy(cmd->macaddr_template, req->macaddr_template, ETH_ALEN);
 	for (i = 0; i < ETH_ALEN; i++)
 		cmd->macaddr_mask[i] = ~req->macaddr_mask[i];
