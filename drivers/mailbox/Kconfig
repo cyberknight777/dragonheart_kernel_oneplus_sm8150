@@ -170,4 +170,14 @@ config BCM_FLEXRM_MBOX
 	  Mailbox implementation of the Broadcom FlexRM ring manager,
 	  which provides access to various offload engines on Broadcom
 	  SoCs. Say Y here if you want to use the Broadcom FlexRM.
+
+config MTK_CMDQ_MBOX
+	tristate "MediaTek CMDQ Mailbox Support"
+	depends on ARCH_MEDIATEK || COMPILE_TEST
+	select MTK_INFRACFG
+	help
+	  Say yes here to add support for the MediaTek Command Queue (CMDQ)
+	  mailbox driver. The CMDQ is used to help read/write registers with
+	  critical time limitation, such as updating display configuration
+	  during the vblank.
 endif
