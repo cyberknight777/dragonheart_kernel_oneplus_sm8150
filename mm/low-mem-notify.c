@@ -37,13 +37,8 @@ bool low_mem_margin_enabled = true;
 unsigned long low_mem_minfree;
 unsigned int low_mem_ram_vs_swap_weight = 4;
 
-/*
- * We're interested in worst-case anon memory usage when the low-memory
- * notification fires.  To contain logging, we limit our interest to
- * non-trivial steps.
- */
-unsigned long low_mem_lowest_seen_anon_mem;
-const unsigned long low_mem_anon_mem_delta = 10 * 1024 * 1024 / PAGE_SIZE;
+/* Limit logging low memory to once per second. */
+DEFINE_RATELIMIT_STATE(low_mem_logging_ratelimit, 1 * HZ, 1);
 
 struct low_mem_notify_file_info {
 	unsigned long unused;
@@ -221,7 +216,6 @@ static int __init low_mem_init(void)
 	if (err)
 		pr_err("low_mem: register sysfs failed\n");
 	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_mb);
-	low_mem_lowest_seen_anon_mem = totalram_pages;
 	return err;
 }
 module_init(low_mem_init)

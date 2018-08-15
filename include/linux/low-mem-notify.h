@@ -2,6 +2,7 @@
 #define _LINUX_LOW_MEM_NOTIFY_H
 
 #include <linux/mm.h>
+#include <linux/ratelimit.h>
 #include <linux/stddef.h>
 #include <linux/swap.h>
 
@@ -10,9 +11,8 @@ extern unsigned long low_mem_minfree;
 void low_mem_notify(void);
 extern const struct file_operations low_mem_notify_fops;
 extern bool low_mem_margin_enabled;
-extern unsigned long low_mem_lowest_seen_anon_mem;
-extern const unsigned long low_mem_anon_mem_delta;
 extern unsigned int low_mem_ram_vs_swap_weight;
+extern struct ratelimit_state low_mem_logging_ratelimit;
 
 /*
  * Compute available memory used by files that can be reclaimed quickly.
@@ -80,21 +80,13 @@ static inline bool _is_low_mem_situation(void)
 	unsigned long available_mem = get_available_mem_adj();
 	bool is_low_mem = available_mem < low_mem_minfree;
 
-	if (unlikely(is_low_mem && !was_low_mem)) {
-		unsigned long anon_mem = get_available_anon_mem();
-		if (unlikely(anon_mem < low_mem_lowest_seen_anon_mem)) {
-			printk(KERN_INFO "entering low_mem "
-			       "(avail RAM = %lu kB, avail swap %lu kB, "
-			       "avail file %lu kB) "
-			       "with lowest seen anon mem: %lu kB\n",
-			       available_mem * PAGE_SIZE / 1024,
-			       get_nr_swap_pages() * PAGE_SIZE / 1024,
-			       get_available_file_mem() * PAGE_SIZE /
-				  1024,
-			       anon_mem * PAGE_SIZE / 1024);
-			low_mem_lowest_seen_anon_mem = anon_mem -
-				low_mem_anon_mem_delta;
-		}
+	if (unlikely(is_low_mem && !was_low_mem) &&
+	    __ratelimit(&low_mem_logging_ratelimit)) {
+		pr_info("entering low_mem (avail RAM = %lu kB, avail swap %lu kB, avail file %lu kB, anon mem: %lu kB)\n",
+			available_mem * PAGE_SIZE / 1024,
+			get_nr_swap_pages() * PAGE_SIZE / 1024,
+			get_available_file_mem() * PAGE_SIZE / 1024,
+			get_available_anon_mem() * PAGE_SIZE / 1024);
 	}
 	was_low_mem = is_low_mem;
 
