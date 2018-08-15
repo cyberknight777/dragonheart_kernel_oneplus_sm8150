@@ -90,6 +90,14 @@
 
 	/* BOARD-SPECIFIC TOP LEVEL NODES */
 
+	firmware: firmware {
+		chromeos {
+			pinctrl-names = "default";
+			pinctrl-0 = <&bios_flash_wp_r_l>;
+			write-protect-gpio = <&tlmm 128 GPIO_ACTIVE_LOW>;
+		};
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -565,6 +573,19 @@
 };
 
 &tlmm {
+	bios_flash_wp_r_l: bios-flash-wp-r-l {
+		pinmux {
+			pins = "gpio128";
+			function = "gpio";
+			input-enable;
+		};
+
+		pinconf {
+			pins = "gpio128";
+			bias-disable;
+		};
+	};
+
 	/* NOTE: below is still on -rev3 schematics but goes to a DNS jumper */
 	en_pp3300_dx_edp: en-pp3300-dx-edp {
 		pinmux {

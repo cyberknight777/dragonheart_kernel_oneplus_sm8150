@@ -74,6 +74,15 @@
 	vin-supply = <&pp3500_a_vbob>;
 };
 
+/*
+ * NON-REGULATOR OVERRIDES
+ * (modifications to sdm845-cheza.dtsi) - alphabetized by dtsi label
+ */
+
+&firmware {
+	/delete-node/ chromeos;
+};
+
 /* PINCTRL - board-specific pinctrl */
 
 &tlmm {
