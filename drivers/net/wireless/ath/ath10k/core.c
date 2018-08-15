@@ -1160,7 +1160,7 @@ static int ath10k_download_fw(struct ath10k *ar)
 	return ret;
 }
 
-static void ath10k_core_free_board_files(struct ath10k *ar)
+void ath10k_core_free_board_files(struct ath10k *ar)
 {
 	if (!IS_ERR(ar->normal_mode_fw.board))
 		release_firmware(ar->normal_mode_fw.board);
@@ -1169,6 +1169,7 @@ static void ath10k_core_free_board_files(struct ath10k *ar)
 	ar->normal_mode_fw.board_data = NULL;
 	ar->normal_mode_fw.board_len = 0;
 }
+EXPORT_SYMBOL(ath10k_core_free_board_files);
 
 static void ath10k_core_free_firmware_files(struct ath10k *ar)
 {
@@ -1473,7 +1474,7 @@ out:
 	return 0;
 }
 
-static int ath10k_core_fetch_board_file(struct ath10k *ar)
+int ath10k_core_fetch_board_file(struct ath10k *ar)
 {
 	char boardname[100];
 	int ret;
@@ -1502,6 +1503,7 @@ success:
 	ath10k_dbg(ar, ATH10K_DBG_BOOT, "using board api %d\n", ar->bd_api);
 	return 0;
 }
+EXPORT_SYMBOL(ath10k_core_fetch_board_file);
 
 int ath10k_core_fetch_firmware_api_n(struct ath10k *ar, const char *name,
 				     struct ath10k_fw_file *fw_file)
