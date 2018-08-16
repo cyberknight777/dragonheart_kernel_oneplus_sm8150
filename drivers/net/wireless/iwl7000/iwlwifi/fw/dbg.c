@@ -1379,7 +1379,7 @@ int iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 	u32 occur, delay;
 
 	if (!fwrt->trans->ini_valid)
-		_iwl_fw_dbg_collect(fwrt, id, str, len, NULL);
+		return _iwl_fw_dbg_collect(fwrt, id, str, len, NULL);
 
 	if (id == FW_DBG_TRIGGER_USER)
 		id = IWL_FW_TRIGGER_ID_USER_TRIGGER;
