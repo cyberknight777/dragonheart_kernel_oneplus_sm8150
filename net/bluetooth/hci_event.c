@@ -3433,13 +3433,13 @@ static void hci_vendor_evt(struct hci_dev *hdev, struct sk_buff *skb)
 		case HCI_EV_INTEL_FATAL_EXCEPTION:
 		case HCI_EV_INTEL_DEBUG_EXCEPTION:
 			if (skb->len < 1) {
-				BT_INFO("Evt ID:%02X", evt_id);
+				BT_WARN("Evt ID:%02X", evt_id);
 				return;
 			}
 			b = (u8 *)skb->data;
 			for (i = 0; i < skb->len && i < HCI_MAX_EVENT_SIZE; ++i)
 				sprintf(line + strlen(line), " %02X", b[i]);
-			BT_INFO("Evt ID: %02X data:%s", evt_id, line);
+			BT_WARN("Evt ID: %02X data:%s", evt_id, line);
 			break;
 		default:
 			if (skb->len < 1) {
