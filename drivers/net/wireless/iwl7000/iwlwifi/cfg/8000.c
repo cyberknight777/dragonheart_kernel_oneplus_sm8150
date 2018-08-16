@@ -80,7 +80,6 @@
 
 /* NVM versions */
 #define IWL8000_NVM_VERSION		0x0a1d
-#define IWL8000_TX_POWER_VERSION	0xffff /* meaningless */
 
 /* Memory offsets and lengths */
 #define IWL8260_DCCM_OFFSET		0x800000
@@ -181,7 +180,6 @@ const struct iwl_cfg iwl8260_2n_cfg = {
 	IWL_DEVICE_8260,
 	.ht_params = &iwl8000_ht_params,
 	.nvm_ver = IWL8000_NVM_VERSION,
-	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
 };
 
 const struct iwl_cfg iwl8260_2ac_cfg = {
@@ -190,7 +188,6 @@ const struct iwl_cfg iwl8260_2ac_cfg = {
 	IWL_DEVICE_8260,
 	.ht_params = &iwl8000_ht_params,
 	.nvm_ver = IWL8000_NVM_VERSION,
-	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 };
 
@@ -200,7 +197,6 @@ const struct iwl_cfg iwl8265_2ac_cfg = {
 	IWL_DEVICE_8265,
 	.ht_params = &iwl8000_ht_params,
 	.nvm_ver = IWL8000_NVM_VERSION,
-	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 	.vht_mu_mimo_supported = true,
 };
@@ -211,7 +207,6 @@ const struct iwl_cfg iwl8275_2ac_cfg = {
 	IWL_DEVICE_8265,
 	.ht_params = &iwl8000_ht_params,
 	.nvm_ver = IWL8000_NVM_VERSION,
-	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 	.vht_mu_mimo_supported = true,
 };
@@ -222,7 +217,6 @@ const struct iwl_cfg iwl4165_2ac_cfg = {
 	IWL_DEVICE_8000,
 	.ht_params = &iwl8000_ht_params,
 	.nvm_ver = IWL8000_NVM_VERSION,
-	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
 	.max_ht_ampdu_exponent = IEEE80211_HT_MAX_AMPDU_64K,
 };
 
