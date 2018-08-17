@@ -688,76 +688,15 @@ void intel_init_audio_hooks(struct drm_i915_private *dev_priv)
 	}
 }
 
-static void glk_force_audio_cdclk(struct drm_i915_private *dev_priv,
-					bool enable)
-{
-	struct drm_modeset_acquire_ctx ctx;
-	struct drm_atomic_state *state;
-	int ret;
-
-	drm_modeset_acquire_init(&ctx, 0);
-	state = drm_atomic_state_alloc(&dev_priv->drm);
-	if (WARN_ON(!state))
-		return;
-
-	state->acquire_ctx = &ctx;
-
-retry:
-	to_intel_atomic_state(state)->modeset = true;
-	to_intel_atomic_state(state)->cdclk.force_min_cdclk =
-			enable ? 2 * 96000 : 0;
-
-	/*
-	 * Protects dev_priv->cdclk.force_min_cdclk
-	 * Need to lock this here in case we have no active pipes
-	 * and thus wouldn't lock it during the commit otherwise.
-	 */
-	ret = drm_modeset_lock(&dev_priv->drm.mode_config.connection_mutex, &ctx);
-	if (!ret)
-		ret = drm_atomic_commit(state);
-
-	if (ret == -EDEADLK) {
-		drm_atomic_state_clear(state);
-		drm_modeset_backoff(&ctx);
-		goto retry;
-	}
-
-	WARN_ON(ret);
-
-	drm_atomic_state_put(state);
-
-	drm_modeset_drop_locks(&ctx);
-	drm_modeset_acquire_fini(&ctx);
-}
-
 static void i915_audio_component_get_power(struct device *kdev)
 {
-	struct drm_i915_private *dev_priv = kdev_to_i915(kdev);
-
-	dev_priv->get_put_refcount++;
-
-	/* Force cdclk to 2*BCLK during first time get power call */
-	if (dev_priv->get_put_refcount == 1)
-		if (IS_CANNONLAKE(dev_priv) || IS_GEMINILAKE(dev_priv))
-			glk_force_audio_cdclk(dev_priv, true);
-
-	intel_display_power_get(dev_priv, POWER_DOMAIN_AUDIO);
+	intel_display_power_get(kdev_to_i915(kdev), POWER_DOMAIN_AUDIO);
 }
 
 static void i915_audio_component_put_power(struct device *kdev)
 {
-	struct drm_i915_private *dev_priv = kdev_to_i915(kdev);
-
-	dev_priv->get_put_refcount--;
-
-	/* Force required cdclk during last time put power call */
-	if (dev_priv->get_put_refcount == 0)
-		if (IS_CANNONLAKE(dev_priv) || IS_GEMINILAKE(dev_priv))
-			glk_force_audio_cdclk(dev_priv, false);
-
-	intel_display_power_put(dev_priv, POWER_DOMAIN_AUDIO);
+	intel_display_power_put(kdev_to_i915(kdev), POWER_DOMAIN_AUDIO);
 }
-
 
 static void i915_audio_component_codec_wake_override(struct device *kdev,
 						     bool enable)
@@ -1001,7 +940,6 @@ void i915_audio_component_init(struct drm_i915_private *dev_priv)
 		return;
 	}
 
-	dev_priv->get_put_refcount = 0;
 	dev_priv->audio_component_registered = true;
 }
 
