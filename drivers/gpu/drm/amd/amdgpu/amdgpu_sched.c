@@ -69,6 +69,8 @@ static int amdgpu_sched_process_priority_override(struct amdgpu_device *adev,
 
 	fput(filp);
 
+	fput(filp);
+
 	return 0;
 }
 
