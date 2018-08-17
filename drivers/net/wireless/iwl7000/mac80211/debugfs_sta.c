@@ -783,18 +783,18 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 		}							\
 	} while (0)
 
-	PRINT_NSS_SUPP(rx_msc_80, "RX-MCS-80");
-	PRINT_NSS_SUPP(tx_msc_80, "TX-MCS-80");
+	PRINT_NSS_SUPP(rx_mcs_80, "RX-MCS-80");
+	PRINT_NSS_SUPP(tx_mcs_80, "TX-MCS-80");
 
 	if (cap[0] & IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G) {
-		PRINT_NSS_SUPP(rx_msc_160, "RX-MCS-160");
-		PRINT_NSS_SUPP(tx_msc_160, "TX-MCS-160");
+		PRINT_NSS_SUPP(rx_mcs_160, "RX-MCS-160");
+		PRINT_NSS_SUPP(tx_mcs_160, "TX-MCS-160");
 	}
 
 	if (cap[0] &
 	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G) {
-		PRINT_NSS_SUPP(rx_msc_80p80, "RX-MCS-80P80");
-		PRINT_NSS_SUPP(tx_msc_80p80, "TX-MCS-80P80");
+		PRINT_NSS_SUPP(rx_mcs_80p80, "RX-MCS-80P80");
+		PRINT_NSS_SUPP(tx_mcs_80p80, "TX-MCS-80P80");
 	}
 
 #undef PRINT_NSS_SUPP

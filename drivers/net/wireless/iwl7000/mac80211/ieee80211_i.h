@@ -1999,7 +1999,10 @@ void ieee80211_sta_rx_notify(struct ieee80211_sub_if_data *sdata,
 			     struct ieee80211_hdr *hdr);
 void ieee80211_sta_tx_notify(struct ieee80211_sub_if_data *sdata,
 			     struct ieee80211_hdr *hdr, bool ack, u16 tx_time);
-
+void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
+				   const u8 *src, const u8 *dst,
+				   const u8 *ssid, size_t ssid_len,
+				   struct ieee80211_channel *channel);
 void ieee80211_wake_queues_by_reason(struct ieee80211_hw *hw,
 				     unsigned long queues,
 				     enum queue_stop_reason reason,

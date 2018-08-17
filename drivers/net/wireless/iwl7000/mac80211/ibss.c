@@ -1208,10 +1208,9 @@ void ieee80211_ibss_rx_no_sta(struct ieee80211_sub_if_data *sdata,
 		return;
 	}
 
-	ieee80211_send_probe_req(sdata, sdata->vif.addr, addr,
-				 sdata->u.ibss.ssid, sdata->u.ibss.ssid_len,
-				 NULL, 0, (u32)-1, true, 0,
-				 chanctx_conf->def.chan, false);
+	ieee80211_mlme_send_probe_req(sdata, sdata->vif.addr, addr,
+				      sdata->u.ibss.ssid, sdata->u.ibss.ssid_len,
+				      chanctx_conf->def.chan);
 	rcu_read_unlock();
 }
 
