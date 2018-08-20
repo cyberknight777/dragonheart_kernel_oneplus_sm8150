@@ -45,22 +45,6 @@
 		vin-supply = <&ppvar_sys>;
 	};
 
-	pp3500_a_vbob: pp3500-a-vbob-regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "vreg_bob";
-
-		/*
-		 * Comes on automatically when pp5000_ldo comes on, which
-		 * comes on automatically when ppvar_sys comes on
-		 */
-		regulator-always-on;
-		regulator-boot-on;
-		regulator-min-microvolt = <3500000>;
-		regulator-max-microvolt = <3500000>;
-
-		vin-supply = <&ppvar_sys>;
-	};
-
 	pp5000_a: pp5000-a-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "pp5000_a";
@@ -81,10 +65,10 @@
 		/* EC turns on with vbob_en; always on for AP */
 		regulator-always-on;
 		regulator-boot-on;
-		regulator-min-microvolt = <3500000>;
-		regulator-max-microvolt = <3500000>;
+		regulator-min-microvolt = <3600000>;
+		regulator-max-microvolt = <3600000>;
 
-		vin-supply = <&pp3500_a_vbob>;
+		vin-supply = <&ppvar_sys>;
 	};
 
 	/*
@@ -275,12 +259,8 @@
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
-		/*
-		 * NOTE: this rail should have been called
-		 * src_pp2950_l13a in the schematic
-		 */
 		vddpx_2:
-		src_pp3300_l13a: ldo13 {
+		src_pp2950_l13a: ldo13 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <2960000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
@@ -316,9 +296,16 @@
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
+		/*
+		 * NOTE: this rail should have been called
+		 * src_pp3300_l19a in the schematic
+		 */
+		/* TODO: should be 3.3V, but b/112920779 */
+		pp3300_dx_edp:
 		src_pp3000_l19a: ldo19 {
-			regulator-min-microvolt = <2856000>;
-			regulator-max-microvolt = <3104000>;
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3008000>;
+
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
@@ -334,10 +321,17 @@
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
-		src_pp2850_l22a: ldo22 {
-			regulator-min-microvolt = <2864000>;
-			regulator-max-microvolt = <3312000>;
+		pp3300_hub:
+		src_pp3300_l22a: ldo22 {
+			regulator-min-microvolt = <3304000>;
+			regulator-max-microvolt = <3304000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			/*
+			 * HACK: Should add a usb hub node and driver
+			 * to turn this on and off at suspend/resume time
+			 */
+			regulator-boot-on;
+			regulator-always-on;
 		};
 
 		pp3300_l23a_ch1_wcn3990: ldo23 {
@@ -359,6 +353,7 @@
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
+		pp1200_hub:
 		vdda_hp_pcie_1p2:
 		vdda_hv_ebi0:
 		vdda_hv_ebi1:
@@ -570,6 +565,20 @@
 };
 
 &tlmm {
+	/* NOTE: below is still on -rev3 schematics but goes to a DNS jumper */
+	en_pp3300_dx_edp: en-pp3300-dx-edp {
+		pinmux {
+			pins = "gpio43";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio43";
+			drive-strength = <8>; /* TODO: why? */
+			bias-disable;
+		};
+	};
+
 	pen_eject_odl: pen-eject-odl {
 		pinmux {
 			pins = "gpio119";

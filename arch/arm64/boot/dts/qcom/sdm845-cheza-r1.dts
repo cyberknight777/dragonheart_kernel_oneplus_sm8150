@@ -12,6 +12,66 @@
 / {
 	model = "Google Cheza (rev1)";
 	compatible = "google,cheza-rev1", "google,cheza", "qcom,sdm845";
+
+	/*
+	 * FIXED REGULATORS (not in sdm845-cheza.dtsi) - parents above children
+	 */
+
+	/*
+	 * NOTE: Technically pp3500_a is not the exact same signal as
+	 * pp3500_a_vbob (there's a load switch between them and the EC can
+	 * control pp3500_a via "en_pp3300_a"), but from the AP's point of
+	 * view they are the same.
+	 */
+	pp3500_a:
+	pp3500_a_vbob: pp3500-a-vbob-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_bob";
+
+		/*
+		 * Comes on automatically when pp5000_ldo comes on, which
+		 * comes on automatically when ppvar_sys comes on
+		 */
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3500000>;
+		regulator-max-microvolt = <3500000>;
+
+		vin-supply = <&ppvar_sys>;
+	};
+
+	pp3300_dx_edp_r0_r1_r2: pp3300-dx-edp-regulator-r0-r1-r2 {
+		compatible = "regulator-fixed";
+		regulator-name = "pp3300_dx_edp_r0_r1_r2";
+
+		/* Yes, it's really 3.5 despite the name of the signal */
+		regulator-min-microvolt = <3500000>;
+		regulator-max-microvolt = <3500000>;
+
+		gpio = <&tlmm 43 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-names = "default";
+		pinctrl-0 = <&en_pp3300_dx_edp>;
+
+		vin-supply = <&pp3500_a>;
+
+		// HACK: without always-on we die a horrible death. b/112356283
+		regulator-always-on; // HACK
+		regulator-boot-on;   // HACK
+	};
+};
+
+/* FIXED REGULATOR OVERRIDES (modifications to sdm845-cheza.dtsi) */
+
+&src_pp3300_l22a {
+	/delete-property/regulator-boot-on;
+	/delete-property/regulator-always-on;
+};
+
+&src_vreg_bob {
+	regulator-min-microvolt = <3500000>;
+	regulator-max-microvolt = <3500000>;
+	vin-supply = <&pp3500_a_vbob>;
 };
 
 /* PINCTRL - board-specific pinctrl */

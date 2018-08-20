@@ -10,68 +10,14 @@
 #include "sdm845-cheza.dtsi"
 
 / {
-	model = "Google Cheza (rev0)";
-	compatible = "google,cheza-rev0", "google,cheza", "qcom,sdm845";
-
-	/*
-	 * FIXED REGULATORS (not in sdm845-cheza.dtsi) - parents above children
-	 */
-
-	/*
-	 * NOTE: Technically pp3500_a is not the exact same signal as
-	 * pp3500_a_vbob (there's a load switch between them and the EC can
-	 * control pp3500_a via "en_pp3300_a"), but from the AP's point of
-	 * view they are the same.
-	 */
-	pp3500_a:
-	pp3500_a_vbob: pp3500-a-vbob-regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "vreg_bob";
-
-		/*
-		 * Comes on automatically when pp5000_ldo comes on, which
-		 * comes on automatically when ppvar_sys comes on
-		 */
-		regulator-always-on;
-		regulator-boot-on;
-		regulator-min-microvolt = <3500000>;
-		regulator-max-microvolt = <3500000>;
-
-		vin-supply = <&ppvar_sys>;
-	};
-
-	pp3300_dx_edp_r0_r1_r2: pp3300-dx-edp-regulator-r0-r1-r2 {
-		compatible = "regulator-fixed";
-		regulator-name = "pp3300_dx_edp_r0_r1_r2";
-
-		/* Yes, it's really 3.5 despite the name of the signal */
-		regulator-min-microvolt = <3500000>;
-		regulator-max-microvolt = <3500000>;
-
-		gpio = <&tlmm 43 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		pinctrl-names = "default";
-		pinctrl-0 = <&en_pp3300_dx_edp>;
-
-		vin-supply = <&pp3500_a>;
-
-		// HACK: without always-on we die a horrible death. b/112356283
-		regulator-always-on; // HACK
-		regulator-boot-on;   // HACK
-	};
-};
-
-/* FIXED REGULATOR OVERRIDES (modifications to sdm845-cheza.dtsi) */
-
-&src_pp3300_l22a {
-	/delete-property/regulator-boot-on;
-	/delete-property/regulator-always-on;
-};
-
-&src_vreg_bob {
-	regulator-min-microvolt = <3500000>;
-	regulator-max-microvolt = <3500000>;
-	vin-supply = <&pp3500_a_vbob>;
+	model = "Google Cheza (rev3+)";
+	compatible = "google,cheza-rev15", "google,cheza-rev14",
+		     "google,cheza-rev13", "google,cheza-rev12",
+		     "google,cheza-rev11", "google,cheza-rev10",
+		     "google,cheza-rev9", "google,cheza-rev8",
+		     "google,cheza-rev7", "google,cheza-rev6",
+		     "google,cheza-rev5", "google,cheza-rev4",
+		     "google,cheza-rev3", "google,cheza", "qcom,sdm845";
 };
 
 /* PINCTRL - board-specific pinctrl */
@@ -83,10 +29,10 @@
 			  "AP_SPI_FP_CS_L",
 			  "UART_AP_TX_DBG_RX",
 			  "UART_DBG_TX_AP_RX",
-			  "",
+			  "BRIJ_SUSPEND",
 			  "FP_RST_L",
 			  "FCAM_EN",
-			  "EDP_BKLTCTL",
+			  "",
 			  "EDP_BRIJ_IRQ",
 			  "EC_IN_RW_ODL",
 			  "",
@@ -99,10 +45,10 @@
 			  "CCI1_SDA",
 			  "CCI1_SCL",
 			  "FCAM_RST_L",
-			  "",
+			  "FPMCU_BOOT0",
 			  "PEN_RST_L",
 			  "PEN_IRQ_L",
-			  "",
+			  "FPMCU_SEL_OD",
 			  "RCAM_VSYNC",
 			  "ESIM_MISO",
 			  "ESIM_MOSI",
@@ -115,7 +61,7 @@
 			  "RCAM_RST_L",
 			  "",
 			  "AP_EDP_BKLTEN",
-			  "AP_BRD_ID1",
+			  "AP_BRD_ID0",
 			  "BOOT_CONFIG_4",
 			  "AMP_IRQ_L",
 			  "EDP_BRIJ_I2C_SDA",
@@ -128,18 +74,18 @@
 			  "BT_UART_TXD",
 			  "AMP_I2C_SDA",
 			  "AMP_I2C_SCL",
-			  "AP_BRD_ID3",
+			  "AP_BRD_ID2",
 			  "",
-			  "AP_EC_SPI_MISO",
-			  "AP_EC_SPI_MOSI",
 			  "AP_EC_SPI_CLK",
 			  "AP_EC_SPI_CS_L",
+			  "AP_EC_SPI_MISO",
+			  "AP_EC_SPI_MOSI",
 			  "FORCED_USB_BOOT",
 			  "AMP_BCLK",
 			  "AMP_LRCLK",
 			  "AMP_DOUT",
 			  "AMP_DIN",
-			  "AP_BRD_ID2",
+			  "AP_BRD_ID1",
 			  "PEN_PDCT_L",
 			  "HP_MCLK",
 			  "HP_BCLK",
@@ -156,7 +102,7 @@
 			  "",
 			  "FCAM_VSYNC",
 			  "",
-			  "AP_SKU_ID1",
+			  "AP_SKU_ID0",
 			  "EC_WOV_BCLK",
 			  "EC_WOV_LRCLK",
 			  "EC_WOV_DOUT",
@@ -190,7 +136,7 @@
 			  "UIM1_CLK",
 			  "UIM1_RST",
 			  "",
-			  "AP_SKU_ID2",
+			  "AP_SKU_ID1",
 			  "SDM_GRFC_8",
 			  "SDM_GRFC_9",
 			  "AP_RST_REQ",
@@ -203,9 +149,9 @@
 			  "",
 			  "",
 			  "TS_INT_L",
-			  "LTE_PA_THERM2",
+			  "AP_SUSPEND_L",
 			  "SDM_GRFC_3",
-			  "LTE_PA_THERM1",
+			  "BIOS_FLASH_WP_R_L",
 			  "H1_AP_INT_ODL",
 			  "QLINK_REQ",
 			  "QLINK_EN",
@@ -223,8 +169,8 @@
 			  "GNSS_EN",
 			  "WCI2_LTE_COEX_RXD",
 			  "WCI2_LTE_COEX_TXD",
+			  "AP_RAM_ID0",
 			  "AP_RAM_ID1",
-			  "AP_RAM_ID2",
 			  "RFFE1_DATA",
 			  "RFFE1_CLK";
 };
