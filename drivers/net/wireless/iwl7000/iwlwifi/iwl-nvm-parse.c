@@ -466,101 +466,184 @@ static void iwl_init_vht_hw_capab(struct iwl_trans *trans,
 	vht_cap->vht_mcs.tx_mcs_map = vht_cap->vht_mcs.rx_mcs_map;
 }
 
-static struct ieee80211_sband_iftype_data iwl_he_capa = {
-	.types_mask = BIT(NL80211_IFTYPE_STATION) | BIT(NL80211_IFTYPE_AP),
-	.he_cap = {
-		.has_he = true,
-		.he_cap_elem = {
-			.mac_cap_info[0] =
-				IEEE80211_HE_MAC_CAP0_HTC_HE |
-				IEEE80211_HE_MAC_CAP0_TWT_REQ,
-			.mac_cap_info[1] =
-				IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
-				IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
-			.mac_cap_info[2] =
-				IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP |
-				IEEE80211_HE_MAC_CAP2_MU_CASCADING |
-				IEEE80211_HE_MAC_CAP2_ACK_EN,
-			.mac_cap_info[3] =
-				IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
-				IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
-			.mac_cap_info[4] =
-				IEEE80211_HE_MAC_CAP4_AMDSU_IN_AMPDU |
-				IEEE80211_HE_MAC_CAP4_MULTI_TID_AGG_TX_QOS_B39,
-			.mac_cap_info[5] =
-				IEEE80211_HE_MAC_CAP5_MULTI_TID_AGG_TX_QOS_B40 |
-				IEEE80211_HE_MAC_CAP5_MULTI_TID_AGG_TX_QOS_B41 |
-				IEEE80211_HE_MAC_CAP5_UL_2x996_TONE_RU,
-			.phy_cap_info[0] =
-				IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G |
-				IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G |
-				IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G,
-			.phy_cap_info[1] =
-				IEEE80211_HE_PHY_CAP1_PREAMBLE_PUNC_RX_MASK |
-				IEEE80211_HE_PHY_CAP1_DEVICE_CLASS_A |
-				IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD |
-				IEEE80211_HE_PHY_CAP1_MIDAMBLE_RX_TX_MAX_NSTS,
-			.phy_cap_info[2] =
-				IEEE80211_HE_PHY_CAP2_NDP_4x_LTF_AND_3_2US |
-				IEEE80211_HE_PHY_CAP2_STBC_TX_UNDER_80MHZ |
-				IEEE80211_HE_PHY_CAP2_STBC_RX_UNDER_80MHZ |
-				IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO |
-				IEEE80211_HE_PHY_CAP2_UL_MU_PARTIAL_MU_MIMO,
-			.phy_cap_info[3] =
-				IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_TX_BPSK |
-				IEEE80211_HE_PHY_CAP3_DCM_MAX_TX_NSS_1 |
-				IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_BPSK |
-				IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1,
-			.phy_cap_info[4] =
-				IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE |
-				IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_ABOVE_80MHZ_8 |
-				IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_UNDER_80MHZ_8,
-			.phy_cap_info[5] =
-				IEEE80211_HE_PHY_CAP5_BEAMFORMEE_NUM_SND_DIM_UNDER_80MHZ_2 |
-				IEEE80211_HE_PHY_CAP5_BEAMFORMEE_NUM_SND_DIM_ABOVE_80MHZ_2 |
-				IEEE80211_HE_PHY_CAP5_NG16_SU_FEEDBACK |
-				IEEE80211_HE_PHY_CAP5_NG16_MU_FEEDBACK,
-			.phy_cap_info[6] =
-				IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
-				IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
-				IEEE80211_HE_PHY_CAP6_TRIG_SU_BEAMFORMER_FB |
-				IEEE80211_HE_PHY_CAP6_TRIG_MU_BEAMFORMER_FB |
-				IEEE80211_HE_PHY_CAP6_TRIG_CQI_FB |
-				IEEE80211_HE_PHY_CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO |
-				IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT,
-			.phy_cap_info[7] =
-				IEEE80211_HE_PHY_CAP7_POWER_BOOST_FACTOR_AR |
-				IEEE80211_HE_PHY_CAP7_HE_SU_MU_PPDU_4XLTF_AND_08_US_GI |
-				IEEE80211_HE_PHY_CAP7_MAX_NC_1,
-			.phy_cap_info[8] =
-				IEEE80211_HE_PHY_CAP8_HE_ER_SU_PPDU_4XLTF_AND_08_US_GI |
-				IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G |
-				IEEE80211_HE_PHY_CAP8_20MHZ_IN_160MHZ_HE_PPDU |
-				IEEE80211_HE_PHY_CAP8_80MHZ_IN_160MHZ_HE_PPDU |
-				IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_160_OR_80P80_MHZ,
-			.phy_cap_info[9] =
-				IEEE80211_HE_PHY_CAP9_NON_TRIGGERED_CQI_FEEDBACK |
-				IEEE80211_HE_PHY_CAP9_RX_FULL_BW_SU_USING_MU_WITH_COMP_SIGB |
-				IEEE80211_HE_PHY_CAP9_RX_FULL_BW_SU_USING_MU_WITH_NON_COMP_SIGB,
+static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
+	{
+		.types_mask = BIT(NL80211_IFTYPE_STATION),
+		.he_cap = {
+			.has_he = true,
+			.he_cap_elem = {
+				.mac_cap_info[0] =
+					IEEE80211_HE_MAC_CAP0_HTC_HE |
+					IEEE80211_HE_MAC_CAP0_TWT_REQ,
+				.mac_cap_info[1] =
+					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
+					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
+				.mac_cap_info[2] =
+					IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP |
+					IEEE80211_HE_MAC_CAP2_MU_CASCADING |
+					IEEE80211_HE_MAC_CAP2_ACK_EN,
+				.mac_cap_info[3] =
+					IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
+					IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
+				.mac_cap_info[4] =
+					IEEE80211_HE_MAC_CAP4_AMDSU_IN_AMPDU |
+					IEEE80211_HE_MAC_CAP4_MULTI_TID_AGG_TX_QOS_B39,
+				.mac_cap_info[5] =
+					IEEE80211_HE_MAC_CAP5_MULTI_TID_AGG_TX_QOS_B40 |
+					IEEE80211_HE_MAC_CAP5_MULTI_TID_AGG_TX_QOS_B41 |
+					IEEE80211_HE_MAC_CAP5_UL_2x996_TONE_RU,
+				.phy_cap_info[0] =
+					IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G |
+					IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G |
+					IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G,
+				.phy_cap_info[1] =
+					IEEE80211_HE_PHY_CAP1_PREAMBLE_PUNC_RX_MASK |
+					IEEE80211_HE_PHY_CAP1_DEVICE_CLASS_A |
+					IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD |
+					IEEE80211_HE_PHY_CAP1_MIDAMBLE_RX_TX_MAX_NSTS,
+				.phy_cap_info[2] =
+					IEEE80211_HE_PHY_CAP2_NDP_4x_LTF_AND_3_2US |
+					IEEE80211_HE_PHY_CAP2_STBC_TX_UNDER_80MHZ |
+					IEEE80211_HE_PHY_CAP2_STBC_RX_UNDER_80MHZ |
+					IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO |
+					IEEE80211_HE_PHY_CAP2_UL_MU_PARTIAL_MU_MIMO,
+				.phy_cap_info[3] =
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_TX_BPSK |
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_TX_NSS_1 |
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_BPSK |
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1,
+				.phy_cap_info[4] =
+					IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE |
+					IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_ABOVE_80MHZ_8 |
+					IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_UNDER_80MHZ_8,
+				.phy_cap_info[5] =
+					IEEE80211_HE_PHY_CAP5_BEAMFORMEE_NUM_SND_DIM_UNDER_80MHZ_2 |
+					IEEE80211_HE_PHY_CAP5_BEAMFORMEE_NUM_SND_DIM_ABOVE_80MHZ_2 |
+					IEEE80211_HE_PHY_CAP5_NG16_SU_FEEDBACK |
+					IEEE80211_HE_PHY_CAP5_NG16_MU_FEEDBACK,
+				.phy_cap_info[6] =
+					IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
+					IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
+					IEEE80211_HE_PHY_CAP6_TRIG_SU_BEAMFORMER_FB |
+					IEEE80211_HE_PHY_CAP6_TRIG_MU_BEAMFORMER_FB |
+					IEEE80211_HE_PHY_CAP6_TRIG_CQI_FB |
+					IEEE80211_HE_PHY_CAP6_PARTIAL_BANDWIDTH_DL_MUMIMO |
+					IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT,
+				.phy_cap_info[7] =
+					IEEE80211_HE_PHY_CAP7_POWER_BOOST_FACTOR_AR |
+					IEEE80211_HE_PHY_CAP7_HE_SU_MU_PPDU_4XLTF_AND_08_US_GI |
+					IEEE80211_HE_PHY_CAP7_MAX_NC_1,
+				.phy_cap_info[8] =
+					IEEE80211_HE_PHY_CAP8_HE_ER_SU_PPDU_4XLTF_AND_08_US_GI |
+					IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G |
+					IEEE80211_HE_PHY_CAP8_20MHZ_IN_160MHZ_HE_PPDU |
+					IEEE80211_HE_PHY_CAP8_80MHZ_IN_160MHZ_HE_PPDU |
+					IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_160_OR_80P80_MHZ,
+				.phy_cap_info[9] =
+					IEEE80211_HE_PHY_CAP9_NON_TRIGGERED_CQI_FEEDBACK |
+					IEEE80211_HE_PHY_CAP9_RX_FULL_BW_SU_USING_MU_WITH_COMP_SIGB |
+					IEEE80211_HE_PHY_CAP9_RX_FULL_BW_SU_USING_MU_WITH_NON_COMP_SIGB,
+			},
+			/*
+			 * Set default Tx/Rx HE MCS NSS Support field.
+			 * Indicate support for up to 2 spatial streams and all
+			 * MCS, without any special cases
+			 */
+			.he_mcs_nss_supp = {
+				.rx_mcs_80 = cpu_to_le16(0xfffa),
+				.tx_mcs_80 = cpu_to_le16(0xfffa),
+				.rx_mcs_160 = cpu_to_le16(0xfffa),
+				.tx_mcs_160 = cpu_to_le16(0xfffa),
+				.rx_mcs_80p80 = cpu_to_le16(0xffff),
+				.tx_mcs_80p80 = cpu_to_le16(0xffff),
+			},
+			/*
+			 * Set default PPE thresholds, with PPET16 set to 0,
+			 * PPET8 set to 7
+			 */
+			.ppe_thres = {0x61, 0x1c, 0xc7, 0x71},
 		},
-		/*
-		 * Set default Tx/Rx HE MCS NSS Support field. Indicate support
-		 * for up to 2 spatial streams and all MCS, without any special
-		 * cases
-		 */
-		.he_mcs_nss_supp = {
-			.rx_mcs_80 = cpu_to_le16(0xfffa),
-			.tx_mcs_80 = cpu_to_le16(0xfffa),
-			.rx_mcs_160 = cpu_to_le16(0xfffa),
-			.tx_mcs_160 = cpu_to_le16(0xfffa),
-			.rx_mcs_80p80 = cpu_to_le16(0xffff),
-			.tx_mcs_80p80 = cpu_to_le16(0xffff),
+	},
+	{
+		.types_mask = BIT(NL80211_IFTYPE_AP),
+		.he_cap = {
+			.has_he = true,
+			.he_cap_elem = {
+				.mac_cap_info[0] =
+					IEEE80211_HE_MAC_CAP0_HTC_HE,
+				.mac_cap_info[1] =
+					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
+					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
+				.mac_cap_info[2] =
+					IEEE80211_HE_MAC_CAP2_BSR |
+					IEEE80211_HE_MAC_CAP2_MU_CASCADING |
+					IEEE80211_HE_MAC_CAP2_ACK_EN,
+				.mac_cap_info[3] =
+					IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
+					IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
+				.mac_cap_info[4] =
+					IEEE80211_HE_MAC_CAP4_AMDSU_IN_AMPDU,
+				.phy_cap_info[0] =
+					IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G |
+					IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G |
+					IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G,
+				.phy_cap_info[1] =
+					IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD |
+					IEEE80211_HE_PHY_CAP1_MIDAMBLE_RX_TX_MAX_NSTS,
+				.phy_cap_info[2] =
+					IEEE80211_HE_PHY_CAP2_NDP_4x_LTF_AND_3_2US |
+					IEEE80211_HE_PHY_CAP2_STBC_TX_UNDER_80MHZ |
+					IEEE80211_HE_PHY_CAP2_STBC_RX_UNDER_80MHZ,
+				.phy_cap_info[3] =
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_TX_BPSK |
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_TX_NSS_1 |
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_CONST_RX_BPSK |
+					IEEE80211_HE_PHY_CAP3_DCM_MAX_RX_NSS_1,
+				.phy_cap_info[4] =
+					IEEE80211_HE_PHY_CAP4_SU_BEAMFORMEE |
+					IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_ABOVE_80MHZ_8 |
+					IEEE80211_HE_PHY_CAP4_BEAMFORMEE_MAX_STS_UNDER_80MHZ_8,
+				.phy_cap_info[5] =
+					IEEE80211_HE_PHY_CAP5_BEAMFORMEE_NUM_SND_DIM_UNDER_80MHZ_2 |
+					IEEE80211_HE_PHY_CAP5_BEAMFORMEE_NUM_SND_DIM_ABOVE_80MHZ_2 |
+					IEEE80211_HE_PHY_CAP5_NG16_SU_FEEDBACK |
+					IEEE80211_HE_PHY_CAP5_NG16_MU_FEEDBACK,
+				.phy_cap_info[6] =
+					IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_42_SU |
+					IEEE80211_HE_PHY_CAP6_CODEBOOK_SIZE_75_MU |
+					IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT,
+				.phy_cap_info[7] =
+					IEEE80211_HE_PHY_CAP7_HE_SU_MU_PPDU_4XLTF_AND_08_US_GI |
+					IEEE80211_HE_PHY_CAP7_MAX_NC_1,
+				.phy_cap_info[8] =
+					IEEE80211_HE_PHY_CAP8_HE_ER_SU_PPDU_4XLTF_AND_08_US_GI |
+					IEEE80211_HE_PHY_CAP8_20MHZ_IN_40MHZ_HE_PPDU_IN_2G |
+					IEEE80211_HE_PHY_CAP8_20MHZ_IN_160MHZ_HE_PPDU |
+					IEEE80211_HE_PHY_CAP8_80MHZ_IN_160MHZ_HE_PPDU |
+					IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_160_OR_80P80_MHZ,
+				.phy_cap_info[9] =
+					IEEE80211_HE_PHY_CAP9_RX_FULL_BW_SU_USING_MU_WITH_COMP_SIGB |
+					IEEE80211_HE_PHY_CAP9_RX_FULL_BW_SU_USING_MU_WITH_NON_COMP_SIGB,
+			},
+			/*
+			 * Set default Tx/Rx HE MCS NSS Support field.
+			 * Indicate support for up to 2 spatial streams and all
+			 * MCS, without any special cases
+			 */
+			.he_mcs_nss_supp = {
+				.rx_mcs_80 = cpu_to_le16(0xfffa),
+				.tx_mcs_80 = cpu_to_le16(0xfffa),
+				.rx_mcs_160 = cpu_to_le16(0xfffa),
+				.tx_mcs_160 = cpu_to_le16(0xfffa),
+				.rx_mcs_80p80 = cpu_to_le16(0xffff),
+				.tx_mcs_80p80 = cpu_to_le16(0xffff),
+			},
+			/*
+			 * Set default PPE thresholds, with PPET16 set to 0,
+			 * PPET8 set to 7
+			 */
+			.ppe_thres = {0x61, 0x1c, 0xc7, 0x71},
 		},
-		/*
-		 * Set default PPE thresholds, with PPET16 set to 0, PPET8 set
-		 * to 7
-		 */
-		.ppe_thres = {0x61, 0x1c, 0xc7, 0x71},
 	},
 };
 
@@ -569,20 +652,24 @@ static void iwl_init_he_hw_capab(struct ieee80211_supported_band *sband,
 {
 	if (sband->band == NL80211_BAND_2GHZ ||
 	    sband->band == NL80211_BAND_5GHZ)
-		ieee80211_sband_set_iftypes_data(sband, &iwl_he_capa);
+		ieee80211_sband_set_iftypes_data(sband, iwl_he_capa);
 	else
 		return;
 
-	ieee80211_sband_set_num_iftypes_data(sband, 1);
+	ieee80211_sband_set_num_iftypes_data(sband, ARRAY_SIZE(iwl_he_capa));
 
 	/* If not 2x2, we need to indicate 1x1 in the Midamble RX Max NSTS */
 	if ((tx_chains & rx_chains) != ANT_AB) {
-		iwl_he_capa.he_cap.he_cap_elem.phy_cap_info[1] &=
-			~IEEE80211_HE_PHY_CAP1_MIDAMBLE_RX_TX_MAX_NSTS;
-		iwl_he_capa.he_cap.he_cap_elem.phy_cap_info[2] &=
-			~IEEE80211_HE_PHY_CAP2_MIDAMBLE_RX_TX_MAX_NSTS;
-		iwl_he_capa.he_cap.he_cap_elem.phy_cap_info[7] &=
-			~IEEE80211_HE_PHY_CAP7_MAX_NC_MASK;
+		int i;
+
+		for (i = 0; i < ieee80211_sband_get_num_iftypes_data(sband); i++) {
+			iwl_he_capa[i].he_cap.he_cap_elem.phy_cap_info[1] &=
+				~IEEE80211_HE_PHY_CAP1_MIDAMBLE_RX_TX_MAX_NSTS;
+			iwl_he_capa[i].he_cap.he_cap_elem.phy_cap_info[2] &=
+				~IEEE80211_HE_PHY_CAP2_MIDAMBLE_RX_TX_MAX_NSTS;
+			iwl_he_capa[i].he_cap.he_cap_elem.phy_cap_info[7] &=
+				~IEEE80211_HE_PHY_CAP7_MAX_NC_MASK;
+		}
 	}
 }
 
@@ -603,98 +690,102 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 				 struct ieee80211_supported_band *sband)
 {
 	struct ieee80211_sband_iftype_data *iftype_data;
+	int i;
 
-	if (sband->band == NL80211_BAND_2GHZ ||
-	    sband->band == NL80211_BAND_5GHZ)
-		iftype_data = &iwl_he_capa;
-	else
+	if (sband->band != NL80211_BAND_2GHZ &&
+	    sband->band != NL80211_BAND_5GHZ)
 		return;
 
-	if (trans->dbg_cfg.rx_mcs_80) {
-		if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_80,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80)))
-			IWL_ERR(trans,
-				"Cannot set dbg rx_mcs_80 = 0x%x (too big)\n",
-				trans->dbg_cfg.rx_mcs_80);
-		else
-			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80 =
-				cpu_to_le16(trans->dbg_cfg.rx_mcs_80);
-	}
-	if (trans->dbg_cfg.tx_mcs_80) {
-		if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_80,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80)))
-			IWL_ERR(trans,
-				"Cannot set dbg tx_mcs_80 = 0x%x (too big)\n",
-				trans->dbg_cfg.tx_mcs_80);
-		else
-			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80 =
-				cpu_to_le16(trans->dbg_cfg.tx_mcs_80);
-	}
-	if (trans->dbg_cfg.rx_mcs_160) {
-		if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_160,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160)))
-			IWL_ERR(trans,
-				"Cannot set dbg rx_mcs_160 = 0x%x (too big)\n",
-				trans->dbg_cfg.rx_mcs_160);
-		else
-			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160 =
-				cpu_to_le16(trans->dbg_cfg.rx_mcs_160);
-	}
-	if (trans->dbg_cfg.tx_mcs_160) {
-		if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_160,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160)))
-			IWL_ERR(trans,
-				"Cannot set dbg tx_mcs_160 = 0x%x (too big)\n",
-				trans->dbg_cfg.tx_mcs_160);
-		else
-			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160 =
-				cpu_to_le16(trans->dbg_cfg.tx_mcs_160);
-	}
+	for (i = 0; i < ARRAY_SIZE(iwl_he_capa); i++) {
+		iftype_data = &iwl_he_capa[i];
 
-	/*
-	 * If antennas were forced - make sure not declaring MIMO when we
-	 * actually are SISO
-	 * Recall that there are 2 bits per stream in the "HE Tx/Rx HE MCS NSS
-	 * Support Field", so if some antenna is forced on but not both A and
-	 * B - we should work in SISO mode, so mark the 2nd SS as not supported
-	 */
-	if (trans->dbg_cfg.valid_ants &&
-	    (trans->dbg_cfg.valid_ants & ANT_AB) != ANT_AB) {
-		iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80 |=
-			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80 |=
-			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160 |=
-			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160 |=
-			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80p80 |=
-			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80p80 |=
-			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+		if (trans->dbg_cfg.rx_mcs_80) {
+			if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_80,
+					       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80)))
+				IWL_ERR(trans,
+					"Cannot set dbg rx_mcs_80 = 0x%x (too big)\n",
+					trans->dbg_cfg.rx_mcs_80);
+			else
+				iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80 =
+					cpu_to_le16(trans->dbg_cfg.rx_mcs_80);
+		}
+		if (trans->dbg_cfg.tx_mcs_80) {
+			if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_80,
+					       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80)))
+				IWL_ERR(trans,
+					"Cannot set dbg tx_mcs_80 = 0x%x (too big)\n",
+					trans->dbg_cfg.tx_mcs_80);
+			else
+				iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80 =
+					cpu_to_le16(trans->dbg_cfg.tx_mcs_80);
+		}
+		if (trans->dbg_cfg.rx_mcs_160) {
+			if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_160,
+					       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160)))
+				IWL_ERR(trans,
+					"Cannot set dbg rx_mcs_160 = 0x%x (too big)\n",
+					trans->dbg_cfg.rx_mcs_160);
+			else
+				iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160 =
+					cpu_to_le16(trans->dbg_cfg.rx_mcs_160);
+		}
+		if (trans->dbg_cfg.tx_mcs_160) {
+			if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_160,
+					       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160)))
+				IWL_ERR(trans,
+					"Cannot set dbg tx_mcs_160 = 0x%x (too big)\n",
+					trans->dbg_cfg.tx_mcs_160);
+			else
+				iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160 =
+					cpu_to_le16(trans->dbg_cfg.tx_mcs_160);
+		}
+
+		/*
+		 * If antennas were forced - make sure not declaring MIMO when
+		 * we actually are SISO
+		 * Recall that there are 2 bits per stream in the "HE Tx/Rx HE
+		 * MCS NSS Support Field", so if some antenna is forced on but
+		 * not both A and B - we should work in SISO mode, so mark the
+		 * 2nd SS as not supported
+		 */
+		if (trans->dbg_cfg.valid_ants &&
+		    (trans->dbg_cfg.valid_ants & ANT_AB) != ANT_AB) {
+			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80 |=
+				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80 |=
+				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160 |=
+				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160 |=
+				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80p80 |=
+				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80p80 |=
+				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
+		}
+
+		if (trans->dbg_cfg.no_ack_en & 0x1)
+			iftype_data->he_cap.he_cap_elem.mac_cap_info[2] &=
+				~IEEE80211_HE_MAC_CAP2_ACK_EN;
+
+		if (trans->dbg_cfg.no_ldpc)
+			iftype_data->he_cap.he_cap_elem.phy_cap_info[1] &=
+				~IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD;
+
+		/* Check if any HE capabilities need to be set for debug */
+		if (trans->dbg_cfg.he_ppe_thres.len) {
+			u8 len = trans->dbg_cfg.he_ppe_thres.len;
+
+			if (len > sizeof(iftype_data->he_cap.ppe_thres))
+				len = sizeof(iftype_data->he_cap.ppe_thres);
+			memcpy(iftype_data->he_cap.ppe_thres,
+			       trans->dbg_cfg.he_ppe_thres.data, len);
+		}
+
+		if (trans->dbg_cfg.he_chan_width_dis)
+			iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
+					~(trans->dbg_cfg.he_chan_width_dis << 1);
 	}
-
-	if (trans->dbg_cfg.no_ack_en & 0x1)
-		iftype_data->he_cap.he_cap_elem.mac_cap_info[2] &=
-			~IEEE80211_HE_MAC_CAP2_ACK_EN;
-
-	if (trans->dbg_cfg.no_ldpc)
-		iftype_data->he_cap.he_cap_elem.phy_cap_info[1] &=
-			~IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD;
-
-	/* Check if any HE capabilities need to be set for debug purposes */
-	if (trans->dbg_cfg.he_ppe_thres.len) {
-		u8 len = trans->dbg_cfg.he_ppe_thres.len;
-
-		if (len > sizeof(iftype_data->he_cap.ppe_thres))
-			len = sizeof(iftype_data->he_cap.ppe_thres);
-		memcpy(iftype_data->he_cap.ppe_thres,
-		       trans->dbg_cfg.he_ppe_thres.data, len);
-	}
-
-	if (trans->dbg_cfg.he_chan_width_dis)
-		iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
-				~(trans->dbg_cfg.he_chan_width_dis << 1);
 }
 #endif
 
