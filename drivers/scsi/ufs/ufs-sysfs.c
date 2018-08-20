@@ -616,7 +616,7 @@ static const struct attribute_group ufs_sysfs_string_descriptors_group = {
 	.attrs = ufs_sysfs_string_descriptors,
 };
 
-#define UFS_FLAG(_name, _uname)						\
+#define UFS_FLAG_SHOW(_name, _uname)					\
 static ssize_t _name##_show(struct device *dev,				\
 	struct device_attribute *attr, char *buf)			\
 {									\
@@ -626,17 +626,52 @@ static ssize_t _name##_show(struct device *dev,				\
 		QUERY_FLAG_IDN##_uname, &flag))				\
 		return -EINVAL;						\
 	return sprintf(buf, "%s\n", flag ? "true" : "false");		\
+}
+
+#define UFS_FLAG_STORE(_name, _uname)					\
+static ssize_t _name##_store(struct device *dev,			\
+	struct device_attribute *attr, const char *buf,			\
+	size_t count)							\
+{									\
+	bool flag;							\
+	struct ufs_hba *hba = dev_get_drvdata(dev);			\
+	enum query_opcode op;						\
+	if (kstrtobool(buf, &flag))					\
+		return -EINVAL;						\
+	op = flag ? UPIU_QUERY_OPCODE_SET_FLAG :			\
+		UPIU_QUERY_OPCODE_CLEAR_FLAG;				\
+	if (ufshcd_query_flag(hba, op, QUERY_FLAG_IDN##_uname, NULL))	\
+		return -EINVAL;						\
+	return count;							\
 }									\
+
+#define UFS_FLAG_RO(_name, _uname)	\
+UFS_FLAG_SHOW(_name, _uname)		\
 static DEVICE_ATTR_RO(_name)
 
-UFS_FLAG(device_init, _FDEVICEINIT);
-UFS_FLAG(permanent_wpe, _PERMANENT_WPE);
-UFS_FLAG(power_on_wpe, _PWR_ON_WPE);
-UFS_FLAG(bkops_enable, _BKOPS_EN);
-UFS_FLAG(life_span_mode_enable, _LIFE_SPAN_MODE_ENABLE);
-UFS_FLAG(phy_resource_removal, _FPHYRESOURCEREMOVAL);
-UFS_FLAG(busy_rtc, _BUSY_RTC);
-UFS_FLAG(disable_fw_update, _PERMANENTLY_DISABLE_FW_UPDATE);
+#define UFS_FLAG_WO(_name, _uname)					\
+UFS_FLAG_STORE(_name, _uname)						\
+static ssize_t _name##_show(struct device *dev,				\
+	struct device_attribute *attr, char *buf)			\
+{									\
+	return -EOPNOTSUPP;						\
+}									\
+static DEVICE_ATTR_RW(_name)
+
+#define UFS_FLAG_RW(_name, _uname)					\
+UFS_FLAG_SHOW(_name, _uname)						\
+UFS_FLAG_STORE(_name, _uname)						\
+static DEVICE_ATTR_RW(_name)
+
+UFS_FLAG_RW(device_init, _FDEVICEINIT);
+UFS_FLAG_RW(permanent_wpe, _PERMANENT_WPE);
+UFS_FLAG_RW(power_on_wpe, _PWR_ON_WPE);
+UFS_FLAG_RW(bkops_enable, _BKOPS_EN);
+UFS_FLAG_RO(life_span_mode_enable, _LIFE_SPAN_MODE_ENABLE);
+UFS_FLAG_WO(purge_enable, _PURGE_ENABLE);
+UFS_FLAG_RW(phy_resource_removal, _FPHYRESOURCEREMOVAL);
+UFS_FLAG_RO(busy_rtc, _BUSY_RTC);
+UFS_FLAG_RO(disable_fw_update, _PERMANENTLY_DISABLE_FW_UPDATE);
 
 static struct attribute *ufs_sysfs_device_flags[] = {
 	&dev_attr_device_init.attr,
@@ -644,6 +679,7 @@ static struct attribute *ufs_sysfs_device_flags[] = {
 	&dev_attr_power_on_wpe.attr,
 	&dev_attr_bkops_enable.attr,
 	&dev_attr_life_span_mode_enable.attr,
+	&dev_attr_purge_enable.attr,
 	&dev_attr_phy_resource_removal.attr,
 	&dev_attr_busy_rtc.attr,
 	&dev_attr_disable_fw_update.attr,
