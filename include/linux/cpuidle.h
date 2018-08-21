@@ -54,9 +54,9 @@ struct cpuidle_state {
 	/*
 	 * CPUs execute ->enter_s2idle with the local tick or entire timekeeping
 	 * suspended, so it must not re-enable interrupts at any point (even
-	 * temporarily) or attempt to change states of clock event devices.
+	 * temporarily). Returns 0 on success and non-zero if an error occurred.
 	 */
-	void (*enter_s2idle) (struct cpuidle_device *dev,
+	int (*enter_s2idle) (struct cpuidle_device *dev,
 			      struct cpuidle_driver *drv,
 			      int index);
 };
@@ -201,6 +201,8 @@ extern int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
 extern int cpuidle_enter_s2idle(struct cpuidle_driver *drv,
 				struct cpuidle_device *dev);
 extern void cpuidle_use_deepest_state(bool enable);
+extern void cpuidle_prepare_freeze(void);
+extern int cpuidle_complete_freeze(void);
 #else
 static inline int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
 					     struct cpuidle_device *dev)
@@ -211,6 +213,8 @@ static inline int cpuidle_enter_s2idle(struct cpuidle_driver *drv,
 static inline void cpuidle_use_deepest_state(bool enable)
 {
 }
+static inline void cpuidle_prepare_freeze(void) { }
+static inline int cpuidle_complete_freeze(void) { return -ENODEV; }
 #endif
 
 /* kernel/sched/idle.c */

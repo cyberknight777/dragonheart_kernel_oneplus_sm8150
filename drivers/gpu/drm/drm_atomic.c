@@ -33,6 +33,7 @@
 #include <linux/sync_file.h>
 
 #include "drm_crtc_internal.h"
+#include "drm_internal.h"
 
 void __drm_crtc_commit_free(struct kref *kref)
 {
@@ -49,7 +50,8 @@ EXPORT_SYMBOL(__drm_crtc_commit_free);
  * @state: atomic state
  *
  * Free all the memory allocated by drm_atomic_state_init.
- * This is useful for drivers that subclass the atomic state.
+ * This should only be used by drivers which are still subclassing
+ * &drm_atomic_state and haven't switched to &drm_private_state yet.
  */
 void drm_atomic_state_default_release(struct drm_atomic_state *state)
 {
@@ -66,7 +68,8 @@ EXPORT_SYMBOL(drm_atomic_state_default_release);
  * @state: atomic state
  *
  * Default implementation for filling in a new atomic state.
- * This is useful for drivers that subclass the atomic state.
+ * This should only be used by drivers which are still subclassing
+ * &drm_atomic_state and haven't switched to &drm_private_state yet.
  */
 int
 drm_atomic_state_init(struct drm_device *dev, struct drm_atomic_state *state)
@@ -131,7 +134,8 @@ EXPORT_SYMBOL(drm_atomic_state_alloc);
  * @state: atomic state
  *
  * Default implementation for clearing atomic state.
- * This is useful for drivers that subclass the atomic state.
+ * This should only be used by drivers which are still subclassing
+ * &drm_atomic_state and haven't switched to &drm_private_state yet.
  */
 void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 {
@@ -151,6 +155,8 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 						       state->connectors[i].state);
 		state->connectors[i].ptr = NULL;
 		state->connectors[i].state = NULL;
+		state->connectors[i].old_state = NULL;
+		state->connectors[i].new_state = NULL;
 		drm_connector_put(connector);
 	}
 
@@ -165,6 +171,8 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 
 		state->crtcs[i].ptr = NULL;
 		state->crtcs[i].state = NULL;
+		state->crtcs[i].old_state = NULL;
+		state->crtcs[i].new_state = NULL;
 	}
 
 	for (i = 0; i < config->num_total_plane; i++) {
@@ -177,6 +185,8 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 						   state->planes[i].state);
 		state->planes[i].ptr = NULL;
 		state->planes[i].state = NULL;
+		state->planes[i].old_state = NULL;
+		state->planes[i].new_state = NULL;
 	}
 
 	for (i = 0; i < state->num_private_objs; i++) {
@@ -186,6 +196,8 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 						 state->private_objs[i].state);
 		state->private_objs[i].ptr = NULL;
 		state->private_objs[i].state = NULL;
+		state->private_objs[i].old_state = NULL;
+		state->private_objs[i].new_state = NULL;
 	}
 	state->num_private_objs = 0;
 
@@ -907,11 +919,12 @@ static int drm_atomic_plane_check(struct drm_plane *plane,
 	    state->src_h > fb_height ||
 	    state->src_y > fb_height - state->src_h) {
 		DRM_DEBUG_ATOMIC("Invalid source coordinates "
-				 "%u.%06ux%u.%06u+%u.%06u+%u.%06u\n",
+				 "%u.%06ux%u.%06u+%u.%06u+%u.%06u (fb %ux%u)\n",
 				 state->src_w >> 16, ((state->src_w & 0xffff) * 15625) >> 10,
 				 state->src_h >> 16, ((state->src_h & 0xffff) * 15625) >> 10,
 				 state->src_x >> 16, ((state->src_x & 0xffff) * 15625) >> 10,
-				 state->src_y >> 16, ((state->src_y & 0xffff) * 15625) >> 10);
+				 state->src_y >> 16, ((state->src_y & 0xffff) * 15625) >> 10,
+				 state->fb->width, state->fb->height);
 		return -ENOSPC;
 	}
 
@@ -934,21 +947,8 @@ static void drm_atomic_plane_print_state(struct drm_printer *p,
 	drm_printf(p, "plane[%u]: %s\n", plane->base.id, plane->name);
 	drm_printf(p, "\tcrtc=%s\n", state->crtc ? state->crtc->name : "(null)");
 	drm_printf(p, "\tfb=%u\n", state->fb ? state->fb->base.id : 0);
-	if (state->fb) {
-		struct drm_framebuffer *fb = state->fb;
-		int i, n = fb->format->num_planes;
-		struct drm_format_name_buf format_name;
-
-		drm_printf(p, "\t\tformat=%s\n",
-		              drm_get_format_name(fb->format->format, &format_name));
-		drm_printf(p, "\t\t\tmodifier=0x%llx\n", fb->modifier);
-		drm_printf(p, "\t\tsize=%dx%d\n", fb->width, fb->height);
-		drm_printf(p, "\t\tlayers:\n");
-		for (i = 0; i < n; i++) {
-			drm_printf(p, "\t\t\tpitch[%d]=%u\n", i, fb->pitches[i]);
-			drm_printf(p, "\t\t\toffset[%d]=%u\n", i, fb->offsets[i]);
-		}
-	}
+	if (state->fb)
+		drm_framebuffer_print_info(p, 2, state->fb);
 	drm_printf(p, "\tcrtc-pos=" DRM_RECT_FMT "\n", DRM_RECT_ARG(&dest));
 	drm_printf(p, "\tsrc-pos=" DRM_RECT_FP_FMT "\n", DRM_RECT_FP_ARG(&src));
 	drm_printf(p, "\trotation=%x\n", state->rotation);
@@ -956,6 +956,42 @@ static void drm_atomic_plane_print_state(struct drm_printer *p,
 	if (plane->funcs->atomic_print_state)
 		plane->funcs->atomic_print_state(p, state);
 }
+
+/**
+ * DOC: handling driver private state
+ *
+ * Very often the DRM objects exposed to userspace in the atomic modeset api
+ * (&drm_connector, &drm_crtc and &drm_plane) do not map neatly to the
+ * underlying hardware. Especially for any kind of shared resources (e.g. shared
+ * clocks, scaler units, bandwidth and fifo limits shared among a group of
+ * planes or CRTCs, and so on) it makes sense to model these as independent
+ * objects. Drivers then need to do similar state tracking and commit ordering for
+ * such private (since not exposed to userpace) objects as the atomic core and
+ * helpers already provide for connectors, planes and CRTCs.
+ *
+ * To make this easier on drivers the atomic core provides some support to track
+ * driver private state objects using struct &drm_private_obj, with the
+ * associated state struct &drm_private_state.
+ *
+ * Similar to userspace-exposed objects, private state structures can be
+ * acquired by calling drm_atomic_get_private_obj_state(). Since this function
+ * does not take care of locking, drivers should wrap it for each type of
+ * private state object they have with the required call to drm_modeset_lock()
+ * for the corresponding &drm_modeset_lock.
+ *
+ * All private state structures contained in a &drm_atomic_state update can be
+ * iterated using for_each_oldnew_private_obj_in_state(),
+ * for_each_new_private_obj_in_state() and for_each_old_private_obj_in_state().
+ * Drivers are recommended to wrap these for each type of driver private state
+ * object they have, filtering on &drm_private_obj.funcs using for_each_if(), at
+ * least if they want to iterate over all objects of a given type.
+ *
+ * An earlier way to handle driver private state was by subclassing struct
+ * &drm_atomic_state. But since that encourages non-standard ways to implement
+ * the check/commit split atomic requires (by using e.g. "check and rollback or
+ * commit instead" of "duplicate state, check, then either commit or release
+ * duplicated state) it is deprecated in favour of using &drm_private_state.
+ */
 
 /**
  * drm_atomic_private_obj_init - initialize private object
@@ -1341,7 +1377,9 @@ drm_atomic_set_crtc_for_plane(struct drm_plane_state *plane_state,
 {
 	struct drm_plane *plane = plane_state->plane;
 	struct drm_crtc_state *crtc_state;
-
+	/* Nothing to do for same crtc*/
+	if (plane_state->crtc == crtc)
+		return 0;
 	if (plane_state->crtc) {
 		crtc_state = drm_atomic_get_crtc_state(plane_state->state,
 						       plane_state->crtc);
@@ -1808,7 +1846,7 @@ int drm_atomic_debugfs_init(struct drm_minor *minor)
 #endif
 
 /*
- * The big monstor ioctl
+ * The big monster ioctl
  */
 
 static struct drm_pending_vblank_event *create_vblank_event(

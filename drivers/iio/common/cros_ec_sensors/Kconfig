@@ -23,7 +23,7 @@ config IIO_CROS_EC_SENSORS
 
 config IIO_CROS_EC_ACTIVITY
 	tristate "ChromeOS EC Activity Sensors"
-	select IIO_CROS_EC_SENSORS_CORE
+	depends on IIO_CROS_EC_SENSORS_CORE
 	help
 	  Module to handle activity events detections presented by the ChromeOS
 	  EC Sensor hub.

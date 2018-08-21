@@ -26,6 +26,7 @@
 #define AMDGPU_AMDKFD_H_INCLUDED
 
 #include <linux/types.h>
+#include <linux/mm.h>
 #include <linux/mmu_context.h>
 #include <kgd_kfd_interface.h>
 
@@ -56,10 +57,13 @@ int alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
 			void **mem_obj, uint64_t *gpu_addr,
 			void **cpu_ptr);
 void free_gtt_mem(struct kgd_dev *kgd, void *mem_obj);
-uint64_t get_vmem_size(struct kgd_dev *kgd);
+void get_local_mem_info(struct kgd_dev *kgd,
+			struct kfd_local_mem_info *mem_info);
 uint64_t get_gpu_clock_counter(struct kgd_dev *kgd);
 
 uint32_t get_max_engine_clock_in_mhz(struct kgd_dev *kgd);
+void get_cu_info(struct kgd_dev *kgd, struct kfd_cu_info *cu_info);
+uint64_t amdgpu_amdkfd_get_vram_usage(struct kgd_dev *kgd);
 
 #define read_user_wptr(mmptr, wptr, dst)				\
 	({								\

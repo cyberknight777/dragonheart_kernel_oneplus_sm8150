@@ -34,6 +34,12 @@
 
 #define DRV_NAME	"cros-ec-accel-legacy"
 
+/*
+ * Sensor scale hard coded at 10 bits per g, computed as:
+ * g / (2^10 - 1) = 0.009586168; with g = 9.80665 m.s^-2
+ */
+#define ACCEL_LEGACY_NSCALE 9586168
+
 /* Indices for EC sensor values. */
 enum {
 	X,
@@ -42,72 +48,18 @@ enum {
 	MAX_AXIS,
 };
 
-struct cros_ec_accel_legacy_state;
-static ssize_t cros_ec_accel_legacy_id(struct iio_dev *indio_dev,
-		uintptr_t private, const struct iio_chan_spec *chan,
-		char *buf);
-
-static ssize_t cros_ec_accel_legacy_loc(struct iio_dev *indio_dev,
-		uintptr_t private, const struct iio_chan_spec *chan,
-		char *buf);
-
-static const struct iio_chan_spec_ext_info cros_ec_accel_legacy_ext_info[] = {
-	{
-		.name = "id",
-		.shared = IIO_SHARED_BY_ALL,
-		.read = cros_ec_accel_legacy_id,
-	},
-	{
-		.name = "location",
-		.shared = IIO_SHARED_BY_ALL,
-		.read = cros_ec_accel_legacy_loc,
-	},
-	{ }
-};
-
-#define CROS_EC_ACCEL_LEGACY_CHAN(_axis)				\
-	{								\
-		.type = IIO_ACCEL,					\
-		.channel2 = IIO_MOD_X + (_axis),			\
-		.modified = 1,					        \
-		.info_mask_separate =					\
-			BIT(IIO_CHAN_INFO_RAW) |			\
-			BIT(IIO_CHAN_INFO_CALIBSCALE) |			\
-			BIT(IIO_CHAN_INFO_CALIBBIAS),			\
-		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SCALE),	\
-		.ext_info = cros_ec_accel_legacy_ext_info,		\
-		.scan_type = {						\
-			.sign = 's',					\
-			.realbits = 16,					\
-			.storagebits = 16,				\
-			.shift = 0,					\
-		},							\
-	}								\
-
-static struct iio_chan_spec ec_accel_channels[] = {
-	CROS_EC_ACCEL_LEGACY_CHAN(X),
-	CROS_EC_ACCEL_LEGACY_CHAN(Y),
-	CROS_EC_ACCEL_LEGACY_CHAN(Z),
-	IIO_CHAN_SOFT_TIMESTAMP(MAX_AXIS)
-};
-
-
 /* State data for cros_ec_accel_legacy iio driver. */
 struct cros_ec_accel_legacy_state {
 	struct cros_ec_device *ec;
 
 	/*
-	 * Static array to hold data from a single capture. For each
-	 * channel we need 2 bytes, except for the timestamp. The timestamp
-	 * is always last and is always 8-byte aligned.
+	 * Array holding data from a single capture. 2 bytes per channel
+	 * for the 3 channels plus the timestamp which is always last and
+	 * 8-bytes aligned.
 	 */
-	union {
-		s16 samples[MAX_AXIS];
-		u64 ts[DIV_ROUND_UP(ARRAY_SIZE(ec_accel_channels),
-					sizeof(u64)/sizeof(u16)) + 1];
-	} capture_data;
+	s16 capture_data[8];
 	s8 sign[MAX_AXIS];
-	uint8_t sensor_num;
+	u8 sensor_num;
 };
 
 static int ec_cmd_read_u8(struct cros_ec_device *ec, unsigned int offset,
@@ -119,7 +71,7 @@ static int ec_cmd_read_u8(struct cros_ec_device *ec, unsigned int offset,
 static int ec_cmd_read_u16(struct cros_ec_device *ec, unsigned int offset,
 			   u16 *dest)
 {
-	u16 tmp;
+	__le16 tmp;
 	int ret = ec->cmd_readmem(ec, offset, 2, &tmp);
 
 	*dest = le16_to_cpu(tmp);
@@ -128,10 +80,14 @@ static int ec_cmd_read_u16(struct cros_ec_device *ec, unsigned int offset,
 }
 
 /**
- * read_ec_until_not_busy - read from EC status byte until it reads not busy.
+ * read_ec_until_not_busy() - Read from EC status byte until it reads not busy.
+ * @st: Pointer to state information for device.
  *
- * @st Pointer to state information for device.
- * @return 8-bit status if ok, -ve on error
+ * This function reads EC status until its busy bit gets cleared. It does not
+ * wait indefinitely and returns -EIO if the EC status is still busy after a
+ * few hundreds milliseconds.
+ *
+ * Return: 8-bit status if ok, -EIO on error
  */
 static int read_ec_until_not_busy(struct cros_ec_accel_legacy_state *st)
 {
@@ -156,33 +112,28 @@ static int read_ec_until_not_busy(struct cros_ec_accel_legacy_state *st)
 }
 
 /**
- * read_ec_accel_data_unsafe - read acceleration data from EC shared memory.
+ * read_ec_accel_data_unsafe() - Read acceleration data from EC shared memory.
+ * @st:        Pointer to state information for device.
+ * @scan_mask: Bitmap of the sensor indices to scan.
+ * @data:      Location to store data.
  *
- * @st Pointer to state information for device.
- * @scan_mask Bitmap of the sensor indices to scan.
- * @data Location to store data.
- *
- * Note this is the unsafe function for reading the EC data. It does not
- * guarantee that the EC will not modify the data as it is being read in.
+ * This is the unsafe function for reading the EC data. It does not guarantee
+ * that the EC will not modify the data as it is being read in.
  */
 static void read_ec_accel_data_unsafe(struct cros_ec_accel_legacy_state *st,
-			 unsigned long scan_mask, s16 *data)
+				      unsigned long scan_mask, s16 *data)
 {
 	int i = 0;
 	int num_enabled = bitmap_weight(&scan_mask, MAX_AXIS);
 
-	/*
-	 * Read all sensors enabled in scan_mask. Each value is 2
-	 * bytes.
-	 */
+	/* Read all sensors enabled in scan_mask. Each value is 2 bytes. */
 	while (num_enabled--) {
 		i = find_next_bit(&scan_mask, MAX_AXIS, i);
-		ec_cmd_read_u16(
-			st->ec,
-			EC_MEMMAP_ACC_DATA +
+		ec_cmd_read_u16(st->ec,
+				EC_MEMMAP_ACC_DATA +
 				sizeof(s16) *
 				(1 + i + st->sensor_num * MAX_AXIS),
-			data);
+				data);
 		*data *= st->sign[i];
 		i++;
 		data++;
@@ -190,21 +141,23 @@ static void read_ec_accel_data_unsafe(struct cros_ec_accel_legacy_state *st,
 }
 
 /**
- * read_ec_accel_data - read acceleration data from EC shared memory.
+ * read_ec_accel_data() - Read acceleration data from EC shared memory.
+ * @st:        Pointer to state information for device.
+ * @scan_mask: Bitmap of the sensor indices to scan.
+ * @data:      Location to store data.
  *
- * @st Pointer to state information for device.
- * @scan_mask Bitmap of the sensor indices to scan.
- * @data Location to store data.
- * @return 0 if ok, -ve on error
+ * This is the safe function for reading the EC data. It guarantees that
+ * the data sampled was not modified by the EC while being read.
  *
- * Note: this is the safe function for reading the EC data. It guarantees
- * that the data sampled was not modified by the EC while being read.
+ * Return: 0 if ok, -ve on error
  */
 static int read_ec_accel_data(struct cros_ec_accel_legacy_state *st,
 			      unsigned long scan_mask, s16 *data)
 {
-	u8 samp_id = 0xff, status = 0;
-	int rv, attempts = 0;
+	u8 samp_id = 0xff;
+	u8 status = 0;
+	int ret;
+	int attempts = 0;
 
 	/*
 	 * Continually read all data from EC until the status byte after
@@ -219,10 +172,10 @@ static int read_ec_accel_data(struct cros_ec_accel_legacy_state *st,
 			return -EIO;
 
 		/* Read status byte until EC is not busy. */
-		rv = read_ec_until_not_busy(st);
-		if (rv < 0)
-			return rv;
-		status = rv;
+		ret = read_ec_until_not_busy(st);
+		if (ret < 0)
+			return ret;
+		status = ret;
 
 		/*
 		 * Store the current sample id so that we can compare to the
@@ -241,8 +194,8 @@ static int read_ec_accel_data(struct cros_ec_accel_legacy_state *st,
 }
 
 static int cros_ec_accel_legacy_read(struct iio_dev *indio_dev,
-			  struct iio_chan_spec const *chan,
-			  int *val, int *val2, long mask)
+				     struct iio_chan_spec const *chan,
+				     int *val, int *val2, long mask)
 {
 	struct cros_ec_accel_legacy_state *st = iio_priv(indio_dev);
 	s16 data = 0;
@@ -256,10 +209,9 @@ static int cros_ec_accel_legacy_read(struct iio_dev *indio_dev,
 		*val = data;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_SCALE:
-		/* Sensor scale hard coded at 10 bits per g. */
 		*val = 0;
-		*val2 = IIO_G_TO_M_S_2(1024);
-		return IIO_VAL_INT_PLUS_MICRO;
+		*val2 = ACCEL_LEGACY_NSCALE;
+		return IIO_VAL_INT_PLUS_NANO;
 	case IIO_CHAN_INFO_CALIBBIAS:
 		/* Calibration not supported. */
 		*val = 0;
@@ -270,39 +222,35 @@ static int cros_ec_accel_legacy_read(struct iio_dev *indio_dev,
 }
 
 static int cros_ec_accel_legacy_write(struct iio_dev *indio_dev,
-			       struct iio_chan_spec const *chan,
-			       int val, int val2, long mask)
+				      struct iio_chan_spec const *chan,
+				      int val, int val2, long mask)
 {
-	int ret = 0;
+	/*
+	 * Do nothing but don't return an error code to allow calibration
+	 * script to work.
+	 */
+	if (mask == IIO_CHAN_INFO_CALIBBIAS)
+		return 0;
 
-	switch (mask) {
-	case IIO_CHAN_INFO_CALIBBIAS:
-		/* Do nothing, to allow calibration script to work. */
-		break;
-	default:
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
+	return -EINVAL;
 }
 
 static const struct iio_info cros_ec_accel_legacy_info = {
 	.read_raw = &cros_ec_accel_legacy_read,
 	.write_raw = &cros_ec_accel_legacy_write,
-	.driver_module = THIS_MODULE,
 };
 
 /**
- * accel_capture - the trigger handler function
- *
- * @irq: the interrupt number
- * @p: private data - always a pointer to the poll func.
+ * cros_ec_accel_legacy_capture() - The trigger handler function
+ * @irq: The interrupt number.
+ * @p:   Private data - always a pointer to the poll func.
  *
  * On a trigger event occurring, if the pollfunc is attached then this
  * handler is called as a threaded interrupt (and hence may sleep). It
  * is responsible for grabbing data from the device and pushing it into
  * the associated buffer.
+ *
+ * Return: IRQ_HANDLED
  */
 static irqreturn_t cros_ec_accel_legacy_capture(int irq, void *p)
 {
@@ -311,21 +259,16 @@ static irqreturn_t cros_ec_accel_legacy_capture(int irq, void *p)
 	struct cros_ec_accel_legacy_state *st = iio_priv(indio_dev);
 
 	/* Clear capture data. */
-	memset(st->capture_data.samples, 0, sizeof(st->capture_data));
+	memset(st->capture_data, 0, sizeof(st->capture_data));
 
 	/*
 	 * Read data based on which channels are enabled in scan mask. Note
 	 * that on a capture we are always reading the calibrated data.
 	 */
-	read_ec_accel_data(st, *(indio_dev->active_scan_mask),
-			   st->capture_data.samples);
+	read_ec_accel_data(st, *indio_dev->active_scan_mask, st->capture_data);
 
-	/* Store the timestamp last 8 bytes of data. */
-	if (indio_dev->scan_timestamp)
-		st->capture_data.ts[(indio_dev->scan_bytes - 1) / sizeof(s64)] =
-			iio_get_time_ns(indio_dev);
-
-	iio_push_to_buffers(indio_dev, (u8 *)st->capture_data.samples);
+	iio_push_to_buffers_with_timestamp(indio_dev, (void *)st->capture_data,
+					   iio_get_time_ns(indio_dev));
 
 	/*
 	 * Tell the core we are done with this trigger and ready for the
@@ -343,39 +286,81 @@ static char *cros_ec_accel_legacy_loc_strings[] = {
 };
 
 static ssize_t cros_ec_accel_legacy_loc(struct iio_dev *indio_dev,
-		uintptr_t private, const struct iio_chan_spec *chan,
-		char *buf)
+					uintptr_t private,
+					const struct iio_chan_spec *chan,
+					char *buf)
 {
 	struct cros_ec_accel_legacy_state *st = iio_priv(indio_dev);
 
-	return sprintf(buf, "%s\n", cros_ec_accel_legacy_loc_strings[
-			st->sensor_num + MOTIONSENSE_LOC_BASE]);
+	return sprintf(buf, "%s\n",
+		       cros_ec_accel_legacy_loc_strings[st->sensor_num +
+							MOTIONSENSE_LOC_BASE]);
 }
 
 static ssize_t cros_ec_accel_legacy_id(struct iio_dev *indio_dev,
-		uintptr_t private, const struct iio_chan_spec *chan,
-		char *buf)
+				       uintptr_t private,
+				       const struct iio_chan_spec *chan,
+				       char *buf)
 {
 	struct cros_ec_accel_legacy_state *st = iio_priv(indio_dev);
 
 	return sprintf(buf, "%d\n", st->sensor_num);
 }
 
+static const struct iio_chan_spec_ext_info cros_ec_accel_legacy_ext_info[] = {
+	{
+		.name = "id",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_accel_legacy_id,
+	},
+	{
+		.name = "location",
+		.shared = IIO_SHARED_BY_ALL,
+		.read = cros_ec_accel_legacy_loc,
+	},
+	{ }
+};
+
+#define CROS_EC_ACCEL_LEGACY_CHAN(_axis)				\
+	{								\
+		.type = IIO_ACCEL,					\
+		.channel2 = IIO_MOD_X + (_axis),			\
+		.modified = 1,					        \
+		.info_mask_separate =					\
+			BIT(IIO_CHAN_INFO_RAW) |			\
+			BIT(IIO_CHAN_INFO_SCALE) |			\
+			BIT(IIO_CHAN_INFO_CALIBBIAS),			\
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SCALE),	\
+		.ext_info = cros_ec_accel_legacy_ext_info,		\
+		.scan_type = {						\
+			.sign = 's',					\
+			.realbits = 16,					\
+			.storagebits = 16,				\
+		},							\
+	}								\
+
+static struct iio_chan_spec ec_accel_channels[] = {
+	CROS_EC_ACCEL_LEGACY_CHAN(X),
+	CROS_EC_ACCEL_LEGACY_CHAN(Y),
+	CROS_EC_ACCEL_LEGACY_CHAN(Z),
+	IIO_CHAN_SOFT_TIMESTAMP(MAX_AXIS)
+};
+
 static int cros_ec_accel_legacy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct cros_ec_device *ec_device = dev_get_drvdata(dev->parent);
+	struct cros_ec_dev *ec = dev_get_drvdata(dev->parent);
 	struct cros_ec_sensor_platform *sensor_platform = dev_get_platdata(dev);
 	struct iio_dev *indio_dev;
 	struct cros_ec_accel_legacy_state *state;
 	int ret, i;
 
-	if (!ec_device) {
+	if (!ec || !ec->ec_dev) {
 		dev_warn(&pdev->dev, "No EC device found.\n");
 		return -EINVAL;
 	}
 
-	if (!ec_device->cmd_readmem) {
+	if (!ec->ec_dev->cmd_readmem) {
 		dev_warn(&pdev->dev, "EC does not support direct reads.\n");
 		return -EINVAL;
 	}
@@ -386,7 +371,7 @@ static int cros_ec_accel_legacy_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, indio_dev);
 	state = iio_priv(indio_dev);
-	state->ec = ec_device;
+	state->ec = ec->ec_dev;
 	state->sensor_num = sensor_platform->sensor_num;
 
 	indio_dev->dev.parent = dev;
@@ -416,7 +401,8 @@ static int cros_ec_accel_legacy_probe(struct platform_device *pdev)
 	indio_dev->modes = INDIO_DIRECT_MODE;
 
 	ret = devm_iio_triggered_buffer_setup(dev, indio_dev, NULL,
-			cros_ec_accel_legacy_capture, NULL);
+					      cros_ec_accel_legacy_capture,
+					      NULL);
 	if (ret)
 		return ret;
 
@@ -435,4 +421,3 @@ MODULE_DESCRIPTION("ChromeOS EC legacy accelerometer driver");
 MODULE_AUTHOR("Gwendal Grignou <gwendal@chromium.org>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:" DRV_NAME);
-

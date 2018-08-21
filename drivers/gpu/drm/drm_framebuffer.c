@@ -25,7 +25,9 @@
 #include <drm/drm_auth.h>
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_atomic.h>
+#include <drm/drm_print.h>
 
+#include "drm_internal.h"
 #include "drm_crtc_internal.h"
 
 /**
@@ -78,11 +80,12 @@ int drm_framebuffer_check_src_coords(uint32_t src_x, uint32_t src_y,
 	    src_h > fb_height ||
 	    src_y > fb_height - src_h) {
 		DRM_DEBUG_KMS("Invalid source coordinates "
-			      "%u.%06ux%u.%06u+%u.%06u+%u.%06u\n",
+			      "%u.%06ux%u.%06u+%u.%06u+%u.%06u (fb %ux%u)\n",
 			      src_w >> 16, ((src_w & 0xffff) * 15625) >> 10,
 			      src_h >> 16, ((src_h & 0xffff) * 15625) >> 10,
 			      src_x >> 16, ((src_x & 0xffff) * 15625) >> 10,
-			      src_y >> 16, ((src_y & 0xffff) * 15625) >> 10);
+			      src_y >> 16, ((src_y & 0xffff) * 15625) >> 10,
+			      fb->width, fb->height);
 		return -ENOSPC;
 	}
 
@@ -458,6 +461,12 @@ int drm_mode_getfb(struct drm_device *dev,
 	if (!fb)
 		return -ENOENT;
 
+	/* Multi-planar framebuffers need getfb2. */
+	if (fb->format->num_planes > 1) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	r->height = fb->height;
 	r->width = fb->width;
 	r->depth = fb->format->depth;
@@ -481,6 +490,7 @@ int drm_mode_getfb(struct drm_device *dev,
 		ret = -ENODEV;
 	}
 
+out:
 	drm_framebuffer_put(fb);
 
 	return ret;
@@ -665,6 +675,7 @@ int drm_framebuffer_init(struct drm_device *dev, struct drm_framebuffer *fb,
 	INIT_LIST_HEAD(&fb->filp_head);
 
 	fb->funcs = funcs;
+	strcpy(fb->comm, current->comm);
 
 	ret = __drm_mode_object_add(dev, &fb->base, DRM_MODE_OBJECT_FB,
 				    false, drm_framebuffer_free);
@@ -685,6 +696,7 @@ EXPORT_SYMBOL(drm_framebuffer_init);
 /**
  * drm_framebuffer_lookup - look up a drm framebuffer and grab a reference
  * @dev: drm device
+ * @file_priv: drm file to check for lease against.
  * @id: id of the fb object
  *
  * If successful, this grabs an additional reference to the framebuffer -
@@ -971,3 +983,61 @@ int drm_framebuffer_plane_height(int height,
 	return fb_plane_height(height, fb->format, plane);
 }
 EXPORT_SYMBOL(drm_framebuffer_plane_height);
+
+void drm_framebuffer_print_info(struct drm_printer *p, unsigned int indent,
+				const struct drm_framebuffer *fb)
+{
+	struct drm_format_name_buf format_name;
+	unsigned int i;
+
+	drm_printf_indent(p, indent, "allocated by = %s\n", fb->comm);
+	drm_printf_indent(p, indent, "refcount=%u\n",
+			  drm_framebuffer_read_refcount(fb));
+	drm_printf_indent(p, indent, "format=%s\n",
+			  drm_get_format_name(fb->format->format, &format_name));
+	drm_printf_indent(p, indent, "modifier=0x%llx\n", fb->modifier);
+	drm_printf_indent(p, indent, "size=%ux%u\n", fb->width, fb->height);
+	drm_printf_indent(p, indent, "layers:\n");
+
+	for (i = 0; i < fb->format->num_planes; i++) {
+		drm_printf_indent(p, indent + 1, "size[%u]=%dx%d\n", i,
+				  drm_framebuffer_plane_width(fb->width, fb, i),
+				  drm_framebuffer_plane_height(fb->height, fb, i));
+		drm_printf_indent(p, indent + 1, "pitch[%u]=%u\n", i, fb->pitches[i]);
+		drm_printf_indent(p, indent + 1, "offset[%u]=%u\n", i, fb->offsets[i]);
+		drm_printf_indent(p, indent + 1, "obj[%u]:%s\n", i,
+				  fb->obj[i] ? "" : "(null)");
+		if (fb->obj[i])
+			drm_gem_print_info(p, indent + 2, fb->obj[i]);
+	}
+}
+
+#ifdef CONFIG_DEBUG_FS
+static int drm_framebuffer_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = m->private;
+	struct drm_device *dev = node->minor->dev;
+	struct drm_printer p = drm_seq_file_printer(m);
+	struct drm_framebuffer *fb;
+
+	mutex_lock(&dev->mode_config.fb_lock);
+	drm_for_each_fb(fb, dev) {
+		drm_printf(&p, "framebuffer[%u]:\n", fb->base.id);
+		drm_framebuffer_print_info(&p, 1, fb);
+	}
+	mutex_unlock(&dev->mode_config.fb_lock);
+
+	return 0;
+}
+
+static const struct drm_info_list drm_framebuffer_debugfs_list[] = {
+	{ "framebuffer", drm_framebuffer_info, 0 },
+};
+
+int drm_framebuffer_debugfs_init(struct drm_minor *minor)
+{
+	return drm_debugfs_create_files(drm_framebuffer_debugfs_list,
+				ARRAY_SIZE(drm_framebuffer_debugfs_list),
+				minor->debugfs_root, minor);
+}
+#endif

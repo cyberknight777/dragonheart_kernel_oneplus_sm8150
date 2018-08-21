@@ -19,6 +19,7 @@
 
 #include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/iio/common/cros_ec_sensors_core.h>
 #include <linux/iio/iio.h>
 #include <linux/kernel.h>
 #include <linux/mfd/cros_ec.h>
@@ -26,8 +27,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
-
-#include "cros_ec_sensors_core.h"
 
 #define DRV_NAME "cros-ec-activity"
 

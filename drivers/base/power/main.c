@@ -22,7 +22,6 @@
 #include <linux/export.h>
 #include <linux/mutex.h>
 #include <linux/pm.h>
-#include <linux/pm_dark_resume.h>
 #include <linux/pm_runtime.h>
 #include <linux/pm-trace.h>
 #include <linux/pm_wakeirq.h>
@@ -1058,6 +1057,7 @@ void dpm_resume_end(pm_message_t state)
 	dpm_complete(state);
 }
 EXPORT_SYMBOL_GPL(dpm_resume_end);
+
 
 /*------------------------- Suspend routines -------------------------*/
 

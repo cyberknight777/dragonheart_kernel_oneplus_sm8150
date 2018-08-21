@@ -48,6 +48,13 @@ enum adreno_regs {
 	REG_ADRENO_REGISTER_MAX,
 };
 
+enum {
+	ADRENO_FW_PM4 = 0,
+	ADRENO_FW_PFP = 1,
+	ADRENO_FW_GPMU = 2,
+	ADRENO_FW_MAX,
+};
+
 enum adreno_quirks {
 	ADRENO_QUIRK_TWO_PASS_USE_WFI = 1,
 	ADRENO_QUIRK_FAULT_DETECT_MASK = 2,
@@ -72,12 +79,12 @@ struct adreno_info {
 	struct adreno_rev rev;
 	uint32_t revn;
 	const char *name;
-	const char *pm4fw, *pfpfw;
-	const char *gpmufw;
+	const char *fw[ADRENO_FW_MAX];
 	uint32_t gmem;
 	enum adreno_quirks quirks;
 	struct msm_gpu *(*init)(struct drm_device *dev);
 	const char *zapfw;
+	u32 inactive_period;
 };
 
 const struct adreno_info *adreno_info(struct adreno_rev rev);
@@ -115,7 +122,7 @@ struct adreno_gpu {
 	} fwloc;
 
 	/* firmware: */
-	const struct firmware *pm4, *pfp;
+	const struct firmware *fw[ADRENO_FW_MAX];
 
 	/*
 	 * Register offsets are different between some GPUs.
@@ -200,14 +207,17 @@ static inline int adreno_is_a530(struct adreno_gpu *gpu)
 int adreno_get_param(struct msm_gpu *gpu, uint32_t param, uint64_t *value);
 const struct firmware *adreno_request_fw(struct adreno_gpu *adreno_gpu,
 		const char *fwname);
+struct drm_gem_object *adreno_fw_create_bo(struct msm_gpu *gpu,
+		const struct firmware *fw, u64 *iova);
 int adreno_hw_init(struct msm_gpu *gpu);
 void adreno_recover(struct msm_gpu *gpu);
 void adreno_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit,
 		struct msm_file_private *ctx);
 void adreno_flush(struct msm_gpu *gpu, struct msm_ringbuffer *ring);
 bool adreno_idle(struct msm_gpu *gpu, struct msm_ringbuffer *ring);
-#ifdef CONFIG_DEBUG_FS
-void adreno_show(struct msm_gpu *gpu, struct seq_file *m);
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_DEV_COREDUMP)
+void adreno_show(struct msm_gpu *gpu, struct msm_gpu_state *state,
+		struct drm_printer *p);
 #endif
 void adreno_dump_info(struct msm_gpu *gpu);
 void adreno_dump(struct msm_gpu *gpu);
@@ -219,6 +229,11 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 		int nr_rings);
 void adreno_gpu_cleanup(struct adreno_gpu *gpu);
 
+
+void adreno_gpu_state_destroy(struct msm_gpu_state *state);
+
+int adreno_gpu_state_get(struct msm_gpu *gpu, struct msm_gpu_state *state);
+int adreno_gpu_state_put(struct msm_gpu_state *state);
 
 /* ringbuffer helpers (the parts that are adreno specific) */
 

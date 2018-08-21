@@ -64,6 +64,11 @@
 /* AUX CH addresses */
 /* DPCD */
 #define DP_DPCD_REV                         0x000
+# define DP_DPCD_REV_10                     0x10
+# define DP_DPCD_REV_11                     0x11
+# define DP_DPCD_REV_12                     0x12
+# define DP_DPCD_REV_13                     0x13
+# define DP_DPCD_REV_14                     0x14
 
 #define DP_MAX_LINK_RATE                    0x001
 
@@ -118,7 +123,7 @@
 # define DP_DPCD_DISPLAY_CONTROL_CAPABLE     (1 << 3) /* edp v1.2 or higher */
 
 #define DP_TRAINING_AUX_RD_INTERVAL         0x00e   /* XXX 1.2? */
-# define DP_TRAINING_AUX_RD_MASK            0x7F     /* 1.3 */
+# define DP_TRAINING_AUX_RD_MASK            0x7F    /* XXX 1.2? */
 
 #define DP_ADAPTER_CAP			    0x00f   /* 1.2 */
 # define DP_FORCE_LOAD_SENSE_CAP	    (1 << 0)
@@ -454,6 +459,7 @@
 # define DP_PSR_FRAME_CAPTURE		    (1 << 3)
 # define DP_PSR_SELECTIVE_UPDATE	    (1 << 4)
 # define DP_PSR_IRQ_HPD_WITH_CRC_ERRORS     (1 << 5)
+# define DP_PSR_ENABLE_PSR2		    (1 << 6) /* eDP 1.4a */
 
 #define DP_ADAPTER_CTRL			    0x1a0
 # define DP_ADAPTER_CTRL_FORCE_LOAD_SENSE   (1 << 0)
@@ -636,6 +642,7 @@
 # define DP_SET_POWER_D0                    0x1
 # define DP_SET_POWER_D3                    0x2
 # define DP_SET_POWER_MASK                  0x3
+# define DP_SET_POWER_D3_AUX_ON             0x5
 
 #define DP_EDP_DPCD_REV			    0x700    /* eDP 1.2 */
 # define DP_EDP_11			    0x00

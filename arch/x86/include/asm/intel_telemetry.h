@@ -143,5 +143,10 @@ int telemetry_set_trace_verbosity(enum telemetry_unit telem_unit,
 
 int telemetry_get_trace_verbosity(enum telemetry_unit telem_unit,
 				  u32 *verbosity);
+#if IS_ENABLED(CONFIG_INTEL_TELEMETRY)
+extern int telem_soc_states_display(void);
+#else
+static inline int telem_soc_states_display(void) { return -EPERM; }
+#endif
 
 #endif /* INTEL_TELEMETRY_H */

@@ -728,6 +728,12 @@ static void skl_probe_work(struct work_struct *work)
 		}
 	}
 
+	/*
+	 * we are done probing so decrement link counts
+	 */
+	list_for_each_entry(hlink, &ebus->hlink_list, list)
+		snd_hdac_ext_bus_link_put(ebus, hlink);
+
 	if (IS_ENABLED(CONFIG_SND_SOC_HDAC_HDMI)) {
 		err = snd_hdac_display_power(bus, false);
 		if (err < 0) {
@@ -736,12 +742,6 @@ static void skl_probe_work(struct work_struct *work)
 			return;
 		}
 	}
-
-	/*
-	 * we are done probing so decrement link counts
-	 */
-	list_for_each_entry(hlink, &ebus->hlink_list, list)
-		snd_hdac_ext_bus_link_put(ebus, hlink);
 
 	/* configure PM */
 	pm_runtime_put_noidle(bus->dev);
@@ -815,11 +815,7 @@ static int skl_first_init(struct hdac_ext_bus *ebus)
 
 	snd_hdac_bus_parse_capabilities(bus);
 
-	if (skl_acquire_irq(ebus, 0) < 0)
-		return -EBUSY;
-
 	pci_set_master(pci);
-	synchronize_irq(bus->irq);
 
 	gcap = snd_hdac_chip_readw(bus, GCAP);
 	dev_dbg(bus->dev, "chipset global capabilities = 0x%x\n", gcap);
@@ -851,6 +847,12 @@ static int skl_first_init(struct hdac_ext_bus *ebus)
 	err = snd_hdac_bus_alloc_stream_pages(bus);
 	if (err < 0)
 		return err;
+
+	err = skl_acquire_irq(ebus, 0);
+	if (err < 0)
+		return err;
+
+	synchronize_irq(bus->irq);
 
 	/* initialize chip */
 	skl_init_pci(skl);
@@ -1054,7 +1056,7 @@ static struct snd_soc_acpi_mach sst_bxtp_devdata[] = {
 	},
 	{
 		.id = "DLGS7219",
-		.drv_name = "bxt_da7219_max98357a_i2s",
+		.drv_name = "bxt_da7219_max98357a",
 		.fw_filename = "intel/dsp_fw_bxtn.bin",
 		.machine_quirk = snd_soc_acpi_codec_list,
 		.quirk_data = &bxt_codecs,
@@ -1115,6 +1117,20 @@ static struct snd_soc_acpi_mach sst_glk_devdata[] = {
 		.drv_name = "glk_alc298s_i2s",
 		.fw_filename = "intel/dsp_fw_glk.bin",
 	},
+	{
+		.id = "DLGS7219",
+		.drv_name = "glk_da7219_max98357a",
+		.fw_filename = "intel/dsp_fw_glk.bin",
+		.machine_quirk = snd_soc_acpi_codec_list,
+		.quirk_data = &bxt_codecs,
+	},
+	{
+		.id = "10EC5682",
+		.drv_name = "glk_rt5682_max98357a",
+		.fw_filename = "intel/dsp_fw_glk.bin",
+		.machine_quirk = snd_soc_acpi_codec_list,
+		.quirk_data = &bxt_codecs,
+        },
 	{}
 };
 

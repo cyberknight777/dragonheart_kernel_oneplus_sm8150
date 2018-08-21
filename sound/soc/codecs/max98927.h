@@ -262,7 +262,7 @@
 
 struct max98927_priv {
 	struct regmap *regmap;
-	struct snd_soc_codec *codec;
+	struct snd_soc_component *component;
 	struct max98927_pdata *pdata;
 	unsigned int spk_gain;
 	unsigned int sysclk;
@@ -274,5 +274,6 @@ struct max98927_priv {
 	unsigned int iface;
 	unsigned int master;
 	unsigned int digital_gain;
+	bool tdm_mode;
 };
 #endif

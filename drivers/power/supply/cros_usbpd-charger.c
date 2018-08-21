@@ -12,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * Power supply driver for ChromeOS EC based USB PD Charger.
  */
@@ -31,7 +30,6 @@
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 
-#define CROS_USB_PD_MAX_PORTS		8
 #define CROS_USB_PD_MAX_LOG_ENTRIES	30
 
 #define CROS_USB_PD_LOG_UPDATE_DELAY msecs_to_jiffies(60000)
@@ -44,6 +42,7 @@
 
 #define CHARGER_DIR_NAME		"CROS_USB_PD_CHARGER%d"
 #define CHARGER_DIR_NAME_LENGTH		sizeof(CHARGER_DIR_NAME)
+#define DRV_NAME "cros-usb-pd-charger"
 
 #define MANUFACTURER_MODEL_LENGTH	32
 
@@ -67,10 +66,11 @@ struct port_data {
 
 struct charger_data {
 	struct device *dev;
+	struct cros_ec_dev *ec_dev;
 	struct cros_ec_device *ec_device;
 	int num_charger_ports;
 	int num_registered_psy;
-	struct port_data *ports[CROS_USB_PD_MAX_PORTS];
+	struct port_data *ports[EC_USB_PD_MAX_PORTS];
 	struct delayed_work log_work;
 	struct workqueue_struct *log_workqueue;
 	struct notifier_block notifier;
@@ -102,6 +102,7 @@ static int ec_command(struct charger_data *charger, int version, int command,
 		      int insize)
 {
 	struct cros_ec_device *ec_device = charger->ec_device;
+	struct cros_ec_dev *ec_dev = charger->ec_dev;
 	struct cros_ec_command *msg;
 	int ret;
 
@@ -110,7 +111,7 @@ static int ec_command(struct charger_data *charger, int version, int command,
 		return -ENOMEM;
 
 	msg->version = version;
-	msg->command = command;
+	msg->command = ec_dev->cmd_offset + command;
 	msg->outsize = outsize;
 	msg->insize = insize;
 
@@ -118,7 +119,7 @@ static int ec_command(struct charger_data *charger, int version, int command,
 		memcpy(msg->data, outdata, outsize);
 
 	ret = cros_ec_cmd_xfer_status(ec_device, msg);
-	if (ret >= 0 && insize)
+	if (ret > 0 && insize)
 		memcpy(indata, msg->data, insize);
 
 	kfree(msg);
@@ -301,10 +302,6 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	}
 
 	port->psy_desc.type = port->psy_type;
-	port->psy_voltage_max_design = resp.meas.voltage_max;
-	port->psy_voltage_now = resp.meas.voltage_now;
-	port->psy_current_max = resp.meas.current_max;
-	port->psy_power_max = resp.max_power;
 
 	dev_dbg(dev,
 		"Port %d: %s type=%d=vmax=%d vnow=%d cmax=%d clim=%d pmax=%d\n",
@@ -356,9 +353,8 @@ static void cros_usb_pd_charger_power_changed(struct power_supply *psy)
 	int i;
 
 	dev_dbg(dev, "cros_usb_pd_charger_power_changed\n");
-	for (i = 0; i < charger->num_registered_psy; i++) {
+	for (i = 0; i < charger->num_registered_psy; i++)
 		get_ec_port_status(charger->ports[i], false);
-	}
 }
 
 static int cros_usb_pd_charger_get_prop(struct power_supply *psy,
@@ -458,7 +454,6 @@ static int cros_usb_pd_charger_set_prop(struct power_supply *psy,
 		if (port_number != -1)
 			port_number = port->port_number;
 		return set_ec_usb_pd_override_ports(charger, port_number);
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -645,7 +640,8 @@ static char *charger_supplied_to[] = {"cros-usb_pd-charger"};
 static int cros_usb_pd_charger_probe(struct platform_device *pd)
 {
 	struct device *dev = &pd->dev;
-	struct cros_ec_device *ec_device = dev_get_drvdata(pd->dev.parent);
+	struct cros_ec_dev *ec_dev = dev_get_drvdata(pd->dev.parent);
+	struct cros_ec_device *ec_device;
 	struct charger_data *charger;
 	struct port_data *port;
 	struct power_supply_desc *psy_desc;
@@ -654,14 +650,24 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 	int ret = -EINVAL;
 
 	dev_dbg(dev, "cros_usb_pd_charger_probe\n");
-
-	charger = devm_kzalloc(dev, sizeof(struct charger_data), GFP_KERNEL);
-	if (!charger) {
-		dev_err(dev, "Failed to alloc charger. Failing probe.\n");
-		return -ENOMEM;
+	if (!ec_dev) {
+		dev_err(dev, "No EC dev found\n");
+		return -EINVAL;
 	}
 
+	ec_device = ec_dev->ec_dev;
+	if (!ec_device) {
+		dev_err(dev, "No EC device found.\n");
+		return -EINVAL;
+	}
+
+	charger = devm_kzalloc(dev, sizeof(struct charger_data),
+				    GFP_KERNEL);
+	if (!charger)
+		return -ENOMEM;
+
 	charger->dev = dev;
+	charger->ec_dev = ec_dev;
 	charger->ec_device = ec_device;
 
 	platform_set_drvdata(pd, charger);
@@ -682,7 +688,6 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 
 		port = devm_kzalloc(dev, sizeof(struct port_data), GFP_KERNEL);
 		if (!port) {
-			dev_err(dev, "Failed to alloc port structure\n");
 			ret = -ENOMEM;
 			goto fail;
 		}
@@ -696,10 +701,13 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 		psy_desc->type = POWER_SUPPLY_TYPE_USB;
 		psy_desc->get_property = cros_usb_pd_charger_get_prop;
 		psy_desc->set_property = cros_usb_pd_charger_set_prop;
-		psy_desc->property_is_writeable = cros_usb_pd_charger_is_writeable;
-		psy_desc->external_power_changed = cros_usb_pd_charger_power_changed;
+		psy_desc->property_is_writeable =
+			cros_usb_pd_charger_is_writeable;
+		psy_desc->external_power_changed =
+			cros_usb_pd_charger_power_changed;
 		psy_desc->properties = cros_usb_pd_charger_props;
-		psy_desc->num_properties = ARRAY_SIZE(cros_usb_pd_charger_props);
+		psy_desc->num_properties =
+			ARRAY_SIZE(cros_usb_pd_charger_props);
 
 		psy_cfg.drv_data = port;
 		psy_cfg.supplied_to = charger_supplied_to;
@@ -896,6 +904,7 @@ static ssize_t set_ec_ext_voltage_lim(struct device *dev,
 {
 	int ret;
 	uint16_t tmp_val;
+
 	struct cros_ec_dev *ec = container_of(
 			dev, struct cros_ec_dev, class_dev);
 
@@ -916,10 +925,10 @@ static ssize_t set_ec_ext_voltage_lim(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(ext_current_lim, S_IWUSR | S_IWGRP | S_IRUGO,
+static DEVICE_ATTR(ext_current_lim, 0664,
 		   get_ec_ext_current_lim,
 		   set_ec_ext_current_lim);
-static DEVICE_ATTR(ext_voltage_lim, S_IWUSR | S_IWGRP | S_IRUGO,
+static DEVICE_ATTR(ext_voltage_lim, 0664,
 		   get_ec_ext_voltage_lim,
 		   set_ec_ext_voltage_lim);
 
@@ -933,13 +942,14 @@ struct attribute_group cros_usb_pd_charger_attr_group = {
 	.name = "usb-pd-charger",
 	.attrs = __ext_power_cmds_attrs,
 };
+EXPORT_SYMBOL(cros_usb_pd_charger_attr_group);
 
 static SIMPLE_DEV_PM_OPS(cros_usb_pd_charger_pm_ops,
 	cros_usb_pd_charger_suspend, cros_usb_pd_charger_resume);
 
 static struct platform_driver cros_usb_pd_charger_driver = {
 	.driver = {
-		.name = "cros-usb-pd-charger",
+		.name = DRV_NAME,
 		.owner = THIS_MODULE,
 		.pm = &cros_usb_pd_charger_pm_ops,
 	},
@@ -951,4 +961,4 @@ module_platform_driver(cros_usb_pd_charger_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Chrome USB PD charger");
-MODULE_ALIAS("power_supply:cros-usb-pd-charger");
+MODULE_ALIAS("platform:" DRV_NAME);

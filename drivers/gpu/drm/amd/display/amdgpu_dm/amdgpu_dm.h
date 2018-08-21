@@ -212,6 +212,8 @@ struct amdgpu_dm_connector {
 	struct mutex hpd_lock;
 
 	bool fake_enable;
+
+	bool mst_connected;
 };
 
 #define to_amdgpu_dm_connector(x) container_of(x, struct amdgpu_dm_connector, base)
@@ -231,6 +233,8 @@ struct dm_plane_state {
 struct dm_crtc_state {
 	struct drm_crtc_state base;
 	struct dc_stream_state *stream;
+
+	bool crc_first_skipped;
 };
 
 #define to_dm_crtc_state(x)    container_of(x, struct dm_crtc_state, base)
@@ -243,6 +247,18 @@ struct dm_atomic_state {
 
 #define to_dm_atomic_state(x) container_of(x, struct dm_atomic_state, base)
 
+struct dm_connector_state {
+	struct drm_connector_state base;
+
+	enum amdgpu_rmx_type scaling;
+	uint8_t underscan_vborder;
+	uint8_t underscan_hborder;
+	bool underscan_enable;
+	struct mod_freesync_user_enable user_enable;
+};
+
+#define to_dm_connector_state(x)\
+	container_of((x), struct dm_connector_state, base)
 
 void amdgpu_dm_connector_funcs_reset(struct drm_connector *connector);
 struct drm_connector_state *
@@ -276,6 +292,16 @@ void amdgpu_dm_add_sink_to_freesync_module(struct drm_connector *connector,
 
 void
 amdgpu_dm_remove_sink_from_freesync_module(struct drm_connector *connector);
+
+/* amdgpu_dm_crc.c */
+#ifdef CONFIG_DEBUG_FS
+int amdgpu_dm_crtc_set_crc_source(struct drm_crtc *crtc, const char *src_name,
+				  size_t *values_cnt);
+void amdgpu_dm_crtc_handle_crc_irq(struct drm_crtc *crtc);
+#else
+#define amdgpu_dm_crtc_set_crc_source NULL
+void amdgpu_dm_crtc_handle_crc_irq(struct drm_crtc *crtc) {}
+#endif
 
 extern const struct drm_encoder_helper_funcs amdgpu_dm_encoder_helper_funcs;
 

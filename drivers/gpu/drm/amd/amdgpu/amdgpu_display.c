@@ -29,11 +29,13 @@
 #include "amdgpu_i2c.h"
 #include "atom.h"
 #include "amdgpu_connectors.h"
+#include "amdgpu_display.h"
 #include <asm/div64.h>
 
 #include <linux/pm_runtime.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_edid.h>
+#include <drm/drm_fb_helper.h>
 
 static void amdgpu_flip_callback(struct dma_fence *f, struct dma_fence_cb *cb)
 {
@@ -188,7 +190,7 @@ int amdgpu_crtc_page_flip_target(struct drm_crtc *crtc,
 		goto cleanup;
 	}
 
-	r = amdgpu_bo_pin(new_abo, AMDGPU_GEM_DOMAIN_VRAM, &base);
+	r = amdgpu_bo_pin(new_abo, amdgpu_display_supported_domains(adev), &base);
 	if (unlikely(r != 0)) {
 		DRM_ERROR("failed to pin new abo buffer before flip\n");
 		goto unreserve;
@@ -501,6 +503,20 @@ static const struct drm_framebuffer_funcs amdgpu_fb_funcs = {
 	.create_handle = amdgpu_user_framebuffer_create_handle,
 };
 
+uint32_t amdgpu_display_supported_domains(struct amdgpu_device *adev)
+{
+	uint32_t domain = AMDGPU_GEM_DOMAIN_VRAM;
+
+#if defined(CONFIG_DRM_AMD_DC)
+	if (adev->asic_type >= CHIP_CARRIZO && adev->asic_type < CHIP_RAVEN &&
+	    adev->flags & AMD_IS_APU &&
+	    amdgpu_device_asic_has_dc_support(adev->asic_type))
+		domain |= AMDGPU_GEM_DOMAIN_GTT;
+#endif
+
+	return domain;
+}
+
 int
 amdgpu_framebuffer_init(struct drm_device *dev,
 			struct amdgpu_framebuffer *rfb,
@@ -556,15 +572,9 @@ amdgpu_user_framebuffer_create(struct drm_device *dev,
 	return &amdgpu_fb->base;
 }
 
-void amdgpu_output_poll_changed(struct drm_device *dev)
-{
-	struct amdgpu_device *adev = dev->dev_private;
-	amdgpu_fb_output_poll_changed(adev);
-}
-
 const struct drm_mode_config_funcs amdgpu_mode_funcs = {
 	.fb_create = amdgpu_user_framebuffer_create,
-	.output_poll_changed = amdgpu_output_poll_changed
+	.output_poll_changed = drm_fb_helper_output_poll_changed,
 };
 
 static const struct drm_prop_enum_list amdgpu_underscan_enum_list[] =

@@ -20,10 +20,11 @@
 #include "msm_mmu.h"
 #include "msm_fence.h"
 
+#include <generated/utsrelease.h>
 #include <linux/string_helpers.h>
 #include <linux/pm_opp.h>
 #include <linux/devfreq.h>
-
+#include <linux/devcoredump.h>
 
 /*
  * Power Management:
@@ -273,6 +274,123 @@ int msm_gpu_hw_init(struct msm_gpu *gpu)
 	return ret;
 }
 
+#ifdef CONFIG_DEV_COREDUMP
+static ssize_t msm_gpu_devcoredump_read(char *buffer, loff_t offset,
+		size_t count, void *data, size_t datalen)
+{
+	struct msm_gpu *gpu = data;
+	struct drm_print_iterator iter;
+	struct drm_printer p;
+	struct msm_gpu_state *state;
+
+	state = msm_gpu_crashstate_get(gpu);
+	if (!state)
+		return 0;
+
+	iter.data = buffer;
+	iter.offset = 0;
+	iter.start = offset;
+	iter.remain = count;
+
+	p = drm_coredump_printer(&iter);
+
+	drm_printf(&p, "---\n");
+	drm_printf(&p, "kernel: " UTS_RELEASE "\n");
+	drm_printf(&p, "module: " KBUILD_MODNAME "\n");
+	drm_printf(&p, "time: %ld.%ld\n",
+		state->time.tv_sec, state->time.tv_usec);
+	if (state->comm)
+		drm_printf(&p, "comm: %s\n", state->comm);
+	if (state->cmd)
+		drm_printf(&p, "cmdline: %s\n", state->cmd);
+
+	gpu->funcs->show(gpu, state, &p);
+
+	msm_gpu_crashstate_put(gpu);
+
+	return count - iter.remain;
+}
+
+static void msm_gpu_devcoredump_free(void *data)
+{
+	struct msm_gpu *gpu = data;
+
+	msm_gpu_crashstate_put(gpu);
+}
+
+static void msm_gpu_crashstate_get_bo(struct msm_gpu_state *state,
+		struct msm_gem_object *obj, u64 iova, u32 flags)
+{
+	struct msm_gpu_state_bo *state_bo = &state->bos[state->nr_bos];
+
+	/* Don't record write only objects */
+
+	state_bo->size = obj->base.size;
+	state_bo->iova = iova;
+
+	/* Only store the data for buffer objects marked for read */
+	if ((flags & MSM_SUBMIT_BO_READ)) {
+		void *ptr;
+
+		state_bo->data = kvmalloc(obj->base.size, GFP_KERNEL);
+		if (!state_bo->data)
+			return;
+
+		ptr = msm_gem_get_vaddr_active(&obj->base);
+		if (IS_ERR(ptr)) {
+			kvfree(state_bo->data);
+			return;
+		}
+
+		memcpy(state_bo->data, ptr, obj->base.size);
+		msm_gem_put_vaddr(&obj->base);
+	}
+
+	state->nr_bos++;
+}
+
+static void msm_gpu_crashstate_capture(struct msm_gpu *gpu,
+		struct msm_gem_submit *submit, char *comm, char *cmd)
+{
+	struct msm_gpu_state *state;
+
+	/* Only save one crash state at a time */
+	if (gpu->crashstate)
+		return;
+
+	state = gpu->funcs->gpu_state_get(gpu);
+	if (IS_ERR_OR_NULL(state))
+		return;
+
+	/* Fill in the additional crash state information */
+	state->comm = kstrdup(comm, GFP_KERNEL);
+	state->cmd = kstrdup(cmd, GFP_KERNEL);
+
+	if (submit) {
+		int i;
+
+		state->bos = kcalloc(submit->nr_bos,
+			sizeof(struct msm_gpu_state_bo), GFP_KERNEL);
+
+		for (i = 0; state->bos && i < submit->nr_bos; i++)
+			msm_gpu_crashstate_get_bo(state, submit->bos[i].obj,
+				submit->bos[i].iova, submit->bos[i].flags);
+	}
+
+	/* Set the active crash state to be dumped on failure */
+	gpu->crashstate = state;
+
+	/* FIXME: Release the crashstate if this errors out? */
+	dev_coredumpm(gpu->dev->dev, THIS_MODULE, gpu, 0, GFP_KERNEL,
+		msm_gpu_devcoredump_read, msm_gpu_devcoredump_free);
+}
+#else
+static void msm_gpu_crashstate_capture(struct msm_gpu *gpu, char *comm,
+		char *cmd)
+{
+}
+#endif
+
 /*
  * Hangcheck detection for locked gpu:
  */
@@ -314,6 +432,7 @@ static void recover_worker(struct work_struct *work)
 	struct msm_drm_private *priv = dev->dev_private;
 	struct msm_gem_submit *submit;
 	struct msm_ringbuffer *cur_ring = gpu->funcs->active_ring(gpu);
+	char *comm = NULL, *cmd = NULL;
 	int i;
 
 	mutex_lock(&dev->struct_mutex);
@@ -327,7 +446,7 @@ static void recover_worker(struct work_struct *work)
 		rcu_read_lock();
 		task = pid_task(submit->pid, PIDTYPE_PID);
 		if (task) {
-			char *cmd;
+			comm = kstrdup(task->comm, GFP_ATOMIC);
 
 			/*
 			 * So slightly annoying, in other paths like
@@ -340,22 +459,28 @@ static void recover_worker(struct work_struct *work)
 			 * about the submit going away.
 			 */
 			mutex_unlock(&dev->struct_mutex);
-			cmd = kstrdup_quotable_cmdline(task, GFP_KERNEL);
+			cmd = kstrdup_quotable_cmdline(task, GFP_ATOMIC);
 			mutex_lock(&dev->struct_mutex);
-
-			dev_err(dev->dev, "%s: offending task: %s (%s)\n",
-				gpu->name, task->comm, cmd);
-
-			msm_rd_dump_submit(priv->hangrd, submit,
-				"offending task: %s (%s)", task->comm, cmd);
-
-			kfree(cmd);
-		} else {
-			msm_rd_dump_submit(priv->hangrd, submit, NULL);
 		}
 		rcu_read_unlock();
+
+		if (comm && cmd) {
+			dev_err(dev->dev, "%s: offending task: %s (%s)\n",
+				gpu->name, comm, cmd);
+
+			msm_rd_dump_submit(priv->hangrd, submit,
+				"offending task: %s (%s)", comm, cmd);
+		} else
+			msm_rd_dump_submit(priv->hangrd, submit, NULL);
 	}
 
+	/* Record the crash state */
+	pm_runtime_get_sync(&gpu->pdev->dev);
+	msm_gpu_crashstate_capture(gpu, submit, comm, cmd);
+	pm_runtime_put_sync(&gpu->pdev->dev);
+
+	kfree(cmd);
+	kfree(comm);
 
 	/*
 	 * Update all the rings with the latest and greatest fence.. this
@@ -552,7 +677,7 @@ static void retire_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit)
 		/* move to inactive: */
 		msm_gem_move_to_inactive(&msm_obj->base);
 		msm_gem_put_iova(&msm_obj->base, gpu->aspace);
-		drm_gem_object_unreference(&msm_obj->base);
+		drm_gem_object_put(&msm_obj->base);
 	}
 
 	pm_runtime_mark_last_busy(&gpu->pdev->dev);
@@ -634,7 +759,7 @@ void msm_gpu_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit,
 		WARN_ON(is_active(msm_obj) && (msm_obj->gpu != gpu));
 
 		/* submit takes a reference to the bo and iova until retired: */
-		drm_gem_object_reference(&msm_obj->base);
+		drm_gem_object_get(&msm_obj->base);
 		msm_gem_get_iova(&msm_obj->base,
 				submit->gpu->aspace, &iova);
 
@@ -682,8 +807,10 @@ static int get_clocks(struct platform_device *pdev, struct msm_gpu *gpu)
 
 	gpu->grp_clks = devm_kcalloc(dev, sizeof(struct clk *), gpu->nr_clocks,
 		GFP_KERNEL);
-	if (!gpu->grp_clks)
+	if (!gpu->grp_clks) {
+		gpu->nr_clocks = 0;
 		return -ENOMEM;
+	}
 
 	of_property_for_each_string(dev->of_node, "clock-names", prop, name) {
 		gpu->grp_clks[i] = get_clock(dev, name);
@@ -866,7 +993,7 @@ fail:
 	if (gpu->memptrs_bo) {
 		msm_gem_put_vaddr(gpu->memptrs_bo);
 		msm_gem_put_iova(gpu->memptrs_bo, gpu->aspace);
-		drm_gem_object_unreference_unlocked(gpu->memptrs_bo);
+		drm_gem_object_put_unlocked(gpu->memptrs_bo);
 	}
 
 	platform_set_drvdata(pdev, NULL);
@@ -889,7 +1016,7 @@ void msm_gpu_cleanup(struct msm_gpu *gpu)
 	if (gpu->memptrs_bo) {
 		msm_gem_put_vaddr(gpu->memptrs_bo);
 		msm_gem_put_iova(gpu->memptrs_bo, gpu->aspace);
-		drm_gem_object_unreference_unlocked(gpu->memptrs_bo);
+		drm_gem_object_put_unlocked(gpu->memptrs_bo);
 	}
 
 	if (!IS_ERR_OR_NULL(gpu->aspace)) {

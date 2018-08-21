@@ -795,7 +795,7 @@ static void hdmi_reg_infoframes(struct hdmi_context *hdata)
 	}
 
 	ret = drm_hdmi_vendor_infoframe_from_display_mode(&frm.vendor.hdmi,
-			&hdata->current_mode);
+			&hdata->connector, &hdata->current_mode);
 	if (!ret)
 		ret = hdmi_vendor_infoframe_pack(&frm.vendor.hdmi, buf,
 				sizeof(buf));

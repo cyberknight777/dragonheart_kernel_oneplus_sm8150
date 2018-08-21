@@ -608,6 +608,8 @@ static const struct pci_device_id pciidlist[] = {
 	INTEL_CFL_S_GT1_IDS(&intel_coffeelake_gt1_info),
 	INTEL_CFL_S_GT2_IDS(&intel_coffeelake_gt2_info),
 	INTEL_CFL_H_GT2_IDS(&intel_coffeelake_gt2_info),
+	INTEL_CFL_U_GT1_IDS(&intel_coffeelake_gt1_info),
+	INTEL_CFL_U_GT2_IDS(&intel_coffeelake_gt2_info),
 	INTEL_CFL_U_GT3_IDS(&intel_coffeelake_gt3_info),
 	INTEL_CNL_IDS(&intel_cannonlake_info),
 	{0, 0, 0}

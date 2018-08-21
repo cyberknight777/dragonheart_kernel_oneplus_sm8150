@@ -187,7 +187,7 @@ static inline u64 amdgpu_bo_mmap_offset(struct amdgpu_bo *bo)
 static inline bool amdgpu_bo_gpu_accessible(struct amdgpu_bo *bo)
 {
 	switch (bo->tbo.mem.mem_type) {
-	case TTM_PL_TT: return amdgpu_ttm_is_bound(bo->tbo.ttm);
+	case TTM_PL_TT: return amdgpu_gtt_mgr_has_gart_addr(&bo->tbo.mem);
 	case TTM_PL_VRAM: return true;
 	default: return false;
 	}
@@ -259,7 +259,8 @@ int amdgpu_bo_restore_from_shadow(struct amdgpu_device *adev,
 				  struct reservation_object *resv,
 				  struct dma_fence **fence,
 				  bool direct);
-
+uint32_t amdgpu_bo_get_preferred_pin_domain(struct amdgpu_device *adev,
+					    uint32_t domain);
 
 /*
  * sub allocation

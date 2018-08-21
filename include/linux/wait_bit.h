@@ -26,6 +26,8 @@ struct wait_bit_queue_entry {
 	{ .flags = p, .bit_nr = WAIT_ATOMIC_T_BIT_NR, }
 
 typedef int wait_bit_action_f(struct wait_bit_key *key, int mode);
+typedef int wait_atomic_t_action_f(atomic_t *counter, unsigned int mode);
+
 void __wake_up_bit(struct wait_queue_head *wq_head, void *word, int bit);
 int __wait_on_bit(struct wait_queue_head *wq_head, struct wait_bit_queue_entry *wbq_entry, wait_bit_action_f *action, unsigned int mode);
 int __wait_on_bit_lock(struct wait_queue_head *wq_head, struct wait_bit_queue_entry *wbq_entry, wait_bit_action_f *action, unsigned int mode);
@@ -34,7 +36,7 @@ void wake_up_atomic_t(atomic_t *p);
 int out_of_line_wait_on_bit(void *word, int, wait_bit_action_f *action, unsigned int mode);
 int out_of_line_wait_on_bit_timeout(void *word, int, wait_bit_action_f *action, unsigned int mode, unsigned long timeout);
 int out_of_line_wait_on_bit_lock(void *word, int, wait_bit_action_f *action, unsigned int mode);
-int out_of_line_wait_on_atomic_t(atomic_t *p, int (*)(atomic_t *), unsigned int mode);
+int out_of_line_wait_on_atomic_t(atomic_t *p, wait_atomic_t_action_f action, unsigned int mode);
 struct wait_queue_head *bit_waitqueue(void *word, int bit);
 extern void __init wait_bit_init(void);
 
@@ -51,10 +53,11 @@ int wake_bit_function(struct wait_queue_entry *wq_entry, unsigned mode, int sync
 		},								\
 	}
 
-extern int bit_wait(struct wait_bit_key *key, int bit);
-extern int bit_wait_io(struct wait_bit_key *key, int bit);
-extern int bit_wait_timeout(struct wait_bit_key *key, int bit);
-extern int bit_wait_io_timeout(struct wait_bit_key *key, int bit);
+extern int bit_wait(struct wait_bit_key *key, int mode);
+extern int bit_wait_io(struct wait_bit_key *key, int mode);
+extern int bit_wait_timeout(struct wait_bit_key *key, int mode);
+extern int bit_wait_io_timeout(struct wait_bit_key *key, int mode);
+extern int atomic_t_wait(atomic_t *counter, unsigned int mode);
 
 /**
  * wait_on_bit - wait for a bit to be cleared
@@ -251,12 +254,29 @@ wait_on_bit_lock_action(unsigned long *word, int bit, wait_bit_action_f *action,
  * outside of the target 'word'.
  */
 static inline
-int wait_on_atomic_t(atomic_t *val, int (*action)(atomic_t *), unsigned mode)
+int wait_on_atomic_t(atomic_t *val, wait_atomic_t_action_f action, unsigned mode)
 {
 	might_sleep();
 	if (atomic_read(val) == 0)
 		return 0;
 	return out_of_line_wait_on_atomic_t(val, action, mode);
+}
+
+/**
+ * clear_and_wake_up_bit - clear a bit and wake up anyone waiting on that bit
+ *
+ * @bit: the bit of the word being waited on
+ * @word: the word being waited on, a kernel virtual address
+ *
+ * You can use this helper if bitflags are manipulated atomically rather than
+ * non-atomically under a lock.
+ */
+static inline void clear_and_wake_up_bit(int bit, void *word)
+{
+	clear_bit_unlock(bit, word);
+	/* See wake_up_bit() for which memory barrier you need to use. */
+	smp_mb__after_atomic();
+	wake_up_bit(word, bit);
 }
 
 #endif /* _LINUX_WAIT_BIT_H */
