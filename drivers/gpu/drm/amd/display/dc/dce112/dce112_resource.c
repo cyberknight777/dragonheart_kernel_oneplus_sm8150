@@ -386,6 +386,7 @@ static const struct resource_caps polaris_10_resource_cap = {
 		.num_audio = 6,
 		.num_stream_encoder = 6,
 		.num_pll = 8, /* why 8? 6 combo PHY PLL + 2 regular PLLs? */
+		.num_ddc = 6,
 };
 
 static const struct resource_caps polaris_11_resource_cap = {
@@ -393,6 +394,7 @@ static const struct resource_caps polaris_11_resource_cap = {
 		.num_audio = 5,
 		.num_stream_encoder = 5,
 		.num_pll = 8, /* why 8? 6 combo PHY PLL + 2 regular PLLs? */
+		.num_ddc = 5,
 };
 
 #define CTX  ctx
@@ -1288,6 +1290,9 @@ static bool construct(
 				"DC:failed to create output pixel processor!\n");
 			goto res_create_fail;
 		}
+	}
+
+	for (i = 0; i < pool->base.res_cap->num_ddc; i++) {
 		pool->base.engines[i] = dce112_aux_engine_create(ctx, i);
 		if (pool->base.engines[i] == NULL) {
 			BREAK_TO_DEBUGGER();
