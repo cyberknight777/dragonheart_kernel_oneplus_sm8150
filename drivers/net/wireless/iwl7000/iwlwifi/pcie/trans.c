@@ -2020,7 +2020,7 @@ static void iwl_trans_pcie_removal_wk(struct work_struct *wk)
 #if LINUX_VERSION_IS_LESS(3,14,0)
 	dev_err(&pdev->dev, "Device gone - can't remove on old kernels.\n");
 #else
-	char *prop[] = {"EVENT=INACCESSIBLE", NULL};
+	static char *prop[] = {"EVENT=INACCESSIBLE", NULL};
 
 	dev_err(&pdev->dev, "Device gone - attempting removal\n");
 	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, prop);
