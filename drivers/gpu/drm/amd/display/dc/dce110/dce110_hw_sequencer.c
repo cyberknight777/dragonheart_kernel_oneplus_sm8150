@@ -2680,6 +2680,15 @@ static void dce110_set_bandwidth(
 {
 	dce110_set_displaymarks(dc, context);
 
+	if (dc->res_pool->display_clock->funcs->update_dfs_bypass) {
+		/* dynamically enable/disable dfs bypass mode as needed */
+		dc->res_pool->display_clock->funcs->update_dfs_bypass(
+				dc->res_pool->display_clock,
+				dc,
+				context,
+				context->bw.dce.dispclk_khz * 115 / 100);
+	}
+
 	if (decrease_allowed || context->bw.dce.dispclk_khz > dc->current_state->bw.dce.dispclk_khz) {
 		dc->res_pool->display_clock->funcs->set_clock(
 				dc->res_pool->display_clock,

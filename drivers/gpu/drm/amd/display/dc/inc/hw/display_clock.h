@@ -28,6 +28,7 @@
 
 #include "dm_services_types.h"
 
+#include "dc.h"
 
 struct clocks_value {
 	int dispclk_in_khz;
@@ -80,6 +81,12 @@ struct display_clock_funcs {
 		int clocks_in_khz,
 		bool pre_mode_set,
 		bool update_dp_phyclk);
+
+	bool (*update_dfs_bypass)(
+		struct display_clock *disp_clk,
+		struct dc *dc,
+		struct dc_state *context,
+		int requested_clock_khz);
 };
 
 #endif /* __DISPLAY_CLOCK_H__ */
