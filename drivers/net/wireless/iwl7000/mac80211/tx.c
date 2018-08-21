@@ -1479,6 +1479,7 @@ void ieee80211_txq_purge(struct ieee80211_local *local,
 	ieee80211_purge_tx_queue(&local->hw, &txqi->frags);
 }
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 void ieee80211_txq_set_params(struct ieee80211_local *local)
 {
 	if (local->hw.wiphy->txq_limit)
@@ -1496,6 +1497,7 @@ void ieee80211_txq_set_params(struct ieee80211_local *local)
 	else
 		local->hw.wiphy->txq_quantum = local->fq.quantum;
 }
+#endif /* CFG80211_VERSION >= KERNEL_VERSION(4,18,0) */
 
 int ieee80211_txq_setup_flows(struct ieee80211_local *local)
 {
@@ -1546,7 +1548,9 @@ int ieee80211_txq_setup_flows(struct ieee80211_local *local)
 	for (i = 0; i < fq->flows_cnt; i++)
 		codel_vars_init(&local->cvars[i]);
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 	ieee80211_txq_set_params(local);
+#endif
 
 	return 0;
 }

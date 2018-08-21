@@ -494,12 +494,19 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 		sdata = ieee80211_sdata_from_skb(local, skb);
 		if (sdata) {
 			if (ieee80211_is_nullfunc(hdr->frame_control) ||
-			    ieee80211_is_qos_nullfunc(hdr->frame_control))
+			    ieee80211_is_qos_nullfunc(hdr->frame_control)) {
+#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
 				cfg80211_probe_status(sdata->dev, hdr->addr1,
 						      cookie, acked,
 						      info->status.ack_signal,
 						      info->status.is_valid_ack_signal,
 						      GFP_ATOMIC);
+#else
+				cfg80211_probe_status(sdata->dev, hdr->addr1,
+						      cookie, acked,
+						      GFP_ATOMIC);
+#endif
+			}
 			else
 				cfg80211_mgmt_tx_status(&sdata->wdev, cookie,
 							skb->data, skb->len,
