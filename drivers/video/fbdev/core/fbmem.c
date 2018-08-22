@@ -1136,6 +1136,8 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		if (!lock_fb_info(info))
 			return -ENODEV;
 		fix = info->fix;
+		if (info->flags & FBINFO_HIDE_SMEM_START)
+			fix.smem_start = 0;
 		unlock_fb_info(info);
 
 		ret = copy_to_user(argp, &fix, sizeof(fix)) ? -EFAULT : 0;
@@ -1346,6 +1348,8 @@ static int fb_get_fscreeninfo(struct fb_info *info, unsigned int cmd,
 	if (!lock_fb_info(info))
 		return -ENODEV;
 	fix = info->fix;
+	if (info->flags & FBINFO_HIDE_SMEM_START)
+		fix.smem_start = 0;
 	unlock_fb_info(info);
 	return do_fscreeninfo_to_user(&fix, compat_ptr(arg));
 }
