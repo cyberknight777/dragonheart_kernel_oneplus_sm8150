@@ -1122,10 +1122,8 @@ static int glk_calc_cdclk(int min_cdclk)
 {
 	if (min_cdclk > 158400)
 		return 316800;
-	else if (min_cdclk > 79200)
-		return 158400;
 	else
-		return 79200;
+		return 158400;
 }
 
 static u8 bxt_calc_voltage_level(int cdclk)
