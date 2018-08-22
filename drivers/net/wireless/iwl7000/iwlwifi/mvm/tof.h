@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -26,6 +27,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -132,8 +134,6 @@ void iwl_mvm_tof_lc_notif(struct iwl_mvm *mvm,
 int iwl_mvm_tof_range_request_ext_cmd(struct iwl_mvm *mvm);
 int iwl_mvm_tof_responder_cmd(struct iwl_mvm *mvm,
 			      struct ieee80211_vif *vif);
-int iwl_mvm_tof_responder_dyn_cfg_cmd(struct iwl_mvm *mvm,
-				      struct ieee80211_vif *vif);
 int iwl_mvm_tof_start_responder(struct iwl_mvm *mvm,
 				struct ieee80211_vif *vif,
 				struct cfg80211_ftm_responder_params *params);

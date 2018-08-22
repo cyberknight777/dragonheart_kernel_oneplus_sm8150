@@ -416,8 +416,8 @@ iwl_mvm_tof_set_responder_dyn(struct iwl_mvm *mvm,
 	memcpy(cmd->lci_civic + aligned + 2, params->civic, params->civic_len);
 }
 
-int iwl_mvm_tof_responder_dyn_cfg_cmd(struct iwl_mvm *mvm,
-				struct ieee80211_vif *vif)
+static int iwl_mvm_tof_responder_dyn_cfg_cmd(struct iwl_mvm *mvm,
+					     struct ieee80211_vif *vif)
 {
 	struct iwl_tof_responder_dyn_config_cmd *cmd =
 		&mvm->tof_data.responder_dyn_cfg;
