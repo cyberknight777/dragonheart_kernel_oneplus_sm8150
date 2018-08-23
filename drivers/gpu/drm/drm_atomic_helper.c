@@ -3518,6 +3518,7 @@ void __drm_atomic_helper_plane_reset(struct drm_plane *plane,
 	state->rotation = DRM_MODE_ROTATE_0;
 
 	state->alpha = DRM_BLEND_ALPHA_OPAQUE;
+	state->pixel_blend_mode = DRM_MODE_BLEND_PREMULTI;
 
 	plane->state = state;
 }
