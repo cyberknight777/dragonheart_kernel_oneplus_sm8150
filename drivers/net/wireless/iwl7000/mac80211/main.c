@@ -581,14 +581,28 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 #if LINUX_VERSION_IS_GEQ(4,3,0)
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_FILS_STA);
 #endif
+	wiphy_ext_feature_set(wiphy,
+			      NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211);
 
-	if (!ops->hw_scan)
+	if (!ops->hw_scan) {
 		wiphy->features |= NL80211_FEATURE_LOW_PRIORITY_SCAN |
 				   NL80211_FEATURE_AP_SCAN;
-
+		/*
+		 * if the driver behaves correctly using the probe request
+		 * (template) from mac80211, then both of these should be
+		 * supported even with hw scan - but let drivers opt in.
+		 */
+		wiphy_ext_feature_set(wiphy,
+				      NL80211_EXT_FEATURE_SCAN_RANDOM_SN);
+		wiphy_ext_feature_set(wiphy,
+				      NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT);
+	}
 
 	if (!ops->set_key)
 		wiphy->flags |= WIPHY_FLAG_IBSS_RSN;
+
+	if (ops->wake_tx_queue)
+		wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_TXQS);
 
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_RRM);
 
@@ -610,8 +624,8 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	local->hw.queues = 1;
 	local->hw.max_rates = 1;
 	local->hw.max_report_rates = 0;
-	local->hw.max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF;
-	local->hw.max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF;
+	local->hw.max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HT;
+	local->hw.max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HT;
 	local->hw.offchannel_tx_hw_queue = IEEE80211_INVAL_HW_QUEUE;
 	local->hw.conf.long_frame_max_tx_count = wiphy->retry_long;
 	local->hw.conf.short_frame_max_tx_count = wiphy->retry_short;
@@ -802,7 +816,7 @@ static int ieee80211_init_cipher_suites(struct ieee80211_local *local)
 		if (have_mfp)
 			n_suites += 1 + 2 * IS_ENABLED(CONFIG_CRYPTO_GCM);
 
-		suites = kmalloc(sizeof(u32) * n_suites, GFP_KERNEL);
+		suites = kmalloc_array(n_suites, sizeof(u32), GFP_KERNEL);
 		if (!suites)
 			return -ENOMEM;
 
@@ -982,8 +996,12 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	if (ieee80211_has_nan_data_iftype(local->hw.wiphy->interface_modes))
 		return -EINVAL;
 
-	/* if low-level driver supports AP, we also support VLAN */
-	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_AP)) {
+	/* if low-level driver supports AP, we also support VLAN.
+	 * drivers advertising SW_CRYPTO_CONTROL should enable AP_VLAN
+	 * based on their support to transmit SW encrypted packets.
+	 */
+	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_AP) &&
+	    !ieee80211_hw_check(&local->hw, SW_CRYPTO_CONTROL)) {
 		hw->wiphy->interface_modes |= BIT(NL80211_IFTYPE_AP_VLAN);
 		hw->wiphy->software_iftypes |= BIT(NL80211_IFTYPE_AP_VLAN);
 	}
@@ -1155,6 +1173,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 
 	ieee80211_led_init(local);
 
+	result = ieee80211_txq_setup_flows(local);
+	if (result)
+		goto fail_flows;
+
 	rtnl_lock();
 
 	result = ieee80211_init_rate_ctrl_alg(local,
@@ -1222,10 +1244,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 
 	rtnl_unlock();
 
-	result = ieee80211_txq_setup_flows(local);
-	if (result)
-		goto fail_flows;
-
 #ifdef CONFIG_INET
 	local->ifa_notifier.notifier_call = ieee80211_ifa_changed;
 	result = register_inetaddr_notifier(&local->ifa_notifier);
@@ -1255,8 +1273,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 #if defined(CONFIG_INET) || defined(CONFIG_IPV6)
  fail_ifa:
 #endif
-	ieee80211_txq_teardown_flows(local);
- fail_flows:
 	rtnl_lock();
 	rate_control_deinitialize(local);
 	ieee80211_remove_interfaces(local);
@@ -1264,6 +1280,8 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	rtnl_unlock();
 	ieee80211_led_exit(local);
 	ieee80211_wep_free(local);
+	ieee80211_txq_teardown_flows(local);
+ fail_flows:
 	destroy_workqueue(local->workqueue);
  fail_workqueue:
 	wiphy_unregister(local->hw.wiphy);

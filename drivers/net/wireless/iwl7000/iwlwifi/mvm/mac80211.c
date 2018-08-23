@@ -3553,9 +3553,8 @@ static int iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 
 			mvmsta = iwl_mvm_sta_from_mac80211(sta);
 			WARN_ON(rcu_access_pointer(mvmsta->ptk_pn[keyidx]));
-			ptk_pn = kzalloc(sizeof(*ptk_pn) +
-					 mvm->trans->num_rx_queues *
-						sizeof(ptk_pn->q[0]),
+			ptk_pn = kzalloc(struct_size(ptk_pn, q,
+						     mvm->trans->num_rx_queues),
 					 GFP_KERNEL);
 			if (!ptk_pn) {
 				ret = -ENOMEM;
@@ -4789,7 +4788,7 @@ static void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 
 	if (mvmsta->avg_energy) {
 		sinfo->signal_avg = mvmsta->avg_energy;
-		sinfo->filled |= BIT(NL80211_STA_INFO_SIGNAL_AVG);
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG);
 	}
 
 	/* if beacon filtering isn't on mac80211 does it anyway */
@@ -4809,11 +4808,11 @@ static void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 
 	sinfo->rx_beacon = mvmvif->beacon_stats.num_beacons +
 			   mvmvif->beacon_stats.accu_num_beacons;
-	sinfo->filled |= BIT(NL80211_STA_INFO_BEACON_RX);
+	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_BEACON_RX);
 	if (mvmvif->beacon_stats.avg_signal) {
 		/* firmware only reports a value after RXing a few beacons */
 		sinfo->rx_beacon_signal_avg = mvmvif->beacon_stats.avg_signal;
-		sinfo->filled |= BIT(NL80211_STA_INFO_BEACON_SIGNAL_AVG);
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_BEACON_SIGNAL_AVG);
 	}
  unlock:
 	mutex_unlock(&mvm->mutex);

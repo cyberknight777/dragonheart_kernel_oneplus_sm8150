@@ -1369,7 +1369,7 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 					 enum nl80211_band band,
 					 u32 rate_mask,
 					 struct cfg80211_chan_def *chandef,
-					 size_t *offset)
+					 size_t *offset, u32 flags)
 {
 	struct ieee80211_supported_band *sband;
 	const struct ieee80211_sta_he_cap *he_cap;
@@ -1449,6 +1449,9 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 		*pos++ = ieee80211_frequency_to_channel(
 				chandef->chan->center_freq);
 	}
+
+	if (flags & IEEE80211_PROBE_FLAG_MIN_CONTENT)
+		goto done;
 
 	/* insert custom IEs that go before HT */
 	if (ie && ie_len) {
@@ -1555,6 +1558,7 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 	return pos - buffer;
  out_err:
 	WARN_ONCE(1, "not enough space for preq IEs\n");
+ done:
 	return pos - buffer;
 }
 
@@ -1563,7 +1567,8 @@ int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
 			     struct ieee80211_scan_ies *ie_desc,
 			     const u8 *ie, size_t ie_len,
 			     u8 bands_used, u32 *rate_masks,
-			     struct cfg80211_chan_def *chandef)
+			     struct cfg80211_chan_def *chandef,
+			     u32 flags)
 {
 	size_t pos = 0, old_pos = 0, custom_ie_offset = 0;
 	int i;
@@ -1578,7 +1583,8 @@ int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
 							     ie, ie_len, i,
 							     rate_masks[i],
 							     chandef,
-							     &custom_ie_offset);
+							     &custom_ie_offset,
+							     flags);
 			ie_desc->ies[i] = buffer + old_pos;
 			ie_desc->len[i] = pos - old_pos;
 			old_pos = pos;
@@ -1606,7 +1612,7 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 					  struct ieee80211_channel *chan,
 					  const u8 *ssid, size_t ssid_len,
 					  const u8 *ie, size_t ie_len,
-					  bool directed)
+					  u32 flags)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct cfg80211_chan_def chandef;
@@ -1622,7 +1628,7 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 	 * badly-behaved APs don't respond when this parameter is included.
 	 */
 	chandef.width = sdata->vif.bss_conf.chandef.width;
-	if (directed)
+	if (flags & IEEE80211_PROBE_FLAG_DIRECTED)
 		chandef.chan = NULL;
 	else
 		chandef.chan = chan;
@@ -1636,7 +1642,7 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 	ies_len = ieee80211_build_preq_ies(local, skb_tail_pointer(skb),
 					   skb_tailroom(skb), &dummy_ie_desc,
 					   ie, ie_len, BIT(chan->band),
-					   rate_masks, &chandef);
+					   rate_masks, &chandef, flags);
 	skb_put(skb, ies_len);
 
 	if (dst) {
@@ -1648,27 +1654,6 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
 
 	return skb;
-}
-
-void ieee80211_send_probe_req(struct ieee80211_sub_if_data *sdata,
-			      const u8 *src, const u8 *dst,
-			      const u8 *ssid, size_t ssid_len,
-			      const u8 *ie, size_t ie_len,
-			      u32 ratemask, bool directed, u32 tx_flags,
-			      struct ieee80211_channel *channel, bool scan)
-{
-	struct sk_buff *skb;
-
-	skb = ieee80211_build_probe_req(sdata, src, dst, ratemask, channel,
-					ssid, ssid_len,
-					ie, ie_len, directed);
-	if (skb) {
-		IEEE80211_SKB_CB(skb)->flags |= tx_flags;
-		if (scan)
-			ieee80211_tx_skb_tid_band(sdata, skb, 7, channel->band);
-		else
-			ieee80211_tx_skb(sdata, skb);
-	}
 }
 
 u32 ieee80211_sta_get_rates(struct ieee80211_sub_if_data *sdata,
@@ -1854,8 +1839,9 @@ static int ieee80211_reconfig_nan(struct ieee80211_sub_if_data *sdata)
 	if (WARN_ON(res))
 		return res;
 
-	funcs = kzalloc((sdata->local->hw.max_nan_de_entries + 1) *
-			sizeof(*funcs), GFP_KERNEL);
+	funcs = kcalloc(sdata->local->hw.max_nan_de_entries + 1,
+			sizeof(*funcs),
+			GFP_KERNEL);
 	if (!funcs)
 		return -ENOMEM;
 
@@ -2064,7 +2050,8 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 			  BSS_CHANGED_CQM |
 			  BSS_CHANGED_QOS |
 			  BSS_CHANGED_IDLE |
-			  BSS_CHANGED_TXPOWER;
+			  BSS_CHANGED_TXPOWER |
+			  BSS_CHANGED_MCAST_RATE;
 
 		if (sdata->vif.mu_mimo_owner)
 			changed |= BSS_CHANGED_MU_GROUPS;
