@@ -2022,11 +2022,11 @@ struct ieee80211_sta_he_cap {
  * This structure encapsulates sband data that is relevant for the interface
  * types defined in %types
  *
- * @types: interface types (bits)
+ * @types_mask: interface types (bits)
  * @he_cap: holds the HE capabilities
  */
 struct ieee80211_sband_iftype_data {
-	u16 types;
+	u16 types_mask;
 	struct ieee80211_sta_he_cap he_cap;
 };
 
@@ -2371,4 +2371,79 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 #define cfg_he_cap(params) params->he_cap
 #else
 #define cfg_he_cap(params) NULL
+#endif
+
+/*
+ * Upstream this is on 4.16+, but it was backported to chromeos 4.4
+ * and 4.14.
+ */
+#if LINUX_VERSION_IS_LESS(4,4,0)
+static inline void sk_pacing_shift_update(struct sock *sk, int val)
+{
+#if LINUX_VERSION_IS_GEQ(4,4,0)
+	if (!sk || !sk_fullsock(sk) || sk->sk_pacing_shift == val)
+		return;
+	sk->sk_pacing_shift = val;
+#endif /* >= 4.4 */
+}
+#endif /* < 4.4 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
+#define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211	-1
+#define NL80211_EXT_FEATURE_SCAN_RANDOM_SN		-1
+#define NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT	-1
+
+/* define it here so we can set the values in mac80211... */
+struct sta_opmode_info {
+	u32 changed;
+	enum nl80211_smps_mode smps_mode;
+	enum nl80211_chan_width bw;
+	u8 rx_nss;
+};
+
+#define STA_OPMODE_MAX_BW_CHANGED	0
+#define STA_OPMODE_SMPS_MODE_CHANGED	0
+#define STA_OPMODE_N_SS_CHANGED		0
+
+/* ...but make the user an empty function, since we don't have it in cfg80211 */
+#define cfg80211_sta_opmode_change_notify(...)  do { } while (0)
+
+/*
+ * we should never call this function since we force
+ * cfg_control_port_over_nl80211 to be 0.
+ */
+#define cfg80211_rx_control_port(...) do { } while (0)
+
+#define cfg_control_port_over_nl80211(params) 0
+#else
+#define cfg_control_port_over_nl80211(params) params->control_port_over_nl80211
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,18,0)
+#define NL80211_EXT_FEATURE_TXQS -1
+
+/*
+ * This function just allocates tidstats and returns 0 if it
+ * succeeded.  Since pre-4.18 tidstats is pre-allocated as part of
+ * sinfo, we can simply return 0 because it's already allocated.
+ */
+#define cfg80211_sinfo_alloc_tid_stats(...) 0
+
+#define WIPHY_PARAM_TXQ_LIMIT		0
+#define WIPHY_PARAM_TXQ_MEMORY_LIMIT	0
+#define WIPHY_PARAM_TXQ_QUANTUM		0
+
+#define ieee80211_data_to_8023_exthdr iwl7000_ieee80211_data_to_8023_exthdr
+int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
+				  const u8 *addr, enum nl80211_iftype iftype,
+				  u8 data_offset);
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
+#define NL80211_SCAN_FLAG_RANDOM_SN		0
+#define NL80211_SCAN_FLAG_MIN_PREQ_CONTENT	0
+#endif
+
+#ifndef ETH_P_PREAUTH
+#define ETH_P_PREAUTH  0x88C7	/* 802.11 Preauthentication */
 #endif

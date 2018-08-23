@@ -161,14 +161,14 @@ static ssize_t sta_aqm_read(struct file *file, char __user *userbuf,
 		       sta->cparams.ecn ? "yes" : "no");
 	p += scnprintf(p,
 		       bufsz+buf-p,
-		       "tid ac backlog-bytes backlog-packets new-flows drops marks overlimit collisions tx-bytes tx-packets\n");
+		       "tid ac backlog-bytes backlog-packets new-flows drops marks overlimit collisions tx-bytes tx-packets flags\n");
 
 	for (i = 0; i < ARRAY_SIZE(sta->sta.txq); i++) {
 		if (!sta->sta.txq[i])
 			continue;
 		txqi = to_txq_info(sta->sta.txq[i]);
 		p += scnprintf(p, bufsz+buf-p,
-			       "%d %d %u %u %u %u %u %u %u %u %u\n",
+			       "%d %d %u %u %u %u %u %u %u %u %u 0x%lx(%s%s%s)\n",
 			       txqi->txq.tid,
 			       txqi->txq.ac,
 			       txqi->tin.backlog_bytes,
@@ -179,7 +179,11 @@ static ssize_t sta_aqm_read(struct file *file, char __user *userbuf,
 			       txqi->tin.overlimit,
 			       txqi->tin.collisions,
 			       txqi->tin.tx_bytes,
-			       txqi->tin.tx_packets);
+			       txqi->tin.tx_packets,
+			       txqi->flags,
+			       txqi->flags & (1<<IEEE80211_TXQ_STOP) ? "STOP" : "RUN",
+			       txqi->flags & (1<<IEEE80211_TXQ_AMPDU) ? " AMPDU" : "",
+			       txqi->flags & (1<<IEEE80211_TXQ_NO_AMSDU) ? " NO-AMSDU" : "");
 	}
 
 	rcu_read_unlock();
@@ -779,18 +783,18 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 		}							\
 	} while (0)
 
-	PRINT_NSS_SUPP(rx_msc_80, "RX-MCS-80");
-	PRINT_NSS_SUPP(tx_msc_80, "TX-MCS-80");
+	PRINT_NSS_SUPP(rx_mcs_80, "RX-MCS-80");
+	PRINT_NSS_SUPP(tx_mcs_80, "TX-MCS-80");
 
 	if (cap[0] & IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G) {
-		PRINT_NSS_SUPP(rx_msc_160, "RX-MCS-160");
-		PRINT_NSS_SUPP(tx_msc_160, "TX-MCS-160");
+		PRINT_NSS_SUPP(rx_mcs_160, "RX-MCS-160");
+		PRINT_NSS_SUPP(tx_mcs_160, "TX-MCS-160");
 	}
 
 	if (cap[0] &
 	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G) {
-		PRINT_NSS_SUPP(rx_msc_80p80, "RX-MCS-80P80");
-		PRINT_NSS_SUPP(tx_msc_80p80, "TX-MCS-80P80");
+		PRINT_NSS_SUPP(rx_mcs_80p80, "RX-MCS-80P80");
+		PRINT_NSS_SUPP(tx_mcs_80p80, "TX-MCS-80P80");
 	}
 
 #undef PRINT_NSS_SUPP

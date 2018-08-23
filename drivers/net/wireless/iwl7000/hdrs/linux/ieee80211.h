@@ -1591,26 +1591,26 @@ enum ieee80211_he_mcs_support {
  * This structure holds the data required for the Tx/Rx HE MCS NSS Support Field
  * described in P802.11ax_D2.0 section 9.4.2.237.4
  *
- * @rx_msc_80: Rx MCS map 2 bits for each stream, total 8 streams, for channel
+ * @rx_mcs_80: Rx MCS map 2 bits for each stream, total 8 streams, for channel
  *     widths less than 80MHz.
- * @tx_msc_80: Tx MCS map 2 bits for each stream, total 8 streams, for channel
+ * @tx_mcs_80: Tx MCS map 2 bits for each stream, total 8 streams, for channel
  *     widths less than 80MHz.
- * @rx_msc_160: Rx MCS map 2 bits for each stream, total 8 streams, for channel
+ * @rx_mcs_160: Rx MCS map 2 bits for each stream, total 8 streams, for channel
  *     width 160MHz.
- * @tx_msc_160: Tx MCS map 2 bits for each stream, total 8 streams, for channel
+ * @tx_mcs_160: Tx MCS map 2 bits for each stream, total 8 streams, for channel
  *     width 160MHz.
- * @rx_msc_80p80: Rx MCS map 2 bits for each stream, total 8 streams, for
+ * @rx_mcs_80p80: Rx MCS map 2 bits for each stream, total 8 streams, for
  *     channel width 80p80MHz.
- * @tx_msc_80p80: Tx MCS map 2 bits for each stream, total 8 streams, for
+ * @tx_mcs_80p80: Tx MCS map 2 bits for each stream, total 8 streams, for
  *     channel width 80p80MHz.
  */
 struct ieee80211_he_mcs_nss_supp {
-	__le16 rx_msc_80;
-	__le16 tx_msc_80;
-	__le16 rx_msc_160;
-	__le16 tx_msc_160;
-	__le16 rx_msc_80p80;
-	__le16 tx_msc_80p80;
+	__le16 rx_mcs_80;
+	__le16 tx_mcs_80;
+	__le16 rx_mcs_160;
+	__le16 tx_mcs_160;
+	__le16 rx_mcs_80p80;
+	__le16 tx_mcs_80p80;
 } __packed;
 
 /**
@@ -1622,7 +1622,7 @@ struct ieee80211_he_mcs_nss_supp {
 struct ieee80211_he_operation {
 	__le32 he_oper_params;
 	__le16 he_mcs_nss_set;
-	/* Optional 0,1,3 or 4 bytes: depends on %he_oper_params */
+	/* Optional 0,1,3 or 4 bytes: depends on @he_oper_params */
 	u8 optional[0];
 } __packed;
 
@@ -1748,8 +1748,9 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #define IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_QOS_8		0x70
 #define IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_QOS_MASK		0x70
 
-/* Link adaptation is split between byte #2 and byte #3. It should be set only
- * if IEEE80211_HE_MAC_CAP0_HTC_HE in which case the following values apply:
+/* Link adaptation is split between byte HE_MAC_CAP1 and
+ * HE_MAC_CAP2. It should be set only if IEEE80211_HE_MAC_CAP0_HTC_HE
+ * in which case the following values apply:
  * 0 = No feedback.
  * 1 = reserved.
  * 2 = Unsolicited feedback.
@@ -1993,8 +1994,8 @@ ieee80211_he_ppe_size(u8 ppe_thres_hdr, const u8 *phy_cap_info)
 #define IEEE80211_HE_OPERATION_TWT_REQUIRED			0x00000200
 #define IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK		0x000ffc00
 #define IEEE80211_HE_OPERATION_RTS_THRESHOLD_OFFSET		10
-#define IEEE80211_HE_OPERATION_PARTIAL_BSS_COLOR		0x00100000
-#define IEEE80211_HE_OPERATION_VHT_OPER_INFO			0x00200000
+#define IEEE80211_HE_OPERATION_PARTIAL_BSS_COLOR		0x000100000
+#define IEEE80211_HE_OPERATION_VHT_OPER_INFO			0x000200000
 #define IEEE80211_HE_OPERATION_MULTI_BSSID_AP			0x10000000
 #define IEEE80211_HE_OPERATION_TX_BSSID_INDICATOR		0x20000000
 #define IEEE80211_HE_OPERATION_BSS_COLOR_DISABLED		0x40000000
@@ -2573,7 +2574,7 @@ enum ieee80211_key_len {
 #define FILS_ERP_MAX_REALM_LEN		253
 #define FILS_ERP_MAX_RRK_LEN		64
 
-#define PMK_MAX_LEN			48
+#define PMK_MAX_LEN			64
 
 /* Public action codes (IEEE Std 802.11-2016, 9.6.8.1, Table 9-307) */
 enum ieee80211_pub_actioncode {

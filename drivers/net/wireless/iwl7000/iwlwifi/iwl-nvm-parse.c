@@ -472,7 +472,7 @@ static void iwl_init_vht_hw_capab(struct iwl_trans *trans,
 }
 
 static struct ieee80211_sband_iftype_data iwl_he_capa = {
-	.types = BIT(NL80211_IFTYPE_STATION) | BIT(NL80211_IFTYPE_AP),
+	.types_mask = BIT(NL80211_IFTYPE_STATION) | BIT(NL80211_IFTYPE_AP),
 	.he_cap = {
 		.has_he = true,
 		.he_cap_elem = {
@@ -533,12 +533,12 @@ static struct ieee80211_sband_iftype_data iwl_he_capa = {
 		 * cases
 		 */
 		.he_mcs_nss_supp = {
-			.rx_msc_80 = cpu_to_le16(0xfffa),
-			.tx_msc_80 = cpu_to_le16(0xfffa),
-			.rx_msc_160 = cpu_to_le16(0xfffa),
-			.tx_msc_160 = cpu_to_le16(0xfffa),
-			.rx_msc_80p80 = cpu_to_le16(0xffff),
-			.tx_msc_80p80 = cpu_to_le16(0xffff),
+			.rx_mcs_80 = cpu_to_le16(0xfffa),
+			.tx_mcs_80 = cpu_to_le16(0xfffa),
+			.rx_mcs_160 = cpu_to_le16(0xfffa),
+			.tx_mcs_160 = cpu_to_le16(0xfffa),
+			.rx_mcs_80p80 = cpu_to_le16(0xffff),
+			.tx_mcs_80p80 = cpu_to_le16(0xffff),
 		},
 		/*
 		 * Set default PPE thresholds, with PPET16 set to 0, PPET8 set
@@ -594,42 +594,42 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 
 	if (trans->dbg_cfg.rx_mcs_80) {
 		if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_80,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_msc_80)))
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80)))
 			IWL_ERR(trans,
 				"Cannot set dbg rx_mcs_80 = 0x%x (too big)\n",
 				trans->dbg_cfg.rx_mcs_80);
 		else
-			iftype_data->he_cap.he_mcs_nss_supp.rx_msc_80 =
+			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80 =
 				cpu_to_le16(trans->dbg_cfg.rx_mcs_80);
 	}
 	if (trans->dbg_cfg.tx_mcs_80) {
 		if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_80,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_msc_80)))
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80)))
 			IWL_ERR(trans,
 				"Cannot set dbg tx_mcs_80 = 0x%x (too big)\n",
 				trans->dbg_cfg.tx_mcs_80);
 		else
-			iftype_data->he_cap.he_mcs_nss_supp.tx_msc_80 =
+			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80 =
 				cpu_to_le16(trans->dbg_cfg.tx_mcs_80);
 	}
 	if (trans->dbg_cfg.rx_mcs_160) {
 		if (iwl_he_mcs_greater(trans->dbg_cfg.rx_mcs_160,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_msc_160)))
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160)))
 			IWL_ERR(trans,
 				"Cannot set dbg rx_mcs_160 = 0x%x (too big)\n",
 				trans->dbg_cfg.rx_mcs_160);
 		else
-			iftype_data->he_cap.he_mcs_nss_supp.rx_msc_160 =
+			iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160 =
 				cpu_to_le16(trans->dbg_cfg.rx_mcs_160);
 	}
 	if (trans->dbg_cfg.tx_mcs_160) {
 		if (iwl_he_mcs_greater(trans->dbg_cfg.tx_mcs_160,
-				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_msc_160)))
+				       le16_to_cpu(iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160)))
 			IWL_ERR(trans,
 				"Cannot set dbg tx_mcs_160 = 0x%x (too big)\n",
 				trans->dbg_cfg.tx_mcs_160);
 		else
-			iftype_data->he_cap.he_mcs_nss_supp.tx_msc_160 =
+			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160 =
 				cpu_to_le16(trans->dbg_cfg.tx_mcs_160);
 	}
 
@@ -642,17 +642,17 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 	 */
 	if (trans->dbg_cfg.valid_ants &&
 	    (trans->dbg_cfg.valid_ants & ANT_AB) != ANT_AB) {
-		iftype_data->he_cap.he_mcs_nss_supp.rx_msc_80 |=
+		iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80 |=
 			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.tx_msc_80 |=
+		iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80 |=
 			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.rx_msc_160 |=
+		iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_160 |=
 			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.tx_msc_160 |=
+		iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_160 |=
 			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.rx_msc_80p80 |=
+		iftype_data->he_cap.he_mcs_nss_supp.rx_mcs_80p80 |=
 			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
-		iftype_data->he_cap.he_mcs_nss_supp.tx_msc_80p80 |=
+		iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80p80 |=
 			cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
 	}
 
