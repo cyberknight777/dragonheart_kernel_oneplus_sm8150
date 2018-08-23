@@ -784,6 +784,19 @@ ap_ts_i2c: &i2c14 {
 		};
 	};
 
+	edp_brij_en: edp-brij-en {
+		pinmux {
+			pins = "gpio102";
+			function = "gpio";
+		};
+
+		pinconf {
+			pins = "gpio102";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
 	/* NOTE: below is still on -rev3 schematics but goes to a DNS jumper */
 	en_pp3300_dx_edp: en-pp3300-dx-edp {
 		pinmux {
