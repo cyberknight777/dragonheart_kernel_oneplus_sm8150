@@ -3226,11 +3226,11 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 				      IEEE80211_HE_OPERATION_BSS_COLOR_MASK;
 		bss_conf->htc_trig_based_pkt_ext =
 			(he_oper_params &
-			 IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK) <<
+			 IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK) >>
 			IEEE80211_HE_OPERATION_DFLT_PE_DURATION_OFFSET;
 		bss_conf->frame_time_rts_th =
 			(he_oper_params &
-			 IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK) <<
+			 IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK) >>
 			IEEE80211_HE_OPERATION_RTS_THRESHOLD_OFFSET;
 
 		bss_conf->multi_sta_back_32bit =
