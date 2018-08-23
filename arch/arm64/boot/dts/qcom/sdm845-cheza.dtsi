@@ -425,6 +425,11 @@
 	};
 };
 
+edp_brij_i2c: &i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
+
 ap_pen_1v8: &i2c11 {
 	status = "okay";
 	clock-frequency = <400000>;
@@ -623,6 +628,16 @@ ap_ts_i2c: &i2c14 {
 };
 
 /* PINCTRL - additions to nodes defined in sdm845.dtsi */
+
+&qup_i2c3_default {
+	pinconf {
+		pins = "gpio41", "gpio42";
+		drive-strength = <2>;
+
+		/* Has external pullup */
+		bias-disable;
+	};
+};
 
 &qup_i2c11_default {
 	pinconf {
