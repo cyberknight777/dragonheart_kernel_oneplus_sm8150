@@ -1320,7 +1320,7 @@ static ssize_t iwl_dbgfs_tof_responder_config_write(
 		ret = kstrtos16(data, 0, &common_calib);
 		if (ret == 0)
 			mvm->tof_data.responder_cfg.common_calib =
-				cpu_to_le16(responder_cfg_flags);
+				cpu_to_le16(common_calib);
 		else
 			goto out;
 	}
