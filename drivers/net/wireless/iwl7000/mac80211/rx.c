@@ -193,14 +193,14 @@ ieee80211_rx_radiotap_hdrlen(struct ieee80211_local *local,
 		BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he_mu) != 12);
 	}
 
+	if (status->flag & RX_FLAG_NO_PSDU)
+		len += 1;
+
 	if (status->flag & RX_FLAG_RADIOTAP_LSIG) {
 		len = ALIGN(len, 2);
 		len += 4;
 		BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_lsig) != 4);
 	}
-
-	if (status->flag & RX_FLAG_NO_PSDU)
-		len += 1;
 
 	if (status->chains) {
 		/* antenna and antenna signal fields */
@@ -649,6 +649,12 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 		pos += sizeof(he_mu);
 	}
 
+	if (status->flag & RX_FLAG_NO_PSDU) {
+		rthdr->it_present |=
+			cpu_to_le32(1 << IEEE80211_RADIOTAP_ZERO_LEN_PSDU);
+		*pos++ = status->zero_length_psdu_type;
+	}
+
 	if (status->flag & RX_FLAG_RADIOTAP_LSIG) {
 		/* ensure 2 byte alignment */
 		while ((pos - (u8 *)rthdr) & 1)
@@ -656,12 +662,6 @@ ieee80211_add_rx_radiotap_header(struct ieee80211_local *local,
 		rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_LSIG);
 		memcpy(pos, &lsig, sizeof(lsig));
 		pos += sizeof(lsig);
-	}
-
-	if (status->flag & RX_FLAG_NO_PSDU) {
-		rthdr->it_present |=
-			cpu_to_le32(1 << IEEE80211_RADIOTAP_ZERO_LEN_PSDU);
-		*pos++ = status->zero_length_psdu_type;
 	}
 
 	for_each_set_bit(chain, &chains, IEEE80211_MAX_CHAINS) {
