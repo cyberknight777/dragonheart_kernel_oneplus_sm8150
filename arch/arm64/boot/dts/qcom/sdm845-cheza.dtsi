@@ -806,7 +806,7 @@ ap_ts_i2c: &i2c14 {
 
 		pinconf {
 			pins = "gpio43";
-			drive-strength = <8>; /* TODO: why? */
+			drive-strength = <2>;
 			bias-disable;
 		};
 	};
