@@ -2077,7 +2077,6 @@ static void sta_set_tidstats(struct sta_info *sta,
 		tidstats->tx_msdu_failed = sta->status_stats.msdu_failed[tid];
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 	if (local->ops->wake_tx_queue && tid < IEEE80211_NUM_TIDS) {
 		spin_lock_bh(&local->fq.lock);
 		rcu_read_lock();
@@ -2089,7 +2088,6 @@ static void sta_set_tidstats(struct sta_info *sta,
 		rcu_read_unlock();
 		spin_unlock_bh(&local->fq.lock);
 	}
-#endif /* CFG80211_VERSION >= KERNEL_VERSION(4,18,0) */
 }
 
 static inline u64 sta_get_stats_bytes(struct ieee80211_sta_rx_stats *rxstats)
@@ -2330,7 +2328,6 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
 		sinfo->expected_throughput = thr;
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
 	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL)) &&
 	    sta->status_stats.ack_signal_filled) {
 		sinfo->ack_signal = sta->status_stats.last_ack_signal;
@@ -2345,7 +2342,6 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
 		sinfo->filled |=
 			BIT_ULL(NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG);
 	}
-#endif
 }
 
 u32 sta_get_expected_throughput(struct sta_info *sta)

@@ -993,7 +993,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	sdata->control_port_protocol = params->crypto.control_port_ethertype;
 	sdata->control_port_no_encrypt = params->crypto.control_port_no_encrypt;
 	sdata->control_port_over_nl80211 =
-				cfg_control_port_over_nl80211(&params->crypto);
+				params->crypto.control_port_over_nl80211;
 	sdata->encrypt_headroom = ieee80211_cs_headroom(sdata->local,
 							&params->crypto,
 							sdata->vif.type);
@@ -1004,7 +1004,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		vlan->control_port_no_encrypt =
 			params->crypto.control_port_no_encrypt;
 		vlan->control_port_over_nl80211 =
-			cfg_control_port_over_nl80211(&params->crypto);
+			params->crypto.control_port_over_nl80211;
 		vlan->encrypt_headroom =
 			ieee80211_cs_headroom(sdata->local,
 					      &params->crypto,
@@ -2120,7 +2120,7 @@ static int ieee80211_join_mesh(struct wiphy *wiphy, struct net_device *dev,
 	if (err)
 		return err;
 
-	sdata->control_port_over_nl80211 = cfg_control_port_over_nl80211(setup);
+	sdata->control_port_over_nl80211 = setup->control_port_over_nl80211;
 
 	/* can mesh use other SMPS modes? */
 	sdata->smps_mode = IEEE80211_SMPS_OFF;
@@ -3941,7 +3941,6 @@ static int ieee80211_set_multicast_to_unicast(struct wiphy *wiphy,
 }
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 void ieee80211_fill_txq_stats(struct cfg80211_txq_stats *txqstats,
 			      struct txq_info *txqi)
 {
@@ -4034,7 +4033,6 @@ out:
 
 	return ret;
 }
-#endif /* CFG80211_VERSION >= KERNEL_VERSION(4,18,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(3,14,0)
 static int _wrap_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
@@ -4200,10 +4198,6 @@ const struct cfg80211_ops mac80211_config_ops = {
 #if CFG80211_VERSION >= KERNEL_VERSION(4,10,0)
 	.set_multicast_to_unicast = ieee80211_set_multicast_to_unicast,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
 	.tx_control_port = ieee80211_tx_control_port,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 	.get_txq_stats = ieee80211_get_txq_stats,
-#endif
 };

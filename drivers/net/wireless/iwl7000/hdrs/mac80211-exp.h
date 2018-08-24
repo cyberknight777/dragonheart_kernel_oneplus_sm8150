@@ -8,6 +8,9 @@
 #define ieee80211_start_tx_ba_cb_irqsafe __iwl7000_ieee80211_start_tx_ba_cb_irqsafe
 #define ieee80211_stop_tx_ba_session __iwl7000_ieee80211_stop_tx_ba_session
 #define ieee80211_stop_tx_ba_cb_irqsafe __iwl7000_ieee80211_stop_tx_ba_cb_irqsafe
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
+#define ieee80211_data_to_8023_exthdr __iwl7000_ieee80211_data_to_8023_exthdr
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 #define dev_coredumpsg __iwl7000_dev_coredumpsg
 #endif /* < 4.7.0 */
