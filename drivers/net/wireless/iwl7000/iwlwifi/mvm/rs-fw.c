@@ -231,8 +231,8 @@ rs_fw_he_set_enabled_rates(const struct ieee80211_sta *sta,
 			   const struct ieee80211_sta_he_cap *he_cap,
 			   struct iwl_tlc_config_cmd *cmd)
 {
-	u16 mcs_160 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_mcs_160);
-	u16 mcs_80 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_mcs_80);
+	u16 mcs_160 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_msc_160);
+	u16 mcs_80 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_msc_80);
 	int i;
 
 	for (i = 0; i < sta->rx_nss && i < MAX_NSS; i++) {

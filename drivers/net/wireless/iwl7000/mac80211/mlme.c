@@ -2373,10 +2373,10 @@ void ieee80211_sta_tx_notify(struct ieee80211_sub_if_data *sdata,
 		ieee80211_sta_reset_conn_monitor(sdata);
 }
 
-void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
-				   const u8 *src, const u8 *dst,
-				   const u8 *ssid, size_t ssid_len,
-				   struct ieee80211_channel *channel)
+static void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
+					  const u8 *src, const u8 *dst,
+					  const u8 *ssid, size_t ssid_len,
+					  struct ieee80211_channel *channel)
 {
 	struct sk_buff *skb;
 
