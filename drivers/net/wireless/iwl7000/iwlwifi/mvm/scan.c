@@ -614,7 +614,7 @@ iwl_mvm_config_sched_scan_profiles(struct iwl_mvm *mvm,
 	else
 		blacklist_len = IWL_SCAN_MAX_BLACKLIST_LEN;
 
-	blacklist = kcalloc(blacklist_len, sizeof(*blacklist), GFP_KERNEL);
+	blacklist = kzalloc(sizeof(*blacklist) * blacklist_len, GFP_KERNEL);
 	if (!blacklist)
 		return -ENOMEM;
 
