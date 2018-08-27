@@ -1824,8 +1824,6 @@ static void iwl_mvm_tx_reclaim(struct iwl_mvm *mvm, int sta_id, int tid,
 		return;
 	}
 
-	spin_lock_bh(&mvmsta->lock);
-
 	__skb_queue_head_init(&reclaimed_skbs);
 
 	/*
@@ -1834,6 +1832,8 @@ static void iwl_mvm_tx_reclaim(struct iwl_mvm *mvm, int sta_id, int tid,
 	 * transmitted ... if not, it's too late anyway).
 	 */
 	iwl_trans_reclaim(mvm->trans, txq, index, &reclaimed_skbs);
+
+	spin_lock_bh(&mvmsta->lock);
 
 	tid_data->next_reclaimed = index;
 
