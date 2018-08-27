@@ -2098,7 +2098,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	mvm->debugfs_dir = dbgfs_dir;
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
-	MVM_DEBUGFS_ADD_FILE(tt_tx_backoff, dbgfs_dir, S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE(tt_tx_backoff, dbgfs_dir, 0400);
 #endif
 	MVM_DEBUGFS_ADD_FILE(tx_flush, mvm->debugfs_dir, 0200);
 	MVM_DEBUGFS_ADD_FILE(sta_drain, mvm->debugfs_dir, 0200);
@@ -2133,9 +2133,9 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(sar_geo_profile, dbgfs_dir, 0400);
 #endif
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, 0400);
 #endif
-	MVM_DEBUGFS_ADD_FILE(set_aid, mvm->debugfs_dir, S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE(set_aid, mvm->debugfs_dir, 0200);
 
 	if (!debugfs_create_bool("enable_scan_iteration_notif",
 				 0600,
@@ -2146,7 +2146,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 				 mvm->debugfs_dir, &mvm->drop_bcn_ap_mode))
 		goto err;
 
-	MVM_DEBUGFS_ADD_FILE(uapsd_noagg_bssids, mvm->debugfs_dir, S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE(uapsd_noagg_bssids, mvm->debugfs_dir, 0400);
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {
