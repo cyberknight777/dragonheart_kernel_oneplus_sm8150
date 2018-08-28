@@ -1117,7 +1117,9 @@ struct backport_sinfo {
 
 	u64 rx_beacon;
 	u8 rx_beacon_signal_avg;
-	struct cfg80211_tid_stats pertid[IEEE80211_NUM_TIDS + 1];
+	struct cfg80211_tid_stats *pertid;
+	s8 ack_signal;
+	s8 avg_ack_signal;
 };
 
 /* these are constants in nl80211.h, so it's
@@ -1173,6 +1175,10 @@ static inline void iwl7000_convert_sinfo(struct backport_sinfo *bpsinfo,
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 	COPY(expected_throughput);
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
+	COPY(ack_signal);
+	COPY(avg_ack_signal);
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,0,0)
 	COPY(rx_beacon);
@@ -2440,6 +2446,16 @@ struct sta_opmode_info {
 int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 				  const u8 *addr, enum nl80211_iftype iftype,
 				  u8 data_offset);
+#else
+static inline int
+backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
+{
+	cfg_station_info_t cfg_info;
+
+	iwl7000_convert_sinfo(sinfo, &cfg_info);
+	return cfg80211_sinfo_alloc_tid_stats(&cfg_info, gfp);
+}
+#define cfg80211_sinfo_alloc_tid_stats backport_cfg80211_sinfo_alloc_tid_stats
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
