@@ -1860,6 +1860,7 @@ struct ieee80211_sta_rates {
  *	unlimited.
  * @support_p2p_ps: indicates whether the STA supports P2P PS mechanism or not.
  * @max_rc_amsdu_len: Maximum A-MSDU size in bytes recommended by rate control.
+ * @max_tid_amsdu_len: Maximum A-MSDU size in bytes for this TID
  * @twt_req_support: indicates whether the STA advertised support for TWT
  *	requester in the Extended Capabilities element.
  * @twt_resp_support: indicates whether the STA advertised support for TWT
@@ -1905,6 +1906,7 @@ struct ieee80211_sta {
 	u16 max_amsdu_len;
 	bool support_p2p_ps;
 	u16 max_rc_amsdu_len;
+	u16 max_tid_amsdu_len[IEEE80211_NUM_TIDS];
 	bool twt_req_support;
 	bool twt_resp_support;
 
