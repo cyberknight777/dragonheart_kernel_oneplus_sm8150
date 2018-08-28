@@ -2388,10 +2388,13 @@ static inline void sk_pacing_shift_update(struct sock *sk, int val)
 }
 #endif /* < 4.4 */
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
-#define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211	-1
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define NL80211_EXT_FEATURE_SCAN_RANDOM_SN		-1
 #define NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT	-1
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
+#define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211	-1
 
 /* define it here so we can set the values in mac80211... */
 struct sta_opmode_info {
