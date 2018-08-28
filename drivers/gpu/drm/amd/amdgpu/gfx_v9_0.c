@@ -1842,7 +1842,7 @@ static void gfx_v9_0_init_compute_vmid(struct amdgpu_device *adev)
 	mutex_unlock(&adev->srbm_mutex);
 }
 
-static void gfx_v9_0_gpu_init(struct amdgpu_device *adev)
+static void gfx_v9_0_constants_init(struct amdgpu_device *adev)
 {
 	u32 tmp;
 	int i;
@@ -3212,7 +3212,7 @@ static int gfx_v9_0_hw_init(void *handle)
 
 	gfx_v9_0_init_golden_registers(adev);
 
-	gfx_v9_0_gpu_init(adev);
+	gfx_v9_0_constants_init(adev);
 
 	r = gfx_v9_0_csb_vram_pin(adev);
 	if (r)
