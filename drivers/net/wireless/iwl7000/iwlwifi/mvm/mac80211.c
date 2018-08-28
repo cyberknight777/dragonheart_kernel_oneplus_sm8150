@@ -527,6 +527,8 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
 	ieee80211_hw_set(hw, BUFF_MMPDU_TXQ);
 	ieee80211_hw_set(hw, STA_MMPDU_TXQ);
+	ieee80211_hw_set(hw, TX_AMSDU);
+	ieee80211_hw_set(hw, TX_FRAG_LIST);
 
 	if (iwl_mvm_has_tlc_offload(mvm)) {
 		ieee80211_hw_set(hw, TX_AMPDU_SETUP_IN_HW);
@@ -574,6 +576,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 
 	hw->uapsd_queues = IWL_MVM_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IWL_UAPSD_MAX_SP;
+	hw->max_tx_fragments = mvm->trans->max_skb_frags;
 
 	BUILD_BUG_ON(ARRAY_SIZE(mvm->ciphers) < ARRAY_SIZE(mvm_ciphers) + 6);
 	memcpy(mvm->ciphers, mvm_ciphers, sizeof(mvm_ciphers));
@@ -892,6 +895,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	}
 
 	hw->netdev_features |= mvm->cfg->features;
+	hw->netdev_features &= ~(NETIF_F_TSO | NETIF_F_TSO6);
 	if (!iwl_mvm_is_csum_supported(mvm)) {
 		hw->netdev_features &= ~(IWL_TX_CSUM_NETIF_FLAGS |
 					 NETIF_F_RXCSUM);
@@ -5120,6 +5124,35 @@ iwl_mvm_mac_get_ftm_responder_stats(struct ieee80211_hw *hw,
 }
 #endif
 
+static bool iwl_mvm_can_hw_csum(struct sk_buff *skb)
+{
+#if IS_ENABLED(CONFIG_INET)
+	u8 protocol = ip_hdr(skb)->protocol;
+
+	if (protocol != IPPROTO_TCP || protocol != IPPROTO_UDP)
+		return false;
+	return true;
+#else
+	return false;
+#endif
+}
+
+static bool iwl_mvm_mac_can_aggregate(struct ieee80211_hw *hw,
+				      struct sk_buff *head,
+				      struct sk_buff *skb)
+{
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+
+	/* For now don't aggregate IPv6 in AMSDU */
+	if (skb->protocol != htons(ETH_P_IP))
+		return false;
+
+	if (!iwl_mvm_is_csum_supported(mvm))
+		return true;
+
+	return iwl_mvm_can_hw_csum(skb) == iwl_mvm_can_hw_csum(head);
+}
+
 const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.tx = iwl_mvm_mac_tx,
 	.wake_tx_queue = iwl_mvm_mac_wake_tx_queue,
@@ -5207,6 +5240,8 @@ const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.stop_nan = iwl_mvm_stop_nan,
 	.add_nan_func = iwl_mvm_add_nan_func,
 	.del_nan_func = iwl_mvm_del_nan_func,
+
+	.can_aggregate_in_amsdu = iwl_mvm_mac_can_aggregate,
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	.sta_add_debugfs = iwl_mvm_sta_add_debugfs,
 #endif
