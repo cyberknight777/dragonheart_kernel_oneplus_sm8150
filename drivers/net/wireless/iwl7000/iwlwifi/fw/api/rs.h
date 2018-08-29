@@ -66,12 +66,24 @@
 
 /**
  * enum iwl_tlc_mng_cfg_flags_enum - options for TLC config flags
- * @IWL_TLC_MNG_CFG_FLAGS_STBC_MSK: enable STBC
+ * @IWL_TLC_MNG_CFG_FLAGS_STBC_MSK: enable STBC. For HE this enables STBC for
+ *				    bandwidths <= 80MHz
  * @IWL_TLC_MNG_CFG_FLAGS_LDPC_MSK: enable LDPC
+ * @IWL_TLC_MNG_CFG_FLAGS_HE_STBC_160MHZ_MSK: enable STBC in HE at 160MHz
+ *					      bandwidth
+ * @IWL_TLC_MNG_CFG_FLAGS_HE_DCM_NSS_1_MSK: enable HE Dual Carrier Modulation
+ *					    for BPSK (MCS 0) with 1 spatial
+ *					    stream
+ * @IWL_TLC_MNG_CFG_FLAGS_HE_DCM_NSS_2_MSK: enable HE Dual Carrier Modulation
+ *					    for BPSK (MCS 0) with 2 spatial
+ *					    streams
  */
 enum iwl_tlc_mng_cfg_flags {
-	IWL_TLC_MNG_CFG_FLAGS_STBC_MSK		= BIT(0),
-	IWL_TLC_MNG_CFG_FLAGS_LDPC_MSK		= BIT(1),
+	IWL_TLC_MNG_CFG_FLAGS_STBC_MSK			= BIT(0),
+	IWL_TLC_MNG_CFG_FLAGS_LDPC_MSK			= BIT(1),
+	IWL_TLC_MNG_CFG_FLAGS_HE_STBC_160MHZ_MSK	= BIT(2),
+	IWL_TLC_MNG_CFG_FLAGS_HE_DCM_NSS_1_MSK		= BIT(3),
+	IWL_TLC_MNG_CFG_FLAGS_HE_DCM_NSS_2_MSK		= BIT(4),
 };
 
 /**
@@ -224,14 +236,18 @@ struct iwl_tlc_update_notif {
  * @IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM: set max number of frames in an aggregation
  * @IWL_TLC_DEBUG_FLAGS_NUM: number of flags. Used to define the data array in
  *                           %struct iwl_dhc_tlc_cmd
+ * @IWL_TLC_DEBUG_TPC_ENABLED: enable or disable tpc
+ * @IWL_TLC_DEBUG_TPC_STATS: get number of frames Tx'ed in each tpc step
  */
 enum iwl_tlc_debug_flags {
 	IWL_TLC_DEBUG_FIXED_RATE,
 	IWL_TLC_DEBUG_AGG_DURATION_LIM,
 	IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM,
+	IWL_TLC_DEBUG_TPC_ENABLED,
+	IWL_TLC_DEBUG_TPC_STATS,
 
 	IWL_TLC_DEBUG_FLAGS_NUM,
-}; /* TLC_MNG_DEBUG_FLAGS_API_E_VER_1 */
+}; /* TLC_MNG_DEBUG_FLAGS_API_E */
 
 /**
  * struct iwl_dhc_tlc_dbg - fixed debug config
@@ -245,6 +261,18 @@ struct iwl_dhc_tlc_cmd {
 	u8 reserved1[3];
 	__le32 flags;
 	__le32 data[IWL_TLC_DEBUG_FLAGS_NUM];
+} __packed; /* TLC_MNG_DEBUG_CMD_S */
+
+/**
+ * struct iwl_tpc_stats - statistics on the number of frames sent at each tpc
+ *                        step.
+ * @no_tpc: number of frames sent with no Tx-power reduction
+ * @step: number of frames sent at each step (0 - 3db reduction, ... 4 - 15db
+ *        reduction)
+ */
+struct iwl_tpc_stats {
+	__le32 no_tpc;
+	__le32 step[5];
 } __packed;
 
 /*
@@ -492,6 +520,9 @@ enum {
 #define RATE_MCS_LDPC_POS		27
 #define RATE_MCS_LDPC_MSK		(1 << RATE_MCS_LDPC_POS)
 
+/* Bit 28: (1) 106-tone RX (8 MHz RU), (0) normal bandwidth */
+#define RATE_MCS_HE_106T_POS		28
+#define RATE_MCS_HE_106T_MSK		(1 << RATE_MCS_HE_106T_POS)
 
 /* Link Quality definitions */
 

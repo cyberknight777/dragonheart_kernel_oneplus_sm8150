@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -36,7 +36,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -74,9 +74,6 @@
 #include "iwl-csr.h"
 #include "mvm.h"
 #include "fw/api/rs.h"
-#ifdef CPTCFG_IWLMVM_TCM
-#include "iwl-vendor-cmd.h"
-#endif
 
 /*
  * Will return 0 even if the cmd failed when RFKILL is asserted unless
@@ -525,15 +522,15 @@ static void iwl_mvm_dump_lmac_error_log(struct iwl_mvm *mvm, u32 base)
 
 		/* set INIT_DONE flag */
 		iwl_set_bit(trans, CSR_GP_CNTRL,
-			    CSR_GP_CNTRL_REG_FLAG_INIT_DONE);
+			    BIT(trans->cfg->csr->flag_init_done));
 
 		/* and wait for clock stabilization */
 		if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
 			udelay(2);
 
 		err = iwl_poll_bit(trans, CSR_GP_CNTRL,
-				   CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY,
-				   CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY,
+				   BIT(trans->cfg->csr->flag_mac_clock_ready),
+				   BIT(trans->cfg->csr->flag_mac_clock_ready),
 				   25000);
 		if (err < 0) {
 			IWL_DEBUG_INFO(trans,
@@ -554,12 +551,6 @@ static void iwl_mvm_dump_lmac_error_log(struct iwl_mvm *mvm, u32 base)
 
 	IWL_ERR(mvm, "Loaded firmware version: %s\n", mvm->fw->fw_version);
 
-	trace_iwlwifi_dev_ucode_error(trans->dev, table.error_id, table.tsf_low,
-				      table.data1, table.data2, table.data3,
-				      table.blink2, table.ilink1,
-				      table.ilink2, table.bcon_time, table.gp1,
-				      table.gp2, table.fw_rev_type, table.major,
-				      table.minor, table.hw_ver, table.brd_ver);
 	IWL_ERR(mvm, "0x%08X | %-28s\n", table.error_id,
 		desc_lookup(table.error_id));
 	IWL_ERR(mvm, "0x%08X | trm_hw_status0\n", table.trm_hw_status0);
@@ -733,19 +724,15 @@ static bool iwl_mvm_update_txq_mapping(struct iwl_mvm *mvm, int queue,
 int iwl_mvm_tvqm_enable_txq(struct iwl_mvm *mvm, int mac80211_queue,
 			    u8 sta_id, u8 tid, unsigned int timeout)
 {
-	struct iwl_tx_queue_cfg_cmd cmd = {
-		.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-		.sta_id = sta_id,
-		.tid = tid,
-	};
 	int queue, size = IWL_DEFAULT_QUEUE_SIZE;
 
-	if (cmd.tid == IWL_MAX_TID_COUNT) {
-		cmd.tid = IWL_MGMT_TID;
+	if (tid == IWL_MAX_TID_COUNT) {
+		tid = IWL_MGMT_TID;
 		size = IWL_MGMT_QUEUE_SIZE;
 	}
-	queue = iwl_trans_txq_alloc(mvm->trans, (void *)&cmd,
-				    SCD_QUEUE_CFG, size, timeout);
+	queue = iwl_trans_txq_alloc(mvm->trans,
+				    cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+				    sta_id, tid, SCD_QUEUE_CFG, size, timeout);
 
 	if (queue < 0) {
 		IWL_DEBUG_TX_QUEUES(mvm,
@@ -1082,7 +1069,7 @@ int iwl_mvm_update_low_latency(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	iwl_mvm_bt_coex_vif_change(mvm);
 
-#ifdef CPTCFG_IWLMVM_TCM
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	iwl_mvm_send_tcm_event(mvm, vif);
 #endif
 
@@ -1260,14 +1247,12 @@ void iwl_mvm_connection_loss(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	struct iwl_fw_dbg_trigger_tlv *trig;
 	struct iwl_fw_dbg_trigger_mlme *trig_mlme;
 
-	if (!iwl_fw_dbg_trigger_enabled(mvm->fw, FW_DBG_TRIGGER_MLME))
+	trig = iwl_fw_dbg_trigger_on(&mvm->fwrt, ieee80211_vif_to_wdev(vif),
+				     FW_DBG_TRIGGER_MLME);
+	if (!trig)
 		goto out;
 
-	trig = iwl_fw_dbg_get_trigger(mvm->fw, FW_DBG_TRIGGER_MLME);
 	trig_mlme = (void *)trig->data;
-	if (!iwl_fw_dbg_trigger_check_stop(&mvm->fwrt,
-					   ieee80211_vif_to_wdev(vif), trig))
-		goto out;
 
 	if (trig_mlme->stop_connection_loss &&
 	    --trig_mlme->stop_connection_loss)
@@ -1452,14 +1437,12 @@ void iwl_mvm_event_frame_timeout_callback(struct iwl_mvm *mvm,
 	struct iwl_fw_dbg_trigger_tlv *trig;
 	struct iwl_fw_dbg_trigger_ba *ba_trig;
 
-	if (!iwl_fw_dbg_trigger_enabled(mvm->fw, FW_DBG_TRIGGER_BA))
+	trig = iwl_fw_dbg_trigger_on(&mvm->fwrt, ieee80211_vif_to_wdev(vif),
+				     FW_DBG_TRIGGER_BA);
+	if (!trig)
 		return;
 
-	trig = iwl_fw_dbg_get_trigger(mvm->fw, FW_DBG_TRIGGER_BA);
 	ba_trig = (void *)trig->data;
-	if (!iwl_fw_dbg_trigger_check_stop(&mvm->fwrt,
-					   ieee80211_vif_to_wdev(vif), trig))
-		return;
 
 	if (!(le16_to_cpu(ba_trig->frame_timeout) & BIT(tid)))
 		return;
@@ -1469,7 +1452,6 @@ void iwl_mvm_event_frame_timeout_callback(struct iwl_mvm *mvm,
 				sta->addr, tid);
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 u8 iwl_mvm_tcm_load_percentage(u32 airtime, u32 elapsed)
 {
 	if (!elapsed)
@@ -1478,16 +1460,17 @@ u8 iwl_mvm_tcm_load_percentage(u32 airtime, u32 elapsed)
 	return (100 * airtime / elapsed) / USEC_PER_MSEC;
 }
 
-static enum iwl_mvm_vendor_load
+static enum iwl_mvm_traffic_load
 iwl_mvm_tcm_load(struct iwl_mvm *mvm, u32 airtime, unsigned long elapsed)
 {
 	u8 load = iwl_mvm_tcm_load_percentage(airtime, elapsed);
 
 	if (load > IWL_MVM_TCM_LOAD_HIGH_THRESH)
-		return IWL_MVM_VENDOR_LOAD_HIGH;
+		return IWL_MVM_TRAFFIC_HIGH;
 	if (load > IWL_MVM_TCM_LOAD_MEDIUM_THRESH)
-		return IWL_MVM_VENDOR_LOAD_MEDIUM;
-	return IWL_MVM_VENDOR_LOAD_LOW;
+		return IWL_MVM_TRAFFIC_MEDIUM;
+
+	return IWL_MVM_TRAFFIC_LOW;
 }
 
 struct iwl_mvm_tcm_iter_data {
@@ -1518,7 +1501,9 @@ static void iwl_mvm_tcm_iter(void *_data, u8 *mac, struct ieee80211_vif *vif)
 		iwl_mvm_update_low_latency(mvm, vif, low_latency,
 					   LOW_LATENCY_TRAFFIC);
 	} else {
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 		iwl_mvm_send_tcm_event(mvm, vif);
+#endif
 		iwl_mvm_update_quotas(mvm, false, NULL);
 	}
 
@@ -1538,9 +1523,11 @@ static void iwl_mvm_tcm_results(struct iwl_mvm *mvm)
 		mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
 		iwl_mvm_tcm_iter, &data);
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	/* send global only */
 	if (mvm->tcm.result.global_change && !data.any_sent)
 		iwl_mvm_send_tcm_event(mvm, NULL);
+#endif
 
 	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_UMAC_SCAN))
 		iwl_mvm_config_scan(mvm);
@@ -1668,7 +1655,7 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 	u32 band[NUM_MAC_INDEX_DRIVER] = {0};
 	int ac, mac, i;
 	bool low_latency = false;
-	enum iwl_mvm_vendor_load load, band_load;
+	enum iwl_mvm_traffic_load load, band_load;
 	bool handle_ll = time_after(ts, mvm->tcm.ll_ts + MVM_LL_PERIOD);
 
 	if (handle_ll)
@@ -1739,7 +1726,7 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 	 * was no traffic at all (and thus iwl_mvm_recalc_tcm didn't get
 	 * triggered by traffic).
 	 */
-	if (load != IWL_MVM_VENDOR_LOAD_LOW)
+	if (load != IWL_MVM_TRAFFIC_LOW)
 		return MVM_TCM_PERIOD;
 	/*
 	 * If low-latency is active we need to force re-evaluation after
@@ -1822,6 +1809,7 @@ void iwl_mvm_pause_tcm(struct iwl_mvm *mvm, bool with_cancel)
 void iwl_mvm_resume_tcm(struct iwl_mvm *mvm)
 {
 	int mac;
+	bool low_latency = false;
 
 	spin_lock_bh(&mvm->tcm.lock);
 	mvm->tcm.ts = jiffies;
@@ -1833,10 +1821,23 @@ void iwl_mvm_resume_tcm(struct iwl_mvm *mvm)
 		memset(&mdata->tx.pkts, 0, sizeof(mdata->tx.pkts));
 		memset(&mdata->rx.airtime, 0, sizeof(mdata->rx.airtime));
 		memset(&mdata->tx.airtime, 0, sizeof(mdata->tx.airtime));
+
+		if (mvm->tcm.result.low_latency[mac])
+			low_latency = true;
 	}
 	/* The TCM data needs to be reset before "paused" flag changes */
 	smp_mb();
 	mvm->tcm.paused = false;
+
+	/*
+	 * if the current load is not low or low latency is active, force
+	 * re-evaluation to cover the case of no traffic.
+	 */
+	if (mvm->tcm.result.global_load > IWL_MVM_TRAFFIC_LOW)
+		schedule_delayed_work(&mvm->tcm.work, MVM_TCM_PERIOD);
+	else if (low_latency)
+		schedule_delayed_work(&mvm->tcm.work, MVM_LL_PERIOD);
+
 	spin_unlock_bh(&mvm->tcm.lock);
 }
 
@@ -1854,7 +1855,6 @@ void iwl_mvm_tcm_rm_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	cancel_delayed_work_sync(&mvmvif->uapsd_nonagg_detected_wk);
 }
-#endif
 
 void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 {

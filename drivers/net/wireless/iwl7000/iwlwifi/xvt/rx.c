@@ -171,7 +171,7 @@ static bool iwl_xvt_init_reorder_buffer(struct iwl_xvt_reorder_buffer *buf,
 bool iwl_xvt_reorder(struct iwl_xvt *xvt, struct iwl_rx_packet *pkt)
 {
 	struct iwl_rx_mpdu_desc *desc = (void *)pkt->data;
-	struct ieee80211_hdr *hdr = (void *)(pkt->data + sizeof(*desc));
+	struct ieee80211_hdr *hdr;
 	u32 reorder = le32_to_cpu(desc->reorder_data);
 	struct iwl_xvt_reorder_buffer *buffer;
 	u16 tail;
@@ -190,6 +190,11 @@ bool iwl_xvt_reorder(struct iwl_xvt *xvt, struct iwl_rx_packet *pkt)
 
 	if (baid >= IWL_MAX_BAID)
 		return false;
+
+	if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+		hdr = (void *)(pkt->data + sizeof(struct iwl_rx_mpdu_desc));
+	else
+		hdr = (void *)(pkt->data + IWL_RX_DESC_SIZE_V1);
 
 	/* not a data packet */
 	if (!ieee80211_is_data_qos(hdr->frame_control) ||

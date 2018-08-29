@@ -8,6 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,6 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -86,6 +88,11 @@ enum iwl_data_path_subcmd_ids {
 	 * @AX_SOFTAP_CLIENT_TESTMODE: &struct ax_softap_client_testmode_cmd
 	 */
 	AX_SOFTAP_CLIENT_TESTMODE = 0xC,
+
+	/**
+	 * @RFH_QUEUE_CONFIG_CMD: &struct iwl_rfh_queue_config
+	 */
+	RFH_QUEUE_CONFIG_CMD = 0xD,
 
 	/**
 	 * @TLC_MNG_CONFIG_CMD: &struct iwl_tlc_config_cmd

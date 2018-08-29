@@ -5,7 +5,9 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2017 Intel Deutschland GmbH
+ * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -25,7 +27,9 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2017 Intel Deutschland GmbH
+ * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,34 +59,85 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
-#include "iwl-drv.h"
-#include "runtime.h"
-#include "fw/api/commands.h"
-#include "fw/api/alive.h"
 
-static void iwl_fwrt_fseq_ver_mismatch(struct iwl_fw_runtime *fwrt,
-				       struct iwl_rx_cmd_buffer *rxb)
-{
-	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	struct iwl_fseq_ver_mismatch_ntf *fseq = (void *)pkt->data;
+#ifndef __IWL_TESTMODE_H__
+#define __IWL_TESTMODE_H__
 
-	IWL_ERR(fwrt, "FSEQ version mismatch (aux: %d, wifi: %d)\n",
-		__le32_to_cpu(fseq->aux_read_fseq_ver),
-		__le32_to_cpu(fseq->wifi_fseq_ver));
-}
+#ifdef CPTCFG_NL80211_TESTMODE
+/**
+ * enum iwl_testmode_attrs - testmode attributes inside
+ *	NL80211_ATTR_TESTDATA
+ * @IWL_TM_ATTR_UNSPEC: (invalid attribute)
+ * @IWL_TM_ATTR_CMD: sub command, see &enum iwl_testmode_commands (u32)
+ * @IWL_TM_ATTR_NOA_DURATION: requested NoA duration (u32)
+ * @IWL_TM_ATTR_BEACON_FILTER_STATE: beacon filter state (0 or 1, u32)
+ * @NUM_IWL_TM_ATTRS: number of attributes in the enum
+ * @IWL_TM_ATTR_MAX: max amount of attributes
+ */
+enum iwl_testmode_attrs {
+	IWL_TM_ATTR_UNSPEC,
+	IWL_TM_ATTR_CMD,
+	IWL_TM_ATTR_NOA_DURATION,
+	IWL_TM_ATTR_BEACON_FILTER_STATE,
 
-void iwl_fwrt_handle_notification(struct iwl_fw_runtime *fwrt,
-				  struct iwl_rx_cmd_buffer *rxb)
-{
-	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	u32 cmd = WIDE_ID(pkt->hdr.group_id, pkt->hdr.cmd);
+	/* keep last */
+	NUM_IWL_TM_ATTRS,
+	IWL_TM_ATTR_MAX = NUM_IWL_TM_ATTRS - 1,
+};
 
-	switch (cmd) {
-	case WIDE_ID(SYSTEM_GROUP, FSEQ_VER_MISMATCH_NTF):
-		iwl_fwrt_fseq_ver_mismatch(fwrt, rxb);
-		break;
-	default:
-		break;
-	}
-}
-IWL_EXPORT_SYMBOL(iwl_fwrt_handle_notification);
+/**
+ * enum iwl_testmode_commands - trans testmode commands
+ * @IWL_TM_CMD_SET_NOA: set NoA on GO vif for testing
+ * @IWL_TM_CMD_SET_BEACON_FILTER: turn beacon filtering off/on
+ */
+enum iwl_testmode_commands {
+	IWL_TM_CMD_SET_NOA,
+	IWL_TM_CMD_SET_BEACON_FILTER,
+};
+#endif
+
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+struct iwl_host_cmd;
+struct iwl_rx_cmd_buffer;
+
+struct iwl_testmode {
+	struct iwl_trans *trans;
+	const struct iwl_fw *fw;
+	/* the mutex of the op_mode */
+	struct mutex *mutex;
+	void *op_mode;
+	int (*send_hcmd)(void *op_mode, struct iwl_host_cmd *host_cmd);
+	u32 fw_major_ver;
+	u32 fw_minor_ver;
+};
+
+/**
+ * iwl_tm_data - A data packet for testmode usages
+ * @data:   Pointer to be casted to relevant data type
+ *          (According to usage)
+ * @len:    Size of data in bytes
+ *
+ * This data structure is used for sending/receiving data packets
+ * between internal testmode interfaces
+ */
+struct iwl_tm_data {
+	void *data;
+	u32 len;
+};
+
+void iwl_tm_init(struct iwl_trans *trans, const struct iwl_fw *fw,
+		 struct mutex *mutex, void *op_mode);
+
+void iwl_tm_set_fw_ver(struct iwl_trans *trans, u32 fw_major_ver,
+		       u32 fw_minor_var);
+
+int iwl_tm_execute_cmd(struct iwl_testmode *testmode, u32 cmd,
+		       struct iwl_tm_data *data_in,
+		       struct iwl_tm_data *data_out);
+
+#define ADDR_IN_AL_MSK (0x80000000)
+#define GET_AL_ADDR(ofs) (ofs & ~(ADDR_IN_AL_MSK))
+#define IS_AL_ADDR(ofs) (!!(ofs & (ADDR_IN_AL_MSK)))
+#endif
+
+#endif /* __IWL_TESTMODE_H__ */

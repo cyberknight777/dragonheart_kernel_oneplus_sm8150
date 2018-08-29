@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -16,11 +17,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -33,6 +29,7 @@
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -63,31 +60,15 @@
  *
  *****************************************************************************/
 
-#include <linux/pci_ids.h>
-
-#include "mvm.h"
-#include "iwl-prph.h"
-#include "iwl-csr.h"
-#include "iwl-fh.h"
-#include "iwl-io.h"
+#include "iwl-trans.h"
 #include "iwl-tm-infc.h"
-#include "iwl-tm-gnl.h"
+#include "iwl-drv.h"
+#include "iwl-prph.h"
+#include "iwl-io.h"
 
-bool iwl_mvm_testmode_valid_hw_addr(u32 addr)
-{
-	/* TODO need to implement */
-	return true;
-}
-
-u32 iwl_mvm_testmode_get_fw_ver(struct iwl_op_mode *op_mode)
-{
-	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
-	return mvm->fw->ucode_ver;
-}
-
-static int iwl_mvm_tm_send_hcmd(struct iwl_mvm *mvm,
-				struct iwl_tm_data *data_in,
-				struct iwl_tm_data *data_out)
+static int iwl_tm_send_hcmd(struct iwl_testmode *testmode,
+			    struct iwl_tm_data *data_in,
+			    struct iwl_tm_data *data_out)
 {
 	struct iwl_tm_cmd_request *hcmd_req = data_in->data;
 	struct iwl_tm_cmd_request *cmd_resp;
@@ -101,12 +82,15 @@ static int iwl_mvm_tm_send_hcmd(struct iwl_mvm *mvm,
 	};
 	int ret;
 
+	if (!testmode->send_hcmd)
+		return -EOPNOTSUPP;
+
 	if (hcmd_req->want_resp)
 		host_cmd.flags |= CMD_WANT_SKB;
 
-	mutex_lock(&mvm->mutex);
-	ret = iwl_mvm_send_cmd(mvm, &host_cmd);
-	mutex_unlock(&mvm->mutex);
+	mutex_lock(testmode->mutex);
+	ret = testmode->send_hcmd(testmode->op_mode, &host_cmd);
+	mutex_unlock(testmode->mutex);
 	if (ret)
 		return ret;
 	/* if no reply is required, we are done */
@@ -137,30 +121,33 @@ out:
 	return ret;
 }
 
-static void iwl_mvm_tm_execute_reg_ops(struct iwl_trans *trans,
-				       struct iwl_tm_regs_request *request,
-				       struct iwl_tm_regs_request *result)
+static void iwl_tm_execute_reg_ops(struct iwl_testmode *testmode,
+				   struct iwl_tm_regs_request *request,
+				   struct iwl_tm_regs_request *result)
 {
 	struct iwl_tm_reg_op *cur_op;
 	u32 idx, read_idx;
+
 	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
 		cur_op = &request->reg_ops[idx];
 
 		if  (cur_op->op_type == IWL_TM_REG_OP_READ) {
-			cur_op->value = iwl_read32(trans, cur_op->address);
+			cur_op->value = iwl_read32(testmode->trans,
+						   cur_op->address);
 			memcpy(&result->reg_ops[read_idx], cur_op,
 			       sizeof(*cur_op));
 			read_idx++;
 		} else {
 			/* IWL_TM_REG_OP_WRITE is the only possible option */
-			iwl_write32(trans, cur_op->address, cur_op->value);
+			iwl_write32(testmode->trans, cur_op->address,
+				    cur_op->value);
 		}
 	}
 }
 
-static int iwl_mvm_tm_reg_ops(struct iwl_trans *trans,
-			      struct iwl_tm_data *data_in,
-			      struct iwl_tm_data *data_out)
+static int iwl_tm_reg_ops(struct iwl_testmode *testmode,
+			  struct iwl_tm_data *data_in,
+			  struct iwl_tm_data *data_out)
 {
 	struct iwl_tm_reg_op *cur_op;
 	struct iwl_tm_regs_request *request = data_in->data;
@@ -178,27 +165,25 @@ static int iwl_mvm_tm_reg_ops(struct iwl_trans *trans,
 		/* in the CSR range (0x00000000 - 0x000003FF)    */
 		/* and not in the AL range			 */
 		cur_op = &request->reg_ops[idx];
-		if (IS_AL_ADDR(cur_op->address) ||
-		    (cur_op->address < HBUS_BASE))
+		if (IS_AL_ADDR(cur_op->address) || cur_op->address < HBUS_BASE)
 			is_grab_nic_access_required = false;
-
 	}
 	result_size = sizeof(struct iwl_tm_regs_request) +
-		      read_idx*sizeof(struct iwl_tm_reg_op);
+		      read_idx * sizeof(struct iwl_tm_reg_op);
 
 	result = kzalloc(result_size, GFP_KERNEL);
 	if (!result)
 		return -ENOMEM;
 	result->num = read_idx;
 	if (is_grab_nic_access_required) {
-		if (!iwl_trans_grab_nic_access(trans, &flags)) {
+		if (!iwl_trans_grab_nic_access(testmode->trans, &flags)) {
 			kfree(result);
 			return -EBUSY;
 		}
-		iwl_mvm_tm_execute_reg_ops(trans, request, result);
-		iwl_trans_release_nic_access(trans, &flags);
+		iwl_tm_execute_reg_ops(testmode, request, result);
+		iwl_trans_release_nic_access(testmode->trans, &flags);
 	} else {
-		iwl_mvm_tm_execute_reg_ops(trans, request, result);
+		iwl_tm_execute_reg_ops(testmode, request, result);
 	}
 
 	data_out->data = result;
@@ -207,21 +192,21 @@ static int iwl_mvm_tm_reg_ops(struct iwl_trans *trans,
 	return 0;
 }
 
-static int iwl_tm_get_dev_info(struct iwl_mvm *mvm,
+static int iwl_tm_get_dev_info(struct iwl_testmode *testmode,
 			       struct iwl_tm_data *data_out)
 {
 	struct iwl_tm_dev_info *dev_info;
 	const u8 driver_ver[] = BACKPORTS_GIT_TRACKED;
 
-	dev_info = kzalloc(sizeof(struct iwl_tm_dev_info) +
-			   (strlen(driver_ver)+1)*sizeof(u8), GFP_KERNEL);
+	dev_info = kzalloc(sizeof(*dev_info) + (strlen(driver_ver) + 1) *
+			   sizeof(u8), GFP_KERNEL);
 	if (!dev_info)
 		return -ENOMEM;
 
-	dev_info->dev_id = mvm->trans->hw_id;
-	dev_info->fw_ver = mvm->fw->ucode_ver;
+	dev_info->dev_id = testmode->trans->hw_id;
+	dev_info->fw_ver = testmode->fw->ucode_ver;
 	dev_info->vendor_id = PCI_VENDOR_ID_INTEL;
-	dev_info->silicon_step = CSR_HW_REV_STEP(mvm->trans->hw_rev);
+	dev_info->silicon_step = CSR_HW_REV_STEP(testmode->trans->hw_rev);
 
 	/* TODO: Assign real value when feature is implemented */
 	dev_info->build_ver = 0x00;
@@ -234,18 +219,18 @@ static int iwl_tm_get_dev_info(struct iwl_mvm *mvm,
 	return 0;
 }
 
-static int iwl_tm_indirect_read(struct iwl_mvm *mvm,
+static int iwl_tm_indirect_read(struct iwl_testmode *testmode,
 				struct iwl_tm_data *data_in,
 				struct iwl_tm_data *data_out)
 {
-	struct iwl_trans *trans = mvm->trans;
+	struct iwl_trans *trans = testmode->trans;
 	struct iwl_tm_sram_read_request *cmd_in = data_in->data;
 	u32 addr = cmd_in->offset;
 	u32 size = cmd_in->length;
 	u32 *buf32, size32, i;
 	unsigned long flags;
 
-	if (size & (sizeof(u32)-1))
+	if (size & (sizeof(u32) - 1))
 		return -EINVAL;
 
 	data_out->data = kmalloc(size, GFP_KERNEL);
@@ -257,13 +242,13 @@ static int iwl_tm_indirect_read(struct iwl_mvm *mvm,
 	size32 = size / sizeof(u32);
 	buf32 = data_out->data;
 
-	mutex_lock(&mvm->mutex);
+	mutex_lock(testmode->mutex);
 
 	/* Hard-coded periphery absolute address */
-	if (IWL_ABS_PRPH_START <= addr &&
+	if (addr >= IWL_ABS_PRPH_START &&
 	    addr < IWL_ABS_PRPH_START + PRPH_END) {
 		if (!iwl_trans_grab_nic_access(trans, &flags)) {
-			mutex_unlock(&mvm->mutex);
+			mutex_unlock(testmode->mutex);
 			return -EBUSY;
 		}
 		for (i = 0; i < size32; i++)
@@ -275,14 +260,14 @@ static int iwl_tm_indirect_read(struct iwl_mvm *mvm,
 		iwl_trans_read_mem(trans, addr, buf32, size32);
 	}
 
-	mutex_unlock(&mvm->mutex);
+	mutex_unlock(testmode->mutex);
 	return 0;
 }
 
-static int iwl_tm_indirect_write(struct iwl_mvm *mvm,
+static int iwl_tm_indirect_write(struct iwl_testmode *testmode,
 				 struct iwl_tm_data *data_in)
 {
-	struct iwl_trans *trans = mvm->trans;
+	struct iwl_trans *trans = testmode->trans;
 	struct iwl_tm_sram_write_request *cmd_in = data_in->data;
 	u32 addr = cmd_in->offset;
 	u32 size = cmd_in->len;
@@ -291,14 +276,14 @@ static int iwl_tm_indirect_write(struct iwl_mvm *mvm,
 	unsigned long flags;
 	u32 val, i;
 
-	mutex_lock(&mvm->mutex);
-	if (IWL_ABS_PRPH_START <= addr &&
+	mutex_lock(testmode->mutex);
+	if (addr >= IWL_ABS_PRPH_START &&
 	    addr < IWL_ABS_PRPH_START + PRPH_END) {
 		/* Periphery writes can be 1-3 bytes long, or DWORDs */
 		if (size < 4) {
 			memcpy(&val, buf, size);
 			if (!iwl_trans_grab_nic_access(trans, &flags)) {
-				mutex_unlock(&mvm->mutex);
+				mutex_unlock(testmode->mutex);
 				return -EBUSY;
 			}
 			iwl_write32(trans, HBUS_TARG_PRPH_WADDR,
@@ -307,29 +292,32 @@ static int iwl_tm_indirect_write(struct iwl_mvm *mvm,
 			iwl_trans_release_nic_access(trans, &flags);
 		} else {
 			if (size % sizeof(u32)) {
-				mutex_unlock(&mvm->mutex);
+				mutex_unlock(testmode->mutex);
 				return -EINVAL;
 			}
 
 			for (i = 0; i < size32; i++)
-				iwl_write_prph(trans, addr + i*sizeof(u32),
+				iwl_write_prph(trans, addr + i * sizeof(u32),
 					       buf32[i]);
 		}
 	} else {
 		iwl_trans_write_mem(trans, addr, buf32, size32);
 	}
-	mutex_unlock(&mvm->mutex);
+	mutex_unlock(testmode->mutex);
 
 	return 0;
 }
 
-static int iwl_tm_get_fw_info(struct iwl_mvm *mvm,
+static int iwl_tm_get_fw_info(struct iwl_testmode *testmode,
 			      struct iwl_tm_data *data_out)
 {
 	struct iwl_tm_get_fw_info *fw_info;
 	u32 api_len, capa_len;
 	u32 *bitmap;
 	int i;
+
+	if (!testmode->fw_major_ver || !testmode->fw_minor_ver)
+		return -EOPNOTSUPP;
 
 	api_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_API, 32);
 	capa_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_CAPA, 32);
@@ -338,22 +326,22 @@ static int iwl_tm_get_fw_info(struct iwl_mvm *mvm,
 	if (!fw_info)
 		return -ENOMEM;
 
-	fw_info->fw_major_ver = mvm->fw_major_ver;
-	fw_info->fw_minor_ver = mvm->fw_minor_ver;
+	fw_info->fw_major_ver = testmode->fw_major_ver;
+	fw_info->fw_minor_ver = testmode->fw_minor_ver;
 	fw_info->fw_capa_api_len = api_len;
-	fw_info->fw_capa_flags = mvm->fw->ucode_capa.flags;
+	fw_info->fw_capa_flags = testmode->fw->ucode_capa.flags;
 	fw_info->fw_capa_len = capa_len;
 
 	bitmap = (u32 *)fw_info->data;
 	for (i = 0; i < NUM_IWL_UCODE_TLV_API; i++) {
-		if (fw_has_api(&mvm->fw->ucode_capa,
+		if (fw_has_api(&testmode->fw->ucode_capa,
 			       (__force iwl_ucode_tlv_api_t)i))
 			bitmap[i / 32] |= BIT(i % 32);
 	}
 
 	bitmap = (u32 *)(fw_info->data + api_len);
 	for (i = 0; i < NUM_IWL_UCODE_TLV_CAPA; i++) {
-		if (fw_has_capa(&mvm->fw->ucode_capa,
+		if (fw_has_capa(&testmode->fw->ucode_capa,
 				(__force iwl_ucode_tlv_capa_t)i))
 			bitmap[i / 32] |= BIT(i % 32);
 	}
@@ -365,8 +353,8 @@ static int iwl_tm_get_fw_info(struct iwl_mvm *mvm,
 }
 
 /**
- * iwl_mvm_tm_cmd_execute - Implementation of test command executor callback
- * @op_mode:	  Specific device's operation mode
+ * iwl_tm_execute_cmd - Implementation of test command executor
+ * @testmode:	  iwl_testmode, holds all relevant data for execution
  * @cmd:	  User space command's index
  * @data_in:	  Input data. "data" field is to be casted to relevant
  *		  data structure. All verification must be done in the
@@ -375,62 +363,87 @@ static int iwl_tm_get_fw_info(struct iwl_mvm *mvm,
  * @data_out:	  Will be allocated inside, freeing is in the caller's
  *		  responsibility
  */
-int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
-			   struct iwl_tm_data *data_in,
-			   struct iwl_tm_data *data_out)
+int iwl_tm_execute_cmd(struct iwl_testmode *testmode, u32 cmd,
+		       struct iwl_tm_data *data_in,
+		       struct iwl_tm_data *data_out)
 {
-	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
+	const struct iwl_test_ops *test_ops;
+	bool cmd_supported = false;
 	int ret;
 
-	if (WARN_ON_ONCE(!op_mode || !data_in))
+	if (!testmode->trans->op_mode) {
+		IWL_ERR(testmode->trans, "No op_mode!\n");
+		return -ENODEV;
+	}
+	if (WARN_ON_ONCE(!testmode->op_mode || !data_in))
 		return -EINVAL;
 
-	ret = iwl_mvm_ref_sync(mvm, IWL_MVM_REF_TM_CMD);
-	if (ret)
-		return ret;
+	test_ops = &testmode->trans->op_mode->ops->test_ops;
+
+	if (test_ops->cmd_exec_start) {
+		ret = test_ops->cmd_exec_start(testmode);
+		if (ret)
+			return ret;
+	}
+
+	if (test_ops->cmd_exec)
+		ret = test_ops->cmd_exec(testmode, cmd, data_in, data_out,
+					    &cmd_supported);
+
+	if (cmd_supported)
+		goto out;
 
 	switch (cmd) {
 	case IWL_TM_USER_CMD_HCMD:
-		ret = iwl_mvm_tm_send_hcmd(mvm, data_in, data_out);
+		ret = iwl_tm_send_hcmd(testmode, data_in, data_out);
 		break;
 	case IWL_TM_USER_CMD_REG_ACCESS:
-		ret = iwl_mvm_tm_reg_ops(mvm->trans, data_in, data_out);
+		ret = iwl_tm_reg_ops(testmode, data_in, data_out);
 		break;
 	case IWL_TM_USER_CMD_SRAM_WRITE:
-		ret = iwl_tm_indirect_write(mvm, data_in);
+		ret = iwl_tm_indirect_write(testmode, data_in);
 		break;
 	case IWL_TM_USER_CMD_SRAM_READ:
-		ret = iwl_tm_indirect_read(mvm, data_in, data_out);
+		ret = iwl_tm_indirect_read(testmode, data_in, data_out);
 		break;
 	case IWL_TM_USER_CMD_GET_DEVICE_INFO:
-		ret = iwl_tm_get_dev_info(mvm, data_out);
+		ret = iwl_tm_get_dev_info(testmode, data_out);
 		break;
 	case IWL_TM_USER_CMD_GET_FW_INFO:
-		ret = iwl_tm_get_fw_info(mvm, data_out);
+		ret = iwl_tm_get_fw_info(testmode, data_out);
 		break;
 	default:
 		ret = -EOPNOTSUPP;
 		break;
 	}
 
-	iwl_mvm_unref(mvm, IWL_MVM_REF_TM_CMD);
-
+out:
+	if (test_ops->cmd_exec_end)
+		test_ops->cmd_exec_end(testmode);
 	return ret;
 }
 
-/**
- * iwl_tm_mvm_send_rx() - Send a spontaneous rx message to user
- * @mvm:	mvm opmode pointer
- * @rxb:	Contains rx packet to be sent
- */
-void iwl_tm_mvm_send_rx(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
+void iwl_tm_init(struct iwl_trans *trans, const struct iwl_fw *fw,
+		 struct mutex *mutex, void *op_mode)
 {
-	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	int length = iwl_rx_packet_len(pkt);
+	struct iwl_testmode *testmode = &trans->testmode;
 
-	/* the length doesn't include len_n_flags field, so add it manually */
-	length += sizeof(__le32);
+	testmode->trans = trans;
+	testmode->fw = fw;
+	testmode->mutex = mutex;
+	testmode->op_mode = op_mode;
 
-	iwl_tm_gnl_send_msg(mvm->trans, IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
-			    true, (void *)pkt, length, GFP_ATOMIC);
+	if (trans->op_mode->ops->test_ops.send_hcmd)
+		testmode->send_hcmd = trans->op_mode->ops->test_ops.send_hcmd;
 }
+IWL_EXPORT_SYMBOL(iwl_tm_init);
+
+void iwl_tm_set_fw_ver(struct iwl_trans *trans, u32 fw_major_ver,
+		       u32 fw_minor_var)
+{
+	struct iwl_testmode *testmode = &trans->testmode;
+
+	testmode->fw_major_ver = fw_major_ver;
+	testmode->fw_minor_ver = fw_minor_var;
+}
+IWL_EXPORT_SYMBOL(iwl_tm_set_fw_ver);

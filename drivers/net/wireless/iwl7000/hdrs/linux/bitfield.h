@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2014 Felix Fietkau <nbd@nbd.name>
  * Copyright (C) 2004 - 2009 Ivo van Doorn <IvDoorn@gmail.com>
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2
@@ -16,6 +17,7 @@
 #define _LINUX_BITFIELD_H
 
 #include <linux/build_bug.h>
+#include <asm/byteorder.h>
 
 /*
  * Bitfield access macros
@@ -102,5 +104,20 @@
 		__BF_FIELD_CHECK(_mask, _reg, 0U, "FIELD_GET: ");	\
 		(typeof(_mask))(((_reg) & (_mask)) >> __bf_shf(_mask));	\
 	})
+
+/* helpers that take into account endianness */
+#define FIELD_BE16_GET(_mask, _reg) FIELD_GET(_mask, be16_to_cpu(_reg))
+#define FIELD_BE32_GET(_mask, _reg) FIELD_GET(_mask, be32_to_cpu(_reg))
+#define FIELD_BE64_GET(_mask, _reg) FIELD_GET(_mask, be64_to_cpu(_reg))
+#define FIELD_LE16_GET(_mask, _reg) FIELD_GET(_mask, le16_to_cpu(_reg))
+#define FIELD_LE32_GET(_mask, _reg) FIELD_GET(_mask, le32_to_cpu(_reg))
+#define FIELD_LE64_GET(_mask, _reg) FIELD_GET(_mask, le64_to_cpu(_reg))
+
+#define FIELD_BE16_PREP(_mask, _val) cpu_to_be16(FIELD_PREP(_mask, _val))
+#define FIELD_BE32_PREP(_mask, _val) cpu_to_be32(FIELD_PREP(_mask, _val))
+#define FIELD_BE64_PREP(_mask, _val) cpu_to_be64(FIELD_PREP(_mask, _val))
+#define FIELD_LE16_PREP(_mask, _val) cpu_to_le16(FIELD_PREP(_mask, _val))
+#define FIELD_LE32_PREP(_mask, _val) cpu_to_le32(FIELD_PREP(_mask, _val))
+#define FIELD_LE64_PREP(_mask, _val) cpu_to_le64(FIELD_PREP(_mask, _val))
 
 #endif

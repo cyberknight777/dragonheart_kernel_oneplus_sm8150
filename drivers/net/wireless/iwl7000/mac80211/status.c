@@ -4,6 +4,7 @@
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2008-2010	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2015  Intel Mobile Communications GmbH
+ * Copyright 2018       Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -709,8 +710,6 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
 	struct ieee80211_bar *bar;
 	int shift = 0;
 	int tid = IEEE80211_NUM_TIDS;
-	int prev_loss_pkt;
-	bool send_fail = true;
 
 	rates_idx = ieee80211_tx_get_rates(hw, info, &retry_count);
 
@@ -814,14 +813,11 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
 			ieee80211_sta_tx_notify(sta->sdata, (void *) skb->data,
 						acked, info->status.tx_time);
 
-		prev_loss_pkt = 0;
-
 		if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS)) {
 			if (info->flags & IEEE80211_TX_STAT_ACK) {
-				send_fail = false;
-				if (sta->status_stats.lost_packets) {
+
+				if (sta->status_stats.lost_packets)
 					sta->status_stats.lost_packets = 0;
-				}
 
 				/* Track when last TDLS packet was ACKed */
 				if (test_sta_flag(sta, WLAN_STA_TDLS_PEER_AUTH))

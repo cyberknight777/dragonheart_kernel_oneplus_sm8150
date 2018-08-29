@@ -179,6 +179,7 @@ enum {
 	IWL_XVT_CMD_SEND_MOD_TX_DONE,
 	IWL_XVT_CMD_ENHANCED_TX_DONE,
 	IWL_XVT_CMD_TX_CMD_RESP,
+	IWL_XVT_CMD_ECHO_NOTIF,
 
 	/* Bus Tester Commands*/
 	IWL_TM_USER_CMD_SV_BUS_CONFIG = XVT_BUS_TESTER_BASE,
@@ -200,6 +201,8 @@ enum {
 	IWL_DRV_CMD_TX_START,
 	IWL_DRV_CMD_TX_STOP,
 	IWL_DRV_CMD_GET_RX_AGG_STATS,
+	IWL_DRV_CMD_CONFIG_RX_MPDU,
+	IWL_DRV_CMD_ECHO_NOTIF,
 };
 
 enum {
@@ -494,11 +497,12 @@ struct iwl_tm_mod_tx_request {
 
 /**
  * struct iwl_xvt_tx_mod_task_data - Data for modulated tx task handler
- * @xvt:	  pointer to the xvt op mode
- * @tx_req:	  pointer to data of transmission request
+ * @lmac_id:	lmac index
+ * @xvt:	pointer to the xvt op mode
+ * @tx_req:	pointer to data of transmission request
  */
 struct iwl_xvt_tx_mod_task_data {
-	__u8 lmac_id;
+	__u32 lmac_id;
 	struct iwl_xvt *xvt;
 	struct iwl_tm_mod_tx_request tx_req;
 } __packed __aligned(4);
@@ -517,7 +521,7 @@ enum {
  * struct iwl_xvt_tx_mod_done - Notification data for modulated tx
  * @num_of_packets: number of sent packets
  * @status: tx task handler error status
- & @lmac_id: lmac index
+ * @lmac_id: lmac index
  */
 struct iwl_xvt_tx_mod_done {
 	__u64 num_of_packets;
@@ -648,7 +652,11 @@ struct iwl_xvt_driver_command_resp {
  * @aggregate: 1 aggregated queue, 0 otherwise
  * @tx_fifo: &enum iwl_mvm_tx_fifo
  * @window: BA window size
+ * @reserved: reserved
  * @ssn: SSN for the BA agreement
+ * @flags: flags for iwl_tx_queue_cfg_cmd. see &enum iwl_tx_queue_cfg_actions
+ * @reserved2: reserved
+ * @queue_size: size of configured queue
  */
 struct iwl_xvt_txq_config {
 	u8 sta_id;
@@ -660,6 +668,9 @@ struct iwl_xvt_txq_config {
 	u8 window;
 	u8 reserved;
 	u16 ssn;
+	u16 flags;
+	u16 reserved2;
+	int queue_size;
 } __packed __aligned(4);
 
 /**
@@ -696,6 +707,8 @@ struct iwl_xvt_set_tx_payload {
  * @initial_rate_index: Start index in TLC table
  * @rts_retry_limit: Max retry for RTS transmit
  * @data_retry_limit: Max retry for data transmit
+ * @fragment_size: 0 - no fragnentation else - max fragment size
+ * @frag_num: Array of fragments numbers
  */
 struct tx_cmd_commom_data {
 	u32 rate_flags;
@@ -703,7 +716,8 @@ struct tx_cmd_commom_data {
 	u8 initial_rate_index;
 	u8 rts_retry_limit;
 	u8 data_retry_limit;
-	u8 reserved;
+	u8 fragment_size;
+	u8 frag_num[32];
 } __packed __aligned(4);
 
 /**
@@ -736,6 +750,8 @@ struct tx_cmd_frame_data {
  *  tx until stop command is received.
  * @num_of_different_frames: actual number of entries in frames_data
  * @send_tx_resp: Whether to send FW's tx response to user
+ * @reserved1: for alignment
+ * @reserved2: for alignment
  * @tx_data: Tx command configuration shared data
  * @frames_data: array of specific frame data for each queue
 */
@@ -808,6 +824,15 @@ struct iwl_xvt_get_rx_agg_stats_resp {
 	u32 released;
 	u32 skipped;
 	u32 reordered;
+} __packed __aligned(4);
+
+/* struct iwl_xvt_config_rx_mpdu - Whether to send RX MPDU notifications to user
+ * @enable: 0 - disable. don't send rx mpdu to user 1 - send rx mpdu to user.
+ * @reserved: reserved
+ */
+struct iwl_xvt_config_rx_mpdu_req {
+	u8 enable;
+	u8 reserved[3];
 } __packed __aligned(4);
 
 #endif

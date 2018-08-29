@@ -81,6 +81,7 @@
 #include "iwl-io.h"
 #include "iwl-prph.h"
 #include "fw/dbg.h"
+#include "fw/api/rx.h"
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
@@ -124,7 +125,9 @@ static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
 	HCMD_NAME(NVM_COMMIT_COMPLETE_NOTIFICATION),
 	HCMD_NAME(REPLY_RX_PHY_CMD),
 	HCMD_NAME(REPLY_RX_MPDU_CMD),
+	HCMD_NAME(FRAME_RELEASE),
 	HCMD_NAME(REPLY_RX_DSP_EXT_INFO),
+	HCMD_NAME(BA_NOTIF),
 	HCMD_NAME(DTS_MEASUREMENT_NOTIFICATION),
 	HCMD_NAME(REPLY_DEBUG_XVT_CMD),
 	HCMD_NAME(DEBUG_LOG_MSG),
@@ -134,7 +137,17 @@ static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
  * Access is done through binary search.
  */
 static const struct iwl_hcmd_names iwl_xvt_long_cmd_names[] = {
+	HCMD_NAME(PHY_CONTEXT_CMD),
+	HCMD_NAME(ADD_STA_KEY),
+	HCMD_NAME(ADD_STA),
+	HCMD_NAME(REMOVE_STA),
+	HCMD_NAME(MAC_CONTEXT_CMD),
+	HCMD_NAME(BINDING_CONTEXT_CMD),
+	HCMD_NAME(LQ_CMD),
+	HCMD_NAME(POWER_TABLE_CMD),
 	HCMD_NAME(GET_SET_PHY_DB_CMD),
+	HCMD_NAME(TX_ANT_CONFIGURATION_CMD),
+	HCMD_NAME(REPLY_SF_CFG_CMD),
 };
 
 /* Please keep this array *SORTED* by hex value.
@@ -189,6 +202,16 @@ static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[REGULATORY_AND_NVM_GROUP] = HCMD_ARR(iwl_xvt_regulatory_and_nvm_names),
 	[XVT_GROUP] = HCMD_ARR(iwl_xvt_xvt_names),
 };
+
+static int iwl_xvt_tm_send_hcmd(void *op_mode, struct iwl_host_cmd *host_cmd)
+{
+	struct iwl_xvt *xvt = (struct iwl_xvt *)op_mode;
+
+	if (WARN_ON_ONCE(!op_mode))
+		return -EINVAL;
+
+	return iwl_xvt_send_cmd(xvt, host_cmd);
+}
 
 static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 					 const struct iwl_cfg *cfg,
@@ -258,6 +281,10 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	if (xvt->trans->cfg->mq_rx_supported)
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
 
+	trans->rx_mpdu_cmd_hdr_size =
+		(trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
+		sizeof(struct iwl_rx_mpdu_desc) : IWL_RX_DESC_SIZE_V1;
+
 	trans_cfg.cb_data_offs = offsetof(struct iwl_xvt_skb_info, trans);
 
 	/* Configure transport layer */
@@ -267,6 +294,8 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	/* set up notification wait support */
 	iwl_notification_wait_init(&xvt->notif_wait);
+
+	iwl_tm_init(trans, xvt->fw, &xvt->mutex, xvt);
 
 	/* Init phy db */
 	xvt->phy_db = iwl_phy_db_init(xvt->trans);
@@ -292,14 +321,15 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	xvt->tx_task = NULL;
 	xvt->is_enhanced_tx = false;
 	xvt->send_tx_resp = false;
+	xvt->send_rx_mpdu = true;
 	memset(xvt->queue_data, 0, sizeof(xvt->queue_data));
 	init_waitqueue_head(&xvt->tx_done_wq);
 
-	trans->dbg_dest_tlv = xvt->fw->dbg_dest_tlv;
-	trans->dbg_dest_reg_num = xvt->fw->dbg_dest_reg_num;
-	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg_conf_tlv,
+	trans->dbg_dest_tlv = xvt->fw->dbg.dest_tlv;
+	trans->dbg_n_dest_reg = xvt->fw->dbg.n_dest_reg;
+	memcpy(trans->dbg_conf_tlv, xvt->fw->dbg.conf_tlv,
 	       sizeof(trans->dbg_conf_tlv));
-	trans->dbg_trigger_tlv = xvt->fw->dbg_trigger_tlv;
+	trans->dbg_trigger_tlv = xvt->fw->dbg.trigger_tlv;
 
 	IWL_INFO(xvt, "Detected %s, REV=0x%X, xVT operation mode\n",
 		 xvt->cfg->name, xvt->trans->hw_rev);
@@ -665,12 +695,6 @@ static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 	return false;
 }
 
-static bool iwl_xvt_valid_hw_addr(u32 addr)
-{
-	/* TODO need to implement */
-	return true;
-}
-
 static void iwl_xvt_free_skb(struct iwl_op_mode *op_mode, struct sk_buff *skb)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
@@ -728,8 +752,8 @@ static const struct iwl_op_mode_ops iwl_xvt_ops = {
 	.queue_full = iwl_xvt_stop_sw_queue,
 	.queue_not_full = iwl_xvt_wake_sw_queue,
 	.test_ops = {
-		.cmd_execute = iwl_xvt_user_cmd_execute,
-		.valid_hw_addr = iwl_xvt_valid_hw_addr,
+		.send_hcmd = iwl_xvt_tm_send_hcmd,
+		.cmd_exec = iwl_xvt_user_cmd_execute,
 	},
 };
 
@@ -747,12 +771,10 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 			      u8 lmac_id)
 {
 	int ret;
-	struct iwl_tx_queue_cfg_cmd cmd = {
-			.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-			.sta_id = sta_id,
-			.tid = TX_QUEUE_CFG_TID };
 
-	ret = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd, SCD_QUEUE_CFG,
+	ret = iwl_trans_txq_alloc(xvt->trans,
+				  cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
+				  sta_id, TX_QUEUE_CFG_TID, SCD_QUEUE_CFG,
 				  IWL_DEFAULT_QUEUE_SIZE, 0);
 	/* ret is positive when func returns the allocated the queue number */
 	if (ret > 0) {

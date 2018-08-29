@@ -8,6 +8,8 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -17,11 +19,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -35,6 +32,8 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -387,11 +386,14 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct iwl_dev_tx_power_cmd cmd = {
-		.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_DEVICE),
-		.v3.dev_24 = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
-		.v3.dev_52_low = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
-		.v3.dev_52_high = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
+	union {
+		struct iwl_dev_tx_power_cmd_v4 v4;
+		struct iwl_dev_tx_power_cmd v5;
+	} cmd = {
+		.v5.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_DEVICE),
+		.v5.v3.dev_24 = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
+		.v5.v3.dev_52_low = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
+		.v5.v3.dev_52_high = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
 	};
 	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
 	int len = sizeof(cmd);
@@ -406,7 +408,7 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 
 		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER)
 			return -EINVAL;
-		cmd.v3.dev_24 = cpu_to_le16(txp);
+		cmd.v5.v3.dev_24 = cpu_to_le16(txp);
 	}
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L]) {
@@ -414,7 +416,7 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 
 		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER)
 			return -EINVAL;
-		cmd.v3.dev_52_low = cpu_to_le16(txp);
+		cmd.v5.v3.dev_52_low = cpu_to_le16(txp);
 	}
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H]) {
@@ -422,13 +424,19 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 
 		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER)
 			return -EINVAL;
-		cmd.v3.dev_52_high = cpu_to_le16(txp);
+		cmd.v5.v3.dev_52_high = cpu_to_le16(txp);
 	}
 
-	mvm->txp_cmd = cmd;
+	mvm->txp_cmd.v5 = cmd.v5;
 
-	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
-		len = sizeof(cmd.v3);
+	if (fw_has_api(&mvm->fw->ucode_capa,
+		       IWL_UCODE_TLV_API_REDUCE_TX_POWER))
+		len = sizeof(mvm->txp_cmd.v5);
+	else if (fw_has_capa(&mvm->fw->ucode_capa,
+			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
+		len = sizeof(mvm->txp_cmd.v4);
+	else
+		len = sizeof(mvm->txp_cmd.v4.v3);
 
 	mutex_lock(&mvm->mutex);
 	err = iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD, 0, len, &cmd);
@@ -1196,20 +1204,16 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 };
 
 enum iwl_mvm_vendor_events_idx {
-#ifdef CPTCFG_IWLMVM_TCM
 	IWL_MVM_VENDOR_EVENT_IDX_TCM,
-#endif
 	NUM_IWL_MVM_VENDOR_EVENT_IDX
 };
 
 static const struct nl80211_vendor_cmd_info
 iwl_mvm_vendor_events[NUM_IWL_MVM_VENDOR_EVENT_IDX] = {
-#ifdef CPTCFG_IWLMVM_TCM
 	[IWL_MVM_VENDOR_EVENT_IDX_TCM] = {
 		.vendor_id = INTEL_OUI,
 		.subcmd = IWL_MVM_VENDOR_CMD_TCM_EVENT,
 	},
-#endif
 };
 
 void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy)
@@ -1220,7 +1224,23 @@ void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy)
 	wiphy->n_vendor_events = ARRAY_SIZE(iwl_mvm_vendor_events);
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
+static enum iwl_mvm_vendor_load
+iwl_mvm_get_vendor_load(enum iwl_mvm_traffic_load load)
+{
+	switch (load) {
+	case IWL_MVM_TRAFFIC_HIGH:
+		return IWL_MVM_VENDOR_LOAD_HIGH;
+	case IWL_MVM_TRAFFIC_MEDIUM:
+		return IWL_MVM_VENDOR_LOAD_MEDIUM;
+	case IWL_MVM_TRAFFIC_LOW:
+		return IWL_MVM_VENDOR_LOAD_LOW;
+	default:
+		break;
+	}
+
+	return IWL_MVM_VENDOR_LOAD_LOW;
+}
+
 void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 {
 	struct sk_buff *msg =
@@ -1246,7 +1266,7 @@ void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	if (nla_put_u8(msg, IWL_MVM_VENDOR_ATTR_LL, iwl_mvm_low_latency(mvm)) ||
 	    nla_put_u8(msg, IWL_MVM_VENDOR_ATTR_LOAD,
-		       mvm->tcm.result.global_load))
+		       iwl_mvm_get_vendor_load(mvm->tcm.result.global_load)))
 		goto nla_put_failure;
 
 	cfg80211_vendor_event(msg, GFP_ATOMIC);
@@ -1255,5 +1275,10 @@ void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
  nla_put_failure:
 	kfree_skb(msg);
 }
-#endif
+
+#else /* CFG80211_VERSION > KERNEL_VERSION(3, 14, 0) */
+#include "mvm.h"
+
+void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
+{}
 #endif /* CFG80211_VERSION > KERNEL_VERSION(3, 14, 0) */

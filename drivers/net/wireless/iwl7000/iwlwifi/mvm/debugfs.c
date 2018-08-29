@@ -1224,6 +1224,10 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 	struct iwl_rx_mpdu_desc *desc;
 	int bin_len = count / 2;
 	int ret = -EINVAL;
+	size_t mpdu_cmd_hdr_size =
+		(mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
+		sizeof(struct iwl_rx_mpdu_desc) :
+		IWL_RX_DESC_SIZE_V1;
 
 	if (!iwl_mvm_firmware_running(mvm))
 		return -EIO;
@@ -1242,7 +1246,7 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 		goto out;
 
 	/* avoid invalid memory access */
-	if (bin_len < sizeof(*pkt) + sizeof(*desc))
+	if (bin_len < sizeof(*pkt) + mpdu_cmd_hdr_size)
 		goto out;
 
 	/* check this is RX packet */
@@ -1253,7 +1257,7 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 	/* check the length in metadata matches actual received length */
 	desc = (void *)pkt->data;
 	if (le16_to_cpu(desc->mpdu_len) !=
-	    (bin_len - sizeof(*desc) - sizeof(*pkt)))
+	    (bin_len - mpdu_cmd_hdr_size - sizeof(*pkt)))
 		goto out;
 
 	local_bh_disable();
@@ -1802,7 +1806,6 @@ iwl_dbgfs_send_echo_cmd_write(struct iwl_mvm *mvm, char *buf,
 	return ret ?: count;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 static ssize_t
 iwl_dbgfs_uapsd_noagg_bssids_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -1823,7 +1826,6 @@ iwl_dbgfs_uapsd_noagg_bssids_read(struct file *file, char __user *user_buf,
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
-#endif
 
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 static ssize_t iwl_dbgfs_tx_power_status_read(struct file *file,
@@ -1834,11 +1836,11 @@ static ssize_t iwl_dbgfs_tx_power_status_read(struct file *file,
 	char buf[64];
 	int bufsz = sizeof(buf);
 	int pos = 0;
-	u32 mode = le32_to_cpu(mvm->txp_cmd.v3.set_mode);
+	u32 mode = le32_to_cpu(mvm->txp_cmd.v5.v3.set_mode);
 	bool txp_cmd_valid = mode == IWL_TX_POWER_MODE_SET_DEVICE;
-	u16 val_24 = le16_to_cpu(mvm->txp_cmd.v3.dev_24);
-	u16 val_52l = le16_to_cpu(mvm->txp_cmd.v3.dev_52_low);
-	u16 val_52h = le16_to_cpu(mvm->txp_cmd.v3.dev_52_high);
+	u16 val_24 = le16_to_cpu(mvm->txp_cmd.v5.v3.dev_24);
+	u16 val_52l = le16_to_cpu(mvm->txp_cmd.v5.v3.dev_52_low);
+	u16 val_52h = le16_to_cpu(mvm->txp_cmd.v5.v3.dev_52_high);
 	char buf_24[15] = "(not limited)";
 	char buf_52l[15] = "(not limited)";
 	char buf_52h[15] = "(not limited)";
@@ -1900,9 +1902,7 @@ MVM_DEBUGFS_WRITE_FILE_OPS(inject_packet, 512);
 MVM_DEBUGFS_READ_FILE_OPS(tx_power_status);
 #endif
 
-#ifdef CPTCFG_IWLMVM_TCM
 MVM_DEBUGFS_READ_FILE_OPS(uapsd_noagg_bssids);
-#endif
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters, 256);
@@ -2127,9 +2127,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 				 mvm->debugfs_dir, &mvm->drop_bcn_ap_mode))
 		goto err;
 
-#ifdef CPTCFG_IWLMVM_TCM
 	MVM_DEBUGFS_ADD_FILE(uapsd_noagg_bssids, mvm->debugfs_dir, S_IRUSR);
-#endif
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {

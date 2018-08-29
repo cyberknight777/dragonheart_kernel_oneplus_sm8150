@@ -67,6 +67,7 @@
 #include "xvt.h"
 #include "iwl-dnt-cfg.h"
 #include "fw/dbg.h"
+#include "fw/testmode.h"
 
 #define XVT_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 
@@ -118,8 +119,8 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 
 		alive_data->valid = le16_to_cpu(palive2->status) ==
 				    IWL_ALIVE_STATUS_OK;
-		xvt->fw_major_ver = palive2->ucode_major;
-		xvt->fw_minor_ver = palive2->ucode_minor;
+		iwl_tm_set_fw_ver(xvt->trans, palive2->ucode_major,
+				  palive2->ucode_minor);
 		xvt->umac_error_event_table =
 			le32_to_cpu(palive2->error_info_addr);
 		if (xvt->umac_error_event_table)
@@ -163,8 +164,8 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		xvt->error_event_table[0] =
 			le32_to_cpu(lmac1->error_event_table_ptr);
 		alive_data->scd_base_addr = le32_to_cpu(lmac1->scd_base_ptr);
-		xvt->fw_major_ver = le32_to_cpu(lmac1->ucode_major);
-		xvt->fw_minor_ver = le32_to_cpu(lmac1->ucode_minor);
+		iwl_tm_set_fw_ver(xvt->trans, le32_to_cpu(lmac1->ucode_major),
+				  le32_to_cpu(lmac1->ucode_minor));
 		xvt->umac_error_event_table =
 			le32_to_cpu(umac->error_info_addr);
 		if (xvt->umac_error_event_table)
@@ -347,7 +348,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 
 	xvt->fwrt.dump.conf = FW_DBG_INVALID;
 	/* if we have a destination, assume EARLY START */
-	if (xvt->fw->dbg_dest_tlv)
+	if (xvt->fw->dbg.dest_tlv)
 		xvt->fwrt.dump.conf = FW_DBG_START_FROM_ALIVE;
 	iwl_fw_start_dbg_conf(&xvt->fwrt, FW_DBG_START_FROM_ALIVE);
 

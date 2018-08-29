@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -16,11 +17,6 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -33,6 +29,7 @@
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -297,7 +294,6 @@ void iwl_mvm_bt_coex_enable_rssi_event(struct iwl_mvm *mvm,
 		enable ? -IWL_MVM_BT_COEX_DIS_RED_TXP_THRESH : 0;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
 #define MVM_COEX_TCM_PERIOD (HZ * 10)
 
 static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
@@ -321,11 +317,6 @@ static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
 
 	swap(data->primary, data->secondary);
 }
-#else
-static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
-					 struct iwl_bt_iterator_data *data)
-{}
-#endif
 
 /* must be called under rcu_read_lock */
 static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
@@ -337,7 +328,7 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 	struct ieee80211_chanctx_conf *chanctx_conf;
 	/* default smps_mode is AUTOMATIC - only used for client modes */
 	enum ieee80211_smps_mode smps_mode = IEEE80211_SMPS_AUTOMATIC;
-	u32 bt_activity_grading;
+	u32 bt_activity_grading, min_ag_for_static_smps;
 	int ave_rssi;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -369,8 +360,13 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		return;
 	}
 
+	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_COEX_SCHEMA_2))
+		min_ag_for_static_smps = BT_VERY_HIGH_TRAFFIC;
+	else
+		min_ag_for_static_smps = BT_HIGH_TRAFFIC;
+
 	bt_activity_grading = le32_to_cpu(data->notif->bt_activity_grading);
-	if (bt_activity_grading >= BT_HIGH_TRAFFIC)
+	if (bt_activity_grading >= min_ag_for_static_smps)
 		smps_mode = IEEE80211_SMPS_STATIC;
 	else if (bt_activity_grading >= BT_LOW_TRAFFIC)
 		smps_mode = IEEE80211_SMPS_DYNAMIC;
@@ -418,12 +414,10 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 			data->secondary = chanctx_conf;
 		}
 
-#ifdef CPTCFG_IWLMVM_TCM
 		if (data->primary == chanctx_conf)
 			data->primary_load = mvm->tcm.result.load[mvmvif->id];
 		else if (data->secondary == chanctx_conf)
 			data->secondary_load = mvm->tcm.result.load[mvmvif->id];
-#endif
 		return;
 	}
 
@@ -437,12 +431,10 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		/* if secondary is not NULL, it might be a GO */
 		data->secondary = chanctx_conf;
 
-#ifdef CPTCFG_IWLMVM_TCM
 	if (data->primary == chanctx_conf)
 		data->primary_load = mvm->tcm.result.load[mvmvif->id];
 	else if (data->secondary == chanctx_conf)
 		data->secondary_load = mvm->tcm.result.load[mvmvif->id];
-#endif
 	/*
 	 * don't reduce the Tx power if one of these is true:
 	 *  we are in LOOSE
@@ -699,6 +691,15 @@ bool iwl_mvm_bt_coex_is_tpc_allowed(struct iwl_mvm *mvm,
 		return false;
 
 	return bt_activity >= BT_LOW_TRAFFIC;
+}
+
+u8 iwl_mvm_bt_coex_get_single_ant_msk(struct iwl_mvm *mvm, u8 enabled_ants)
+{
+	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_COEX_SCHEMA_2) &&
+	    (mvm->cfg->non_shared_ant & enabled_ants))
+		return mvm->cfg->non_shared_ant;
+
+	return first_antenna(enabled_ants);
 }
 
 u8 iwl_mvm_bt_coex_tx_prio(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,

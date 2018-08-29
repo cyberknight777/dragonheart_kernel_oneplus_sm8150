@@ -211,6 +211,12 @@ static int iwl_tm_trace_begin(struct iwl_tm_gnl_dev *dev,
 	return 0;
 }
 
+static bool iwl_tm_gnl_valid_hw_addr(u32 addr)
+{
+	/* TODO need to implement */
+	return true;
+}
+
 /**
  * iwl_tm_validate_sram_write_req() - Checks input data of SRAM write request
  * @dev:	testmode device struct
@@ -238,7 +244,7 @@ static int iwl_tm_validate_sram_write_req(struct iwl_tm_gnl_dev *dev,
 	if (data_buf_size < cmd_in->len)
 		return -EINVAL;
 
-	if (dev->trans->op_mode->ops->test_ops.valid_hw_addr(cmd_in->offset))
+	if (iwl_tm_gnl_valid_hw_addr(cmd_in->offset))
 		return 0;
 
 	if ((cmd_in->offset < IWL_ABS_PRPH_START)  &&
@@ -269,7 +275,7 @@ static int iwl_tm_validate_sram_read_req(struct iwl_tm_gnl_dev *dev,
 
 	cmd_in = data_in->data;
 
-	if (dev->trans->op_mode->ops->test_ops.valid_hw_addr(cmd_in->offset))
+	if (iwl_tm_gnl_valid_hw_addr(cmd_in->offset))
 		return 0;
 
 	if ((cmd_in->offset < IWL_ABS_PRPH_START)  &&
@@ -681,27 +687,6 @@ static int iwl_tm_gnl_reply(struct genl_info *info,
 	return genlmsg_reply(skb, info);
 }
 
-static int iwl_op_mode_tm_execute_cmd(struct iwl_tm_gnl_dev *dev,
-				      u32 cmd,
-				      struct iwl_tm_data *data_in,
-				      struct iwl_tm_data *data_out)
-{
-	const struct iwl_test_ops *test_ops;
-
-	if (!dev->trans->op_mode) {
-		IWL_ERR(dev->trans, "No op_mode!\n");
-		return -ENODEV;
-	}
-
-	test_ops = &dev->trans->op_mode->ops->test_ops;
-
-	if (test_ops->cmd_execute)
-		return test_ops->cmd_execute(dev->trans->op_mode,
-					     cmd, data_in, data_out);
-
-	return -EOPNOTSUPP;
-}
-
 /**
  * iwl_tm_gnl_cmd_execute() - Execute IWL testmode GNL command
  * @cmd_data:	Pointer to the data of command to be executed
@@ -803,9 +788,9 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 	}
 
 	if (!common_op)
-		ret = iwl_op_mode_tm_execute_cmd(dev, cmd_data->cmd,
-						 &cmd_data->data_in,
-						 &cmd_data->data_out);
+		ret = iwl_tm_execute_cmd(&dev->trans->testmode, cmd_data->cmd,
+					 &cmd_data->data_in,
+					 &cmd_data->data_out);
 
 	if (ret)
 		IWL_ERR(dev->trans, "%s ret=%d\n", __func__, ret);
@@ -830,8 +815,9 @@ static int iwl_tm_mem_dump(struct iwl_tm_gnl_dev *dev,
 	if (ret)
 		return ret;
 
-	return iwl_op_mode_tm_execute_cmd(dev, IWL_TM_USER_CMD_SRAM_READ,
-					  data_in, data_out);
+	return iwl_tm_execute_cmd(&dev->trans->testmode,
+				  IWL_TM_USER_CMD_SRAM_READ,
+				  data_in, data_out);
 }
 
 /**
@@ -1238,3 +1224,21 @@ int iwl_tm_gnl_exit(void)
 	netlink_unregister_notifier(&iwl_tm_gnl_netlink_notifier);
 	return genl_unregister_family(&iwl_tm_gnl_family);
 }
+
+/**
+ * iwl_tm_fw_send_rx() - Send a spontaneous rx message to user
+ * @trans:	Pointer to the transport layer
+ * @rxb:	Contains rx packet to be sent
+ */
+void iwl_tm_gnl_send_rx(struct iwl_trans *trans, struct iwl_rx_cmd_buffer *rxb)
+{
+	struct iwl_rx_packet *pkt = rxb_addr(rxb);
+	int length = iwl_rx_packet_len(pkt);
+
+	/* the length doesn't include len_n_flags field, so add it manually */
+	length += sizeof(__le32);
+
+	iwl_tm_gnl_send_msg(trans, IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT, true,
+			    (void *)pkt, length, GFP_ATOMIC);
+}
+IWL_EXPORT_SYMBOL(iwl_tm_gnl_send_rx);

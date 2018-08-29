@@ -8,6 +8,7 @@
  * Copyright(c) 2008 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -35,6 +36,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -143,7 +145,7 @@ enum iwl_ucode_tlv_type {
 	IWL_UCODE_TLV_FW_DBG_TRIGGER	= 40,
 	IWL_UCODE_TLV_FW_GSCAN_CAPA	= 50,
 	IWL_UCODE_TLV_FW_MEM_SEG	= 51,
-	/* 52 is unused */
+	IWL_UCODE_TLV_IML		= 52,
 	IWL_UCODE_TLV_FW_FMAC_API_VERSION	= 53,
 
 	/* TLVs 0x1000-0x2000 are for internal driver usage */
@@ -258,8 +260,11 @@ typedef unsigned int __bitwise iwl_ucode_tlv_api_t;
  *	deprecated.
  * @IWL_UCODE_TLV_API_ADAPTIVE_DWELL_V2: This ucode supports version 8
  *	of scan request: SCAN_REQUEST_CMD_UMAC_API_S_VER_8
- * IWL_UCODE_TLV_API_NAN_NOTIF_V2: This ucode support version 2 of the NAN
- *      discovery notification.
+ * @IWL_UCODE_TLV_API_NAN_NOTIF_V2: This ucode supports version 2 of
+ *      the NAN discovery notification.
+ * @IWL_UCODE_TLV_API_FRAG_EBS: This ucode supports fragmented EBS
+ * @IWL_UCODE_TLV_API_REDUCE_TX_POWER: This ucode supports v5 of
+ *	the REDUCE_TX_POWER_CMD.
  *
  * @NUM_IWL_UCODE_TLV_API: number of bits used
  */
@@ -278,10 +283,13 @@ enum iwl_ucode_tlv_api {
 	IWL_UCODE_TLV_API_OCE			= (__force iwl_ucode_tlv_api_t)33,
 	IWL_UCODE_TLV_API_NEW_BEACON_TEMPLATE	= (__force iwl_ucode_tlv_api_t)34,
 	IWL_UCODE_TLV_API_NEW_RX_STATS		= (__force iwl_ucode_tlv_api_t)35,
+	IWL_UCODE_TLV_API_WOWLAN_KEY_MATERIAL	= (__force iwl_ucode_tlv_api_t)36,
 	IWL_UCODE_TLV_API_QUOTA_LOW_LATENCY	= (__force iwl_ucode_tlv_api_t)38,
 	IWL_UCODE_TLV_API_DEPRECATE_TTAK	= (__force iwl_ucode_tlv_api_t)41,
 	IWL_UCODE_TLV_API_ADAPTIVE_DWELL_V2	= (__force iwl_ucode_tlv_api_t)42,
 	IWL_UCODE_TLV_API_NAN_NOTIF_V2		= (__force iwl_ucode_tlv_api_t)43,
+	IWL_UCODE_TLV_API_FRAG_EBS		= (__force iwl_ucode_tlv_api_t)44,
+	IWL_UCODE_TLV_API_REDUCE_TX_POWER	= (__force iwl_ucode_tlv_api_t)45,
 
 	NUM_IWL_UCODE_TLV_API
 #ifdef __CHECKER__
@@ -334,6 +342,7 @@ typedef unsigned int __bitwise iwl_ucode_tlv_capa_t;
  * @IWL_UCODE_TLV_CAPA_STA_PM_NOTIF: firmware will send STA PM notification
  * @IWL_UCODE_TLV_CAPA_TLC_OFFLOAD: firmware implements rate scaling algorithm
  * @IWL_UCODE_TLV_CAPA_DYNAMIC_QUOTA: firmware implements quota related
+ * @IWL_UCODE_TLV_CAPA_COEX_SCHEMA_2: firmware implements Coex Schema 2
  * @IWL_UCODE_TLV_CAPA_EXTENDED_DTS_MEASURE: extended DTS measurement
  * @IWL_UCODE_TLV_CAPA_SHORT_PM_TIMEOUTS: supports short PM timeouts
  * @IWL_UCODE_TLV_CAPA_BT_MPLUT_SUPPORT: supports bt-coex Multi-priority LUT
@@ -403,6 +412,7 @@ enum iwl_ucode_tlv_capa {
 	IWL_UCODE_TLV_CAPA_D0I3_END_FIRST		= (__force iwl_ucode_tlv_capa_t)41,
 	IWL_UCODE_TLV_CAPA_TLC_OFFLOAD                  = (__force iwl_ucode_tlv_capa_t)43,
 	IWL_UCODE_TLV_CAPA_DYNAMIC_QUOTA                = (__force iwl_ucode_tlv_capa_t)44,
+	IWL_UCODE_TLV_CAPA_COEX_SCHEMA_2		= (__force iwl_ucode_tlv_capa_t)45,
 	IWL_UCODE_TLV_CAPA_EXTENDED_DTS_MEASURE		= (__force iwl_ucode_tlv_capa_t)64,
 	IWL_UCODE_TLV_CAPA_SHORT_PM_TIMEOUTS		= (__force iwl_ucode_tlv_capa_t)65,
 	IWL_UCODE_TLV_CAPA_BT_MPLUT_SUPPORT		= (__force iwl_ucode_tlv_capa_t)67,
@@ -552,22 +562,9 @@ enum iwl_fw_dbg_monitor_mode {
 };
 
 /**
- * enum iwl_fw_mem_seg_type - memory segment type
- * @FW_DBG_MEM_TYPE_MASK: mask for the type indication
- * @FW_DBG_MEM_TYPE_REGULAR: regular memory
- * @FW_DBG_MEM_TYPE_PRPH: periphery memory (requires special reading)
- */
-enum iwl_fw_mem_seg_type {
-	FW_DBG_MEM_TYPE_MASK	= 0xff000000,
-	FW_DBG_MEM_TYPE_REGULAR	= 0x00000000,
-	FW_DBG_MEM_TYPE_PRPH	= 0x01000000,
-};
-
-/**
  * struct iwl_fw_dbg_mem_seg_tlv - configures the debug data memory segments
  *
- * @data_type: the memory segment type to record, see &enum iwl_fw_mem_seg_type
- *	for what we care about
+ * @data_type: the memory segment type to record
  * @ofs: the memory segment offset
  * @len: the memory segment length, in bytes
  *

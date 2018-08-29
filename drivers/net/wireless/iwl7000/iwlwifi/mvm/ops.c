@@ -85,7 +85,6 @@
 #include "iwl-prph.h"
 #include "rs.h"
 #include "fw/api/scan.h"
-#include "iwl-tm-gnl.h"
 #include "time-event.h"
 #include "fw-api.h"
 #include "fw/api/scan.h"
@@ -95,6 +94,7 @@
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
+#include "iwl-tm-gnl.h"
 #endif
 
 #define DRV_DESCRIPTION	"The new Intel(R) wireless AGN driver for Linux"
@@ -347,6 +347,9 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 		       iwl_mvm_nan_de_term_notif, RX_HANDLER_SYNC),
 	RX_HANDLER_GRP(NAN_GROUP, NAN_DISCOVERY_EVENT_NOTIF,
 		       iwl_mvm_nan_match, RX_HANDLER_SYNC),
+	RX_HANDLER_GRP(MAC_CONF_GROUP, PROBE_RESPONSE_DATA_NOTIF,
+		       iwl_mvm_probe_resp_data_notif,
+		       RX_HANDLER_ASYNC_LOCKED),
 	RX_HANDLER_GRP(MAC_CONF_GROUP, CHANNEL_SWITCH_NOA_NOTIF,
 		       iwl_mvm_channel_switch_noa_notif,
 		       RX_HANDLER_SYNC),
@@ -493,6 +496,7 @@ static const struct iwl_hcmd_names iwl_mvm_data_path_names[] = {
 	HCMD_NAME(DQA_ENABLE_CMD),
 	HCMD_NAME(UPDATE_MU_GROUPS_CMD),
 	HCMD_NAME(TRIGGER_RX_QUEUES_NOTIF_CMD),
+	HCMD_NAME(RFH_QUEUE_CONFIG_CMD),
 	HCMD_NAME(STA_PM_NOTIF),
 	HCMD_NAME(MU_GROUP_MGMT_NOTIF),
 	HCMD_NAME(RX_QUEUES_NOTIFICATION),
@@ -669,6 +673,32 @@ static const struct iwl_fw_runtime_ops iwl_mvm_fwrt_ops = {
 	.fw_running = iwl_mvm_fwrt_fw_running,
 };
 
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+static int iwl_mvm_tm_send_hcmd(void *op_mode, struct iwl_host_cmd *host_cmd)
+{
+	struct iwl_mvm *mvm = (struct iwl_mvm *)op_mode;
+
+	if (WARN_ON_ONCE(!op_mode))
+		return -EINVAL;
+
+	return iwl_mvm_send_cmd(mvm, host_cmd);
+}
+
+static int iwl_mvm_tm_cmd_exec_start(struct iwl_testmode *testmode)
+{
+	struct iwl_mvm *mvm = testmode->op_mode;
+
+	return iwl_mvm_ref_sync(mvm, IWL_MVM_REF_TM_CMD);
+}
+
+static void iwl_mvm_tm_cmd_exec_end(struct iwl_testmode *testmode)
+{
+	struct iwl_mvm *mvm = testmode->op_mode;
+
+	iwl_mvm_unref(mvm, IWL_MVM_REF_TM_CMD);
+}
+#endif
+
 static struct iwl_op_mode *
 iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		      const struct iwl_fw *fw, struct dentry *dbgfs_dir)
@@ -682,6 +712,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	};
 	int err, scan_size;
 	u32 min_backoff;
+	enum iwl_amsdu_size rb_size_default;
 
 	/*
 	 * We use IWL_MVM_STATION_COUNT to check the validity of the station
@@ -721,7 +752,11 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	if (iwl_mvm_has_new_rx_api(mvm)) {
 		op_mode->ops = &iwl_mvm_ops_mq;
-		trans->rx_mpdu_cmd_hdr_size = sizeof(struct iwl_rx_mpdu_desc);
+		trans->rx_mpdu_cmd_hdr_size =
+			(trans->cfg->device_family >=
+			 IWL_DEVICE_FAMILY_22560) ?
+			sizeof(struct iwl_rx_mpdu_desc) :
+			IWL_RX_DESC_SIZE_V1;
 	} else {
 		op_mode->ops = &iwl_mvm_ops;
 		trans->rx_mpdu_cmd_hdr_size =
@@ -771,13 +806,11 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	SET_IEEE80211_DEV(mvm->hw, mvm->trans->dev);
 
-#ifdef CPTCFG_IWLMVM_TCM
 	spin_lock_init(&mvm->tcm.lock);
 	INIT_DELAYED_WORK(&mvm->tcm.work, iwl_mvm_tcm_work);
 	mvm->tcm.ts = jiffies;
 	mvm->tcm.ll_ts = jiffies;
 	mvm->tcm.uapsd_nonagg_ts = jiffies;
-#endif
 
 #ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
 	INIT_LIST_HEAD(&mvm->tdls_peer_cache_list);
@@ -796,8 +829,16 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	trans_cfg.op_mode = op_mode;
 	trans_cfg.no_reclaim_cmds = no_reclaim_cmds;
 	trans_cfg.n_no_reclaim_cmds = ARRAY_SIZE(no_reclaim_cmds);
+
+	if (mvm->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+		rb_size_default = IWL_AMSDU_2K;
+	else
+		rb_size_default = IWL_AMSDU_4K;
+
 	switch (iwlwifi_mod_params.amsdu_size) {
 	case IWL_AMSDU_DEF:
+		trans_cfg.rx_buf_size = rb_size_default;
+		break;
 	case IWL_AMSDU_4K:
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
 		break;
@@ -810,11 +851,12 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	default:
 		pr_err("%s: Unsupported amsdu_size: %d\n", KBUILD_MODNAME,
 		       iwlwifi_mod_params.amsdu_size);
-		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
+		trans_cfg.rx_buf_size = rb_size_default;
 	}
 
 	trans->wide_cmd_header = true;
-	trans_cfg.bc_table_dword = true;
+	trans_cfg.bc_table_dword =
+		mvm->trans->cfg->device_family < IWL_DEVICE_FAMILY_22560;
 
 	trans_cfg.command_groups = iwl_mvm_groups;
 	trans_cfg.command_groups_size = ARRAY_SIZE(iwl_mvm_groups);
@@ -840,18 +882,22 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	iwl_trans_configure(mvm->trans, &trans_cfg);
 
 	trans->rx_mpdu_cmd = REPLY_RX_MPDU_CMD;
-	trans->dbg_dest_tlv = mvm->fw->dbg_dest_tlv;
-	trans->dbg_dest_reg_num = mvm->fw->dbg_dest_reg_num;
-	memcpy(trans->dbg_conf_tlv, mvm->fw->dbg_conf_tlv,
+	trans->dbg_dest_tlv = mvm->fw->dbg.dest_tlv;
+	trans->dbg_n_dest_reg = mvm->fw->dbg.n_dest_reg;
+	memcpy(trans->dbg_conf_tlv, mvm->fw->dbg.conf_tlv,
 	       sizeof(trans->dbg_conf_tlv));
-	trans->dbg_trigger_tlv = mvm->fw->dbg_trigger_tlv;
-	trans->dbg_dump_mask = mvm->fw->dbg_dump_mask;
+	trans->dbg_trigger_tlv = mvm->fw->dbg.trigger_tlv;
+	trans->dbg_dump_mask = mvm->fw->dbg.dump_mask;
+
+	trans->iml = mvm->fw->iml;
+	trans->iml_len = mvm->fw->iml_len;
 
 	/* set up notification wait support */
 	iwl_notification_wait_init(&mvm->notif_wait);
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	iwl_dnt_init(mvm->trans, dbgfs_dir);
+	iwl_tm_init(trans, mvm->fw, &mvm->mutex, mvm);
 #endif
 
 	/* Init phy db */
@@ -881,6 +927,8 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	mutex_lock(&mvm->mutex);
 	iwl_mvm_ref(mvm, IWL_MVM_REF_INIT_UCODE);
 	err = iwl_run_init_mvm_ucode(mvm, true);
+	if (test_bit(IWL_FWRT_STATUS_WAIT_ALIVE, &mvm->fwrt.status))
+		iwl_fw_alive_error_dump(&mvm->fwrt);
 	if (!iwlmvm_mod_params.init_dbg || !err)
 		iwl_mvm_stop_device(mvm);
 	iwl_mvm_unref(mvm, IWL_MVM_REF_INIT_UCODE);
@@ -999,9 +1047,7 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 	for (i = 0; i < NVM_MAX_NUM_SECTIONS; i++)
 		kfree(mvm->nvm_sections[i].data);
 
-#ifdef CPTCFG_IWLMVM_TCM
 	cancel_delayed_work_sync(&mvm->tcm.work);
-#endif
 
 #ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
 	iwl_mvm_tdls_peer_cache_clear(mvm, NULL);
@@ -1071,14 +1117,12 @@ static inline void iwl_mvm_rx_check_trigger(struct iwl_mvm *mvm,
 	struct iwl_fw_dbg_trigger_cmd *cmds_trig;
 	int i;
 
-	if (!iwl_fw_dbg_trigger_enabled(mvm->fw, FW_DBG_TRIGGER_FW_NOTIF))
+	trig = iwl_fw_dbg_trigger_on(&mvm->fwrt, NULL,
+				     FW_DBG_TRIGGER_FW_NOTIF);
+	if (!trig)
 		return;
 
-	trig = iwl_fw_dbg_get_trigger(mvm->fw, FW_DBG_TRIGGER_FW_NOTIF);
 	cmds_trig = (void *)trig->data;
-
-	if (!iwl_fw_dbg_trigger_check_stop(&mvm->fwrt, NULL, trig))
-		return;
 
 	for (i = 0; i < ARRAY_SIZE(cmds_trig->cmds); i++) {
 		/* don't collect on CMD 0 */
@@ -1137,10 +1181,8 @@ static void iwl_mvm_rx_common(struct iwl_mvm *mvm,
 		list_add_tail(&entry->list, &mvm->async_handlers_list);
 		spin_unlock(&mvm->async_handlers_lock);
 		schedule_work(&mvm->async_handlers_wk);
-		return;
+		break;
 	}
-
-	iwl_fwrt_handle_notification(&mvm->fwrt, rxb);
 }
 
 static void iwl_mvm_rx(struct iwl_op_mode *op_mode,
@@ -1158,7 +1200,7 @@ static void iwl_mvm_rx(struct iwl_op_mode *op_mode,
 	 * In this case the iwl_test object will handle forwarding the rx
 	 * data to user space.
 	 */
-	iwl_tm_mvm_send_rx(mvm, rxb);
+	iwl_tm_gnl_send_rx(mvm->trans, rxb);
 #endif
 
 	if (likely(cmd == WIDE_ID(LEGACY_GROUP, REPLY_RX_MPDU_CMD)))
@@ -1184,7 +1226,7 @@ static void iwl_mvm_rx_mq(struct iwl_op_mode *op_mode,
 	 * In this case the iwl_test object will handle forwarding the rx
 	 * data to user space.
 	 */
-	iwl_tm_mvm_send_rx(mvm, rxb);
+	iwl_tm_gnl_send_rx(mvm->trans, rxb);
 #endif
 
 	if (likely(cmd == WIDE_ID(LEGACY_GROUP, REPLY_RX_MPDU_CMD)))
@@ -1600,9 +1642,7 @@ int iwl_mvm_enter_d0i3(struct iwl_op_mode *op_mode)
 		mvm->d0i3_offloading = false;
 	}
 
-#ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_pause_tcm(mvm, true);
-#endif
 	/* make sure we have no running tx while configuring the seqno */
 	synchronize_net();
 
@@ -1743,25 +1783,23 @@ out:
 static void iwl_mvm_d0i3_exit_work(struct work_struct *wk)
 {
 	struct iwl_mvm *mvm = container_of(wk, struct iwl_mvm, d0i3_exit_work);
-	struct iwl_host_cmd get_status_cmd = {
-		.id = WOWLAN_GET_STATUSES,
-		.flags = CMD_HIGH_PRIO | CMD_WANT_SKB,
-	};
 	struct iwl_mvm_d0i3_exit_work_iter_data iter_data = {
 		.mvm = mvm,
 	};
 
 	struct iwl_wowlan_status *status;
-	int ret;
 	u32 wakeup_reasons = 0;
 	__le16 *qos_seq = NULL;
 
 	mutex_lock(&mvm->mutex);
-	ret = iwl_mvm_send_cmd(mvm, &get_status_cmd);
-	if (ret)
-		goto out;
 
-	status = (void *)get_status_cmd.resp_pkt->data;
+	status = iwl_mvm_send_wowlan_get_status(mvm);
+	if (IS_ERR_OR_NULL(status)) {
+		/* set to NULL so we don't need to check before kfree'ing */
+		status = NULL;
+		goto out;
+	}
+
 	wakeup_reasons = le32_to_cpu(status->wakeup_reasons);
 	qos_seq = status->qos_seq_ctr;
 
@@ -1780,15 +1818,12 @@ out:
 		       wakeup_reasons);
 
 	/* qos_seq might point inside resp_pkt, so free it only now */
-	if (get_status_cmd.resp_pkt)
-		iwl_free_resp(&get_status_cmd);
+	kfree(status);
 
 	/* the FW might have updated the regdomain */
 	iwl_mvm_update_changed_regdom(mvm);
 
-#ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_resume_tcm(mvm);
-#endif
 	iwl_mvm_unref(mvm, IWL_MVM_REF_EXIT_WORK);
 	mutex_unlock(&mvm->mutex);
 }
@@ -1853,9 +1888,9 @@ int iwl_mvm_exit_d0i3(struct iwl_op_mode *op_mode)
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #define IWL_MVM_COMMON_TEST_OPS					\
 	.test_ops = {						\
-		.cmd_execute = iwl_mvm_tm_cmd_execute,		\
-		.valid_hw_addr = iwl_mvm_testmode_valid_hw_addr,\
-		.get_fw_ver = iwl_mvm_testmode_get_fw_ver,	\
+		.send_hcmd = iwl_mvm_tm_send_hcmd,		\
+		.cmd_exec_start = iwl_mvm_tm_cmd_exec_start,	\
+		.cmd_exec_end = iwl_mvm_tm_cmd_exec_end,	\
 	},
 #else
 #define IWL_MVM_COMMON_TEST_OPS

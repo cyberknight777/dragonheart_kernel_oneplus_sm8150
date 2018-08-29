@@ -85,7 +85,6 @@
 #include "iwl-phy-db.h"
 #include "xvt.h"
 #include "user-infc.h"
-#include "iwl-tm-gnl.h"
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
 #include "iwl-trans.h"
@@ -98,6 +97,7 @@
 #define XVT_MAX_TX_COUNT (ULLONG_MAX)
 #define XVT_LMAC_0_STA_ID (0) /* must be aligned with station id added in USC */
 #define XVT_LMAC_1_STA_ID (3) /* must be aligned with station id added in USC */
+#define XVT_STOP_TX (IEEE80211_SCTL_FRAG + 1)
 
 void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 				struct iwl_rx_cmd_buffer *rxb)
@@ -135,6 +135,9 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 					data, size, GFP_ATOMIC);
 		break;
 	case REPLY_RX_MPDU_CMD:
+		if (!xvt->send_rx_mpdu)
+			break;
+
 		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
 					data, size, GFP_ATOMIC);
 		break;
@@ -205,125 +208,6 @@ static int iwl_xvt_sdio_io_toggle(struct iwl_xvt *xvt,
 	struct iwl_tm_sdio_io_toggle *sdio_io_toggle = data_in->data;
 
 	return iwl_trans_test_mode_cmd(xvt->trans, sdio_io_toggle->enable);
-}
-
-static int iwl_xvt_send_hcmd(struct iwl_xvt *xvt,
-			     struct iwl_tm_data *data_in,
-			     struct iwl_tm_data *data_out)
-{
-	struct iwl_tm_cmd_request *hcmd_req = data_in->data;
-	struct iwl_tm_cmd_request *cmd_resp;
-	u32 reply_len, resp_size;
-	struct iwl_rx_packet *pkt;
-	struct iwl_host_cmd host_cmd = {
-		.id = hcmd_req->id,
-		.data[0] = hcmd_req->data,
-		.len[0] = hcmd_req->len,
-		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
-	};
-	int ret;
-
-	if (hcmd_req->want_resp)
-		host_cmd.flags |= CMD_WANT_SKB;
-
-	ret = iwl_xvt_send_cmd(xvt, &host_cmd);
-	if (ret)
-		return ret;
-	/* if no reply is required, we are done */
-	if (!(host_cmd.flags & CMD_WANT_SKB))
-		return 0;
-
-	/* Retrieve response packet */
-	pkt = host_cmd.resp_pkt;
-	reply_len = iwl_rx_packet_len(pkt);
-
-	/* Set response data */
-	resp_size = sizeof(struct iwl_tm_cmd_request) + reply_len;
-	cmd_resp = kzalloc(resp_size, GFP_KERNEL);
-	if (!cmd_resp) {
-		iwl_free_resp(&host_cmd);
-		return -ENOMEM;
-	}
-	cmd_resp->id = hcmd_req->id;
-	cmd_resp->len = reply_len;
-	memcpy(cmd_resp->data, &(pkt->hdr), reply_len);
-
-	iwl_free_resp(&host_cmd);
-
-	data_out->data = cmd_resp;
-	data_out->len = resp_size;
-
-	return 0;
-}
-
-static void iwl_xvt_execute_reg_ops(struct iwl_trans *trans,
-				    struct iwl_tm_regs_request *request,
-				    struct iwl_tm_regs_request *result)
-{
-	struct iwl_tm_reg_op *cur_op;
-	u32 idx, read_idx;
-	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
-		cur_op = &request->reg_ops[idx];
-
-		if  (cur_op->op_type == IWL_TM_REG_OP_READ) {
-			cur_op->value = iwl_read32(trans, cur_op->address);
-			memcpy(&result->reg_ops[read_idx], cur_op,
-			       sizeof(*cur_op));
-			read_idx++;
-		} else {
-			/* IWL_TM_REG_OP_WRITE is the only possible option */
-			iwl_write32(trans, cur_op->address, cur_op->value);
-		}
-	}
-}
-
-static int iwl_xvt_reg_ops(struct iwl_trans *trans,
-			   struct iwl_tm_data *data_in,
-			   struct iwl_tm_data *data_out)
-{
-	struct iwl_tm_reg_op *cur_op;
-	struct iwl_tm_regs_request *request = data_in->data;
-	struct iwl_tm_regs_request *result;
-	u32 result_size;
-	u32 idx, read_idx;
-	bool is_grab_nic_access_required = true;
-	unsigned long flags;
-
-	/* Calculate result size (result is returned only for read ops) */
-	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
-		if (request->reg_ops[idx].op_type == IWL_TM_REG_OP_READ)
-			read_idx++;
-		/* check if there is an operation that it is not */
-		/* in the CSR range (0x00000000 - 0x000003FF)    */
-		/* and not in the AL range			 */
-		cur_op = &request->reg_ops[idx];
-
-		if (IS_AL_ADDR(cur_op->address) ||
-		    (cur_op->address < HBUS_BASE))
-			is_grab_nic_access_required = false;
-	}
-	result_size = sizeof(struct iwl_tm_regs_request) +
-		      read_idx*sizeof(struct iwl_tm_reg_op);
-
-	result = kzalloc(result_size, GFP_KERNEL);
-	if (!result)
-		return -ENOMEM;
-	result->num = read_idx;
-	if (is_grab_nic_access_required) {
-		if (!iwl_trans_grab_nic_access(trans, &flags)) {
-			kfree(result);
-			return -EBUSY;
-		}
-		iwl_xvt_execute_reg_ops(trans, request, result);
-		iwl_trans_release_nic_access(trans, &flags);
-	} else {
-		iwl_xvt_execute_reg_ops(trans, request, result);
-	}
-
-	data_out->data = result;
-	data_out->len = result_size;
-
-	return 0;
 }
 
 /**
@@ -415,84 +299,6 @@ static int iwl_xvt_get_dev_info(struct iwl_xvt *xvt,
 
 	data_out->data = dev_info;
 	data_out->len = dev_info_size;
-
-	return 0;
-}
-
-static int iwl_xvt_indirect_read(struct iwl_xvt *xvt,
-				 struct iwl_tm_data *data_in,
-				 struct iwl_tm_data *data_out)
-{
-	struct iwl_trans *trans = xvt->trans;
-	struct iwl_tm_sram_read_request *cmd_in = data_in->data;
-	u32 addr = cmd_in->offset;
-	u32 size = cmd_in->length;
-	u32 *buf32, size32, i;
-	unsigned long flags;
-
-	if (size & (sizeof(u32)-1))
-		return -EINVAL;
-
-	data_out->data = kmalloc(size, GFP_KERNEL);
-	if (!data_out->data)
-		return -ENOMEM;
-
-	data_out->len = size;
-
-	size32 = size / sizeof(u32);
-	buf32 = data_out->data;
-
-	/* Hard-coded periphery absolute address */
-	if (IWL_ABS_PRPH_START <= addr &&
-	    addr < IWL_ABS_PRPH_START + PRPH_END) {
-		if (!iwl_trans_grab_nic_access(trans, &flags))
-			return -EBUSY;
-		for (i = 0; i < size32; i++)
-			buf32[i] = iwl_trans_read_prph(trans,
-						       addr + i * sizeof(u32));
-		iwl_trans_release_nic_access(trans, &flags);
-	} else {
-		/* target memory (SRAM) */
-		iwl_trans_read_mem(trans, addr, buf32, size32);
-	}
-
-	return 0;
-}
-
-static int iwl_xvt_indirect_write(struct iwl_xvt *xvt,
-				  struct iwl_tm_data *data_in)
-{
-	struct iwl_trans *trans = xvt->trans;
-	struct iwl_tm_sram_write_request *cmd_in = data_in->data;
-	u32 addr = cmd_in->offset;
-	u32 size = cmd_in->len;
-	u8 *buf = cmd_in->buffer;
-	u32 *buf32 = (u32 *)buf, size32 = size / sizeof(u32);
-	unsigned long flags;
-	u32 val, i;
-
-	if (IWL_ABS_PRPH_START <= addr &&
-	    addr < IWL_ABS_PRPH_START + PRPH_END) {
-		/* Periphery writes can be 1-3 bytes long, or DWORDs */
-		if (size < 4) {
-			memcpy(&val, buf, size);
-			if (!iwl_trans_grab_nic_access(trans, &flags))
-				return -EBUSY;
-			iwl_write32(trans, HBUS_TARG_PRPH_WADDR,
-				    (addr & 0x0000FFFF) | ((size - 1) << 24));
-			iwl_write32(trans, HBUS_TARG_PRPH_WDAT, val);
-			iwl_trans_release_nic_access(trans, &flags);
-		} else {
-			if (size % sizeof(u32))
-				return -EINVAL;
-
-			for (i = 0; i < size32; i++)
-				iwl_write_prph(trans, addr + i*sizeof(u32),
-					       buf32[i]);
-		}
-	} else {
-		iwl_trans_write_mem(trans, addr, buf32, size32);
-	}
 
 	return 0;
 }
@@ -623,6 +429,12 @@ static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 
 	IWL_DEBUG_INFO(xvt, "Sending Phy CFG command: 0x%x\n",
 		       calib_cmd_cfg->phy_cfg);
+
+	/* ESL workaround - calibration is not allowed */
+	if (CPTCFG_IWL_TIMEOUT_FACTOR > 20) {
+		calib_cmd_cfg->calib_control.event_trigger = 0;
+		calib_cmd_cfg->calib_control.flow_trigger = 0;
+	}
 
 	/* Sending calibration configuration control data */
 	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, 0,
@@ -919,32 +731,96 @@ static struct iwl_device_cmd *iwl_xvt_init_tx_dev_cmd(struct iwl_xvt *xvt)
 	return dev_cmd;
 }
 
+static u16 iwl_xvt_get_offload_assist(struct ieee80211_hdr *hdr)
+{
+	int hdrlen = ieee80211_hdrlen(hdr->frame_control);
+	u16 offload_assist = 0;
+	bool amsdu;
+
+	amsdu = ieee80211_is_data_qos(hdr->frame_control) &&
+		(*ieee80211_get_qos_ctl(hdr) &
+		 IEEE80211_QOS_CTL_A_MSDU_PRESENT);
+
+	if (amsdu)
+		offload_assist |= BIT(TX_CMD_OFFLD_AMSDU);
+
+	/*
+	* padding is inserted later in transport.
+	* do not align A-MSDUs to dword, as the subframe header
+	* aligns the SNAP header.
+	*/
+	if (hdrlen % 4 && !amsdu)
+		offload_assist |= BIT(TX_CMD_OFFLD_PAD);
+
+	return offload_assist;
+}
+
 static struct iwl_device_cmd *
-iwl_xvt_set_mod_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
-			       u32 rate_flags, u32 flags)
+iwl_xvt_set_tx_params_gen3(struct iwl_xvt *xvt, struct sk_buff *skb,
+			   u32 rate_flags, u32 tx_flags)
+
+{
+	struct iwl_device_cmd *dev_cmd;
+	struct iwl_tx_cmd_gen3 *cmd;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
+
+	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
+	if (unlikely(!dev_cmd))
+		return NULL;
+
+	cmd = (struct iwl_tx_cmd_gen3 *)dev_cmd->payload;
+
+	cmd->offload_assist |= cpu_to_le32(iwl_xvt_get_offload_assist(hdr));
+
+	cmd->len = cpu_to_le16((u16)skb->len);
+
+	cmd->flags = cpu_to_le16(tx_flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		/* though this flag is not supported for gen3, it is used
+		 * here for silicon feedback tests. */
+		cmd->flags |= cpu_to_le16(TX_CMD_FLG_MORE_FRAG);
+
+	cmd->rate_n_flags =  cpu_to_le32(rate_flags);
+
+	/* Copy MAC header from skb into command buffer */
+	memcpy(cmd->hdr, hdr, header_length);
+
+	 /* Saving device command address itself in the control buffer, to be
+	  * used when reclaiming the command.
+	  */
+	skb_info->dev_cmd = dev_cmd;
+
+	return dev_cmd;
+}
+
+static struct iwl_device_cmd *
+iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
+			   u32 rate_flags, u32 flags)
 {
 	struct iwl_device_cmd *dev_cmd;
 	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
 	struct iwl_tx_cmd_gen2 *tx_cmd;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
 
 	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
 	if (unlikely(!dev_cmd))
 		return NULL;
 
 	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
-
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
-
-	tx_cmd->offload_assist |= (ieee80211_hdrlen(hdr->frame_control) % 4) ?
-				   cpu_to_le16(TX_CMD_OFFLD_PAD) : 0;
-
-	tx_cmd->flags = cpu_to_le32(flags | IWL_TX_FLAGS_CMD_RATE);
-
+	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
+	tx_cmd->flags = cpu_to_le32(flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		/* though this flag is not supported for gen2, it is used
+		 * for silicon feedback tests. */
+		tx_cmd->flags |= cpu_to_le32(TX_CMD_FLG_MORE_FRAG);
 	tx_cmd->rate_n_flags = cpu_to_le32(rate_flags);
 
 	/* Copy MAC header from skb into command buffer */
-	memcpy(tx_cmd->hdr, hdr, sizeof(*hdr));
+	memcpy(tx_cmd->hdr, hdr, header_length);
 
 	 /* Saving device command address itself in the
 	  * control buffer, to be used when reclaiming
@@ -993,7 +869,8 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
 				   struct tx_meta_data *meta_tx,
-				   struct sk_buff *skb)
+				   struct sk_buff *skb,
+				   u8 frag_num)
 {
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
 	u8 *qc, tid;
@@ -1007,8 +884,12 @@ static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
 	if (WARN_ON(tid >= IWL_MAX_TID_COUNT))
 		tid = IWL_MAX_TID_COUNT;
 
-	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid]);
-	meta_tx->seq_num[tid] += 0x10;
+	/* frag_num is expected to be zero in case of no fragmentation */
+	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid] |
+				    (frag_num & IEEE80211_SCTL_FRAG));
+
+	if (!ieee80211_has_morefrags(hdr->frame_control))
+		meta_tx->seq_num[tid] += 0x10;
 }
 
 static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
@@ -1019,6 +900,7 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 	struct iwl_device_cmd *dev_cmd;
 	int time_remain, err = 0;
 	u32 flags = 0;
+	u32 rate_flags = tx_req->rate_flags;
 
 	if (xvt->fw_error) {
 		IWL_ERR(xvt, "FW Error while sending Tx\n");
@@ -1033,21 +915,28 @@ static int iwl_xvt_send_packet(struct iwl_xvt *xvt,
 	}
 
 	memcpy(skb_put(skb, tx_req->len), tx_req->data, tx_req->len);
-	iwl_xvt_set_seq_number(xvt, meta_tx, skb);
+	iwl_xvt_set_seq_number(xvt, meta_tx, skb, 0);
 
 	flags = tx_req->no_ack ? 0 : TX_CMD_FLG_ACK;
 
-	if (iwl_xvt_is_unified_fw(xvt))
-		dev_cmd = iwl_xvt_set_mod_tx_params_gen2(xvt,
-							 skb,
-							 tx_req->rate_flags,
-							 flags);
-	else
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		flags |= IWL_TX_FLAGS_CMD_RATE;
+
+		if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+			dev_cmd = iwl_xvt_set_tx_params_gen3(xvt, skb,
+							     rate_flags,
+							     flags);
+		else
+			dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb,
+							     rate_flags,
+							     flags);
+	} else {
 		dev_cmd = iwl_xvt_set_mod_tx_params(xvt,
 						    skb,
 						    tx_req->sta_id,
 						    tx_req->rate_flags,
 						    flags);
+	}
 	if (!dev_cmd) {
 		kfree_skb(skb);
 		*status = XVT_TX_DRIVER_ABORTED;
@@ -1105,38 +994,6 @@ err:
 }
 
 static struct iwl_device_cmd *
-iwl_xvt_set_tx_params_gen2(struct iwl_xvt *xvt, struct sk_buff *skb,
-			   struct iwl_xvt_tx_start *tx_start, u8 packet_index)
-{
-	struct iwl_device_cmd *dev_cmd;
-	struct iwl_xvt_skb_info *skb_info = (void *)skb->cb;
-	struct iwl_tx_cmd_gen2 *tx_cmd;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
-	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
-
-	dev_cmd = iwl_xvt_init_tx_dev_cmd(xvt);
-	if (unlikely(!dev_cmd))
-		return NULL;
-
-	tx_cmd = (struct iwl_tx_cmd_gen2 *)dev_cmd->payload;
-	tx_cmd->len = cpu_to_le16((u16)skb->len);
-	tx_cmd->offload_assist |= (header_length % 4) ?
-				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
-	tx_cmd->flags = cpu_to_le32(tx_start->tx_data.tx_flags);
-	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
-
-	/* Copy MAC header from skb into command buffer */
-	memcpy(tx_cmd->hdr, hdr, header_length);
-
-	 /* Saving device command address itself in the
-	  * control buffer, to be used when reclaiming
-	  * the command. */
-	skb_info->dev_cmd = dev_cmd;
-
-	return dev_cmd;
-}
-
-static struct iwl_device_cmd *
 iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 		      struct iwl_xvt_tx_start *tx_start, u8 packet_index)
 {
@@ -1159,9 +1016,10 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 		tx_cmd->tx_flags |= cpu_to_le32(TX_CMD_FLG_SEQ_CTL);
 
 	tx_cmd->len = cpu_to_le16((u16)skb->len);
-	tx_cmd->offload_assist |= (header_length % 4) ?
-				   cpu_to_le16(BIT(TX_CMD_OFFLD_PAD)) : 0;
+	tx_cmd->offload_assist |= cpu_to_le16(iwl_xvt_get_offload_assist(hdr));
 	tx_cmd->tx_flags |= cpu_to_le32(tx_start->tx_data.tx_flags);
+	if (ieee80211_has_morefrags(hdr->frame_control))
+		tx_cmd->tx_flags |= cpu_to_le32(TX_CMD_FLG_MORE_FRAG);
 	tx_cmd->rate_n_flags = cpu_to_le32(tx_start->tx_data.rate_flags);
 	tx_cmd->sta_id = tx_start->frames_data[packet_index].sta_id;
 	tx_cmd->sec_ctl = tx_start->frames_data[packet_index].sec_ctl;
@@ -1185,44 +1043,118 @@ iwl_xvt_set_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 	return dev_cmd;
 }
 
-static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
-				   struct iwl_xvt_tx_start *tx_start,
-				   u8 packet_index,
-				   u32 *status)
+static struct sk_buff *iwl_xvt_set_skb(struct iwl_xvt *xvt,
+				       struct ieee80211_hdr *hdr,
+				       struct tx_payload *payload)
 {
 	struct sk_buff *skb;
-	struct iwl_device_cmd *dev_cmd;
-	int time_remain, err = 0;
-	struct tx_cmd_frame_data frame_data =
-		tx_start->frames_data[packet_index];
-	u32 payload_length = xvt->payloads[frame_data.payload_index]->length;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)
-		tx_start->frames_data[packet_index].header;
-	u32 header_length = ieee80211_hdrlen(hdr->frame_control);
-	u32 packet_length  = payload_length + header_length;
-	struct tx_queue_data *queue_data = &xvt->queue_data[frame_data.queue];
+	u32 header_size = ieee80211_hdrlen(hdr->frame_control);
+	u32 payload_length  = payload->length;
+	u32 packet_length  = payload_length + header_size;
 
 	skb = alloc_skb(packet_length, GFP_KERNEL);
-	if (!skb) {
-		*status = XVT_TX_DRIVER_ABORTED;
-		return -ENOMEM;
-	}
+	if (!skb)
+		return NULL;
 	/* copy MAC header into skb */
-	memcpy(skb_put(skb, header_length), frame_data.header, header_length);
+	memcpy(skb_put(skb, header_size), hdr, header_size);
 	/* copy frame payload into skb */
-	memcpy(skb_put(skb, payload_length),
-	       xvt->payloads[frame_data.payload_index]->payload,
-	       payload_length);
+	memcpy(skb_put(skb, payload_length), payload, payload_length);
+
+	return skb;
+}
+
+static struct sk_buff *iwl_xvt_create_fragment_skb(struct iwl_xvt *xvt,
+						   struct ieee80211_hdr *hdr,
+						   struct tx_payload *payload,
+						   u32 fragment_size,
+						   u8 frag_num)
+{
+	struct sk_buff *skb;
+	const __le16 morefrags = cpu_to_le16(IEEE80211_FCTL_MOREFRAGS);
+	u32 header_size = ieee80211_hdrlen(hdr->frame_control);
+	u32 skb_size, offset, payload_remain, payload_chunck_size;
+
+	if (WARN(fragment_size <= header_size ||
+		 !ieee80211_is_data_qos(hdr->frame_control),
+		 "can't fragment, fragment_size small big or not qos data"))
+		return NULL;
+
+	payload_chunck_size = fragment_size - header_size;
+	offset = payload_chunck_size * frag_num;
+	if (WARN(offset >= payload->length, "invalid fragment number %d\n",
+		 frag_num))
+		return NULL;
+
+	payload_remain = payload->length - offset;
+
+	if (fragment_size < payload_remain + header_size) {
+		skb_size = fragment_size;
+		hdr->frame_control |= morefrags;
+	} else {
+		skb_size = payload_remain + header_size;
+		hdr->frame_control &= ~morefrags;
+		payload_chunck_size = payload_remain;
+	}
+
+	skb = alloc_skb(skb_size, GFP_KERNEL);
+	if (!skb)
+		return NULL;
+
+	/* copy MAC header into skb */
+	memcpy(skb_put(skb, header_size), hdr, header_size);
+
+	/* copy frame payload into skb */
+	memcpy(skb_put(skb, payload_chunck_size),
+	       &payload->payload[offset],
+	       payload_chunck_size);
+
+	return skb;
+}
+
+static struct sk_buff *iwl_xvt_get_skb(struct iwl_xvt *xvt,
+				       struct ieee80211_hdr *hdr,
+				       struct tx_payload *payload,
+				       u32 fragment_size,
+				       u8 frag_num)
+{
+	if (fragment_size == 0)/* no framgmentation */
+		return iwl_xvt_set_skb(xvt, hdr, payload);
+
+	return iwl_xvt_create_fragment_skb(xvt, hdr, payload,
+					   fragment_size, frag_num);
+}
+
+static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
+				   struct sk_buff *skb,
+				   struct iwl_xvt_tx_start *tx_start,
+				   u8 packet_index,
+				   u8 frag_num,
+				   u32 *status)
+{
+	struct iwl_device_cmd *dev_cmd;
+	int time_remain, err = 0;
+	u8 queue = tx_start->frames_data[packet_index].queue;
+	struct tx_queue_data *queue_data = &xvt->queue_data[queue];
+	u32 rate_flags = tx_start->tx_data.rate_flags;
+	u32 tx_flags = tx_start->tx_data.tx_flags;
 
 	/* set tx number */
-	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb);
+	iwl_xvt_set_seq_number(xvt, &xvt->tx_meta_data[XVT_LMAC_0_ID], skb,
+			       frag_num);
 
-	if (iwl_xvt_is_unified_fw(xvt))
-		dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb, tx_start,
-						     packet_index);
-	else
+	if (iwl_xvt_is_unified_fw(xvt)) {
+		if (xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
+			dev_cmd = iwl_xvt_set_tx_params_gen3(xvt, skb,
+							     rate_flags,
+							     tx_flags);
+		else
+			dev_cmd = iwl_xvt_set_tx_params_gen2(xvt, skb,
+							     rate_flags,
+							     tx_flags);
+	} else {
 		dev_cmd = iwl_xvt_set_tx_params(xvt, skb, tx_start,
 						packet_index);
+	}
 	if (!dev_cmd) {
 		kfree_skb(skb);
 		*status = XVT_TX_DRIVER_ABORTED;
@@ -1254,7 +1186,7 @@ static int iwl_xvt_transmit_packet(struct iwl_xvt *xvt,
 	 * were blocked.
 	 */
 	local_bh_disable();
-	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, frame_data.queue);
+	err = iwl_trans_tx(xvt->trans, skb, dev_cmd, queue);
 	local_bh_enable();
 	if (err) {
 		IWL_ERR(xvt, "Tx command failed (error %d)\n", err);
@@ -1343,9 +1275,18 @@ static int iwl_xvt_start_tx_handler(void *data)
 
 	for (i = 0; (i < num_of_iterations) && !kthread_should_stop(); i++) {
 		u16 j, times;
-		u8 frame_index;
+		u8 frame_index, payload_idx, frag_idx, frag_num;
+		struct ieee80211_hdr *hdr;
+		struct sk_buff *skb;
+		u8 frag_size = tx_start->tx_data.fragment_size;
+		struct tx_payload *payload;
+		u8 frag_array_size = ARRAY_SIZE(tx_start->tx_data.frag_num);
 
 		frame_index = i % num_of_frames;
+		payload_idx = tx_start->frames_data[frame_index].payload_index;
+		payload = xvt->payloads[payload_idx];
+		hdr = (struct ieee80211_hdr *)
+			tx_start->frames_data[frame_index].header;
 		times = tx_start->frames_data[frame_index].times;
 		for (j = 0; j < times; j++) {
 			if (xvt->fw_error) {
@@ -1355,19 +1296,43 @@ static int iwl_xvt_start_tx_handler(void *data)
 				goto on_exit;
 			}
 
-			err = iwl_xvt_transmit_packet(xvt, tx_start,
-						      frame_index, &status);
-			sent_packets++;
-			if (err) {
-				IWL_ERR(xvt, "stop due to err %d\n", err);
-				goto on_exit;
+			frag_idx = 0;
+			while (frag_idx <  frag_array_size) {
+				frag_num = tx_start->tx_data.frag_num[frag_idx];
+
+				if (frag_num == XVT_STOP_TX ||
+				    (frag_size == 0 && frag_idx > 0))
+					break;
+
+				skb = iwl_xvt_get_skb(xvt, hdr, payload,
+						      frag_size, frag_num);
+				if (!skb) {
+					IWL_ERR(xvt, "skb is NULL\n");
+					status = XVT_TX_DRIVER_ABORTED;
+					err = -ENOMEM;
+					goto on_exit;
+				}
+				err = iwl_xvt_transmit_packet(xvt,
+							      skb,
+							      tx_start,
+							      frame_index,
+							      frag_num,
+							      &status);
+				sent_packets++;
+				if (err) {
+					IWL_ERR(xvt, "stop due to err %d\n",
+						err);
+					goto on_exit;
+				}
+
+				++frag_idx;
 			}
 		}
 	}
 	time_remain = wait_event_interruptible_timeout(
 			xvt->tx_done_wq,
 			xvt->num_of_tx_resp == sent_packets,
-			5 * HZ);
+			5 * HZ * CPTCFG_IWL_TIMEOUT_FACTOR);
 	if (time_remain <= 0) {
 		IWL_ERR(xvt, "Not all Tx messages were sent\n");
 		status = XVT_TX_DRIVER_TIMEOUT;
@@ -1764,47 +1729,6 @@ static int iwl_xvt_get_chip_id(struct iwl_xvt *xvt,
 	return 0;
 }
 
-static int iwl_xvt_get_fw_info(struct iwl_xvt *xvt,
-			       struct iwl_tm_data *data_out)
-{
-	struct iwl_tm_get_fw_info *fw_info;
-	u32 api_len, capa_len;
-	u32 *bitmap;
-	int i;
-
-	api_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_API, 32);
-	capa_len = 4 * DIV_ROUND_UP(NUM_IWL_UCODE_TLV_CAPA, 32);
-
-	fw_info = kzalloc(sizeof(*fw_info) + api_len + capa_len, GFP_KERNEL);
-	if (!fw_info)
-		return -ENOMEM;
-
-	fw_info->fw_major_ver = xvt->fw_major_ver;
-	fw_info->fw_minor_ver = xvt->fw_minor_ver;
-	fw_info->fw_capa_api_len = api_len;
-	fw_info->fw_capa_flags = xvt->fw->ucode_capa.flags;
-	fw_info->fw_capa_len = capa_len;
-
-	bitmap = (u32 *)fw_info->data;
-	for (i = 0; i < NUM_IWL_UCODE_TLV_API; i++) {
-		if (fw_has_api(&xvt->fw->ucode_capa,
-			       (__force iwl_ucode_tlv_api_t)i))
-			bitmap[i / 32] |= BIT(i % 32);
-	}
-
-	bitmap = (u32 *)(fw_info->data + api_len);
-	for (i = 0; i < NUM_IWL_UCODE_TLV_CAPA; i++) {
-		if (fw_has_capa(&xvt->fw->ucode_capa,
-				(__force iwl_ucode_tlv_capa_t)i))
-			bitmap[i / 32] |= BIT(i % 32);
-	}
-
-	data_out->data = fw_info;
-	data_out->len = sizeof(*fw_info) + api_len + capa_len;
-
-	return 0;
-}
-
 static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_out)
 {
@@ -1855,21 +1779,17 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 
 static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 			   struct iwl_scd_txq_cfg_cmd *cmd,
-			   u16 ssn)
+			   u16 ssn, u16 flags, int size)
 {
 	int queue_id = cmd->scd_queue, ret;
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		/*TODO: add support for second lmac*/
-		struct iwl_tx_queue_cfg_cmd cmd_gen2 = {
-			.flags = cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-			.sta_id = cmd->sta_id,
-			.tid = cmd->tid
-		};
-
-		queue_id = iwl_trans_txq_alloc(xvt->trans, (void *)&cmd_gen2,
-					       SCD_QUEUE_CFG,
-					       IWL_DEFAULT_QUEUE_SIZE, 0);
+		queue_id =
+			iwl_trans_txq_alloc(xvt->trans,
+					    cpu_to_le16(flags),
+					    cmd->sta_id, cmd->tid,
+					    SCD_QUEUE_CFG, size, 0);
 		if (queue_id < 0)
 			return queue_id;
 	} else {
@@ -1938,7 +1858,8 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 		if (WARN(error, "failed to remove queue"))
 			return error;
 	} else {
-		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn);
+		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn,
+					   conf->flags, conf->queue_size);
 		if (queue_id < 0)
 			return queue_id;
 	}
@@ -1995,6 +1916,20 @@ iwl_xvt_get_rx_agg_stats_cmd(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static void iwl_xvt_config_rx_mpdu(struct iwl_xvt *xvt,
+				   struct iwl_xvt_driver_command_req *req)
+
+{
+	xvt->send_rx_mpdu =
+		((struct iwl_xvt_config_rx_mpdu_req *)req->input_data)->enable;
+}
+
+static int iwl_xvt_echo_notif(struct iwl_xvt *xvt)
+{
+	return iwl_xvt_user_send_notif(xvt, IWL_XVT_CMD_ECHO_NOTIF,
+				       NULL, 0, GFP_KERNEL);
+}
+
 static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_in,
 				     struct iwl_tm_data *data_out)
@@ -2003,6 +1938,8 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 	struct iwl_xvt_driver_command_resp *resp = NULL;
 	__u32 cmd_id = req->command_id;
 	int err = 0;
+
+	IWL_DEBUG_INFO(xvt, "handle driver command 0x%X\n", cmd_id);
 
 	if (req->max_out_length > 0) {
 		resp = kzalloc(sizeof(*resp) + req->max_out_length, GFP_KERNEL);
@@ -2026,6 +1963,12 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 		break;
 	case IWL_DRV_CMD_GET_RX_AGG_STATS:
 		err = iwl_xvt_get_rx_agg_stats_cmd(xvt, req, resp);
+		break;
+	case IWL_DRV_CMD_CONFIG_RX_MPDU:
+		iwl_xvt_config_rx_mpdu(xvt, req);
+		break;
+	case IWL_DRV_CMD_ECHO_NOTIF:
+		err = iwl_xvt_echo_notif(xvt);
 		break;
 	default:
 		IWL_ERR(xvt, "no command handler found for cmd_id[%u]\n",
@@ -2056,14 +1999,15 @@ out_free:
 	return err;
 }
 
-int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
+int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 			     struct iwl_tm_data *data_in,
-			     struct iwl_tm_data *data_out)
+			     struct iwl_tm_data *data_out, bool *supported_cmd)
 {
-	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+	struct iwl_xvt *xvt = testmode->op_mode;
 	int ret = 0;
 
-	if (WARN_ON_ONCE(!op_mode || !data_in))
+	*supported_cmd = true;
+	if (WARN_ON_ONCE(!xvt || !data_in))
 		return -EINVAL;
 
 	IWL_DEBUG_INFO(xvt, "%s cmd=0x%X\n", __func__, cmd);
@@ -2071,23 +2015,7 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	switch (cmd) {
 
-	/* Tesmode cases */
-
-	case IWL_TM_USER_CMD_HCMD:
-		ret = iwl_xvt_send_hcmd(xvt, data_in, data_out);
-		break;
-
-	case IWL_TM_USER_CMD_REG_ACCESS:
-		ret = iwl_xvt_reg_ops(xvt->trans, data_in, data_out);
-		break;
-
-	case IWL_TM_USER_CMD_SRAM_WRITE:
-		ret = iwl_xvt_indirect_write(xvt, data_in);
-		break;
-
-	case IWL_TM_USER_CMD_SRAM_READ:
-		ret = iwl_xvt_indirect_read(xvt, data_in, data_out);
-		break;
+	/* Testmode custom cases */
 
 	case IWL_TM_USER_CMD_GET_DEVICE_INFO:
 		ret = iwl_xvt_get_dev_info(xvt, data_in, data_out);
@@ -2095,9 +2023,6 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	case IWL_TM_USER_CMD_SV_IO_TOGGLE:
 		ret = iwl_xvt_sdio_io_toggle(xvt, data_in, data_out);
-		break;
-	case IWL_TM_USER_CMD_GET_FW_INFO:
-		ret = iwl_xvt_get_fw_info(xvt, data_out);
 		break;
 
 	/* xVT cases */
@@ -2169,6 +2094,7 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 		break;
 
 	default:
+		*supported_cmd = false;
 		ret = -EOPNOTSUPP;
 		break;
 	}

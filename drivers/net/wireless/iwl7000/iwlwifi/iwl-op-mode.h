@@ -8,6 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015        Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -19,9 +20,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
+ * along with this program.
  *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
@@ -35,6 +34,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015        Intel Deutschland GmbH
+ * Copyright(c) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -69,6 +69,10 @@
 
 #include <linux/netdevice.h>
 #include <linux/debugfs.h>
+
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+#include "fw/testmode.h"
+#endif
 
 struct iwl_op_mode;
 struct iwl_trans;
@@ -105,25 +109,31 @@ struct iwl_tm_data;
  *	5) The driver layer stops the op_mode
  */
 
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 /**
  * struct iwl_test_ops: callback to the op mode
- * @cmd_execute: Handler that is used to execute user's test-mode commands.
- * @valid_hw_addr: handler that is used by the test object to request the
- *	op_mode to check if the given address is a valid address.
- * @get_fw_ver: handler used to get the FW version.
+ * @send_hcmd: Handler that sends host cmd in the specific op_mode. If this
+ *	handler is not registered then sending host cmd will not be supported.
+ * @cmd_exec_start: Handler that is used for user preparations before
+ *	executing a command. It is optional.
+ * @cmd_exec: Handler that is used to execute user's test-mode commands.
+ *	It is optional. If this handler is not given, the default handler will
+ *	execute.
+ * @cmd_exec_end: Handler that is used for user to cleanup after a command
+ *	was executed. It is optional.
  *
  * The structure defines the callbacks that the op_mode should handle,
- * inorder to handle logic that is out of the scope of iwl_test. The
- * op_mode must set all the callbacks.
+ * inorder to handle logic that is out of the scope of iwl_test.
  */
 struct iwl_test_ops {
-	int (*cmd_execute)(struct iwl_op_mode *op_mode, u32 cmd,
-			   struct iwl_tm_data *data_in,
-			   struct iwl_tm_data *data_out);
-
-	bool (*valid_hw_addr)(u32 addr);
-	u32 (*get_fw_ver)(struct iwl_op_mode *op_mode);
+	int (*send_hcmd)(void *op_mode, struct iwl_host_cmd *host_cmd);
+	int (*cmd_exec_start)(struct iwl_testmode *testmode);
+	int (*cmd_exec)(struct iwl_testmode *testmode, u32 cmd,
+			struct iwl_tm_data *data_in,
+			struct iwl_tm_data *data_out, bool *cmd_supported);
+	void (*cmd_exec_end)(struct iwl_testmode *testmode);
 };
+#endif
 
 /**
  * struct iwl_op_mode_ops - op_mode specific operations

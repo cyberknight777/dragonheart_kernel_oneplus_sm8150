@@ -88,6 +88,7 @@ struct iwl_fwrt_shared_mem_cfg {
 
 enum iwl_fw_runtime_status {
 	IWL_FWRT_STATUS_DUMPING = 0,
+	IWL_FWRT_STATUS_WAIT_ALIVE,
 };
 
 /**
@@ -144,6 +145,7 @@ struct iwl_fw_runtime {
 		u32 delay;
 		u64 seq;
 	} timestamp;
+	bool tpc_enabled;
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
 };
 
@@ -168,8 +170,5 @@ int iwl_init_paging(struct iwl_fw_runtime *fwrt, enum iwl_ucode_type type);
 void iwl_free_fw_paging(struct iwl_fw_runtime *fwrt);
 
 void iwl_get_shared_mem_conf(struct iwl_fw_runtime *fwrt);
-
-void iwl_fwrt_handle_notification(struct iwl_fw_runtime *fwrt,
-				  struct iwl_rx_cmd_buffer *rxb);
 
 #endif /* __iwl_fw_runtime_h__ */

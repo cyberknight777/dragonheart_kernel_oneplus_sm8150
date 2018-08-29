@@ -71,18 +71,9 @@
 #include "mvm.h"
 #include "fw/api/scan.h"
 #include "iwl-io.h"
-#ifdef CPTCFG_IWLMVM_TCM
-#include "iwl-vendor-cmd.h"
-#endif
 
 #define IWL_DENSE_EBS_SCAN_RATIO 5
 #define IWL_SPARSE_EBS_SCAN_RATIO 1
-
-enum iwl_mvm_traffic_load {
-	IWL_MVM_TRAFFIC_LOW,
-	IWL_MVM_TRAFFIC_MEDIUM,
-	IWL_MVM_TRAFFIC_HIGH,
-};
 
 #define IWL_SCAN_DWELL_ACTIVE		10
 #define IWL_SCAN_DWELL_PASSIVE		110
@@ -236,38 +227,15 @@ static void iwl_mvm_scan_condition_iterator(void *data, u8 *mac,
 		*global_cnt += 1;
 }
 
-#ifdef CPTCFG_IWLMVM_TCM
-static enum iwl_mvm_traffic_load
-_iwl_mvm_get_traffic_load(enum iwl_mvm_vendor_load load)
-{
-	switch (load) {
-	case IWL_MVM_VENDOR_LOAD_HIGH:
-		return IWL_MVM_TRAFFIC_HIGH;
-	case IWL_MVM_VENDOR_LOAD_MEDIUM:
-		return IWL_MVM_TRAFFIC_MEDIUM;
-	case IWL_MVM_VENDOR_LOAD_LOW:
-		return IWL_MVM_TRAFFIC_LOW;
-	default:
-		return IWL_MVM_TRAFFIC_LOW;
-	}
-}
-#endif /* CPTCFG_IWLMVM_TCM */
-
 static enum iwl_mvm_traffic_load iwl_mvm_get_traffic_load(struct iwl_mvm *mvm)
 {
-#ifdef CPTCFG_IWLMVM_TCM
-	return _iwl_mvm_get_traffic_load(mvm->tcm.result.global_load);
-#endif /* CPTCFG_IWLMVM_TCM */
-	return IWL_MVM_TRAFFIC_LOW;
+	return mvm->tcm.result.global_load;
 }
 
 static enum iwl_mvm_traffic_load
 iwl_mvm_get_traffic_load_band(struct iwl_mvm *mvm, enum nl80211_band band)
 {
-#ifdef CPTCFG_IWLMVM_TCM
-	return _iwl_mvm_get_traffic_load(mvm->tcm.result.band_load[band]);
-#endif /* CPTCFG_IWLMVM_TCM */
-	return IWL_MVM_TRAFFIC_LOW;
+	return mvm->tcm.result.band_load[band];
 }
 
 static enum
@@ -501,9 +469,7 @@ void iwl_mvm_rx_lmac_scan_complete_notif(struct iwl_mvm *mvm,
 		ieee80211_scan_completed(mvm->hw, &info);
 		iwl_mvm_unref(mvm, IWL_MVM_REF_SCAN);
 		cancel_delayed_work(&mvm->scan_timeout_dwork);
-#ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_resume_tcm(mvm);
-#endif
 	} else {
 		IWL_ERR(mvm,
 			"got scan complete notification but no scan is running\n");
@@ -872,16 +838,25 @@ static inline bool iwl_mvm_scan_use_ebs(struct iwl_mvm *mvm,
 					struct ieee80211_vif *vif)
 {
 	const struct iwl_ucode_capabilities *capa = &mvm->fw->ucode_capa;
+	bool low_latency;
+
+	if (iwl_mvm_is_cdb_supported(mvm))
+		low_latency = iwl_mvm_low_latency_band(mvm, NL80211_BAND_5GHZ);
+	else
+		low_latency = iwl_mvm_low_latency(mvm);
 
 	/* We can only use EBS if:
 	 *	1. the feature is supported;
 	 *	2. the last EBS was successful;
 	 *	3. if only single scan, the single scan EBS API is supported;
 	 *	4. it's not a p2p find operation.
+	 *	5. we are not in low latency mode,
+	 *	   or if fragmented ebs is supported by the FW
 	 */
 	return ((capa->flags & IWL_UCODE_TLV_FLAGS_EBS_SUPPORT) &&
 		mvm->last_ebs_successful && IWL_MVM_ENABLE_EBS &&
-		vif->type != NL80211_IFTYPE_P2P_DEVICE);
+		vif->type != NL80211_IFTYPE_P2P_DEVICE &&
+		(!low_latency || iwl_mvm_is_frag_ebs_supported(mvm)));
 }
 
 static inline bool iwl_mvm_is_regular_scan(struct iwl_mvm_scan_params *params)
@@ -1478,6 +1453,9 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		if (gen_flags & IWL_UMAC_SCAN_GEN_FLAGS_LMAC2_FRAGMENTED)
 			cmd->v8.num_of_fragments[SCAN_HB_LMAC_IDX] =
 							IWL_SCAN_NUM_OF_FRAGS;
+
+		cmd->v8.general_flags2 =
+			IWL_UMAC_SCAN_GEN_FLAGS2_ALLOW_CHNL_REORDER;
 	}
 
 	cmd->scan_start_mac_id = scan_vif->id;
@@ -1485,10 +1463,20 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (type == IWL_MVM_SCAN_SCHED || type == IWL_MVM_SCAN_NETDETECT)
 		cmd->flags = cpu_to_le32(IWL_UMAC_SCAN_FLAG_PREEMPTIVE);
 
-	if (iwl_mvm_scan_use_ebs(mvm, vif))
+	if (iwl_mvm_scan_use_ebs(mvm, vif)) {
 		channel_flags = IWL_SCAN_CHANNEL_FLAG_EBS |
 				IWL_SCAN_CHANNEL_FLAG_EBS_ACCURATE |
 				IWL_SCAN_CHANNEL_FLAG_CACHE_ADD;
+
+		/* set fragmented ebs for fragmented scan on HB channels */
+		if (iwl_mvm_is_frag_ebs_supported(mvm)) {
+			if (gen_flags &
+			    IWL_UMAC_SCAN_GEN_FLAGS_LMAC2_FRAGMENTED ||
+			    (!iwl_mvm_is_cdb_supported(mvm) &&
+			     gen_flags & IWL_UMAC_SCAN_GEN_FLAGS_FRAGMENTED))
+				channel_flags |= IWL_SCAN_CHANNEL_FLAG_EBS_FRAG;
+		}
+	}
 
 	chan_param->flags = channel_flags;
 	chan_param->count = params->n_channels;
@@ -1691,9 +1679,7 @@ int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (ret)
 		return ret;
 
-#ifdef CPTCFG_IWLMVM_TCM
 	iwl_mvm_pause_tcm(mvm, false);
-#endif
 
 	ret = iwl_mvm_send_cmd(mvm, &hcmd);
 	if (ret) {
@@ -1702,9 +1688,7 @@ int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		 * should try to send the command again with different params.
 		 */
 		IWL_ERR(mvm, "Scan failed! ret %d\n", ret);
-#ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_resume_tcm(mvm);
-#endif
 		return ret;
 	}
 
@@ -1852,9 +1836,7 @@ void iwl_mvm_rx_umac_scan_complete_notif(struct iwl_mvm *mvm,
 		mvm->scan_vif = NULL;
 		iwl_mvm_unref(mvm, IWL_MVM_REF_SCAN);
 		cancel_delayed_work(&mvm->scan_timeout_dwork);
-#ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_resume_tcm(mvm);
-#endif
 	} else if (mvm->scan_uid_status[uid] == IWL_MVM_SCAN_SCHED) {
 		ieee80211_sched_scan_stopped(mvm->hw);
 		mvm->sched_scan_pass_all = SCHED_SCAN_PASS_ALL_DISABLED;
