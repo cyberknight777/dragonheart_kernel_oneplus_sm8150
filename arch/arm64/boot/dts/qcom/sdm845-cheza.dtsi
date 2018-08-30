@@ -317,11 +317,10 @@
 		 * NOTE: this rail should have been called
 		 * src_pp3300_l19a in the schematic
 		 */
-		/* TODO: should be 3.3V, but b/112920779 */
 		pp3300_dx_edp:
 		src_pp3000_l19a: ldo19 {
-			regulator-min-microvolt = <3008000>;
-			regulator-max-microvolt = <3008000>;
+			regulator-min-microvolt = <3304000>;
+			regulator-max-microvolt = <3304000>;
 
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
@@ -390,11 +389,10 @@
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 
-		/* TODO: should be 3.3V, but b/112920779 */
 		pp3300_dx_pen:
 		src_pp3300_l28a: ldo28 {
-			regulator-min-microvolt = <3008000>;
-			regulator-max-microvolt = <3008000>;
+			regulator-min-microvolt = <3304000>;
+			regulator-max-microvolt = <3304000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 

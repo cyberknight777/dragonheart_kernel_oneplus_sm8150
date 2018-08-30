@@ -105,6 +105,21 @@
  */
 
 /*
+ * L19 and L28 technically go to 3.3V, but most boards have old AOP firmware
+ * that limits them to 3.0, and trying to run at 3.3V with that old firmware
+ * prevents the system from booting.
+ */
+&src_pp3000_l19a {
+	regulator-min-microvolt = <3008000>;
+	regulator-max-microvolt = <3008000>;
+};
+
+&src_pp3300_l28a {
+	regulator-min-microvolt = <3008000>;
+	regulator-max-microvolt = <3008000>;
+};
+
+/*
  * NOTE: spi0 is supposed to be for FP and spi10 is supposed to be for
  * EC.  ...but spi10 was wired incorrectly in -rev0 so we've bluewired
  * things to spi0 (and still left spi10 connected).  Hence a strange
