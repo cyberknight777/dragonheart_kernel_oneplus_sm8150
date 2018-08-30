@@ -3,6 +3,7 @@ config IWL7000
 
 	# normal iwlwifi dependencies
 	depends on PCI && HAS_IOMEM
+	depends on PM
 	select FW_LOADER
 
 	# this is because we don't depend on mac80211
