@@ -1114,6 +1114,22 @@ static int amdgpu_vm_wait_pd(struct amdgpu_device *adev, struct amdgpu_vm *vm,
 	return r;
 }
 
+/**
+ * amdgpu_vm_update_func - helper to call update function
+ *
+ * Calls the update function for both the given BO as well as its shadow.
+ */
+static void amdgpu_vm_update_func(struct amdgpu_pte_update_params *params,
+				  struct amdgpu_bo *bo,
+				  uint64_t pe, uint64_t addr,
+				  unsigned count, uint32_t incr,
+				  uint64_t flags)
+{
+	if (bo->shadow)
+		params->func(params, bo->shadow, pe, addr, count, incr, flags);
+	params->func(params, bo, pe, addr, count, incr, flags);
+}
+
 /*
  * amdgpu_vm_update_pde - update a single level in the hierarchy
  *
@@ -1143,9 +1159,7 @@ static void amdgpu_vm_update_pde(struct amdgpu_pte_update_params *params,
 	level += params->adev->vm_manager.root_level;
 	amdgpu_gmc_get_pde_for_bo(entry->base.bo, level, &pt, &flags);
 	pde = (entry - parent->entries) * 8;
-	if (bo->shadow)
-		params->func(params, bo->shadow, pde, pt, 1, 0, flags);
-	params->func(params, bo, pde, pt, 1, 0, flags);
+	amdgpu_vm_update_func(params, bo, pde, pt, 1, 0, flags);
 }
 
 /*
@@ -1352,9 +1366,7 @@ static void amdgpu_vm_handle_huge_pages(struct amdgpu_pte_update_params *p,
 	amdgpu_gmc_get_vm_pde(p->adev, AMDGPU_VM_PDB0, &dst, &flags);
 
 	pde = (entry - parent->entries) * 8;
-	if (parent->base.bo->shadow)
-		p->func(p, parent->base.bo->shadow, pde, dst, 1, 0, flags);
-	p->func(p, parent->base.bo, pde, dst, 1, 0, flags);
+	amdgpu_vm_update_func(p, parent->base.bo, pde, dst, 1, 0, flags);
 }
 
 /**
@@ -1404,11 +1416,9 @@ static int amdgpu_vm_update_ptes(struct amdgpu_pte_update_params *params,
 
 		pt = entry->base.bo;
 		pe_start = (addr & mask) * 8;
-		if (pt->shadow)
-			params->func(params, pt->shadow, pe_start, dst, nptes,
-				     AMDGPU_GPU_PAGE_SIZE, flags);
-		params->func(params, pt, pe_start, dst, nptes,
-			     AMDGPU_GPU_PAGE_SIZE, flags);
+		amdgpu_vm_update_func(params, pt, pe_start, dst, nptes,
+				      AMDGPU_GPU_PAGE_SIZE, flags);
+
 	}
 
 	return 0;
