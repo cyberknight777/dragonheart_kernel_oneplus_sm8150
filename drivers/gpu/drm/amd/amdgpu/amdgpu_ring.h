@@ -155,6 +155,8 @@ struct amdgpu_ring_funcs {
 	/* priority functions */
 	void (*set_priority) (struct amdgpu_ring *ring,
 			      enum drm_sched_priority priority);
+	/* Try to soft recover the ring to make the fence signal */
+	void (*soft_recovery)(struct amdgpu_ring *ring, unsigned vmid);
 };
 
 struct amdgpu_ring {
@@ -224,6 +226,9 @@ int amdgpu_ring_lru_get(struct amdgpu_device *adev, int type,
 			int *blacklist, int num_blacklist,
 			bool lru_pipe_order, struct amdgpu_ring **ring);
 void amdgpu_ring_lru_touch(struct amdgpu_device *adev, struct amdgpu_ring *ring);
+bool amdgpu_ring_soft_recovery(struct amdgpu_ring *ring, unsigned int vmid,
+			       struct dma_fence *fence);
+
 static inline void amdgpu_ring_clear_ring(struct amdgpu_ring *ring)
 {
 	int i = 0;

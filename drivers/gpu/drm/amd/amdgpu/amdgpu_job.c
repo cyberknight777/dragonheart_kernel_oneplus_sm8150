@@ -32,6 +32,12 @@ static void amdgpu_job_timedout(struct drm_sched_job *s_job)
 {
 	struct amdgpu_job *job = container_of(s_job, struct amdgpu_job, base);
 
+	if (amdgpu_ring_soft_recovery(job->ring, job->vmid, s_job->s_fence->parent)) {
+		DRM_ERROR("ring %s timeout, but soft recovered\n",
+			  s_job->sched->name);
+		return;
+	}
+
 	DRM_ERROR("ring %s timeout, last signaled seq=%u, last emitted seq=%u\n",
 		  job->base.sched->name,
 		  atomic_read(&job->ring->fence_drv.last_seq),

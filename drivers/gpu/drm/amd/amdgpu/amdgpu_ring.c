@@ -456,6 +456,31 @@ void amdgpu_ring_lru_touch(struct amdgpu_device *adev, struct amdgpu_ring *ring)
 	spin_unlock(&adev->ring_lru_list_lock);
 }
 
+/**
+ * amdgpu_ring_soft_recovery - try to soft recover a ring lockup
+ *
+ * @ring: ring to try the recovery on
+ * @vmid: VMID we try to get going again
+ * @fence: timedout fence
+ *
+ * Tries to get a ring proceeding again when it is stuck.
+ */
+bool amdgpu_ring_soft_recovery(struct amdgpu_ring *ring, unsigned int vmid,
+			       struct dma_fence *fence)
+{
+	ktime_t deadline = ktime_add_us(ktime_get(), 10000);
+
+	if (!ring->funcs->soft_recovery)
+		return false;
+
+	atomic_inc(&ring->adev->gpu_reset_counter);
+	while (!dma_fence_is_signaled(fence) &&
+	       ktime_to_ns(ktime_sub(deadline, ktime_get())) > 0)
+		ring->funcs->soft_recovery(ring, vmid);
+
+	return dma_fence_is_signaled(fence);
+}
+
 /*
  * Debugfs info
  */
