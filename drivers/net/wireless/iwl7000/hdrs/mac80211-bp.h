@@ -2425,7 +2425,7 @@ struct sta_opmode_info {
 
 #define cfg_control_port_over_nl80211(params) 0
 #else
-#define cfg_control_port_over_nl80211(params) params->control_port_over_nl80211
+#define cfg_control_port_over_nl80211(params) (params)->control_port_over_nl80211
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,18,0)
