@@ -94,6 +94,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA988X_HW_2_0_VERSION,
@@ -128,6 +129,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9887_HW_1_0_VERSION,
@@ -162,6 +164,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -195,6 +198,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -228,6 +232,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_3_0_VERSION,
@@ -261,6 +266,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA6174_HW_3_2_VERSION,
@@ -297,6 +303,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = true,
 	},
 	{
 		.id = QCA99X0_HW_2_0_DEV_VERSION,
@@ -336,6 +343,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9984_HW_1_0_DEV_VERSION,
@@ -380,6 +388,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9888_HW_2_0_DEV_VERSION,
@@ -423,6 +432,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9377_HW_1_0_DEV_VERSION,
@@ -456,6 +466,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = QCA9377_HW_1_1_DEV_VERSION,
@@ -491,6 +502,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = true,
 	},
 	{
 		.id = QCA4019_HW_1_0_DEV_VERSION,
@@ -531,6 +543,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = false,
 		.rri_on_ddr = false,
 		.hw_filter_reset_required = true,
+		.fw_diag_ce_download = false,
 	},
 	{
 		.id = WCN3990_HW_1_0_DEV_VERSION,
@@ -555,6 +568,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.shadow_reg_support = true,
 		.rri_on_ddr = true,
 		.hw_filter_reset_required = false,
+		.fw_diag_ce_download = false,
 	},
 };
 
@@ -1151,14 +1165,24 @@ static int ath10k_download_fw(struct ath10k *ar)
 		   "boot uploading firmware image %pK len %d\n",
 		   data, data_len);
 
-	ret = ath10k_bmi_fast_download(ar, address, data, data_len);
-	if (ret) {
-		ath10k_err(ar, "failed to download firmware: %d\n",
-			   ret);
-		return ret;
+	/* Check if device supports to download firmware via
+	 * diag copy engine. Downloading firmware via diag CE
+	 * greatly reduces the time to download firmware.
+	 */
+	if (ar->hw_params.fw_diag_ce_download) {
+		ret = ath10k_hw_diag_fast_download(ar, address,
+						   data, data_len);
+		if (ret == 0)
+			/* firmware upload via diag ce was successful */
+			return 0;
+
+		ath10k_warn(ar,
+			    "failed to upload firmware via diag ce, trying BMI: %d",
+			    ret);
 	}
 
-	return ret;
+	return ath10k_bmi_fast_download(ar, address,
+					data, data_len);
 }
 
 void ath10k_core_free_board_files(struct ath10k *ar)
