@@ -802,9 +802,14 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 			sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[sta_id],
 				lockdep_is_held(&mvm->mutex));
 
-			if (sta && sta->twt_resp_support &&
-			    (sta->he_cap.he_cap_elem.mac_cap_info[0] &
-			     IEEE80211_HE_MAC_CAP0_TWT_RES))
+			/*
+			 * TODO: we should check the ext cap IE but it is
+			 * unclear why the spec requires two bits (one in HE
+			 * cap IE, and one in the ext cap IE). In the meantime
+			 * rely on the HE cap IE only.
+			 */
+			if (sta && (sta->he_cap.he_cap_elem.mac_cap_info[0] &
+				    IEEE80211_HE_MAC_CAP0_TWT_RES))
 				ctxt_sta->data_policy |=
 					cpu_to_le32(TWT_SUPPORTED);
 		}
