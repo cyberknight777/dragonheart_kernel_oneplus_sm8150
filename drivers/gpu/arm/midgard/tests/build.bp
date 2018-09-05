@@ -19,7 +19,6 @@ bob_defaults {
         "kernel/drivers/gpu/arm/midgard/backend/gpu",
         "kernel/drivers/gpu/arm/midgard/tests/include",
     ],
-    extra_symbols: ["kutf"],
 }
 
 subdirs = [
@@ -33,4 +32,5 @@ optional_subdirs = [
     "mali_kutf_ipa_test",
     "mali_kutf_ipa_unit_test",
     "mali_kutf_vinstr_test",
+    "mali_kutf_fw_test",
 ]

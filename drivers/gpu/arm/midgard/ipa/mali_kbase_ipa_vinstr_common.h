@@ -96,11 +96,12 @@ struct kbase_ipa_group {
 };
 
 /**
- * sum_all_shader_cores() - sum a counter over all cores
- * @model_data		pointer to model data
- * @coeff		model coefficient. Unity is ~2^20, so range approx
- * +/- 4.0: -2^22 < coeff < 2^22
- * @counter     offset in bytes of the counter used to calculate energy for IPA group
+ * kbase_ipa_sum_all_shader_cores() - sum a counter over all cores
+ * @model_data:		pointer to model data
+ * @coeff:		model coefficient. Unity is ~2^20, so range approx
+ *			+/- 4.0: -2^22 < coeff < 2^22
+ * @counter		offset in bytes of the counter used to calculate energy
+ *			for IPA group
  *
  * Calculate energy estimation based on hardware counter `counter'
  * across all shader cores.
@@ -112,11 +113,29 @@ s64 kbase_ipa_sum_all_shader_cores(
 	s32 coeff, u32 counter);
 
 /**
- * sum_single_counter() - sum a single counter
- * @model_data		pointer to model data
- * @coeff		model coefficient. Unity is ~2^20, so range approx
- * +/- 4.0: -2^22 < coeff < 2^22
- * @counter     offset in bytes of the counter used to calculate energy for IPA group
+ * kbase_ipa_sum_all_memsys_blocks() - sum a counter over all mem system blocks
+ * @model_data:		pointer to model data
+ * @coeff:		model coefficient. Unity is ~2^20, so range approx
+ *			+/- 4.0: -2^22 < coeff < 2^22
+ * @counter:		offset in bytes of the counter used to calculate energy
+ *			for IPA group
+ *
+ * Calculate energy estimation based on hardware counter `counter' across all
+ * memory system blocks.
+ *
+ * Return: Sum of counter values. Range: -2^51 < ret < 2^51
+ */
+s64 kbase_ipa_sum_all_memsys_blocks(
+	struct kbase_ipa_model_vinstr_data *model_data,
+	s32 coeff, u32 counter);
+
+/**
+ * kbase_ipa_single_counter() - sum a single counter
+ * @model_data:		pointer to model data
+ * @coeff:		model coefficient. Unity is ~2^20, so range approx
+ *			+/- 4.0: -2^22 < coeff < 2^22
+ * @counter:		offset in bytes of the counter used to calculate energy
+ *			for IPA group
  *
  * Calculate energy estimation based on hardware counter `counter'.
  *

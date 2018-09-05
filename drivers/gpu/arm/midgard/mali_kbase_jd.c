@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2010-2017 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -91,6 +91,7 @@ static int jd_run_atom(struct kbase_jd_atom *katom)
 	} else if (katom->core_req & BASE_JD_REQ_SOFT_JOB) {
 		/* Soft-job */
 		if (katom->will_fail_event_code) {
+			kbase_finish_soft_job(katom);
 			katom->status = KBASE_JD_ATOM_STATE_COMPLETED;
 			return 0;
 		}
@@ -808,7 +809,6 @@ bool jd_submit_atom(struct kbase_context *kctx, const struct base_jd_atom_v2 *us
 	katom->nr_extres = user_atom->nr_extres;
 	katom->extres = NULL;
 	katom->device_nr = user_atom->device_nr;
-	katom->affinity = 0;
 	katom->jc = user_atom->jc;
 	katom->coreref_state = KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED;
 	katom->core_req = user_atom->core_req;
@@ -923,10 +923,35 @@ bool jd_submit_atom(struct kbase_context *kctx, const struct base_jd_atom_v2 *us
 
 	if (will_fail) {
 		if (!queued) {
+			if (katom->core_req & BASE_JD_REQ_SOFT_JOB) {
+				/* This softjob has failed due to a previous
+				 * dependency, however we should still run the
+				 * prepare & finish functions
+				 */
+				int err = kbase_prepare_soft_job(katom);
+
+				if (err >= 0)
+					kbase_finish_soft_job(katom);
+			}
+
 			ret = jd_done_nolock(katom, NULL);
 
 			goto out;
 		} else {
+
+			if (katom->core_req & BASE_JD_REQ_SOFT_JOB) {
+				/* This softjob has failed due to a previous
+				 * dependency, however we should still run the
+				 * prepare & finish functions
+				 */
+				if (kbase_prepare_soft_job(katom) != 0) {
+					katom->event_code =
+						BASE_JD_EVENT_JOB_INVALID;
+					ret = jd_done_nolock(katom, NULL);
+					goto out;
+				}
+			}
+
 			katom->will_fail_event_code = katom->event_code;
 			ret = false;
 
@@ -1003,11 +1028,13 @@ bool jd_submit_atom(struct kbase_context *kctx, const struct base_jd_atom_v2 *us
 		goto out;
 	}
 
-	/* Reject fence wait soft-job atoms accessing external resources */
+	/* Reject soft-job atom of certain types from accessing external resources */
 	if ((katom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES) &&
-			 ((katom->core_req & BASE_JD_REQ_SOFT_JOB_TYPE) == BASE_JD_REQ_SOFT_FENCE_WAIT)) {
+			(((katom->core_req & BASE_JD_REQ_SOFT_JOB_TYPE) == BASE_JD_REQ_SOFT_FENCE_WAIT) ||
+			 ((katom->core_req & BASE_JD_REQ_SOFT_JOB_TYPE) == BASE_JD_REQ_SOFT_JIT_ALLOC) ||
+			 ((katom->core_req & BASE_JD_REQ_SOFT_JOB_TYPE) == BASE_JD_REQ_SOFT_JIT_FREE))) {
 		dev_warn(kctx->kbdev->dev,
-				"Rejecting fence wait soft-job atom accessing external resources");
+				"Rejecting soft-job atom accessing external resources");
 		katom->event_code = BASE_JD_EVENT_JOB_INVALID;
 		ret = jd_done_nolock(katom, NULL);
 		goto out;
@@ -1123,9 +1150,6 @@ int kbase_jd_submit(struct kbase_context *kctx,
 		return -EINVAL;
 	}
 
-	KBASE_TIMELINE_ATOMS_IN_FLIGHT(kctx, atomic_add_return(nr_atoms,
-				&kctx->timeline.jd_atoms_in_flight));
-
 	/* All atoms submitted in this call have the same flush ID */
 	latest_flush = kbase_backend_get_current_flush_id(kbdev);
 
@@ -1136,9 +1160,6 @@ int kbase_jd_submit(struct kbase_context *kctx,
 		if (copy_from_user(&user_atom, user_addr,
 					sizeof(user_atom)) != 0) {
 			err = -EINVAL;
-			KBASE_TIMELINE_ATOMS_IN_FLIGHT(kctx,
-				atomic_sub_return(nr_atoms - i,
-				&kctx->timeline.jd_atoms_in_flight));
 			break;
 		}
 
@@ -1222,7 +1243,6 @@ void kbase_jd_done_worker(struct work_struct *data)
 	struct kbasep_js_atom_retained_state katom_retained_state;
 	bool context_idle;
 	base_jd_core_req core_req = katom->core_req;
-	u64 affinity = katom->affinity;
 	enum kbase_atom_coreref_state coreref_state = katom->coreref_state;
 
 	/* Soft jobs should never reach this function */
@@ -1270,7 +1290,8 @@ void kbase_jd_done_worker(struct work_struct *data)
 		return;
 	}
 
-	if (katom->event_code != BASE_JD_EVENT_DONE)
+	if ((katom->event_code != BASE_JD_EVENT_DONE) &&
+			(!kbase_ctx_flag(katom->kctx, KCTX_DYING)))
 		dev_err(kbdev->dev,
 			"t6xx: GPU fault 0x%02lx from job slot %d\n",
 					(unsigned long)katom->event_code,
@@ -1368,8 +1389,7 @@ void kbase_jd_done_worker(struct work_struct *data)
 		mutex_unlock(&jctx->lock);
 	}
 
-	kbase_backend_complete_wq_post_sched(kbdev, core_req, affinity,
-			coreref_state);
+	kbase_backend_complete_wq_post_sched(kbdev, core_req, coreref_state);
 
 	if (context_idle)
 		kbase_pm_context_idle(kbdev);

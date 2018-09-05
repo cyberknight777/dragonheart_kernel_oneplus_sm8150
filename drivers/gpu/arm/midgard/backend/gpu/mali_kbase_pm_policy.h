@@ -73,11 +73,25 @@ enum kbase_pm_cores_ready {
 
 
 /**
- * kbase_pm_request_cores_sync - Synchronous variant of kbase_pm_request_cores()
+ * kbase_pm_request_cores - Request the desired cores to be powered up.
+ * @kbdev:           Kbase device
+ * @tiler_required:  true if tiler is required
+ * @shader_required: true if shaders are required
  *
- * @kbdev:          The kbase device structure for the device
- * @tiler_required: true if the tiler is required, false otherwise
- * @shader_cores:   A bitmask of shader cores which are necessary for the job
+ * Called by the scheduler to request power to the desired cores.
+ *
+ * There is no guarantee that the HW will be powered up on return. Use
+ * kbase_pm_cores_requested()/kbase_pm_cores_ready() to verify that cores are
+ * now powered, or instead call kbase_pm_request_cores_sync().
+ */
+void kbase_pm_request_cores(struct kbase_device *kbdev, bool tiler_required,
+		bool shader_required);
+
+/**
+ * kbase_pm_request_cores_sync - Synchronous variant of kbase_pm_request_cores()
+ * @kbdev:           Kbase device
+ * @tiler_required:  true if tiler is required
+ * @shader_required: true if shaders are required
  *
  * When this function returns, the @shader_cores will be in the READY state.
  *
@@ -87,98 +101,79 @@ enum kbase_pm_cores_ready {
  * is made.
  */
 void kbase_pm_request_cores_sync(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores);
+		bool tiler_required, bool shader_required);
 
 /**
- * kbase_pm_request_cores - Mark one or more cores as being required
- *                          for jobs to be submitted
+ * kbase_pm_release_cores - Request the desired cores to be powered down.
+ * @kbdev:           Kbase device
+ * @tiler_required:  true if tiler is required
+ * @shader_required: true if shaders are required
  *
- * @kbdev:          The kbase device structure for the device
- * @tiler_required: true if the tiler is required, false otherwise
- * @shader_cores:   A bitmask of shader cores which are necessary for the job
- *
- * This function is called by the job scheduler to mark one or more cores as
- * being required to submit jobs that are ready to run.
- *
- * The cores requested are reference counted and a subsequent call to
- * kbase_pm_register_inuse_cores() or kbase_pm_unrequest_cores() should be
- * made to dereference the cores as being 'needed'.
- *
- * The active power policy will meet or exceed the requirements of the
- * requested cores in the system. Any core transitions needed will be begun
- * immediately, but they might not complete/the cores might not be available
- * until a Power Management IRQ.
- *
- * Return: 0 if the cores were successfully requested, or -errno otherwise.
+ * Called by the scheduler to release its power reference on the desired cores.
  */
-void kbase_pm_request_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores);
+void kbase_pm_release_cores(struct kbase_device *kbdev, bool tiler_required,
+		bool shader_required);
 
 /**
- * kbase_pm_unrequest_cores - Unmark one or more cores as being required for
- *                            jobs to be submitted.
+ * kbase_pm_cores_requested - Check that a power request has been locked into
+ *                            the HW.
+ * @kbdev:           Kbase device
+ * @tiler_required:  true if tiler is required
+ * @shader_required: true if shaders are required
  *
- * @kbdev:          The kbase device structure for the device
- * @tiler_required: true if the tiler is required, false otherwise
- * @shader_cores:   A bitmask of shader cores (as given to
- *                  kbase_pm_request_cores() )
+ * Called by the scheduler to check if a power on request has been locked into
+ * the HW.
  *
- * This function undoes the effect of kbase_pm_request_cores(). It should be
- * used when a job is not going to be submitted to the hardware (e.g. the job is
- * cancelled before it is enqueued).
+ * Note that there is no guarantee that the cores are actually ready, however
+ * when the request has been locked into the HW, then it is safe to submit work
+ * since the HW will wait for the transition to ready.
  *
- * The active power policy will meet or exceed the requirements of the
- * requested cores in the system. Any core transitions needed will be begun
- * immediately, but they might not complete until a Power Management IRQ.
+ * A reference must first be taken prior to making this call.
  *
- * The policy may use this as an indication that it can power down cores.
+ * Caller must hold the hwaccess_lock.
+ *
+ * Return: true if the request to the HW was successfully made else false if the
+ *         request is still pending.
  */
-void kbase_pm_unrequest_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores);
+static inline bool kbase_pm_cores_requested(struct kbase_device *kbdev,
+		bool tiler_required, bool shader_required)
+{
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	if ((shader_required && !kbdev->shader_available_bitmap) ||
+			(tiler_required && !kbdev->tiler_available_bitmap))
+		return false;
+
+	return true;
+}
 
 /**
- * kbase_pm_register_inuse_cores - Register a set of cores as in use by a job
+ * kbase_pm_cores_ready -  Check that the required cores have been powered on by
+ *                         the HW.
+ * @kbdev:           Kbase device
+ * @tiler_required:  true if tiler is required
+ * @shader_required: true if shaders are required
  *
- * @kbdev:          The kbase device structure for the device
- * @tiler_required: true if the tiler is required, false otherwise
- * @shader_cores:   A bitmask of shader cores (as given to
- *                  kbase_pm_request_cores() )
+ * Called by the scheduler to check if cores are ready.
  *
- * This function should be called after kbase_pm_request_cores() when the job
- * is about to be submitted to the hardware. It will check that the necessary
- * cores are available and if so update the 'needed' and 'inuse' bitmasks to
- * reflect that the job is now committed to being run.
+ * Note that the caller should ensure that they have first requested cores
+ * before calling this function.
  *
- * If the necessary cores are not currently available then the function will
- * return %KBASE_CORES_NOT_READY and have no effect.
+ * Caller must hold the hwaccess_lock.
  *
- * Return: %KBASE_CORES_NOT_READY if the cores are not immediately ready,
- *
- *         %KBASE_NEW_AFFINITY if the affinity requested is not allowed,
- *
- *         %KBASE_CORES_READY if the cores requested are already available
+ * Return: true if the cores are ready.
  */
-enum kbase_pm_cores_ready kbase_pm_register_inuse_cores(
-						struct kbase_device *kbdev,
-						bool tiler_required,
-						u64 shader_cores);
+static inline bool kbase_pm_cores_ready(struct kbase_device *kbdev,
+		bool tiler_required, bool shader_required)
+{
+	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-/**
- * kbase_pm_release_cores - Release cores after a job has run
- *
- * @kbdev:          The kbase device structure for the device
- * @tiler_required: true if the tiler is required, false otherwise
- * @shader_cores:   A bitmask of shader cores (as given to
- *                  kbase_pm_register_inuse_cores() )
- *
- * This function should be called when a job has finished running on the
- * hardware. A call to kbase_pm_register_inuse_cores() must have previously
- * occurred. The reference counts of the specified cores will be decremented
- * which may cause the bitmask of 'inuse' cores to be reduced. The power policy
- * may then turn off any cores which are no longer 'inuse'.
- */
-void kbase_pm_release_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores);
+	if ((shader_required && !kbdev->shader_ready_bitmap) ||
+			(tiler_required && !kbdev->tiler_available_bitmap))
+		return false;
+
+	return true;
+}
 
 /**
  * kbase_pm_request_l2_caches - Request l2 caches

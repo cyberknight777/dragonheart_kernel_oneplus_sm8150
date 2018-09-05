@@ -117,13 +117,18 @@ enum vinstr_state {
  *                     in progress. Resume worker should queue a suspend.
  * @need_resume:       when true, a resume has been requested while a suspend is
  *                     in progress. Suspend worker should queue a resume.
+ * @forced_suspend:    when true, the suspend of vinstr needs to take place
+ *                     regardless of the kernel/user space clients attached
+ *                     to it. In particular, this flag is set when the suspend
+ *                     of vinstr is requested on entering protected mode or at
+ *                     the time of device suspend.
  */
 struct kbase_vinstr_context {
 	struct mutex             lock;
 	struct kbase_device      *kbdev;
 	struct kbase_context     *kctx;
 
-	struct kbase_vmap_struct vmap;
+	struct kbase_vmap_struct *vmap;
 	u64                      gpu_va;
 	void                     *cpu_va;
 	size_t                   dump_size;
@@ -151,6 +156,7 @@ struct kbase_vinstr_context {
 
 	bool                     need_suspend;
 	bool                     need_resume;
+	bool                     forced_suspend;
 };
 
 /**
@@ -332,9 +338,15 @@ size_t kbase_vinstr_dump_size(struct kbase_device *kbdev)
 #endif /* CONFIG_MALI_NO_MALI */
 	{
 		/* assume v5 for now */
+#ifdef CONFIG_MALI_NO_MALI
+		u32 nr_l2 = KBASE_DUMMY_MODEL_MAX_MEMSYS_BLOCKS;
+		u64 core_mask =
+			(1ULL << KBASE_DUMMY_MODEL_MAX_SHADER_CORES) - 1;
+#else
 		base_gpu_props *props = &kbdev->gpu_props.props;
 		u32 nr_l2 = props->l2_props.num_l2_slices;
 		u64 core_mask = props->coherency_info.group[0].core_mask;
+#endif
 		u32 nr_blocks = fls64(core_mask);
 
 		/* JM and tiler counter blocks are always present */
@@ -359,7 +371,11 @@ static int kbasep_vinstr_map_kernel_dump_buffer(
 	struct kbase_context *kctx = vinstr_ctx->kctx;
 	u64 flags, nr_pages;
 
-	flags = BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_GPU_WR;
+	flags = BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_GPU_WR |
+		BASE_MEM_PERMANENT_KERNEL_MAPPING | BASE_MEM_CACHED_CPU;
+	if (kctx->kbdev->mmu_mode->flags &
+			KBASE_MMU_MODE_HAS_NON_CACHEABLE)
+		flags |= BASE_MEM_UNCACHED_GPU;
 	vinstr_ctx->dump_size = kbasep_vinstr_dump_size_ctx(vinstr_ctx);
 	nr_pages = PFN_UP(vinstr_ctx->dump_size);
 
@@ -368,11 +384,9 @@ static int kbasep_vinstr_map_kernel_dump_buffer(
 	if (!reg)
 		return -ENOMEM;
 
-	vinstr_ctx->cpu_va = kbase_vmap(
-			kctx,
-			vinstr_ctx->gpu_va,
-			vinstr_ctx->dump_size,
-			&vinstr_ctx->vmap);
+	vinstr_ctx->cpu_va = kbase_phy_alloc_mapping_get(kctx,
+			vinstr_ctx->gpu_va, &vinstr_ctx->vmap);
+
 	if (!vinstr_ctx->cpu_va) {
 		kbase_mem_free(kctx, vinstr_ctx->gpu_va);
 		return -ENOMEM;
@@ -386,7 +400,7 @@ static void kbasep_vinstr_unmap_kernel_dump_buffer(
 {
 	struct kbase_context *kctx = vinstr_ctx->kctx;
 
-	kbase_vunmap(kctx, &vinstr_ctx->vmap);
+	kbase_phy_alloc_mapping_put(kctx, vinstr_ctx->vmap);
 	kbase_mem_free(kctx, vinstr_ctx->gpu_va);
 }
 
@@ -1033,6 +1047,16 @@ static int kbasep_vinstr_collect_and_accumulate(
 	if (!rcode)
 		rcode = kbase_instr_hwcnt_wait_for_dump(vinstr_ctx->kctx);
 	WARN_ON(rcode);
+
+	if (!rcode) {
+		/* Invalidate the kernel buffer before reading from it.
+		 * As the vinstr_ctx->lock is already held by the caller, the
+		 * unmap of kernel buffer cannot take place simultaneously.
+		 */
+		lockdep_assert_held(&vinstr_ctx->lock);
+		kbase_sync_mem_regions(vinstr_ctx->kctx, vinstr_ctx->vmap,
+				KBASE_SYNC_TO_CPU);
+	}
 
 	spin_lock_irqsave(&vinstr_ctx->state_lock, flags);
 	switch (vinstr_ctx->state) {
@@ -2142,6 +2166,7 @@ int kbase_vinstr_try_suspend(struct kbase_vinstr_context *vinstr_ctx)
 	KBASE_DEBUG_ASSERT(vinstr_ctx);
 
 	spin_lock_irqsave(&vinstr_ctx->state_lock, flags);
+	vinstr_ctx->forced_suspend = true;
 	switch (vinstr_ctx->state) {
 	case VINSTR_SUSPENDED:
 		vinstr_ctx->suspend_cnt++;
@@ -2246,7 +2271,7 @@ static void kbase_vinstr_update_suspend(struct kbase_vinstr_context *vinstr_ctx)
 		break;
 
 	case VINSTR_SUSPENDING:
-		if (vinstr_ctx->nclients)
+		if ((vinstr_ctx->nclients) && (!vinstr_ctx->forced_suspend))
 			vinstr_ctx->need_resume = true;
 		break;
 
@@ -2281,6 +2306,7 @@ void kbase_vinstr_resume(struct kbase_vinstr_context *vinstr_ctx)
 		BUG_ON(0 == vinstr_ctx->suspend_cnt);
 		vinstr_ctx->suspend_cnt--;
 		if (0 == vinstr_ctx->suspend_cnt) {
+			vinstr_ctx->forced_suspend = false;
 			if (vinstr_ctx->clients_present) {
 				vinstr_ctx->state = VINSTR_RESUMING;
 				schedule_work(&vinstr_ctx->resume_work);

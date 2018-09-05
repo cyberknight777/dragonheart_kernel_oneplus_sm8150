@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2010, 2012-2015 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010, 2012-2015, 2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -44,7 +44,7 @@ extern "C" {
  * @defgroup uk_api User-Kernel Interface API
  *
  * The User-Kernel Interface abstracts the communication mechanism between the user and kernel-side code of device
- * drivers developed as part of the Midgard DDK. Currently that includes the Base driver and the UMP driver.
+ * drivers developed as part of the Midgard DDK. Currently that includes the Base driver.
  *
  * It exposes an OS independent API to user-side code (UKU) which routes functions calls to an OS-independent
  * kernel-side API (UKK) via an OS-specific communication mechanism.

@@ -59,7 +59,6 @@
 #include "mali_kbase_context.h"
 #include "mali_kbase_strings.h"
 #include "mali_kbase_mem_lowlevel.h"
-#include "mali_kbase_trace_timeline.h"
 #include "mali_kbase_js.h"
 #include "mali_kbase_utility.h"
 #include "mali_kbase_mem.h"
@@ -76,6 +75,7 @@
 #ifdef CONFIG_GPU_TRACEPOINTS
 #include <trace/events/gpu.h>
 #endif
+
 
 #ifndef u64_to_user_ptr
 /* Introduced in Linux v4.6 */
@@ -239,6 +239,44 @@ void kbase_event_close(struct kbase_context *kctx);
 void kbase_event_cleanup(struct kbase_context *kctx);
 void kbase_event_wakeup(struct kbase_context *kctx);
 
+/**
+ * kbasep_jit_alloc_validate() - Validate the JIT allocation info.
+ *
+ * @kctx:	Pointer to the kbase context within which the JIT
+ *		allocation is to be validated.
+ * @info:	Pointer to struct @base_jit_alloc_info
+ *			which is to be validated.
+ * @return: 0 if jit allocation is valid; negative error code otherwise
+ */
+int kbasep_jit_alloc_validate(struct kbase_context *kctx,
+					struct base_jit_alloc_info *info);
+/**
+ * kbase_mem_copy_from_extres_page() - Copy pages from external resources.
+ *
+ * @kctx:		kbase context within which the copying is to take place.
+ * @extres_pages:	Pointer to the pages which correspond to the external
+ *			resources from which the copying will take place.
+ * @pages:		Pointer to the pages to which the content is to be
+ *			copied from the provided external resources.
+ * @nr_pages:		Number of pages to copy.
+ * @target_page_nr:	Number of target pages which will be used for copying.
+ * @offset:		Offset into the target pages from which the copying
+ *			is to be performed. 
+ * @to_copy:		Size of the chunk to be copied, in bytes. 
+ */
+void kbase_mem_copy_from_extres_page(struct kbase_context *kctx,
+		void *extres_page, struct page **pages, unsigned int nr_pages,
+		unsigned int *target_page_nr, size_t offset, size_t *to_copy);
+/**
+ * kbase_mem_copy_from_extres() - Copy from external resources.
+ *
+ * @kctx:	kbase context within which the copying is to take place.
+ * @buf_data:	Pointer to the information about external resources:
+ *		pages pertaining to the external resource, number of
+ *		pages to copy.
+ */
+int kbase_mem_copy_from_extres(struct kbase_context *kctx,
+		struct kbase_debug_copy_buffer *buf_data);
 int kbase_process_soft_job(struct kbase_jd_atom *katom);
 int kbase_prepare_soft_job(struct kbase_jd_atom *katom);
 void kbase_finish_soft_job(struct kbase_jd_atom *katom);
@@ -256,12 +294,6 @@ bool kbase_replay_process(struct kbase_jd_atom *katom);
 
 void kbasep_soft_job_timeout_worker(struct timer_list *timer);
 void kbasep_complete_triggered_soft_events(struct kbase_context *kctx, u64 evt);
-
-/* api used internally for register access. Contains validation and tracing */
-void kbase_device_trace_register_access(struct kbase_context *kctx, enum kbase_reg_access_type type, u16 reg_offset, u32 reg_value);
-int kbase_device_trace_buffer_install(
-		struct kbase_context *kctx, u32 *tb, size_t size);
-void kbase_device_trace_buffer_uninstall(struct kbase_context *kctx);
 
 void kbasep_as_do_poke(struct work_struct *work);
 
@@ -290,6 +322,29 @@ const char *kbase_exception_name(struct kbase_device *kbdev,
 static inline bool kbase_pm_is_suspending(struct kbase_device *kbdev)
 {
 	return kbdev->pm.suspending;
+}
+
+/**
+ * kbase_pm_is_active - Determine whether the GPU is active
+ *
+ * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ *
+ * This takes into account the following
+ *
+ * - whether there is an active context reference
+ *
+ * - whether any of the shader cores or the tiler are needed
+ *
+ * It should generally be preferred against checking just
+ * kbdev->pm.active_count on its own, because some code paths drop their
+ * reference on this whilst still having the shader cores/tiler in use.
+ *
+ * Return: true if the GPU is active, false otherwise
+ */
+static inline bool kbase_pm_is_active(struct kbase_device *kbdev)
+{
+	return (kbdev->pm.active_count > 0 || kbdev->shader_needed_cnt ||
+			kbdev->tiler_needed_cnt);
 }
 
 /**

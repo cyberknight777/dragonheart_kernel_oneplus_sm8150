@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2014-2015 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2015,2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -36,7 +36,7 @@ void kbase_backend_get_gpu_time(struct kbase_device *kbdev, u64 *cycle_counter,
 
 /**
  * kbase_wait_write_flush() -  Wait for GPU write flush
- * @kctx:	Context pointer
+ * @kbdev:	Kbase device
  *
  * Wait 1000 GPU clock cycles. This delay is known to give the GPU time to flush
  * its write buffer.
@@ -47,11 +47,11 @@ void kbase_backend_get_gpu_time(struct kbase_device *kbdev, u64 *cycle_counter,
  * This function is only in use for BASE_HW_ISSUE_6367
  */
 #ifdef CONFIG_MALI_NO_MALI
-static inline void kbase_wait_write_flush(struct kbase_context *kctx)
+static inline void kbase_wait_write_flush(struct kbase_device *kbdev)
 {
 }
 #else
-void kbase_wait_write_flush(struct kbase_context *kctx);
+void kbase_wait_write_flush(struct kbase_device *kbdev);
 #endif
 
 #endif /* _KBASE_BACKEND_TIME_H_ */

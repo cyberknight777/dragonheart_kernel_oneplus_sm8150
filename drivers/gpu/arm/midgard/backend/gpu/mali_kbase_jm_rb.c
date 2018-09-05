@@ -34,7 +34,6 @@
 #include <backend/gpu/mali_kbase_cache_policy_backend.h>
 #include <backend/gpu/mali_kbase_device_internal.h>
 #include <backend/gpu/mali_kbase_jm_internal.h>
-#include <backend/gpu/mali_kbase_js_affinity.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
 /* Return whether the specified ringbuffer is empty. HW access lock must be
@@ -104,8 +103,6 @@ static struct kbase_jd_atom *kbase_gpu_dequeue_atom(struct kbase_device *kbdev,
 
 	katom->gpu_rb_state = KBASE_ATOM_GPU_RB_NOT_IN_SLOT_RB;
 
-	kbase_js_debug_log_current_affinities(kbdev);
-
 	return katom;
 }
 
@@ -120,12 +117,6 @@ struct kbase_jd_atom *kbase_gpu_inspect(struct kbase_device *kbdev, int js,
 		return NULL; /* idx out of range */
 
 	return rb->entries[(rb->read_idx + idx) & SLOT_RB_MASK].katom;
-}
-
-struct kbase_jd_atom *kbase_backend_inspect_head(struct kbase_device *kbdev,
-					int js)
-{
-	return kbase_gpu_inspect(kbdev, js, 0);
 }
 
 struct kbase_jd_atom *kbase_backend_inspect_tail(struct kbase_device *kbdev,
@@ -312,221 +303,58 @@ static bool kbasep_js_job_check_ref_cores(struct kbase_device *kbdev,
 						int js,
 						struct kbase_jd_atom *katom)
 {
-	/* The most recently checked affinity. Having this at this scope allows
-	 * us to guarantee that we've checked the affinity in this function
-	 * call.
+	base_jd_core_req core_req = katom->core_req;
+
+	/* NOTE: The following uses a number of FALLTHROUGHs to optimize the
+	 * calls to this function. Ending of the function is indicated by BREAK
+	 * OUT.
 	 */
-	u64 recently_chosen_affinity = 0;
-	bool chosen_affinity = false;
-	bool retry;
+	switch (katom->coreref_state) {
+		/* State when job is first attempted to be run */
+	case KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED:
+		/* Request the cores */
+		kbase_pm_request_cores(kbdev,
+				kbase_atom_needs_tiler(kbdev, core_req),
+				kbase_atom_needs_shaders(kbdev, core_req));
 
-	do {
-		retry = false;
+		/* Proceed to next state */
+		katom->coreref_state =
+		KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES;
 
-		/* NOTE: The following uses a number of FALLTHROUGHs to optimize
-		 * the calls to this function. Ending of the function is
-		 * indicated by BREAK OUT */
-		switch (katom->coreref_state) {
-			/* State when job is first attempted to be run */
-		case KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED:
-			KBASE_DEBUG_ASSERT(katom->affinity == 0);
+		/* ***FALLTHROUGH: TRANSITION TO HIGHER STATE*** */
 
-			/* Compute affinity */
-			if (false == kbase_js_choose_affinity(
-					&recently_chosen_affinity, kbdev, katom,
-									js)) {
-				/* No cores are currently available */
+	case KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES:
+		{
+			bool cores_ready;
+
+			cores_ready = kbase_pm_cores_requested(kbdev,
+				kbase_atom_needs_tiler(kbdev, core_req),
+				kbase_atom_needs_shaders(kbdev,	core_req));
+
+			if (!cores_ready) {
+				/* Stay in this state and return, to retry at
+				 * this state later.
+				 */
+				KBASE_TRACE_ADD_SLOT_INFO(kbdev,
+				JS_CORE_REF_REGISTER_INUSE_FAILED,
+						katom->kctx, katom,
+						katom->jc, js,
+						(u32) 0);
 				/* *** BREAK OUT: No state transition *** */
 				break;
 			}
-
-			chosen_affinity = true;
-
-			/* Request the cores */
-			kbase_pm_request_cores(kbdev,
-					katom->core_req & BASE_JD_REQ_T,
-						recently_chosen_affinity);
-
-			katom->affinity = recently_chosen_affinity;
-
 			/* Proceed to next state */
-			katom->coreref_state =
-			KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES;
-
-			/* ***FALLTHROUGH: TRANSITION TO HIGHER STATE*** */
-
-		case KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES:
-			{
-				enum kbase_pm_cores_ready cores_ready;
-
-				KBASE_DEBUG_ASSERT(katom->affinity != 0 ||
-					(katom->core_req & BASE_JD_REQ_T));
-
-				cores_ready = kbase_pm_register_inuse_cores(
-						kbdev,
-						katom->core_req & BASE_JD_REQ_T,
-						katom->affinity);
-				if (cores_ready == KBASE_NEW_AFFINITY) {
-					/* Affinity no longer valid - return to
-					 * previous state */
-					kbasep_js_job_check_deref_cores(kbdev,
-									katom);
-					KBASE_TRACE_ADD_SLOT_INFO(kbdev,
-					JS_CORE_REF_REGISTER_INUSE_FAILED,
-							katom->kctx, katom,
-							katom->jc, js,
-							(u32) katom->affinity);
-					/* *** BREAK OUT: Return to previous
-					 * state, retry *** */
-					retry = true;
-					break;
-				}
-				if (cores_ready == KBASE_CORES_NOT_READY) {
-					/* Stay in this state and return, to
-					 * retry at this state later */
-					KBASE_TRACE_ADD_SLOT_INFO(kbdev,
-					JS_CORE_REF_REGISTER_INUSE_FAILED,
-							katom->kctx, katom,
-							katom->jc, js,
-							(u32) katom->affinity);
-					/* *** BREAK OUT: No state transition
-					 * *** */
-					break;
-				}
-				/* Proceed to next state */
-				katom->coreref_state =
-				KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY;
-			}
-
-			/* ***FALLTHROUGH: TRANSITION TO HIGHER STATE*** */
-
-		case KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY:
-			KBASE_DEBUG_ASSERT(katom->affinity != 0 ||
-					(katom->core_req & BASE_JD_REQ_T));
-
-			/* Optimize out choosing the affinity twice in the same
-			 * function call */
-			if (chosen_affinity == false) {
-				/* See if the affinity changed since a previous
-				 * call. */
-				if (false == kbase_js_choose_affinity(
-						&recently_chosen_affinity,
-							kbdev, katom, js)) {
-					/* No cores are currently available */
-					kbasep_js_job_check_deref_cores(kbdev,
-									katom);
-					KBASE_TRACE_ADD_SLOT_INFO(kbdev,
-					JS_CORE_REF_REQUEST_ON_RECHECK_FAILED,
-						katom->kctx, katom,
-						katom->jc, js,
-						(u32) recently_chosen_affinity);
-					/* *** BREAK OUT: Transition to lower
-					 * state *** */
-					break;
-				}
-				chosen_affinity = true;
-			}
-
-			/* Now see if this requires a different set of cores */
-			if (recently_chosen_affinity != katom->affinity) {
-				enum kbase_pm_cores_ready cores_ready;
-
-				kbase_pm_request_cores(kbdev,
-						katom->core_req & BASE_JD_REQ_T,
-						recently_chosen_affinity);
-
-				/* Register new cores whilst we still hold the
-				 * old ones, to minimize power transitions */
-				cores_ready =
-					kbase_pm_register_inuse_cores(kbdev,
-						katom->core_req & BASE_JD_REQ_T,
-						recently_chosen_affinity);
-				kbasep_js_job_check_deref_cores(kbdev, katom);
-
-				/* Fixup the state that was reduced by
-				 * deref_cores: */
-				katom->coreref_state =
-				KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY;
-				katom->affinity = recently_chosen_affinity;
-				if (cores_ready == KBASE_NEW_AFFINITY) {
-					/* Affinity no longer valid - return to
-					 * previous state */
-					katom->coreref_state =
-					KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES;
-
-					kbasep_js_job_check_deref_cores(kbdev,
-									katom);
-
-					KBASE_TRACE_ADD_SLOT_INFO(kbdev,
-					JS_CORE_REF_REGISTER_INUSE_FAILED,
-							katom->kctx, katom,
-							katom->jc, js,
-							(u32) katom->affinity);
-					/* *** BREAK OUT: Return to previous
-					 * state, retry *** */
-					retry = true;
-					break;
-				}
-				/* Now might be waiting for powerup again, with
-				 * a new affinity */
-				if (cores_ready == KBASE_CORES_NOT_READY) {
-					/* Return to previous state */
-					katom->coreref_state =
-					KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES;
-					KBASE_TRACE_ADD_SLOT_INFO(kbdev,
-					JS_CORE_REF_REGISTER_ON_RECHECK_FAILED,
-							katom->kctx, katom,
-							katom->jc, js,
-							(u32) katom->affinity);
-					/* *** BREAK OUT: Transition to lower
-					 * state *** */
-					break;
-				}
-			}
-			/* Proceed to next state */
-			katom->coreref_state =
-			KBASE_ATOM_COREREF_STATE_CHECK_AFFINITY_VIOLATIONS;
-
-			/* ***FALLTHROUGH: TRANSITION TO HIGHER STATE*** */
-		case KBASE_ATOM_COREREF_STATE_CHECK_AFFINITY_VIOLATIONS:
-			KBASE_DEBUG_ASSERT(katom->affinity != 0 ||
-					(katom->core_req & BASE_JD_REQ_T));
-			KBASE_DEBUG_ASSERT(katom->affinity ==
-						recently_chosen_affinity);
-
-			/* Note: this is where the caller must've taken the
-			 * hwaccess_lock */
-
-			/* Check for affinity violations - if there are any,
-			 * then we just ask the caller to requeue and try again
-			 * later */
-			if (kbase_js_affinity_would_violate(kbdev, js,
-					katom->affinity) != false) {
-				/* Return to previous state */
-				katom->coreref_state =
-				KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY;
-				/* *** BREAK OUT: Transition to lower state ***
-				 */
-				KBASE_TRACE_ADD_SLOT_INFO(kbdev,
-					JS_CORE_REF_AFFINITY_WOULD_VIOLATE,
-					katom->kctx, katom, katom->jc, js,
-					(u32) katom->affinity);
-				break;
-			}
-
-			/* No affinity violations would result, so the cores are
-			 * ready */
 			katom->coreref_state = KBASE_ATOM_COREREF_STATE_READY;
 			/* *** BREAK OUT: Cores Ready *** */
 			break;
-
-		default:
-			KBASE_DEBUG_ASSERT_MSG(false,
-					"Unhandled kbase_atom_coreref_state %d",
-							katom->coreref_state);
-			break;
 		}
-	} while (retry != false);
+
+	default:
+		KBASE_DEBUG_ASSERT_MSG(false,
+				"Unhandled kbase_atom_coreref_state %d",
+				katom->coreref_state);
+		break;
+	}
 
 	return (katom->coreref_state == KBASE_ATOM_COREREF_STATE_READY);
 }
@@ -534,6 +362,8 @@ static bool kbasep_js_job_check_ref_cores(struct kbase_device *kbdev,
 static void kbasep_js_job_check_deref_cores(struct kbase_device *kbdev,
 						struct kbase_jd_atom *katom)
 {
+	base_jd_core_req core_req = katom->core_req;
+
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 	KBASE_DEBUG_ASSERT(katom != NULL);
 
@@ -541,31 +371,18 @@ static void kbasep_js_job_check_deref_cores(struct kbase_device *kbdev,
 	case KBASE_ATOM_COREREF_STATE_READY:
 		/* State where atom was submitted to the HW - just proceed to
 		 * power-down */
-		KBASE_DEBUG_ASSERT(katom->affinity != 0 ||
-					(katom->core_req & BASE_JD_REQ_T));
 
 		/* *** FALLTHROUGH *** */
 
-	case KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY:
-		/* State where cores were registered */
-		KBASE_DEBUG_ASSERT(katom->affinity != 0 ||
-					(katom->core_req & BASE_JD_REQ_T));
-		kbase_pm_release_cores(kbdev, katom->core_req & BASE_JD_REQ_T,
-							katom->affinity);
-
-		break;
-
 	case KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES:
-		/* State where cores were requested, but not registered */
-		KBASE_DEBUG_ASSERT(katom->affinity != 0 ||
-					(katom->core_req & BASE_JD_REQ_T));
-		kbase_pm_unrequest_cores(kbdev, katom->core_req & BASE_JD_REQ_T,
-							katom->affinity);
+		/* State where cores were requested */
+		kbase_pm_release_cores(kbdev,
+				kbase_atom_needs_tiler(kbdev, core_req),
+				kbase_atom_needs_shaders(kbdev, core_req));
 		break;
 
 	case KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED:
 		/* Initial state - nothing required */
-		KBASE_DEBUG_ASSERT(katom->affinity == 0);
 		break;
 
 	default:
@@ -575,12 +392,11 @@ static void kbasep_js_job_check_deref_cores(struct kbase_device *kbdev,
 		break;
 	}
 
-	katom->affinity = 0;
 	katom->coreref_state = KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED;
 }
 
 static void kbasep_js_job_check_deref_cores_nokatom(struct kbase_device *kbdev,
-		base_jd_core_req core_req, u64 affinity,
+		base_jd_core_req core_req,
 		enum kbase_atom_coreref_state coreref_state)
 {
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
@@ -589,31 +405,18 @@ static void kbasep_js_job_check_deref_cores_nokatom(struct kbase_device *kbdev,
 	case KBASE_ATOM_COREREF_STATE_READY:
 		/* State where atom was submitted to the HW - just proceed to
 		 * power-down */
-		KBASE_DEBUG_ASSERT(affinity != 0 ||
-					(core_req & BASE_JD_REQ_T));
 
 		/* *** FALLTHROUGH *** */
 
-	case KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY:
-		/* State where cores were registered */
-		KBASE_DEBUG_ASSERT(affinity != 0 ||
-					(core_req & BASE_JD_REQ_T));
-		kbase_pm_release_cores(kbdev, core_req & BASE_JD_REQ_T,
-							affinity);
-
-		break;
-
 	case KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES:
-		/* State where cores were requested, but not registered */
-		KBASE_DEBUG_ASSERT(affinity != 0 ||
-					(core_req & BASE_JD_REQ_T));
-		kbase_pm_unrequest_cores(kbdev, core_req & BASE_JD_REQ_T,
-							affinity);
+		/* State where cores were requested */
+		kbase_pm_release_cores(kbdev,
+				kbase_atom_needs_tiler(kbdev, core_req),
+				kbase_atom_needs_shaders(kbdev, core_req));
 		break;
 
 	case KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED:
 		/* Initial state - nothing required */
-		KBASE_DEBUG_ASSERT(affinity == 0);
 		break;
 
 	default:
@@ -659,8 +462,6 @@ static void kbase_gpu_release_atom(struct kbase_device *kbdev,
 		/* ***FALLTHROUGH: TRANSITION TO LOWER STATE*** */
 
 	case KBASE_ATOM_GPU_RB_WAITING_AFFINITY:
-		kbase_js_affinity_release_slot_cores(kbdev, katom->slot_nr,
-							katom->affinity);
 		/* ***FALLTHROUGH: TRANSITION TO LOWER STATE*** */
 
 	case KBASE_ATOM_GPU_RB_WAITING_FOR_CORE_AVAILABLE:
@@ -681,9 +482,6 @@ static void kbase_gpu_release_atom(struct kbase_device *kbdev,
 				 (katom->protected_state.enter ==
 				KBASE_ATOM_ENTER_PROTECTED_FINISHED))) {
 			kbase_vinstr_resume(kbdev->vinstr_ctx);
-
-			/* Go back to configured model for IPA */
-			kbase_ipa_model_use_configured_locked(kbdev);
 		}
 
 		if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_TGOX_R1_1234)) {
@@ -808,11 +606,13 @@ static int kbase_gpu_protected_mode_enter(struct kbase_device *kbdev)
 		err = kbdev->protected_ops->protected_mode_enable(
 				kbdev->protected_dev);
 
-		if (err)
+		if (err) {
 			dev_warn(kbdev->dev, "Failed to enable protected mode: %d\n",
 					err);
-		else
+		} else {
 			kbdev->protected_mode = true;
+			kbase_ipa_protection_mode_switch_event(kbdev);
+		}
 	}
 
 	return err;
@@ -869,11 +669,6 @@ static int kbase_jm_protected_entry(struct kbase_device *kbdev,
 			kbase_jm_return_atom_to_js(kbdev, katom[idx]);
 		}
 
-		/*
-		 * Go back to configured model for IPA
-		 */
-		kbase_ipa_model_use_configured_locked(kbdev);
-
 		return -EINVAL;
 	}
 
@@ -921,9 +716,6 @@ static int kbase_jm_enter_protected_mode(struct kbase_device *kbdev,
 			 */
 			return -EAGAIN;
 		}
-
-		/* Use generic model for IPA in protected mode */
-		kbase_ipa_model_use_fallback_locked(kbdev);
 
 		/* Once reaching this point GPU must be
 		 * switched to protected mode or vinstr
@@ -1090,9 +882,6 @@ static int kbase_jm_exit_protected_mode(struct kbase_device *kbdev,
 
 			kbase_vinstr_resume(kbdev->vinstr_ctx);
 
-			/* Use generic model for IPA in protected mode */
-			kbase_ipa_model_use_fallback_locked(kbdev);
-
 			return -EINVAL;
 		}
 
@@ -1239,8 +1028,6 @@ void kbase_backend_slot_update(struct kbase_device *kbdev)
 				if (!cores_ready)
 					break;
 
-				kbase_js_affinity_retain_slot_cores(kbdev, js,
-							katom[idx]->affinity);
 				katom[idx]->gpu_rb_state =
 					KBASE_ATOM_GPU_RB_WAITING_AFFINITY;
 
@@ -1355,25 +1142,29 @@ bool kbase_gpu_irq_evict(struct kbase_device *kbdev, int js,
 
 	if (next_katom && katom->kctx == next_katom->kctx &&
 		next_katom->gpu_rb_state == KBASE_ATOM_GPU_RB_SUBMITTED &&
-		HAS_DEP(next_katom) &&
-		(kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_LO), NULL)
+		(HAS_DEP(next_katom) || next_katom->sched_priority ==
+				katom->sched_priority) &&
+		(kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_LO))
 									!= 0 ||
-		kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_HI), NULL)
+		kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_HI))
 									!= 0)) {
 		kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT),
-				JS_COMMAND_NOP, NULL);
+				JS_COMMAND_NOP);
 		next_katom->gpu_rb_state = KBASE_ATOM_GPU_RB_READY;
 
 		if (completion_code == BASE_JD_EVENT_STOPPED) {
-			KBASE_TLSTREAM_TL_NRET_ATOM_LPU(katom,
+			KBASE_TLSTREAM_TL_NRET_ATOM_LPU(next_katom,
 				&kbdev->gpu_props.props.raw_props.js_features
-					[katom->slot_nr]);
-			KBASE_TLSTREAM_TL_NRET_ATOM_AS(katom, &kbdev->as
-					[katom->kctx->as_nr]);
-			KBASE_TLSTREAM_TL_NRET_CTX_LPU(katom->kctx,
+					[next_katom->slot_nr]);
+			KBASE_TLSTREAM_TL_NRET_ATOM_AS(next_katom, &kbdev->as
+					[next_katom->kctx->as_nr]);
+			KBASE_TLSTREAM_TL_NRET_CTX_LPU(next_katom->kctx,
 				&kbdev->gpu_props.props.raw_props.js_features
-					[katom->slot_nr]);
+					[next_katom->slot_nr]);
 		}
+
+		if (next_katom->core_req & BASE_JD_REQ_PERMON)
+			kbase_pm_release_gpu_cycle_counter_nolock(kbdev);
 
 		return true;
 	}
@@ -1412,26 +1203,24 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 		 * flushed. To prevent future evictions causing possible memory
 		 * corruption we need to flush the cache manually before any
 		 * affected memory gets reused. */
-		katom->need_cache_flush_cores_retained = katom->affinity;
-		kbase_pm_request_cores(kbdev, false, katom->affinity);
+		katom->need_cache_flush_cores_retained = true;
+		kbase_pm_request_cores(kbdev,
+				kbase_atom_needs_tiler(kbdev, katom->core_req),
+				kbase_atom_needs_shaders(kbdev,
+						katom->core_req));
 	} else if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10676)) {
 		if (kbdev->gpu_props.num_core_groups > 1 &&
-			!(katom->affinity &
-			kbdev->gpu_props.props.coherency_info.group[0].core_mask
-									) &&
-			(katom->affinity &
-			kbdev->gpu_props.props.coherency_info.group[1].core_mask
-									)) {
+				katom->device_nr >= 1) {
 			dev_info(kbdev->dev, "JD: Flushing cache due to PRLAM-10676\n");
-			katom->need_cache_flush_cores_retained =
-								katom->affinity;
-			kbase_pm_request_cores(kbdev, false,
-							katom->affinity);
+			katom->need_cache_flush_cores_retained = true;
+			kbase_pm_request_cores(kbdev,
+				kbase_atom_needs_tiler(kbdev, katom->core_req),
+				kbase_atom_needs_shaders(kbdev,
+						katom->core_req));
 		}
 	}
 
 	katom = kbase_gpu_dequeue_atom(kbdev, js, end_timestamp);
-	kbase_timeline_job_slot_done(kbdev, katom->kctx, katom, js, 0);
 
 	if (completion_code == BASE_JD_EVENT_STOPPED) {
 		struct kbase_jd_atom *next_katom = kbase_gpu_inspect(kbdev, js,
@@ -1446,12 +1235,21 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 		if (next_katom && katom->kctx == next_katom->kctx &&
 				next_katom->sched_priority ==
 				katom->sched_priority) {
+			WARN_ON(next_katom->gpu_rb_state ==
+					KBASE_ATOM_GPU_RB_SUBMITTED);
 			kbase_gpu_dequeue_atom(kbdev, js, end_timestamp);
 			kbase_jm_return_atom_to_js(kbdev, next_katom);
 		}
 	} else if (completion_code != BASE_JD_EVENT_DONE) {
 		struct kbasep_js_device_data *js_devdata = &kbdev->js_data;
 		int i;
+
+		if (!kbase_ctx_flag(katom->kctx, KCTX_DYING))
+			dev_warn(kbdev->dev, "error detected from slot %d, job status 0x%08x (%s)",
+					js, completion_code,
+					kbase_exception_name
+					(kbdev,
+					completion_code));
 
 #if KBASE_TRACE_DUMP_ON_JOB_SLOT_ERROR != 0
 		KBASE_TRACE_DUMP(kbdev);
@@ -1525,10 +1323,6 @@ void kbase_gpu_complete_hw(struct kbase_device *kbdev, int js,
 	/* Only update the event code for jobs that weren't cancelled */
 	if (katom->event_code != BASE_JD_EVENT_JOB_CANCELLED)
 		katom->event_code = (base_jd_event_code)completion_code;
-
-	kbase_device_trace_register_access(kctx, REG_WRITE,
-						JOB_CONTROL_REG(JOB_IRQ_CLEAR),
-						1 << js);
 
 	/* Complete the job, and start new ones
 	 *
@@ -1641,7 +1435,6 @@ void kbase_backend_reset(struct kbase_device *kbdev, ktime_t *end_timestamp)
 			if (keep_in_jm_rb) {
 				kbasep_js_job_check_deref_cores(kbdev, katom);
 				katom->coreref_state = KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED;
-				katom->affinity = 0;
 				katom->protected_state.exit = KBASE_ATOM_EXIT_PROTECTED_CHECK;
 				/* As the atom was not removed, increment the
 				 * index so that we read the correct atom in the
@@ -1702,12 +1495,6 @@ static int should_stop_x_dep_slot(struct kbase_jd_atom *katom)
 			return dep_atom->slot_nr;
 	}
 	return -1;
-}
-
-static void kbase_job_evicted(struct kbase_jd_atom *katom)
-{
-	kbase_timeline_job_slot_done(katom->kctx->kbdev, katom->kctx, katom,
-			katom->slot_nr, KBASE_JS_ATOM_DONE_EVICTED_FROM_NEXT);
 }
 
 bool kbase_backend_soft_hard_stop_slot(struct kbase_device *kbdev,
@@ -1785,7 +1572,7 @@ bool kbase_backend_soft_hard_stop_slot(struct kbase_device *kbdev,
 				/* katom_idx0 and katom_idx1 are on GPU */
 
 				if (kbase_reg_read(kbdev, JOB_SLOT_REG(js,
-						JS_COMMAND_NEXT), NULL) == 0) {
+						JS_COMMAND_NEXT)) == 0) {
 					/* idx0 has already completed - stop
 					 * idx1 if needed*/
 					if (katom_idx1_valid) {
@@ -1800,19 +1587,18 @@ bool kbase_backend_soft_hard_stop_slot(struct kbase_device *kbdev,
 					kbase_reg_write(kbdev,
 							JOB_SLOT_REG(js,
 							JS_COMMAND_NEXT),
-							JS_COMMAND_NOP, NULL);
+							JS_COMMAND_NOP);
 
 					if (kbase_reg_read(kbdev,
 							JOB_SLOT_REG(js,
-							JS_HEAD_NEXT_LO), NULL)
+							JS_HEAD_NEXT_LO))
 									!= 0 ||
 						kbase_reg_read(kbdev,
 							JOB_SLOT_REG(js,
-							JS_HEAD_NEXT_HI), NULL)
+							JS_HEAD_NEXT_HI))
 									!= 0) {
 						/* idx1 removed successfully,
 						 * will be handled in IRQ */
-						kbase_job_evicted(katom_idx1);
 						kbase_gpu_remove_atom(kbdev,
 								katom_idx1,
 								action, true);
@@ -1866,7 +1652,7 @@ bool kbase_backend_soft_hard_stop_slot(struct kbase_device *kbdev,
 		} else {
 			/* idx1 is on GPU */
 			if (kbase_reg_read(kbdev, JOB_SLOT_REG(js,
-						JS_COMMAND_NEXT), NULL) == 0) {
+						JS_COMMAND_NEXT)) == 0) {
 				/* idx0 has already completed - stop idx1 */
 				kbase_gpu_stop_atom(kbdev, js, katom_idx1,
 									action);
@@ -1876,15 +1662,14 @@ bool kbase_backend_soft_hard_stop_slot(struct kbase_device *kbdev,
 				 * remove */
 				kbase_reg_write(kbdev, JOB_SLOT_REG(js,
 							JS_COMMAND_NEXT),
-							JS_COMMAND_NOP, NULL);
+							JS_COMMAND_NOP);
 
 				if (kbase_reg_read(kbdev, JOB_SLOT_REG(js,
-						JS_HEAD_NEXT_LO), NULL) != 0 ||
+						JS_HEAD_NEXT_LO)) != 0 ||
 				    kbase_reg_read(kbdev, JOB_SLOT_REG(js,
-						JS_HEAD_NEXT_HI), NULL) != 0) {
+						JS_HEAD_NEXT_HI)) != 0) {
 					/* idx1 removed successfully, will be
 					 * handled in IRQ once idx0 completes */
-					kbase_job_evicted(katom_idx1);
 					kbase_gpu_remove_atom(kbdev, katom_idx1,
 									action,
 									false);
@@ -1924,11 +1709,11 @@ void kbase_gpu_cacheclean(struct kbase_device *kbdev)
 	/* clean & invalidate the caches */
 	KBASE_TRACE_ADD(kbdev, CORE_GPU_CLEAN_INV_CACHES, NULL, NULL, 0u, 0);
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND),
-					GPU_COMMAND_CLEAN_INV_CACHES, NULL);
+					GPU_COMMAND_CLEAN_INV_CACHES);
 
 	/* wait for cache flush to complete before continuing */
 	while (--max_loops &&
-		(kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT), NULL) &
+		(kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)) &
 						CLEAN_CACHES_COMPLETED) == 0)
 		;
 
@@ -1936,7 +1721,7 @@ void kbase_gpu_cacheclean(struct kbase_device *kbdev)
 	KBASE_TRACE_ADD(kbdev, CORE_GPU_IRQ_CLEAR, NULL, NULL, 0u,
 							CLEAN_CACHES_COMPLETED);
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_IRQ_CLEAR),
-						CLEAN_CACHES_COMPLETED, NULL);
+						CLEAN_CACHES_COMPLETED);
 	KBASE_DEBUG_ASSERT_MSG(kbdev->hwcnt.backend.state !=
 						KBASE_INSTR_STATE_CLEANING,
 	    "Instrumentation code was cleaning caches, but Job Management code cleared their IRQ - Instrumentation code will now hang.");
@@ -1953,10 +1738,12 @@ void kbase_backend_cacheclean(struct kbase_device *kbdev,
 		kbase_gpu_cacheclean(kbdev);
 
 		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-		kbase_pm_unrequest_cores(kbdev, false,
-					katom->need_cache_flush_cores_retained);
+		kbase_pm_release_cores(kbdev,
+				kbase_atom_needs_tiler(kbdev, katom->core_req),
+				kbase_atom_needs_shaders(kbdev,
+						katom->core_req));
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
-		katom->need_cache_flush_cores_retained = 0;
+		katom->need_cache_flush_cores_retained = false;
 	}
 }
 
@@ -1992,18 +1779,16 @@ void kbase_backend_complete_wq(struct kbase_device *kbdev,
 	 * this is not done, then if the atom is re-scheduled (following a soft
 	 * stop) then the core reference would not be retaken. */
 	katom->coreref_state = KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED;
-	katom->affinity = 0;
 }
 
 void kbase_backend_complete_wq_post_sched(struct kbase_device *kbdev,
-		base_jd_core_req core_req, u64 affinity,
+		base_jd_core_req core_req,
 		enum kbase_atom_coreref_state coreref_state)
 {
 	unsigned long flags;
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	kbasep_js_job_check_deref_cores_nokatom(kbdev, core_req, affinity,
-			coreref_state);
+	kbasep_js_job_check_deref_cores_nokatom(kbdev, core_req, coreref_state);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	if (!kbdev->pm.active_count) {

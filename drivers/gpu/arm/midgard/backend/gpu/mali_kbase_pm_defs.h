@@ -27,12 +27,6 @@
 #ifndef _KBASE_PM_HWACCESS_DEFS_H_
 #define _KBASE_PM_HWACCESS_DEFS_H_
 
-#include "mali_kbase_pm_ca_fixed.h"
-#include "mali_kbase_pm_ca_devfreq.h"
-#if !MALI_CUSTOMER_RELEASE
-#include "mali_kbase_pm_ca_random.h"
-#endif
-
 #include "mali_kbase_pm_always_on.h"
 #include "mali_kbase_pm_coarse_demand.h"
 #include "mali_kbase_pm_demand.h"
@@ -144,25 +138,14 @@ union kbase_pm_policy_data {
 #endif
 };
 
-union kbase_pm_ca_policy_data {
-	struct kbasep_pm_ca_policy_fixed fixed;
-	struct kbasep_pm_ca_policy_devfreq devfreq;
-#if !MALI_CUSTOMER_RELEASE
-	struct kbasep_pm_ca_policy_random random;
-#endif
-};
-
 /**
  * struct kbase_pm_backend_data - Data stored per device for power management.
  *
  * This structure contains data for the power management framework. There is one
  * instance of this structure per device in the system.
  *
- * @ca_current_policy: The policy that is currently actively controlling core
- *                     availability.
  * @pm_current_policy: The policy that is currently actively controlling the
  *                     power state.
- * @ca_policy_data:    Private data for current CA policy
  * @pm_policy_data:    Private data for current PM policy
  * @ca_in_transition:  Flag indicating when core availability policy is
  *                     transitioning cores. The core availability policy must
@@ -252,20 +235,17 @@ union kbase_pm_ca_policy_data {
  *                              &struct kbase_pm_callback_conf
  * @callback_power_runtime_idle: Optional callback when the GPU may be idle. See
  *                              &struct kbase_pm_callback_conf
+ * @ca_cores_enabled: Cores that are currently available
  *
  * Note:
- * During an IRQ, @ca_current_policy or @pm_current_policy can be NULL when the
- * policy is being changed with kbase_pm_ca_set_policy() or
- * kbase_pm_set_policy(). The change is protected under
- * kbase_device.pm.power_change_lock. Direct access to this
- * from IRQ context must therefore check for NULL. If NULL, then
- * kbase_pm_ca_set_policy() or kbase_pm_set_policy() will re-issue the policy
- * functions that would have been done under IRQ.
+ * During an IRQ, @pm_current_policy can be NULL when the policy is being
+ * changed with kbase_pm_set_policy(). The change is protected under
+ * kbase_device.pm.power_change_lock. Direct access to this from IRQ context
+ * must therefore check for NULL. If NULL, then kbase_pm_set_policy() will
+ * re-issue the policy functions that would have been done under IRQ.
  */
 struct kbase_pm_backend_data {
-	const struct kbase_pm_ca_policy *ca_current_policy;
 	const struct kbase_pm_policy *pm_current_policy;
-	union kbase_pm_ca_policy_data ca_policy_data;
 	union kbase_pm_policy_data pm_policy_data;
 	bool ca_in_transition;
 	bool reset_done;
@@ -331,6 +311,10 @@ struct kbase_pm_backend_data {
 	int (*callback_power_runtime_on)(struct kbase_device *kbdev);
 	void (*callback_power_runtime_off)(struct kbase_device *kbdev);
 	int (*callback_power_runtime_idle)(struct kbase_device *kbdev);
+
+#ifdef CONFIG_MALI_DEVFREQ
+	u64 ca_cores_enabled;
+#endif
 };
 
 
@@ -356,7 +340,7 @@ typedef u32 kbase_pm_policy_flags;
  * @name:               The name of this policy
  * @init:               Function called when the policy is selected
  * @term:               Function called when the policy is unselected
- * @get_core_mask:      Function called to get the current shader core mask
+ * @shaders_needed:     Function called to find out if shader cores are needed
  * @get_core_active:    Function called to get the current overall GPU power
  *                      state
  * @flags:              Field indicating flags for this policy
@@ -391,26 +375,28 @@ struct kbase_pm_policy {
 	void (*term)(struct kbase_device *kbdev);
 
 	/**
-	 * Function called to get the current shader core mask
+	 * Function called to find out if shader cores are needed
 	 *
-	 * The returned mask should meet or exceed (kbdev->shader_needed_bitmap
-	 * | kbdev->shader_inuse_bitmap).
+	 * This needs to at least satisfy kbdev->shader_needed_cnt, and so must
+	 * never return false when kbdev->shader_needed_cnt > 0.
+	 *
+	 * Note that kbdev->pm.active_count being 0 is not a good indicator
+	 * that kbdev->shader_needed_cnt is also 0 - refer to the documentation
+	 * on the active_count member in struct kbase_pm_device_data and
+	 * kbase_pm_is_active().
 	 *
 	 * @kbdev: The kbase device structure for the device (must be a
 	 *         valid pointer)
 	 *
-	 * Return: The mask of shader cores to be powered
+	 * Return: true if shader cores are needed, false otherwise
 	 */
-	u64 (*get_core_mask)(struct kbase_device *kbdev);
+	bool (*shaders_needed)(struct kbase_device *kbdev);
 
 	/**
 	 * Function called to get the current overall GPU power state
 	 *
-	 * This function should consider the state of kbdev->pm.active_count. If
-	 * this count is greater than 0 then there is at least one active
-	 * context on the device and the GPU should be powered. If it is equal
-	 * to 0 then there are no active contexts and the GPU could be powered
-	 * off if desired.
+	 * This function must meet or exceed the requirements for power
+	 * indicated by kbase_pm_is_active().
 	 *
 	 * @kbdev: The kbase device structure for the device (must be a
 	 *         valid pointer)
@@ -421,113 +407,6 @@ struct kbase_pm_policy {
 
 	kbase_pm_policy_flags flags;
 	enum kbase_pm_policy_id id;
-};
-
-
-enum kbase_pm_ca_policy_id {
-	KBASE_PM_CA_POLICY_ID_FIXED = 1,
-	KBASE_PM_CA_POLICY_ID_DEVFREQ,
-	KBASE_PM_CA_POLICY_ID_RANDOM
-};
-
-typedef u32 kbase_pm_ca_policy_flags;
-
-/**
- * Maximum length of a CA policy names
- */
-#define KBASE_PM_CA_MAX_POLICY_NAME_LEN 15
-
-/**
- * struct kbase_pm_ca_policy - Core availability policy structure.
- *
- * Each core availability policy exposes a (static) instance of this structure
- * which contains function pointers to the policy's methods.
- *
- * @name:               The name of this policy
- * @init:               Function called when the policy is selected
- * @term:               Function called when the policy is unselected
- * @get_core_mask:      Function called to get the current shader core
- *                      availability mask
- * @update_core_status: Function called to update the current core status
- * @flags:              Field indicating flags for this policy
- * @id:                 Field indicating an ID for this policy. This is not
- *                      necessarily the same as its index in the list returned
- *                      by kbase_pm_list_policies().
- *                      It is used purely for debugging.
- */
-struct kbase_pm_ca_policy {
-	char name[KBASE_PM_CA_MAX_POLICY_NAME_LEN + 1];
-
-	/**
-	 * Function called when the policy is selected
-	 *
-	 * This should initialize the kbdev->pm.ca_policy_data structure. It
-	 * should not attempt to make any changes to hardware state.
-	 *
-	 * It is undefined what state the cores are in when the function is
-	 * called.
-	 *
-	 * @kbdev The kbase device structure for the device (must be a
-	 *        valid pointer)
-	 */
-	void (*init)(struct kbase_device *kbdev);
-
-	/**
-	 * Function called when the policy is unselected.
-	 *
-	 * @kbdev The kbase device structure for the device (must be a
-	 *        valid pointer)
-	 */
-	void (*term)(struct kbase_device *kbdev);
-
-	/**
-	 * Function called to get the current shader core availability mask
-	 *
-	 * When a change in core availability is occurring, the policy must set
-	 * kbdev->pm.ca_in_transition to true. This is to indicate that
-	 * reporting changes in power state cannot be optimized out, even if
-	 * kbdev->pm.desired_shader_state remains unchanged. This must be done
-	 * by any functions internal to the Core Availability Policy that change
-	 * the return value of kbase_pm_ca_policy::get_core_mask.
-	 *
-	 * @kbdev The kbase device structure for the device (must be a
-	 *              valid pointer)
-	 *
-	 * Return: The current core availability mask
-	 */
-	u64 (*get_core_mask)(struct kbase_device *kbdev);
-
-	/**
-	 * Function called to update the current core status
-	 *
-	 * If none of the cores in core group 0 are ready or transitioning, then
-	 * the policy must ensure that the next call to get_core_mask does not
-	 * return 0 for all cores in core group 0. It is an error to disable
-	 * core group 0 through the core availability policy.
-	 *
-	 * When a change in core availability has finished, the policy must set
-	 * kbdev->pm.ca_in_transition to false. This is to indicate that
-	 * changes in power state can once again be optimized out when
-	 * kbdev->pm.desired_shader_state is unchanged.
-	 *
-	 * @kbdev:               The kbase device structure for the device
-	 *                       (must be a valid pointer)
-	 * @cores_ready:         The mask of cores currently powered and
-	 *                       ready to run jobs
-	 * @cores_transitioning: The mask of cores currently transitioning
-	 *                       power state
-	 */
-	void (*update_core_status)(struct kbase_device *kbdev, u64 cores_ready,
-						u64 cores_transitioning);
-
-	kbase_pm_ca_policy_flags flags;
-
-	/**
-	 * Field indicating an ID for this policy. This is not necessarily the
-	 * same as its index in the list returned by kbase_pm_list_policies().
-	 * It is used purely for debugging.
-	 */
-	enum kbase_pm_ca_policy_id id;
 };
 
 #endif /* _KBASE_PM_HWACCESS_DEFS_H_ */

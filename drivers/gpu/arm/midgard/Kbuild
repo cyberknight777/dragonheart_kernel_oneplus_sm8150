@@ -21,7 +21,7 @@
 
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= "r13p0-01rel0"
+MALI_RELEASE_NAME ?= "r14p0-01rel0"
 
 # Paths required for build
 KBASE_PATH = $(src)
@@ -30,32 +30,22 @@ UMP_PATH = $(src)/../../../base
 
 # Set up defaults if not defined by build system
 MALI_CUSTOMER_RELEASE ?= 1
+MALI_USE_CSF ?= 0
 MALI_UNIT_TEST ?= 0
 MALI_KERNEL_TEST_API ?= 0
 MALI_MOCK_TEST ?= 0
 MALI_COVERAGE ?= 0
 CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
-# This workaround is for what seems to be a compiler bug we observed in
-# GCC 4.7 on AOSP 4.3.  The bug caused an intermittent failure compiling
-# the "_Pragma" syntax, where an error message is returned:
-#
-# "internal compiler error: unspellable token PRAGMA"
-#
-# This regression has thus far only been seen on the GCC 4.7 compiler bundled
-# with AOSP 4.3.0.  So this makefile, intended for in-tree kernel builds
-# which are not known to be used with AOSP, is hardcoded to disable the
-# workaround, i.e. set the define to 0.
-MALI_GCC_WORKAROUND_MIDCOM_4598 ?= 0
 
 # Set up our defines, which will be passed to gcc
 DEFINES = \
 	-DMALI_CUSTOMER_RELEASE=$(MALI_CUSTOMER_RELEASE) \
+	-DMALI_USE_CSF=$(MALI_USE_CSF) \
 	-DMALI_KERNEL_TEST_API=$(MALI_KERNEL_TEST_API) \
 	-DMALI_UNIT_TEST=$(MALI_UNIT_TEST) \
 	-DMALI_MOCK_TEST=$(MALI_MOCK_TEST) \
 	-DMALI_COVERAGE=$(MALI_COVERAGE) \
-	-DMALI_RELEASE_NAME=\"$(MALI_RELEASE_NAME)\" \
-	-DMALI_GCC_WORKAROUND_MIDCOM_4598=$(MALI_GCC_WORKAROUND_MIDCOM_4598)
+	-DMALI_RELEASE_NAME=\"$(MALI_RELEASE_NAME)\"
 
 ifeq ($(KBUILD_EXTMOD),)
 # in-tree
@@ -66,6 +56,8 @@ DEFINES +=-DMALI_KBASE_PLATFORM_PATH=$(src)/platform/$(CONFIG_MALI_PLATFORM_NAME
 endif
 
 DEFINES += -I$(srctree)/drivers/staging/android
+
+DEFINES += -DMALI_KBASE_BUILD
 
 # Use our defines when compiling
 ccflags-y += $(DEFINES) -I$(KBASE_PATH)   -I$(KBASE_PLATFORM_PATH) -I$(UMP_PATH) -I$(srctree)/include/linux
@@ -93,7 +85,6 @@ SRC := \
 	mali_kbase_hw.c \
 	mali_kbase_utility.c \
 	mali_kbase_debug.c \
-	mali_kbase_trace_timeline.c \
 	mali_kbase_gpu_memory_debugfs.c \
 	mali_kbase_mem_linux.c \
 	mali_kbase_core_linux.c \
@@ -146,6 +137,10 @@ ifeq ($(CONFIG_MALI_DEVFREQ),y)
   ifeq ($(CONFIG_DEVFREQ_THERMAL),y)
     include $(src)/ipa/Kbuild
   endif
+endif
+
+ifeq ($(MALI_USE_CSF),1)
+	include $(src)/csf/Kbuild
 endif
 
 mali_kbase-$(CONFIG_MALI_DMA_FENCE) += \

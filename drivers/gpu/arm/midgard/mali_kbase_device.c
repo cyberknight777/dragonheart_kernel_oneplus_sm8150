@@ -225,14 +225,6 @@ int kbase_device_init(struct kbase_device * const kbdev)
 
 	mutex_init(&kbdev->cacheclean_lock);
 
-#ifdef CONFIG_MALI_TRACE_TIMELINE
-	for (i = 0; i < BASE_JM_MAX_NR_SLOTS; ++i)
-		kbdev->timeline.slot_atoms_submitted[i] = 0;
-
-	for (i = 0; i <= KBASEP_TIMELINE_PM_EVENT_LAST; ++i)
-		atomic_set(&kbdev->timeline.pm_event_uid[i], 0);
-#endif /* CONFIG_MALI_TRACE_TIMELINE */
-
 	/* fbdump profiling controls set to 0 - fbdump not enabled until changed by gator */
 	for (i = 0; i < FBDUMP_CONTROL_MAX; i++)
 		kbdev->kbase_profiling_controls[i] = 0;
@@ -283,91 +275,6 @@ void kbase_device_term(struct kbase_device *kbdev)
 void kbase_device_free(struct kbase_device *kbdev)
 {
 	kfree(kbdev);
-}
-
-int kbase_device_trace_buffer_install(
-		struct kbase_context *kctx, u32 *tb, size_t size)
-{
-	unsigned long flags;
-
-	KBASE_DEBUG_ASSERT(kctx);
-	KBASE_DEBUG_ASSERT(tb);
-
-	/* Interface uses 16-bit value to track last accessed entry. Each entry
-	 * is composed of two 32-bit words.
-	 * This limits the size that can be handled without an overflow. */
-	if (0xFFFF * (2 * sizeof(u32)) < size)
-		return -EINVAL;
-
-	/* set up the header */
-	/* magic number in the first 4 bytes */
-	tb[0] = TRACE_BUFFER_HEADER_SPECIAL;
-	/* Store (write offset = 0, wrap counter = 0, transaction active = no)
-	 * write offset 0 means never written.
-	 * Offsets 1 to (wrap_offset - 1) used to store values when trace started
-	 */
-	tb[1] = 0;
-
-	/* install trace buffer */
-	spin_lock_irqsave(&kctx->jctx.tb_lock, flags);
-	kctx->jctx.tb_wrap_offset = size / 8;
-	kctx->jctx.tb = tb;
-	spin_unlock_irqrestore(&kctx->jctx.tb_lock, flags);
-
-	return 0;
-}
-
-void kbase_device_trace_buffer_uninstall(struct kbase_context *kctx)
-{
-	unsigned long flags;
-
-	KBASE_DEBUG_ASSERT(kctx);
-	spin_lock_irqsave(&kctx->jctx.tb_lock, flags);
-	kctx->jctx.tb = NULL;
-	kctx->jctx.tb_wrap_offset = 0;
-	spin_unlock_irqrestore(&kctx->jctx.tb_lock, flags);
-}
-
-void kbase_device_trace_register_access(struct kbase_context *kctx, enum kbase_reg_access_type type, u16 reg_offset, u32 reg_value)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&kctx->jctx.tb_lock, flags);
-	if (kctx->jctx.tb) {
-		u16 wrap_count;
-		u16 write_offset;
-		u32 *tb = kctx->jctx.tb;
-		u32 header_word;
-
-		header_word = tb[1];
-		KBASE_DEBUG_ASSERT(0 == (header_word & 0x1));
-
-		wrap_count = (header_word >> 1) & 0x7FFF;
-		write_offset = (header_word >> 16) & 0xFFFF;
-
-		/* mark as transaction in progress */
-		tb[1] |= 0x1;
-		mb();
-
-		/* calculate new offset */
-		write_offset++;
-		if (write_offset == kctx->jctx.tb_wrap_offset) {
-			/* wrap */
-			write_offset = 1;
-			wrap_count++;
-			wrap_count &= 0x7FFF;	/* 15bit wrap counter */
-		}
-
-		/* store the trace entry at the selected offset */
-		tb[write_offset * 2 + 0] = (reg_offset & ~0x3) | ((type == REG_WRITE) ? 0x1 : 0x0);
-		tb[write_offset * 2 + 1] = reg_value;
-		mb();
-
-		/* new header word */
-		header_word = (write_offset << 16) | (wrap_count << 1) | 0x0;	/* transaction complete */
-		tb[1] = header_word;
-	}
-	spin_unlock_irqrestore(&kctx->jctx.tb_lock, flags);
 }
 
 /*

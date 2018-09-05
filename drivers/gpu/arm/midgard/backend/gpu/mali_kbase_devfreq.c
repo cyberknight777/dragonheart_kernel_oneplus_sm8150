@@ -148,9 +148,7 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	}
 #endif
 
-	if (kbdev->pm.backend.ca_current_policy->id ==
-			KBASE_PM_CA_POLICY_ID_DEVFREQ)
-		kbase_devfreq_set_core_mask(kbdev, core_mask);
+	kbase_devfreq_set_core_mask(kbdev, core_mask);
 
 	*target_freq = nominal_freq;
 	kbdev->current_voltage = voltage;
@@ -259,6 +257,7 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 	struct device_node *node;
 	int i = 0;
 	int count;
+	u64 shader_present = kbdev->gpu_props.props.raw_props.shader_present;
 
 	if (!opp_node)
 		return 0;
@@ -283,8 +282,14 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 		if (of_property_read_u64(node, "opp-hz-real", &real_freq))
 			real_freq = opp_freq;
 		if (of_property_read_u64(node, "opp-core-mask", &core_mask))
-			core_mask =
-				kbdev->gpu_props.props.raw_props.shader_present;
+			core_mask = shader_present;
+		if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_11056) &&
+				core_mask != shader_present) {
+			dev_warn(kbdev->dev, "Ignoring OPP %llu - Dynamic Core Scaling not supported on this GPU\n",
+					opp_freq);
+			continue;
+		}
+
 		core_count_p = of_get_property(node, "opp-core-count", NULL);
 		if (core_count_p) {
 			u64 remaining_core_mask =

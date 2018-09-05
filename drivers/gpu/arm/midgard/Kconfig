@@ -60,6 +60,7 @@ config MALI_MIDGARD_ENABLE_TRACE
 config MALI_DEVFREQ
 	bool "devfreq support for Mali"
 	depends on MALI_MIDGARD && PM_DEVFREQ
+	default y
 	help
 	  Support devfreq for Mali.
 
@@ -109,19 +110,6 @@ config MALI_CORESTACK
 
 	  If unsure, say N.
 
-config MALI_PRFCNT_SET_SECONDARY
-	bool "Use secondary set of performance counters"
-	depends on MALI_MIDGARD && MALI_EXPERT
-	default n
-	help
-	  Select this option to use secondary set of performance counters. Kernel
-	  features that depend on an access to the primary set of counters may
-	  become unavailable. Enabling this option will prevent power management
-	  from working optimally and may cause instrumentation tools to return
-	  bogus results.
-
-	  If unsure, say N.
-
 config MALI_DEBUG
 	bool "Debug build"
 	depends on MALI_MIDGARD && MALI_EXPERT
@@ -166,13 +154,6 @@ config MALI_ERROR_INJECT
 	help
 	  Enables insertion of errors to test module failure and recovery mechanisms.
 
-config MALI_TRACE_TIMELINE
-	bool "Timeline tracing"
-	depends on MALI_MIDGARD && MALI_EXPERT
-	default n
-	help
-	  Enables timeline tracing through the kernel tracepoint system.
-
 config MALI_SYSTEM_TRACE
 	bool "Enable system event tracing support"
 	depends on MALI_MIDGARD && MALI_EXPERT
@@ -181,16 +162,6 @@ config MALI_SYSTEM_TRACE
 	help
 	  Choose this option to enable system trace events for each
 	  kbase event. This is typically used for debugging but has
-	  minimal overhead when not in use. Enable only if you know what
-	  you are doing.
-
-config MALI_JOB_DUMP
-	bool "Enable system level support needed for job dumping"
-	depends on MALI_MIDGARD && MALI_EXPERT
-	default n
-	help
-	  Choose this option to enable system level support needed for
-	  job dumping. This is typically used for instrumentation but has
 	  minimal overhead when not in use. Enable only if you know what
 	  you are doing.
 
@@ -216,5 +187,30 @@ config MALI_PWRSOFT_765
 
 	  If using kernel >= v4.10 then say N, otherwise if devfreq cooling
 	  changes have been backported say Y to avoid compilation errors.
+
+# Instrumentation options.
+
+config MALI_JOB_DUMP
+	bool "Enable system level support needed for job dumping"
+	depends on MALI_MIDGARD && MALI_EXPERT
+	default n
+	help
+	  Choose this option to enable system level support needed for
+	  job dumping. This is typically used for instrumentation but has
+	  minimal overhead when not in use. Enable only if you know what
+	  you are doing.
+
+config MALI_PRFCNT_SET_SECONDARY
+	bool "Use secondary set of performance counters"
+	depends on MALI_MIDGARD && MALI_EXPERT
+	default n
+	help
+	  Select this option to use secondary set of performance counters. Kernel
+	  features that depend on an access to the primary set of counters may
+	  become unavailable. Enabling this option will prevent power management
+	  from working optimally and may cause instrumentation tools to return
+	  bogus results.
+
+	  If unsure, say N.
 
 source "drivers/gpu/arm/midgard/platform/Kconfig"

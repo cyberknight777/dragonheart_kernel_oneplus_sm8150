@@ -164,7 +164,6 @@ enum {
 	inited_backend_late = (1u << 6),
 	inited_device = (1u << 7),
 	inited_vinstr = (1u << 8),
-
 	inited_job_fault = (1u << 10),
 	inited_sysfs_group = (1u << 11),
 	inited_misc_register = (1u << 12),
@@ -282,9 +281,9 @@ EXPORT_SYMBOL(kbase_release_device);
  */
 static int kstrtobool_from_user(const char __user *s, size_t count, bool *res)
 {
-	char buf[32];
+	char buf[4];
 
-	count = min(sizeof(buf), count);
+	count = min(count, sizeof(buf) - 1);
 
 	if (copy_from_user(buf, s, count))
 		return -EFAULT;
@@ -579,11 +578,26 @@ static int kbase_api_mem_alloc(struct kbase_context *kctx,
 	u64 flags = alloc->in.flags;
 	u64 gpu_va;
 
+	rcu_read_lock();
+	/* Don't allow memory allocation until user space has set up the
+	 * tracking page (which sets kctx->process_mm). Also catches when we've
+	 * forked.
+	 */
+	if (rcu_dereference(kctx->process_mm) != current->mm) {
+		rcu_read_unlock();
+		return -EINVAL;
+	}
+	rcu_read_unlock();
+
+	if (flags & BASE_MEM_FLAGS_KERNEL_ONLY)
+		return -ENOMEM;
+
 	if ((!kbase_ctx_flag(kctx, KCTX_COMPAT)) &&
 			kbase_ctx_flag(kctx, KCTX_FORCE_SAME_VA)) {
 		/* force SAME_VA if a 64-bit client */
 		flags |= BASE_MEM_SAME_VA;
 	}
+
 
 	reg = kbase_mem_alloc(kctx, alloc->in.va_pages,
 			alloc->in.commit_pages,
@@ -822,6 +836,10 @@ static int kbase_api_mem_alias(struct kbase_context *kctx,
 	}
 
 	flags = alias->in.flags;
+	if (flags & BASE_MEM_FLAGS_KERNEL_ONLY) {
+		vfree(ai);
+		return -EINVAL;
+	}
 
 	alias->out.gpu_va = kbase_mem_alias(kctx, &flags,
 			alias->in.stride, alias->in.nents,
@@ -843,6 +861,9 @@ static int kbase_api_mem_import(struct kbase_context *kctx,
 	int ret;
 	u64 flags = import->in.flags;
 
+	if (flags & BASE_MEM_FLAGS_KERNEL_ONLY)
+		return -ENOMEM;
+
 	ret = kbase_mem_import(kctx,
 			import->in.type,
 			u64_to_user_ptr(import->in.phandle),
@@ -859,6 +880,9 @@ static int kbase_api_mem_import(struct kbase_context *kctx,
 static int kbase_api_mem_flags_change(struct kbase_context *kctx,
 		struct kbase_ioctl_mem_flags_change *change)
 {
+	if (change->flags & BASE_MEM_FLAGS_KERNEL_ONLY)
+		return -ENOMEM;
+
 	return kbase_mem_flags_change(kctx, change->gpu_va,
 			change->flags, change->mask);
 }
@@ -1038,6 +1062,7 @@ static int kbase_api_tlstream_stats(struct kbase_context *kctx,
 	return 0;
 }
 #endif /* MALI_UNIT_TEST */
+
 
 #define KBASE_HANDLE_IOCTL(cmd, function)                          \
 	do {                                                       \
@@ -1494,111 +1519,6 @@ static ssize_t set_policy(struct device *dev, struct device_attribute *attr, con
  * policy.
  */
 static DEVICE_ATTR(power_policy, S_IRUGO | S_IWUSR, show_policy, set_policy);
-
-/**
- * show_ca_policy - Show callback for the core_availability_policy sysfs file.
- *
- * This function is called to get the contents of the core_availability_policy
- * sysfs file. This is a list of the available policies with the currently
- * active one surrounded by square brackets.
- *
- * @dev:	The device this sysfs file is for
- * @attr:	The attributes of the sysfs file
- * @buf:	The output buffer for the sysfs file contents
- *
- * Return: The number of bytes output to @buf.
- */
-static ssize_t show_ca_policy(struct device *dev, struct device_attribute *attr, char * const buf)
-{
-	struct kbase_device *kbdev;
-	const struct kbase_pm_ca_policy *current_policy;
-	const struct kbase_pm_ca_policy *const *policy_list;
-	int policy_count;
-	int i;
-	ssize_t ret = 0;
-
-	kbdev = to_kbase_device(dev);
-
-	if (!kbdev)
-		return -ENODEV;
-
-	current_policy = kbase_pm_ca_get_policy(kbdev);
-
-	policy_count = kbase_pm_ca_list_policies(&policy_list);
-
-	for (i = 0; i < policy_count && ret < PAGE_SIZE; i++) {
-		if (policy_list[i] == current_policy)
-			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[%s] ", policy_list[i]->name);
-		else
-			ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%s ", policy_list[i]->name);
-	}
-
-	if (ret < PAGE_SIZE - 1) {
-		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "\n");
-	} else {
-		buf[PAGE_SIZE - 2] = '\n';
-		buf[PAGE_SIZE - 1] = '\0';
-		ret = PAGE_SIZE - 1;
-	}
-
-	return ret;
-}
-
-/**
- * set_ca_policy - Store callback for the core_availability_policy sysfs file.
- *
- * This function is called when the core_availability_policy sysfs file is
- * written to. It matches the requested policy against the available policies
- * and if a matching policy is found calls kbase_pm_set_policy() to change
- * the policy.
- *
- * @dev:	The device with sysfs file is for
- * @attr:	The attributes of the sysfs file
- * @buf:	The value written to the sysfs file
- * @count:	The number of bytes written to the sysfs file
- *
- * Return: @count if the function succeeded. An error code on failure.
- */
-static ssize_t set_ca_policy(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct kbase_device *kbdev;
-	const struct kbase_pm_ca_policy *new_policy = NULL;
-	const struct kbase_pm_ca_policy *const *policy_list;
-	int policy_count;
-	int i;
-
-	kbdev = to_kbase_device(dev);
-
-	if (!kbdev)
-		return -ENODEV;
-
-	policy_count = kbase_pm_ca_list_policies(&policy_list);
-
-	for (i = 0; i < policy_count; i++) {
-		if (sysfs_streq(policy_list[i]->name, buf)) {
-			new_policy = policy_list[i];
-			break;
-		}
-	}
-
-	if (!new_policy) {
-		dev_err(dev, "core_availability_policy: policy not found\n");
-		return -EINVAL;
-	}
-
-	kbase_pm_ca_set_policy(kbdev, new_policy);
-
-	return count;
-}
-
-/*
- * The sysfs file core_availability_policy
- *
- * This is used for obtaining information about the available policies,
- * determining which policy is currently active, and changing the active
- * policy.
- */
-static DEVICE_ATTR(core_availability_policy, S_IRUGO | S_IWUSR, show_ca_policy, set_ca_policy);
 
 /*
  * show_core_mask - Show callback for the core_mask sysfs file.
@@ -2410,7 +2330,7 @@ static ssize_t kbase_show_gpuinfo(struct device *dev,
 		{ .id = GPU_ID2_PRODUCT_TSIX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G51" },
 		{ .id = GPU_ID2_PRODUCT_TNOX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-TNOx" },
+		  .name = "Mali-G76" },
 		{ .id = GPU_ID2_PRODUCT_TDVX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G31" },
 		{ .id = GPU_ID2_PRODUCT_TGOX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
@@ -3195,6 +3115,7 @@ static int registers_map(struct kbase_device * const kbdev)
 		kbdev->reg_start = reg_res->start;
 		kbdev->reg_size = resource_size(reg_res);
 
+
 		err = kbase_common_reg_map(kbdev);
 		if (err) {
 			dev_err(kbdev->dev, "Failed to map registers\n");
@@ -3310,6 +3231,7 @@ static void power_control_term(struct kbase_device *kbdev)
 #endif /* LINUX_VERSION_CODE >= 3, 12, 0 */
 }
 
+#ifdef MALI_KBASE_BUILD
 #ifdef CONFIG_DEBUG_FS
 
 #if KBASE_GPU_RESET_EN
@@ -3370,7 +3292,7 @@ static ssize_t debugfs_protected_debug_mode_read(struct file *file,
 	ssize_t ret_val;
 
 	kbase_pm_context_active(kbdev);
-	gpu_status = kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS), NULL);
+	gpu_status = kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS));
 	kbase_pm_context_idle(kbdev);
 
 	if (gpu_status & GPU_DBGEN)
@@ -3464,10 +3386,6 @@ static int kbase_device_debugfs_init(struct kbase_device *kbdev)
 	kbasep_trace_debugfs_init(kbdev);
 #endif /* KBASE_TRACE_ENABLE */
 
-#ifdef CONFIG_MALI_TRACE_TIMELINE
-	kbasep_trace_timeline_debugfs_init(kbdev);
-#endif /* CONFIG_MALI_TRACE_TIMELINE */
-
 #ifdef CONFIG_MALI_DEVFREQ
 #ifdef CONFIG_DEVFREQ_THERMAL
 	if (kbdev->inited_subsys & inited_devfreq)
@@ -3501,6 +3419,7 @@ static inline int kbase_device_debugfs_init(struct kbase_device *kbdev)
 
 static inline void kbase_device_debugfs_term(struct kbase_device *kbdev) { }
 #endif /* CONFIG_DEBUG_FS */
+#endif /* MALI_KBASE_BUILD */
 
 static void kbase_device_coherency_init(struct kbase_device *kbdev,
 		unsigned prod_id)
@@ -3589,7 +3508,6 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_reset_timeout.attr,
 	&dev_attr_js_scheduling_period.attr,
 	&dev_attr_power_policy.attr,
-	&dev_attr_core_availability_policy.attr,
 	&dev_attr_core_mask.attr,
 	&dev_attr_mem_pool_size.attr,
 	&dev_attr_mem_pool_max_size.attr,
@@ -3643,10 +3561,12 @@ static int kbase_platform_device_remove(struct platform_device *pdev)
 		kbdev->inited_subsys &= ~inited_get_device;
 	}
 
+#ifdef MALI_KBASE_BUILD
 	if (kbdev->inited_subsys & inited_debugfs) {
 		kbase_device_debugfs_term(kbdev);
 		kbdev->inited_subsys &= ~inited_debugfs;
 	}
+#endif
 
 	if (kbdev->inited_subsys & inited_job_fault) {
 		kbase_debug_job_fault_dev_term(kbdev);
@@ -3659,6 +3579,7 @@ static int kbase_platform_device_remove(struct platform_device *pdev)
 		kbdev->inited_subsys &= ~inited_devfreq;
 	}
 #endif
+
 
 	if (kbdev->inited_subsys & inited_vinstr) {
 		kbase_vinstr_term(kbdev->vinstr_ctx);
@@ -3913,6 +3834,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 	}
 	kbdev->inited_subsys |= inited_vinstr;
 
+
 #ifdef CONFIG_MALI_DEVFREQ
 	/* Devfreq uses vinstr, so must be initialized after it. */
 	err = kbase_devfreq_init(kbdev);
@@ -3922,6 +3844,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_err(kbdev->dev, "Continuing without devfreq\n");
 #endif /* CONFIG_MALI_DEVFREQ */
 
+#ifdef MALI_KBASE_BUILD
 	err = kbase_debug_job_fault_dev_init(kbdev);
 	if (err) {
 		dev_err(kbdev->dev, "Job fault debug initialization failed\n");
@@ -4000,6 +3923,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
 
 	kbase_dev_nr++;
+#endif /* MALI_KBASE_BUILD */
 
 	return err;
 }

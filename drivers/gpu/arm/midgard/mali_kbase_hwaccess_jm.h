@@ -160,14 +160,13 @@ void kbase_backend_complete_wq(struct kbase_device *kbdev,
  *                                        any scheduling has taken place.
  * @kbdev:         Device pointer
  * @core_req:      Core requirements of atom
- * @affinity:      Affinity of atom
  * @coreref_state: Coreref state of atom
  *
  * This function should only be called from kbase_jd_done_worker() or
  * js_return_worker().
  */
 void kbase_backend_complete_wq_post_sched(struct kbase_device *kbdev,
-		base_jd_core_req core_req, u64 affinity,
+		base_jd_core_req core_req,
 		enum kbase_atom_coreref_state coreref_state);
 
 /**
@@ -177,17 +176,6 @@ void kbase_backend_complete_wq_post_sched(struct kbase_device *kbdev,
  * @end_timestamp:	Timestamp of reset
  */
 void kbase_backend_reset(struct kbase_device *kbdev, ktime_t *end_timestamp);
-
-/**
- * kbase_backend_inspect_head() - Return the atom currently at the head of slot
- *				  @js
- * @kbdev:	Device pointer
- * @js:		Job slot to inspect
- *
- * Return : Atom currently at the head of slot @js, or NULL
- */
-struct kbase_jd_atom *kbase_backend_inspect_head(struct kbase_device *kbdev,
-					int js);
 
 /**
  * kbase_backend_inspect_tail - Return the atom currently at the tail of slot

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2011-2016 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -165,5 +165,25 @@ void kbase_job_slot_term(struct kbase_device *kbdev);
  * Caller must not be in IRQ context
  */
 void kbase_gpu_cacheclean(struct kbase_device *kbdev);
+
+static inline bool kbase_atom_needs_tiler(struct kbase_device *kbdev,
+		base_jd_core_req core_req)
+{
+	return core_req & BASE_JD_REQ_T;
+}
+
+static inline bool kbase_atom_needs_shaders(struct kbase_device *kbdev,
+		base_jd_core_req core_req)
+{
+	if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY))
+		return true;
+	if ((core_req & (BASE_JD_REQ_FS | BASE_JD_REQ_CS | BASE_JD_REQ_T)) ==
+			BASE_JD_REQ_T) {
+		/* Tiler only atom */
+		return false;
+	}
+
+	return true;
+}
 
 #endif /* _KBASE_JM_HWACCESS_H_ */

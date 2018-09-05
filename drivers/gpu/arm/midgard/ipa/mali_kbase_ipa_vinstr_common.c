@@ -83,6 +83,30 @@ s64 kbase_ipa_sum_all_shader_cores(
 	return ret * coeff;
 }
 
+s64 kbase_ipa_sum_all_memsys_blocks(
+	struct kbase_ipa_model_vinstr_data *model_data,
+	s32 coeff, u32 counter)
+{
+	struct kbase_device *kbdev = model_data->kbdev;
+	const u32 num_blocks = kbdev->gpu_props.props.l2_props.num_l2_slices;
+	u32 base = 0;
+	s64 ret = 0;
+	u32 i;
+
+	for (i = 0; i < num_blocks; i++) {
+		/* 0 < counter_value < 2^27 */
+		u32 counter_value = kbase_ipa_read_hwcnt(model_data,
+					       base + counter);
+
+		/* 0 < ret < 2^27 * max_num_memsys_blocks = 2^29 */
+		ret = kbase_ipa_add_saturate(ret, counter_value);
+		base += KBASE_IPA_NR_BYTES_PER_BLOCK;
+	}
+
+	/* Range: -2^51 < ret * coeff < 2^51 */
+	return ret * coeff;
+}
+
 s64 kbase_ipa_single_counter(
 	struct kbase_ipa_model_vinstr_data *model_data,
 	s32 coeff, u32 counter)
@@ -198,8 +222,10 @@ int kbase_ipa_vinstr_dynamic_coeff(struct kbase_ipa_model *model, u32 *coeffp)
 	u32 active_cycles;
 	int err = 0;
 
-	if (!kbdev->ipa.vinstr_active)
+	if (!kbdev->ipa.vinstr_active) {
+		err = -ENODATA;
 		goto err0; /* GPU powered off - no counters to collect */
+	}
 
 	err = kbase_vinstr_hwc_dump(model_data->vinstr_cli,
 				    BASE_HWCNT_READER_EVENT_MANUAL);

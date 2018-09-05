@@ -21,12 +21,8 @@
 
 mali_kbase-y += \
 	ipa/mali_kbase_ipa_simple.o \
-	ipa/mali_kbase_ipa.o
-
-mali_kbase-$(CONFIG_DEBUG_FS) += ipa/mali_kbase_ipa_debugfs.o
-
-ifneq ($(wildcard $(srctree)/$(src)/ipa/mali_kbase_ipa_vinstr_common.c),)
-  mali_kbase-y += \
+	ipa/mali_kbase_ipa.o \
 	ipa/mali_kbase_ipa_vinstr_g7x.o \
 	ipa/mali_kbase_ipa_vinstr_common.o
-endif
+
+mali_kbase-$(CONFIG_DEBUG_FS) += ipa/mali_kbase_ipa_debugfs.o

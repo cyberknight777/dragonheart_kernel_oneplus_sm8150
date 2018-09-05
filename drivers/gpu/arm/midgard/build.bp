@@ -28,9 +28,6 @@ bob_defaults {
     mali_midgard_dvfs: {
         kbuild_options: ["CONFIG_MALI_MIDGARD_DVFS=y"],
     },
-    mali_trace_timeline: {
-        kbuild_options: ["CONFIG_MALI_TRACE_TIMELINE=y"],
-    },
     mali_debug: {
         kbuild_options: ["CONFIG_MALI_DEBUG=y"],
     },
@@ -46,9 +43,13 @@ bob_defaults {
     mali_system_trace: {
         kbuild_options: ["CONFIG_MALI_SYSTEM_TRACE=y"],
     },
+    mali_pwrsoft_765: {
+        kbuild_options: ["CONFIG_MALI_PWRSOFT_765=y"],
+    },
     kbuild_options: [
         "MALI_UNIT_TEST={{.unit_test_code}}",
         "MALI_CUSTOMER_RELEASE={{.release}}",
+        "MALI_USE_CSF={{.gpu_has_csf}}",
         "MALI_KERNEL_TEST_API={{.debug}}",
     ],
     defaults: ["kernel_defaults"],
@@ -77,7 +78,6 @@ bob_kernel_module {
         "CONFIG_MALI_MIDGARD=m",
         "CONFIG_MALI_NO_MALI_DEFAULT_GPU={{.gpu}}",
         "CONFIG_MALI_PLATFORM_NAME={{.mali_platform_name}}",
-        "MALI_KERNEL_TEST_API={{.unit_test_code}}",
         "MALI_MOCK_TEST={{.mali_mock_test}}",
     ],
     mali_error_inject: {
@@ -86,7 +86,7 @@ bob_kernel_module {
     mali_error_inject_random: {
         kbuild_options: ["CONFIG_MALI_ERROR_INJECT_RANDOM=y"],
     },
-    mali_prfcnt_set_secondary: {
+    cinstr_secondary_hwc: {
         kbuild_options: ["CONFIG_MALI_PRFCNT_SET_SECONDARY=y"],
     },
     mali_2mb_alloc: {
@@ -94,6 +94,13 @@ bob_kernel_module {
     },
     mali_mock_test: {
         srcs: ["tests/internal/src/mock/mali_kbase_pm_driver_mock.c"],
+    },
+    gpu_has_csf: {
+        srcs: [
+            "csf/*.c",
+            "csf/*.h",
+            "csf/Kbuild",
+        ],
     },
     defaults: ["mali_kbase_shared_config_defaults"],
 }

@@ -25,7 +25,7 @@ bob_kernel_module {
     kbuild_options: ["CONFIG_MALI_KUTF=m"],
     include_dirs: ["kernel/drivers/gpu/arm/midgard/tests/include"],
     enabled: false,
-    unit_test_kernel_modules: {
+    base_build_kutf: {
         enabled: true,
     },
 }

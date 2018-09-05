@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2015-2017 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -414,9 +414,10 @@ void kbase_mem_pool_mark_dying(struct kbase_mem_pool *pool)
 void kbase_mem_pool_term(struct kbase_mem_pool *pool)
 {
 	struct kbase_mem_pool *next_pool = pool->next_pool;
-	struct page *p;
+	struct page *p, *tmp;
 	size_t nr_to_spill = 0;
 	LIST_HEAD(spill_list);
+	LIST_HEAD(free_list);
 	int i;
 
 	pool_dbg(pool, "terminate()\n");
@@ -434,7 +435,6 @@ void kbase_mem_pool_term(struct kbase_mem_pool *pool)
 		/* Zero pages first without holding the next_pool lock */
 		for (i = 0; i < nr_to_spill; i++) {
 			p = kbase_mem_pool_remove_locked(pool);
-			kbase_mem_pool_zero_page(pool, p);
 			list_add(&p->lru, &spill_list);
 		}
 	}
@@ -442,16 +442,24 @@ void kbase_mem_pool_term(struct kbase_mem_pool *pool)
 	while (!kbase_mem_pool_is_empty(pool)) {
 		/* Free remaining pages to kernel */
 		p = kbase_mem_pool_remove_locked(pool);
-		kbase_mem_pool_free_page(pool, p);
+		list_add(&p->lru, &free_list);
 	}
 
 	kbase_mem_pool_unlock(pool);
 
 	if (next_pool && nr_to_spill) {
+		list_for_each_entry(p, &spill_list, lru)
+			kbase_mem_pool_zero_page(pool, p);
+
 		/* Add new page list to next_pool */
 		kbase_mem_pool_add_list(next_pool, &spill_list, nr_to_spill);
 
 		pool_dbg(pool, "terminate() spilled %zu pages\n", nr_to_spill);
+	}
+
+	list_for_each_entry_safe(p, tmp, &free_list, lru) {
+		list_del_init(&p->lru);
+		kbase_mem_pool_free_page(pool, p);
 	}
 
 	pool_dbg(pool, "terminated\n");
@@ -678,7 +686,7 @@ static void kbase_mem_pool_add_array(struct kbase_mem_pool *pool,
 			continue;
 
 		if (is_huge_head(pages[i]) || !is_huge(pages[i])) {
-			p = phys_to_page(as_phys_addr_t(pages[i]));
+			p = as_page(pages[i]);
 			if (zero)
 				kbase_mem_pool_zero_page(pool, p);
 			else if (sync)
@@ -720,7 +728,7 @@ static void kbase_mem_pool_add_array_locked(struct kbase_mem_pool *pool,
 			continue;
 
 		if (is_huge_head(pages[i]) || !is_huge(pages[i])) {
-			p = phys_to_page(as_phys_addr_t(pages[i]));
+			p = as_page(pages[i]);
 			if (zero)
 				kbase_mem_pool_zero_page(pool, p);
 			else if (sync)
@@ -780,7 +788,7 @@ void kbase_mem_pool_free_pages(struct kbase_mem_pool *pool, size_t nr_pages,
 			continue;
 		}
 
-		p = phys_to_page(as_phys_addr_t(pages[i]));
+		p = as_page(pages[i]);
 
 		kbase_mem_pool_free_page(pool, p);
 		pages[i] = as_tagged(0);
@@ -824,7 +832,7 @@ void kbase_mem_pool_free_pages_locked(struct kbase_mem_pool *pool,
 			continue;
 		}
 
-		p = phys_to_page(as_phys_addr_t(pages[i]));
+		p = as_page(pages[i]);
 
 		kbase_mem_pool_free_page(pool, p);
 		pages[i] = as_tagged(0);

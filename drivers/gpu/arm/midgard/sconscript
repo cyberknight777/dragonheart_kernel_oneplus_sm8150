@@ -52,6 +52,7 @@ make_args = env.kernel_get_config_defines(ret_list = True) + [
 	'MALI_RELEASE_NAME=%s' % env['mali_release_name'],
 	'MALI_MOCK_TEST=%s' % mock_test,
 	'MALI_CUSTOMER_RELEASE=%s' % env['release'],
+	'MALI_USE_CSF=%s' % env['csf'],
 	'MALI_COVERAGE=%s' % env['coverage'],
 ]
 

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2014-2017 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -66,15 +66,15 @@ static inline u64 lock_region(struct kbase_device *kbdev, u64 pfn,
 }
 
 static int wait_ready(struct kbase_device *kbdev,
-		unsigned int as_nr, struct kbase_context *kctx)
+		unsigned int as_nr)
 {
 	unsigned int max_loops = KBASE_AS_INACTIVE_MAX_LOOPS;
-	u32 val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS), kctx);
+	u32 val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
 
 	/* Wait for the MMU status to indicate there is no active command, in
 	 * case one is pending. Do not log remaining register accesses. */
 	while (--max_loops && (val & AS_STATUS_AS_ACTIVE))
-		val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS), NULL);
+		val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
 
 	if (max_loops == 0) {
 		dev_err(kbdev->dev, "AS_ACTIVE bit stuck\n");
@@ -83,27 +83,24 @@ static int wait_ready(struct kbase_device *kbdev,
 
 	/* If waiting in loop was performed, log last read value. */
 	if (KBASE_AS_INACTIVE_MAX_LOOPS - 1 > max_loops)
-		kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS), kctx);
+		kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
 
 	return 0;
 }
 
-static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd,
-		struct kbase_context *kctx)
+static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 {
 	int status;
 
 	/* write AS_COMMAND when MMU is ready to accept another command */
-	status = wait_ready(kbdev, as_nr, kctx);
+	status = wait_ready(kbdev, as_nr);
 	if (status == 0)
-		kbase_reg_write(kbdev, MMU_AS_REG(as_nr, AS_COMMAND), cmd,
-									kctx);
+		kbase_reg_write(kbdev, MMU_AS_REG(as_nr, AS_COMMAND), cmd);
 
 	return status;
 }
 
-static void validate_protected_page_fault(struct kbase_device *kbdev,
-		struct kbase_context *kctx)
+static void validate_protected_page_fault(struct kbase_device *kbdev)
 {
 	/* GPUs which support (native) protected mode shall not report page
 	 * fault addresses unless it has protected debug mode and protected
@@ -115,8 +112,7 @@ static void validate_protected_page_fault(struct kbase_device *kbdev,
 
 	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_PROTECTED_DEBUG_MODE)) {
 		protected_debug_mode = kbase_reg_read(kbdev,
-				GPU_CONTROL_REG(GPU_STATUS),
-				kctx) & GPU_DBGEN;
+				GPU_CONTROL_REG(GPU_STATUS)) & GPU_DBGEN;
 	}
 
 	if (!protected_debug_mode) {
@@ -145,9 +141,9 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 
 	/* remember current mask */
 	spin_lock_irqsave(&kbdev->mmu_mask_change, flags);
-	new_mask = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK), NULL);
+	new_mask = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK));
 	/* mask interrupts for now */
-	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), 0, NULL);
+	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), 0);
 	spin_unlock_irqrestore(&kbdev->mmu_mask_change, flags);
 
 	while (bf_bits | pf_bits) {
@@ -170,24 +166,21 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 		 */
 		kctx = kbasep_js_runpool_lookup_ctx(kbdev, as_no);
 
-
 		/* find faulting address */
 		as->fault_addr = kbase_reg_read(kbdev,
 						MMU_AS_REG(as_no,
-							AS_FAULTADDRESS_HI),
-						kctx);
+							AS_FAULTADDRESS_HI));
 		as->fault_addr <<= 32;
 		as->fault_addr |= kbase_reg_read(kbdev,
 						MMU_AS_REG(as_no,
-							AS_FAULTADDRESS_LO),
-						kctx);
+							AS_FAULTADDRESS_LO));
 
 		/* Mark the fault protected or not */
 		as->protected_mode = kbdev->protected_mode;
 
 		if (kbdev->protected_mode && as->fault_addr) {
 			/* check if address reporting is allowed */
-			validate_protected_page_fault(kbdev, kctx);
+			validate_protected_page_fault(kbdev);
 		}
 
 		/* report the fault to debugfs */
@@ -196,8 +189,7 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 		/* record the fault status */
 		as->fault_status = kbase_reg_read(kbdev,
 						  MMU_AS_REG(as_no,
-							AS_FAULTSTATUS),
-						  kctx);
+							AS_FAULTSTATUS));
 
 		/* find the fault type */
 		as->fault_type = (bf_bits & (1 << as_no)) ?
@@ -206,12 +198,10 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 
 		if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_AARCH64_MMU)) {
 			as->fault_extra_addr = kbase_reg_read(kbdev,
-					MMU_AS_REG(as_no, AS_FAULTEXTRA_HI),
-					kctx);
+					MMU_AS_REG(as_no, AS_FAULTEXTRA_HI));
 			as->fault_extra_addr <<= 32;
 			as->fault_extra_addr |= kbase_reg_read(kbdev,
-					MMU_AS_REG(as_no, AS_FAULTEXTRA_LO),
-					kctx);
+					MMU_AS_REG(as_no, AS_FAULTEXTRA_LO));
 		}
 
 		if (kbase_as_has_bus_fault(as)) {
@@ -240,14 +230,13 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 
 	/* reenable interrupts */
 	spin_lock_irqsave(&kbdev->mmu_mask_change, flags);
-	tmp = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK), NULL);
+	tmp = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK));
 	new_mask |= tmp;
-	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), new_mask, NULL);
+	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), new_mask);
 	spin_unlock_irqrestore(&kbdev->mmu_mask_change, flags);
 }
 
-void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as,
-		struct kbase_context *kctx)
+void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 {
 	struct kbase_mmu_setup *current_setup = &as->current_setup;
 	u32 transcfg = 0;
@@ -270,35 +259,34 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as,
 		}
 
 		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSCFG_LO),
-				transcfg, kctx);
+				transcfg);
 		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSCFG_HI),
-				(current_setup->transcfg >> 32) & 0xFFFFFFFFUL,
-				kctx);
+				(current_setup->transcfg >> 32) & 0xFFFFFFFFUL);
 	} else {
 		if (kbdev->system_coherency == COHERENCY_ACE)
 			current_setup->transtab |= AS_TRANSTAB_LPAE_SHARE_OUTER;
 	}
 
 	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSTAB_LO),
-			current_setup->transtab & 0xFFFFFFFFUL, kctx);
+			current_setup->transtab & 0xFFFFFFFFUL);
 	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSTAB_HI),
-			(current_setup->transtab >> 32) & 0xFFFFFFFFUL, kctx);
+			(current_setup->transtab >> 32) & 0xFFFFFFFFUL);
 
 	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_MEMATTR_LO),
-			current_setup->memattr & 0xFFFFFFFFUL, kctx);
+			current_setup->memattr & 0xFFFFFFFFUL);
 	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_MEMATTR_HI),
-			(current_setup->memattr >> 32) & 0xFFFFFFFFUL, kctx);
+			(current_setup->memattr >> 32) & 0xFFFFFFFFUL);
 
 	KBASE_TLSTREAM_TL_ATTRIB_AS_CONFIG(as,
 			current_setup->transtab,
 			current_setup->memattr,
 			transcfg);
 
-	write_cmd(kbdev, as->number, AS_COMMAND_UPDATE, kctx);
+	write_cmd(kbdev, as->number, AS_COMMAND_UPDATE);
 }
 
 int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
-		struct kbase_context *kctx, u64 vpfn, u32 nr, u32 op,
+		u64 vpfn, u32 nr, u32 op,
 		unsigned int handling_irq)
 {
 	int ret;
@@ -307,22 +295,22 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 
 	if (op == AS_COMMAND_UNLOCK) {
 		/* Unlock doesn't require a lock first */
-		ret = write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK, kctx);
+		ret = write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
 	} else {
 		u64 lock_addr = lock_region(kbdev, vpfn, nr);
 
 		/* Lock the region that needs to be updated */
 		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_LOCKADDR_LO),
-				lock_addr & 0xFFFFFFFFUL, kctx);
+				lock_addr & 0xFFFFFFFFUL);
 		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_LOCKADDR_HI),
-				(lock_addr >> 32) & 0xFFFFFFFFUL, kctx);
-		write_cmd(kbdev, as->number, AS_COMMAND_LOCK, kctx);
+				(lock_addr >> 32) & 0xFFFFFFFFUL);
+		write_cmd(kbdev, as->number, AS_COMMAND_LOCK);
 
 		/* Run the MMU operation */
-		write_cmd(kbdev, as->number, op, kctx);
+		write_cmd(kbdev, as->number, op);
 
 		/* Wait for the flush to complete */
-		ret = wait_ready(kbdev, as->number, kctx);
+		ret = wait_ready(kbdev, as->number);
 
 		if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_9630)) {
 			/* Issue an UNLOCK command to ensure that valid page
@@ -339,8 +327,8 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 			   commands in order to flush the MMU/uTLB,
 			   see PRLAM-8812.
 			 */
-			write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK, kctx);
-			write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK, kctx);
+			write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
+			write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
 		}
 	}
 
@@ -348,7 +336,7 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 }
 
 void kbase_mmu_hw_clear_fault(struct kbase_device *kbdev, struct kbase_as *as,
-		struct kbase_context *kctx, enum kbase_mmu_fault_type type)
+		enum kbase_mmu_fault_type type)
 {
 	unsigned long flags;
 	u32 pf_bf_mask;
@@ -368,14 +356,14 @@ void kbase_mmu_hw_clear_fault(struct kbase_device *kbdev, struct kbase_as *as,
 			type == KBASE_MMU_FAULT_TYPE_BUS_UNEXPECTED)
 		pf_bf_mask |= MMU_BUS_ERROR(as->number);
 
-	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_CLEAR), pf_bf_mask, kctx);
+	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_CLEAR), pf_bf_mask);
 
 unlock:
 	spin_unlock_irqrestore(&kbdev->mmu_mask_change, flags);
 }
 
 void kbase_mmu_hw_enable_fault(struct kbase_device *kbdev, struct kbase_as *as,
-		struct kbase_context *kctx, enum kbase_mmu_fault_type type)
+		enum kbase_mmu_fault_type type)
 {
 	unsigned long flags;
 	u32 irq_mask;
@@ -391,14 +379,14 @@ void kbase_mmu_hw_enable_fault(struct kbase_device *kbdev, struct kbase_as *as,
 	if (kbdev->irq_reset_flush)
 		goto unlock;
 
-	irq_mask = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK), kctx) |
+	irq_mask = kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK)) |
 			MMU_PAGE_FAULT(as->number);
 
 	if (type == KBASE_MMU_FAULT_TYPE_BUS ||
 			type == KBASE_MMU_FAULT_TYPE_BUS_UNEXPECTED)
 		irq_mask |= MMU_BUS_ERROR(as->number);
 
-	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), irq_mask, kctx);
+	kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_MASK), irq_mask);
 
 unlock:
 	spin_unlock_irqrestore(&kbdev->mmu_mask_change, flags);

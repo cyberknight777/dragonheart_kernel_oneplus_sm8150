@@ -55,8 +55,6 @@ static void kbase_gpu_gwt_setup_pages(struct kbase_context *kctx,
 	kbase_gpu_gwt_setup_page_permission(kctx, flag,
 				rb_first(&(kctx->reg_rbtree_same)));
 	kbase_gpu_gwt_setup_page_permission(kctx, flag,
-				rb_first(&(kctx->reg_rbtree_exec)));
-	kbase_gpu_gwt_setup_page_permission(kctx, flag,
 				rb_first(&(kctx->reg_rbtree_custom)));
 }
 

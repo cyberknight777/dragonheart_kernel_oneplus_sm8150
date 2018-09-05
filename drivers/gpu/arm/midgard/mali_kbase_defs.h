@@ -42,6 +42,7 @@
 #include <mali_kbase_gpuprops_types.h>
 #include <protected_mode_switcher.h>
 
+
 #include <linux/atomic.h>
 #include <linux/mempool.h>
 #include <linux/slab.h>
@@ -51,7 +52,6 @@
 #ifdef CONFIG_MALI_FPGA_BUS_LOGGER
 #include <linux/bus_logger.h>
 #endif
-
 
 #if defined(CONFIG_SYNC)
 #include <sync.h>
@@ -170,6 +170,13 @@
 
 /* Maximum force replay limit when randomization is enabled */
 #define KBASEP_FORCE_REPLAY_RANDOM_LIMIT 16
+
+/* Maximum number of pages of memory that require a permanent mapping, per
+ * kbase_context
+ */
+#define KBASE_PERMANENTLY_MAPPED_MEM_LIMIT_PAGES ((1024ul * 1024ul) >> \
+								PAGE_SHIFT)
+
 
 /** Atom has been previously soft-stoppped */
 #define KBASE_KATOM_FLAG_BEEN_SOFT_STOPPPED (1<<1)
@@ -504,7 +511,6 @@ struct kbase_ext_res {
  *                         external resources referenced by the atom.
  * @device_nr:             indicates the coregroup with which the atom is associated,
  *                         when BASE_JD_REQ_SPECIFIC_COHERENT_GROUP specified.
- * @affinity:              bitmask of the shader cores on which the atom can execute.
  * @jc:                    GPU address of the job-chain.
  * @softjob_data:          Copy of data read from the user space buffer that @jc
  *                         points to.
@@ -600,7 +606,6 @@ struct kbase_jd_atom {
 	struct kbase_ext_res *extres;
 
 	u32 device_nr;
-	u64 affinity;
 	u64 jc;
 	void *softjob_data;
 	enum kbase_atom_coreref_state coreref_state;
@@ -698,7 +703,7 @@ struct kbase_jd_atom {
 
 	enum kbase_atom_gpu_rb_state gpu_rb_state;
 
-	u64 need_cache_flush_cores_retained;
+	bool need_cache_flush_cores_retained;
 
 	atomic_t blocked;
 
@@ -729,6 +734,30 @@ struct kbase_jd_atom {
 	struct rb_node runnable_tree_node;
 
 	u32 age;
+};
+
+/**
+ * struct kbase_debug_copy_buffer - information about the buffer to be copied.
+ *
+ * @size:	size of the buffer in bytes
+ * @pages:	pointer to an array of pointers to the pages which contain
+ *		the buffer
+ * @nr_pages:	number of pages
+ * @offset:	offset into the pages
+ * @gpu_alloc:	pointer to physical memory allocated by the GPU
+ * @extres_pages: array of pointers to the pages containing external resources
+ *		for this buffer
+ * @nr_extres_pages: number of pages in @extres_pages
+ */
+struct kbase_debug_copy_buffer {
+	size_t size;
+	struct page **pages;
+	int nr_pages;
+	size_t offset;
+	struct kbase_mem_phy_alloc *gpu_alloc;
+
+	struct page **extres_pages;
+	int nr_extres_pages;
 };
 
 static inline bool kbase_jd_katom_is_protected(const struct kbase_jd_atom *katom)
@@ -872,6 +901,28 @@ struct kbase_as {
 	struct hrtimer poke_timer;
 };
 
+/**
+ * struct kbase_mmu_table  - object representing a set of GPU page tables
+ * @mmu_teardown_pages:   Buffer of 4 Pages in size, used to cache the entries
+ *                        of top & intermediate level page tables to avoid
+ *                        repeated calls to kmap_atomic during the MMU teardown.
+ * @mmu_lock:             Lock to serialize the accesses made to multi level GPU
+ *                        page tables
+ * @pgd:                  Physical address of the page allocated for the top
+ *                        level page table of the context, this is used for
+ *                        MMU HW programming as the address translation will
+ *                        start from the top level page table.
+ * @kctx:                 If this set of MMU tables belongs to a context then
+ *                        this is a back-reference to the context, otherwise
+ *                        it is NULL
+ */
+struct kbase_mmu_table {
+	u64 *mmu_teardown_pages;
+	struct mutex mmu_lock;
+	phys_addr_t pgd;
+	struct kbase_context *kctx;
+};
+
 static inline int kbase_as_has_bus_fault(struct kbase_as *as)
 {
 	return as->fault_type == KBASE_MMU_FAULT_TYPE_BUS;
@@ -952,88 +1003,6 @@ struct kbase_trace {
 	u8 flags;
 };
 
-/** Event IDs for the power management framework.
- *
- * Any of these events might be missed, so they should not be relied upon to
- * find the precise state of the GPU at a particular time in the
- * trace. Overall, we should get a high percentage of these events for
- * statisical purposes, and so a few missing should not be a problem */
-enum kbase_timeline_pm_event {
-	/* helper for tests */
-	KBASEP_TIMELINE_PM_EVENT_FIRST,
-
-	/** Event reserved for backwards compatibility with 'init' events */
-	KBASE_TIMELINE_PM_EVENT_RESERVED_0 = KBASEP_TIMELINE_PM_EVENT_FIRST,
-
-	/** The power state of the device has changed.
-	 *
-	 * Specifically, the device has reached a desired or available state.
-	 */
-	KBASE_TIMELINE_PM_EVENT_GPU_STATE_CHANGED,
-
-	/** The GPU is becoming active.
-	 *
-	 * This event is sent when the first context is about to use the GPU.
-	 */
-	KBASE_TIMELINE_PM_EVENT_GPU_ACTIVE,
-
-	/** The GPU is becoming idle.
-	 *
-	 * This event is sent when the last context has finished using the GPU.
-	 */
-	KBASE_TIMELINE_PM_EVENT_GPU_IDLE,
-
-	/** Event reserved for backwards compatibility with 'policy_change'
-	 * events */
-	KBASE_TIMELINE_PM_EVENT_RESERVED_4,
-
-	/** Event reserved for backwards compatibility with 'system_suspend'
-	 * events */
-	KBASE_TIMELINE_PM_EVENT_RESERVED_5,
-
-	/** Event reserved for backwards compatibility with 'system_resume'
-	 * events */
-	KBASE_TIMELINE_PM_EVENT_RESERVED_6,
-
-	/** The job scheduler is requesting to power up/down cores.
-	 *
-	 * This event is sent when:
-	 * - powered down cores are needed to complete a job
-	 * - powered up cores are not needed anymore
-	 */
-	KBASE_TIMELINE_PM_EVENT_CHANGE_GPU_STATE,
-
-	KBASEP_TIMELINE_PM_EVENT_LAST = KBASE_TIMELINE_PM_EVENT_CHANGE_GPU_STATE,
-};
-
-#ifdef CONFIG_MALI_TRACE_TIMELINE
-struct kbase_trace_kctx_timeline {
-	atomic_t jd_atoms_in_flight;
-	u32 owner_tgid;
-};
-
-struct kbase_trace_kbdev_timeline {
-	/* Note: strictly speaking, not needed, because it's in sync with
-	 * kbase_device::jm_slots[]::submitted_nr
-	 *
-	 * But it's kept as an example of how to add global timeline tracking
-	 * information
-	 *
-	 * The caller must hold hwaccess_lock when accessing this */
-	u8 slot_atoms_submitted[BASE_JM_MAX_NR_SLOTS];
-
-	/* Last UID for each PM event */
-	atomic_t pm_event_uid[KBASEP_TIMELINE_PM_EVENT_LAST+1];
-	/* Counter for generating PM event UIDs */
-	atomic_t pm_event_uid_counter;
-	/*
-	 * L2 transition state - true indicates that the transition is ongoing
-	 * Expected to be protected by hwaccess_lock */
-	bool l2_transitioning;
-};
-#endif /* CONFIG_MALI_TRACE_TIMELINE */
-
-
 struct kbasep_kctx_list_element {
 	struct list_head link;
 	struct kbase_context *kctx;
@@ -1055,7 +1024,11 @@ struct kbase_pm_device_data {
 	 */
 	struct mutex lock;
 
-	/** The reference count of active contexts on this device. */
+	/**
+	 * The reference count of active contexts on this device. Note that
+	 * some code paths keep shaders/the tiler powered whilst this is 0. Use
+	 * kbase_pm_is_active() instead to check for such cases.
+	 */
 	int active_count;
 	/** Flag indicating suspending/suspended */
 	bool suspending;
@@ -1148,9 +1121,33 @@ struct kbase_devfreq_opp {
 	u64 core_mask;
 };
 
+/* MMU mode flags */
+#define KBASE_MMU_MODE_HAS_NON_CACHEABLE (1ul << 0) /* Has NON_CACHEABLE MEMATTR */
+
+/**
+ * struct kbase_mmu_mode - object containing pointer to methods invoked for
+ *                         programming the MMU, as per the MMU mode supported
+ *                         by Hw.
+ * @update:           enable & setup/configure one of the GPU address space.
+ * @get_as_setup:     retrieve the configuration of one of the GPU address space.
+ * @disable_as:       disable one of the GPU address space.
+ * @pte_to_phy_addr:  retrieve the physical address encoded in the page table entry.
+ * @ate_is_valid:     check if the pte is a valid address translation entry
+ *                    encoding the physical address of the actual mapped page.
+ * @pte_is_valid:     check if the pte is a valid entry encoding the physical
+ *                    address of the next lower level page table.
+ * @entry_set_ate:    program the pte to be a valid address translation entry to
+ *                    encode the physical address of the actual page being mapped.
+ * @entry_set_pte:    program the pte to be a valid entry to encode the physical
+ *                    address of the next lower level page table.
+ * @entry_invalidate: clear out or invalidate the pte.
+ * @flags:            bitmask of MMU mode flags. Refer to KBASE_MMU_MODE_ constants.
+ */
 struct kbase_mmu_mode {
-	void (*update)(struct kbase_context *kctx);
-	void (*get_as_setup)(struct kbase_context *kctx,
+	void (*update)(struct kbase_device *kbdev,
+			struct kbase_mmu_table *mmut,
+			int as_nr);
+	void (*get_as_setup)(struct kbase_mmu_table *mmut,
 			struct kbase_mmu_setup * const setup);
 	void (*disable_as)(struct kbase_device *kbdev, int as_nr);
 	phys_addr_t (*pte_to_phy_addr)(u64 entry);
@@ -1160,6 +1157,7 @@ struct kbase_mmu_mode {
 			unsigned long flags, unsigned int level);
 	void (*entry_set_pte)(u64 *entry, phys_addr_t phy);
 	void (*entry_invalidate)(u64 *entry);
+	unsigned long flags;
 };
 
 struct kbase_mmu_mode const *kbase_mmu_mode_get_lpae(void);
@@ -1167,6 +1165,7 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
 
 
 #define DEVNAME_SIZE	16
+
 
 /**
  * struct kbase_device   - Object representing an instance of GPU platform device,
@@ -1234,7 +1233,7 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
  * @mmu_mode:              Pointer to the object containing methods for programming
  *                         the MMU, depending on the type of MMU supported by Hw.
  * @as:                    Array of objects representing address spaces of GPU.
- * @as_free:               Bitpattern of free/available address space lots
+ * @as_free:               Bitpattern of free/available GPU address spaces.
  * @as_to_kctx:            Array of pointers to struct kbase_context, having
  *                         GPU adrress spaces assigned to them.
  * @mmu_mask_change:       Lock to serialize the access to MMU interrupt mask
@@ -1243,26 +1242,12 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
  *                         configuration/properties of GPU HW device in use.
  * @hw_issues_mask:        List of SW workarounds for HW issues
  * @hw_features_mask:      List of available HW features.
- * shader_inuse_bitmap:    Bitmaps of shader cores that are currently in use.
- *                         These should be kept up to date by the job scheduler.
- *                         The bit to be set in this bitmap should already be set
- *                         in the @shader_needed_bitmap.
- *                         @pm.power_change_lock should be held when accessing
- *                         these members.
- * @shader_inuse_cnt:      Usage count for each of the 64 shader cores
- * @shader_needed_bitmap:  Bitmaps of cores the JS needs for jobs ready to run
- *                         kbase_pm_check_transitions_nolock() should be called
- *                         when the bitmap is modified to update the power
- *                         management system and allow transitions to occur.
- * @shader_needed_cnt:     Count for each of the 64 shader cores, incremented
- *                         when the core is requested for use and decremented
- *                         later when the core is known to be powered up for use.
- * @tiler_inuse_cnt:       Usage count for the Tiler block. @tiler_needed_cnt
- *                         should be non zero at the time of incrementing the
- *                         usage count.
+ * @shader_needed_cnt:     Count for the 64 shader cores, incremented when
+ *                         shaders are requested for use and decremented later
+ *                         when they are no longer required.
  * @tiler_needed_cnt:      Count for the Tiler block shader cores, incremented
  *                         when Tiler is requested for use and decremented
- *                         later when Tiler is known to be powered up for use.
+ *                         later when the Tiler is no longer required.
  * @disjoint_event:        struct for keeping track of the disjoint information,
  *                         that whether the GPU is in a disjoint state and the
  *                         number of disjoint events that have occurred on GPU.
@@ -1331,8 +1316,10 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
  *                         GPU device.
  * @devfreq_cooling:       Pointer returned on registering devfreq cooling device
  *                         corresponding to @devfreq.
- * @ipa_use_configured_model: set to TRUE when configured model is used for IPA and
- *                         FALSE when fallback model is used.
+ * @ipa_protection_mode_switched: is set to TRUE when GPU is put into protected
+ *                         mode. It is a sticky flag which is cleared by IPA
+ *                         once it has made use of information that GPU had
+ *                         previously entered protected mode.
  * @ipa:                   Top level structure for IPA, containing pointers to both
  *                         configured & fallback models.
  * @timeline:              Stores the global timeline tracking information.
@@ -1467,7 +1454,6 @@ struct kbase_device {
 	u16 as_free; /* Bitpattern of free Address Spaces */
 	struct kbase_context *as_to_kctx[BASE_MAX_NR_AS];
 
-
 	spinlock_t mmu_mask_change;
 
 	struct kbase_gpu_props gpu_props;
@@ -1475,17 +1461,8 @@ struct kbase_device {
 	unsigned long hw_issues_mask[(BASE_HW_ISSUE_END + BITS_PER_LONG - 1) / BITS_PER_LONG];
 	unsigned long hw_features_mask[(BASE_HW_FEATURE_END + BITS_PER_LONG - 1) / BITS_PER_LONG];
 
-	u64 shader_inuse_bitmap;
-
-	u32 shader_inuse_cnt[64];
-
-	u64 shader_needed_bitmap;
-
-	u32 shader_needed_cnt[64];
-
-	u32 tiler_inuse_cnt;
-
 	u32 tiler_needed_cnt;
+	u32 shader_needed_cnt;
 
 	struct {
 		atomic_t count;
@@ -1549,7 +1526,7 @@ struct kbase_device {
 #else
 	struct thermal_cooling_device *devfreq_cooling;
 #endif
-	atomic_t ipa_use_configured_model;
+	bool ipa_protection_mode_switched;
 	struct {
 		/* Access to this struct must be with ipa.lock held */
 		struct mutex lock;
@@ -1584,11 +1561,6 @@ struct kbase_device {
 	} ipa;
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
-
-
-#ifdef CONFIG_MALI_TRACE_TIMELINE
-	struct kbase_trace_kbdev_timeline timeline;
-#endif
 
 	bool job_fault_debug;
 
@@ -1682,6 +1654,7 @@ struct kbase_device {
 
 	/* See KBASE_JS_*_PRIORITY_MODE for details. */
 	u32 js_ctx_scheduling_mode;
+
 };
 
 /**
@@ -1785,6 +1758,7 @@ struct kbase_sub_alloc {
 	DECLARE_BITMAP(sub_pages, SZ_2M / SZ_4K);
 };
 
+
 /**
  * struct kbase_context - Object representing an entity, among which GPU is
  *                        scheduled and gets its own GPU address space.
@@ -1792,14 +1766,12 @@ struct kbase_sub_alloc {
  * @filp:                 Pointer to the struct file corresponding to device file
  *                        /dev/malixx instance, passed to the file's open method.
  * @kbdev:                Pointer to the Kbase device for which the context is created.
+ * @mmu:                  Structure holding details of the MMU tables for this
+ *                        context
  * @id:                   Unique indentifier for the context, indicates the number of
  *                        contexts which have been created for the device so far.
  * @api_version:          contains the version number for User/kernel interface,
  *                        used for compatibility check.
- * @pgd:                  Physical address of the page allocated for the top level
- *                        page table of the context, this will be used for MMU Hw
- *                        programming as the address translation will start from
- *                        the top level page table.
  * @event_list:           list of posted events about completed atoms, to be sent to
  *                        event handling thread of Userpsace.
  * @event_coalesce_list:  list containing events corresponding to successive atoms
@@ -1823,9 +1795,6 @@ struct kbase_sub_alloc {
  *                        @api_version value 0.
  * @setup_in_progress:    Indicates if the context's setup is in progress and other
  *                        setup calls during that shall be rejected.
- * @mmu_teardown_pages:   Buffer of 4 Pages in size, used to cache the entries of
- *                        top & intermediate level page tables to avoid repeated
- *                        calls to kmap_atomic during the MMU teardown.
  * @aliasing_sink_page:   Special page used for KBASE_MEM_TYPE_ALIAS allocations,
  *                        which can alias number of memory regions. The page is
  *                        represent a region where it is mapped with a write-alloc
@@ -1836,18 +1805,12 @@ struct kbase_sub_alloc {
  * @mem_partials:         List head for the list of large pages, 2MB in size, which
  *                        which have been split into 4 KB pages and are used
  *                        partially for the allocations >= 2 MB in size.
- * @mmu_lock:             Lock to serialize the accesses made to multi level GPU
- *                        page tables, maintained for every context.
  * @reg_lock:             Lock used for GPU virtual address space management operations,
  *                        like adding/freeing a memory region in the address space.
  *                        Can be converted to a rwlock ?.
  * @reg_rbtree_same:      RB tree of the memory regions allocated from the SAME_VA
  *                        zone of the GPU virtual address space. Used for allocations
  *                        having the same value for GPU & CPU virtual address.
- * @reg_rbtree_exec:      RB tree of the memory regions allocated from the EXEC
- *                        zone of the GPU virtual address space. Used for
- *                        allocations containing executable code for
- *                        shader programs.
  * @reg_rbtree_custom:    RB tree of the memory regions allocated from the CUSTOM_VA
  *                        zone of the GPU virtual address space.
  * @cookies:              Bitmask containing of BITS_PER_LONG bits, used mainly for
@@ -1875,6 +1838,7 @@ struct kbase_sub_alloc {
  * @nonmapped_pages:      Updated in the same way as @used_pages, except for the case
  *                        when special tracking page is freed by userspace where it
  *                        is reset to 0.
+ * @permanent_mapped_pages: Usage count of permanently mapped memory
  * @mem_pool:             Object containing the state for the context specific pool of
  *                        4KB size physical pages.
  * @lp_mem_pool:          Object containing the state for the context specific pool of
@@ -2017,9 +1981,10 @@ struct kbase_sub_alloc {
 struct kbase_context {
 	struct file *filp;
 	struct kbase_device *kbdev;
+	struct kbase_mmu_table mmu;
+
 	u32 id;
 	unsigned long api_version;
-	phys_addr_t pgd;
 	struct list_head event_list;
 	struct list_head event_coalesce_list;
 	struct mutex event_mutex;
@@ -2033,18 +1998,15 @@ struct kbase_context {
 	atomic_t                setup_complete;
 	atomic_t                setup_in_progress;
 
-	u64 *mmu_teardown_pages;
-
 	struct tagged_addr aliasing_sink_page;
 
-	struct mutex            mem_partials_lock;
+	spinlock_t              mem_partials_lock;
 	struct list_head        mem_partials;
 
-	struct mutex            mmu_lock;
 	struct mutex            reg_lock;
 	struct rb_root reg_rbtree_same;
-	struct rb_root reg_rbtree_exec;
 	struct rb_root reg_rbtree_custom;
+
 
 	unsigned long    cookies;
 	struct kbase_va_region *pending_regions[BITS_PER_LONG];
@@ -2056,6 +2018,7 @@ struct kbase_context {
 	struct kbase_jd_context jctx;
 	atomic_t used_pages;
 	atomic_t         nonmapped_pages;
+	unsigned long permanent_mapped_pages;
 
 	struct kbase_mem_pool mem_pool;
 	struct kbase_mem_pool lp_mem_pool;
@@ -2076,6 +2039,7 @@ struct kbase_context {
 
 	atomic_t refcount;
 
+
 	/* NOTE:
 	 *
 	 * Flags are in jctx.sched_info.ctx.flags
@@ -2083,12 +2047,9 @@ struct kbase_context {
 	 *
 	 * All other flags must be added there */
 	spinlock_t         mm_update_lock;
-	struct mm_struct *process_mm;
+	struct mm_struct __rcu *process_mm;
 	u64 same_va_end;
 
-#ifdef CONFIG_MALI_TRACE_TIMELINE
-	struct kbase_trace_kctx_timeline timeline;
-#endif
 #ifdef CONFIG_DEBUG_FS
 	char *mem_profile_data;
 	size_t mem_profile_size;

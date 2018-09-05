@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2017 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2017-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -188,6 +188,23 @@ void kbase_ipa_model_param_free_all(struct kbase_ipa_model *model)
 	}
 }
 
+static int current_power_get(void *data, u64 *val)
+{
+	struct kbase_device *kbdev = data;
+	struct devfreq *df = kbdev->devfreq;
+	u32 power;
+
+	kbase_pm_context_active(kbdev);
+	kbase_get_real_power(df, &power,
+		kbdev->current_nominal_freq, (kbdev->current_voltage / 1000));
+	kbase_pm_context_idle(kbdev);
+
+	*val = power;
+
+	return 0;
+}
+DEFINE_DEBUGFS_ATTRIBUTE(current_power, current_power_get, NULL, "%llu\n");
+
 static void kbase_ipa_model_debugfs_init(struct kbase_ipa_model *model)
 {
 	struct list_head *it;
@@ -263,6 +280,9 @@ void kbase_ipa_debugfs_init(struct kbase_device *kbdev)
 	if (kbdev->ipa.configured_model != kbdev->ipa.fallback_model)
 		kbase_ipa_model_debugfs_init(kbdev->ipa.configured_model);
 	kbase_ipa_model_debugfs_init(kbdev->ipa.fallback_model);
+
+	debugfs_create_file("ipa_current_power", 0444,
+			kbdev->mali_debugfs_directory, kbdev, &current_power);
 
 	mutex_unlock(&kbdev->ipa.lock);
 }

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2014-2017 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2018 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -73,9 +73,25 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_counters)
 			hardware_counters = hardware_counters_mali_tSIx;
 			count = ARRAY_SIZE(hardware_counters_mali_tSIx);
 			break;
+		case GPU_ID2_PRODUCT_TDVX:
+			hardware_counters = hardware_counters_mali_tSIx;
+			count = ARRAY_SIZE(hardware_counters_mali_tSIx);
+			break;
 		case GPU_ID2_PRODUCT_TNOX:
 			hardware_counters = hardware_counters_mali_tNOx;
 			count = ARRAY_SIZE(hardware_counters_mali_tNOx);
+			break;
+		case GPU_ID2_PRODUCT_TGOX:
+			hardware_counters = hardware_counters_mali_tGOx;
+			count = ARRAY_SIZE(hardware_counters_mali_tGOx);
+			break;
+		case GPU_ID2_PRODUCT_TKAX:
+			hardware_counters = hardware_counters_mali_tKAx;
+			count = ARRAY_SIZE(hardware_counters_mali_tKAx);
+			break;
+		case GPU_ID2_PRODUCT_TTRX:
+			hardware_counters = hardware_counters_mali_tTRx;
+			count = ARRAY_SIZE(hardware_counters_mali_tTRx);
 			break;
 		default:
 			hardware_counters = NULL;

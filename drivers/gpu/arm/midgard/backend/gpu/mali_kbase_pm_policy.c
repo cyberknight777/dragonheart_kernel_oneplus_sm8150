@@ -89,72 +89,6 @@ enum {
 };
 typedef u32 kbase_pm_change_state;
 
-
-#ifdef CONFIG_MALI_TRACE_TIMELINE
-/* Timeline Trace code lookups for each function */
-static u32 kbase_pm_change_state_trace_code[KBASE_PM_FUNC_ID_COUNT]
-					[KBASE_PM_CHANGE_STATE_COUNT] = {
-	/* kbase_pm_request_cores */
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_START][0] = 0,
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_START][KBASE_PM_CHANGE_STATE_SHADER] =
-		SW_FLOW_PM_CHECKTRANS_PM_REQUEST_CORES_SHADER_START,
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_START][KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_REQUEST_CORES_TILER_START,
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_START][KBASE_PM_CHANGE_STATE_SHADER |
-						KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_REQUEST_CORES_SHADER_TILER_START,
-
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_END][0] = 0,
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_END][KBASE_PM_CHANGE_STATE_SHADER] =
-		SW_FLOW_PM_CHECKTRANS_PM_REQUEST_CORES_SHADER_END,
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_END][KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_REQUEST_CORES_TILER_END,
-	[KBASE_PM_FUNC_ID_REQUEST_CORES_END][KBASE_PM_CHANGE_STATE_SHADER |
-						KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_REQUEST_CORES_SHADER_TILER_END,
-
-	/* kbase_pm_release_cores */
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_START][0] = 0,
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_START][KBASE_PM_CHANGE_STATE_SHADER] =
-		SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_SHADER_START,
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_START][KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_TILER_START,
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_START][KBASE_PM_CHANGE_STATE_SHADER |
-						KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_SHADER_TILER_START,
-
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_END][0] = 0,
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_END][KBASE_PM_CHANGE_STATE_SHADER] =
-		SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_SHADER_END,
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_END][KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_TILER_END,
-	[KBASE_PM_FUNC_ID_RELEASE_CORES_END][KBASE_PM_CHANGE_STATE_SHADER |
-						KBASE_PM_CHANGE_STATE_TILER] =
-		SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_SHADER_TILER_END
-};
-
-static inline void kbase_timeline_pm_cores_func(struct kbase_device *kbdev,
-		enum kbase_pm_func_id func_id,
-		kbase_pm_change_state state)
-{
-	int trace_code;
-
-	KBASE_DEBUG_ASSERT(func_id >= 0 && func_id < KBASE_PM_FUNC_ID_COUNT);
-	KBASE_DEBUG_ASSERT(state != 0 && (state & KBASE_PM_CHANGE_STATE_MASK) ==
-									state);
-
-	trace_code = kbase_pm_change_state_trace_code[func_id][state];
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev, trace_code);
-}
-
-#else /* CONFIG_MALI_TRACE_TIMELINE */
-static inline void kbase_timeline_pm_cores_func(struct kbase_device *kbdev,
-		enum kbase_pm_func_id func_id, kbase_pm_change_state state)
-{
-}
-
-#endif /* CONFIG_MALI_TRACE_TIMELINE */
-
 /**
  * kbasep_pm_do_poweroff_cores - Process a poweroff request and power down any
  *                               requested shader cores
@@ -181,11 +115,7 @@ static void kbasep_pm_do_poweroff_cores(struct kbase_device *kbdev)
 			kbdev->pm.backend.ca_in_transition) {
 		bool cores_are_available;
 
-		KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-			SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_DEFERRED_START);
 		cores_are_available = kbase_pm_check_transitions_nolock(kbdev);
-		KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-			SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_DEFERRED_END);
 
 		/* Don't need 'cores_are_available',
 		 * because we don't return anything */
@@ -356,6 +286,9 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	active = backend->pm_current_policy->get_core_active(kbdev);
+	WARN((kbase_pm_is_active(kbdev) && !active),
+		"GPU is active but policy '%s' is indicating that it can be powered off",
+		kbdev->pm.backend.pm_current_policy->name);
 
 	if (active) {
 		if (backend->gpu_poweroff_pending) {
@@ -436,6 +369,42 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 	}
 }
 
+/**
+ * get_desired_shader_bitmap - Get the desired shader bitmap, based on the
+ *                             current power policy
+ *
+ * @kbdev: The kbase device structure for the device
+ *
+ * Queries the current power policy to determine if shader cores will be
+ * required in the current state, and apply any HW workarounds.
+ *
+ * Return: bitmap of desired shader cores
+ */
+
+static u64 get_desired_shader_bitmap(struct kbase_device *kbdev)
+{
+	u64 desired_bitmap = 0u;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	if (kbdev->pm.backend.pm_current_policy->shaders_needed(kbdev))
+		desired_bitmap = kbase_pm_ca_get_core_mask(kbdev);
+
+	WARN(!desired_bitmap && kbdev->shader_needed_cnt,
+			"Shader cores are needed but policy '%s' did not make them needed",
+			kbdev->pm.backend.pm_current_policy->name);
+
+	if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY)) {
+		/* Unless XAFFINITY is supported, enable core 0 if tiler
+		 * required, regardless of core availability
+		 */
+		if (kbdev->tiler_needed_cnt > 0)
+			desired_bitmap |= 1;
+	}
+
+	return desired_bitmap;
+}
+
 void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 {
 	u64 desired_bitmap;
@@ -450,30 +419,19 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 	if (kbdev->pm.backend.poweroff_wait_in_progress)
 		return;
 
-	if (kbdev->protected_mode_transition &&	!kbdev->shader_needed_bitmap &&
-			!kbdev->shader_inuse_bitmap && !kbdev->tiler_needed_cnt
-			&& !kbdev->tiler_inuse_cnt) {
+	if (kbdev->protected_mode_transition && !kbdev->shader_needed_cnt &&
+			!kbdev->tiler_needed_cnt) {
 		/* We are trying to change in/out of protected mode - force all
 		 * cores off so that the L2 powers down */
 		desired_bitmap = 0;
 		desired_tiler_bitmap = 0;
 	} else {
-		desired_bitmap =
-		kbdev->pm.backend.pm_current_policy->get_core_mask(kbdev);
-		desired_bitmap &= kbase_pm_ca_get_core_mask(kbdev);
+		desired_bitmap = get_desired_shader_bitmap(kbdev);
 
-		if (kbdev->tiler_needed_cnt > 0 || kbdev->tiler_inuse_cnt > 0)
+		if (kbdev->tiler_needed_cnt > 0)
 			desired_tiler_bitmap = 1;
 		else
 			desired_tiler_bitmap = 0;
-
-		if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY)) {
-			/* Unless XAFFINITY is supported, enable core 0 if tiler
-			 * required, regardless of core availability */
-			if (kbdev->tiler_needed_cnt > 0 ||
-					kbdev->tiler_inuse_cnt > 0)
-				desired_bitmap |= 1;
-		}
 	}
 
 	if (kbdev->pm.backend.desired_shader_state != desired_bitmap)
@@ -650,55 +608,28 @@ void kbase_pm_set_policy(struct kbase_device *kbdev,
 
 KBASE_EXPORT_TEST_API(kbase_pm_set_policy);
 
-/* Check whether a state change has finished, and trace it as completed */
-static void
-kbase_pm_trace_check_and_finish_state_change(struct kbase_device *kbdev)
-{
-	if ((kbdev->shader_available_bitmap &
-					kbdev->pm.backend.desired_shader_state)
-				== kbdev->pm.backend.desired_shader_state &&
-		(kbdev->tiler_available_bitmap &
-					kbdev->pm.backend.desired_tiler_state)
-				== kbdev->pm.backend.desired_tiler_state)
-		kbase_timeline_pm_check_handle_event(kbdev,
-				KBASE_TIMELINE_PM_EVENT_GPU_STATE_CHANGED);
-}
-
 void kbase_pm_request_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores)
+				bool tiler_required, bool shader_required)
 {
-	u64 cores;
-
 	kbase_pm_change_state change_gpu_state = 0u;
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-	cores = shader_cores;
-	while (cores) {
-		int bitnum = fls64(cores) - 1;
-		u64 bit = 1ULL << bitnum;
+	if (shader_required) {
+		int cnt = ++kbdev->shader_needed_cnt;
 
-		/* It should be almost impossible for this to overflow. It would
-		 * require 2^32 atoms to request a particular core, which would
-		 * require 2^24 contexts to submit. This would require an amount
-		 * of memory that is impossible on a 32-bit system and extremely
-		 * unlikely on a 64-bit system. */
-		int cnt = ++kbdev->shader_needed_cnt[bitnum];
-
-		if (1 == cnt) {
-			kbdev->shader_needed_bitmap |= bit;
+		if (cnt == 1)
 			change_gpu_state |= KBASE_PM_CHANGE_STATE_SHADER;
-		}
 
-		cores &= ~bit;
+		KBASE_DEBUG_ASSERT(kbdev->shader_needed_cnt != 0);
 	}
 
 	if (tiler_required) {
 		int cnt = ++kbdev->tiler_needed_cnt;
 
-		if (1 == cnt)
+		if (cnt == 1)
 			change_gpu_state |= KBASE_PM_CHANGE_STATE_TILER;
 
 		KBASE_DEBUG_ASSERT(kbdev->tiler_needed_cnt != 0);
@@ -706,22 +637,18 @@ void kbase_pm_request_cores(struct kbase_device *kbdev,
 
 	if (change_gpu_state) {
 		KBASE_TRACE_ADD(kbdev, PM_REQUEST_CHANGE_SHADER_NEEDED, NULL,
-				NULL, 0u, (u32) kbdev->shader_needed_bitmap);
+				NULL, 0u, kbdev->shader_needed_cnt);
+		KBASE_TRACE_ADD(kbdev, PM_REQUEST_CHANGE_TILER_NEEDED, NULL,
+				NULL, 0u, kbdev->tiler_needed_cnt);
 
-		kbase_timeline_pm_cores_func(kbdev,
-					KBASE_PM_FUNC_ID_REQUEST_CORES_START,
-							change_gpu_state);
 		kbase_pm_update_cores_state_nolock(kbdev);
-		kbase_timeline_pm_cores_func(kbdev,
-					KBASE_PM_FUNC_ID_REQUEST_CORES_END,
-							change_gpu_state);
 	}
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_request_cores);
 
-void kbase_pm_unrequest_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores)
+void kbase_pm_release_cores(struct kbase_device *kbdev,
+				bool tiler_required, bool shader_required)
 {
 	kbase_pm_change_state change_gpu_state = 0u;
 
@@ -729,22 +656,16 @@ void kbase_pm_unrequest_cores(struct kbase_device *kbdev,
 
 	lockdep_assert_held(&kbdev->hwaccess_lock);
 
-	while (shader_cores) {
-		int bitnum = fls64(shader_cores) - 1;
-		u64 bit = 1ULL << bitnum;
+	if (shader_required) {
 		int cnt;
 
-		KBASE_DEBUG_ASSERT(kbdev->shader_needed_cnt[bitnum] > 0);
+		KBASE_DEBUG_ASSERT(kbdev->shader_needed_cnt > 0);
 
-		cnt = --kbdev->shader_needed_cnt[bitnum];
+		cnt = --kbdev->shader_needed_cnt;
 
 		if (0 == cnt) {
-			kbdev->shader_needed_bitmap &= ~bit;
-
 			change_gpu_state |= KBASE_PM_CHANGE_STATE_SHADER;
 		}
-
-		shader_cores &= ~bit;
 	}
 
 	if (tiler_required) {
@@ -759,165 +680,26 @@ void kbase_pm_unrequest_cores(struct kbase_device *kbdev,
 	}
 
 	if (change_gpu_state) {
-		KBASE_TRACE_ADD(kbdev, PM_UNREQUEST_CHANGE_SHADER_NEEDED, NULL,
-				NULL, 0u, (u32) kbdev->shader_needed_bitmap);
+		KBASE_TRACE_ADD(kbdev, PM_RELEASE_CHANGE_SHADER_NEEDED, NULL,
+				NULL, 0u, kbdev->shader_needed_cnt);
+		KBASE_TRACE_ADD(kbdev, PM_RELEASE_CHANGE_TILER_NEEDED, NULL,
+				NULL, 0u, kbdev->tiler_needed_cnt);
 
 		kbase_pm_update_cores_state_nolock(kbdev);
-
-		/* Trace that any state change effectively completes immediately
-		 * - no-one will wait on the state change */
-		kbase_pm_trace_check_and_finish_state_change(kbdev);
-	}
-}
-
-KBASE_EXPORT_TEST_API(kbase_pm_unrequest_cores);
-
-enum kbase_pm_cores_ready
-kbase_pm_register_inuse_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores)
-{
-	u64 prev_shader_needed;	/* Just for tracing */
-	u64 prev_shader_inuse;	/* Just for tracing */
-
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	prev_shader_needed = kbdev->shader_needed_bitmap;
-	prev_shader_inuse = kbdev->shader_inuse_bitmap;
-
-	/* If desired_shader_state does not contain the requested cores, then
-	 * power management is not attempting to powering those cores (most
-	 * likely due to core availability policy) and a new job affinity must
-	 * be chosen */
-	if ((kbdev->pm.backend.desired_shader_state & shader_cores) !=
-							shader_cores) {
-		return (kbdev->pm.backend.poweroff_wait_in_progress ||
-				kbdev->pm.backend.pm_current_policy == NULL) ?
-				KBASE_CORES_NOT_READY : KBASE_NEW_AFFINITY;
-	}
-
-	if ((kbdev->shader_available_bitmap & shader_cores) != shader_cores ||
-	    (tiler_required && !kbdev->tiler_available_bitmap)) {
-		/* Trace ongoing core transition */
-		kbase_timeline_pm_l2_transition_start(kbdev);
-		return KBASE_CORES_NOT_READY;
-	}
-
-	/* If we started to trace a state change, then trace it has being
-	 * finished by now, at the very latest */
-	kbase_pm_trace_check_and_finish_state_change(kbdev);
-	/* Trace core transition done */
-	kbase_timeline_pm_l2_transition_done(kbdev);
-
-	while (shader_cores) {
-		int bitnum = fls64(shader_cores) - 1;
-		u64 bit = 1ULL << bitnum;
-		int cnt;
-
-		KBASE_DEBUG_ASSERT(kbdev->shader_needed_cnt[bitnum] > 0);
-
-		cnt = --kbdev->shader_needed_cnt[bitnum];
-
-		if (0 == cnt)
-			kbdev->shader_needed_bitmap &= ~bit;
-
-		/* shader_inuse_cnt should not overflow because there can only
-		 * be a very limited number of jobs on the h/w at one time */
-
-		kbdev->shader_inuse_cnt[bitnum]++;
-		kbdev->shader_inuse_bitmap |= bit;
-
-		shader_cores &= ~bit;
-	}
-
-	if (tiler_required) {
-		KBASE_DEBUG_ASSERT(kbdev->tiler_needed_cnt > 0);
-
-		--kbdev->tiler_needed_cnt;
-
-		kbdev->tiler_inuse_cnt++;
-
-		KBASE_DEBUG_ASSERT(kbdev->tiler_inuse_cnt != 0);
-	}
-
-	if (prev_shader_needed != kbdev->shader_needed_bitmap)
-		KBASE_TRACE_ADD(kbdev, PM_REGISTER_CHANGE_SHADER_NEEDED, NULL,
-				NULL, 0u, (u32) kbdev->shader_needed_bitmap);
-
-	if (prev_shader_inuse != kbdev->shader_inuse_bitmap)
-		KBASE_TRACE_ADD(kbdev, PM_REGISTER_CHANGE_SHADER_INUSE, NULL,
-				NULL, 0u, (u32) kbdev->shader_inuse_bitmap);
-
-	return KBASE_CORES_READY;
-}
-
-KBASE_EXPORT_TEST_API(kbase_pm_register_inuse_cores);
-
-void kbase_pm_release_cores(struct kbase_device *kbdev,
-				bool tiler_required, u64 shader_cores)
-{
-	kbase_pm_change_state change_gpu_state = 0u;
-
-	KBASE_DEBUG_ASSERT(kbdev != NULL);
-
-	lockdep_assert_held(&kbdev->hwaccess_lock);
-
-	while (shader_cores) {
-		int bitnum = fls64(shader_cores) - 1;
-		u64 bit = 1ULL << bitnum;
-		int cnt;
-
-		KBASE_DEBUG_ASSERT(kbdev->shader_inuse_cnt[bitnum] > 0);
-
-		cnt = --kbdev->shader_inuse_cnt[bitnum];
-
-		if (0 == cnt) {
-			kbdev->shader_inuse_bitmap &= ~bit;
-			change_gpu_state |= KBASE_PM_CHANGE_STATE_SHADER;
-		}
-
-		shader_cores &= ~bit;
-	}
-
-	if (tiler_required) {
-		int cnt;
-
-		KBASE_DEBUG_ASSERT(kbdev->tiler_inuse_cnt > 0);
-
-		cnt = --kbdev->tiler_inuse_cnt;
-
-		if (0 == cnt)
-			change_gpu_state |= KBASE_PM_CHANGE_STATE_TILER;
-	}
-
-	if (change_gpu_state) {
-		KBASE_TRACE_ADD(kbdev, PM_RELEASE_CHANGE_SHADER_INUSE, NULL,
-				NULL, 0u, (u32) kbdev->shader_inuse_bitmap);
-
-		kbase_timeline_pm_cores_func(kbdev,
-					KBASE_PM_FUNC_ID_RELEASE_CORES_START,
-							change_gpu_state);
-		kbase_pm_update_cores_state_nolock(kbdev);
-		kbase_timeline_pm_cores_func(kbdev,
-					KBASE_PM_FUNC_ID_RELEASE_CORES_END,
-							change_gpu_state);
-
-		/* Trace that any state change completed immediately */
-		kbase_pm_trace_check_and_finish_state_change(kbdev);
 	}
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_release_cores);
 
 void kbase_pm_request_cores_sync(struct kbase_device *kbdev,
-					bool tiler_required,
-					u64 shader_cores)
+		bool tiler_required, bool shader_required)
 {
 	unsigned long flags;
 
 	kbase_pm_wait_for_poweroff_complete(kbdev);
 
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-	kbase_pm_request_cores(kbdev, tiler_required, shader_cores);
+	kbase_pm_request_cores(kbdev, tiler_required, shader_required);
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 
 	kbase_pm_check_transitions_sync(kbdev);
@@ -960,9 +742,6 @@ void kbase_pm_request_l2_caches(struct kbase_device *kbdev)
 
 	wait_event(kbdev->pm.backend.l2_powered_wait,
 					kbdev->pm.backend.l2_powered == 1);
-
-	/* Trace that any state change completed immediately */
-	kbase_pm_trace_check_and_finish_state_change(kbdev);
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_request_l2_caches);
@@ -972,10 +751,6 @@ void kbase_pm_request_l2_caches_nolock(struct kbase_device *kbdev)
 	/* Take the reference on l2_users_count and check core transitions.
 	 */
 	kbase_pm_l2_caches_ref(kbdev);
-
-	/* Trace that any state change completed immediately
-	 */
-	kbase_pm_trace_check_and_finish_state_change(kbdev);
 }
 
 void kbase_pm_request_l2_caches_l2_is_on(struct kbase_device *kbdev)
@@ -995,11 +770,8 @@ void kbase_pm_release_l2_caches(struct kbase_device *kbdev)
 
 	--kbdev->l2_users_count;
 
-	if (!kbdev->l2_users_count) {
+	if (!kbdev->l2_users_count)
 		kbase_pm_check_transitions_nolock(kbdev);
-		/* Trace that any state change completed immediately */
-		kbase_pm_trace_check_and_finish_state_change(kbdev);
-	}
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_release_l2_caches);

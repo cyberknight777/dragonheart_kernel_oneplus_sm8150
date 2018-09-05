@@ -565,4 +565,16 @@ void kbase_pm_cache_snoop_enable(struct kbase_device *kbdev);
  */
 void kbase_pm_cache_snoop_disable(struct kbase_device *kbdev);
 
+#ifdef CONFIG_MALI_DEVFREQ
+/**
+ * kbase_devfreq_set_core_mask - Set devfreq core mask
+ * @kbdev:     Device pointer
+ * @core_mask: New core mask
+ *
+ * This function is used by devfreq to change the available core mask as
+ * required by Dynamic Core Scaling.
+ */
+void kbase_devfreq_set_core_mask(struct kbase_device *kbdev, u64 core_mask);
+#endif
+
 #endif /* _KBASE_BACKEND_PM_INTERNAL_H_ */

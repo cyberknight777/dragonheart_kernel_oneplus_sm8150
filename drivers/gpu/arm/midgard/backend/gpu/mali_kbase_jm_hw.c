@@ -37,7 +37,6 @@
 #include <mali_kbase_ctx_sched.h>
 #include <backend/gpu/mali_kbase_device_internal.h>
 #include <backend/gpu/mali_kbase_irq_internal.h>
-#include <backend/gpu/mali_kbase_js_affinity.h>
 #include <backend/gpu/mali_kbase_jm_internal.h>
 
 #define beenthere(kctx, f, a...) \
@@ -52,7 +51,54 @@ static enum hrtimer_restart kbasep_reset_timer_callback(struct hrtimer *timer);
 static inline int kbasep_jm_is_js_free(struct kbase_device *kbdev, int js,
 						struct kbase_context *kctx)
 {
-	return !kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT), kctx);
+	return !kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT));
+}
+
+static u64 kbase_job_write_affinity(struct kbase_device *kbdev,
+				base_jd_core_req core_req,
+				int js)
+{
+	u64 affinity;
+
+	if ((core_req & (BASE_JD_REQ_FS | BASE_JD_REQ_CS | BASE_JD_REQ_T)) ==
+			BASE_JD_REQ_T) {
+		/* Tiler-only atom */
+		/* If the hardware supports XAFFINITY then we'll only enable
+		 * the tiler (which is the default so this is a no-op),
+		 * otherwise enable shader core 0.
+		 */
+		if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY))
+			affinity = 1;
+		else
+			affinity = 0;
+	} else if ((core_req & (BASE_JD_REQ_COHERENT_GROUP |
+			BASE_JD_REQ_SPECIFIC_COHERENT_GROUP))) {
+		unsigned int num_core_groups = kbdev->gpu_props.num_core_groups;
+		struct mali_base_gpu_coherent_group_info *coherency_info =
+			&kbdev->gpu_props.props.coherency_info;
+
+		affinity = kbase_pm_ca_get_core_mask(kbdev) &
+				kbdev->pm.debug_core_mask[js];
+
+		/* JS2 on a dual core group system targets core group 1. All
+		 * other cases target core group 0.
+		 */
+		if (js == 2 && num_core_groups > 1)
+			affinity &= coherency_info->group[1].core_mask;
+		else
+			affinity &= coherency_info->group[0].core_mask;
+	} else {
+		/* Use all cores */
+		affinity = kbase_pm_ca_get_core_mask(kbdev) &
+				kbdev->pm.debug_core_mask[js];
+	}
+
+	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_LO),
+					affinity & 0xFFFFFFFF);
+	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_HI),
+					affinity >> 32);
+
+	return affinity;
 }
 
 void kbase_job_hw_submit(struct kbase_device *kbdev,
@@ -62,6 +108,7 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 	struct kbase_context *kctx;
 	u32 cfg;
 	u64 jc_head = katom->jc;
+	u64 affinity;
 
 	KBASE_DEBUG_ASSERT(kbdev);
 	KBASE_DEBUG_ASSERT(katom);
@@ -70,20 +117,13 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 
 	/* Command register must be available */
 	KBASE_DEBUG_ASSERT(kbasep_jm_is_js_free(kbdev, js, kctx));
-	/* Affinity is not violating */
-	kbase_js_debug_log_current_affinities(kbdev);
-	KBASE_DEBUG_ASSERT(!kbase_js_affinity_would_violate(kbdev, js,
-							katom->affinity));
 
 	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_LO),
-						jc_head & 0xFFFFFFFF, kctx);
+						jc_head & 0xFFFFFFFF);
 	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_HEAD_NEXT_HI),
-						jc_head >> 32, kctx);
+						jc_head >> 32);
 
-	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_LO),
-					katom->affinity & 0xFFFFFFFF, kctx);
-	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_HI),
-					katom->affinity >> 32, kctx);
+	affinity = kbase_job_write_affinity(kbdev, katom->core_req, js);
 
 	/* start MMU, medium priority, cache clean/flush on end, clean/flush on
 	 * start */
@@ -127,11 +167,11 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 		}
 	}
 
-	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_CONFIG_NEXT), cfg, kctx);
+	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_CONFIG_NEXT), cfg);
 
 	if (kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_FLUSH_REDUCTION))
 		kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_FLUSH_ID_NEXT),
-				katom->flush_id, kctx);
+				katom->flush_id);
 
 	/* Write an approximate start timestamp.
 	 * It's approximate because there might be a job in the HEAD register.
@@ -139,11 +179,11 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 	katom->start_timestamp = ktime_get();
 
 	/* GO ! */
-	dev_dbg(kbdev->dev, "JS: Submitting atom %p from ctx %p to js[%d] with head=0x%llx, affinity=0x%llx",
-				katom, kctx, js, jc_head, katom->affinity);
+	dev_dbg(kbdev->dev, "JS: Submitting atom %p from ctx %p to js[%d] with head=0x%llx",
+				katom, kctx, js, jc_head);
 
 	KBASE_TRACE_ADD_SLOT_INFO(kbdev, JM_SUBMIT, kctx, katom, jc_head, js,
-							(u32) katom->affinity);
+							(u32)affinity);
 
 #if defined(CONFIG_MALI_GATOR_SUPPORT)
 	kbase_trace_mali_job_slots_event(
@@ -151,7 +191,7 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 				kctx, kbase_jd_atom_id(kctx, katom));
 #endif
 	KBASE_TLSTREAM_TL_ATTRIB_ATOM_CONFIG(katom, jc_head,
-			katom->affinity, cfg);
+			affinity, cfg);
 	KBASE_TLSTREAM_TL_RET_CTX_LPU(
 		kctx,
 		&kbdev->gpu_props.props.raw_props.js_features[
@@ -174,10 +214,8 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 		kbdev->hwaccess.backend.slot_rb[js].last_context = katom->kctx;
 	}
 #endif
-	kbase_timeline_job_slot_submit(kbdev, kctx, katom, js);
-
 	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT),
-						JS_COMMAND_START, katom->kctx);
+						JS_COMMAND_START);
 }
 
 /**
@@ -269,10 +307,9 @@ void kbase_job_done(struct kbase_device *kbdev, u32 done)
 				/* read out the job slot status code if the job
 				 * slot reported failure */
 				completion_code = kbase_reg_read(kbdev,
-					JOB_SLOT_REG(i, JS_STATUS), NULL);
+					JOB_SLOT_REG(i, JS_STATUS));
 
-				switch (completion_code) {
-				case BASE_JD_EVENT_STOPPED:
+				if (completion_code == BASE_JD_EVENT_STOPPED) {
 #if defined(CONFIG_MALI_GATOR_SUPPORT)
 					kbase_trace_mali_job_slots_event(
 						GATOR_MAKE_EVENT(
@@ -287,37 +324,27 @@ void kbase_job_done(struct kbase_device *kbdev, u32 done)
 					 * JS<n>_TAIL so that the job chain can
 					 * be resumed */
 					job_tail = (u64)kbase_reg_read(kbdev,
-						JOB_SLOT_REG(i, JS_TAIL_LO),
-									NULL) |
+						JOB_SLOT_REG(i, JS_TAIL_LO)) |
 						((u64)kbase_reg_read(kbdev,
-						JOB_SLOT_REG(i, JS_TAIL_HI),
-								NULL) << 32);
-					break;
-				case BASE_JD_EVENT_NOT_STARTED:
+						JOB_SLOT_REG(i, JS_TAIL_HI))
+						 << 32);
+				} else if (completion_code ==
+						BASE_JD_EVENT_NOT_STARTED) {
 					/* PRLAM-10673 can cause a TERMINATED
 					 * job to come back as NOT_STARTED, but
 					 * the error interrupt helps us detect
 					 * it */
 					completion_code =
 						BASE_JD_EVENT_TERMINATED;
-					/* fall through */
-				default:
-					dev_warn(kbdev->dev, "error detected from slot %d, job status 0x%08x (%s)",
-							i, completion_code,
-							kbase_exception_name
-							(kbdev,
-							completion_code));
 				}
 
 				kbase_gpu_irq_evict(kbdev, i, completion_code);
 			}
 
 			kbase_reg_write(kbdev, JOB_CONTROL_REG(JOB_IRQ_CLEAR),
-					done & ((1 << i) | (1 << (i + 16))),
-					NULL);
+					done & ((1 << i) | (1 << (i + 16))));
 			active = kbase_reg_read(kbdev,
-					JOB_CONTROL_REG(JOB_IRQ_JS_STATE),
-					NULL);
+					JOB_CONTROL_REG(JOB_IRQ_JS_STATE));
 
 			if (((active >> i) & 1) == 0 &&
 					(((done >> (i + 16)) & 1) == 0)) {
@@ -362,7 +389,7 @@ void kbase_job_done(struct kbase_device *kbdev, u32 done)
 				 * execution.
 				 */
 				u32 rawstat = kbase_reg_read(kbdev,
-					JOB_CONTROL_REG(JOB_IRQ_RAWSTAT), NULL);
+					JOB_CONTROL_REG(JOB_IRQ_RAWSTAT));
 
 				if ((rawstat >> (i + 16)) & 1) {
 					/* There is a failed job that we've
@@ -412,7 +439,7 @@ void kbase_job_done(struct kbase_device *kbdev, u32 done)
 			}
  spurious:
 			done = kbase_reg_read(kbdev,
-					JOB_CONTROL_REG(JOB_IRQ_RAWSTAT), NULL);
+					JOB_CONTROL_REG(JOB_IRQ_RAWSTAT));
 
 			if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10883)) {
 				/* Workaround for missing interrupt caused by
@@ -420,7 +447,7 @@ void kbase_job_done(struct kbase_device *kbdev, u32 done)
 				if (((active >> i) & 1) && (0 ==
 						kbase_reg_read(kbdev,
 							JOB_SLOT_REG(i,
-							JS_STATUS), NULL))) {
+							JS_STATUS)))) {
 					/* Force job slot to be processed again
 					 */
 					done |= (1u << i);
@@ -484,7 +511,6 @@ void kbasep_job_slot_soft_or_hard_stop_do_action(struct kbase_device *kbdev,
 					base_jd_core_req core_reqs,
 					struct kbase_jd_atom *target_katom)
 {
-	struct kbase_context *kctx = target_katom->kctx;
 #if KBASE_TRACE_ENABLE
 	u32 status_reg_before;
 	u64 job_in_head_before;
@@ -494,12 +520,11 @@ void kbasep_job_slot_soft_or_hard_stop_do_action(struct kbase_device *kbdev,
 
 	/* Check the head pointer */
 	job_in_head_before = ((u64) kbase_reg_read(kbdev,
-					JOB_SLOT_REG(js, JS_HEAD_LO), NULL))
+					JOB_SLOT_REG(js, JS_HEAD_LO)))
 			| (((u64) kbase_reg_read(kbdev,
-					JOB_SLOT_REG(js, JS_HEAD_HI), NULL))
+					JOB_SLOT_REG(js, JS_HEAD_HI)))
 									<< 32);
-	status_reg_before = kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_STATUS),
-									NULL);
+	status_reg_before = kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_STATUS));
 #endif
 
 	if (action == JS_COMMAND_SOFT_STOP) {
@@ -603,11 +628,10 @@ void kbasep_job_slot_soft_or_hard_stop_do_action(struct kbase_device *kbdev,
 		}
 	}
 
-	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_COMMAND), action, kctx);
+	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_COMMAND), action);
 
 #if KBASE_TRACE_ENABLE
-	status_reg_after = kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_STATUS),
-									NULL);
+	status_reg_after = kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_STATUS));
 	if (status_reg_after == BASE_JD_EVENT_ACTIVE) {
 		struct kbase_jd_atom *head;
 		struct kbase_context *head_kctx;
@@ -812,7 +836,7 @@ u32 kbase_backend_get_current_flush_id(struct kbase_device *kbdev)
 		mutex_lock(&kbdev->pm.lock);
 		if (kbdev->pm.backend.gpu_powered)
 			flush_id = kbase_reg_read(kbdev,
-					GPU_CONTROL_REG(LATEST_FLUSH), NULL);
+					GPU_CONTROL_REG(LATEST_FLUSH));
 		mutex_unlock(&kbdev->pm.lock);
 	}
 
@@ -1071,34 +1095,32 @@ static void kbase_debug_dump_registers(struct kbase_device *kbdev)
 
 	dev_err(kbdev->dev, "Register state:");
 	dev_err(kbdev->dev, "  GPU_IRQ_RAWSTAT=0x%08x GPU_STATUS=0x%08x",
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT), NULL),
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS), NULL));
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_RAWSTAT)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_STATUS)));
 	dev_err(kbdev->dev, "  JOB_IRQ_RAWSTAT=0x%08x JOB_IRQ_JS_STATE=0x%08x",
-		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_RAWSTAT), NULL),
-		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_JS_STATE), NULL));
+		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_RAWSTAT)),
+		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_JS_STATE)));
 	for (i = 0; i < 3; i++) {
 		dev_err(kbdev->dev, "  JS%d_STATUS=0x%08x      JS%d_HEAD_LO=0x%08x",
-			i, kbase_reg_read(kbdev, JOB_SLOT_REG(i, JS_STATUS),
-					NULL),
-			i, kbase_reg_read(kbdev, JOB_SLOT_REG(i, JS_HEAD_LO),
-					NULL));
+			i, kbase_reg_read(kbdev, JOB_SLOT_REG(i, JS_STATUS)),
+			i, kbase_reg_read(kbdev, JOB_SLOT_REG(i, JS_HEAD_LO)));
 	}
 	dev_err(kbdev->dev, "  MMU_IRQ_RAWSTAT=0x%08x GPU_FAULTSTATUS=0x%08x",
-		kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_RAWSTAT), NULL),
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_FAULTSTATUS), NULL));
+		kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_RAWSTAT)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_FAULTSTATUS)));
 	dev_err(kbdev->dev, "  GPU_IRQ_MASK=0x%08x    JOB_IRQ_MASK=0x%08x     MMU_IRQ_MASK=0x%08x",
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK), NULL),
-		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_MASK), NULL),
-		kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK), NULL));
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(GPU_IRQ_MASK)),
+		kbase_reg_read(kbdev, JOB_CONTROL_REG(JOB_IRQ_MASK)),
+		kbase_reg_read(kbdev, MMU_REG(MMU_IRQ_MASK)));
 	dev_err(kbdev->dev, "  PWR_OVERRIDE0=0x%08x   PWR_OVERRIDE1=0x%08x",
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(PWR_OVERRIDE0), NULL),
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(PWR_OVERRIDE1), NULL));
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(PWR_OVERRIDE0)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(PWR_OVERRIDE1)));
 	dev_err(kbdev->dev, "  SHADER_CONFIG=0x%08x   L2_MMU_CONFIG=0x%08x",
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_CONFIG), NULL),
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_MMU_CONFIG), NULL));
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_CONFIG)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_MMU_CONFIG)));
 	dev_err(kbdev->dev, "  TILER_CONFIG=0x%08x    JM_CONFIG=0x%08x",
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(TILER_CONFIG), NULL),
-		kbase_reg_read(kbdev, GPU_CONTROL_REG(JM_CONFIG), NULL));
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(TILER_CONFIG)),
+		kbase_reg_read(kbdev, GPU_CONTROL_REG(JM_CONFIG)));
 }
 
 static void kbasep_reset_timeout_worker(struct work_struct *data)

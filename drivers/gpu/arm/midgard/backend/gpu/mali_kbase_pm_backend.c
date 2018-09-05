@@ -179,11 +179,7 @@ void kbase_pm_do_poweron(struct kbase_device *kbdev, bool is_resume)
 	kbase_pm_clock_on(kbdev, is_resume);
 
 	/* Update core status as required by the policy */
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-				SW_FLOW_PM_CHECKTRANS_PM_DO_POWERON_START);
 	kbase_pm_update_cores_state(kbdev);
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-				SW_FLOW_PM_CHECKTRANS_PM_DO_POWERON_END);
 
 	/* NOTE: We don't wait to reach the desired state, since running atoms
 	 * will wait for that state to be reached anyway */
@@ -201,11 +197,7 @@ static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data)
 #if !PLATFORM_POWER_DOWN_ONLY
 	/* Wait for power transitions to complete. We do this with no locks held
 	 * so that we don't deadlock with any pending workqueues */
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-				SW_FLOW_PM_CHECKTRANS_PM_DO_POWEROFF_START);
 	kbase_pm_check_transitions_sync(kbdev);
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-				SW_FLOW_PM_CHECKTRANS_PM_DO_POWEROFF_END);
 #endif /* !PLATFORM_POWER_DOWN_ONLY */
 
 	mutex_lock(&js_devdata->runpool_mutex);
@@ -232,10 +224,6 @@ static void kbase_pm_gpu_poweroff_wait_wq(struct work_struct *data)
 				kbdev->tiler_available_bitmap);
 		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 #endif /* !PLATFORM_POWER_DOWN_ONLY */
-
-		/* Consume any change-state events */
-		kbase_timeline_pm_check_handle_event(kbdev,
-					KBASE_TIMELINE_PM_EVENT_GPU_STATE_CHANGED);
 
 		/* Disable interrupts and turn the clock off */
 		if (!kbase_pm_clock_off(kbdev, backend->poweroff_is_suspend)) {
@@ -425,21 +413,12 @@ void kbase_pm_power_changed(struct kbase_device *kbdev)
 	bool cores_are_available;
 	unsigned long flags;
 
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-				SW_FLOW_PM_CHECKTRANS_GPU_INTERRUPT_START);
 	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 	cores_are_available = kbase_pm_check_transitions_nolock(kbdev);
-	KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
-				SW_FLOW_PM_CHECKTRANS_GPU_INTERRUPT_END);
 
-	if (cores_are_available) {
-		/* Log timelining information that a change in state has
-		 * completed */
-		kbase_timeline_pm_handle_event(kbdev,
-				KBASE_TIMELINE_PM_EVENT_GPU_STATE_CHANGED);
-
+	if (cores_are_available)
 		kbase_backend_slot_update(kbdev);
-	}
+
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
 

@@ -49,12 +49,15 @@
  *                  alignment, length and limits for the allocation
  * @is_shader_code: True if the allocation is for shader code (which has
  *                  additional alignment requirements)
+ * @is_same_4gb_page: True if the allocation needs to reside completely within
+ *                    a 4GB chunk
  *
  * Return: true if gap_end is now aligned correctly and is still in range,
  *         false otherwise
  */
 static bool align_and_check(unsigned long *gap_end, unsigned long gap_start,
-		struct vm_unmapped_area_info *info, bool is_shader_code)
+		struct vm_unmapped_area_info *info, bool is_shader_code,
+		bool is_same_4gb_page)
 {
 	/* Compute highest gap address at the desired alignment */
 	(*gap_end) -= info->length;
@@ -72,6 +75,35 @@ static bool align_and_check(unsigned long *gap_end, unsigned long gap_start,
 		if (!(*gap_end & BASE_MEM_MASK_4GB) || !((*gap_end +
 				info->length) & BASE_MEM_MASK_4GB))
 			return false;
+	} else if (is_same_4gb_page) {
+		unsigned long start = *gap_end;
+		unsigned long end = *gap_end + info->length;
+		unsigned long mask = ~((unsigned long)U32_MAX);
+
+		/* Check if 4GB boundary is straddled */
+		if ((start & mask) != ((end - 1) & mask)) {
+			unsigned long offset = end - (end & mask);
+			/* This is to ensure that alignment doesn't get
+			 * disturbed in an attempt to prevent straddling at
+			 * 4GB boundary. The GPU VA is aligned to 2MB when the
+			 * allocation size is > 2MB and there is enough CPU &
+			 * GPU virtual space.
+			 */
+			unsigned long rounded_offset =
+					ALIGN(offset, info->align_mask + 1);
+
+			start -= rounded_offset;
+			end -= rounded_offset;
+
+			*gap_end = start;
+
+			/* The preceding 4GB boundary shall not get straddled,
+			 * even after accounting for the alignment, as the
+			 * size of allocation is limited to 4GB and the initial
+			 * start location was already aligned.
+			 */
+			WARN_ON((start & mask) != ((end - 1) & mask));
+		}
 	}
 
 
@@ -89,6 +121,8 @@ static bool align_and_check(unsigned long *gap_end, unsigned long gap_start,
  * @is_shader_code:    Boolean which denotes whether the allocated area is
  *                      intended for the use by shader core in which case a
  *                      special alignment requirements apply.
+ * @is_same_4gb_page: Boolean which indicates whether the allocated area needs
+ *                    to reside completely within a 4GB chunk.
  *
  * The unmapped_area_topdown() function in the Linux kernel is not exported
  * using EXPORT_SYMBOL_GPL macro. To allow us to call this function from a
@@ -97,25 +131,26 @@ static bool align_and_check(unsigned long *gap_end, unsigned long gap_start,
  * of this function and prefixed it with 'kbase_'.
  *
  * The difference in the call parameter list comes from the fact that
- * kbase_unmapped_area_topdown() is called with additional parameter which
- * is provided to denote whether the allocation is for a shader core memory
- * or not. This is significant since the executable shader core memory has
- * additional alignment requirements.
+ * kbase_unmapped_area_topdown() is called with additional parameters which
+ * are provided to indicate whether the allocation is for a shader core memory,
+ * which has additional alignment requirements, and whether the allocation can
+ * straddle a 4GB boundary.
  *
  * The modification of the original Linux function lies in how the computation
  * of the highest gap address at the desired alignment is performed once the
  * gap with desirable properties is found. For this purpose a special function
  * is introduced (@ref align_and_check()) which beside computing the gap end
- * at the desired alignment also performs additional alignment check for the
- * case when the memory is executable shader core memory. For such case, it is
- * ensured that the gap does not end on a 4GB boundary.
+ * at the desired alignment also performs additional alignment checks for the
+ * case when the memory is executable shader core memory, for which it is
+ * ensured that the gap does not end on a 4GB boundary, and for the case when
+ * memory needs to be confined within a 4GB chunk.
  *
  * Return: address of the found gap end (high limit) if area is found;
  *         -ENOMEM if search is unsuccessful
 */
 
 static unsigned long kbase_unmapped_area_topdown(struct vm_unmapped_area_info
-		*info, bool is_shader_code)
+		*info, bool is_shader_code, bool is_same_4gb_page)
 {
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
@@ -142,7 +177,8 @@ static unsigned long kbase_unmapped_area_topdown(struct vm_unmapped_area_info
 	/* Check highest gap, which does not precede any rbtree node */
 	gap_start = mm->highest_vm_end;
 	if (gap_start <= high_limit) {
-		if (align_and_check(&gap_end, gap_start, info, is_shader_code))
+		if (align_and_check(&gap_end, gap_start, info,
+				is_shader_code, is_same_4gb_page))
 			return gap_end;
 	}
 
@@ -178,7 +214,7 @@ check_current:
 				gap_end = info->high_limit;
 
 			if (align_and_check(&gap_end, gap_start, info,
-					is_shader_code))
+					is_shader_code, is_same_4gb_page))
 				return gap_end;
 		}
 
@@ -232,6 +268,7 @@ unsigned long kbase_get_unmapped_area(struct file *filp,
 	int gpu_pc_bits =
 	      kctx->kbdev->gpu_props.props.core_props.log2_program_counter_size;
 	bool is_shader_code = false;
+	bool is_same_4gb_page = false;
 	unsigned long ret;
 
 	/* err on fixed address */
@@ -291,6 +328,8 @@ unsigned long kbase_get_unmapped_area(struct file *filp,
 				align_mask = extent_bytes - 1;
 				align_offset =
 				      extent_bytes - (reg->initial_commit << PAGE_SHIFT);
+			} else if (reg->flags & KBASE_REG_GPU_VA_SAME_4GB_PAGE) {
+				is_same_4gb_page = true;
 			}
 #ifndef CONFIG_64BIT
 	} else {
@@ -306,7 +345,8 @@ unsigned long kbase_get_unmapped_area(struct file *filp,
 	info.align_offset = align_offset;
 	info.align_mask = align_mask;
 
-	ret = kbase_unmapped_area_topdown(&info, is_shader_code);
+	ret = kbase_unmapped_area_topdown(&info, is_shader_code,
+			is_same_4gb_page);
 
 	if (IS_ERR_VALUE(ret) && high_limit == mm->mmap_base &&
 			high_limit < (kctx->same_va_end << PAGE_SHIFT)) {
@@ -315,7 +355,8 @@ unsigned long kbase_get_unmapped_area(struct file *filp,
 		info.high_limit = min_t(u64, TASK_SIZE,
 					(kctx->same_va_end << PAGE_SHIFT));
 
-		ret = kbase_unmapped_area_topdown(&info, is_shader_code);
+		ret = kbase_unmapped_area_topdown(&info, is_shader_code,
+				is_same_4gb_page);
 	}
 
 	return ret;

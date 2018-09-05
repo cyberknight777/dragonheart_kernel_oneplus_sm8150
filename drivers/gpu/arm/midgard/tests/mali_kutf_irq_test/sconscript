@@ -29,7 +29,7 @@ if env.GetOption('clean') :
 	cmd = env.Command('$STATIC_LIB_PATH/mali_kutf_irq_test.ko', src, [])
 	env.KernelObjTarget('mali_kutf_irq_test', cmd)
 else:
-	makeAction=Action("cd ${SOURCE.dir} && make MALI_UNIT_TEST=${unit} MALI_CUSTOMER_RELEASE=${release} %s && ( ( [ -f mali_kutf_irq_test.ko ] && cp mali_kutf_irq_test.ko $STATIC_LIB_PATH/ ) || touch $STATIC_LIB_PATH/mali_kutf_irq_test.ko)" % env.kernel_get_config_defines(), '$MAKECOMSTR')
+	makeAction=Action("cd ${SOURCE.dir} && make MALI_UNIT_TEST=${unit} MALI_CUSTOMER_RELEASE=${release} MALI_USE_CSF=${csf} %s && ( ( [ -f mali_kutf_irq_test.ko ] && cp mali_kutf_irq_test.ko $STATIC_LIB_PATH/ ) || touch $STATIC_LIB_PATH/mali_kutf_irq_test.ko)" % env.kernel_get_config_defines(), '$MAKECOMSTR')
 	cmd = env.Command('$STATIC_LIB_PATH/mali_kutf_irq_test.ko', src, [makeAction])
 	env.Depends('$STATIC_LIB_PATH/mali_kutf_irq_test.ko', '$STATIC_LIB_PATH/kutf.ko')
 	env.Depends('$STATIC_LIB_PATH/mali_kutf_irq_test.ko', '$STATIC_LIB_PATH/mali_kbase.ko')
