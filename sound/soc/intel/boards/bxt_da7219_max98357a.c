@@ -596,6 +596,7 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.dpcm_playback = 1,
 		.nonatomic = 1,
 		.dynamic = 1,
+		.ops = &broxton_da7219_fe_ops,
 	},
 	[BXT_DPCM_AUDIO_REF_CP] = {
 		.name = "Bxt Audio Reference cap",
