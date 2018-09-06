@@ -2968,6 +2968,9 @@ static void sd_read_block_characteristics(struct scsi_disk *sdkp)
 	if (rot == 1) {
 		queue_flag_set_unlocked(QUEUE_FLAG_NONROT, q);
 		queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, q);
+	} else {
+		queue_flag_clear_unlocked(QUEUE_FLAG_NONROT, q);
+		queue_flag_set_unlocked(QUEUE_FLAG_ADD_RANDOM, q);
 	}
 
 	if (sdkp->device->type == TYPE_ZBC) {
