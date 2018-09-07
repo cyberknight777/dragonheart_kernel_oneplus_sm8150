@@ -1582,8 +1582,8 @@ void intel_mode_from_pipe_config(struct drm_display_mode *mode,
 				 struct intel_crtc_state *pipe_config);
 
 int skl_update_scaler_crtc(struct intel_crtc_state *crtc_state);
-int skl_max_scale(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state,
-		  uint32_t pixel_format);
+int skl_max_scale(const struct intel_crtc_state *crtc_state,
+		  u32 pixel_format);
 
 static inline u32 intel_plane_ggtt_offset(const struct intel_plane_state *state)
 {
@@ -2046,7 +2046,9 @@ bool skl_plane_has_planar(struct drm_i915_private *dev_priv,
 unsigned int skl_plane_max_stride(struct intel_plane *plane,
 				  u32 pixel_format, u64 modifier,
 				  unsigned int rotation);
-
+int skl_plane_check(struct intel_crtc_state *crtc_state,
+		    struct intel_plane_state *plane_state);
+int intel_plane_check_src_coordinates(struct intel_plane_state *plane_state);
 
 /* intel_tv.c */
 void intel_tv_init(struct drm_i915_private *dev_priv);
