@@ -455,11 +455,10 @@ int vmw_du_primary_plane_atomic_check(struct drm_plane *plane,
 		.x2 = state->crtc_x + state->crtc_w,
 		.y2 = state->crtc_y + state->crtc_h,
 	};
-	struct drm_rect clip = dest;
 	int ret;
 
 	ret = drm_plane_helper_check_update(plane, state->crtc, new_fb,
-					    &src, &dest, &clip,
+					    &src, &dest,
 					    DRM_MODE_ROTATE_0,
 					    DRM_PLANE_HELPER_NO_SCALING,
 					    DRM_PLANE_HELPER_NO_SCALING,
