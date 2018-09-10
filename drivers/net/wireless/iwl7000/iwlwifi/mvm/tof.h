@@ -69,8 +69,7 @@
 struct iwl_mvm_tof_tsf_entry {
 	struct rhash_head hash_node;
 	u8 bssid[ETH_ALEN] __aligned(2);
-	u8 delta_sign;
-	u32 delta;
+	s64 delta;
 };
 
 void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt);

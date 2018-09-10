@@ -131,8 +131,7 @@ void iwl_mvm_tof_init(struct iwl_mvm *mvm)
 #ifdef CPTCFG_IWLMVM_TOF_TSF_WA
 void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
 {
-	u32 delta, ts;
-	u8 delta_sign;
+	u64 delta, ts;
 	struct iwl_mvm_tof_tsf_entry *tsf_entry;
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)(pkt->data +
 					sizeof(struct iwl_rx_mpdu_res_start));
@@ -141,21 +140,14 @@ void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
 	if (!mvm->tof_data.tsf_hash_valid)
 		return;
 
-	ts = (u32)le64_to_cpu(mgmt->u.beacon.timestamp);
-	if (ts > le32_to_cpu(mvm->last_phy_info.system_timestamp)) {
-		delta = ts - le32_to_cpu(mvm->last_phy_info.system_timestamp);
-		delta_sign = 0;
-	} else {
-		delta = le32_to_cpu(mvm->last_phy_info.system_timestamp) - ts;
-		delta_sign = 1;
-	}
+	ts = le64_to_cpu(mgmt->u.beacon.timestamp);
+	delta = ts - le32_to_cpu(mvm->last_phy_info.system_timestamp);
 
 	/* try to find this bss in the hash table */
 	tsf_entry = rhashtable_lookup_fast(&mvm->tof_data.tsf_hash,
 					   hdr->addr3, tsf_rht_params);
 	if (tsf_entry) {
 		tsf_entry->delta = delta;
-		tsf_entry->delta_sign = delta_sign;
 		return;
 	}
 
@@ -165,7 +157,6 @@ void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
 		return;
 
 	tsf_entry->delta = delta;
-	tsf_entry->delta_sign = delta_sign;
 	ether_addr_copy(tsf_entry->bssid, hdr->addr3);
 
 	rhashtable_insert_fast(&mvm->tof_data.tsf_hash, &tsf_entry->hash_node,
@@ -186,8 +177,10 @@ static void iwl_mvm_tof_range_req_fill_tsf(struct iwl_mvm *mvm)
 						   cmd->ap[i].bssid,
 						   tsf_rht_params);
 		if (tsf_entry) {
-			cmd->ap[i].tsf_delta = cpu_to_le32(tsf_entry->delta);
-			cmd->ap[i].tsf_delta_direction = tsf_entry->delta_sign;
+			cmd->ap[i].tsf_delta =
+				cpu_to_le32(abs(tsf_entry->delta));
+			cmd->ap[i].tsf_delta_direction =
+				tsf_entry->delta >= 0 ? 0 : 1;
 		} else {
 			IWL_INFO(mvm, "Cannot find BSSID %pM\n",
 				 cmd->ap[i].bssid);
@@ -757,10 +750,7 @@ static u64 iwl_mvm_tof_get_tsf(struct iwl_mvm *mvm, u32 gp2_ts)
 	if (!tsf_entry)
 		return 0;
 
-	if (tsf_entry->delta_sign)
-		return (u64)gp2_ts - tsf_entry->delta;
-	else
-		return (u64)gp2_ts + tsf_entry->delta;
+	return (u64)gp2_ts + tsf_entry->delta;
 }
 #endif
 
