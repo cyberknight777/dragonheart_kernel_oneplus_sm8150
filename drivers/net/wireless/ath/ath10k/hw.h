@@ -161,6 +161,9 @@ enum qca9377_chip_id_rev {
 
 #define REG_DUMP_COUNT_QCA988X 60
 
+#define SK_PACING_SHIFT_6174 6
+#define SK_PACING_SHIFT_9377 6
+
 struct ath10k_fw_ie {
 	__le32 id;
 	__le32 len;
@@ -571,6 +574,9 @@ struct ath10k_hw_params {
 	 */
 	int vht160_mcs_rx_highest;
 	int vht160_mcs_tx_highest;
+
+	/* Number of shift to override the default value of ieee80211_hw*/
+	u8 tx_sk_pacing_shift;
 
 	/* Number of ciphers supported (i.e First N) in cipher_suites array */
 	int n_cipher_suites;
