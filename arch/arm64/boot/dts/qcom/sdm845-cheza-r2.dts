@@ -40,18 +40,10 @@
 		vin-supply = <&ppvar_sys>;
 	};
 
-	pp3300_dx_edp_r0_r1_r2: pp3300-dx-edp-regulator-r0-r1-r2 {
-		compatible = "regulator-fixed";
-		regulator-name = "pp3300_dx_edp_r0_r1_r2";
-
+	pp3300_dx_edp: pp3300-dx-edp-regulator {
 		/* Yes, it's really 3.5 despite the name of the signal */
 		regulator-min-microvolt = <3500000>;
 		regulator-max-microvolt = <3500000>;
-
-		gpio = <&tlmm 43 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		pinctrl-names = "default";
-		pinctrl-0 = <&en_pp3300_dx_edp>;
 
 		vin-supply = <&pp3500_a>;
 	};
