@@ -43,5 +43,5 @@ int chromiumos_flush_inode_security_policies(struct super_block *sb);
 
 extern enum chromiumos_inode_security_policy
 chromiumos_get_inode_security_policy(
-	struct dentry *dentry,
+	struct dentry *dentry, struct inode *inode,
 	enum chromiumos_inode_security_policy_type type);
