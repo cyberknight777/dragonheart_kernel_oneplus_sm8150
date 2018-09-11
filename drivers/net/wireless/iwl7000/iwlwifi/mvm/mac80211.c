@@ -95,15 +95,9 @@
 #include "fw/api/nan.h"
 
 /* The ETSI patches were introduced in 4.17 and backported to
- * chromeos-4.4, we need our limits on any version outside that
+ * chromeos-4.4, but we use our version in 4.4 anyway.
  */
-#if (CFG80211_VERSION < KERNEL_VERSION(4,17,0) &&	\
-	!(CFG80211_VERSION >= KERNEL_VERSION(4,4,0) && \
-	  CFG80211_VERSION < KERNEL_VERSION(4,5,0)))
-#define IWL7000_NEED_ETSI_WMM_LIMITS
-#endif
-
-#ifdef IWL7000_NEED_ETSI_WMM_LIMITS
+#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
 const static struct ieee80211_wmm_rule wmm_rules = {
 	.client = {
 		{.cw_min = 3, .cw_max = 7, .aifsn = 2, .cot = 2000},
@@ -3280,7 +3274,7 @@ static void iwl_mvm_sta_rc_update(struct ieee80211_hw *hw,
 		iwl_mvm_sf_update(mvm, vif, false);
 }
 
-#ifdef IWL7000_NEED_ETSI_WMM_LIMITS
+#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
 static void iwl_mvm_limit_wmm_ac(struct iwl_mvm *mvm,
 				 struct ieee80211_vif *vif,
 				 struct ieee80211_tx_queue_params *params,
@@ -3343,7 +3337,7 @@ static int iwl_mvm_mac_conf_tx(struct ieee80211_hw *hw,
 
 	mvmvif->queue_params[ac] = *params;
 
-#ifdef IWL7000_NEED_ETSI_WMM_LIMITS
+#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
 	iwl_mvm_limit_wmm_ac(mvm, vif, &mvmvif->queue_params[ac], ac);
 #endif
 
