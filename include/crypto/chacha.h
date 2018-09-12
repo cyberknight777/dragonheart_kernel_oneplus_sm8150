@@ -24,7 +24,6 @@
 
 #define CHACHA_KEY_SIZE		32
 #define CHACHA_BLOCK_SIZE	64
-#define CHACHA_BLOCK_WORDS	(CHACHA_BLOCK_SIZE / sizeof(u32))
 
 /* 192-bit nonce, then 64-bit stream position */
 #define XCHACHA_IV_SIZE		32
@@ -34,8 +33,8 @@ struct chacha_ctx {
 	int nrounds;
 };
 
-void chacha_block(u32 *state, u32 *stream, int nrounds);
-static inline void chacha20_block(u32 *state, u32 *stream)
+void chacha_block(u32 *state, u8 *stream, int nrounds);
+static inline void chacha20_block(u32 *state, u8 *stream)
 {
 	chacha_block(state, stream, 20);
 }
