@@ -76,7 +76,7 @@ static void chacha_permute(u32 *x, int nrounds)
  * The caller has already converted the endianness of the input.  This function
  * also handles incrementing the block counter in the input matrix.
  */
-void chacha_block(u32 *state, u32 *stream, int nrounds)
+void chacha_block(u32 *state, u8 *stream, int nrounds)
 {
 	u32 x[16];
 	int i;
