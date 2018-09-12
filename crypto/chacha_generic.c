@@ -20,20 +20,20 @@ static void chacha_docrypt(u32 *state, u8 *dst, const u8 *src,
 			   unsigned int bytes, int nrounds)
 {
 	/* aligned to potentially speed up crypto_xor() */
-	u32 stream[CHACHA_BLOCK_WORDS] __aligned(sizeof(long));
+	u8 stream[CHACHA_BLOCK_SIZE] __aligned(sizeof(long));
 
 	if (dst != src)
 		memcpy(dst, src, bytes);
 
 	while (bytes >= CHACHA_BLOCK_SIZE) {
 		chacha_block(state, stream, nrounds);
-		crypto_xor(dst, (const u8 *)stream, CHACHA_BLOCK_SIZE);
+		crypto_xor(dst, stream, CHACHA_BLOCK_SIZE);
 		bytes -= CHACHA_BLOCK_SIZE;
 		dst += CHACHA_BLOCK_SIZE;
 	}
 	if (bytes) {
 		chacha_block(state, stream, nrounds);
-		crypto_xor(dst, (const u8 *)stream, bytes);
+		crypto_xor(dst, stream, bytes);
 	}
 }
 
