@@ -114,10 +114,6 @@ armada_ovl_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 		.x2 = crtc_x + crtc_w,
 		.y2 = crtc_y + crtc_h,
 	};
-	const struct drm_rect clip = {
-		.x2 = crtc->mode.hdisplay,
-		.y2 = crtc->mode.vdisplay,
-	};
 	uint32_t val, ctrl0;
 	unsigned idx = 0;
 	bool visible;
@@ -127,7 +123,7 @@ armada_ovl_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 				 crtc_x, crtc_y, crtc_w, crtc_h,
 				 src_x, src_y, src_w, src_h);
 
-	ret = drm_plane_helper_check_update(plane, crtc, fb, &src, &dest, &clip,
+	ret = drm_plane_helper_check_update(plane, crtc, fb, &src, &dest,
 					    DRM_MODE_ROTATE_0,
 					    0, INT_MAX, true, false, &visible);
 	if (ret)
