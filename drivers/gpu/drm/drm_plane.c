@@ -480,7 +480,7 @@ int drm_mode_getplane_res(struct drm_device *dev, void *data,
 	int count = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	plane_ptr = u64_to_user_ptr(plane_resp->plane_id_ptr);
 
@@ -517,7 +517,7 @@ int drm_mode_getplane(struct drm_device *dev, void *data,
 	uint32_t __user *format_ptr;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	plane = drm_plane_find(dev, file_priv, plane_resp->plane_id);
 	if (!plane)
@@ -784,7 +784,7 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 	int ret;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	/*
 	 * First, find the plane, crtc, and fb objects.  If not available,
@@ -922,7 +922,7 @@ static int drm_mode_cursor_common(struct drm_device *dev,
 	int ret = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	if (!req->flags || (~DRM_MODE_CURSOR_FLAGS & req->flags))
 		return -EINVAL;
@@ -1026,7 +1026,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	int ret = -EINVAL;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	if (page_flip->flags & ~DRM_MODE_PAGE_FLIP_FLAGS)
 		return -EINVAL;
