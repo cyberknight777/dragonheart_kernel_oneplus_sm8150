@@ -189,8 +189,6 @@ enum iwl_fw_error_dump_family {
  * @bus_human_readable: name of the bus used
  * @rt_status: the error_id/rt_status that that triggered the latest dump
  *	if the dump collection was not initiated by an assert, the value is 0
- * @num_of_txfifos: number of rx fifos
- * @num_of_rxfifos: number of tx fifos
  */
 struct iwl_fw_error_dump_info {
 	__le32 device_family;
@@ -199,8 +197,6 @@ struct iwl_fw_error_dump_info {
 	u8 dev_human_readable[64];
 	u8 bus_human_readable[8];
 	__le32 rt_status;
-	__le16 num_of_txfifos;
-	__le16 num_of_rxfifos;
 } __packed;
 
 /**
