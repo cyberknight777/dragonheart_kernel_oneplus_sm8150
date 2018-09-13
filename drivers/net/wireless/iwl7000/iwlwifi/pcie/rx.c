@@ -466,7 +466,6 @@ void iwl_pcie_rxq_alloc_rbs(struct iwl_trans *trans, gfp_t priority,
 
 		list_add_tail(&rxb->list, &rxq->rx_free);
 		rxq->free_count++;
-		rxq->used_count--;
 
 		spin_unlock(&rxq->lock);
 	}
@@ -618,8 +617,8 @@ static void iwl_pcie_rx_allocator_get(struct iwl_trans *trans,
 	}
 	spin_unlock(&rba->lock);
 
+	rxq->used_count -= RX_CLAIM_REQ_ALLOC;
 	rxq->free_count += RX_CLAIM_REQ_ALLOC;
-	rxq->alloc_reqs--;
 }
 
 void iwl_pcie_rx_allocator_work(struct work_struct *data)
@@ -992,7 +991,6 @@ void iwl_pcie_rx_init_rxb_lists(struct iwl_rxq *rxq)
 	INIT_LIST_HEAD(&rxq->rx_used);
 	rxq->free_count = 0;
 	rxq->used_count = 0;
-	rxq->alloc_reqs = 0;
 }
 
 int iwl_pcie_dummy_napi_poll(struct napi_struct *napi, int budget)
@@ -1056,7 +1054,7 @@ int _iwl_pcie_rx_init(struct iwl_trans *trans)
 		spin_unlock(&rxq->lock);
 	}
 
-	/* move the pool to the default queue */
+	/* move the pool to the default queue and allocator ownerships */
 	queue_size = trans->cfg->mq_rx_supported ?
 		     MQ_RX_NUM_RBDS : RX_QUEUE_SIZE;
 	allocator_pool_size = trans->num_rx_queues * RX_CLAIM_REQ_ALLOC;
@@ -1074,7 +1072,6 @@ int _iwl_pcie_rx_init(struct iwl_trans *trans)
 		rxb->vid = (u16)(i + 1);
 		rxb->invalid = true;
 	}
-	def_rxq->used_count = queue_size;
 
 	iwl_pcie_rxq_alloc_rbs(trans, GFP_KERNEL, def_rxq);
 
@@ -1167,7 +1164,7 @@ static void iwl_pcie_rx_move_to_allocator(struct iwl_rxq *rxq,
  * iwl_pcie_rx_reuse_rbd - Recycle used RBDs
  *
  * Called when a RBD can be reused. The RBD is transferred to the allocator.
- * When there are 8 empty RBDs - a request for allocation is posted
+ * When there are 2 empty RBDs - a request for allocation is posted
  */
 static void iwl_pcie_rx_reuse_rbd(struct iwl_trans *trans,
 				  struct iwl_rx_mem_buffer *rxb,
@@ -1176,30 +1173,27 @@ static void iwl_pcie_rx_reuse_rbd(struct iwl_trans *trans,
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_rb_allocator *rba = &trans_pcie->rba;
 
-	lockdep_assert_held(&rxq->lock);
-
-	/*
-	 * Move the RBD to the used list, will be moved to allocator in
-	 * multiples of RX_CLAIM_REQ_ALLOC.
-	 */
+	/* Move the RBD to the used list, will be moved to allocator in batches
+	 * before claiming or posting a request*/
 	list_add_tail(&rxb->list, &rxq->rx_used);
-	rxq->used_count++;
 
 	if (unlikely(emergency))
 		return;
 
-	/*
-	 * If we have RX_CLAIM_REQ_ALLOC new released rx buffers -
-	 * issue a request for allocator.
+	/* Count the allocator owned RBDs */
+	rxq->used_count++;
+
+	/* If we have RX_CLAIM_REQ_ALLOC new released rx buffers -
+	 * issue a request for allocator. Modulo RX_CLAIM_REQ_ALLOC is
+	 * used for the case we failed to claim RX_CLAIM_REQ_ALLOC,
+	 * after but we still need to post another request.
 	 */
-	if (rxq->used_count == RX_CLAIM_REQ_ALLOC) {
+	if ((rxq->used_count % RX_CLAIM_REQ_ALLOC) == 0) {
 		/* Move the 8 RBDs to the allocator ownership */
 		iwl_pcie_rx_move_to_allocator(rxq, rba);
 
 		atomic_inc(&rba->req_pending);
 		queue_work(rba->alloc_wq, &rba->rx_alloc);
-		rxq->used_count = 0;
-		rxq->alloc_reqs++;
 	}
 }
 
@@ -1401,7 +1395,7 @@ static void iwl_pcie_rx_handle(struct iwl_trans *trans, int queue)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_rxq *rxq = &trans_pcie->rxq[queue];
-	u32 r, i;
+	u32 r, i, count = 0;
 	bool emergency = false;
 
 restart:
@@ -1419,14 +1413,18 @@ restart:
 		IWL_DEBUG_RX(trans, "Q %d: HW = SW = %d\n", rxq->id, r);
 
 	while (i != r) {
+		struct iwl_rb_allocator *rba = &trans_pcie->rba;
 		struct iwl_rx_mem_buffer *rxb;
 		/* number of RBDs still waiting for page allocation */
 		u32 rb_pending_alloc =
 			atomic_read(&trans_pcie->rba.req_pending) *
 			RX_CLAIM_REQ_ALLOC;
 
-		if (unlikely(rb_pending_alloc >= rxq->queue_size / 2))
+		if (unlikely(rb_pending_alloc >= rxq->queue_size / 2 &&
+			     !emergency)) {
+			iwl_pcie_rx_move_to_allocator(rxq, rba);
 			emergency = true;
+		}
 
 		rxb = iwl_pcie_get_rxb(trans, rxq, i);
 		if (!rxb)
@@ -1438,23 +1436,28 @@ restart:
 		i = (i + 1) & (rxq->queue_size - 1);
 
 		/*
-		 * Try to claim the pre-allocated buffers from the allocator.
+		 * If we have RX_CLAIM_REQ_ALLOC released rx buffers -
+		 * try to claim the pre-allocated buffers from the allocator.
 		 * If not ready - will try to reclaim next time.
 		 * There is no need to reschedule work - allocator exits only
 		 * on success
 		 */
-		if (rxq->alloc_reqs)
+		if (rxq->used_count >= RX_CLAIM_REQ_ALLOC)
 			iwl_pcie_rx_allocator_get(trans, rxq);
 
-		if (emergency && (rxq->used_count % RX_CLAIM_REQ_ALLOC) == 0) {
-			if (rb_pending_alloc < rxq->queue_size / 3)
-				emergency = false;
+		if (emergency) {
+			count++;
+			if (count == 8) {
+				count = 0;
+				if (rb_pending_alloc < rxq->queue_size / 3)
+					emergency = false;
 
-			rxq->read = i;
-			spin_unlock(&rxq->lock);
-			iwl_pcie_rxq_alloc_rbs(trans, GFP_ATOMIC, rxq);
-			iwl_pcie_rxq_restock(trans, rxq);
-			goto restart;
+				rxq->read = i;
+				spin_unlock(&rxq->lock);
+				iwl_pcie_rxq_alloc_rbs(trans, GFP_ATOMIC, rxq);
+				iwl_pcie_rxq_restock(trans, rxq);
+				goto restart;
+			}
 		}
 	}
 out:
@@ -1477,7 +1480,7 @@ out:
 	 * by allocating them here, they are now in the queue free list, and
 	 * will be restocked by the next call of iwl_pcie_rxq_restock.
 	 */
-	if (unlikely(emergency))
+	if (unlikely(emergency && count))
 		iwl_pcie_rxq_alloc_rbs(trans, GFP_ATOMIC, rxq);
 
 	if (rxq->napi.poll)

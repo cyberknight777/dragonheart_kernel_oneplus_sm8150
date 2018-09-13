@@ -154,9 +154,8 @@ struct iwl_rx_completion_desc {
  * @cr_tail_dma: physical address of the buffer for the completion ring tail
  * @read: Shared index to newest available Rx buffer
  * @write: Shared index to oldest written Rx packet
- * @free_count: Number of buffers in rx_free
- * @used_count: Number of RBDs in rx_used
- * @alloc_reqs: Number of times the rba's req_pending was increased for this rxq
+ * @free_count: Number of pre-allocated buffers in rx_free
+ * @used_count: Number of RBDs handled to allocator to use for allocation
  * @write_actual:
  * @rx_free: list of RBDs with allocated RB ready for use
  * @rx_used: list of RBDs with no RB attached
@@ -186,7 +185,6 @@ struct iwl_rxq {
 	u32 write;
 	u32 free_count;
 	u32 used_count;
-	u32 alloc_reqs;
 	u32 write_actual;
 	u32 queue_size;
 	struct list_head rx_free;
