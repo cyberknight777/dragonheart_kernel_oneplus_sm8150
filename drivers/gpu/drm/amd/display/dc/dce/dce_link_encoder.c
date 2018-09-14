@@ -666,6 +666,9 @@ bool dce110_link_encoder_validate_dp_output(
 		enc110->base.features.max_hdmi_pixel_clock)
 		return false;
 
+	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR420)
+		return false;
+
 	/* default RGB only */
 	if (crtc_timing->pixel_encoding == PIXEL_ENCODING_RGB)
 		return true;
