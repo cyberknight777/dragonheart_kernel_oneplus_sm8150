@@ -2,9 +2,10 @@
 /* Copyright 2018 Google LLC. */
 
 #include <dt-bindings/iio/qcom,spmi-vadc.h>
-#include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/input/linux-event-codes.h>
+#include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/spmi/spmi.h>
+
 
 &spmi_bus {
 	pm8998_lsid0: pmic@0 {
