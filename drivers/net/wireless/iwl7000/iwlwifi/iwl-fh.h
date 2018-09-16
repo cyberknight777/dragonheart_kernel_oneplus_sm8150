@@ -614,9 +614,9 @@ static inline unsigned int FH_MEM_CBBC_QUEUE(struct iwl_trans *trans,
 #define MQ_RX_TABLE_SIZE	512
 #define MQ_RX_TABLE_MASK	(MQ_RX_TABLE_SIZE - 1)
 #define MQ_RX_NUM_RBDS		(MQ_RX_TABLE_SIZE - 1)
-#define RX_POOL_SIZE		(MQ_RX_NUM_RBDS + \
-				 IWL_MAX_RX_HW_QUEUES * RX_CLAIM_REQ_ALLOC)
-
+#define RX_POOL_SIZE		(MQ_RX_NUM_RBDS +	\
+				 IWL_MAX_RX_HW_QUEUES *	\
+				 (RX_CLAIM_REQ_ALLOC - RX_POST_REQ_ALLOC))
 /* cb size is the exponent */
 #define RX_QUEUE_CB_SIZE(x)	ilog2(x)
 

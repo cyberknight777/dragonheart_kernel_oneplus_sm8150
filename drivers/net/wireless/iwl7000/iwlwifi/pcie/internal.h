@@ -53,6 +53,8 @@
 /*
  * RX related structures and functions
  */
+#define RX_NUM_QUEUES 1
+#define RX_POST_REQ_ALLOC 2
 #define RX_CLAIM_REQ_ALLOC 8
 #define RX_PENDING_WATERMARK 16
 #define FIRST_RX_QUEUE 512

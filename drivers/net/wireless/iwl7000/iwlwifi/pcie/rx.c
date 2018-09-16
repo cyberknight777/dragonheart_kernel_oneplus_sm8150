@@ -1016,6 +1016,7 @@ int _iwl_pcie_rx_init(struct iwl_trans *trans)
 	cancel_work_sync(&rba->rx_alloc);
 
 	spin_lock(&rba->lock);
+	atomic_set(&rba->req_pending, 0);
 	atomic_set(&rba->req_ready, 0);
 	INIT_LIST_HEAD(&rba->rbd_allocated);
 	INIT_LIST_HEAD(&rba->rbd_empty);
@@ -1057,7 +1058,8 @@ int _iwl_pcie_rx_init(struct iwl_trans *trans)
 	/* move the pool to the default queue and allocator ownerships */
 	queue_size = trans->cfg->mq_rx_supported ?
 		     MQ_RX_NUM_RBDS : RX_QUEUE_SIZE;
-	allocator_pool_size = trans->num_rx_queues * RX_CLAIM_REQ_ALLOC;
+	allocator_pool_size = trans->num_rx_queues *
+		(RX_CLAIM_REQ_ALLOC - RX_POST_REQ_ALLOC);
 	num_alloc = queue_size + allocator_pool_size;
 	BUILD_BUG_ON(ARRAY_SIZE(trans_pcie->global_table) !=
 		     ARRAY_SIZE(trans_pcie->rx_pool));
@@ -1074,16 +1076,6 @@ int _iwl_pcie_rx_init(struct iwl_trans *trans)
 	}
 
 	iwl_pcie_rxq_alloc_rbs(trans, GFP_KERNEL, def_rxq);
-
-	/*
-	 * allocate the empty rbds in the rba so that when a queue tries to get
-	 * allocated ones after providing the allocator with empty buffers it
-	 * will have some immediately available.
-	 */
-	spin_lock(&rba->lock);
-	atomic_set(&rba->req_pending, trans->num_rx_queues);
-	spin_unlock(&rba->lock);
-	iwl_pcie_rx_allocator(trans);
 
 	return 0;
 }
@@ -1183,13 +1175,14 @@ static void iwl_pcie_rx_reuse_rbd(struct iwl_trans *trans,
 	/* Count the allocator owned RBDs */
 	rxq->used_count++;
 
-	/* If we have RX_CLAIM_REQ_ALLOC new released rx buffers -
+	/* If we have RX_POST_REQ_ALLOC new released rx buffers -
 	 * issue a request for allocator. Modulo RX_CLAIM_REQ_ALLOC is
 	 * used for the case we failed to claim RX_CLAIM_REQ_ALLOC,
 	 * after but we still need to post another request.
 	 */
-	if ((rxq->used_count % RX_CLAIM_REQ_ALLOC) == 0) {
-		/* Move the 8 RBDs to the allocator ownership */
+	if ((rxq->used_count % RX_CLAIM_REQ_ALLOC) == RX_POST_REQ_ALLOC) {
+		/* Move the 2 RBDs to the allocator ownership.
+		 Allocator has another 6 from pool for the request completion*/
 		iwl_pcie_rx_move_to_allocator(rxq, rba);
 
 		atomic_inc(&rba->req_pending);
@@ -1445,7 +1438,10 @@ restart:
 		if (rxq->used_count >= RX_CLAIM_REQ_ALLOC)
 			iwl_pcie_rx_allocator_get(trans, rxq);
 
-		if (emergency) {
+		if (rxq->used_count % RX_CLAIM_REQ_ALLOC == 0 && !emergency) {
+			/* Add the remaining empty RBDs for allocator use */
+			iwl_pcie_rx_move_to_allocator(rxq, rba);
+		} else if (emergency) {
 			count++;
 			if (count == 8) {
 				count = 0;
