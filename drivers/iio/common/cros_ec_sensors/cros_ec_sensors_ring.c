@@ -200,9 +200,17 @@ static int cros_ec_ring_fifo_toggle(struct cros_ec_sensors_ring_state *state,
 	return ret;
 }
 
-static int cros_ec_ring_median_cmp(const void *ts1, const void *ts2)
+static int cros_ec_ring_median_cmp(const void *pv1, const void *pv2)
 {
-	return *(s64 *)ts1 - *(s64 *)ts2;
+	s64 v1 = *(s64 *)pv1;
+	s64 v2 = *(s64 *)pv2;
+
+	if (v1 > v2)
+		return 1;
+	else if (v1 < v2)
+		return -1;
+	else
+		return 0;
 }
 
 /*
