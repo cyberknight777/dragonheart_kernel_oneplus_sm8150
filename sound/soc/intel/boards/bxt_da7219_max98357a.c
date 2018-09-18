@@ -284,6 +284,7 @@ static const struct snd_pcm_hw_constraint_list constraints_channels_quad = {
 static int bxt_fe_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 
 	/*
 	 * On this platform for PCM device we support,
@@ -291,14 +292,15 @@ static int bxt_fe_startup(struct snd_pcm_substream *substream)
 	 * stereo
 	 * 16 bit audio
 	 */
-
-	runtime->hw.channels_max = DUAL_CHANNEL;
-	snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
+	if (!strstr(rtd->cpu_dai->name, "HDMI")) {
+		runtime->hw.channels_max = DUAL_CHANNEL;
+		snd_pcm_hw_constraint_list(runtime, 0,
+					   SNDRV_PCM_HW_PARAM_CHANNELS,
 					   &constraints_channels);
 
-	runtime->hw.formats = SNDRV_PCM_FMTBIT_S16_LE;
-	snd_pcm_hw_constraint_msbits(runtime, 0, 16, 16);
-
+		runtime->hw.formats = SNDRV_PCM_FMTBIT_S16_LE;
+		snd_pcm_hw_constraint_msbits(runtime, 0, 16, 16);
+	}
 	snd_pcm_hw_constraint_list(runtime, 0,
 				SNDRV_PCM_HW_PARAM_RATE, &constraints_rates);
 
@@ -308,6 +310,8 @@ static int bxt_fe_startup(struct snd_pcm_substream *substream)
 static const struct snd_soc_ops broxton_da7219_fe_ops = {
 	.startup = bxt_fe_startup,
 };
+
+#define geminilake_hdmi_fe_ops broxton_da7219_fe_ops
 
 static int broxton_dmic_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
@@ -637,6 +641,7 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 			SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST},
 		.nonatomic = 1,
 		.dynamic = 1,
+		.ops = &geminilake_hdmi_fe_ops,
 	},
 	[BXT_DPCM_AUDIO_HDMI2_PB] =	{
 		.name = "Bxt HDMI Port2",
@@ -651,6 +656,7 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 			SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST},
 		.nonatomic = 1,
 		.dynamic = 1,
+		.ops = &geminilake_hdmi_fe_ops,
 	},
 	[BXT_DPCM_AUDIO_HDMI3_PB] =	{
 		.name = "Bxt HDMI Port3",
@@ -665,6 +671,7 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.init = NULL,
 		.nonatomic = 1,
 		.dynamic = 1,
+		.ops = &geminilake_hdmi_fe_ops,
 	},
 	/* Back End DAI links */
 	{
