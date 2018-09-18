@@ -3194,6 +3194,10 @@ int skl_check_plane_surface(struct intel_plane_state *plane_state)
 		return -EINVAL;
 	}
 
+	ret = intel_plane_check_stride(plane_state);
+	if (ret)
+		return ret;
+
 	if (!plane_state->base.visible)
 		return 0;
 
@@ -3328,6 +3332,11 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 	int src_x = plane_state->base.src.x1 >> 16;
 	int src_y = plane_state->base.src.y1 >> 16;
 	u32 offset;
+	int ret;
+
+	ret = intel_plane_check_stride(plane_state);
+	if (ret)
+		return ret;
 
 	intel_add_fb_offsets(&src_x, &src_y, plane_state, 0);
 
@@ -9543,6 +9552,10 @@ static int intel_check_cursor(struct intel_crtc_state *crtc_state,
 	ret = intel_plane_check_src_coordinates(plane_state);
 	if (ret)
 		return ret;
+
+        ret = intel_plane_check_stride(plane_state);
+        if (ret)
+                return ret;
 
 	src_x = plane_state->base.src_x >> 16;
 	src_y = plane_state->base.src_y >> 16;
