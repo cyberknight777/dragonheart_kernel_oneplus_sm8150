@@ -43,7 +43,7 @@
 #define sg_pcopy_from_buffer __iwl7000_sg_pcopy_from_buffer
 #define sg_pcopy_to_buffer __iwl7000_sg_pcopy_to_buffer
 #endif /* < 3.11 */
-#define alloc_bucket_spinlocks __iwl7000_alloc_bucket_spinlocks
+#define __alloc_bucket_spinlocks __iwl7000___alloc_bucket_spinlocks
 #define free_bucket_spinlocks __iwl7000_free_bucket_spinlocks
 #if CFG80211_VERSION < KERNEL_VERSION(4,1,0)
 #define ieee80211_ie_split_ric __iwl7000_ieee80211_ie_split_ric

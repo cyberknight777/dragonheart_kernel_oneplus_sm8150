@@ -2990,6 +2990,10 @@ void ieee80211_check_fast_xmit(struct sta_info *sta)
 		if (!(build.key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE))
 			goto out;
 
+		/* Key is being removed */
+		if (build.key->flags & KEY_FLAG_TAINTED)
+			goto out;
+
 		switch (build.key->conf.cipher) {
 		case WLAN_CIPHER_SUITE_CCMP:
 		case WLAN_CIPHER_SUITE_CCMP_256:
@@ -3218,7 +3222,7 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 	void *data;
 	bool ret = false;
 	unsigned int orig_len;
-	int n = 1, nfrags, pad = 0;
+	int n = 2, nfrags, pad = 0;
 	u16 hdrlen;
 
 	if (!ieee80211_hw_check(&local->hw, TX_AMSDU))
@@ -3259,9 +3263,6 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 	if (!drv_can_aggregate_in_amsdu(local, head, skb))
 		goto out;
 
-	if (!ieee80211_amsdu_prepare_head(sdata, fast_tx, head))
-		goto out;
-
 	nfrags = 1 + skb_shinfo(skb)->nr_frags;
 	nfrags += 1 + skb_shinfo(head)->nr_frags;
 	frag_tail = &skb_shinfo(head)->frag_list;
@@ -3277,6 +3278,12 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 	if (max_frags && nfrags > max_frags)
 		goto out;
 
+	if (!drv_can_aggregate_in_amsdu(local, head, skb))
+		goto out;
+
+	if (!ieee80211_amsdu_prepare_head(sdata, fast_tx, head))
+		goto out;
+
 	/*
 	 * Pad out the previous subframe to a multiple of 4 by adding the
 	 * padding to the next one, that's being added. Note that head->len
@@ -3290,7 +3297,7 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 
 	if (!ieee80211_amsdu_realloc_pad(local, skb, sizeof(rfc1042_header) +
 						     2 + pad))
-		goto out;
+		goto out_recalc;
 
 	ret = true;
 	data = skb_push(skb, ETH_ALEN + 2);
@@ -3307,11 +3314,13 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 	head->data_len += skb->len;
 	*frag_tail = skb;
 
-	flow->backlog += head->len - orig_len;
-	tin->backlog_bytes += head->len - orig_len;
+out_recalc:
+	if (head->len != orig_len) {
+		flow->backlog += head->len - orig_len;
+		tin->backlog_bytes += head->len - orig_len;
 
-	fq_recalc_backlog(fq, tin, flow);
-
+		fq_recalc_backlog(fq, tin, flow);
+	}
 out:
 	spin_unlock_bh(&fq->lock);
 
@@ -3516,12 +3525,18 @@ struct sk_buff *ieee80211_tx_dequeue(struct ieee80211_hw *hw,
 	struct ieee80211_tx_info *info;
 	struct ieee80211_tx_data tx;
 	ieee80211_tx_result r;
-	struct ieee80211_vif *vif;
+	struct ieee80211_vif *vif = txq->vif;
 
 	spin_lock_bh(&fq->lock);
 
-	if (test_bit(IEEE80211_TXQ_STOP, &txqi->flags))
+	if (test_bit(IEEE80211_TXQ_STOP, &txqi->flags) ||
+	    test_bit(IEEE80211_TXQ_STOP_NETIF_TX, &txqi->flags))
 		goto out;
+
+	if (vif->txqs_stopped[ieee80211_ac_from_tid(txq->tid)]) {
+		set_bit(IEEE80211_TXQ_STOP_NETIF_TX, &txqi->flags);
+		goto out;
+	}
 
 	/* Make sure fragments stay together. */
 	skb = __skb_dequeue(&txqi->frags);
@@ -3617,6 +3632,7 @@ begin:
 	}
 
 	IEEE80211_SKB_CB(skb)->control.vif = vif;
+
 out:
 	spin_unlock_bh(&fq->lock);
 
@@ -3645,13 +3661,7 @@ void __ieee80211_subif_start_xmit(struct sk_buff *skb,
 	if (!IS_ERR_OR_NULL(sta)) {
 		struct ieee80211_fast_tx *fast_tx;
 
-		/* We need a bit of data queued to build aggregates properly, so
-		 * instruct the TCP stack to allow more than a single ms of data
-		 * to be queued in the stack. The value is a bit-shift of 1
-		 * second, so 8 is ~4ms of queued data. Only affects local TCP
-		 * sockets.
-		 */
-		sk_pacing_shift_update(skb->sk, 8);
+		sk_pacing_shift_update(skb->sk, sdata->local->hw.tx_sk_pacing_shift);
 
 		fast_tx = rcu_dereference(sta->fast_tx);
 
