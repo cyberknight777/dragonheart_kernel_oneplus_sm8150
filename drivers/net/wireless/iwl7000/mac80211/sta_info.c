@@ -2336,7 +2336,9 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
 		sinfo->ack_signal = sta->status_stats.last_ack_signal;
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
 	}
+#endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG)) &&
 	    sta->status_stats.ack_signal_filled) {
 		sinfo->avg_ack_signal =
