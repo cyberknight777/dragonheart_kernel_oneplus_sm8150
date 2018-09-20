@@ -35,11 +35,6 @@
 #include <linux/if_vlan.h>
 #include <linux/overflow.h>
 
-/* avoid conflicts with other headers */
-#ifdef is_signed_type
-#undef is_signed_type
-#endif
-
 #define LINUX_VERSION_IS_LESS(x1,x2,x3) (LINUX_VERSION_CODE < KERNEL_VERSION(x1,x2,x3))
 #define LINUX_VERSION_IS_GEQ(x1,x2,x3)  (LINUX_VERSION_CODE >= KERNEL_VERSION(x1,x2,x3))
 #define LINUX_VERSION_IN_RANGE(x1,x2,x3, y1,y2,y3) \
@@ -848,7 +843,45 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 #define nla_validate_nested3 nla_validate_nested
 #define nla_validate_nested(...) \
 	macro_dispatcher(nla_validate_nested, __VA_ARGS__)(__VA_ARGS__)
+
+#if LINUX_VERSION_IS_LESS(4,12,0)
+#define kvmalloc LINUX_BACKPORT(kvmalloc)
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	gfp_t kmalloc_flags = flags;
+	void *ret;
+
+	if ((flags & GFP_KERNEL) != GFP_KERNEL)
+		return kmalloc(size, flags);
+
+	if (size > PAGE_SIZE)
+		kmalloc_flags |= __GFP_NOWARN | __GFP_NORETRY;
+
+	ret = kmalloc(size, flags);
+	if (ret || size < PAGE_SIZE)
+		return ret;
+
+	return vmalloc(size);
+}
+
+#define kvmalloc_array LINUX_BACKPORT(kvmalloc_array)
+static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
+{
+	size_t bytes;
+
+	if (unlikely(check_mul_overflow(n, size, &bytes)))
+		return NULL;
+
+	return kvmalloc(bytes, flags);
+}
+#endif
+
 #endif /* LINUX_VERSION_IS_LESS(4,12,0) */
+
+/* avoid conflicts with other headers */
+#ifdef is_signed_type
+#undef is_signed_type
+#endif
 
 #ifndef offsetofend
 /**
@@ -860,6 +893,8 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 #define offsetofend(TYPE, MEMBER) \
 	(offsetof(TYPE, MEMBER)	+ sizeof(((TYPE *)0)->MEMBER))
 #endif
+
+
 
 #if LINUX_VERSION_IS_LESS(4,16,0)
 int alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
