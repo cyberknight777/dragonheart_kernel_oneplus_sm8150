@@ -299,7 +299,7 @@ static void cros_ec_ring_ts_filter_update(
 	m = div64_s64(dy * M_PRECISION, dx);
 
 	/* Empty filter if we haven't seen any action in a while. */
-	if (-dx < TS_HISTORY_BORED_US)
+	if (-dx > TS_HISTORY_BORED_US)
 		state->history_len = 0;
 
 	/* Move everything over, also update offset to all absolute coords .*/
