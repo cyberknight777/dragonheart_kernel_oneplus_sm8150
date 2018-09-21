@@ -283,6 +283,7 @@ static void amdgpu_fence_fallback(unsigned long arg)
 {
 	struct amdgpu_ring *ring = (void *)arg;
 
+	DRM_INFO("Fallback to SW interrupt on ring %s due to HW interrupt time out", ring->name);
 	amdgpu_fence_process(ring);
 }
 
