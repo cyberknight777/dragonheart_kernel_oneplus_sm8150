@@ -4,6 +4,8 @@
 #include <net/bluetooth/hci_le_splitter.h>
 #include <linux/miscdevice.h>
 #include <linux/semaphore.h>
+#include <linux/string.h>
+#include <linux/sysfs.h>
 #include <asm/atomic.h>
 #include <asm/ioctls.h>
 
@@ -21,6 +23,13 @@ struct hci_le_splitter_le_conn {
 	size_t tx_in_flight;
 };
 
+enum {
+	SPLITTER_STATE_NOT_SET,
+	SPLITTER_STATE_DISABLED,
+	SPLITTER_STATE_ENABLED,
+};
+
+
 /* This mutex protects the below (essentially splitter internal state) */
 static DEFINE_MUTEX(hci_state_lock);
 static struct hci_dev *cur_dev;
@@ -29,6 +38,7 @@ static int local_lmp_ver;
 static struct hci_le_splitter_le_conn tracked_conns[HCI_LE_SPLIT_MAX_LE_CONNS];
 static u32 max_pkts_in_flight;
 static u32 cur_pkts_in_flight;
+static u8 splitter_enable_state = SPLITTER_STATE_NOT_SET;
 
 /* protects command sequencing */
 static DEFINE_SEMAPHORE(cmd_sem);
@@ -77,6 +87,7 @@ struct hci_rp_read_le_host_supported {
 
 static void hci_le_splitter_usr_queue_reset_message(bool allow_commands);
 static struct hci_le_splitter_le_conn *cid_find_le_conn(u16 cid);
+static struct device_attribute sysfs_attr;
 static struct miscdevice mdev;
 
 
@@ -129,6 +140,8 @@ static bool hci_le_splitter_is_our_dev(struct hci_dev *hdev)
 
 void hci_le_splitter_init_start(struct hci_dev *hdev)
 {
+	int err;
+
 	mutex_lock(&hci_state_lock);
 
 	if (hci_le_splitter_set_our_dev(hdev))
@@ -140,6 +153,12 @@ void hci_le_splitter_init_start(struct hci_dev *hdev)
 
 		skb_queue_head_init(&usr_msg_q);
 		misc_register(&mdev);
+
+		err = device_create_file(mdev.this_device, &sysfs_attr);
+		if (err) {
+			pr_err("Cannot create sysfs file (%d) - on by default\n", err);
+			splitter_enable_state = SPLITTER_STATE_ENABLED;
+		}
 	}
 
 	mutex_unlock(&hci_state_lock);
@@ -398,6 +417,49 @@ static long hci_le_splitter_ioctl(struct file *file, unsigned int cmd, unsigned 
 	}
 }
 
+static ssize_t hci_le_splitter_sysfs_enabled_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+
+	mutex_lock(&hci_state_lock);
+	switch (splitter_enable_state) {
+	case SPLITTER_STATE_NOT_SET:
+		ret = sprintf(buf, "%s\n", "NOT SET");
+		break;
+	case SPLITTER_STATE_DISABLED:
+		ret = sprintf(buf, "%s\n", "OFF");
+		break;
+	case SPLITTER_STATE_ENABLED:
+		ret = sprintf(buf, "%s\n", "ON");
+		break;
+	}
+	mutex_unlock(&hci_state_lock);
+
+	return ret;
+}
+
+static ssize_t hci_le_splitter_sysfs_enabled_store(struct device *dev,
+		struct device_attribute *attr, const char *buf,
+		size_t count)
+{
+	ssize_t ret = strlen(buf);
+	bool set;
+
+	if (strtobool(buf, &set) < 0)
+		return -EINVAL;
+
+	mutex_lock(&hci_state_lock);
+	if (splitter_enable_state == SPLITTER_STATE_NOT_SET)
+		splitter_enable_state =
+			set ? SPLITTER_STATE_ENABLED : SPLITTER_STATE_DISABLED;
+	else
+		ret = -EPERM;
+	mutex_unlock(&hci_state_lock);
+
+	return ret;
+}
+
 static const struct file_operations hci_le_splitter_fops = {
 
 	.read	        = hci_le_splitter_read,
@@ -414,6 +476,13 @@ static struct miscdevice mdev = {
 	.name  = "hci_le",
 	.fops  = &hci_le_splitter_fops
 };
+
+static struct device_attribute sysfs_attr =
+	__ATTR(le_splitter_enabled,           /* file name */
+	0660,                                 /* file permissions */
+	hci_le_splitter_sysfs_enabled_show,   /* file read fn */
+	hci_le_splitter_sysfs_enabled_store); /* file write fn */
+
 
 void hci_le_splitter_deinit(struct hci_dev *hdev)
 {
@@ -452,7 +521,15 @@ bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff 
 
 		skipsem = false;
 
-		if (opcode == HCI_OP_RESET) {
+		if (splitter_enable_state == SPLITTER_STATE_NOT_SET) {
+			/* if state is not set, drop all packets */
+			pr_warn("LE splitter not initialized - chip TX denied!\n");
+			ret = false;
+		} else if (splitter_enable_state == SPLITTER_STATE_DISABLED) {
+			/* if disabled - allow all packets */
+			ret = true;
+			skipsem = true;
+		} else if (opcode == HCI_OP_RESET) {
 
 			static bool first = true;
 			if (!first)
@@ -950,7 +1027,15 @@ bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, struct sk_buff 
 	mutex_lock(&hci_state_lock);
 	if (hci_le_splitter_is_our_dev(hdev)) {
 
-		switch (hci_skb_pkt_type(skb)) {
+		if (splitter_enable_state == SPLITTER_STATE_NOT_SET) {
+			/* if state is not set, drop all packets */
+			pr_warn("LE splitter not initialized - chip RX denied!\n");
+			kfree_skb(skb);
+			ret = false;
+		} else if (splitter_enable_state == SPLITTER_STATE_DISABLED) {
+			/* if disabled - allow all packets */
+			ret = true;
+		} else switch (hci_skb_pkt_type(skb)) {
 		case HCI_EVENT_PKT:
 			/* invalid (too small) packet? let bluez handle it */
 			if (HCI_EVENT_HDR_SIZE > skb->len)
