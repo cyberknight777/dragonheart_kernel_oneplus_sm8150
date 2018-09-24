@@ -239,7 +239,8 @@ void amdgpu_fence_process(struct amdgpu_ring *ring)
 
 	} while (atomic_cmpxchg(&drv->last_seq, last_seq, seq) != last_seq);
 
-	if (seq != ring->fence_drv.sync_seq)
+	if (del_timer(&ring->fence_drv.fallback_timer) &&
+	    seq != ring->fence_drv.sync_seq)
 		amdgpu_fence_schedule_fallback(ring);
 
 	if (unlikely(seq == last_seq))
@@ -283,7 +284,7 @@ static void amdgpu_fence_fallback(unsigned long arg)
 {
 	struct amdgpu_ring *ring = (void *)arg;
 
-	DRM_INFO("Fallback to SW interrupt on ring %s due to HW interrupt time out", ring->name);
+	DRM_WARN("Fence fallback timer expired on ring %s\n", ring->name);
 	amdgpu_fence_process(ring);
 }
 
