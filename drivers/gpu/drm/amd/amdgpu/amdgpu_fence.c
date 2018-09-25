@@ -226,8 +226,10 @@ static void amdgpu_fence_schedule_fallback(struct amdgpu_ring *ring)
  * Checks the current fence value and calculates the last
  * signalled fence value. Wakes the fence queue if the
  * sequence number has increased.
+ *
+ * Returns true if fence was processed
  */
-void amdgpu_fence_process(struct amdgpu_ring *ring)
+bool amdgpu_fence_process(struct amdgpu_ring *ring)
 {
 	struct amdgpu_fence_driver *drv = &ring->fence_drv;
 	uint32_t seq, last_seq;
@@ -244,7 +246,7 @@ void amdgpu_fence_process(struct amdgpu_ring *ring)
 		amdgpu_fence_schedule_fallback(ring);
 
 	if (unlikely(seq == last_seq))
-		return;
+		return false;
 
 	last_seq &= drv->num_fences_mask;
 	seq &= drv->num_fences_mask;
@@ -271,6 +273,8 @@ void amdgpu_fence_process(struct amdgpu_ring *ring)
 
 		dma_fence_put(fence);
 	} while (last_seq != seq);
+
+	return true;
 }
 
 /**
@@ -284,8 +288,8 @@ static void amdgpu_fence_fallback(unsigned long arg)
 {
 	struct amdgpu_ring *ring = (void *)arg;
 
-	DRM_WARN("Fence fallback timer expired on ring %s\n", ring->name);
-	amdgpu_fence_process(ring);
+	if (amdgpu_fence_process(ring))
+		DRM_WARN("Fence fallback timer expired on ring %s\n", ring->name);
 }
 
 /**
