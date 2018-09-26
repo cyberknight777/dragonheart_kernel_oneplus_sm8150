@@ -2473,10 +2473,16 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 static inline int
 backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
 {
-	cfg_station_info_t cfg_info;
+	int ret;
+	cfg_station_info_t cfg_info = {};
 
-	iwl7000_convert_sinfo(sinfo, &cfg_info);
-	return cfg80211_sinfo_alloc_tid_stats(&cfg_info, gfp);
+	ret = cfg80211_sinfo_alloc_tid_stats(&cfg_info, gfp);
+	if (ret)
+		return ret;
+
+	sinfo->pertid = cfg_info->pertid;
+
+	return 0;
 }
 #define cfg80211_sinfo_alloc_tid_stats backport_cfg80211_sinfo_alloc_tid_stats
 #endif
