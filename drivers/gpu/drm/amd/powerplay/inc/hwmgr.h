@@ -332,6 +332,7 @@ struct pp_hwmgr_func {
 	                                bool lock);
 	int (*powergate_mmhub)(struct pp_hwmgr *hwmgr);
 	int (*smus_notify_pwe)(struct pp_hwmgr *hwmgr);
+	int (*enable_mgpu_fan_boost)(struct pp_hwmgr *hwmgr);
 };
 
 struct pp_table_func {

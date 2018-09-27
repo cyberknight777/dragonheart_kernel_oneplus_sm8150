@@ -341,6 +341,10 @@ enum amdgpu_pcie_gen {
 		((adev)->powerplay.pp_funcs->set_clockgating_by_smu(\
 			(adev)->powerplay.pp_handle, msg_id))
 
+#define amdgpu_dpm_set_powergating_by_smu(adev, block_type, gate) \
+		((adev)->powerplay.pp_funcs->set_powergating_by_smu(\
+			(adev)->powerplay.pp_handle, block_type, gate))
+
 #define amdgpu_dpm_get_power_profile_mode(adev, buf) \
 		((adev)->powerplay.pp_funcs->get_power_profile_mode(\
 			(adev)->powerplay.pp_handle, buf))
@@ -353,9 +357,9 @@ enum amdgpu_pcie_gen {
 		((adev)->powerplay.pp_funcs->odn_edit_dpm_table(\
 			(adev)->powerplay.pp_handle, type, parameter, size))
 
-#define amdgpu_dpm_set_powergating_by_smu(adev, block_type, gate) \
-		((adev)->powerplay.pp_funcs->set_powergating_by_smu(\
-			(adev)->powerplay.pp_handle, block_type, gate))
+#define amdgpu_dpm_enable_mgpu_fan_boost(adev) \
+		((adev)->powerplay.pp_funcs->enable_mgpu_fan_boost(\
+			(adev)->powerplay.pp_handle))
 
 struct amdgpu_dpm {
 	struct amdgpu_ps        *ps;
