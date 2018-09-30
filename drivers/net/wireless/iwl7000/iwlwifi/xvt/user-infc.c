@@ -2091,12 +2091,14 @@ int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 	default:
 		*supported_cmd = false;
 		ret = -EOPNOTSUPP;
+		IWL_DEBUG_INFO(xvt, "%s (cmd=0x%X) Not supported by xVT\n",
+			       __func__, cmd);
 		break;
 	}
 
 	mutex_unlock(&xvt->mutex);
 
-	if (ret)
+	if (ret && *supported_cmd)
 		IWL_ERR(xvt, "%s (cmd=0x%X) ret=%d\n", __func__, cmd, ret);
 	else
 		IWL_DEBUG_INFO(xvt, "%s (cmd=0x%X) ended Ok\n", __func__, cmd);
