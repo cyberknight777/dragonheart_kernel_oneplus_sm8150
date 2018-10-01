@@ -6496,6 +6496,7 @@ void ufshcd_parse_dev_ref_clk_freq(struct ufs_hba *hba)
 		"%s: invalid ref_clk setting = %d\n",
 		__func__, freq);
 }
+EXPORT_SYMBOL(ufshcd_parse_dev_ref_clk_freq);
 
 static int ufshcd_set_dev_ref_clk(struct ufs_hba *hba)
 {
