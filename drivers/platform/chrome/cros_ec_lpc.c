@@ -25,6 +25,7 @@
 #include <linux/dmi.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mfd/cros_ec_lpc_reg.h>
@@ -248,7 +249,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	acpi_status status;
 	struct cros_ec_device *ec_dev;
 	u8 buf[2];
-	int ret;
+	int irq, ret;
 
 	if (!devm_request_region(dev, EC_LPC_ADDR_MEMMAP, EC_MEMMAP_SIZE,
 				 dev_name(dev))) {
@@ -287,6 +288,18 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 			   sizeof(struct ec_response_get_protocol_info);
 	ec_dev->dout_size = sizeof(struct ec_host_request);
 
+	/*
+	 * Some boards do not have an IRQ allotted for cros_ec_lpc,
+	 * which makes ENXIO an expected (and safe) scenario.
+	 */
+	irq = platform_get_irq(pdev, 0);
+	if (irq > 0)
+		ec_dev->irq = irq;
+	else if (irq != -ENXIO) {
+		dev_err(dev, "couldn't retrieve IRQ number (%d)\n", irq);
+		return irq;
+	}
+
 	ret = cros_ec_register(ec_dev);
 	if (ret) {
 		dev_err(dev, "couldn't register ec_dev (%d)\n", ret);
@@ -294,8 +307,13 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	}
 
 	/*
-	 * Connect a notify handler to process MKBP messages if we have a
-	 * companion ACPI device.
+	 * If we have a companion ACPI device, connect a notify handler
+	 * to process MKBP messages coming via SCI. Specific board
+	 * configurations may send MKBP events solely via the registered IRQ,
+	 * at which point this handler will produce no effect. Detecting
+	 * whether the current system is one such board, however, is a tricky
+	 * and error-prone endeavor, so register the handler anyway, and trust
+	 * the EC to send the proper MKBP event signals.
 	 */
 	adev = ACPI_COMPANION(dev);
 	if (adev) {
