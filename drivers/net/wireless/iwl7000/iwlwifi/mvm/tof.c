@@ -95,7 +95,6 @@ void iwl_mvm_tof_init(struct iwl_mvm *mvm)
 	}
 #endif
 
-	tof_data->range_req.req_timeout = 1;
 	tof_data->range_req.initiator = 1;
 	tof_data->range_req.macaddr_random = 1;
 	tof_data->range_req.report_policy = IWL_MVM_TOF_RESPONSE_COMPLETE;
@@ -513,6 +512,10 @@ int iwl_mvm_tof_perform_ftm(struct iwl_mvm *mvm, u64 cookie,
 		cmd->request_id++;
 	cmd->one_sided_los_disable = 0;
 	cmd->req_timeout = req->timeout;
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	if (mvm->tof_data.req_timeout_override)
+		cmd->req_timeout = mvm->tof_data.req_timeout_override;
+#endif
 	cmd->report_policy = IWL_MVM_TOF_RESPONSE_COMPLETE;
 	cmd->num_of_ap = req->num_of_targets;
 	memcpy(cmd->macaddr_template, req->macaddr_template, ETH_ALEN);

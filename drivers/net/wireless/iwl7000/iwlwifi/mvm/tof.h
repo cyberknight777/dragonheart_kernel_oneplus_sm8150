@@ -111,6 +111,9 @@ struct iwl_mvm_tof_data {
 	u8 enable_dyn_ack;
 	u16 toa_offset;
 	struct list_head lci_civic_info;
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	u8 req_timeout_override;
+#endif
 };
 
 void iwl_mvm_tof_init(struct iwl_mvm *mvm);

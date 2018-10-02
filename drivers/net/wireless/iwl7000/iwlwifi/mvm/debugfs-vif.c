@@ -808,7 +808,7 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 	if (data) {
 		ret = kstrtou32(data, 10, &value);
 		if (ret == 0)
-			mvm->tof_data.range_req.req_timeout = value;
+			mvm->tof_data.req_timeout_override = value;
 		goto out;
 	}
 
