@@ -2394,6 +2394,22 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	if (mvm->trans->dbg_cfg.no_ack_en & 0x2)
 		flags &= ~STA_CTXT_HE_ACK_ENABLED;
+
+	/* MU EDCA override */
+	if (mvm->trans->dbg_cfg.mu_edca) {
+		u32 mu_edca = mvm->trans->dbg_cfg.mu_edca;
+
+		for (i = 0; i < IEEE80211_NUM_ACS; i++) {
+			sta_ctxt_cmd.trig_based_txf[i].aifsn =
+				cpu_to_le16(mu_edca & 0xf);
+			sta_ctxt_cmd.trig_based_txf[i].cwmin =
+				cpu_to_le16((mu_edca >> 4) & 0xf);
+			sta_ctxt_cmd.trig_based_txf[i].cwmax =
+				cpu_to_le16((mu_edca >> 8) & 0xf);
+			sta_ctxt_cmd.trig_based_txf[i].mu_time =
+				cpu_to_le16((mu_edca >> 12) & 0xff);
+		}
+	}
 #endif
 
 	/* TODO: support Multi BSSID IE */
