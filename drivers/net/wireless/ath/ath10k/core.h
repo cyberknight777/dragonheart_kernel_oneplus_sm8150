@@ -803,6 +803,7 @@ struct ath10k {
 	u32 high_5ghz_chan;
 	bool ani_enabled;
 
+	bool nlo_enabled;
 	bool p2p;
 
 	struct {
