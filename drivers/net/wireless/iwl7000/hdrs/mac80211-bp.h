@@ -2527,7 +2527,7 @@ backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
 	if (ret)
 		return ret;
 
-	sinfo->pertid = cfg_info->pertid;
+	sinfo->pertid = cfg_info.pertid;
 
 	return 0;
 }
