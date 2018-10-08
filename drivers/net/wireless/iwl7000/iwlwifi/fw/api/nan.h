@@ -88,7 +88,8 @@ enum iwl_nan_subcmd_ids {
 
 	/**
 	 * @NAN_DISCOVERY_EVENT_NOTIF:
-	 * &struct iwl_nan_disc_evt_notify
+	 * &struct iwl_nan_disc_evt_notify_v1 or
+	 * &struct iwl_nan_disc_evt_notify_v2
 	 */
 	NAN_DISCOVERY_EVENT_NOTIF = 0xFD,
 

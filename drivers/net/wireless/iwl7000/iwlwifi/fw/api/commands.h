@@ -423,7 +423,7 @@ enum iwl_legacy_cmds {
 	 * one of &struct iwl_statistics_cmd,
 	 * &struct iwl_notif_statistics_v11,
 	 * &struct iwl_notif_statistics_v10,
-	 * &struct iwl_notif_statistics_cdb
+	 * &struct iwl_notif_statistics
 	 */
 	STATISTICS_CMD = 0x9c,
 
@@ -431,7 +431,7 @@ enum iwl_legacy_cmds {
 	 * @STATISTICS_NOTIFICATION:
 	 * one of &struct iwl_notif_statistics_v10,
 	 * &struct iwl_notif_statistics_v11,
-	 * &struct iwl_notif_statistics_cdb
+	 * &struct iwl_notif_statistics
 	 */
 	STATISTICS_NOTIFICATION = 0x9d,
 
