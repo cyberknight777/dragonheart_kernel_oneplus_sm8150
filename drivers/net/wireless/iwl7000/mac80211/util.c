@@ -1155,15 +1155,27 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 
 	rrule = freq_reg_info(sdata->wdev.wiphy, MHZ_TO_KHZ(center_freq));
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+	if (IS_ERR_OR_NULL(rrule) || !rrule->has_wmm) {
+#else
 	if (IS_ERR_OR_NULL(rrule) || !rrule->wmm_rule) {
+#endif
 		rcu_read_unlock();
 		return;
 	}
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
 		wmm_ac = &rrule->wmm_rule->ap[ac];
+#else
+		wmm_ac = &rrule->wmm_rule->ap[ac];
+#endif
 	else
+#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+		wmm_ac = &rrule->wmm_rule.client[ac];
+#else
 		wmm_ac = &rrule->wmm_rule->client[ac];
+#endif
 	qparam->cw_min = max_t(u16, qparam->cw_min, wmm_ac->cw_min);
 	qparam->cw_max = max_t(u16, qparam->cw_max, wmm_ac->cw_max);
 	qparam->aifs = max_t(u8, qparam->aifs, wmm_ac->aifsn);
