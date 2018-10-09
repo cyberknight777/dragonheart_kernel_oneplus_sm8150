@@ -904,7 +904,6 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 int alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
                            size_t max_size, unsigned int cpu_mult,
                            gfp_t gfp);
-void free_bucket_spinlocks(spinlock_t *locks);
 #endif /* LINUX_VERSION_IS_LESS(4,16,0) */
 
 #if LINUX_VERSION_IS_LESS(4,19,0)
@@ -922,6 +921,7 @@ int __alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
 					       cpu_mult, gfp, #locks, &key); \
 		ret;							\
 	})
+void free_bucket_spinlocks(spinlock_t *locks);
 #endif /* LINUX_VERSION_IS_LESS(4,19,0) */
 
 #ifndef READ_ONCE
