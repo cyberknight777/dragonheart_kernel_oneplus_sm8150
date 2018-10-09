@@ -785,6 +785,33 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 		if (trans->dbg_cfg.he_chan_width_dis)
 			iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
 					~(trans->dbg_cfg.he_chan_width_dis << 1);
+
+		if (trans->dbg_cfg.he_mac_cap.len) {
+			if (trans->dbg_cfg.he_mac_cap.len !=
+			    sizeof(iftype_data->he_cap.he_cap_elem.mac_cap_info)) {
+				IWL_ERR(trans,
+					"Wrong he_mac_cap len %u, should be %lu\n",
+					trans->dbg_cfg.he_mac_cap.len,
+					sizeof(iftype_data->he_cap.he_cap_elem.mac_cap_info));
+			} else {
+				memcpy(iftype_data->he_cap.he_cap_elem.mac_cap_info,
+				       trans->dbg_cfg.he_mac_cap.data,
+				       trans->dbg_cfg.he_mac_cap.len);
+			}
+		}
+		if (trans->dbg_cfg.he_phy_cap.len) {
+			if (trans->dbg_cfg.he_phy_cap.len !=
+			    sizeof(iftype_data->he_cap.he_cap_elem.phy_cap_info)) {
+				IWL_ERR(trans,
+					"Wrong he_phy_cap len %u, should be %lu\n",
+					trans->dbg_cfg.he_phy_cap.len,
+					sizeof(iftype_data->he_cap.he_cap_elem.phy_cap_info));
+			} else {
+				memcpy(iftype_data->he_cap.he_cap_elem.phy_cap_info,
+				       trans->dbg_cfg.he_phy_cap.data,
+				       trans->dbg_cfg.he_phy_cap.len);
+			}
+		}
 	}
 }
 #endif
