@@ -1166,7 +1166,7 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP)
 #if CFG80211_VERSION >= KERNEL_VERSION(4,18,13)
-		wmm_ac = &rrule->wmm_rule->ap[ac];
+		wmm_ac = &rrule->wmm_rule.ap[ac];
 #else
 		wmm_ac = &rrule->wmm_rule->ap[ac];
 #endif
