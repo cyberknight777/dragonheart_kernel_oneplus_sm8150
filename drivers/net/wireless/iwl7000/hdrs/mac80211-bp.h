@@ -2278,6 +2278,18 @@ static inline void skb_put_u8(struct sk_buff *skb, u8 val)
 }
 #endif
 
+#if LINUX_VERSION_IS_LESS(3, 10, 0)
+static inline void kfree_skb_list(struct sk_buff *segs)
+{
+	while (segs) {
+		struct sk_buff *next = segs->next;
+
+		kfree_skb(segs);
+		segs = next;
+	}
+}
+#endif
+
 #if LINUX_VERSION_IS_LESS(3,18,0)
 static inline void __percpu *__alloc_gfp_warn(void)
 {
