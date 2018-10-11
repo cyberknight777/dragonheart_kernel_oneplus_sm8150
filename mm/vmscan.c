@@ -2305,21 +2305,17 @@ static bool inactive_list_is_low(struct lruvec *lruvec, bool file,
 /*
  * Check low watermark used to prevent fscache thrashing during low memory.
  */
-static int file_is_low(struct lruvec *lruvec, struct scan_control *sc)
+static int file_is_low(struct lruvec *lruvec, struct pglist_data *pgdat)
 {
-	unsigned long pages_min, active, inactive;
-	enum lru_list inactive_lru = LRU_FILE;
-	enum lru_list active_lru = LRU_FILE + LRU_ACTIVE;
-
-	if (!mem_cgroup_disabled())
-		return false;
+	unsigned long pages_min, pgdatfile;
 
 	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	inactive = lruvec_lru_size(lruvec, inactive_lru, sc->reclaim_idx);
-	active = lruvec_lru_size(lruvec, active_lru, sc->reclaim_idx);
+	pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
+		node_page_state(pgdat, NR_INACTIVE_FILE);
 
-	return ((active + inactive) < pages_min);
+	return pgdatfile < pages_min;
 }
+
 
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
@@ -2366,9 +2362,10 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 
 	/*
 	 * Do not scan file pages when swap is allowed by __GFP_IO and
-	 * file page count is low.
+	 * it's global reclaim and file page count is low.
 	 */
-	if ((sc->gfp_mask & __GFP_IO) && file_is_low(lruvec, sc)) {
+	if ((sc->gfp_mask & __GFP_IO) && global_reclaim(sc) &&
+	    file_is_low(lruvec, pgdat)) {
 		scan_balance = SCAN_ANON;
 		goto out;
 	}
