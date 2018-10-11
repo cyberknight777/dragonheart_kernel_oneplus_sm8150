@@ -880,7 +880,7 @@ static int sta32x_probe(struct snd_soc_component *component)
 	struct sta32x_platform_data *pdata = sta32x->pdata;
 	int i, ret = 0, thermal = 0;
 
-	sta32x->codec = codec;
+	sta32x->component = component;
 
 	ret = regulator_bulk_enable(ARRAY_SIZE(sta32x->supplies),
 				    sta32x->supplies);
