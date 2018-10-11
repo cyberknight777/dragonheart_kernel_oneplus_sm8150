@@ -883,7 +883,7 @@ static int cz_set_power_state_tasks(struct pp_hwmgr *hwmgr, const void *input)
 	cz_update_low_mem_pstate(hwmgr, input);
 
 	return 0;
-};
+}
 
 
 static int cz_setup_asic_task(struct pp_hwmgr *hwmgr)
@@ -936,14 +936,6 @@ static void cz_reset_cc6_data(struct pp_hwmgr *hwmgr)
 	hw_data->cc6_settings.cpu_cc6_disable = false;
 	hw_data->cc6_settings.cpu_pstate_disable = false;
 }
-
-static int cz_power_off_asic(struct pp_hwmgr *hwmgr)
-{
-	cz_power_up_display_clock_sys_pll(hwmgr);
-	cz_clear_nb_dpm_flag(hwmgr);
-	cz_reset_cc6_data(hwmgr);
-	return 0;
-};
 
 static void cz_program_voting_clients(struct pp_hwmgr *hwmgr)
 {
@@ -1048,7 +1040,7 @@ static int cz_disable_dpm_tasks(struct pp_hwmgr *hwmgr)
 		return -EINVAL;
 
 	return 0;
-};
+}
 
 static int cz_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
 {
@@ -1064,7 +1056,16 @@ static int cz_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
 	cz_reset_acp_boot_level(hwmgr);
 
 	return 0;
-};
+}
+
+static int cz_power_off_asic(struct pp_hwmgr *hwmgr)
+{
+	cz_disable_dpm_tasks(hwmgr);
+	cz_power_up_display_clock_sys_pll(hwmgr);
+	cz_clear_nb_dpm_flag(hwmgr);
+	cz_reset_cc6_data(hwmgr);
+	return 0;
+}
 
 static int cz_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 				struct pp_power_state  *prequest_ps,

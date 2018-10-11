@@ -4666,6 +4666,18 @@ static int smu7_get_max_high_clocks(struct pp_hwmgr *hwmgr,
 	return 0;
 }
 
+static int smu7_power_off_asic(struct pp_hwmgr *hwmgr)
+{
+       int result;
+
+       result = smu7_disable_dpm_tasks(hwmgr);
+       PP_ASSERT_WITH_CODE((0 == result),
+                       "[disable_dpm_tasks] Failed to disable DPM!",
+                       );
+
+       return result;
+}
+
 static const struct pp_hwmgr_func smu7_hwmgr_funcs = {
 	.backend_init = &smu7_hwmgr_backend_init,
 	.backend_fini = &smu7_hwmgr_backend_fini,
@@ -4719,6 +4731,7 @@ static const struct pp_hwmgr_func smu7_hwmgr_funcs = {
 	.start_thermal_controller = smu7_start_thermal_controller,
 	.notify_cac_buffer_info = smu7_notify_cac_buffer_info,
 	.get_max_high_clocks = smu7_get_max_high_clocks,
+	.power_off_asic = smu7_power_off_asic,
 };
 
 uint8_t smu7_get_sleep_divider_id_from_clock(uint32_t clock,
