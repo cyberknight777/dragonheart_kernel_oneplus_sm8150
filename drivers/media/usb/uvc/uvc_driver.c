@@ -2227,6 +2227,8 @@ static int uvc_clock_param_get(char *buffer, struct kernel_param *kp)
 {
 	if (uvc_clock_param == CLOCK_MONOTONIC)
 		return sprintf(buffer, "CLOCK_MONOTONIC");
+	else if (uvc_clock_param == CLOCK_BOOTTIME)
+		return sprintf(buffer, "CLOCK_BOOTTIME");
 	else
 		return sprintf(buffer, "CLOCK_REALTIME");
 }
@@ -2238,6 +2240,8 @@ static int uvc_clock_param_set(const char *val, struct kernel_param *kp)
 
 	if (strcasecmp(val, "monotonic") == 0)
 		uvc_clock_param = CLOCK_MONOTONIC;
+	else if (strcasecmp(val, "boottime") == 0)
+		uvc_clock_param = CLOCK_BOOTTIME;
 	else if (strcasecmp(val, "realtime") == 0)
 		uvc_clock_param = CLOCK_REALTIME;
 	else

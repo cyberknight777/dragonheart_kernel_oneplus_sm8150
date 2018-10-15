@@ -385,6 +385,8 @@ static inline void uvc_video_get_ts(struct timespec *ts)
 {
 	if (uvc_clock_param == CLOCK_MONOTONIC)
 		ktime_get_ts(ts);
+	else if (uvc_clock_param == CLOCK_BOOTTIME)
+		get_monotonic_boottime(ts);
 	else
 		ktime_get_real_ts(ts);
 }
