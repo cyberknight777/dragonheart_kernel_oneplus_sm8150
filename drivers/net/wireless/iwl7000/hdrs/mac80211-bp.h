@@ -1117,7 +1117,15 @@ struct backport_sinfo {
 
 	u64 rx_beacon;
 	u8 rx_beacon_signal_avg;
+#if CFG80211_VERSION < KERNEL_VERSION(4,18,0)
+	/*
+	 * With < 4.18 we use an array here, like before, so we don't
+	 * need to alloc/free it
+	 */
+	struct cfg80211_tid_stats pertid[IEEE80211_NUM_TIDS + 1];
+#else
 	struct cfg80211_tid_stats *pertid;
+#endif
 	s8 ack_signal;
 	s8 avg_ack_signal;
 };
