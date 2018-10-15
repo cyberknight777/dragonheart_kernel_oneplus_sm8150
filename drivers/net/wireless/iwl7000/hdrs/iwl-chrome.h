@@ -85,9 +85,6 @@ static inline u64 ktime_get_real_ns(void)
 #include <hdrs/mac80211-bp.h>
 
 #include <hdrs/net/codel.h>
-#include <hdrs/net/codel_impl.h>
-#include <hdrs/net/fq.h>
-#include <hdrs/net/fq_impl.h>
 #include <hdrs/net/mac80211.h>
 
 /* artifacts of backports - never in upstream */
