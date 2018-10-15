@@ -64,6 +64,12 @@ static inline int crypto_memneq(const void *a, const void *b, size_t size)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
+
+static inline u32 reciprocal_scale(u32 val, u32 ep_ro)
+{
+	return (u32)(((u64) val * ep_ro) >> 32);
+}
+
 #include "u64_stats_sync.h"
 
 struct pcpu_sw_netstats {
@@ -2392,3 +2398,19 @@ struct cfg80211_ftm_responder_stats {
 #ifndef ETH_P_PREAUTH
 #define ETH_P_PREAUTH  0x88C7	/* 802.11 Preauthentication */
 #endif
+
+/* This was actually added in 4.12, but chromeos backported to 3.18 */
+#if LINUX_VERSION_IS_LESS(3,18,0)
+#include <net/flow_keys.h>
+#include <linux/jhash.h>
+
+static inline u32 skb_get_hash_perturb(struct sk_buff *skb, u32 key)
+{
+	struct flow_keys keys;
+
+	skb_flow_dissect(skb, &keys);
+	return jhash_3words((__force u32)keys.dst,
+			    (__force u32)keys.src ^ keys.ip_proto,
+			    (__force u32)keys.ports, key);
+}
+#endif /* LINUX_VERSION_IS_LESS(4,2,0) */
