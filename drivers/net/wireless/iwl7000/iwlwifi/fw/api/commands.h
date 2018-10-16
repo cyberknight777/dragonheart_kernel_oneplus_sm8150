@@ -362,6 +362,16 @@ enum iwl_legacy_cmds {
 	PHY_DB_CMD = 0x6c,
 
 	/**
+	 * @TOF_CMD: &struct iwl_tof_config_cmd
+	 */
+	TOF_CMD = 0x10,
+
+	/**
+	 * @TOF_NOTIFICATION: &struct iwl_tof_gen_resp_cmd
+	 */
+	TOF_NOTIFICATION = 0x11,
+
+	/**
 	 * @CONFIG_2G_COEX_CMD: &struct iwl_config_2g_coex_cmd
 	 */
 	CONFIG_2G_COEX_CMD = 0x71,

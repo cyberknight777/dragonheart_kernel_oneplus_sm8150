@@ -116,10 +116,6 @@ module_param_named(tfd_q_hang_detect, iwlmvm_mod_params.tfd_q_hang_detect,
 		   bool, 0444);
 MODULE_PARM_DESC(tfd_q_hang_detect,
 		 "TFD queues hang detection (default: true");
-module_param_named(ftm_resp_asap, iwlmvm_mod_params.ftm_resp_asap, bool, 0444);
-MODULE_PARM_DESC(ftm_resp_asap,
-		 "FTM responder ASAP mode only (non ASAP mode is disabled), default: false");
-
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 static void iwl_mvm_rx_fw_logs(struct iwl_mvm *mvm,
@@ -320,14 +316,8 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 		   RX_HANDLER_ASYNC_LOCKED),
 	RX_HANDLER(MFUART_LOAD_NOTIFICATION, iwl_mvm_rx_mfuart_notif,
 		   RX_HANDLER_SYNC),
-	RX_HANDLER_GRP(TOF_GROUP, TOF_RANGE_RESPONSE_NOTIF,
-		       iwl_mvm_tof_range_resp, RX_HANDLER_ASYNC_LOCKED),
-	RX_HANDLER_GRP(TOF_GROUP, TOF_MCSI_DEBUG_NOTIF,
-		       iwl_mvm_tof_mcsi_notif, RX_HANDLER_ASYNC_LOCKED),
-	RX_HANDLER_GRP(TOF_GROUP, TOF_RESPONDER_STATS,
-		       iwl_mvm_tof_responder_stats, RX_HANDLER_ASYNC_LOCKED),
-	RX_HANDLER_GRP(TOF_GROUP, TOF_LC_NOTIF,
-		       iwl_mvm_tof_lc_notif, RX_HANDLER_ASYNC_LOCKED),
+	RX_HANDLER(TOF_NOTIFICATION, iwl_mvm_tof_resp_handler,
+		   RX_HANDLER_ASYNC_LOCKED),
 	RX_HANDLER_GRP(DEBUG_GROUP, MFU_ASSERT_DUMP_NTF,
 		       iwl_mvm_mfu_assert_dump_notif, RX_HANDLER_SYNC),
 	RX_HANDLER_GRP(PROT_OFFLOAD_GROUP, STORED_BEACON_NTF,
@@ -371,6 +361,8 @@ static const struct iwl_hcmd_names iwl_mvm_legacy_names[] = {
 	HCMD_NAME(SCAN_REQ_UMAC),
 	HCMD_NAME(SCAN_ABORT_UMAC),
 	HCMD_NAME(SCAN_COMPLETE_UMAC),
+	HCMD_NAME(TOF_CMD),
+	HCMD_NAME(TOF_NOTIFICATION),
 	HCMD_NAME(BA_WINDOW_STATUS_NOTIFICATION_ID),
 	HCMD_NAME(ADD_STA_KEY),
 	HCMD_NAME(ADD_STA),
@@ -519,22 +511,6 @@ static const struct iwl_hcmd_names iwl_mvm_nan_names[] = {
 /* Please keep this array *SORTED* by hex value.
  * Access is done through binary search
  */
-static const struct iwl_hcmd_names iwl_mvm_tof_names[] = {
-	HCMD_NAME(TOF_RANGE_REQ_CMD),
-	HCMD_NAME(TOF_CONFIG_CMD),
-	HCMD_NAME(TOF_RANGE_ABORT_CMD),
-	HCMD_NAME(TOF_RANGE_REQ_EXT_CMD),
-	HCMD_NAME(TOF_RESPONDER_CONFIG_CMD),
-	HCMD_NAME(TOF_RESPONDER_DYN_CONFIG_CMD),
-	HCMD_NAME(TOF_LC_NOTIF),
-	HCMD_NAME(TOF_RESPONDER_STATS),
-	HCMD_NAME(TOF_MCSI_DEBUG_NOTIF),
-	HCMD_NAME(TOF_RANGE_RESPONSE_NOTIF),
-};
-
-/* Please keep this array *SORTED* by hex value.
- * Access is done through binary search
- */
 static const struct iwl_hcmd_names iwl_mvm_prot_offload_names[] = {
 	HCMD_NAME(STORED_BEACON_NTF),
 };
@@ -555,7 +531,6 @@ static const struct iwl_hcmd_arr iwl_mvm_groups[] = {
 	[PHY_OPS_GROUP] = HCMD_ARR(iwl_mvm_phy_names),
 	[DATA_PATH_GROUP] = HCMD_ARR(iwl_mvm_data_path_names),
 	[NAN_GROUP] = HCMD_ARR(iwl_mvm_nan_names),
-	[TOF_GROUP] = HCMD_ARR(iwl_mvm_tof_names),
 	[PROT_OFFLOAD_GROUP] = HCMD_ARR(iwl_mvm_prot_offload_names),
 	[REGULATORY_AND_NVM_GROUP] =
 		HCMD_ARR(iwl_mvm_regulatory_and_nvm_names),

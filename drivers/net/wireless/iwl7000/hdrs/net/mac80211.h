@@ -3616,12 +3616,6 @@ enum ieee80211_reconfig_type {
  *	pending frames that were received prior to the control path action
  *	currently taken (e.g. disassociation) but are not processed yet.
  *
- * @perform_ftm: Perform a Fine Timing Measurement with the given request
- *	parameters. The given request can only be used within the function call.
- * @abort_ftm: Abort a Fine Timing Measurement request. The given cookie must
- *	match that of the active FTM request.
- * @start_ftm_responder: Start FTM responder and configure its parameters.
- *
  * @start_nan: join an existing NAN cluster, or create a new one.
  * @stop_nan: leave the NAN cluster.
  * @nan_change_conf: change NAN configuration. The data in cfg80211_nan_conf
@@ -3907,17 +3901,6 @@ struct ieee80211_ops {
 	void (*wake_tx_queue)(struct ieee80211_hw *hw,
 			      struct ieee80211_txq *txq);
 	void (*sync_rx_queues)(struct ieee80211_hw *hw);
-
-	int (*perform_ftm)(struct ieee80211_hw *hw, u64 cookie,
-			   struct ieee80211_vif *vif,
-			   struct cfg80211_ftm_request *ftm_req);
-	int (*abort_ftm)(struct ieee80211_hw *hw, u64 cookie);
-	int (*start_ftm_responder)(struct ieee80211_hw *hw,
-				   struct ieee80211_vif *vif,
-				   struct cfg80211_ftm_responder_params *params);
-	int (*get_ftm_responder_stats)(struct ieee80211_hw *hw,
-				       struct ieee80211_vif *vif,
-				struct cfg80211_ftm_responder_stats *ftm_stats);
 
 	int (*start_nan)(struct ieee80211_hw *hw,
 			 struct ieee80211_vif *vif,

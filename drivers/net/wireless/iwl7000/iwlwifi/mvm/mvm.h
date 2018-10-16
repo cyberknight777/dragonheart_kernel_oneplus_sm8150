@@ -136,13 +136,11 @@ extern const struct ieee80211_ops iwl_mvm_hw_ops;
  *	proprietary tools over testmode to debug the INIT fw.
  * @tfd_q_hang_detect: enabled the detection of hung transmit queues
  * @power_scheme: one of enum iwl_power_scheme
- * @ftm_resp_asap: Disable non ASAP mode in FTM responder
  */
 struct iwl_mvm_mod_params {
 	bool init_dbg;
 	bool tfd_q_hang_detect;
 	int power_scheme;
-	bool ftm_resp_asap;
 };
 extern struct iwl_mvm_mod_params iwlmvm_mod_params;
 
@@ -378,7 +376,6 @@ struct iwl_probe_resp_data {
  *	average signal of beacons retrieved from the firmware
  * @csa_failed: CSA failed to schedule time event, report an error later
  * @features: hw features active for this vif
- * @ftm_responder: FTM responder is enabled on this interface (for AP only)
  * @probe_resp_data: data from FW notification to store NOA and CSA related
  *	data to be inserted into probe response.
  */
@@ -476,8 +473,6 @@ struct iwl_mvm_vif {
 
 	/* TCP Checksum Offload */
 	netdev_features_t features;
-
-	bool ftm_responder;
 
 	struct iwl_probe_resp_data __rcu *probe_resp_data;
 	struct ieee80211_key_conf *ap_wep_key;

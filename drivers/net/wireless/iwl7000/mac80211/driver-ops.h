@@ -1262,36 +1262,4 @@ static inline void drv_del_nan_func(struct ieee80211_local *local,
 	trace_drv_return_void(local);
 }
 
-static inline int
-drv_start_ftm_responder(struct ieee80211_local *local,
-			struct ieee80211_sub_if_data *sdata,
-			struct cfg80211_ftm_responder_params *params)
-{
-	u32 ret = -EOPNOTSUPP;
-
-	trace_drv_start_ftm_responder(local, sdata);
-	if (local->ops->start_ftm_responder)
-		ret = local->ops->start_ftm_responder(&local->hw, &sdata->vif,
-						      params);
-	trace_drv_return_int(local, ret);
-
-	return ret;
-}
-
-static inline int
-drv_get_ftm_responder_stats(struct ieee80211_local *local,
-			    struct ieee80211_sub_if_data *sdata,
-			    struct cfg80211_ftm_responder_stats *ftm_stats)
-{
-	u32 ret = -EOPNOTSUPP;
-
-	if (local->ops->get_ftm_responder_stats)
-		ret = local->ops->get_ftm_responder_stats(&local->hw,
-							 &sdata->vif,
-							 ftm_stats);
-	trace_drv_get_ftm_responder_stats(local, sdata, ftm_stats);
-
-	return ret;
-}
-
 #endif /* __MAC80211_DRIVER_OPS */

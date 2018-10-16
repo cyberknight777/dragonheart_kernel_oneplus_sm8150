@@ -531,15 +531,6 @@ static ssize_t iwl_dbgfs_os_device_timediff_read(struct file *file,
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
 
-/* TODO BEFORE UPSTREAMING:
-
-   All these TOF entries have a trigger string that actually sends the
-   command to the firmware.  It shouldn't be like this, all the values
-   should be set at once and end-of-buffer or file-close should be
-   used to send the command.  We must either remove these entries or
-   change them before sending this code upstream.
-*/
-
 static ssize_t iwl_dbgfs_tof_enable_write(struct ieee80211_vif *vif,
 					  char *buf,
 					  size_t count, loff_t *ppos)
@@ -641,6 +632,63 @@ static ssize_t iwl_dbgfs_tof_responder_params_write(struct ieee80211_vif *vif,
 
 	mutex_lock(&mvm->mutex);
 
+	data = iwl_dbgfs_is_match("burst_period=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (!ret)
+			mvm->tof_data.responder_cfg.burst_period =
+							cpu_to_le16(value);
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("min_delta_ftm=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.min_delta_ftm = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("burst_duration=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.burst_duration = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("num_of_burst_exp=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.num_of_burst_exp = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("abort_responder=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.abort_responder = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("get_ch_est=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.get_ch_est = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("recv_sta_req_params=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.recv_sta_req_params = value;
+		goto out;
+	}
+
 	data = iwl_dbgfs_is_match("channel_num=", buf);
 	if (data) {
 		ret = kstrtou32(data, 10, &value);
@@ -673,6 +721,15 @@ static ssize_t iwl_dbgfs_tof_responder_params_write(struct ieee80211_vif *vif,
 			ret = -EINVAL;
 			goto out;
 		}
+	}
+
+	data = iwl_dbgfs_is_match("tsf_timer_offset_msecs=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.tsf_timer_offset_msecs =
+							cpu_to_le16(value);
+		goto out;
 	}
 
 	data = iwl_dbgfs_is_match("toa_offset=", buf);
@@ -711,6 +768,30 @@ static ssize_t iwl_dbgfs_tof_responder_params_write(struct ieee80211_vif *vif,
 		goto out;
 	}
 
+	data = iwl_dbgfs_is_match("ftm_per_burst=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.ftm_per_burst = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("ftm_resp_ts_avail=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.ftm_resp_ts_avail = value;
+		goto out;
+	}
+
+	data = iwl_dbgfs_is_match("asap_mode=", buf);
+	if (data) {
+		ret = kstrtou32(data, 10, &value);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.asap_mode = value;
+		goto out;
+	}
+
 	data = iwl_dbgfs_is_match("send_responder_cfg=", buf);
 	if (data) {
 		ret = kstrtou32(data, 10, &value);
@@ -742,6 +823,10 @@ static ssize_t iwl_dbgfs_tof_responder_params_read(struct file *file,
 
 	mutex_lock(&mvm->mutex);
 
+	pos += scnprintf(buf + pos, bufsz - pos, "burst_period = %d\n",
+			 le16_to_cpu(cmd->burst_period));
+	pos += scnprintf(buf + pos, bufsz - pos, "burst_duration = %d\n",
+			 cmd->burst_duration);
 	pos += scnprintf(buf + pos, bufsz - pos, "bandwidth = %d\n",
 			 cmd->bandwidth);
 	pos += scnprintf(buf + pos, bufsz - pos, "channel_num = %d\n",
@@ -750,7 +835,26 @@ static ssize_t iwl_dbgfs_tof_responder_params_read(struct file *file,
 			 cmd->ctrl_ch_position);
 	pos += scnprintf(buf + pos, bufsz - pos, "bssid = %pM\n",
 			 cmd->bssid);
+	pos += scnprintf(buf + pos, bufsz - pos, "min_delta_ftm = %d\n",
+			 cmd->min_delta_ftm);
+	pos += scnprintf(buf + pos, bufsz - pos, "num_of_burst_exp = %d\n",
+			 cmd->num_of_burst_exp);
 	pos += scnprintf(buf + pos, bufsz - pos, "rate = %d\n", cmd->rate);
+	pos += scnprintf(buf + pos, bufsz - pos, "abort_responder = %d\n",
+			 cmd->abort_responder);
+	pos += scnprintf(buf + pos, bufsz - pos, "get_ch_est = %d\n",
+			 cmd->get_ch_est);
+	pos += scnprintf(buf + pos, bufsz - pos, "recv_sta_req_params = %d\n",
+			 cmd->recv_sta_req_params);
+	pos += scnprintf(buf + pos, bufsz - pos, "ftm_per_burst = %d\n",
+			 cmd->ftm_per_burst);
+	pos += scnprintf(buf + pos, bufsz - pos, "ftm_resp_ts_avail = %d\n",
+			 cmd->ftm_resp_ts_avail);
+	pos += scnprintf(buf + pos, bufsz - pos, "asap_mode = %d\n",
+			 cmd->asap_mode);
+	pos += scnprintf(buf + pos, bufsz - pos,
+			 "tsf_timer_offset_msecs = %d\n",
+			 le16_to_cpu(cmd->tsf_timer_offset_msecs));
 	pos += scnprintf(buf + pos, bufsz - pos, "toa_offset = %d\n",
 			 le16_to_cpu(cmd->toa_offset));
 
@@ -766,19 +870,10 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm *mvm = mvmvif->mvm;
 	u32 value;
-	s16 svalue;
 	int ret = 0;
 	char *data;
 
 	mutex_lock(&mvm->mutex);
-
-	/* nesting of range requests is not supported in FW */
-	if (mvm->tof_data.active_request_id != IWL_MVM_TOF_RANGE_REQ_MAX_ID) {
-		IWL_ERR(mvm, "Cannot send range req, already active req %d\n",
-			mvm->tof_data.active_request_id);
-		ret = -EBUSY;
-		goto out;
-	}
 
 	data = iwl_dbgfs_is_match("request_id=", buf);
 	if (data) {
@@ -808,7 +903,7 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 	if (data) {
 		ret = kstrtou32(data, 10, &value);
 		if (ret == 0)
-			mvm->tof_data.req_timeout_override = value;
+			mvm->tof_data.range_req.req_timeout = value;
 		goto out;
 	}
 
@@ -860,24 +955,6 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 		goto out;
 	}
 
-	data = iwl_dbgfs_is_match("common_calib=", buf);
-	if (data) {
-		ret = kstrtos16(data, 10, &svalue);
-		if (ret == 0)
-			mvm->tof_data.range_req.common_calib =
-				cpu_to_le16(svalue);
-		goto out;
-	}
-
-	data = iwl_dbgfs_is_match("specific_calib=", buf);
-	if (data) {
-		ret = kstrtos16(data, 10, &svalue);
-		if (ret == 0)
-			mvm->tof_data.range_req.specific_calib =
-				cpu_to_le16(svalue);
-		goto out;
-	}
-
 	data = iwl_dbgfs_is_match("ap=", buf);
 	if (data) {
 		struct iwl_tof_range_req_ap_entry ap = {};
@@ -918,7 +995,7 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 	if (data) {
 		ret = kstrtou32(data, 10, &value);
 		if (ret == 0 && value)
-			ret = iwl_mvm_tof_range_request_cmd(mvm);
+			ret = iwl_mvm_tof_range_request_cmd(mvm, vif);
 		goto out;
 	}
 
@@ -961,10 +1038,6 @@ static ssize_t iwl_dbgfs_tof_range_request_read(struct file *file,
 			 cmd->macaddr_template);
 	pos += scnprintf(buf + pos, bufsz - pos, "macaddr_mask= %pM\n",
 			 cmd->macaddr_mask);
-	pos += scnprintf(buf + pos, bufsz - pos, "common_calib= %d\n",
-			 le16_to_cpu(cmd->common_calib));
-	pos += scnprintf(buf + pos, bufsz - pos, "specific_calib= %d\n",
-			 le16_to_cpu(cmd->specific_calib));
 	pos += scnprintf(buf + pos, bufsz - pos, "num_of_ap= %d\n",
 			 cmd->num_of_ap);
 	for (i = 0; i < cmd->num_of_ap; i++) {
@@ -1052,7 +1125,7 @@ static ssize_t iwl_dbgfs_tof_range_req_ext_write(struct ieee80211_vif *vif,
 	if (data) {
 		ret = kstrtou32(data, 10, &value);
 		if (ret == 0 && value)
-			ret = iwl_mvm_tof_range_request_ext_cmd(mvm);
+			ret = iwl_mvm_tof_range_request_ext_cmd(mvm, vif);
 		goto out;
 	}
 
@@ -1201,242 +1274,6 @@ static ssize_t iwl_dbgfs_tof_range_response_read(struct file *file,
 	ret = simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 	kfree(buf);
 	return ret;
-}
-
-static ssize_t iwl_dbgfs_tof_algo_type_write(struct ieee80211_vif *vif,
-					     char *buf, size_t count,
-					     loff_t *ppos)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	u8 algo_type;
-	int ret;
-
-	ret = kstrtou8(buf, 0, &algo_type);
-	if (ret)
-		return ret;
-
-	if (algo_type >= IWL_TOF_ALGO_TYPE_INVALID)
-		return -EINVAL;
-
-	mvm->tof_data.tof_algo_type = algo_type;
-
-	return count;
-}
-
-static ssize_t iwl_dbgfs_tof_algo_type_read(struct file *file,
-					    char __user *user_buf,
-					    size_t count, loff_t *ppos)
-{
-	struct ieee80211_vif *vif = file->private_data;
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	char buf[10];
-	int ret;
-
-	ret = scnprintf(buf, sizeof(buf), "%d\n", mvm->tof_data.tof_algo_type);
-
-	return simple_read_from_buffer(user_buf, count, ppos, buf, ret);
-}
-
-static ssize_t iwl_dbgfs_tof_toa_offset_write(struct ieee80211_vif *vif,
-					      char *buf, size_t count,
-					      loff_t *ppos)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	s16 toa_offset;
-	int ret;
-
-	ret = kstrtos16(buf, 0, &toa_offset);
-	if (ret)
-		return ret;
-
-	mutex_lock(&mvm->mutex);
-
-	mvm->tof_data.responder_cfg.toa_offset = cpu_to_le16(toa_offset);
-	mvm->tof_data.responder_cfg.cmd_valid_fields =
-		cpu_to_le32(IWL_TOF_RESPONDER_CMD_VALID_TOA_OFFSET);
-
-	ret = iwl_mvm_tof_responder_cmd(mvm, vif);
-
-	mutex_unlock(&mvm->mutex);
-
-	return ret ?: count;
-}
-
-static ssize_t iwl_dbgfs_tof_toa_offset_read(struct file *file,
-					     char __user *user_buf,
-					     size_t count, loff_t *ppos)
-{
-	struct ieee80211_vif *vif = file->private_data;
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	char buf[10];
-	int ret;
-
-	ret = scnprintf(buf, sizeof(buf), "%u\n", mvm->tof_data.toa_offset);
-
-	return simple_read_from_buffer(user_buf, count, ppos, buf, ret);
-}
-
-static ssize_t iwl_dbgfs_tof_responder_config_write(
-					struct ieee80211_vif *vif,
-					char *buf, size_t count,
-					loff_t *ppos)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	u32 cmd_valid_fields;
-	u32 responder_cfg_flags;
-	s16 common_calib;
-	int ret = 0;
-	char *data;
-
-	mutex_lock(&mvm->mutex);
-
-	data = iwl_dbgfs_is_match("cmd_valid_fields=", buf);
-	if (data) {
-		ret = kstrtou32(data, 0, &cmd_valid_fields);
-		if (ret == 0)
-			mvm->tof_data.responder_cfg.cmd_valid_fields =
-				cpu_to_le32(cmd_valid_fields);
-		else
-			goto out;
-	}
-
-	data = iwl_dbgfs_is_match("responder_cfg_flags=", buf);
-	if (data) {
-		ret = kstrtou32(data, 0, &responder_cfg_flags);
-		if (ret == 0)
-			mvm->tof_data.responder_cfg.responder_cfg_flags =
-				cpu_to_le32(responder_cfg_flags);
-		else
-			goto out;
-	}
-
-	data = iwl_dbgfs_is_match("common_calib=", buf);
-	if (data) {
-		ret = kstrtos16(data, 0, &common_calib);
-		if (ret == 0)
-			mvm->tof_data.responder_cfg.common_calib =
-				cpu_to_le16(common_calib);
-		else
-			goto out;
-	}
-
-	data = iwl_dbgfs_is_match("responder_cfg_cmd_send=", buf);
-	if (data) {
-		ret = kstrtou32(data, 0, &responder_cfg_flags);
-		if (ret == 0)
-			ret = iwl_mvm_tof_responder_cmd(mvm, vif);
-	}
-
-out:
-	mutex_unlock(&mvm->mutex);
-
-	return ret ?: count;
-}
-
-static ssize_t iwl_dbgfs_tof_responder_config_read(
-					struct file *file,
-					char __user *user_buf,
-					size_t count, loff_t *ppos)
-{
-	struct ieee80211_vif *vif = file->private_data;
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	char buf[128];
-	int ret;
-
-	ret = scnprintf(buf,
-			sizeof(buf),
-			"responder_cfg_flags=0x%x\ncmd_valid_fields=0x%x\n",
-			mvm->tof_data.responder_cfg.responder_cfg_flags,
-			mvm->tof_data.responder_cfg.cmd_valid_fields);
-
-	return simple_read_from_buffer(user_buf, count, ppos, buf, ret);
-}
-
-static ssize_t iwl_dbgfs_tof_initiator_config_write(
-					      struct ieee80211_vif *vif,
-					      char *buf, size_t count,
-					      loff_t *ppos)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	u32 initiator_cfg_flags;
-	int ret = 0;
-	char *data;
-
-	mutex_lock(&mvm->mutex);
-
-	/* expected string is "initiator_cfg_flags=0x123" */
-	data = iwl_dbgfs_is_match("initiator_cfg_flags=", buf);
-	if (data) {
-		ret = kstrtou32(data, 0, &initiator_cfg_flags);
-		if (ret == 0)
-			mvm->tof_data.range_req.initiator_flags =
-				cpu_to_le32(initiator_cfg_flags);
-	}
-
-	mutex_unlock(&mvm->mutex);
-
-	return ret ?: count;
-}
-
-static ssize_t iwl_dbgfs_tof_initiator_config_read(struct file *file,
-						   char __user *user_buf,
-						   size_t count, loff_t *ppos)
-{
-	struct ieee80211_vif *vif = file->private_data;
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	char buf[32];
-	int ret;
-
-	ret = scnprintf(buf, sizeof(buf), "initiator_cfg_flags=0x%x\n",
-			mvm->tof_data.range_req.initiator_flags);
-
-	return simple_read_from_buffer(user_buf, count, ppos, buf, ret);
-}
-
-static ssize_t iwl_dbgfs_tof_enable_dyn_ack_write(struct ieee80211_vif *vif,
-						  char *buf, size_t count,
-						  loff_t *ppos)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	u8 value;
-	int ret;
-
-	ret = kstrtou8(buf, 0, &value);
-	if (ret)
-		return ret;
-	if (value > 1)
-		return -EINVAL;
-
-	mutex_lock(&mvm->mutex);
-	mvm->tof_data.enable_dyn_ack = value;
-	mutex_unlock(&mvm->mutex);
-
-	return count;
-}
-
-static ssize_t iwl_dbgfs_tof_enable_dyn_ack_read(struct file *file,
-						 char __user *user_buf,
-						 size_t count, loff_t *ppos)
-{
-	struct ieee80211_vif *vif = file->private_data;
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mvm *mvm = mvmvif->mvm;
-	char buf[32];
-	int pos = 0;
-	const size_t bufsz = sizeof(buf);
-
-	pos += scnprintf(buf + pos, bufsz - pos, "enable_dyn_ack = %d\n",
-			 mvm->tof_data.enable_dyn_ack);
-	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
 
 static ssize_t iwl_dbgfs_low_latency_write(struct ieee80211_vif *vif, char *buf,
@@ -1631,11 +1468,6 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(uapsd_misbehaving, 20);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(rx_phyinfo, 10);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_enable, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_range_request, 512);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_algo_type, 10);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_toa_offset, 10);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_responder_config, 64);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_initiator_config, 64);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_enable_dyn_ack, 8);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_range_req_ext, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(tof_range_abort, 32);
 MVM_DEBUGFS_READ_FILE_OPS(tof_range_response);
@@ -1703,19 +1535,7 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_range_abort, mvmvif->dbgfs_dir,
 					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_range_response, mvmvif->dbgfs_dir,
-					 0444);
-		MVM_DEBUGFS_ADD_FILE_VIF(tof_algo_type, mvmvif->dbgfs_dir,
-					 0600);
-		MVM_DEBUGFS_ADD_FILE_VIF(tof_toa_offset, mvmvif->dbgfs_dir,
-					 0600);
-		MVM_DEBUGFS_ADD_FILE_VIF(tof_responder_config,
-					 mvmvif->dbgfs_dir,
-					 0600);
-		MVM_DEBUGFS_ADD_FILE_VIF(tof_initiator_config,
-					 mvmvif->dbgfs_dir,
-					 0600);
-		MVM_DEBUGFS_ADD_FILE_VIF(tof_enable_dyn_ack, mvmvif->dbgfs_dir,
-					 0600);
+					 0400);
 	}
 
 	/*
