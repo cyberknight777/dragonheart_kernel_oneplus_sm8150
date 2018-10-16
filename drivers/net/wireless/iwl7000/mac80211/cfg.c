@@ -3998,6 +3998,30 @@ ieee80211_get_ftm_responder_stats(struct wiphy *wiphy,
 }
 #endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,21,0)
+static int
+ieee80211_start_pmsr(struct wiphy *wiphy, struct wireless_dev *dev,
+		     struct cfg80211_pmsr_request *request)
+{
+	struct ieee80211_local *local = wiphy_priv(wiphy);
+	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(dev);
+
+	return drv_start_pmsr(local, sdata, request);
+}
+#endif
+
+#if CFG80211_VERSION >= KERNEL_VERSION(4,21,0)
+static void
+ieee80211_abort_pmsr(struct wiphy *wiphy, struct wireless_dev *dev,
+		     struct cfg80211_pmsr_request *request)
+{
+	struct ieee80211_local *local = wiphy_priv(wiphy);
+	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(dev);
+
+	return drv_abort_pmsr(local, sdata, request);
+}
+#endif
+
 #if CFG80211_VERSION < KERNEL_VERSION(3,14,0)
 static int _wrap_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 			 struct ieee80211_channel *chan, bool offchan,
@@ -4158,5 +4182,11 @@ const struct cfg80211_ops mac80211_config_ops = {
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
 	.get_ftm_responder_stats = ieee80211_get_ftm_responder_stats,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,21,0)
+	.start_pmsr = ieee80211_start_pmsr,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,21,0)
+	.abort_pmsr = ieee80211_abort_pmsr,
 #endif
 };
