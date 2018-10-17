@@ -1021,6 +1021,7 @@ void iwl_mvm_mac_itxq_xmit(struct ieee80211_hw *hw, struct ieee80211_txq *txq)
 
 	spin_lock(&mvmtxq->tx_path_lock);
 
+	rcu_read_lock();
 	while (likely(!mvmtxq->stopped &&
 		      (mvm->trans->system_pm_mode ==
 		       IWL_PLAT_PM_MODE_DISABLED))) {
@@ -1034,6 +1035,7 @@ void iwl_mvm_mac_itxq_xmit(struct ieee80211_hw *hw, struct ieee80211_txq *txq)
 		else
 			iwl_mvm_tx_skb(mvm, skb, txq->sta);
 	}
+	rcu_read_unlock();
 
 	spin_unlock(&mvmtxq->tx_path_lock);
 }
