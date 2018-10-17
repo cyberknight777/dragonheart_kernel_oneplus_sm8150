@@ -1064,8 +1064,11 @@ static int iwl_mvm_sar_init(struct iwl_mvm *mvm)
 		IWL_DEBUG_RADIO(mvm,
 				"WRDS SAR BIOS table invalid or unavailable. (%d)\n",
 				ret);
-		/* if not available, don't fail and don't bother with EWRD */
-		return 0;
+		/*
+		 * If not available, don't fail and don't bother with EWRD.
+		 * Return 1 to tell that we can't use WGDS either.
+		 */
+		return 1;
 	}
 
 	ret = iwl_mvm_sar_get_ewrd_table(mvm);
@@ -1087,9 +1090,13 @@ static int iwl_mvm_sar_init(struct iwl_mvm *mvm)
 #endif
 	ret = iwl_mvm_sar_select_profile(mvm, 1, 1);
 
-	/* if we don't have profile 0 from BIOS, just skip it */
+	/*
+	 * If we don't have profile 0 from BIOS, just skip it.  This
+	 * means that SAR Geo will not be enabled either, even if we
+	 * have other valid profiles.
+	 */
 	if (ret == -ENOENT)
-		return 0;
+		return 1;
 
 	return ret;
 }
@@ -1328,12 +1335,16 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 #endif
 
 	ret = iwl_mvm_sar_init(mvm);
-	if (ret)
+	if (ret == 0) {
+		ret = iwl_mvm_sar_geo_init(mvm);
+		if (ret)
+			goto error;
+	} else if (ret > 0) {
+		/* we can't use SAR Geo if basic SAR is not available */
+		IWL_ERR(mvm, "BIOS contains WGDS but no WRDS\n");
+	} else {
 		goto error;
-
-	ret = iwl_mvm_sar_geo_init(mvm);
-	if (ret)
-		goto error;
+	}
 
 	iwl_mvm_leds_sync(mvm);
 
