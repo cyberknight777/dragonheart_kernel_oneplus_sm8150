@@ -1337,14 +1337,18 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	ret = iwl_mvm_sar_init(mvm);
 	if (ret == 0) {
 		ret = iwl_mvm_sar_geo_init(mvm);
-		if (ret)
-			goto error;
-	} else if (ret > 0) {
-		/* we can't use SAR Geo if basic SAR is not available */
+	} else if (ret > 0 && !iwl_mvm_sar_get_wgds_table(mvm)) {
+		/*
+		 * If basic SAR is not available, we check for WGDS,
+		 * which should *not* be available either.  If it is
+		 * available, issue an error, because we can't use SAR
+		 * Geo without basic SAR.
+		 */
 		IWL_ERR(mvm, "BIOS contains WGDS but no WRDS\n");
-	} else {
-		goto error;
 	}
+
+	if (ret < 0)
+		goto error;
 
 	iwl_mvm_leds_sync(mvm);
 
