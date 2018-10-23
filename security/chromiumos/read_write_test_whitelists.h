@@ -45,6 +45,7 @@ static struct syscall_whitelist_entry read_write_test_whitelist[] = {
 static struct syscall_whitelist_entry read_write_test_compat_whitelist[] = {
 	COMPAT_SYSCALL_ENTRY(exit),
 	COMPAT_SYSCALL_ENTRY(open),
+	COMPAT_SYSCALL_ENTRY(openat),
 	COMPAT_SYSCALL_ENTRY(close),
 	COMPAT_SYSCALL_ENTRY(read),
 	COMPAT_SYSCALL_ENTRY(write),
