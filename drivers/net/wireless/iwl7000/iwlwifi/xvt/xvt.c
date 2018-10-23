@@ -392,7 +392,7 @@ static void iwl_xvt_reclaim_and_free(struct iwl_xvt *xvt,
 		}
 
 
-		if (skb_info && skb_info->dev_cmd)
+		if (skb_info->dev_cmd)
 			iwl_trans_free_tx_cmd(xvt->trans, skb_info->dev_cmd);
 		kfree_skb(skb);
 	}
