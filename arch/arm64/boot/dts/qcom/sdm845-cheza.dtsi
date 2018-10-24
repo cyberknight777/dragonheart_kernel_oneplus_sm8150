@@ -123,14 +123,6 @@
 
 	/* BOARD-SPECIFIC TOP LEVEL NODES */
 
-	firmware: firmware {
-		chromeos {
-			pinctrl-names = "default";
-			pinctrl-0 = <&bios_flash_wp_r_l>;
-			write-protect-gpio = <&tlmm 128 GPIO_ACTIVE_LOW>;
-		};
-	};
-
 	gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -843,6 +835,12 @@ ap_ts_i2c: &i2c14 {
 };
 
 &tlmm {
+	/*
+	 * pinctrl settings for pins that have no real owners.
+	 */
+	pinctrl-names = "default";
+	pinctrl-0 = <&bios_flash_wp_r_l>;
+
 	ap_edp_bklten: ap-edp-bklten {
 		pinmux {
 			pins = "gpio37";

@@ -82,10 +82,6 @@
  * (modifications to sdm845-cheza.dtsi) - alphabetized by dtsi label
  */
 
-&firmware {
-	/delete-node/ chromeos;
-};
-
 /* PINCTRL - board-specific pinctrl */
 
 &tlmm {
