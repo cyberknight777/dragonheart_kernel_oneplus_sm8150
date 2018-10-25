@@ -1464,3 +1464,20 @@ void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 		iwl_mvm_power_update_device(mvm);
 	}
 }
+
+int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
+{
+	struct iwl_channel_estimation_cfg cfg = {
+		.flags = cpu_to_le32(mvm->csi_cfg.flags),
+		.timer = cpu_to_le32(mvm->csi_cfg.timer),
+		.count = cpu_to_le32(mvm->csi_cfg.count),
+		.frame_types = cpu_to_le64(mvm->csi_cfg.frame_types),
+		.rate_n_flags_val = cpu_to_le32(mvm->csi_cfg.rate_n_flags_val),
+		.rate_n_flags_mask =
+			cpu_to_le32(mvm->csi_cfg.rate_n_flags_mask),
+	};
+	u32 id = iwl_cmd_id(CHEST_COLLECTOR_FILTER_CONFIG_CMD,
+			    DATA_PATH_GROUP, 0);
+
+	return iwl_mvm_send_cmd_pdu(mvm, id, 0, sizeof(cfg), &cfg);
+}

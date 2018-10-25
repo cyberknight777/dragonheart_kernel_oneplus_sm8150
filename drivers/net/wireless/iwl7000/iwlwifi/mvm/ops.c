@@ -267,6 +267,12 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 	RX_HANDLER_GRP(DATA_PATH_GROUP, TLC_MNG_UPDATE_NOTIF,
 		       iwl_mvm_tlc_update_notif, RX_HANDLER_SYNC),
 
+	/* these two MUST be sync to avoid reorder issues */
+	RX_HANDLER_GRP(LOCATION_GROUP, CSI_HEADER_NOTIFICATION,
+		       iwl_mvm_rx_csi_header, RX_HANDLER_SYNC),
+	RX_HANDLER_GRP(LOCATION_GROUP, CSI_CHUNKS_NOTIFICATION,
+		       iwl_mvm_rx_csi_chunk, RX_HANDLER_SYNC),
+
 	RX_HANDLER(BT_PROFILE_NOTIFICATION, iwl_mvm_rx_bt_coex_notif,
 		   RX_HANDLER_ASYNC_LOCKED),
 	RX_HANDLER(BEACON_NOTIFICATION, iwl_mvm_rx_beacon_notif,
@@ -480,6 +486,7 @@ static const struct iwl_hcmd_names iwl_mvm_data_path_names[] = {
 	HCMD_NAME(TRIGGER_RX_QUEUES_NOTIF_CMD),
 	HCMD_NAME(STA_HE_CTXT_CMD),
 	HCMD_NAME(RFH_QUEUE_CONFIG_CMD),
+	HCMD_NAME(CHEST_COLLECTOR_FILTER_CONFIG_CMD),
 	HCMD_NAME(STA_PM_NOTIF),
 	HCMD_NAME(MU_GROUP_MGMT_NOTIF),
 	HCMD_NAME(RX_QUEUES_NOTIFICATION),
@@ -805,6 +812,25 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	skb_queue_head_init(&mvm->d0i3_tx);
 	init_waitqueue_head(&mvm->d0i3_exit_waitq);
 	init_waitqueue_head(&mvm->rx_sync_waitq);
+
+	/* initialize CSI collector */
+	skb_queue_head_init(&mvm->csi_pending);
+
+	if (iwl_enable_rx_ampdu()) {
+		/*
+		 * We cannot properly capture CSI on A-MPDUs due to
+		 * queue/csi/reordering issues (during normal operation,
+		 * we could theoretically in sniffer), so in that case
+		 * we prevent doing it on data frames.
+		 */
+		mvm->csi_cfg.frame_types = ~0x4444444444444444ULL;
+	} else {
+		/*
+		 * by default capture all frame types
+		 * (but of course leave it disabled)
+		 */
+		mvm->csi_cfg.frame_types = ~0ULL;
+	}
 
 	atomic_set(&mvm->queue_sync_counter, 0);
 

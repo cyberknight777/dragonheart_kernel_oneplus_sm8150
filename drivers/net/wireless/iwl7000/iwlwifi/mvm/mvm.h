@@ -840,6 +840,12 @@ struct iwl_mvm_dqa_txq_info {
 	enum iwl_mvm_queue_status status;
 };
 
+struct iwl_csi_data_buffer {
+	struct page *page;
+	unsigned int offset;
+	unsigned int page_order;
+};
+
 struct iwl_mvm {
 	/* for logger access */
 	struct device *dev;
@@ -876,6 +882,11 @@ struct iwl_mvm {
 	u32 log_event_table;
 	u32 umac_error_event_table;
 	bool support_umac_log;
+
+	struct sk_buff_head csi_pending;
+
+	/* we can have up to four chunks, plus the first notification */
+	struct iwl_csi_data_buffer csi_data_entries[5];
 
 	u32 ampdu_ref;
 	bool ampdu_toggle;
@@ -1167,6 +1178,15 @@ struct iwl_mvm {
 	struct iwl_mcast_filter_cmd *mcast_active_filter_cmd;
 	u8 rx_filters;
 #endif
+
+	struct {
+		u32 flags;
+		u32 timer;
+		u32 count;
+		u64 frame_types;
+		u32 rate_n_flags_val;
+		u32 rate_n_flags_mask;
+	} csi_cfg;
 
 	struct ieee80211_vif *nan_vif;
 #define IWL_MAX_BAID	32
@@ -1542,6 +1562,7 @@ void iwl_mvm_dump_nic_error_log(struct iwl_mvm *mvm);
 u8 first_antenna(u8 mask);
 u8 iwl_mvm_next_antenna(struct iwl_mvm *mvm, u8 valid, u8 last_idx);
 void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime);
+int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm);
 
 /* Tx / Host Commands */
 int __must_check iwl_mvm_send_cmd(struct iwl_mvm *mvm,
@@ -1675,6 +1696,8 @@ void iwl_mvm_rx_mfuart_notif(struct iwl_mvm *mvm,
 			     struct iwl_rx_cmd_buffer *rxb);
 void iwl_mvm_rx_shared_mem_cfg_notif(struct iwl_mvm *mvm,
 				     struct iwl_rx_cmd_buffer *rxb);
+void iwl_mvm_rx_csi_header(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
+void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
 
 /* MVM PHY */
 int iwl_mvm_phy_ctxt_add(struct iwl_mvm *mvm, struct iwl_mvm_phy_ctxt *ctxt,

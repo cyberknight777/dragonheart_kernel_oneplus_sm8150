@@ -69,6 +69,7 @@
 #include "sta.h"
 #include "iwl-io.h"
 #include "debugfs.h"
+#include "iwl-modparams.h"
 #include "fw/error-dump.h"
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
@@ -1840,6 +1841,173 @@ static ssize_t iwl_dbgfs_tx_power_status_read(struct file *file,
 }
 #endif
 
+static ssize_t iwl_dbgfs_csi_enabled_read(struct file *file,
+					  char __user *user_buf,
+					  size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[] = {
+		mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_ENABLE ? '1' : '0',
+		'\n'
+	};
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, 2);
+}
+
+static ssize_t iwl_dbgfs_csi_enabled_write(struct iwl_mvm *mvm, char *buf,
+					   size_t count, loff_t *ppos)
+{
+	int err;
+	bool enabled;
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	err = kstrtobool(buf, &enabled);
+	if (err)
+		return err;
+
+	/*
+	 * disable -> disable is a no-op, but
+	 * enable -> enable resets the timer/count
+	 */
+	if (!enabled && !(mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_ENABLE))
+		return count;
+
+	mutex_lock(&mvm->mutex);
+	mvm->csi_cfg.flags &= ~IWL_CHANNEL_ESTIMATION_ENABLE;
+	if (enabled)
+		mvm->csi_cfg.flags |= IWL_CHANNEL_ESTIMATION_ENABLE;
+
+	if (iwl_mvm_firmware_running(mvm))
+		err = iwl_mvm_send_csi_cmd(mvm);
+	mutex_unlock(&mvm->mutex);
+
+	return err ?: count;
+}
+
+static ssize_t iwl_dbgfs_csi_count_read(struct file *file,
+					char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	s64 ctr = -1;
+	u8 buf[32];
+	int len;
+
+	if (mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_COUNTER)
+		ctr = mvm->csi_cfg.count;
+	len = scnprintf(buf, sizeof(buf), "%lld\n", ctr);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static ssize_t iwl_dbgfs_csi_count_write(struct iwl_mvm *mvm, char *buf,
+					 size_t count, loff_t *ppos)
+{
+	int err;
+	s64 ctr;
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	err = kstrtos64(buf, 0, &ctr);
+	if (err)
+		return err;
+
+	if (ctr <= 0) {
+		mvm->csi_cfg.flags &= ~IWL_CHANNEL_ESTIMATION_COUNTER;
+		mvm->csi_cfg.count = 0;
+	} else if (ctr <= UINT_MAX) {
+		mvm->csi_cfg.flags |= IWL_CHANNEL_ESTIMATION_COUNTER;
+		mvm->csi_cfg.count = ctr;
+	} else {
+		return -ERANGE;
+	}
+
+	return count;
+}
+
+static ssize_t iwl_dbgfs_csi_timeout_read(struct file *file,
+					  char __user *user_buf,
+					  size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	s64 timer = -1;
+	u8 buf[32];
+	int len;
+
+	if (mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_TIMER)
+		timer = mvm->csi_cfg.timer;
+	len = scnprintf(buf, sizeof(buf), "%lld\n", timer);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static ssize_t iwl_dbgfs_csi_timeout_write(struct iwl_mvm *mvm, char *buf,
+					   size_t count, loff_t *ppos)
+{
+	int err;
+	s64 timer;
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	err = kstrtos64(buf, 0, &timer);
+	if (err)
+		return err;
+
+	if (timer < 0) {
+		mvm->csi_cfg.flags &= ~IWL_CHANNEL_ESTIMATION_TIMER;
+		mvm->csi_cfg.timer = 0;
+	} else if (timer <= UINT_MAX) {
+		mvm->csi_cfg.flags |= IWL_CHANNEL_ESTIMATION_TIMER;
+		mvm->csi_cfg.timer = timer;
+	} else {
+		return -ERANGE;
+	}
+
+	return count;
+}
+
+static ssize_t iwl_dbgfs_csi_frame_types_read(struct file *file,
+					      char __user *user_buf,
+					      size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[32];
+	int len;
+
+	len = scnprintf(buf, sizeof(buf), "0x%llx\n", mvm->csi_cfg.frame_types);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static ssize_t iwl_dbgfs_csi_frame_types_write(struct iwl_mvm *mvm, char *buf,
+					       size_t count, loff_t *ppos)
+{
+	int err;
+	u64 frame_types;
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	err = kstrtou64(buf, 0, &frame_types);
+	if (err)
+		return err;
+
+	if (iwl_enable_rx_ampdu() && frame_types & 0x4444444444444444ULL)
+		return -ENOTSUPP;
+
+	mvm->csi_cfg.frame_types = frame_types;
+
+	return count;
+}
+
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(prph_reg, 64);
 
 /* Device wide debugfs entries */
@@ -1894,6 +2062,11 @@ MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
 
 MVM_DEBUGFS_WRITE_FILE_OPS(he_sniffer_params, 32);
+
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_enabled, 8);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_count, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_timeout, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_frame_types, 32);
 
 static ssize_t iwl_dbgfs_mem_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -2093,6 +2266,22 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, 0400);
 #endif
 	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0200);
+
+	if (fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING)) {
+		MVM_DEBUGFS_ADD_FILE(csi_enabled, mvm->debugfs_dir, 0600);
+		MVM_DEBUGFS_ADD_FILE(csi_count, mvm->debugfs_dir, 0600);
+		MVM_DEBUGFS_ADD_FILE(csi_timeout, mvm->debugfs_dir, 0600);
+		MVM_DEBUGFS_ADD_FILE(csi_frame_types, mvm->debugfs_dir, 0600);
+		if (!debugfs_create_u32("csi_rate_n_flags_val", 0600,
+					mvm->debugfs_dir,
+					&mvm->csi_cfg.rate_n_flags_val))
+			goto err;
+		if (!debugfs_create_u32("csi_rate_n_flags_mask", 0600,
+					mvm->debugfs_dir,
+					&mvm->csi_cfg.rate_n_flags_mask))
+			goto err;
+	}
 
 	if (!debugfs_create_bool("enable_scan_iteration_notif",
 				 0600,
