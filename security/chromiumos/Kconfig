@@ -1,6 +1,7 @@
 config SECURITY_CHROMIUMOS
 	bool "Chromium OS Security Module"
 	depends on SECURITY
+	depends on X86_64 || ARM64
 	help
 	  The purpose of the Chromium OS security module is to reduce attacking
 	  surface by preventing access to general purpose access modes not
