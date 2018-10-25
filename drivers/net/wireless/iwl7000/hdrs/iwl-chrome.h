@@ -989,4 +989,13 @@ static inline int genl_err_attr(struct genl_info *info, int err,
 	return err;
 }
 #endif
+
+#if LINUX_VERSION_IS_LESS(4,19,0)
+#ifndef atomic_fetch_add_unless
+static inline int atomic_fetch_add_unless(atomic_t *v, int a, int u)
+{
+		return __atomic_add_unless(v, a, u);
+}
+#endif
+#endif /* LINUX_VERSION_IS_LESS(4,19,0) */
 #endif /* __IWL_CHROME */
