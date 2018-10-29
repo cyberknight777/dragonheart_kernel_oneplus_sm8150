@@ -1254,9 +1254,11 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		u32 f = 0;
 		u32 *flags = &f;
 #endif
+		struct vif_params params = {0};
+
 		result = ieee80211_if_add(local, "wlan%d", NET_NAME_ENUM,
 					  NULL, NL80211_IFTYPE_STATION,
-					  mon_opts_params(NULL));
+					  mon_opts_params(&params));
 		if (result)
 			wiphy_warn(local->hw.wiphy,
 				   "Failed to add default virtual iface\n");

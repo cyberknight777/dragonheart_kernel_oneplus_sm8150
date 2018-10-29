@@ -1920,7 +1920,7 @@ struct vif_params *params)
 		}
 
 		ieee80211_assign_perm_addr(local, ndev->perm_addr, type);
-		if (params && is_valid_ether_addr(params->macaddr))
+		if (is_valid_ether_addr(params->macaddr))
 			memcpy(ndev->dev_addr, params->macaddr, ETH_ALEN);
 		else
 			memcpy(ndev->dev_addr, ndev->perm_addr, ETH_ALEN);
@@ -1989,11 +1989,9 @@ struct vif_params *params)
 	ieee80211_setup_sdata(sdata, type);
 
 	if (ndev) {
-		if (params) {
-			ndev->ieee80211_ptr->use_4addr = params->use_4addr;
-			if (type == NL80211_IFTYPE_STATION)
-				sdata->u.mgd.use_4addr = params->use_4addr;
-		}
+		ndev->ieee80211_ptr->use_4addr = params->use_4addr;
+		if (type == NL80211_IFTYPE_STATION)
+			sdata->u.mgd.use_4addr = params->use_4addr;
 
 		ndev->features |= local->hw.netdev_features;
 
