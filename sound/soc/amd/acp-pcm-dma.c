@@ -121,6 +121,9 @@ static const struct snd_pcm_hardware acp_st_pcm_hardware_capture = {
 	.periods_max = CAPTURE_MAX_NUM_PERIODS,
 };
 
+/* Lock to protect access to registers */
+static DEFINE_SPINLOCK(lock);
+
 static u32 acp_reg_read(void __iomem *acp_mmio, u32 reg)
 {
 	return readl(acp_mmio + (reg * 4));
@@ -129,6 +132,31 @@ static u32 acp_reg_read(void __iomem *acp_mmio, u32 reg)
 static void acp_reg_write(u32 val, void __iomem *acp_mmio, u32 reg)
 {
 	writel(val, acp_mmio + (reg * 4));
+}
+
+static void acp_reg_write_srbm_targ(void __iomem *acp_mmio,
+				    u32 addr, u32 data)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&lock, flags);
+	acp_reg_write(addr, acp_mmio, mmACP_SRBM_Targ_Idx_Addr);
+	acp_reg_write(data, acp_mmio, mmACP_SRBM_Targ_Idx_Data);
+	spin_unlock_irqrestore(&lock, flags);
+}
+
+static void acp_reg_read_mod_write(void __iomem *acp_mmio, u32 addr,
+				   u32 mask, u32 value)
+{
+	u32 val;
+	unsigned long flags;
+
+	spin_lock_irqsave(&lock, flags);
+	val = acp_reg_read(acp_mmio, addr);
+	val &= ~mask;
+	val |= (mask & value);
+	acp_reg_write(val, acp_mmio, addr);
+	spin_unlock_irqrestore(&lock, flags);
 }
 
 /*
@@ -172,15 +200,12 @@ static void config_dma_descriptor_in_sram(void __iomem *acp_mmio,
 	sram_offset = (descr_idx * sizeof(acp_dma_dscr_transfer_t));
 
 	/* program the source base address. */
-	acp_reg_write(sram_offset, acp_mmio, mmACP_SRBM_Targ_Idx_Addr);
-	acp_reg_write(descr_info->src,	acp_mmio, mmACP_SRBM_Targ_Idx_Data);
+	acp_reg_write_srbm_targ(acp_mmio, sram_offset, descr_info->src);
 	/* program the destination base address. */
-	acp_reg_write(sram_offset + 4,	acp_mmio, mmACP_SRBM_Targ_Idx_Addr);
-	acp_reg_write(descr_info->dest, acp_mmio, mmACP_SRBM_Targ_Idx_Data);
-
+	acp_reg_write_srbm_targ(acp_mmio, sram_offset + 4, descr_info->dest);
 	/* program the number of bytes to be transferred for this descriptor. */
-	acp_reg_write(sram_offset + 8,	acp_mmio, mmACP_SRBM_Targ_Idx_Addr);
-	acp_reg_write(descr_info->xfer_val, acp_mmio, mmACP_SRBM_Targ_Idx_Data);
+	acp_reg_write_srbm_targ(acp_mmio, sram_offset + 8,
+				descr_info->xfer_val);
 }
 
 static void pre_config_reset(void __iomem *acp_mmio, u16 ch_num)
@@ -311,24 +336,22 @@ static void acp_pte_config(void __iomem *acp_mmio, struct page *pg,
 	u32 offset;
 
 	offset	= ACP_DAGB_GRP_SRBM_SRAM_BASE_OFFSET + (pte_offset * 8);
+
 	for (page_idx = 0; page_idx < (num_of_pages); page_idx++) {
 		/* Load the low address of page int ACP SRAM through SRBM */
-		acp_reg_write((offset + (page_idx * 8)),
-			      acp_mmio, mmACP_SRBM_Targ_Idx_Addr);
 		addr = page_to_phys(pg);
 
 		low = lower_32_bits(addr);
 		high = upper_32_bits(addr);
 
-		acp_reg_write(low, acp_mmio, mmACP_SRBM_Targ_Idx_Data);
+		acp_reg_write_srbm_targ(acp_mmio, (offset + (page_idx * 8)),
+					low);
 
 		/* Load the High address of page int ACP SRAM through SRBM */
-		acp_reg_write((offset + (page_idx * 8) + 4),
-			      acp_mmio, mmACP_SRBM_Targ_Idx_Addr);
-
 		/* page enable in ACP */
 		high |= BIT(31);
-		acp_reg_write(high, acp_mmio, mmACP_SRBM_Targ_Idx_Data);
+		acp_reg_write_srbm_targ(acp_mmio, (offset + (page_idx * 8) + 4),
+					high);
 
 		/* Move to next physically contiguos page */
 		pg++;
@@ -870,29 +893,28 @@ static int acp_dma_hw_params(struct snd_pcm_substream *substream,
 		}
 	}
 	if (adata->asic_type == CHIP_STONEY) {
-		val = acp_reg_read(adata->acp_mmio,
-				   mmACP_I2S_16BIT_RESOLUTION_EN);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			switch (rtd->i2s_instance) {
 			case I2S_BT_INSTANCE:
-				val |= ACP_I2S_BT_16BIT_RESOLUTION_EN;
+				val = ACP_I2S_BT_16BIT_RESOLUTION_EN;
 				break;
 			case I2S_SP_INSTANCE:
 			default:
-				val |= ACP_I2S_SP_16BIT_RESOLUTION_EN;
+				val = ACP_I2S_SP_16BIT_RESOLUTION_EN;
 			}
 		} else {
 			switch (rtd->i2s_instance) {
 			case I2S_BT_INSTANCE:
-				val |= ACP_I2S_BT_16BIT_RESOLUTION_EN;
+				val = ACP_I2S_BT_16BIT_RESOLUTION_EN;
 				break;
 			case I2S_SP_INSTANCE:
 			default:
-				val |= ACP_I2S_MIC_16BIT_RESOLUTION_EN;
+				val = ACP_I2S_MIC_16BIT_RESOLUTION_EN;
 			}
 		}
-		acp_reg_write(val, adata->acp_mmio,
-			      mmACP_I2S_16BIT_RESOLUTION_EN);
+		acp_reg_read_mod_write(adata->acp_mmio,
+				       mmACP_I2S_16BIT_RESOLUTION_EN,
+				       val, val);
 	}
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
