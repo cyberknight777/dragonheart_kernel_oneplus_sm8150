@@ -1797,7 +1797,7 @@ iwl_dbgfs_send_echo_cmd_write(struct iwl_mvm *mvm, char *buf,
 }
 
 static ssize_t
-iwl_dbgfs_set_aid_write(struct iwl_mvm *mvm, char *buf,
+iwl_dbgfs_he_sniffer_params_write(struct iwl_mvm *mvm, char *buf,
 			size_t count, loff_t *ppos)
 {
 	struct iwl_he_monitor_cmd he_mon_cmd = {};
@@ -1935,7 +1935,7 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(d3_sram, 8);
 MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
 
-MVM_DEBUGFS_WRITE_FILE_OPS(set_aid, 32);
+MVM_DEBUGFS_WRITE_FILE_OPS(he_sniffer_params, 32);
 
 static ssize_t iwl_dbgfs_mem_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -2135,7 +2135,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, 0400);
 #endif
-	MVM_DEBUGFS_ADD_FILE(set_aid, mvm->debugfs_dir, 0200);
+	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0200);
 
 	if (!debugfs_create_bool("enable_scan_iteration_notif",
 				 0600,

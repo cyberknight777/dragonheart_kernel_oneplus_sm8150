@@ -474,7 +474,9 @@ const static u8 he_if_types_ext_capa_sta[] = {
 	 [7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
 	 [9] = WLAN_EXT_CAPA10_TWT_REQUESTER_SUPPORT,
 };
+#endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(4,8,0)
 const static struct wiphy_iftype_ext_capab he_iftypes_ext_capa[] = {
 	{
 		.iftype = NL80211_IFTYPE_STATION,

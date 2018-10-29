@@ -540,6 +540,8 @@ static int iwl_mvm_free_inactive_queue(struct iwl_mvm *mvm, int queue,
 
 	same_sta = sta_id == new_sta_id;
 
+	same_sta = sta_id == new_sta_id;
+
 	mvmsta = iwl_mvm_sta_from_staid_protected(mvm, sta_id);
 	if (WARN_ON(!mvmsta))
 		return -EINVAL;
@@ -2335,6 +2337,19 @@ int iwl_mvm_add_mcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 			       IWL_UCODE_TLV_API_STA_TYPE))
 		iwl_mvm_enable_txq(mvm, NULL, mvmvif->cab_queue, 0, &cfg,
 				   timeout);
+
+	if (mvmvif->ap_wep_key) {
+		u8 key_offset = iwl_mvm_set_fw_key_idx(mvm);
+
+		if (key_offset == STA_KEY_IDX_INVALID)
+			return -ENOSPC;
+
+		ret = iwl_mvm_send_sta_key(mvm, mvmvif->mcast_sta.sta_id,
+					   mvmvif->ap_wep_key, 1, 0, NULL, 0,
+					   key_offset, 0);
+		if (ret)
+			return ret;
+	}
 
 	if (mvmvif->ap_wep_key) {
 		u8 key_offset = iwl_mvm_set_fw_key_idx(mvm);

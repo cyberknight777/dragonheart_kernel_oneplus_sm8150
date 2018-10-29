@@ -2095,6 +2095,13 @@ static inline void skb_put_u8(struct sk_buff *skb, u8 val)
 }
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,20,0)
+static inline struct sk_buff *__skb_peek(const struct sk_buff_head *list_)
+{
+	return list_->next;
+}
+#endif
+
 #if LINUX_VERSION_IS_LESS(3, 10, 0)
 static inline void kfree_skb_list(struct sk_buff *segs)
 {
@@ -2273,6 +2280,7 @@ static inline void sk_pacing_shift_update(struct sock *sk, int val)
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define NL80211_EXT_FEATURE_SCAN_RANDOM_SN		-1
 #define NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT	-1
+#define NL80211_EXT_FEATURE_ENABLE_FTM_RESPONDER	-1
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
@@ -2366,6 +2374,19 @@ backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define NL80211_SCAN_FLAG_RANDOM_SN		0
 #define NL80211_SCAN_FLAG_MIN_PREQ_CONTENT	0
+
+struct cfg80211_ftm_responder_stats {
+	u32 filled;
+	u32 success_num;
+	u32 partial_num;
+	u32 failed_num;
+	u32 asap_num;
+	u32 non_asap_num;
+	u64 total_duration_ms;
+	u32 unknown_triggers_num;
+	u32 reschedule_requests_num;
+	u32 out_of_window_triggers_num;
+};
 #endif
 
 #ifndef ETH_P_PREAUTH

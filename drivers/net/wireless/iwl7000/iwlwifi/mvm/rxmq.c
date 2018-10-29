@@ -1596,6 +1596,13 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			     SCHED_SCAN_PASS_ALL_ENABLED))
 			mvm->sched_scan_pass_all = SCHED_SCAN_PASS_ALL_FOUND;
 
+#ifdef CPTCFG_IWLMVM_TOF_TSF_WA
+		if (fw_has_capa(&mvm->fw->ucode_capa,
+				IWL_UCODE_TLV_CAPA_TOF_SUPPORT) &&
+		    (ieee80211_is_beacon(hdr->frame_control) ||
+		     ieee80211_is_probe_resp(hdr->frame_control)))
+			iwl_mvm_tof_update_tsf(mvm, pkt);
+#endif
 		if (unlikely(ieee80211_is_beacon(hdr->frame_control) ||
 			     ieee80211_is_probe_resp(hdr->frame_control)))
 			rx_status->boottime_ns = ktime_get_boot_ns();

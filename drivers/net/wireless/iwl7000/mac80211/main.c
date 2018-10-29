@@ -1232,8 +1232,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 			continue;
 
 		sband = kmemdup(sband, sizeof(*sband), GFP_KERNEL);
-		if (!sband)
+		if (!sband) {
+			result = -ENOMEM;
 			goto fail_rate;
+		}
 
 		wiphy_dbg(hw->wiphy, "copying sband (band %d) due to VHT EXT NSS BW flag\n",
 			  band);
@@ -1248,8 +1250,13 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	/* add one default STA interface if supported */
 	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_STATION) &&
 	    !ieee80211_hw_check(hw, NO_AUTO_VIF)) {
-		result = ieee80211_if_add(local, "wlan%d", NET_NAME_ENUM, NULL,
-					  NL80211_IFTYPE_STATION, NULL);
+#if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
+		u32 f = 0;
+		u32 *flags = &f;
+#endif
+		result = ieee80211_if_add(local, "wlan%d", NET_NAME_ENUM,
+					  NULL, NL80211_IFTYPE_STATION,
+					  mon_opts_params(NULL));
 		if (result)
 			wiphy_warn(local->hw.wiphy,
 				   "Failed to add default virtual iface\n");
@@ -1410,18 +1417,12 @@ static int __init ieee80211_init(void)
 	if (ret)
 		return ret;
 
-	ret = rc80211_minstrel_ht_init();
-	if (ret)
-		goto err_minstrel;
-
 	ret = ieee80211_iface_init();
 	if (ret)
 		goto err_netdev;
 
 	return 0;
  err_netdev:
-	rc80211_minstrel_ht_exit();
- err_minstrel:
 	rc80211_minstrel_exit();
 
 	return ret;
@@ -1429,7 +1430,6 @@ static int __init ieee80211_init(void)
 
 static void __exit ieee80211_exit(void)
 {
-	rc80211_minstrel_ht_exit();
 	rc80211_minstrel_exit();
 
 	ieee80211s_stop();
