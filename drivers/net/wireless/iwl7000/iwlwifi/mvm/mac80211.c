@@ -1643,6 +1643,8 @@ static int iwl_mvm_mac_add_interface(struct ieee80211_hw *hw,
 	if (ret)
 		goto out_release;
 
+	rcu_assign_pointer(mvm->vif_id_to_mac[mvmvif->id], vif);
+
 	ret = iwl_mvm_power_update_mac(mvm);
 	if (ret)
 		goto out_remove_mac;
@@ -1804,6 +1806,8 @@ static void iwl_mvm_mac_remove_interface(struct ieee80211_hw *hw,
 
 	iwl_mvm_power_update_mac(mvm);
 	iwl_mvm_mac_ctxt_remove(mvm, vif);
+
+	RCU_INIT_POINTER(mvm->vif_id_to_mac[mvmvif->id], NULL);
 
 	if (vif->type == NL80211_IFTYPE_MONITOR)
 		mvm->monitor_on = false;
