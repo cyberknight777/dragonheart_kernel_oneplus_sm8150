@@ -148,12 +148,12 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 	case DEBUG_LOG_MSG:
 		iwl_dnt_dispatch_collect_ucode_message(xvt->trans, rxb);
 		break;
-	case WIDE_ID(TOF_GROUP, TOF_MCSI_DEBUG_NOTIF):
+	case WIDE_ID(8, 0xFE):
 		iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_LOC_MCSI,
 					data, size, GFP_ATOMIC);
 		break;
-	case WIDE_ID(TOF_GROUP, TOF_RANGE_RESPONSE_NOTIF):
+	case WIDE_ID(8, 0xFF):
 		iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_LOC_RANGE,
 					data, size, GFP_ATOMIC);

@@ -91,7 +91,6 @@
 #ifdef CPTCFG_NL80211_TESTMODE
 #include "fw/testmode.h"
 #endif
-#include "tof.h"
 #include "fw/api/nan.h"
 
 /* The ETSI patches were introduced in 4.17 and backported to

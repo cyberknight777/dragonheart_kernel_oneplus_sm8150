@@ -170,15 +170,6 @@ static const struct iwl_hcmd_names iwl_xvt_regulatory_and_nvm_names[] = {
 /* Please keep this array *SORTED* by hex value.
  * Access is done through binary search.
  */
-static const struct iwl_hcmd_names iwl_xvt_tof_names[] = {
-	HCMD_NAME(LOCATION_GROUP_NOTIFICATION),
-	HCMD_NAME(TOF_MCSI_DEBUG_NOTIF),
-	HCMD_NAME(TOF_RANGE_RESPONSE_NOTIF),
-};
-
-/* Please keep this array *SORTED* by hex value.
- * Access is done through binary search.
- */
 static const struct iwl_hcmd_names iwl_xvt_system_names[] = {
 	HCMD_NAME(INIT_EXTENDED_CFG_CMD),
 };
@@ -193,7 +184,6 @@ static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[SYSTEM_GROUP] = HCMD_ARR(iwl_xvt_system_names),
 	[PHY_OPS_GROUP] = HCMD_ARR(iwl_xvt_phy_names),
 	[DATA_PATH_GROUP] = HCMD_ARR(iwl_xvt_data_path_names),
-	[TOF_GROUP] = HCMD_ARR(iwl_xvt_tof_names),
 	[REGULATORY_AND_NVM_GROUP] = HCMD_ARR(iwl_xvt_regulatory_and_nvm_names),
 	[XVT_GROUP] = HCMD_ARR(iwl_xvt_xvt_names),
 };

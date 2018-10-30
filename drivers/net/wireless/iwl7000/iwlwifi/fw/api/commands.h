@@ -79,7 +79,6 @@
  * @DATA_PATH_GROUP: data path group, uses command IDs from
  *	&enum iwl_data_path_subcmd_ids
  * @NAN_GROUP: NAN group, uses command IDs from &enum iwl_nan_subcmd_ids
- * @TOF_GROUP: TOF group, uses command IDs from &enum iwl_tof_subcmd_ids
  * @PROT_OFFLOAD_GROUP: protocol offload group, uses command IDs from
  *	&enum iwl_prot_offload_subcmd_ids
  * @REGULATORY_AND_NVM_GROUP: regulatory/NVM group, uses command IDs from
@@ -95,7 +94,6 @@ enum iwl_mvm_command_groups {
 	PHY_OPS_GROUP = 0x4,
 	DATA_PATH_GROUP = 0x5,
 	NAN_GROUP = 0x7,
-	TOF_GROUP = 0x8,
 	PROT_OFFLOAD_GROUP = 0xb,
 	REGULATORY_AND_NVM_GROUP = 0xc,
 	XVT_GROUP = 0xe,
@@ -360,16 +358,6 @@ enum iwl_legacy_cmds {
 	 * @PHY_DB_CMD: &struct iwl_phy_db_cmd
 	 */
 	PHY_DB_CMD = 0x6c,
-
-	/**
-	 * @TOF_CMD: &struct iwl_tof_config_cmd
-	 */
-	TOF_CMD = 0x10,
-
-	/**
-	 * @TOF_NOTIFICATION: &struct iwl_tof_gen_resp_cmd
-	 */
-	TOF_NOTIFICATION = 0x11,
 
 	/**
 	 * @CONFIG_2G_COEX_CMD: &struct iwl_config_2g_coex_cmd
