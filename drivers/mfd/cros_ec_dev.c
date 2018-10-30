@@ -99,7 +99,7 @@ exit:
 	return ret;
 }
 
-static int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
+int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
 {
 	struct cros_ec_command *msg;
 	int ret;
@@ -131,8 +131,9 @@ static int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
 		kfree(msg);
 	}
 
-	return ec->features[feature / 32] & EC_FEATURE_MASK_0(feature);
+	return !!(ec->features[feature / 32] & EC_FEATURE_MASK_0(feature));
 }
+EXPORT_SYMBOL_GPL(cros_ec_check_features);
 
 struct cros_ec_priv {
 	struct cros_ec_dev *ec;

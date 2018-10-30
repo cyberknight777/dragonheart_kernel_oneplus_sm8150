@@ -1020,6 +1020,9 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	state->tight_timestamps = cros_ec_check_features(ec_dev,
+		EC_FEATURE_MOTION_SENSE_TIGHT_TIMESTAMPS);
+
 	/* register the notifier that will act as a top half interrupt. */
 	state->notifier.notifier_call = cros_ec_ring_event;
 	ret = blocking_notifier_chain_register(&ec_device->event_notifier,
