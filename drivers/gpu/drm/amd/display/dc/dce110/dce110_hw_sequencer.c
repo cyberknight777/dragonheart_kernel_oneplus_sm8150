@@ -1798,12 +1798,13 @@ static uint32_t get_max_pixel_clock_for_all_paths(
  *  Check if FBC can be enabled
  */
 static bool should_enable_fbc(struct dc *dc,
-			      struct dc_state *context,
-			      uint32_t *pipe_idx)
+		struct dc_state *context,
+		uint32_t *pipe_idx)
 {
 	uint32_t i;
 	struct pipe_ctx *pipe_ctx = NULL;
 	struct resource_context *res_ctx = &context->res_ctx;
+	unsigned int underlay_idx = dc->res_pool->underlay_pipe_index;
 
 
 	ASSERT(dc->fbc_compressor);
@@ -1818,14 +1819,28 @@ static bool should_enable_fbc(struct dc *dc,
 
 	for (i = 0; i < dc->res_pool->pipe_count; i++) {
 		if (res_ctx->pipe_ctx[i].stream) {
+
 			pipe_ctx = &res_ctx->pipe_ctx[i];
-			*pipe_idx = i;
-			break;
+
+			if (!pipe_ctx)
+				continue;
+
+			/* fbc not applicable on underlay pipe */
+			if (pipe_ctx->pipe_idx != underlay_idx) {
+				*pipe_idx = i;
+				break;
+			}
 		}
 	}
 
-	/* Pipe context should be found */
-	ASSERT(pipe_ctx);
+	if (i == dc->res_pool->pipe_count)
+		return false;
+
+	if (!pipe_ctx->stream->sink)
+		return false;
+
+	if (!pipe_ctx->stream->sink->link)
+		return false;
 
 	/* Only supports eDP */
 	if (pipe_ctx->stream->sink->link->connector_signal != SIGNAL_TYPE_EDP)
@@ -1849,8 +1864,9 @@ static bool should_enable_fbc(struct dc *dc,
 /*
  *  Enable FBC
  */
-static void enable_fbc(struct dc *dc,
-		       struct dc_state *context)
+static void enable_fbc(
+		struct dc *dc,
+		struct dc_state *context)
 {
 	uint32_t pipe_idx = 0;
 
@@ -1860,10 +1876,9 @@ static void enable_fbc(struct dc *dc,
 		struct compressor *compr = dc->fbc_compressor;
 		struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[pipe_idx];
 
-
 		params.source_view_width = pipe_ctx->stream->timing.h_addressable;
 		params.source_view_height = pipe_ctx->stream->timing.v_addressable;
-
+		params.inst = pipe_ctx->stream_res.tg->inst;
 		compr->compr_surface_address.quad_part = dc->ctx->fbc_gpu_addr;
 
 		compr->funcs->surface_address_and_pitch(compr, &params);
@@ -2078,10 +2093,10 @@ enum dc_status dce110_apply_ctx_to_hw(
 			return status;
 	}
 
-	dcb->funcs->set_scratch_critical_state(dcb, false);
-
 	if (dc->fbc_compressor)
-		enable_fbc(dc, context);
+		enable_fbc(dc, dc->current_state);
+
+	dcb->funcs->set_scratch_critical_state(dcb, false);
 
 	return DC_OK;
 }
@@ -2592,7 +2607,6 @@ static void dce110_program_front_end_for_pipe(
 	struct dc_plane_state *plane_state = pipe_ctx->plane_state;
 	struct xfm_grph_csc_adjustment adjust;
 	struct out_csc_color_matrix tbl_entry;
-	unsigned int underlay_idx = dc->res_pool->underlay_pipe_index;
 	unsigned int i;
 	DC_LOGGER_INIT();
 	memset(&tbl_entry, 0, sizeof(tbl_entry));
@@ -2632,15 +2646,6 @@ static void dce110_program_front_end_for_pipe(
 	pipe_ctx->plane_res.scl_data.lb_params.alpha_en = pipe_ctx->bottom_pipe != 0;
 
 	program_scaler(dc, pipe_ctx);
-
-	/* fbc not applicable on Underlay pipe */
-	if (dc->fbc_compressor && old_pipe->stream &&
-	    pipe_ctx->pipe_idx != underlay_idx) {
-		if (plane_state->tiling_info.gfx8.array_mode == DC_ARRAY_LINEAR_GENERAL)
-			dc->fbc_compressor->funcs->disable_fbc(dc->fbc_compressor);
-		else
-			enable_fbc(dc, dc->current_state);
-	}
 
 	mi->funcs->mem_input_program_surface_config(
 			mi,
@@ -2718,6 +2723,9 @@ static void dce110_apply_ctx_for_surface(
 	if (num_planes == 0)
 		return;
 
+	if (dc->fbc_compressor)
+		dc->fbc_compressor->funcs->disable_fbc(dc->fbc_compressor);
+
 	for (i = 0; i < dc->res_pool->pipe_count; i++) {
 		struct pipe_ctx *pipe_ctx = &context->res_ctx.pipe_ctx[i];
 		struct pipe_ctx *old_pipe_ctx = &dc->current_state->res_ctx.pipe_ctx[i];
@@ -2760,6 +2768,9 @@ static void dce110_apply_ctx_for_surface(
 			(pipe_ctx->plane_state || old_pipe_ctx->plane_state))
 			dc->hwss.pipe_control_lock(dc, pipe_ctx, false);
 	}
+
+	if (dc->fbc_compressor)
+		enable_fbc(dc, dc->current_state);
 }
 
 static void dce110_power_down_fe(struct dc *dc, struct pipe_ctx *pipe_ctx)
