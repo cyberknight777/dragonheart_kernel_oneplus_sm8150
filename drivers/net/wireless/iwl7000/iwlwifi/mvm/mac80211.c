@@ -3074,7 +3074,10 @@ static void iwl_mvm_limit_wmm_ac(struct iwl_mvm *mvm,
 	    vif->type != NL80211_IFTYPE_P2P_GO)
 		return;
 
+	mutex_lock(&mvm->mutex);
 	rd = iwl_mvm_get_current_regdomain(mvm, NULL);
+	mutex_unlock(&mvm->mutex);
+
 	if (IS_ERR_OR_NULL(rd))
 		return;
 
