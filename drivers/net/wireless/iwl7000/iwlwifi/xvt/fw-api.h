@@ -65,6 +65,7 @@
 
 #include "fw/api/rs.h"
 #include "fw/api/txq.h"
+#include "fw/api/location.h"
 #include "fw/api/alive.h"
 #include "fw/api/phy.h"
 #include "fw/api/nvm-reg.h"
@@ -83,6 +84,9 @@
 
 enum {
 	APMG_PD_SV_CMD = 0x43,
+
+	/* ToF */
+	LOCATION_GROUP_NOTIFICATION = 0x11,
 
 	NVM_COMMIT_COMPLETE_NOTIFICATION = 0xad,
 	GET_SET_PHY_DB_CMD = 0x8f,
