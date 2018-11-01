@@ -259,7 +259,8 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	 * station, so it is not part of the init flow.
 	 */
 	if (!iwl_xvt_is_unified_fw(xvt) &&
-	    iwl_xvt_has_default_txq(xvt)) {
+	    iwl_xvt_has_default_txq(xvt) &&
+	    ucode_type != IWL_UCODE_INIT) {
 		iwl_trans_txq_enable_cfg(xvt->trans, IWL_XVT_DEFAULT_TX_QUEUE,
 					 0, NULL, 0);
 
