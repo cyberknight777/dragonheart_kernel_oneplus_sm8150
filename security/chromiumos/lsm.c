@@ -508,16 +508,18 @@ void chromiumos_flush_process_management_entries(void)
 	 * Could probably use hash_for_each_rcu here instead, but this should
 	 * be fine as well.
 	 */
+	spin_lock(&process_setuid_policy_hashtable_spinlock);
 	hash_for_each_safe(process_setuid_policy_hashtable, bkt_loop_cursor,
 			   hlist_node, entry, next) {
-		spin_lock(&process_setuid_policy_hashtable_spinlock);
 		hash_del_rcu(&entry->next);
-		spin_unlock(&process_setuid_policy_hashtable_spinlock);
 		hlist_add_head(&entry->dlist, &free_list);
 	}
+	spin_unlock(&process_setuid_policy_hashtable_spinlock);
 	synchronize_rcu();
-	hlist_for_each_entry_safe(entry, hlist_node, &free_list, dlist)
+	hlist_for_each_entry_safe(entry, hlist_node, &free_list, dlist) {
+		hlist_del(&entry->dlist);
 		kfree(entry);
+	}
 }
 
 static int __init chromiumos_security_init(void)
