@@ -1939,6 +1939,15 @@ enum dc_status dce110_apply_ctx_to_hw(
 #endif
 	if (context->bw.dce.dispclk_khz
 			> dc->current_state->bw.dce.dispclk_khz) {
+
+		/* dynamically enable/disable dfs bypass mode as needed */
+		if (dc->res_pool->display_clock->funcs->update_dfs_bypass)
+			dc->res_pool->display_clock->funcs->update_dfs_bypass(
+				dc->res_pool->display_clock,
+				dc,
+				context,
+				context->bw.dce.dispclk_khz * 115 / 100);
+
 		dc->res_pool->display_clock->funcs->set_clock(
 				dc->res_pool->display_clock,
 				context->bw.dce.dispclk_khz * 115 / 100);
