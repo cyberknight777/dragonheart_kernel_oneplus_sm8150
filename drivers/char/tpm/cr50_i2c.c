@@ -562,6 +562,7 @@ static bool cr50_i2c_req_canceled(struct tpm_chip *chip, u8 status)
 }
 
 static const struct tpm_class_ops cr50_i2c = {
+	.flags = TPM_OPS_AUTO_STARTUP,
 	.status = &cr50_i2c_tis_status,
 	.recv = &cr50_i2c_tis_recv,
 	.send = &cr50_i2c_tis_send,
