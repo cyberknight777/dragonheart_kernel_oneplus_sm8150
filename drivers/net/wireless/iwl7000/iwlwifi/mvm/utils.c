@@ -1213,7 +1213,8 @@ static void iwl_mvm_check_uapsd_agg_expected_tpt(struct iwl_mvm *mvm,
 
 	rcu_read_lock();
 	vif = rcu_dereference(mvm->vif_id_to_mac[mac]);
-	iwl_mvm_uapsd_agg_disconnect(mvm, vif);
+	if (vif)
+		iwl_mvm_uapsd_agg_disconnect(mvm, vif);
 	rcu_read_unlock();
 }
 
