@@ -4998,9 +4998,7 @@ static bool iwl_mvm_can_hw_csum(struct sk_buff *skb)
 #if IS_ENABLED(CONFIG_INET)
 	u8 protocol = ip_hdr(skb)->protocol;
 
-	if (protocol != IPPROTO_TCP || protocol != IPPROTO_UDP)
-		return false;
-	return true;
+	return protocol == IPPROTO_TCP || protocol == IPPROTO_UDP;
 #else
 	return false;
 #endif
