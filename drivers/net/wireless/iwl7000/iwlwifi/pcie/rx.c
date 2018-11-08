@@ -803,7 +803,7 @@ static int iwl_pcie_alloc_rxq_dma(struct iwl_trans *trans,
 
 err:
 	for (i = 0; i < trans->num_rx_queues; i++) {
-		struct iwl_rxq *rxq = &trans_pcie->rxq[i];
+		rxq = &trans_pcie->rxq[i];
 
 		iwl_pcie_free_rxq_dma(trans, rxq);
 	}
@@ -1204,10 +1204,10 @@ static void iwl_pcie_rx_reuse_rbd(struct iwl_trans *trans,
 }
 
 static void iwl_pcie_rx_handle_rb(struct iwl_trans *trans,
-				struct iwl_rxq *rxq,
-				struct iwl_rx_mem_buffer *rxb,
-				bool emergency,
-				int i)
+				  struct iwl_rxq *rxq,
+				  struct iwl_rx_mem_buffer *rxb,
+				  bool emergency,
+				  int idx)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_txq *txq = trans_pcie->txq[trans_pcie->cmd_queue];
@@ -1234,7 +1234,7 @@ static void iwl_pcie_rx_handle_rb(struct iwl_trans *trans,
 		};
 
 		if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22560)
-			rxcb.status = rxq->cd[i].status;
+			rxcb.status = rxq->cd[idx].status;
 
 		pkt = rxb_addr(&rxcb);
 
