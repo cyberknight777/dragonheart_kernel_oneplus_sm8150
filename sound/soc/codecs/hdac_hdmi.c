@@ -2198,7 +2198,7 @@ static int hdac_hdmi_runtime_suspend(struct device *dev)
 
 	err = snd_hdac_display_power(bus, false);
 	if (err < 0)
-		dev_err(bus->dev, "Cannot turn off display power on i915\n");
+		dev_err(dev, "Cannot turn off display power on i915\n");
 
 	return err;
 }
