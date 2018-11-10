@@ -101,7 +101,7 @@ static void skl_enable_miscbdcge(struct device *dev, bool enable)
  * @dev: Device pointer
  * @enable: Enable/Disable flag
  */
-static void skl_clock_power_gating(struct device *dev, bool enable)
+void skl_clock_power_gating(struct device *dev, bool enable)
 {
 	struct pci_dev *pci = to_pci_dev(dev);
 	struct hdac_bus *bus = pci_get_drvdata(pci);
