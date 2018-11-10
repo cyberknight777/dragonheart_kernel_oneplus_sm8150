@@ -70,6 +70,7 @@
 #include <linux/userfaultfd_k.h>
 #include <linux/dax.h>
 #include <linux/oom.h>
+#include <linux/mm_metrics.h>
 
 #include <asm/io.h>
 #include <asm/mmu_context.h>
@@ -2874,6 +2875,7 @@ int do_swap_page(struct vm_fault *vmf)
 	int locked;
 	int exclusive = 0;
 	int ret = 0;
+	u64 start = 0;
 	bool vma_readahead = swap_use_vma_readahead();
 
 	if (vma_readahead)
@@ -2906,10 +2908,12 @@ int do_swap_page(struct vm_fault *vmf)
 		goto out;
 	}
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
+	mm_metrics_swapin(entry);
 	if (!page)
 		page = lookup_swap_cache(entry, vma_readahead ? vma : NULL,
 					 vmf->address);
 	if (!page) {
+		start = mm_metrics_swapin_start();
 		if (vma_readahead)
 			page = do_swap_page_readahead(entry,
 				GFP_HIGHUSER_MOVABLE, vmf, &swap_ra);
@@ -2947,6 +2951,7 @@ int do_swap_page(struct vm_fault *vmf)
 	swapcache = page;
 	locked = lock_page_or_retry(page, vma->vm_mm, vmf->flags);
 
+	mm_metrics_swapin_end(start);
 	delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 	if (!locked) {
 		ret |= VM_FAULT_RETRY;
@@ -2959,7 +2964,7 @@ int do_swap_page(struct vm_fault *vmf)
 	 * test below, are not enough to exclude that.  Even if it is still
 	 * swapcache, we need to check that the page's swap has not changed.
 	 */
-	if (unlikely(!PageSwapCache(page) || page_private(page) != entry.val))
+	if (unlikely(!PageSwapCache(page) || !swp_page_same(entry, page)))
 		goto out_page;
 
 	page = ksm_might_need_to_copy(page, vma, vmf->address);

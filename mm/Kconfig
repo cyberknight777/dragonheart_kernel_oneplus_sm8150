@@ -785,3 +785,12 @@ config PERCPU_STATS
 	  This feature collects and exposes statistics via debugfs. The
 	  information includes global and per chunk statistics, which can
 	  be used to help understand percpu memory usage.
+
+config MM_METRICS
+	bool "Collect additional memory statistics"
+	help
+	  Collect swap refault distances (seconds), swap read latencies and direct
+	  reclaim latencies (nanoseconds). They are provided userspace via
+	  /sys/kernel/debug/mm_metrics/{swap_refault,swap_latency,reclaim_latency}
+	  in histograms.
+	default n
