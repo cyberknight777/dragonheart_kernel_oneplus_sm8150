@@ -2283,6 +2283,9 @@ static inline void sk_pacing_shift_update(struct sock *sk, int val)
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define NL80211_EXT_FEATURE_SCAN_RANDOM_SN		-1
 #define NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT	-1
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
 #define NL80211_EXT_FEATURE_ENABLE_FTM_RESPONDER	-1
 #endif
 
@@ -2377,7 +2380,9 @@ backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define NL80211_SCAN_FLAG_RANDOM_SN		0
 #define NL80211_SCAN_FLAG_MIN_PREQ_CONTENT	0
+#endif
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
 struct cfg80211_ftm_responder_stats {
 	u32 filled;
 	u32 success_num;

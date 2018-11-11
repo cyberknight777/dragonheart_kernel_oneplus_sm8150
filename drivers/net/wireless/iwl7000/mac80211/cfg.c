@@ -856,7 +856,7 @@ static int ieee80211_set_probe_resp(struct ieee80211_sub_if_data *sdata,
 	return 0;
 }
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 static int ieee80211_set_ftm_responder_params(
 				struct ieee80211_sub_if_data *sdata,
 				const u8 *lci, size_t lci_len,
@@ -973,7 +973,7 @@ static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 	if (err == 0)
 		changed |= BSS_CHANGED_AP_PROBE_RESP;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (params->ftm_responder != -1) {
 		sdata->vif.bss_conf.ftm_responder = params->ftm_responder;
 		err = ieee80211_set_ftm_responder_params(sdata,
@@ -3041,11 +3041,11 @@ cfg80211_beacon_dup(struct cfg80211_beacon_data *beacon)
 		memcpy(pos, beacon->probe_resp, beacon->probe_resp_len);
 		pos += beacon->probe_resp_len;
 	}
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (beacon->ftm_responder)
 		new_beacon->ftm_responder = beacon->ftm_responder;
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (beacon->lci) {
 		new_beacon->lci_len = beacon->lci_len;
 		new_beacon->lci = pos;
@@ -3053,7 +3053,7 @@ cfg80211_beacon_dup(struct cfg80211_beacon_data *beacon)
 		pos += beacon->lci_len;
 	}
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (beacon->civicloc) {
 		new_beacon->civicloc_len = beacon->civicloc_len;
 		new_beacon->civicloc = pos;
@@ -3985,7 +3985,7 @@ out:
 }
 #endif /* CFG80211_VERSION >= KERNEL_VERSION(4,18,0) */
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 static int
 ieee80211_get_ftm_responder_stats(struct wiphy *wiphy,
 				  struct net_device *dev,
@@ -4180,7 +4180,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 #if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 	.get_txq_stats = ieee80211_get_txq_stats,
 #endif
-#if CFG80211_VERSION >= KERNEL_VERSION(4,19,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	.get_ftm_responder_stats = ieee80211_get_ftm_responder_stats,
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,21,0)
