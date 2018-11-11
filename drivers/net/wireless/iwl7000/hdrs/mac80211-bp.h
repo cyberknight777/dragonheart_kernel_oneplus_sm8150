@@ -1972,10 +1972,7 @@ void iwl7000_cqm_rssi_notify(struct net_device *dev,
 #define cfg80211_cqm_rssi_notify iwl7000_cqm_rssi_notify
 #endif
 
-/*
- * TODO: When we know the minimal kernel version to support HE - update below
- */
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define IEEE80211_HE_PPE_THRES_MAX_LEN		25
 
 /**
