@@ -1856,39 +1856,6 @@ struct ieee80211_sband_iftype_data {
 	struct ieee80211_sta_he_cap he_cap;
 };
 
-static inline void
-ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
-				     u16 n)
-{
-}
-
-static inline u16
-ieee80211_sband_get_num_iftypes_data(struct ieee80211_supported_band *sband)
-{
-	return 0;
-}
-
-static inline void
-ieee80211_sband_set_iftypes_data(struct ieee80211_supported_band *sband,
-				 const struct ieee80211_sband_iftype_data *data)
-{
-}
-
-static inline struct ieee80211_sband_iftype_data *
-ieee80211_sband_get_iftypes_data(struct ieee80211_supported_band *sband)
-{
-	return NULL;
-}
-
-static inline struct ieee80211_sband_iftype_data *
-ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
-				       u16 i)
-{
-	WARN_ONCE(1,
-		  "Tried to use unsupported sband iftype data\n");
-	return NULL;
-}
-
 /**
  * ieee80211_get_he_sta_cap - return HE capabilities for an sband's STA
  * @sband: the sband to search for the STA on
@@ -2555,4 +2522,38 @@ static inline void cfg80211_pmsr_complete(struct wireless_dev *wdev,
 {
 	kfree(req);
 }
+
+static inline void
+ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
+				     u16 n)
+{
+}
+
+static inline u16
+ieee80211_sband_get_num_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return 0;
+}
+
+static inline void
+ieee80211_sband_set_iftypes_data(struct ieee80211_supported_band *sband,
+				 const struct ieee80211_sband_iftype_data *data)
+{
+}
+
+static inline struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return NULL;
+}
+
+static inline struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
+				       u16 i)
+{
+	WARN_ONCE(1,
+		  "Tried to use unsupported sband iftype data\n");
+	return NULL;
+}
+
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
