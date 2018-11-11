@@ -1038,6 +1038,11 @@ static int iwl_mvm_sar_get_ewrd_table(struct iwl_mvm *mvm)
 	return -ENOENT;
 }
 
+static int iwl_mvm_sar_get_wgds_table(struct iwl_mvm *mvm)
+{
+	return -ENOENT;
+}
+
 static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 {
 	return 0;
