@@ -1365,14 +1365,6 @@ const struct iwl_fw_dump_desc iwl_dump_desc_assert = {
 };
 IWL_EXPORT_SYMBOL(iwl_dump_desc_assert);
 
-void iwl_fw_assert_error_dump(struct iwl_fw_runtime *fwrt)
-{
-	IWL_INFO(fwrt, "error dump due to fw assert\n");
-	fwrt->dump.desc = &iwl_dump_desc_assert;
-	iwl_fw_error_dump(fwrt);
-}
-IWL_EXPORT_SYMBOL(iwl_fw_assert_error_dump);
-
 void iwl_fw_alive_timeout_dump(struct iwl_fw_runtime *fwrt)
 {
 	struct iwl_fw_dump_desc *iwl_dump_desc_alive_timeout;
@@ -1441,6 +1433,36 @@ int iwl_fw_dbg_collect_desc(struct iwl_fw_runtime *fwrt,
 	return 0;
 }
 IWL_EXPORT_SYMBOL(iwl_fw_dbg_collect_desc);
+
+/* should be used only if the FW is halted */
+int iwl_fw_dbg_error_collect(struct iwl_fw_runtime *fwrt)
+{
+	int ret;
+	struct iwl_fw_dump_desc *iwl_dump_error_desc =
+		kmalloc(sizeof(*iwl_dump_error_desc), GFP_KERNEL);
+
+	if (!iwl_dump_error_desc)
+		return -ENOMEM;
+
+	iwl_dump_error_desc->trig_desc.type =
+		cpu_to_le32(FW_DBG_TRIGGER_DRIVER);
+	iwl_dump_error_desc->len = 0;
+
+	if (test_bit(STATUS_FW_ERROR, &fwrt->trans->status)) {
+		ret = iwl_fw_dbg_collect_desc(fwrt, iwl_dump_error_desc,
+					      false, 0);
+	} else {
+		set_bit(STATUS_FW_ERROR, &fwrt->trans->status);
+		ret = iwl_fw_dbg_collect_desc(fwrt, iwl_dump_error_desc,
+					      false, 0);
+		if (ret)
+			clear_bit(STATUS_FW_ERROR, &fwrt->trans->status);
+	}
+	if (ret)
+		kfree(iwl_dump_error_desc);
+	return ret;
+}
+IWL_EXPORT_SYMBOL(iwl_fw_dbg_error_collect);
 
 int _iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 			enum iwl_fw_dbg_trigger trig,

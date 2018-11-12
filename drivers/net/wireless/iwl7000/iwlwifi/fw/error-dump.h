@@ -358,6 +358,8 @@ iwl_fw_error_next_data(struct iwl_fw_error_dump_data *data)
  * @FW_DBG_TRIGGER_USER_EXTENDED: trigger log collection upon user space
  *  request.
  * @FW_DBG_TRIGGER_ALIVE_TIMEOUT: trigger log collection if alive flow timeouts
+ * @FW_DBG_TRIGGER_DRIVER: trigger log collection upon a flow failure
+ *	in the driver.
  */
 enum iwl_fw_dbg_trigger {
 	FW_DBG_TRIGGER_INVALID = 0,
@@ -377,6 +379,7 @@ enum iwl_fw_dbg_trigger {
 	FW_DBG_TRIGGER_TX_STATUS,
 	FW_DBG_TRIGGER_USER_EXTENDED,
 	FW_DBG_TRIGGER_ALIVE_TIMEOUT,
+	FW_DBG_TRIGGER_DRIVER,
 
 	/* must be last */
 	FW_DBG_TRIGGER_MAX,

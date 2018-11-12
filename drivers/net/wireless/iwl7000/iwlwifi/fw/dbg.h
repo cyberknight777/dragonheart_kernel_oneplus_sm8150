@@ -112,6 +112,7 @@ void iwl_fw_error_dump(struct iwl_fw_runtime *fwrt);
 int iwl_fw_dbg_collect_desc(struct iwl_fw_runtime *fwrt,
 			    const struct iwl_fw_dump_desc *desc,
 			    bool monitor_only, unsigned int delay);
+int iwl_fw_dbg_error_collect(struct iwl_fw_runtime *fwrt);
 int _iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 			enum iwl_fw_dbg_trigger trig,
 			const char *str, size_t len,
@@ -434,7 +435,6 @@ static inline void iwl_fw_resume_timestamp(struct iwl_fw_runtime *fwrt) {}
 
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
 
-void iwl_fw_assert_error_dump(struct iwl_fw_runtime *fwrt);
 void iwl_fw_alive_timeout_dump(struct iwl_fw_runtime *fwrt);
 void iwl_fw_dbg_collect_sync(struct iwl_fw_runtime *fwrt);
 void iwl_fw_dbg_apply_point(struct iwl_fw_runtime *fwrt,

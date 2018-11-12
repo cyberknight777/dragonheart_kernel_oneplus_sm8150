@@ -436,7 +436,6 @@ static int iwl_run_unified_mvm_ucode(struct iwl_mvm *mvm, bool read_nvm)
 	ret = iwl_mvm_load_ucode_wait_alive(mvm, IWL_UCODE_REGULAR);
 	if (ret) {
 		IWL_ERR(mvm, "Failed to start RT ucode: %d\n", ret);
-		iwl_fw_assert_error_dump(&mvm->fwrt);
 		goto error;
 	}
 
@@ -1160,7 +1159,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	ret = iwl_mvm_load_rt_fw(mvm);
 	if (ret) {
 		IWL_ERR(mvm, "Failed to start RT ucode: %d\n", ret);
-		iwl_fw_assert_error_dump(&mvm->fwrt);
+		iwl_fw_dbg_error_collect(&mvm->fwrt);
 		goto error;
 	}
 
