@@ -725,6 +725,10 @@ static int cz_start_smu(struct pp_hwmgr *hwmgr)
 	cgs_write_register(hwmgr->device, mmMP0PUB_IND_INDEX, index);
 	hwmgr->smu_version = cgs_read_register(hwmgr->device, mmMP0PUB_IND_DATA);
 	info.version = hwmgr->smu_version >> 8;
+	pr_info("smu version %02d.%02d.%02d\n",
+		((hwmgr->smu_version >> 16) & 0xFF),
+		((hwmgr->smu_version >> 8) & 0xFF),
+		(hwmgr->smu_version & 0xFF));
 	cgs_get_firmware_info(hwmgr->device, CGS_UCODE_ID_SMU, &info);
 
 	fw_to_check = UCODE_ID_RLC_G_MASK |
