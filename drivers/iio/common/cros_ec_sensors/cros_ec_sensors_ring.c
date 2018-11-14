@@ -429,7 +429,6 @@ static bool cros_ec_ring_process_event(
 				struct cros_ec_sensors_ring_sample *out)
 {
 	int axis;
-	s64 new_timestamp;
 
 	if (in->flags & MOTIONSENSE_SENSOR_FLAG_TIMESTAMP) {
 		s64 a = in->timestamp;
@@ -441,21 +440,23 @@ static bool cros_ec_ring_process_event(
 
 		if (state->tight_timestamps) {
 			cros_ec_ring_ts_filter_update(&state->filter, b, c);
-			new_timestamp =
+			*current_timestamp =
 				cros_ec_ring_ts_filter(&state->filter, a);
+
 		} else {
+			s64 new_timestamp;
 			/*
 			 * disable filtering since we might add more jitter
 			 * if b is in a random point in time
 			 */
 			new_timestamp = c - b * 1000 + a * 1000;
+			/*
+			 * The timestamp can be stale if we had to use the fifo
+			 * info timestamp.
+			 */
+			if (new_timestamp - *current_timestamp > 0)
+				*current_timestamp = new_timestamp;
 		}
-		/*
-		 * The timestamp can be stale if we had to use the fifo
-		 * info timestamp.
-		 */
-		if (new_timestamp - *current_timestamp > 0)
-			*current_timestamp = new_timestamp;
 	}
 
 	if (in->flags & MOTIONSENSE_SENSOR_FLAG_FLUSH) {
@@ -811,7 +812,8 @@ static void cros_ec_ring_handler(struct cros_ec_sensors_ring_state *state)
 	 * the AP is slow to respond to the IRQ, the EC may have added new
 	 * samples. Use the FIFO info timestamp as last timestamp then.
 	 */
-	if ((last_out-1)->timestamp == current_timestamp)
+	if (!state->tight_timestamps &&
+	    (last_out-1)->timestamp == current_timestamp)
 		current_timestamp = fifo_timestamp;
 
 	/* Check if buffer is set properly. */
