@@ -126,8 +126,11 @@ struct cros_ec_sensors_ring_state {
 	int    fifo_size;
 
 	/* Used for timestamp spreading calculations when a batch shows up */
+	s64 penultimate_batch_timestamp[CROS_EC_SENSOR_MAX];
+	int penultimate_batch_len[CROS_EC_SENSOR_MAX];
 	s64 last_batch_timestamp[CROS_EC_SENSOR_MAX];
 	int last_batch_len[CROS_EC_SENSOR_MAX];
+	s64 newest_sensor_event[CROS_EC_SENSOR_MAX];
 
 	struct cros_ec_sensors_ec_overflow_state overflow_a;
 	struct cros_ec_sensors_ec_overflow_state overflow_b;
@@ -407,6 +410,20 @@ static void cros_ec_ring_fix_overflow(s64 *ts,
 	state->last = *ts;
 }
 
+static void cros_ec_ring_check_for_past_timestamp(
+				struct cros_ec_sensors_ring_state *state,
+				struct cros_ec_sensors_ring_sample *sample)
+{
+	const u8 sensor_id = sample->sensor_id;
+
+	// if this event is earlier than one we saw before...
+	if (state->newest_sensor_event[sensor_id] > sample->timestamp)
+		// mark it for spreading
+		sample->timestamp = state->last_batch_timestamp[sensor_id];
+	else
+		state->newest_sensor_event[sensor_id] = sample->timestamp;
+}
+
 /*
  * cros_ec_ring_process_event: process one EC FIFO event
  *
@@ -480,6 +497,8 @@ static bool cros_ec_ring_process_event(
 	out->flag = in->flags;
 	for (axis = CROS_EC_SENSOR_X; axis < CROS_EC_SENSOR_MAX_AXIS; axis++)
 		out->vector[axis] = in->data[axis];
+	if (state->tight_timestamps)
+		cros_ec_ring_check_for_past_timestamp(state, out);
 	return true;
 }
 
@@ -529,11 +548,11 @@ static void cros_ec_ring_spread_add(
 			 * For each batch (where all samples have the same
 			 * timestamp).
 			 */
-			int batch_len = 1, sample_idx = 1;
+			int batch_len, sample_idx;
 			struct cros_ec_sensors_ring_sample *batch_end =
 				batch_start;
 			struct cros_ec_sensors_ring_sample *s;
-			const s64 batch_timestamp = batch_start->timestamp;
+			s64 batch_timestamp = batch_start->timestamp;
 			s64 sample_period;
 
 			/*
@@ -545,14 +564,33 @@ static void cros_ec_ring_spread_add(
 				continue;
 			}
 
-			/*
-			 * Push first sample in the batch to the kfifo,
-			 * it's guaranteed to be correct, rest come later.
-			 */
-			iio_push_to_buffers(indio_dev, (u8 *)batch_start);
+			if (batch_start->timestamp <=
+				state->last_batch_timestamp[id]) {
+
+				batch_timestamp =
+					state->last_batch_timestamp[id];
+				batch_len = state->last_batch_len[id];
+
+				sample_idx = batch_len + 1;
+
+				state->last_batch_timestamp[id] =
+					state->penultimate_batch_timestamp[id];
+				state->last_batch_len[id] =
+					state->penultimate_batch_len[id];
+			} else {
+				/*
+				 * Push first sample in the batch to the,
+				 * kifo, it's guaranteed to be correct, the
+				 * rest will follow later on.
+				 */
+				sample_idx = batch_len = 1;
+				iio_push_to_buffers(indio_dev,
+					(u8 *)batch_start);
+				batch_start++;
+			}
 
 			/* Find all samples have the same timestamp. */
-			for (s = batch_start + 1; s < last_out; s++) {
+			for (s = batch_start; s < last_out; s++) {
 				if (s->sensor_id != id)
 					/*
 					 * Skip over other sensor types that
@@ -597,7 +635,7 @@ static void cros_ec_ring_spread_add(
 			 * Adjust timestamps of the samples then push them to
 			 * kfifo.
 			 */
-			for (s = batch_start + 1; s <= batch_end; s++) {
+			for (s = batch_start; s <= batch_end; s++) {
 				if (s->sensor_id != id)
 					/*
 					 * Skip over other sensor types that
@@ -613,8 +651,14 @@ static void cros_ec_ring_spread_add(
 			}
 
 done_with_this_batch:
+			state->penultimate_batch_timestamp[id] =
+				state->last_batch_timestamp[id];
+			state->penultimate_batch_len[id] =
+				state->last_batch_len[id];
+
 			state->last_batch_timestamp[id] = batch_timestamp;
 			state->last_batch_len[id] = batch_len;
+
 			next_batch_start = batch_end + 1;
 		}
 	}
