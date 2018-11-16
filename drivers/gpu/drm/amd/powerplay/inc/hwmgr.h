@@ -340,6 +340,9 @@ struct pp_hwmgr_func {
 					uint32_t mc_addr_low,
 					uint32_t mc_addr_hi,
 					uint32_t size);
+	int (*update_nbdpm_pstate)(struct pp_hwmgr *hwmgr,
+	                                bool enable,
+	                                bool lock);
 	int (*powergate_mmhub)(struct pp_hwmgr *hwmgr);
 };
 

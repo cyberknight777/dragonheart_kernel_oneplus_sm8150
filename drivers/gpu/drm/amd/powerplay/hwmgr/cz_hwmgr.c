@@ -1908,6 +1908,7 @@ static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.power_state_set = cz_set_power_state_tasks,
 	.dynamic_state_management_disable = cz_disable_dpm_tasks,
 	.notify_cac_buffer_info = cz_notify_cac_buffer_info,
+	.update_nbdpm_pstate = cz_nbdpm_pstate_enable_disable,
 };
 
 int cz_init_function_pointers(struct pp_hwmgr *hwmgr)
