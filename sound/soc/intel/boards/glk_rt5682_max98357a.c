@@ -572,7 +572,7 @@ static int glk_card_late_probe(struct snd_soc_card *card)
 	char jack_name[NAME_SIZE];
 	struct glk_hdmi_pcm *pcm;
 
-	int i = 0;
+	int err, i = 0;
 #endif
 
 #ifndef DISABLE_HDMI
@@ -598,7 +598,7 @@ static int glk_card_late_probe(struct snd_soc_card *card)
 	if (!component)
 		return -EINVAL;
 
-	return hdac_hdmi_jack_port_init(codec, &card->dapm);
+	return hdac_hdmi_jack_port_init(component, &card->dapm);
 #else
 	return 0;
 #endif
