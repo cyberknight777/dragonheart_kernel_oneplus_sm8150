@@ -55,6 +55,8 @@ struct amdgpu_uvd {
 	struct drm_sched_entity entity_enc;
 	uint32_t                srbm_soft_reset;
 	unsigned		num_enc_rings;
+	/* store image width to adjust nb memory pstate */
+	unsigned                decode_image_width;
 };
 
 int amdgpu_uvd_sw_init(struct amdgpu_device *adev);
