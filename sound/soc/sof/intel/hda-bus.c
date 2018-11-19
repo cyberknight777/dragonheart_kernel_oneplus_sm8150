@@ -9,6 +9,7 @@
  *	Keyon Jie <yang.jie@linux.intel.com>
  */
 
+#include <linux/io.h>
 #include <sound/hdaudio.h>
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
