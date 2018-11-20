@@ -1606,7 +1606,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 				IWL_UCODE_TLV_CAPA_TOF_SUPPORT) &&
 		    (ieee80211_is_beacon(hdr->frame_control) ||
 		     ieee80211_is_probe_resp(hdr->frame_control)))
-			iwl_mvm_tof_update_tsf(mvm, pkt);
+			iwl_mvm_tof_update_tsf(mvm, hdr, gp2_on_air_rise);
 #endif
 		if (unlikely(ieee80211_is_beacon(hdr->frame_control) ||
 			     ieee80211_is_probe_resp(hdr->frame_control)))
