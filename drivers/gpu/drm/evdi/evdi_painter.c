@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2013 - 2017 DisplayLink (UK) Ltd.
+ * Copyright (c) 2013 - 2018 DisplayLink (UK) Ltd.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License v2. See the file COPYING in the main directory of this archive for
  * more details.
  */
 
+#include "linux/thread_info.h"
+#include "linux/mm.h"
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include <uapi/drm/evdi_drm.h>
@@ -212,8 +214,7 @@ u8 *evdi_painter_get_edid_copy(struct evdi_device *evdi)
 			memcpy(block,
 			       evdi->painter->edid,
 			       evdi->painter->edid_length);
-			EVDI_DEBUG("(dev=%d) %02x %02x %02x\n", evdi->dev_index,
-				   block[0], block[1], block[2]);
+			EVDI_DEBUG("(dev=%d) EDID valid\n", evdi->dev_index);
 		}
 	}
 	painter_unlock(evdi->painter);
@@ -507,6 +508,8 @@ evdi_painter_connect(struct evdi_device *evdi,
 	int expected_edid_size = 0;
 
 	EVDI_CHECKPT();
+	EVDI_DEBUG("(dev=%d) process %d trying to connect\n", evdi->dev_index,
+		   (int)task_pid_nr(current));
 
 	if (edid_length < sizeof(struct edid)) {
 		EVDI_ERROR("Edid length too small\n");
@@ -573,11 +576,6 @@ static int evdi_painter_disconnect(struct evdi_device *evdi,
 	painter_lock(painter);
 
 	if (file != painter->drm_filp) {
-		EVDI_WARN
-		    ("(dev=%d) An unknown connection to %p tries to close us",
-		     evdi->dev_index, file);
-		EVDI_WARN(" - ignoring\n");
-
 		painter_unlock(painter);
 		return -EFAULT;
 	}
@@ -636,6 +634,10 @@ int evdi_painter_connect_ioctl(struct drm_device *drm_dev, void *data,
 		else
 			ret = evdi_painter_disconnect(evdi, file);
 
+		if (ret) {
+			EVDI_WARN("(dev=%d) (pid=%d) disconnect failed\n",
+				  evdi->dev_index, (int)task_pid_nr(current));
+		}
 		return ret;
 	}
 	EVDI_WARN("Painter does not exist!");

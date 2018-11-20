@@ -80,6 +80,7 @@ struct drm_encoder *evdi_encoder_init(struct drm_device *dev);
 int evdi_driver_load(struct drm_device *dev, unsigned long flags);
 void evdi_driver_unload(struct drm_device *dev);
 void evdi_driver_preclose(struct drm_device *dev, struct drm_file *file_priv);
+void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file_priv);
 
 #ifdef CONFIG_COMPAT
 long evdi_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
