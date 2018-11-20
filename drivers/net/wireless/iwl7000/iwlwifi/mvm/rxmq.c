@@ -192,6 +192,38 @@ static void iwl_mvm_create_skb(struct sk_buff *skb, struct ieee80211_hdr *hdr,
 	}
 }
 
+static void iwl_mvm_add_rtap_sniffer_config(struct iwl_mvm *mvm,
+					    struct sk_buff *skb)
+{
+	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
+	struct ieee80211_vendor_radiotap *radiotap;
+	int size = sizeof(*radiotap) + sizeof(__le16);
+
+	if (!mvm->cur_aid)
+		return;
+
+	if (unlikely(skb_headroom(skb) < size &&
+		     pskb_expand_head(skb, size, 0, GFP_ATOMIC)))
+		return;
+
+	radiotap = skb_push(skb, size);
+	radiotap->align = 1;
+	/* Intel OUI */
+	radiotap->oui[0] = 0xf6;
+	radiotap->oui[1] = 0x54;
+	radiotap->oui[2] = 0x25;
+	/* radiotap sniffer config sub-namespace */
+	radiotap->subns = 1;
+	radiotap->present = 0x1;
+	radiotap->len = size - sizeof(*radiotap);
+	radiotap->pad = 0;
+
+	/* fill the data now */
+	memcpy(radiotap->data, &mvm->cur_aid, sizeof(mvm->cur_aid));
+
+	rx_status->flag |= RX_FLAG_RADIOTAP_VENDOR_DATA;
+}
+
 /* iwl_mvm_pass_packet_to_mac80211 - passes the packet for mac80211 */
 static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 					    struct napi_struct *napi,
@@ -212,10 +244,13 @@ static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 		__skb_push(skb, radiotap_len);
 
 		/* this indicates we're still waiting for CSI data */
-		if (unlikely(rx_status->flag & RX_FLAG_RADIOTAP_VENDOR_DATA))
+		if (unlikely(rx_status->flag & RX_FLAG_RADIOTAP_VENDOR_DATA)) {
 			skb_queue_tail(&mvm->csi_pending, skb);
-		else
+		} else {
+			if (unlikely(mvm->monitor_on))
+				iwl_mvm_add_rtap_sniffer_config(mvm, skb);
 			ieee80211_rx_napi(mvm->hw, sta, skb, napi);
+		}
 	}
 }
 
