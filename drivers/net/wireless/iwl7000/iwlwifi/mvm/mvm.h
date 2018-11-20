@@ -2048,7 +2048,7 @@ void iwl_mvm_vif_set_low_latency(struct iwl_mvm_vif *mvmvif, bool set,
 				  ~(LOW_LATENCY_DEBUGFS_FORCE_ENABLE |
 				    LOW_LATENCY_DEBUGFS_FORCE));
 
-	mvmvif->low_latency = new_state;
+	mvmvif->low_latency_actual = new_state;
 }
 
 /* Return a bitmask with all the hw supported queues, except for the
