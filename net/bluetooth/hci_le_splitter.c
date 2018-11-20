@@ -49,9 +49,6 @@ static atomic_t usr_connected = ATOMIC_INIT(0);
 /* "is chip in state to talk to second stack?" */
 static atomic_t chip_ready_for_second_stack = ATOMIC_INIT(0);
 
-/* "is one-time init done?" */
-static atomic_t one_time_init_done = ATOMIC_INIT(0);
-
 /* protects messages waiting to be read */
 static DEFINE_MUTEX(usr_msg_q_lock);
 static DECLARE_WAIT_QUEUE_HEAD(usr_msg_wait_q);
@@ -140,26 +137,12 @@ static bool hci_le_splitter_is_our_dev(struct hci_dev *hdev)
 
 void hci_le_splitter_init_start(struct hci_dev *hdev)
 {
-	int err;
-
 	mutex_lock(&hci_state_lock);
 
 	if (hci_le_splitter_set_our_dev(hdev))
 		pr_info("HCI splitter inited\n");
 	else
 		pr_info("HCI splitter ignoring dev\n");
-
-	if (!atomic_cmpxchg(&one_time_init_done, 0, 1)) {
-
-		skb_queue_head_init(&usr_msg_q);
-		misc_register(&mdev);
-
-		err = device_create_file(mdev.this_device, &sysfs_attr);
-		if (err) {
-			pr_err("Cannot create sysfs file (%d) - on by default\n", err);
-			splitter_enable_state = SPLITTER_STATE_ENABLED;
-		}
-	}
 
 	mutex_unlock(&hci_state_lock);
 }
@@ -1075,3 +1058,19 @@ bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, struct sk_buff 
 	return ret;
 }
 
+int hci_le_splitter_sysfs_init(void)
+{
+	int err;
+
+	BT_INFO("Initializing LE splitter sysfs");
+	skb_queue_head_init(&usr_msg_q);
+	misc_register(&mdev);
+
+	err = device_create_file(mdev.this_device, &sysfs_attr);
+	if (err) {
+		pr_err("Cannot create sysfs file (%d) - off by default\n", err);
+		splitter_enable_state = SPLITTER_STATE_DISABLED;
+		return -1;
+	}
+	return 0;
+}
