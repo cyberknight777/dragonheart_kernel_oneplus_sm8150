@@ -6,6 +6,11 @@
 
 struct blk_mq_tag_set;
 
+struct blk_mq_ctxs {
+	struct kobject kobj;
+	struct blk_mq_ctx __percpu	*queue_ctx;
+};
+
 struct blk_mq_ctx {
 	struct {
 		spinlock_t		lock;
@@ -23,6 +28,7 @@ struct blk_mq_ctx {
 	unsigned long		____cacheline_aligned_in_smp rq_completed[2];
 
 	struct request_queue	*queue;
+	struct blk_mq_ctxs      *ctxs;
 	struct kobject		kobj;
 } ____cacheline_aligned_in_smp;
 
