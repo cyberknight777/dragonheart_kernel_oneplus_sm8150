@@ -326,7 +326,6 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	enum iwl_ucode_type old_type = mvm->fwrt.cur_fw_img;
 	static const u16 alive_cmd[] = { MVM_ALIVE };
 
-	set_bit(IWL_FWRT_STATUS_WAIT_ALIVE, &mvm->fwrt.status);
 	if (ucode_type == IWL_UCODE_REGULAR &&
 	    iwl_fw_dbg_conf_usniffer(mvm->fw, FW_DBG_START_FROM_ALIVE) &&
 	    !(fw_has_capa(&mvm->fw->ucode_capa,
@@ -359,6 +358,9 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 
 	if (ret) {
 		struct iwl_trans *trans = mvm->trans;
+
+		if (ret == -ETIMEDOUT)
+			iwl_fw_alive_timeout_dump(&mvm->fwrt);
 
 		if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22000)
 			IWL_ERR(mvm,
@@ -408,7 +410,6 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	iwl_fw_set_dbg_rec_on(&mvm->fwrt);
 #endif
-	clear_bit(IWL_FWRT_STATUS_WAIT_ALIVE, &mvm->fwrt.status);
 
 	return 0;
 }
