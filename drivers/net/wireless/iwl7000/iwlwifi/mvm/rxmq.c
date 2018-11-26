@@ -202,11 +202,7 @@ static void iwl_mvm_add_rtap_sniffer_config(struct iwl_mvm *mvm,
 	if (!mvm->cur_aid)
 		return;
 
-	if (unlikely(skb_headroom(skb) < size &&
-		     pskb_expand_head(skb, size, 0, GFP_ATOMIC)))
-		return;
-
-	radiotap = skb_push(skb, size);
+	radiotap = skb_put(skb, size);
 	radiotap->align = 1;
 	/* Intel OUI */
 	radiotap->oui[0] = 0xf6;
@@ -228,7 +224,8 @@ static void iwl_mvm_add_rtap_sniffer_config(struct iwl_mvm *mvm,
 static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 					    struct napi_struct *napi,
 					    struct sk_buff *skb, int queue,
-					    struct ieee80211_sta *sta)
+					    struct ieee80211_sta *sta,
+					    bool csi)
 {
 	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
 
@@ -244,13 +241,10 @@ static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 		__skb_push(skb, radiotap_len);
 
 		/* this indicates we're still waiting for CSI data */
-		if (unlikely(rx_status->flag & RX_FLAG_RADIOTAP_VENDOR_DATA)) {
+		if (unlikely(csi))
 			skb_queue_tail(&mvm->csi_pending, skb);
-		} else {
-			if (unlikely(mvm->monitor_on))
-				iwl_mvm_add_rtap_sniffer_config(mvm, skb);
+		else
 			ieee80211_rx_napi(mvm->hw, sta, skb, napi);
-		}
 	}
 }
 
@@ -512,7 +506,7 @@ static void iwl_mvm_release_frames(struct iwl_mvm *mvm,
 		while ((skb = __skb_dequeue(skb_list))) {
 			iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb,
 							reorder_buf->queue,
-							sta);
+							sta, false);
 			reorder_buf->num_stored--;
 		}
 	}
@@ -1351,6 +1345,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 		.d4 = desc->phy_data4,
 		.info_type = IWL_RX_PHY_INFO_TYPE_NONE,
 	};
+	bool csi = false;
 
 	if (unlikely(test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)))
 		return;
@@ -1494,13 +1489,14 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 	/*
 	 * This indicates we'll get additional data as notification,
 	 * tag the frame already now with vendor data (we'll put the
-	 * data there later), and we'll use the vendor data bit to
-	 * make sure we don't report the frame to mac80211 before we
-	 * actually have the data for it.
+	 * data there later), we don't report the frame to mac80211
+	 * before we actually have the data for it.
 	 */
 	if (!(rate_n_flags & RATE_MCS_CCK_MSK) &&
 	    phy_info & IWL_RX_MPDU_PHY_NCCK_ADDTL_NTFY)
-		rx_status->flag |= RX_FLAG_RADIOTAP_VENDOR_DATA;
+		csi = true;
+	else if (unlikely(mvm->monitor_on))
+		iwl_mvm_add_rtap_sniffer_config(mvm, skb);
 
 	rcu_read_lock();
 
@@ -1663,7 +1659,8 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 	iwl_mvm_create_skb(skb, hdr, len, crypt_len, rxb);
 	if (!iwl_mvm_reorder(mvm, napi, queue, sta, skb, desc))
-		iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue, sta);
+		iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue,
+						sta, csi);
 out:
 	rcu_read_unlock();
 }
@@ -1796,7 +1793,7 @@ void iwl_mvm_rx_monitor_ndp(struct iwl_mvm *mvm, struct napi_struct *napi,
 		rx_status->rate_idx = rate;
 	}
 
-	iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue, sta);
+	iwl_mvm_pass_packet_to_mac80211(mvm, napi, skb, queue, sta, false);
 out:
 	rcu_read_unlock();
 }
