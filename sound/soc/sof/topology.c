@@ -405,15 +405,9 @@ static const struct sof_topology_token comp_tokens[] = {
 
 /* SSP */
 static const struct sof_topology_token ssp_tokens[] = {
-	{SOF_TKN_INTEL_SSP_MCLK_KEEP_ACTIVE,
-		SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u32,
-		offsetof(struct sof_ipc_dai_ssp_params, mclk_keep_active), 0},
-	{SOF_TKN_INTEL_SSP_BCLK_KEEP_ACTIVE,
-		SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u32,
-		offsetof(struct sof_ipc_dai_ssp_params, bclk_keep_active), 0},
-	{SOF_TKN_INTEL_SSP_FS_KEEP_ACTIVE,
-		SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u32,
-		offsetof(struct sof_ipc_dai_ssp_params, fs_keep_active), 0},
+	{SOF_TKN_INTEL_SSP_CLKS_CONTROL,
+		SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
+		offsetof(struct sof_ipc_dai_ssp_params, clks_control), 0},
 	{SOF_TKN_INTEL_SSP_MCLK_ID,
 		SND_SOC_TPLG_TUPLE_TYPE_SHORT, get_token_u16,
 		offsetof(struct sof_ipc_dai_ssp_params, mclk_id), 0},
@@ -426,6 +420,10 @@ static const struct sof_topology_token ssp_tokens[] = {
 	{SOF_TKN_INTEL_SSP_QUIRKS, SND_SOC_TPLG_TUPLE_TYPE_WORD,
 		get_token_u32,
 		offsetof(struct sof_ipc_dai_ssp_params, quirks), 0},
+	{SOF_TKN_INTEL_SSP_TDM_PADDING_PER_SLOT, SND_SOC_TPLG_TUPLE_TYPE_BOOL,
+		get_token_u16,
+		offsetof(struct sof_ipc_dai_ssp_params,
+			 tdm_per_slot_padding_flag), 0},
 };
 
 /* DMIC */

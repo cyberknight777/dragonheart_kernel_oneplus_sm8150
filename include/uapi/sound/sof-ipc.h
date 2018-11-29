@@ -213,6 +213,25 @@ struct sof_ipc_compound_hdr {
  /* here is the possibility to define others aux macros */
 
 #define SOF_DAI_INTEL_SSP_FRAME_PULSE_WIDTH_MAX		38
+#define SOF_DAI_INTEL_SSP_SLOT_PADDING_MAX		31
+
+/* SSP clocks control settings
+ *
+ * Macros for clks_control field in sof_ipc_dai_ssp_params struct.
+ */
+
+/* mclk 0 disable */
+#define SOF_DAI_INTEL_SSP_MCLK_0_DISABLE		BIT(0)
+/* mclk 1 disable */
+#define SOF_DAI_INTEL_SSP_MCLK_1_DISABLE		BIT(1)
+/* mclk keep active */
+#define SOF_DAI_INTEL_SSP_CLKCTRL_MCLK_KA		BIT(2)
+/* bclk keep active */
+#define SOF_DAI_INTEL_SSP_CLKCTRL_BCLK_KA		BIT(3)
+/* fs keep active */
+#define SOF_DAI_INTEL_SSP_CLKCTRL_FS_KA			BIT(4)
+/* bclk idle */
+#define SOF_DAI_INTEL_SSP_CLKCTRL_BCLK_IDLE_HIGH	BIT(5)
 
 /* types of DAI */
 enum sof_ipc_dai_type {
@@ -243,14 +262,11 @@ struct sof_ipc_dai_ssp_params {
 
 	/* MCLK */
 	uint32_t mclk_direction;
-	uint32_t mclk_keep_active;
-	uint32_t bclk_keep_active;
-	uint32_t fs_keep_active;
 
 	uint16_t frame_pulse_width;
+	uint16_t tdm_per_slot_padding_flag;
+	uint32_t clks_control;
 	uint32_t quirks; // FIXME: is 32 bits enough ?
-
-	uint16_t padding;
 	/* private data, e.g. for quirks */
 	//uint32_t pdata[10]; // FIXME: would really need ~16 u32
 } __attribute__((packed));
