@@ -460,12 +460,16 @@ int chromiumos_security_capable(const struct cred *cred,
 		// would signify that the syscall is being aborted due to a
 		// signal, so we don't need to check for this case here.
 		if (!(setuid_syscall(syscall_get_nr(current,
-						    current_pt_regs()))))
+						    current_pt_regs())))) {
 			// Deny if we're not in a set*uid() syscall to avoid
 			// giving powers gated by CAP_SETUID that are related
 			// to functionality other than calling set*uid() (e.g.
 			// allowing user to set up userns uid mappings).
+			WARN(1,
+			     "Operation requires CAP_SETUID, which is not available to UID %u for operations besides approved set*uid transitions\n",
+			     __kuid_val(cred->uid));
 			return -1;
+		}
 	}
 	return 0;
 }
