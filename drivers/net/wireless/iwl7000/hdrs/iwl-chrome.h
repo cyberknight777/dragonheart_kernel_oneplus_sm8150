@@ -34,6 +34,7 @@
 #include <linux/pci.h>
 #include <linux/if_vlan.h>
 #include <linux/overflow.h>
+#include "net/fq.h"
 
 #define LINUX_VERSION_IS_LESS(x1,x2,x3) (LINUX_VERSION_CODE < KERNEL_VERSION(x1,x2,x3))
 #define LINUX_VERSION_IS_GEQ(x1,x2,x3)  (LINUX_VERSION_CODE >= KERNEL_VERSION(x1,x2,x3))
