@@ -34,6 +34,7 @@
 #include <linux/pci.h>
 #include <linux/if_vlan.h>
 #include <linux/overflow.h>
+#include "net/fq.h"
 
 /* avoid conflicts with other headers */
 #ifdef is_signed_type
