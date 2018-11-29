@@ -4314,7 +4314,9 @@ static void __iwl_mvm_unassign_vif_chanctx(struct iwl_mvm *mvm,
 
 		disabled_vif = vif;
 
-		iwl_mvm_mac_ctxt_changed(mvm, vif, true, NULL);
+		if (!fw_has_capa(&mvm->fw->ucode_capa,
+				 IWL_UCODE_TLV_CAPA_CHANNEL_SWITCH_CMD))
+			iwl_mvm_mac_ctxt_changed(mvm, vif, true, NULL);
 		break;
 	default:
 		break;
