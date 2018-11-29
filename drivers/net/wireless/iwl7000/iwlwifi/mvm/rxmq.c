@@ -200,7 +200,8 @@ static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 {
 	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
 
-	if (iwl_mvm_check_pn(mvm, skb, queue, sta)) {
+	if (!(rx_status->flag & RX_FLAG_NO_PSDU) &&
+	    iwl_mvm_check_pn(mvm, skb, queue, sta)) {
 		kfree_skb(skb);
 	} else {
 		unsigned int radiotap_len = 0;
