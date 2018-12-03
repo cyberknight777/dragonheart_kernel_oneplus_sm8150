@@ -8,6 +8,7 @@
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016-2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,6 +31,7 @@
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016-2017 Intel Deutschland GmbH
+ * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -367,6 +369,7 @@ void iwl_dnt_configure(struct iwl_trans *trans, const struct fw_img *image)
 	case MIPI:
 	case INTERFACE:
 	case MARBH_ADC:
+		/* fall through */
 	case MARBH_DBG:
 		iwl_dnt_conf_monitor(trans, dbg_cfg->dnt_out_mode,
 				     dbg_cfg->dbm_destination_path,
