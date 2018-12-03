@@ -65,25 +65,38 @@ static irqreturn_t ec_irq_handler(int irq, void *data) {
 	return IRQ_WAKE_THREAD;
 }
 
-static irqreturn_t ec_irq_thread(int irq, void *data)
+static bool ec_handle_event(struct cros_ec_device *ec_dev)
 {
-	struct cros_ec_device *ec_dev = data;
 	bool wake_event = true;
-	int ret;
+	bool ec_has_more_events = false;
+	int ret = cros_ec_get_next_event(ec_dev, &wake_event);
 
-	ret = cros_ec_get_next_event(ec_dev, &wake_event);
+	if (ec_dev->mkbp_event_supported) {
+		ec_has_more_events = (ret > 0) &&
+			(ec_dev->event_data.event_type &
+				EC_MKBP_HAS_MORE_EVENTS);
+	}
 
-	/*
-	 * Signal only if wake host events or any interrupt if
-	 * cros_ec_get_next_event() returned an error (default value for
-	 * wake_event is true)
-	 */
-	if (wake_event && device_may_wakeup(ec_dev->dev))
+	if (device_may_wakeup(ec_dev->dev) && wake_event)
 		pm_wakeup_event(ec_dev->dev, 0);
 
 	if (ret > 0)
 		blocking_notifier_call_chain(&ec_dev->event_notifier,
-					     0, ec_dev);
+					0, ec_dev);
+
+	return ec_has_more_events;
+
+}
+
+static irqreturn_t ec_irq_thread(int irq, void *data)
+{
+	struct cros_ec_device *ec_dev = data;
+	bool ec_has_more_events;
+
+	do {
+		ec_has_more_events = ec_handle_event(ec_dev);
+	} while (ec_has_more_events);
+
 	return IRQ_HANDLED;
 }
 
