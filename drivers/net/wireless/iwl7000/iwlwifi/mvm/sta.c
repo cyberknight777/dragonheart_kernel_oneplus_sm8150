@@ -2348,19 +2348,6 @@ int iwl_mvm_add_mcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 			return ret;
 	}
 
-	if (mvmvif->ap_wep_key) {
-		u8 key_offset = iwl_mvm_set_fw_key_idx(mvm);
-
-		if (key_offset == STA_KEY_IDX_INVALID)
-			return -ENOSPC;
-
-		ret = iwl_mvm_send_sta_key(mvm, mvmvif->mcast_sta.sta_id,
-					   mvmvif->ap_wep_key, 1, 0, NULL, 0,
-					   key_offset, 0);
-		if (ret)
-			return ret;
-	}
-
 	return 0;
 }
 
