@@ -326,11 +326,10 @@ static void set_acp_to_i2s_dma_descriptors(void __iomem *acp_mmio, u32 size,
 }
 
 /* Create page table entries in ACP SRAM for the allocated memory */
-static void acp_pte_config(void __iomem *acp_mmio, struct page *pg,
+static void acp_pte_config(void __iomem *acp_mmio, dma_addr_t addr,
 			   u16 num_of_pages, u32 pte_offset)
 {
 	u16 page_idx;
-	u64 addr;
 	u32 low;
 	u32 high;
 	u32 offset;
@@ -339,7 +338,6 @@ static void acp_pte_config(void __iomem *acp_mmio, struct page *pg,
 
 	for (page_idx = 0; page_idx < (num_of_pages); page_idx++) {
 		/* Load the low address of page int ACP SRAM through SRBM */
-		addr = page_to_phys(pg);
 
 		low = lower_32_bits(addr);
 		high = upper_32_bits(addr);
@@ -354,7 +352,7 @@ static void acp_pte_config(void __iomem *acp_mmio, struct page *pg,
 					high);
 
 		/* Move to next physically contiguos page */
-		pg++;
+		addr += PAGE_SIZE;
 	}
 }
 
@@ -364,7 +362,7 @@ static void config_acp_dma(void __iomem *acp_mmio,
 {
 	u16 ch_acp_sysmem, ch_acp_i2s;
 
-	acp_pte_config(acp_mmio, rtd->pg, rtd->num_of_pages,
+	acp_pte_config(acp_mmio, rtd->dma_addr, rtd->num_of_pages,
 		       rtd->pte_offset);
 
 	if (rtd->direction == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -870,7 +868,6 @@ static int acp_dma_hw_params(struct snd_pcm_substream *substream,
 	int status;
 	uint64_t size;
 	u32 val = 0;
-	struct page *pg;
 	struct snd_pcm_runtime *runtime;
 	struct audio_substream_data *rtd;
 	struct snd_soc_pcm_runtime *prtd = substream->private_data;
@@ -1003,16 +1000,14 @@ static int acp_dma_hw_params(struct snd_pcm_substream *substream,
 		return status;
 
 	memset(substream->runtime->dma_area, 0, params_buffer_bytes(params));
-	pg = virt_to_page(substream->dma_buffer.area);
 
-	if (pg) {
+	if (substream->dma_buffer.area) {
 		acp_set_sram_bank_state(rtd->acp_mmio, 0, true);
 		/* Save for runtime private data */
-		rtd->pg = pg;
+		rtd->dma_addr = substream->dma_buffer.addr;
 		rtd->order = get_order(size);
 
 		/* Fill the page table entries in ACP SRAM */
-		rtd->pg = pg;
 		rtd->size = size;
 		rtd->num_of_pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
 		rtd->direction = substream->stream;
