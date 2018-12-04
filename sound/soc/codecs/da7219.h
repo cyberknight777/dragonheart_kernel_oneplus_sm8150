@@ -833,8 +833,6 @@ struct da7219_priv {
 	bool micbias_on_event;
 	unsigned int mic_pga_delay;
 	u8 gain_ramp_ctrl;
-
-	unsigned int *reg_state;
 };
 
 int da7219_set_pll(struct snd_soc_component *component, int source, unsigned int fout);

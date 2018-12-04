@@ -15,7 +15,6 @@
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/clk-provider.h>
-#include <linux/dmi.h>
 #include <linux/i2c.h>
 #include <linux/of_device.h>
 #include <linux/property.h>
@@ -2017,6 +2016,56 @@ static void da7219_remove(struct snd_soc_component *component)
 	regulator_bulk_disable(DA7219_NUM_SUPPLIES, da7219->supplies);
 }
 
+#ifdef CONFIG_PM
+static int da7219_suspend(struct snd_soc_component *component)
+{
+	struct da7219_priv *da7219 = snd_soc_component_get_drvdata(component);
+
+	/* Suspend AAD if we're not a wake-up source */
+	if (!da7219->wakeup_source)
+		da7219_aad_suspend(component);
+
+	snd_soc_component_force_bias_level(component, SND_SOC_BIAS_OFF);
+
+	return 0;
+}
+
+static int da7219_resume(struct snd_soc_component *component)
+{
+	struct da7219_priv *da7219 = snd_soc_component_get_drvdata(component);
+
+	snd_soc_component_force_bias_level(component, SND_SOC_BIAS_STANDBY);
+
+	/* Resume AAD if previously suspended */
+	if (!da7219->wakeup_source)
+		da7219_aad_resume(component);
+
+	return 0;
+}
+#else
+#define da7219_suspend NULL
+#define da7219_resume NULL
+#endif
+
+static const struct snd_soc_component_driver soc_component_dev_da7219 = {
+	.probe			= da7219_probe,
+	.remove			= da7219_remove,
+	.suspend		= da7219_suspend,
+	.resume			= da7219_resume,
+	.set_bias_level		= da7219_set_bias_level,
+	.controls		= da7219_snd_controls,
+	.num_controls		= ARRAY_SIZE(da7219_snd_controls),
+	.dapm_widgets		= da7219_dapm_widgets,
+	.num_dapm_widgets	= ARRAY_SIZE(da7219_dapm_widgets),
+	.dapm_routes		= da7219_audio_map,
+	.num_dapm_routes	= ARRAY_SIZE(da7219_audio_map),
+	.idle_bias_on		= 1,
+	.use_pmdown_time	= 1,
+	.endianness		= 1,
+	.non_legacy_dai_naming	= 1,
+};
+
+
 /*
  * Regmap configs
  */
@@ -2152,89 +2201,6 @@ static const struct regmap_config da7219_regmap_config = {
 	.cache_type = REGCACHE_RBTREE,
 };
 
-
-#ifdef CONFIG_PM
-static const struct dmi_system_id dmi_platform_google_grunt[] = {
-	{
-		.ident = "Google Grunt",
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "Google"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Grunt"),
-		},
-	},
-	{}
-};
-
-static int da7219_suspend(struct snd_soc_component *component)
-{
-	struct da7219_priv *da7219 = snd_soc_component_get_drvdata(component);
-	unsigned int i;
-
-	if (dmi_check_system(dmi_platform_google_grunt)) {
-		da7219->reg_state = kzalloc(sizeof(unsigned int) *
-					da7219_regmap_config.num_reg_defaults,
-					GFP_KERNEL);
-		for (i = 0; i < da7219_regmap_config.num_reg_defaults; i++)
-			da7219->reg_state[i] = snd_soc_component_read32(
-					component,
-					da7219_reg_defaults[i].reg);
-	}
-
-	/* Suspend AAD if we're not a wake-up source */
-	if (!da7219->wakeup_source)
-		da7219_aad_suspend(component);
-
-	snd_soc_component_force_bias_level(component, SND_SOC_BIAS_OFF);
-
-	return 0;
-}
-
-static int da7219_resume(struct snd_soc_component *component)
-{
-	struct da7219_priv *da7219 = snd_soc_component_get_drvdata(component);
-	unsigned int i, ret;
-
-	snd_soc_component_force_bias_level(component, SND_SOC_BIAS_STANDBY);
-
-	/* Resume AAD if previously suspended */
-	if (!da7219->wakeup_source)
-		da7219_aad_resume(component);
-
-	if (dmi_check_system(dmi_platform_google_grunt)) {
-		ret = da7219_handle_supplies(component);
-		if (ret)
-			return ret;
-		for (i = 0; i < da7219_regmap_config.num_reg_defaults; i++)
-			snd_soc_component_write(component,
-					da7219_reg_defaults[i].reg,
-					da7219->reg_state[i]);
-		kfree(da7219->reg_state);
-	}
-
-	return 0;
-}
-#else
-#define da7219_suspend NULL
-#define da7219_resume NULL
-#endif
-
-static const struct snd_soc_component_driver soc_component_dev_da7219 = {
-	.probe			= da7219_probe,
-	.remove			= da7219_remove,
-	.suspend		= da7219_suspend,
-	.resume			= da7219_resume,
-	.set_bias_level		= da7219_set_bias_level,
-	.controls		= da7219_snd_controls,
-	.num_controls		= ARRAY_SIZE(da7219_snd_controls),
-	.dapm_widgets		= da7219_dapm_widgets,
-	.num_dapm_widgets	= ARRAY_SIZE(da7219_dapm_widgets),
-	.dapm_routes		= da7219_audio_map,
-	.num_dapm_routes	= ARRAY_SIZE(da7219_audio_map),
-	.idle_bias_on		= 1,
-	.use_pmdown_time	= 1,
-	.endianness		= 1,
-	.non_legacy_dai_naming	= 1,
-};
 
 /*
  * I2C layer
