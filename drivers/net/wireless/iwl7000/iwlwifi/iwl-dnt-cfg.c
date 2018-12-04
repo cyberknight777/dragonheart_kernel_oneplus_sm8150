@@ -365,11 +365,11 @@ void iwl_dnt_configure(struct iwl_trans *trans, const struct fw_img *image)
 			IWL_ERR(trans, "DMA buffer wasn't allocated\n");
 			return;
 		}
+		/* fall through */
 	case NO_MONITOR:
 	case MIPI:
 	case INTERFACE:
 	case MARBH_ADC:
-		/* fall through */
 	case MARBH_DBG:
 		iwl_dnt_conf_monitor(trans, dbg_cfg->dnt_out_mode,
 				     dbg_cfg->dbm_destination_path,
