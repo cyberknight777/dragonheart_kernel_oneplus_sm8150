@@ -414,6 +414,7 @@ struct hid_local {
  */
 
 struct hid_collection {
+	struct hid_collection *parent;
 	unsigned type;
 	unsigned usage;
 	unsigned level;
@@ -631,6 +632,7 @@ struct hid_parser {
 	unsigned int         *collection_stack;
 	unsigned int          collection_stack_ptr;
 	unsigned int          collection_stack_size;
+	struct hid_collection *active_collection;
 	struct hid_device    *device;
 	unsigned int          scan_flags;
 };
