@@ -5,6 +5,7 @@ iwlmvm-y += utils.o rx.o rxmq.o tx.o binding.o quota.o sta.o sf.o
 iwlmvm-y += scan.o time-event.o rs.o rs-fw.o
 iwlmvm-y += power.o coex.o
 iwlmvm-y += tt.o offloading.o tdls.o
+iwlmvm-y += ftm-initiator.o
 iwlmvm-y += ftm-responder.o
 iwlmvm-y += nan.o
 iwlmvm-$(CPTCFG_IWLWIFI_DEBUGFS) += debugfs.o debugfs-vif.o
