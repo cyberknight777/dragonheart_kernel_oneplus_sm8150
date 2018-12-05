@@ -1198,6 +1198,8 @@ struct iwl_mvm {
 	u32 ciphers[IWL_MVM_NUM_CIPHERS];
 	struct ieee80211_cipher_scheme cs[IWL_UCODE_MAX_CS];
 
+	struct cfg80211_ftm_responder_stats ftm_resp_stats;
+
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	struct iwl_mcast_filter_cmd *mcast_active_filter_cmd;
 	u8 rx_filters;
@@ -2134,6 +2136,13 @@ int iwl_mvm_sf_update(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		      bool added_vif);
 
 void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy);
+
+/* FTM responder */
+int iwl_mvm_ftm_start_responder(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+void iwl_mvm_ftm_restart_responder(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif);
+void iwl_mvm_ftm_responder_stats(struct iwl_mvm *mvm,
+				 struct iwl_rx_cmd_buffer *rxb);
 
 /* TDLS */
 
