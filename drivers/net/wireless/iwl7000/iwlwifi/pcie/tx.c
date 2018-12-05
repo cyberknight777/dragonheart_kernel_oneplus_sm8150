@@ -1945,7 +1945,6 @@ static int iwl_pcie_send_hcmd_sync(struct iwl_trans *trans,
 		ret = -ETIMEDOUT;
 
 		iwl_force_nmi(trans);
-		iwl_trans_fw_error(trans);
 
 		goto cancel;
 	}
