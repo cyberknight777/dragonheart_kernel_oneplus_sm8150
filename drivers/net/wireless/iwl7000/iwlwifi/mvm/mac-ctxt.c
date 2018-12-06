@@ -1578,15 +1578,19 @@ void iwl_mvm_channel_switch_noa_notif(struct iwl_mvm *mvm,
 	struct ieee80211_vif *csa_vif, *vif;
 	struct iwl_mvm_vif *mvmvif;
 	int len = iwl_rx_packet_payload_len(pkt);
-	u32 id_n_color, csa_id;
+	u32 id_n_color, csa_id, mac_id;
 
 	if (WARN_ON_ONCE(len < sizeof(*notif)))
 		return;
 
 	id_n_color = le32_to_cpu(notif->id_and_color);
+	mac_id = id_n_color & FW_CTXT_ID_MSK;
+
+	if (WARN_ON_ONCE(mac_id >= NUM_MAC_INDEX_DRIVER))
+		return;
 
 	rcu_read_lock();
-	vif = rcu_dereference(mvm->vif_id_to_mac[id_n_color & FW_CTXT_ID_MSK]);
+	vif = rcu_dereference(mvm->vif_id_to_mac[mac_id]);
 
 	switch (vif->type) {
 	case NL80211_IFTYPE_AP:
