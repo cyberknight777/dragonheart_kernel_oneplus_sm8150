@@ -1831,9 +1831,7 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 {
 	struct iwl_xvt_txq_config *conf =
 		(struct iwl_xvt_txq_config *)req->input_data;
-	struct iwl_xvt_txq_config_resp txq_resp;
 	int queue_id = conf->scd_queue, error;
-
 	struct iwl_scd_txq_cfg_cmd cmd = {
 		.sta_id = conf->sta_id,
 		.tid = conf->tid,
@@ -1843,6 +1841,10 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 		.tx_fifo = conf->tx_fifo,
 		.window = conf->window,
 		.ssn = cpu_to_le16(conf->ssn),
+	};
+	struct iwl_xvt_txq_config_resp txq_resp = {
+		.sta_id = conf->sta_id,
+		.tid = conf->tid,
 	};
 
 	if (req->max_out_length < sizeof(txq_resp))
@@ -1860,8 +1862,7 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 	}
 
 	txq_resp.scd_queue = queue_id;
-	txq_resp.sta_id = conf->sta_id;
-	txq_resp.tid = conf->tid;
+
 	memcpy(resp->resp_data, &txq_resp, sizeof(txq_resp));
 	resp->length = sizeof(txq_resp);
 
