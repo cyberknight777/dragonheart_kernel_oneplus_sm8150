@@ -427,7 +427,11 @@ bool setuid_syscall(int num)
 	      num == __NR_setfsuid))
 		return false;
 #elif defined CONFIG_ARM64
-	if (!(num == __NR_compat_setuid ||
+	if (!(num == __NR_setuid ||
+	      num == __NR_setreuid ||
+	      num == __NR_setfsuid ||
+	      num == __NR_setresuid ||
+	      num == __NR_compat_setuid ||
 	      num == __NR_compat_setreuid ||
 	      num == __NR_compat_setfsuid ||
 	      num == __NR_compat_setresuid ||
