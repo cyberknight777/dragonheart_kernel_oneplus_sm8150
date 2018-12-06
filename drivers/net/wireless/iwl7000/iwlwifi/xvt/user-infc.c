@@ -1548,6 +1548,7 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 	u8 sta_id;
 	int lmac_id;
 	struct iwl_xvt_tx_mod_task_data *task_data;
+	int err;
 
 	/* Verify this command was not called while tx is operating */
 	if (WARN_ON(xvt->is_enhanced_tx))
@@ -1567,8 +1568,10 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		sta_id = task_data->tx_req.sta_id;
 		lmac_id = map_sta_to_lmac(xvt, sta_id);
-		if (lmac_id < 0)
-			return lmac_id;
+		if (lmac_id < 0) {
+			err = lmac_id;
+			goto out;
+		}
 
 		task_data->lmac_id = lmac_id;
 		xvt_tx = &xvt->tx_meta_data[lmac_id];
@@ -1576,7 +1579,8 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 		/* check if tx queue is allocated. if not - return */
 		if (xvt_tx->queue < 0) {
 			IWL_ERR(xvt, "failed in tx - queue is not allocated\n");
-			return -EIO;
+			err = -EIO;
+			goto out;
 		}
 	}
 
@@ -1584,11 +1588,14 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 					   task_data, "tx mod infinite");
 	if (!xvt_tx->tx_mod_thread) {
 		xvt_tx->tx_task_operating = false;
-		kfree(task_data);
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto out;
 	}
 
 	return 0;
+out:
+	kfree(task_data);
+	return err;
 }
 
 static int iwl_xvt_rx_hdrs_mode(struct iwl_xvt *xvt,
