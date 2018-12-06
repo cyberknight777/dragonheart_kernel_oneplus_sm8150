@@ -1229,13 +1229,10 @@ static int iwl_xvt_send_tx_done_notif(struct iwl_xvt *xvt, u32 status)
 				      IWL_XVT_CMD_ENHANCED_TX_DONE,
 				      (void *)done_notif,
 				      done_notif_size, GFP_ATOMIC);
-	if (err) {
+	if (err)
 		IWL_ERR(xvt, "Error %d sending tx_done notification\n", err);
-		kfree(done_notif);
-		return err;
-	}
-
-	return 0;
+	kfree(done_notif);
+	return err;
 }
 
 static int iwl_xvt_start_tx_handler(void *data)
