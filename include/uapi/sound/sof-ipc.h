@@ -302,7 +302,7 @@ struct sof_ipc_dai_dmic_params {
 	uint16_t duty_max;    /* Max. mic clock duty cycle in % (min..80) */
 	uint32_t num_pdm_active; /* Number of active pdm controllers */
 	/* variable number of pdm controller config */
-	struct sof_ipc_dai_dmic_pdm_ctrl pdm[0];
+	struct sof_ipc_dai_dmic_pdm_ctrl pdm[2];
 } __attribute__((packed));
 
 /* general purpose DAI configuration */
