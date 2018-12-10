@@ -1367,8 +1367,10 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 	/* keep statistics ticking */
 	iwl_mvm_accu_radio_stats(mvm);
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	if (mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_ENABLE)
 		iwl_mvm_send_csi_cmd(mvm);
+#endif
 }
 
 int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
@@ -1516,9 +1518,6 @@ void __iwl_mvm_mac_stop(struct iwl_mvm *mvm)
 
 	/* the fw is stopped, the aux sta is dead: clean up driver state */
 	iwl_mvm_del_aux_sta(mvm);
-
-	if (WARN_ON(!skb_queue_empty(&mvm->csi_pending)))
-		__skb_queue_purge(&mvm->csi_pending);
 
 	/*
 	 * Clear IN_HW_RESTART and HW_RESTART_REQUESTED flag when stopping the

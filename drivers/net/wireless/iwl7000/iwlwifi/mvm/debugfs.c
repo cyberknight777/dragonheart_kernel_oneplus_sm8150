@@ -1881,7 +1881,6 @@ static ssize_t iwl_dbgfs_tx_power_status_read(struct file *file,
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
-#endif
 
 static ssize_t iwl_dbgfs_csi_enabled_read(struct file *file,
 					  char __user *user_buf,
@@ -2042,13 +2041,12 @@ static ssize_t iwl_dbgfs_csi_frame_types_write(struct iwl_mvm *mvm, char *buf,
 	if (err)
 		return err;
 
-	if (iwl_enable_rx_ampdu() && frame_types & 0x4444444444444444ULL)
-		return -ENOTSUPP;
-
 	mvm->csi_cfg.frame_types = frame_types;
 
 	return count;
 }
+#endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
+
 
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(prph_reg, 64);
 
@@ -2087,6 +2085,10 @@ MVM_DEBUGFS_WRITE_FILE_OPS(indirection_tbl,
 MVM_DEBUGFS_WRITE_FILE_OPS(inject_packet, 512);
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 MVM_DEBUGFS_READ_FILE_OPS(tx_power_status);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_enabled, 8);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_count, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_timeout, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_frame_types, 32);
 #endif
 
 MVM_DEBUGFS_READ_FILE_OPS(uapsd_noagg_bssids);
@@ -2104,11 +2106,6 @@ MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
 
 MVM_DEBUGFS_WRITE_FILE_OPS(he_sniffer_params, 32);
-
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_enabled, 8);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_count, 32);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_timeout, 32);
-MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_frame_types, 32);
 
 static ssize_t iwl_dbgfs_mem_read(struct file *file, char __user *user_buf,
 				  size_t count, loff_t *ppos)
@@ -2306,8 +2303,6 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 #endif
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, 0400);
-#endif
-	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0200);
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_CSI_REPORTING)) {
@@ -2324,6 +2319,8 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 					&mvm->csi_cfg.rate_n_flags_mask))
 			goto err;
 	}
+#endif
+	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0200);
 
 	if (!debugfs_create_bool("enable_scan_iteration_notif",
 				 0600,

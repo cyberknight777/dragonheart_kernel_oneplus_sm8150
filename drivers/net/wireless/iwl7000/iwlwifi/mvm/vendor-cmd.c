@@ -1294,6 +1294,7 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 
 enum iwl_mvm_vendor_events_idx {
 	IWL_MVM_VENDOR_EVENT_IDX_TCM,
+	IWL_MVM_VENDOR_EVENT_IDX_CSI,
 	NUM_IWL_MVM_VENDOR_EVENT_IDX
 };
 
@@ -1302,6 +1303,10 @@ iwl_mvm_vendor_events[NUM_IWL_MVM_VENDOR_EVENT_IDX] = {
 	[IWL_MVM_VENDOR_EVENT_IDX_TCM] = {
 		.vendor_id = INTEL_OUI,
 		.subcmd = IWL_MVM_VENDOR_CMD_TCM_EVENT,
+	},
+	[IWL_MVM_VENDOR_EVENT_IDX_CSI] = {
+		.vendor_id = INTEL_OUI,
+		.subcmd = IWL_MVM_VENDOR_CMD_CSI_EVENT,
 	},
 };
 
@@ -1363,6 +1368,159 @@ void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
  nla_put_failure:
 	kfree_skb(msg);
+}
+
+static void
+iwl_mvm_send_csi_event(struct iwl_mvm *mvm,
+		       void *hdr, unsigned int hdr_len,
+		       void **data, unsigned int *len)
+{
+	unsigned int data_len = 0;
+	struct sk_buff *msg;
+	struct nlattr *dattr;
+	u8 *pos;
+	int i;
+
+	for (i = 0; len[i] && data[i]; i++)
+		data_len += len[i];
+
+	msg = cfg80211_vendor_event_alloc(mvm->hw->wiphy, NULL,
+					  100 + hdr_len + data_len,
+					  IWL_MVM_VENDOR_EVENT_IDX_CSI,
+					  GFP_KERNEL);
+
+	if (!msg)
+		return;
+
+	if (nla_put(msg, IWL_MVM_VENDOR_ATTR_CSI_HDR, hdr_len, hdr))
+		goto nla_put_failure;
+
+	dattr = nla_reserve(msg, IWL_MVM_VENDOR_ATTR_CSI_DATA, data_len);
+	if (!dattr)
+		goto nla_put_failure;
+
+	pos = nla_data(dattr);
+	for (i = 0; len[i] && data[i]; i++) {
+		memcpy(pos, data[i], len[i]);
+		pos += len[i];
+	}
+
+	cfg80211_vendor_event(msg, GFP_KERNEL);
+	return;
+
+ nla_put_failure:
+	kfree_skb(msg);
+}
+
+static void iwl_mvm_csi_free_pages(struct iwl_mvm *mvm)
+{
+	int idx;
+
+	for (idx = 0; idx < ARRAY_SIZE(mvm->csi_data_entries); idx++) {
+		if (mvm->csi_data_entries[idx].page) {
+			__free_pages(mvm->csi_data_entries[idx].page,
+				     mvm->csi_data_entries[idx].page_order);
+			memset(&mvm->csi_data_entries[idx], 0,
+			       sizeof(mvm->csi_data_entries[idx]));
+		}
+	}
+}
+
+static void iwl_mvm_csi_steal(struct iwl_mvm *mvm, unsigned int idx,
+			      struct iwl_rx_cmd_buffer *rxb)
+{
+	/* firmware is ... confused */
+	if (WARN_ON(mvm->csi_data_entries[idx].page)) {
+		iwl_mvm_csi_free_pages(mvm);
+		return;
+	}
+
+	mvm->csi_data_entries[idx].page = rxb_steal_page(rxb);
+	mvm->csi_data_entries[idx].page_order = rxb->_rx_page_order;
+	mvm->csi_data_entries[idx].offset = rxb->_offset;
+}
+
+void iwl_mvm_rx_csi_header(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
+{
+	iwl_mvm_csi_steal(mvm, 0, rxb);
+}
+
+static void iwl_mvm_csi_complete(struct iwl_mvm *mvm)
+{
+	struct iwl_rx_packet *hdr_pkt;
+	struct iwl_csi_data_buffer *hdr_buf = &mvm->csi_data_entries[0];
+	void *data[5] = {};
+	unsigned int len[5] = {};
+	unsigned int csi_hdr_len;
+	void *csi_hdr;
+	int i;
+
+	/*
+	 * Ensure we have the right # of entries, the local data/len
+	 * variables include a terminating entry, csi_data_entries
+	 * instead has one place for the header.
+	 */
+	BUILD_BUG_ON(ARRAY_SIZE(data) < ARRAY_SIZE(mvm->csi_data_entries));
+	BUILD_BUG_ON(ARRAY_SIZE(len) < ARRAY_SIZE(mvm->csi_data_entries));
+
+	/* need at least the header and first fragment */
+	if (WARN_ON(!hdr_buf->page || !mvm->csi_data_entries[1].page)) {
+		iwl_mvm_csi_free_pages(mvm);
+		return;
+	}
+
+	hdr_pkt = (void *)((unsigned long)page_address(hdr_buf->page) +
+			   hdr_buf->offset);
+	csi_hdr = (void *)hdr_pkt->data;
+	csi_hdr_len = iwl_rx_packet_payload_len(hdr_pkt);
+
+	for (i = 1; i < ARRAY_SIZE(mvm->csi_data_entries); i++) {
+		struct iwl_csi_data_buffer *buf = &mvm->csi_data_entries[i];
+		struct iwl_rx_packet *pkt;
+		struct iwl_csi_chunk_notification *chunk;
+		unsigned int chunk_len;
+
+		if (!buf->page)
+			break;
+
+		pkt = (void *)((unsigned long)page_address(buf->page) +
+			       buf->offset);
+		chunk = (void *)pkt->data;
+		chunk_len = iwl_rx_packet_payload_len(pkt);
+
+		if (sizeof(*chunk) + le32_to_cpu(chunk->size) > chunk_len)
+			goto free;
+
+		data[i - 1] = chunk->data;
+		len[i - 1] = le32_to_cpu(chunk->size);
+	}
+
+	iwl_mvm_send_csi_event(mvm, csi_hdr, csi_hdr_len, data, len);
+
+ free:
+	iwl_mvm_csi_free_pages(mvm);
+}
+
+void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
+{
+	struct iwl_rx_packet *pkt = rxb_addr(rxb);
+	struct iwl_csi_chunk_notification *chunk = (void *)pkt->data;
+	int num = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_NUM_MASK);
+	int idx = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_IDX_MASK) + 1;
+
+	/*
+	 * +1 to get from mask to number
+	 * -1 to account for the header we also store there
+	 */
+	BUILD_BUG_ON(IWL_CSI_CHUNK_CTL_NUM_MASK + 1 >
+		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
+	BUILD_BUG_ON((IWL_CSI_CHUNK_CTL_IDX_MASK >> 2) + 1 >
+		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
+
+	iwl_mvm_csi_steal(mvm, idx, rxb);
+
+	if (num == idx)
+		iwl_mvm_csi_complete(mvm);
 }
 
 #else /* CFG80211_VERSION > KERNEL_VERSION(3, 14, 0) */

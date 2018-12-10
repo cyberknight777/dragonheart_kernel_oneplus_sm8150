@@ -149,6 +149,7 @@
  *	no attributes.
  * @IWL_MVM_VENDOR_CMD_FMAC_CONFIG: set one of the fmac configuration options.
  *	&IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR specifies the configuration string.
+ * @IWL_MVM_VENDOR_CMD_CSI_EVENT: CSI event
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -188,6 +189,7 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_TEST_FIPS				= 0x21,
 	IWL_MVM_VENDOR_CMD_FMAC_CONNECT_PARAMS			= 0x22,
 	IWL_MVM_VENDOR_CMD_FMAC_CONFIG				= 0x23,
+	IWL_MVM_VENDOR_CMD_CSI_EVENT				= 0x24,
 };
 
 /**
@@ -798,6 +800,8 @@ enum iwl_vendor_fips_test_vector_hw {
  *	before notifying connection failure.
  * @IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR: a key=value string where key is an
  *	fmac configuration option.
+ * @IWL_MVM_VENDOR_ATTR_CSI_HDR: CSI header
+ * @IWL_MVM_VENDOR_ATTR_CSI_DATA: CSI data
  */
 enum iwl_mvm_vendor_attr {
 	__IWL_MVM_VENDOR_ATTR_INVALID				= 0x00,
@@ -877,6 +881,8 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST	= 0x4a,
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES	= 0x4b,
 	IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR			= 0x4c,
+	IWL_MVM_VENDOR_ATTR_CSI_HDR				= 0x4d,
+	IWL_MVM_VENDOR_ATTR_CSI_DATA				= 0x4e,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,

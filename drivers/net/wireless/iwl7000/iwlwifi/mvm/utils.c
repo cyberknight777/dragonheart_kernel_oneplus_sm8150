@@ -1452,6 +1452,7 @@ void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 	}
 }
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 {
 	struct iwl_channel_estimation_cfg cfg = {
@@ -1468,3 +1469,4 @@ int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 
 	return iwl_mvm_send_cmd_pdu(mvm, id, 0, sizeof(cfg), &cfg);
 }
+#endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
