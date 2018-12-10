@@ -66,11 +66,37 @@
 #include "mvm.h"
 #include "fw-api.h"
 
+static void *iwl_mvm_skb_get_hdr(struct sk_buff *skb)
+{
+	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
+	u8 *data = skb->data;
+
+	/* Alignment concerns */
+	BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he) % 4);
+	BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_he_mu) % 4);
+	BUILD_BUG_ON(sizeof(struct ieee80211_radiotap_lsig) % 4);
+	BUILD_BUG_ON(sizeof(struct ieee80211_vendor_radiotap) % 4);
+
+	if (rx_status->flag & RX_FLAG_RADIOTAP_HE)
+		data += sizeof(struct ieee80211_radiotap_he);
+	if (rx_status->flag & RX_FLAG_RADIOTAP_HE_MU)
+		data += sizeof(struct ieee80211_radiotap_he_mu);
+	if (rx_status->flag & RX_FLAG_RADIOTAP_LSIG)
+		data += sizeof(struct ieee80211_radiotap_lsig);
+	if (rx_status->flag & RX_FLAG_RADIOTAP_VENDOR_DATA) {
+		struct ieee80211_vendor_radiotap *radiotap = (void *)data;
+
+		data += sizeof(*radiotap) + radiotap->len + radiotap->pad;
+	}
+
+	return data;
+}
+
 static inline int iwl_mvm_check_pn(struct iwl_mvm *mvm, struct sk_buff *skb,
 				   int queue, struct ieee80211_sta *sta)
 {
 	struct iwl_mvm_sta *mvmsta;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct ieee80211_hdr *hdr = iwl_mvm_skb_get_hdr(skb);
 	struct ieee80211_rx_status *stats = IEEE80211_SKB_RXCB(skb);
 	struct iwl_mvm_key_pn *ptk_pn;
 	int res;
@@ -197,12 +223,15 @@ static void iwl_mvm_add_rtap_sniffer_config(struct iwl_mvm *mvm,
 {
 	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
 	struct ieee80211_vendor_radiotap *radiotap;
-	int size = sizeof(*radiotap) + sizeof(__le16);
+	const int size = sizeof(*radiotap) + sizeof(__le16);
 
 	if (!mvm->cur_aid)
 		return;
 
-	radiotap = skb_put(skb, size);
+	/* ensure alignment */
+	BUILD_BUG_ON((size + 2) % 4);
+
+	radiotap = skb_put(skb, size + 2);
 	radiotap->align = 1;
 	/* Intel OUI */
 	radiotap->oui[0] = 0xf6;
@@ -212,7 +241,7 @@ static void iwl_mvm_add_rtap_sniffer_config(struct iwl_mvm *mvm,
 	radiotap->subns = 1;
 	radiotap->present = 0x1;
 	radiotap->len = size - sizeof(*radiotap);
-	radiotap->pad = 0;
+	radiotap->pad = 2;
 
 	/* fill the data now */
 	memcpy(radiotap->data, &mvm->cur_aid, sizeof(mvm->cur_aid));
@@ -233,14 +262,6 @@ static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 	    iwl_mvm_check_pn(mvm, skb, queue, sta)) {
 		kfree_skb(skb);
 	} else {
-		unsigned int radiotap_len = 0;
-
-		if (rx_status->flag & RX_FLAG_RADIOTAP_HE)
-			radiotap_len += sizeof(struct ieee80211_radiotap_he);
-		if (rx_status->flag & RX_FLAG_RADIOTAP_HE_MU)
-			radiotap_len += sizeof(struct ieee80211_radiotap_he_mu);
-		__skb_push(skb, radiotap_len);
-
 		/* this indicates we're still waiting for CSI data */
 		if (unlikely(csi))
 			skb_queue_tail(&mvm->csi_pending, skb);
@@ -676,7 +697,7 @@ static bool iwl_mvm_reorder(struct iwl_mvm *mvm,
 			    struct sk_buff *skb,
 			    struct iwl_rx_mpdu_desc *desc)
 {
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct ieee80211_hdr *hdr = iwl_mvm_skb_get_hdr(skb);
 	struct iwl_mvm_sta *mvm_sta;
 	struct iwl_mvm_baid_data *baid_data;
 	struct iwl_mvm_reorder_buffer *buffer;
@@ -1187,21 +1208,15 @@ static void iwl_mvm_rx_he(struct iwl_mvm *mvm, struct sk_buff *skb,
 		.flags2 = cpu_to_le16(IEEE80211_RADIOTAP_HE_MU_FLAGS2_PUNC_FROM_SIG_A_BW_KNOWN |
 				      IEEE80211_RADIOTAP_HE_MU_FLAGS2_BW_FROM_SIG_A_BW_KNOWN),
 	};
-	unsigned int radiotap_len = 0;
 
 	he = skb_put_data(skb, &known, sizeof(known));
-	radiotap_len += sizeof(known);
 	rx_status->flag |= RX_FLAG_RADIOTAP_HE;
 
 	if (phy_data->info_type == IWL_RX_PHY_INFO_TYPE_HE_MU ||
 	    phy_data->info_type == IWL_RX_PHY_INFO_TYPE_HE_MU_EXT) {
 		he_mu = skb_put_data(skb, &mu_known, sizeof(mu_known));
-		radiotap_len += sizeof(mu_known);
 		rx_status->flag |= RX_FLAG_RADIOTAP_HE_MU;
 	}
-
-	/* temporarily hide the radiotap data */
-	__skb_pull(skb, radiotap_len);
 
 	/* report the AMPDU-EOF bit on single frames */
 	if (!queue && !(phy_info & IWL_RX_MPDU_PHY_AMPDU)) {
