@@ -240,6 +240,99 @@ __le16 ieee80211_ctstoself_duration(struct ieee80211_hw *hw,
 }
 EXPORT_SYMBOL(ieee80211_ctstoself_duration);
 
+static void __ieee80211_wake_txqs(struct ieee80211_sub_if_data *sdata, int ac)
+{
+	struct ieee80211_local *local = sdata->local;
+	struct ieee80211_vif *vif = &sdata->vif;
+	struct fq *fq = &local->fq;
+	struct ps_data *ps = NULL;
+	struct txq_info *txqi;
+	struct sta_info *sta;
+	int i;
+
+	spin_lock_bh(&fq->lock);
+
+	if (sdata->vif.type == NL80211_IFTYPE_AP)
+		ps = &sdata->bss->ps;
+
+	sdata->vif.txqs_stopped[ac] = false;
+
+	list_for_each_entry_rcu(sta, &local->sta_list, list) {
+		if (sdata != sta->sdata)
+			continue;
+
+		for (i = 0; i < ARRAY_SIZE(sta->sta.txq); i++) {
+			struct ieee80211_txq *txq = sta->sta.txq[i];
+
+			txqi = to_txq_info(txq);
+
+			if (ac != txq->ac)
+				continue;
+
+			if (!test_and_clear_bit(IEEE80211_TXQ_STOP_NETIF_TX,
+						&txqi->flags))
+				continue;
+
+			spin_unlock_bh(&fq->lock);
+			drv_wake_tx_queue(local, txqi);
+			spin_lock_bh(&fq->lock);
+		}
+	}
+
+	if (!vif->txq)
+		goto out;
+
+	txqi = to_txq_info(vif->txq);
+
+	if (!test_and_clear_bit(IEEE80211_TXQ_STOP_NETIF_TX, &txqi->flags) ||
+	    (ps && atomic_read(&ps->num_sta_ps)) || ac != vif->txq->ac)
+		goto out;
+
+	spin_unlock_bh(&fq->lock);
+
+	drv_wake_tx_queue(local, txqi);
+	return;
+out:
+	spin_unlock_bh(&fq->lock);
+}
+
+void ieee80211_wake_txqs(unsigned long data)
+{
+	struct ieee80211_local *local = (struct ieee80211_local *)data;
+	struct ieee80211_sub_if_data *sdata;
+	int n_acs = IEEE80211_NUM_ACS;
+	unsigned long flags;
+	int i;
+
+	rcu_read_lock();
+	spin_lock_irqsave(&local->queue_stop_reason_lock, flags);
+
+	if (local->hw.queues < IEEE80211_NUM_ACS)
+		n_acs = 1;
+
+	for (i = 0; i < local->hw.queues; i++) {
+		if (local->queue_stop_reasons[i])
+			continue;
+
+		spin_unlock_irqrestore(&local->queue_stop_reason_lock, flags);
+		list_for_each_entry_rcu(sdata, &local->interfaces, list) {
+			int ac;
+
+			for (ac = 0; ac < n_acs; ac++) {
+				int ac_queue = sdata->vif.hw_queue[ac];
+
+				if (ac_queue == i ||
+				    sdata->vif.cab_queue == i)
+					__ieee80211_wake_txqs(sdata, ac);
+			}
+		}
+		spin_lock_irqsave(&local->queue_stop_reason_lock, flags);
+	}
+
+	spin_unlock_irqrestore(&local->queue_stop_reason_lock, flags);
+	rcu_read_unlock();
+}
+
 void ieee80211_propagate_queue_wake(struct ieee80211_local *local, int queue)
 {
 	struct ieee80211_sub_if_data *sdata;
@@ -308,6 +401,9 @@ static void __ieee80211_wake_queue(struct ieee80211_hw *hw, int queue,
 		rcu_read_unlock();
 	} else
 		tasklet_schedule(&local->tx_pending_tasklet);
+
+	if (local->ops->wake_tx_queue)
+		tasklet_schedule(&local->wake_txqs_tasklet);
 }
 
 void ieee80211_wake_queue_by_reason(struct ieee80211_hw *hw, int queue,
@@ -351,9 +447,6 @@ static void __ieee80211_stop_queue(struct ieee80211_hw *hw, int queue,
 	if (__test_and_set_bit(reason, &local->queue_stop_reasons[queue]))
 		return;
 
-	if (local->ops->wake_tx_queue)
-		return;
-
 	if (local->hw.queues < IEEE80211_NUM_ACS)
 		n_acs = 1;
 
@@ -366,8 +459,15 @@ static void __ieee80211_stop_queue(struct ieee80211_hw *hw, int queue,
 
 		for (ac = 0; ac < n_acs; ac++) {
 			if (sdata->vif.hw_queue[ac] == queue ||
-			    sdata->vif.cab_queue == queue)
-				netif_stop_subqueue(sdata->dev, ac);
+			    sdata->vif.cab_queue == queue) {
+				if (!local->ops->wake_tx_queue) {
+					netif_stop_subqueue(sdata->dev, ac);
+					continue;
+				}
+				spin_lock(&local->fq.lock);
+				sdata->vif.txqs_stopped[ac] = true;
+				spin_unlock(&local->fq.lock);
+			}
 		}
 	}
 	rcu_read_unlock();
@@ -1135,7 +1235,7 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_chanctx_conf *chanctx_conf;
 	const struct ieee80211_reg_rule *rrule;
-	struct ieee80211_wmm_ac *wmm_ac;
+	const struct ieee80211_wmm_ac *wmm_ac;
 	u16 center_freq = 0;
 
 	if (sdata->vif.type != NL80211_IFTYPE_AP &&
@@ -1155,27 +1255,15 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 
 	rrule = freq_reg_info(sdata->wdev.wiphy, MHZ_TO_KHZ(center_freq));
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,13)
 	if (IS_ERR_OR_NULL(rrule) || !rrule->has_wmm) {
-#else
-	if (IS_ERR_OR_NULL(rrule) || !rrule->wmm_rule) {
-#endif
 		rcu_read_unlock();
 		return;
 	}
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP)
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,13)
 		wmm_ac = &rrule->wmm_rule.ap[ac];
-#else
-		wmm_ac = &rrule->wmm_rule->ap[ac];
-#endif
 	else
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,13)
 		wmm_ac = &rrule->wmm_rule.client[ac];
-#else
-		wmm_ac = &rrule->wmm_rule->client[ac];
-#endif
 	qparam->cw_min = max_t(u16, qparam->cw_min, wmm_ac->cw_min);
 	qparam->cw_max = max_t(u16, qparam->cw_max, wmm_ac->cw_max);
 	qparam->aifs = max_t(u8, qparam->aifs, wmm_ac->aifsn);
@@ -2170,7 +2258,8 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		if (!sta->uploaded)
 			continue;
 
-		if (sta->sdata->vif.type != NL80211_IFTYPE_AP)
+		if (sta->sdata->vif.type != NL80211_IFTYPE_AP &&
+		    sta->sdata->vif.type != NL80211_IFTYPE_AP_VLAN)
 			continue;
 
 		for (state = IEEE80211_STA_NOTEXIST;

@@ -1144,9 +1144,10 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  * @RX_FLAG_RADIOTAP_HE_MU: HE MU radiotap data is present
  *	(&struct ieee80211_radiotap_he_mu)
  * @RX_FLAG_RADIOTAP_LSIG: L-SIG radiotap data is present
- * @RX_FLAG_RADIOTAP_NO_PSDU: indicate that the radiotap "0-length PSDU" field
- *	should be added, the value for it is in &struct ieee80211_rx_status.
- *	Note that if this value isn't known the frame shouldn't be reported.
+ * @RX_FLAG_NO_PSDU: use the frame only for radiotap reporting, with
+ *	the "0-length PSDU" field included there.  The value for it is
+ *	in &struct ieee80211_rx_status.  Note that if this value isn't
+ *	known the frame shouldn't be reported.
  */
 enum mac80211_rx_flags {
 	RX_FLAG_MMIC_ERROR		= BIT(0),
@@ -1520,6 +1521,8 @@ enum ieee80211_vif_flags {
  * @drv_priv: data area for driver use, will always be aligned to
  *	sizeof(void \*).
  * @txq: the multicast data TX queue (if driver uses the TXQ abstraction)
+ * @txqs_stopped: per AC flag to indicate that intermediate TXQs are stopped,
+ *	protected by fq->lock.
  */
 struct ieee80211_vif {
 	enum nl80211_iftype type;
@@ -1548,6 +1551,8 @@ struct ieee80211_vif {
 #endif
 
 	unsigned int probe_req_reg;
+
+	bool txqs_stopped[IEEE80211_NUM_ACS];
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
@@ -2352,6 +2357,10 @@ struct ieee80211_tx_thrshld_md {
  *	supported by HW.
  * @max_nan_de_entries: maximum number of NAN DE functions supported by the
  *	device.
+ *
+ * @tx_sk_pacing_shift: Pacing shift to set on TCP sockets when frames from
+ *	them are encountered. The default should typically not be changed,
+ *	unless the driver has good reasons for needing more buffers.
  */
 struct ieee80211_hw {
 	struct ieee80211_conf conf;
@@ -2387,6 +2396,7 @@ struct ieee80211_hw {
 	u8 n_cipher_schemes;
 	const struct ieee80211_cipher_scheme *cipher_schemes;
 	u8 max_nan_de_entries;
+	u8 tx_sk_pacing_shift;
 };
 
 static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw,
@@ -2568,6 +2578,19 @@ void ieee80211_free_txskb(struct ieee80211_hw *hw, struct sk_buff *skb);
  * The set_default_unicast_key() call updates the default WEP key index
  * configured to the hardware for WEP encryption type. This is required
  * for devices that support offload of data packets (e.g. ARP responses).
+ *
+ * Mac80211 drivers should set the @NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 flag
+ * when they are able to replace in-use PTK keys according to to following
+ * requirements:
+ * 1) They do not hand over frames decrypted with the old key to
+      mac80211 once the call to set_key() with command %DISABLE_KEY has been
+      completed when also setting @IEEE80211_KEY_FLAG_GENERATE_IV for any key,
+   2) either drop or continue to use the old key for any outgoing frames queued
+      at the time of the key deletion (including re-transmits),
+   3) never send out a frame queued prior to the set_key() %SET_KEY command
+      encrypted with the new key and
+   4) never send out a frame unencrypted when it should be encrypted.
+   Mac80211 will not queue any new frames for a deleted key to the driver.
  */
 
 /**

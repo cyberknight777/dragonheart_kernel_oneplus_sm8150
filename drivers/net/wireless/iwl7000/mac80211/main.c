@@ -495,10 +495,7 @@ static const struct ieee80211_vht_cap mac80211_vht_capa_mod_mask = {
 		cpu_to_le32(IEEE80211_VHT_CAP_RXLDPC |
 			    IEEE80211_VHT_CAP_SHORT_GI_80 |
 			    IEEE80211_VHT_CAP_SHORT_GI_160 |
-			    IEEE80211_VHT_CAP_RXSTBC_1 |
-			    IEEE80211_VHT_CAP_RXSTBC_2 |
-			    IEEE80211_VHT_CAP_RXSTBC_3 |
-			    IEEE80211_VHT_CAP_RXSTBC_4 |
+			    IEEE80211_VHT_CAP_RXSTBC_MASK |
 			    IEEE80211_VHT_CAP_TXSTBC |
 			    IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE |
 			    IEEE80211_VHT_CAP_SU_BEAMFORMEE_CAPABLE |
@@ -620,6 +617,18 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	local->ops = ops;
 	local->use_chanctx = use_chanctx;
 
+	/*
+	 * We need a bit of data queued to build aggregates properly, so
+	 * instruct the TCP stack to allow more than a single ms of data
+	 * to be queued in the stack. The value is a bit-shift of 1
+	 * second, so 8 is ~4ms of queued data. Only affects local TCP
+	 * sockets.
+	 * This is the default, anyhow - drivers may need to override it
+	 * for local reasons (longer buffers, longer completion time, or
+	 * similar).
+	 */
+	local->hw.tx_sk_pacing_shift = 8;
+
 	/* set up some defaults */
 	local->hw.queues = 1;
 	local->hw.max_rates = 1;
@@ -695,6 +704,10 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	}
 	tasklet_init(&local->tx_pending_tasklet, ieee80211_tx_pending,
 		     (unsigned long)local);
+
+	if (ops->wake_tx_queue)
+		tasklet_init(&local->wake_txqs_tasklet, ieee80211_wake_txqs,
+			     (unsigned long)local);
 
 	tasklet_init(&local->tasklet,
 		     ieee80211_tasklet_handler,
@@ -1306,6 +1319,7 @@ void ieee80211_unregister_hw(struct ieee80211_hw *hw)
 #if IS_ENABLED(CONFIG_IPV6)
 	unregister_inet6addr_notifier(&local->ifa6_notifier);
 #endif
+	ieee80211_txq_teardown_flows(local);
 
 	rtnl_lock();
 
@@ -1334,7 +1348,6 @@ void ieee80211_unregister_hw(struct ieee80211_hw *hw)
 	skb_queue_purge(&local->skb_queue);
 	skb_queue_purge(&local->skb_queue_unreliable);
 	skb_queue_purge(&local->skb_queue_tdls_chsw);
-	ieee80211_txq_teardown_flows(local);
 
 	destroy_workqueue(local->workqueue);
 	wiphy_unregister(local->hw.wiphy);
