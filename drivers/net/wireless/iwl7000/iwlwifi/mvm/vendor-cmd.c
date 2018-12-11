@@ -107,14 +107,26 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES] = { .type = NLA_NESTED },
 };
 
-static int iwl_mvm_parse_vendor_data(struct nlattr **tb,
-				     const void *data, int data_len)
+static struct nlattr **iwl_mvm_parse_vendor_data(const void *data, int data_len)
 {
-	if (!data)
-		return -EINVAL;
+	struct nlattr **tb;
+	int err;
 
-	return nla_parse(tb, MAX_IWL_MVM_VENDOR_ATTR, data, data_len,
-			 iwl_mvm_vendor_attr_policy, NULL);
+	if (!data)
+		return ERR_PTR(-EINVAL);
+
+	tb = kcalloc(MAX_IWL_MVM_VENDOR_ATTR + 1, sizeof(*tb), GFP_KERNEL);
+	if (!tb)
+		return ERR_PTR(-ENOMEM);
+
+	err = nla_parse(tb, MAX_IWL_MVM_VENDOR_ATTR, data, data_len,
+			iwl_mvm_vendor_attr_policy, NULL);
+	if (err) {
+		kfree(tb);
+		return ERR_PTR(err);
+	}
+
+	return tb;
 }
 
 static int iwl_mvm_set_low_latency(struct wiphy *wiphy,
@@ -123,7 +135,7 @@ static int iwl_mvm_set_low_latency(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	int err;
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
 	bool low_latency;
@@ -132,10 +144,11 @@ static int iwl_mvm_set_low_latency(struct wiphy *wiphy,
 		return -ENODEV;
 
 	if (data) {
-		err = iwl_mvm_parse_vendor_data(tb, data, data_len);
-		if (err)
-			return err;
+		tb = iwl_mvm_parse_vendor_data(data, data_len);
+		if (IS_ERR(tb))
+			return PTR_ERR(tb);
 		low_latency = tb[IWL_MVM_VENDOR_ATTR_LOW_LATENCY];
+		kfree(tb);
 	} else {
 		low_latency = false;
 	}
@@ -177,7 +190,7 @@ static int iwl_mvm_set_country(struct wiphy *wiphy,
 			       const void *data, int data_len)
 {
 	struct ieee80211_regdomain *regd;
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	int retval;
@@ -185,12 +198,14 @@ static int iwl_mvm_set_country(struct wiphy *wiphy,
 	if (!iwl_mvm_is_lar_supported(mvm))
 		return -EOPNOTSUPP;
 
-	retval = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (retval)
-		return retval;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_COUNTRY])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_COUNTRY]) {
+		retval = -EINVAL;
+		goto free;
+	}
 
 	mutex_lock(&mvm->mutex);
 
@@ -209,6 +224,8 @@ static int iwl_mvm_set_country(struct wiphy *wiphy,
 	kfree(regd);
 unlock:
 	mutex_unlock(&mvm->mutex);
+free:
+	kfree(tb);
 	return retval;
 }
 
@@ -216,17 +233,21 @@ static int iwl_vendor_frame_filter_cmd(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
 				       const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-	int err = iwl_mvm_parse_vendor_data(tb, data, data_len);
 
-	if (err)
-		return err;
 	if (!vif)
 		return -EINVAL;
+
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
+
 	vif->filter_grat_arp_unsol_na =
 		tb[IWL_MVM_VENDOR_ATTR_FILTER_ARP_NA];
 	vif->filter_gtk = tb[IWL_MVM_VENDOR_ATTR_FILTER_GTK];
+
+	kfree(tb);
 
 	return 0;
 }
@@ -236,23 +257,26 @@ static int iwl_vendor_tdls_peer_cache_add(struct wiphy *wiphy,
 					  struct wireless_dev *wdev,
 					  const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_tdls_peer_counter *cnt;
 	u8 *addr;
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-	int err = iwl_mvm_parse_vendor_data(tb, data, data_len);
-
-	if (err)
-		return err;
+	int err;
 
 	if (!vif)
 		return -ENODEV;
 
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
+
 	if (vif->type != NL80211_IFTYPE_STATION ||
-	    !tb[IWL_MVM_VENDOR_ATTR_ADDR])
-		return -EINVAL;
+	    !tb[IWL_MVM_VENDOR_ATTR_ADDR]) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	mutex_lock(&mvm->mutex);
 	if (mvm->tdls_peer_cache_cnt >= IWL_MVM_TDLS_CNT_MAX_PEERS) {
@@ -284,8 +308,12 @@ static int iwl_vendor_tdls_peer_cache_add(struct wiphy *wiphy,
 	list_add_tail_rcu(&cnt->list, &mvm->tdls_peer_cache_list);
 	mvm->tdls_peer_cache_cnt++;
 
+	err = 0;
+
 out_unlock:
 	mutex_unlock(&mvm->mutex);
+free:
+	kfree(tb);
 	return err;
 }
 
@@ -293,18 +321,21 @@ static int iwl_vendor_tdls_peer_cache_del(struct wiphy *wiphy,
 					  struct wireless_dev *wdev,
 					  const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_tdls_peer_counter *cnt;
 	u8 *addr;
-	int err = iwl_mvm_parse_vendor_data(tb, data, data_len);
+	int err;
 
-	if (err)
-		return err;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_ADDR])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_ADDR]) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	addr = nla_data(tb[IWL_MVM_VENDOR_ATTR_ADDR]);
 
@@ -325,6 +356,8 @@ static int iwl_vendor_tdls_peer_cache_del(struct wiphy *wiphy,
 out_unlock:
 	rcu_read_unlock();
 	mutex_unlock(&mvm->mutex);
+free:
+	kfree(tb);
 	return err;
 }
 
@@ -332,22 +365,28 @@ static int iwl_vendor_tdls_peer_cache_query(struct wiphy *wiphy,
 					    struct wireless_dev *wdev,
 					    const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_mvm_tdls_peer_counter *cnt;
 	struct sk_buff *skb;
 	u32 rx_bytes, tx_bytes;
 	u8 *addr;
-	int err = iwl_mvm_parse_vendor_data(tb, data, data_len);
+	int err;
 
-	if (err)
-		return err;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_ADDR])
+	if (!tb[IWL_MVM_VENDOR_ATTR_ADDR]) {
+		kfree(tb);
 		return -EINVAL;
+	}
 
 	addr = nla_data(tb[IWL_MVM_VENDOR_ATTR_ADDR]);
+
+	/* we can free the tb, the addr pointer is still valid into the msg */
+	kfree(tb);
 
 	rcu_read_lock();
 	cnt = iwl_mvm_tdls_peer_cache_find(mvm, addr);
@@ -395,35 +434,41 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 		.v5.v3.dev_52_low = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
 		.v5.v3.dev_52_high = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
 	};
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	int len = sizeof(cmd);
 	int err;
 
-	err = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (err)
-		return err;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_24]) {
 		s32 txp = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_24]);
 
-		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER)
-			return -EINVAL;
+		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER) {
+			err = -EINVAL;
+			goto free;
+		}
 		cmd.v5.v3.dev_24 = cpu_to_le16(txp);
 	}
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L]) {
 		s32 txp = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L]);
 
-		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER)
-			return -EINVAL;
+		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER) {
+			err = -EINVAL;
+			goto free;
+		}
 		cmd.v5.v3.dev_52_low = cpu_to_le16(txp);
 	}
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H]) {
 		s32 txp = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H]);
 
-		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER)
-			return -EINVAL;
+		if (txp < 0 || txp > IWL_DEV_MAX_TX_POWER) {
+			err = -EINVAL;
+			goto free;
+		}
 		cmd.v5.v3.dev_52_high = cpu_to_le16(txp);
 	}
 
@@ -444,7 +489,10 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 
 	if (err)
 		IWL_ERR(mvm, "failed to update device TX power: %d\n", err);
-	return 0;
+	err = 0;
+free:
+	kfree(tb);
+	return err;
 }
 
 #ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
@@ -475,15 +523,16 @@ static int iwl_mvm_oppps_wa(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
-	int err = iwl_mvm_parse_vendor_data(tb, data, data_len);
+	struct nlattr **tb;
+	int err;
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-
-	if (err)
-		return err;
 
 	if (!vif)
 		return -ENODEV;
+
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
 	mutex_lock(&mvm->mutex);
 	if (vif->type == NL80211_IFTYPE_STATION && vif->p2p) {
@@ -493,6 +542,7 @@ static int iwl_mvm_oppps_wa(struct wiphy *wiphy,
 	}
 	mutex_unlock(&mvm->mutex);
 
+	kfree(tb);
 	return err;
 }
 #endif
@@ -571,24 +621,28 @@ static int iwl_mvm_vendor_rxfilter(struct wiphy *wiphy,
 				   struct wireless_dev *wdev,
 				   const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	enum iwl_mvm_vendor_rxfilter_flags filter, rx_filters, old_rx_filters;
 	enum iwl_mvm_vendor_rxfilter_op op;
 	bool first_set;
 	u32 mask;
-	int retval;
+	int err;
 
-	retval = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (retval)
-		return retval;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_RXFILTER])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_RXFILTER]) {
+		err = -EINVAL;
+		goto free;
+	}
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_RXFILTER_OP])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_RXFILTER_OP]) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	filter = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_RXFILTER]);
 	op = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_RXFILTER_OP]);
@@ -596,8 +650,10 @@ static int iwl_mvm_vendor_rxfilter(struct wiphy *wiphy,
 	if (filter != IWL_MVM_VENDOR_RXFILTER_UNICAST &&
 	    filter != IWL_MVM_VENDOR_RXFILTER_BCAST &&
 	    filter != IWL_MVM_VENDOR_RXFILTER_MCAST4 &&
-	    filter != IWL_MVM_VENDOR_RXFILTER_MCAST6)
-		return -EINVAL;
+	    filter != IWL_MVM_VENDOR_RXFILTER_MCAST6) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	rx_filters = mvm->rx_filters & ~IWL_MVM_VENDOR_RXFILTER_EINVAL;
 	switch (op) {
@@ -608,7 +664,8 @@ static int iwl_mvm_vendor_rxfilter(struct wiphy *wiphy,
 		rx_filters |= filter;
 		break;
 	default:
-		return -EINVAL;
+		err = -EINVAL;
+		goto free;
 	}
 
 	first_set = mvm->rx_filters & IWL_MVM_VENDOR_RXFILTER_EINVAL;
@@ -616,8 +673,10 @@ static int iwl_mvm_vendor_rxfilter(struct wiphy *wiphy,
 	/* If first time set - clear EINVAL value */
 	mvm->rx_filters &= ~IWL_MVM_VENDOR_RXFILTER_EINVAL;
 
+	err = 0;
+
 	if (rx_filters == mvm->rx_filters && !first_set)
-		return 0;
+		goto free;
 
 	mutex_lock(&mvm->mutex);
 
@@ -636,7 +695,9 @@ static int iwl_mvm_vendor_rxfilter(struct wiphy *wiphy,
 
 	mutex_unlock(&mvm->mutex);
 
-	return 0;
+free:
+	kfree(tb);
+	return err;
 }
 
 static int iwl_mvm_vendor_dbg_collect(struct wiphy *wiphy,
@@ -645,62 +706,78 @@ static int iwl_mvm_vendor_dbg_collect(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	int err, len = 0;
 	const char *trigger_desc;
 
-	err = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (err)
-		return err;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_DBG_COLLECT_TRIGGER])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_DBG_COLLECT_TRIGGER]) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	trigger_desc = nla_data(tb[IWL_MVM_VENDOR_ATTR_DBG_COLLECT_TRIGGER]);
 	len = nla_len(tb[IWL_MVM_VENDOR_ATTR_DBG_COLLECT_TRIGGER]);
 
 	iwl_fw_dbg_collect(&mvm->fwrt, FW_DBG_TRIGGER_USER_EXTENDED,
 			   trigger_desc, len);
+	err = 0;
 
-	return 0;
+free:
+	kfree(tb);
+	return err;
 }
 
 static int iwl_mvm_vendor_nan_faw_conf(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
 				       const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct cfg80211_chan_def def = {};
 	struct ieee80211_channel *chan;
 	u32 freq;
 	u8 slots;
-	int retval;
+	int err;
 
-	retval = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (retval)
-		return retval;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_NAN_FAW_SLOTS])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_NAN_FAW_SLOTS]) {
+		err = -EINVAL;
+		goto free;
+	}
 
-	if (!tb[IWL_MVM_VENDOR_ATTR_NAN_FAW_FREQ])
-		return -EINVAL;
+	if (!tb[IWL_MVM_VENDOR_ATTR_NAN_FAW_FREQ]) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	freq = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_NAN_FAW_FREQ]);
 	slots = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_NAN_FAW_SLOTS]);
 
 	chan = ieee80211_get_channel(wiphy, freq);
-	if (!chan)
-		return -EINVAL;
+	if (!chan) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	cfg80211_chandef_create(&def, chan, NL80211_CHAN_NO_HT);
 
-	if (!cfg80211_chandef_usable(wiphy, &def, IEEE80211_CHAN_DISABLED))
-		return -EINVAL;
+	if (!cfg80211_chandef_usable(wiphy, &def, IEEE80211_CHAN_DISABLED)) {
+		err = -EINVAL;
+		goto free;
+	}
 
-	return iwl_mvm_nan_config_nan_faw_cmd(mvm, &def, slots);
+	err = iwl_mvm_nan_config_nan_faw_cmd(mvm, &def, slots);
+free:
+	kfree(tb);
+	return err;
 }
 
 #ifdef CONFIG_ACPI
@@ -711,29 +788,36 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
-	int ret;
+	struct nlattr **tb;
 	u8 chain_a, chain_b;
+	int err;
 
-	ret = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (ret)
-		return ret;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
 	if (!tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE] ||
-	    !tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE])
-		return -EINVAL;
+	    !tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE]) {
+		err = -EINVAL;
+		goto free;
+	}
 
 	chain_a = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE]);
 	chain_b = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE]);
 
 	if (mvm->sar_chain_a_profile == chain_a &&
-	    mvm->sar_chain_b_profile == chain_b)
-		return 0;
+	    mvm->sar_chain_b_profile == chain_b) {
+		err = 0;
+		goto free;
+	}
 
 	mvm->sar_chain_a_profile = chain_a;
 	mvm->sar_chain_b_profile = chain_b;
 
-	return iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
+	err = iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
+free:
+	kfree(tb);
+	return err;
 }
 
 static int iwl_mvm_vendor_get_sar_profile_info(struct wiphy *wiphy,
@@ -995,7 +1079,7 @@ static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
 				    struct wireless_dev *wdev,
 				    const void *data, int data_len)
 {
-	struct nlattr *tb[NUM_IWL_MVM_VENDOR_ATTR];
+	struct nlattr **tb;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_host_cmd hcmd = {
@@ -1010,9 +1094,9 @@ static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
 	u8 *buf = NULL;
 	int ret;
 
-	ret = iwl_mvm_parse_vendor_data(tb, data, data_len);
-	if (ret)
-		return ret;
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
 
 	if (tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM]) {
 		vector = tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_CCM];
@@ -1024,12 +1108,13 @@ static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
 		vector = tb[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES];
 		flags = IWL_FIPS_TEST_VECTOR_FLAGS_AES;
 	} else {
-		return -EINVAL;
+		ret = -EINVAL;
+		goto free;
 	}
 
 	ret = iwl_mvm_vendor_build_vector(&buf, vector, flags);
 	if (ret <= 0)
-		return ret;
+		goto free;
 
 	hcmd.data[0] = buf;
 	hcmd.len[0] = ret;
@@ -1049,6 +1134,7 @@ static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
 
 free:
 	kfree(buf);
+	kfree(tb);
 	return ret;
 }
 
