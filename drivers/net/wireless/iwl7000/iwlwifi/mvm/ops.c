@@ -1297,6 +1297,7 @@ static void iwl_mvm_queue_state_change(struct iwl_op_mode *op_mode,
 	struct iwl_mvm_txq *mvmtxq;
 	int i;
 	unsigned long tid_bitmap;
+	struct iwl_mvm_sta *mvmsta;
 
 	if (WARN_ON_ONCE(sta_id >= ARRAY_SIZE(mvm->fw_id_to_mac_id)))
 		return;
@@ -1306,6 +1307,7 @@ static void iwl_mvm_queue_state_change(struct iwl_op_mode *op_mode,
 	sta = rcu_dereference(mvm->fw_id_to_mac_id[sta_id]);
 	if (IS_ERR_OR_NULL(sta))
 		goto out;
+	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
 	if (iwl_mvm_has_new_tx_api(mvm)) {
 		int tid = mvm->tvqm_info[hw_queue].txq_tid;
@@ -1325,7 +1327,7 @@ static void iwl_mvm_queue_state_change(struct iwl_op_mode *op_mode,
 		mvmtxq = iwl_mvm_txq_from_mac80211(txq);
 		mvmtxq->stopped = !start;
 
-		if (start)
+		if (start && mvmsta->sta_state != IEEE80211_STA_NOTEXIST)
 			iwl_mvm_mac_itxq_xmit(mvm->hw, txq);
 	}
 
