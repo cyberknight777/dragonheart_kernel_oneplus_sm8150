@@ -28,15 +28,10 @@
 #define MAXIM_DEV0_NAME "MX98357A:00"
 #define DUAL_CHANNEL 2
 #define QUAD_CHANNEL 4
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
-#define DISABLE_HDMI
-#endif
 
 
 #define NAME_SIZE 32
-#ifndef DISABLE_HDMI
 static struct snd_soc_jack geminilake_hdmi[3];
-#endif
 
 struct glk_hdmi_pcm {
 	struct list_head head;
@@ -91,7 +86,6 @@ static const struct snd_soc_dapm_route geminilake_map[] = {
 	/* digital mics */
 	{ "DMic", NULL, "SoC DMIC" },
 
-#ifndef DISABLE_HDMI
 	/* CODEC BE connections */
 	{ "HiFi Playback", NULL, "ssp1 Tx" },
 	{ "ssp1 Tx", NULL, "codec0_out" },
@@ -116,7 +110,6 @@ static const struct snd_soc_dapm_route geminilake_map[] = {
 	/* DMIC */
 	{ "dmic01_hifi", NULL, "DMIC01 Rx" },
 	{ "DMIC01 Rx", NULL, "DMIC AIF" },
-#endif
 };
 
 static int geminilake_ssp_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -209,7 +202,7 @@ static int geminilake_rt5682_hw_params(struct snd_pcm_substream *substream,
 static struct snd_soc_ops geminilake_rt5682_ops = {
 	.hw_params = geminilake_rt5682_hw_params,
 };
-#ifndef DISABLE_HDMI
+
 static int geminilake_hdmi_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct glk_card_private *ctx = snd_soc_card_get_drvdata(rtd->card);
@@ -227,9 +220,7 @@ static int geminilake_hdmi_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
-#endif
 
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 static int geminilake_rt5682_fe_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_component *component = rtd->cpu_dai->component;
@@ -245,7 +236,6 @@ static int geminilake_rt5682_fe_init(struct snd_soc_pcm_runtime *rtd)
 
 	return ret;
 }
-#endif
 
 static const unsigned int rates[] = {
 	48000,
@@ -329,7 +319,6 @@ static const struct snd_soc_ops geminilake_refcap_ops = {
 
 /* geminilake digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link geminilake_dais[] = {
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	/* Front End DAI links */
 	[GLK_DPCM_AUDIO_PB] = {
 		.name = "Glk Audio Port",
@@ -448,7 +437,6 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.nonatomic = 1,
 		.dynamic = 1,
 	},
-#endif
 	/* Back End DAI links */
 	{
 		/* SSP1 - Codec */
@@ -501,7 +489,6 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.dpcm_capture = 1,
 		.no_pcm = 1,
 	},
-#ifndef DISABLE_HDMI
 	{
 		.name = "iDisp1",
 		.id = 3,
@@ -535,21 +522,17 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.dpcm_playback = 1,
 		.no_pcm = 1,
 	},
-#endif
 };
 
 static int glk_card_late_probe(struct snd_soc_card *card)
 {
-#ifndef DISABLE_HDMI
 	struct glk_card_private *ctx = snd_soc_card_get_drvdata(card);
 	struct snd_soc_component *component = NULL;
 	char jack_name[NAME_SIZE];
 	struct glk_hdmi_pcm *pcm;
 
 	int err, i = 0;
-#endif
 
-#ifndef DISABLE_HDMI
 	list_for_each_entry(pcm, &ctx->hdmi_pcm_list, head) {
 		component = pcm->codec_dai->component;
 		snprintf(jack_name, sizeof(jack_name),
@@ -573,9 +556,6 @@ static int glk_card_late_probe(struct snd_soc_card *card)
 		return -EINVAL;
 
 	return hdac_hdmi_jack_port_init(component, &card->dapm);
-#else
-	return 0;
-#endif
 }
 
 /* geminilake audio machine driver for SPT + RT5682 */
