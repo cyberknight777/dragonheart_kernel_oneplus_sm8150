@@ -352,6 +352,7 @@ static int iwl_vendor_tdls_peer_cache_del(struct wiphy *wiphy,
 	mvm->tdls_peer_cache_cnt--;
 	list_del_rcu(&cnt->list);
 	kfree_rcu(cnt, rcu_head);
+	err = 0;
 
 out_unlock:
 	rcu_read_unlock();
@@ -401,6 +402,7 @@ static int iwl_vendor_tdls_peer_cache_query(struct wiphy *wiphy,
 		rx_bytes = 0;
 		for (q = 0; q < mvm->trans->num_rx_queues; q++)
 			rx_bytes += cnt->rx[q].bytes;
+		err = 0;
 	}
 	rcu_read_unlock();
 	if (err)
