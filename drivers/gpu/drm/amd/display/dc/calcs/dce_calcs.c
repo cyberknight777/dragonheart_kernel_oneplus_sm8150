@@ -29,6 +29,15 @@
 #include "core_types.h"
 #include "dal_asic_id.h"
 
+/*
+ * NOTE:
+ *   This file is gcc-parseable HW gospel, coming straight from HW engineers.
+ *
+ * It doesn't adhere to Linux kernel style and sometimes will do things in odd
+ * ways. Unless there is something clearly wrong with it the code should
+ * remain as-is as it provides us with a guarantee from HW that it is correct.
+ */
+
 /*******************************************************************************
  * Private Functions
  ******************************************************************************/
@@ -2024,8 +2033,8 @@ void bw_calcs_init(struct bw_calcs_dceip *bw_dceip,
 		vbios.cursor_width = 32;
 		vbios.average_compression_rate = 4;
 		vbios.number_of_request_slots_gmc_reserves_for_dmif_per_channel = 256;
-		vbios.blackout_duration = bw_int_to_fixed(18); /* us */
-		vbios.maximum_blackout_recovery_time = bw_int_to_fixed(20);
+		vbios.blackout_duration = bw_int_to_fixed(0); /* us */
+		vbios.maximum_blackout_recovery_time = bw_int_to_fixed(0);
 
 		dceip.large_cursor = false;
 		dceip.dmif_request_buffer_size = bw_int_to_fixed(768);
@@ -2357,8 +2366,8 @@ void bw_calcs_init(struct bw_calcs_dceip *bw_dceip,
 		vbios.cursor_width = 32;
 		vbios.average_compression_rate = 4;
 		vbios.number_of_request_slots_gmc_reserves_for_dmif_per_channel = 256;
-		vbios.blackout_duration = bw_int_to_fixed(18); /* us */
-		vbios.maximum_blackout_recovery_time = bw_int_to_fixed(20);
+		vbios.blackout_duration = bw_int_to_fixed(0); /* us */
+		vbios.maximum_blackout_recovery_time = bw_int_to_fixed(0);
 
 		dceip.large_cursor = false;
 		dceip.dmif_request_buffer_size = bw_int_to_fixed(768);

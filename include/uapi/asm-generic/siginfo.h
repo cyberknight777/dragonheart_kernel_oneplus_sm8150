@@ -44,12 +44,15 @@ typedef union sigval {
 #define __ARCH_SI_ATTRIBUTES
 #endif
 
-#ifndef HAVE_ARCH_SIGINFO_T
-
 typedef struct siginfo {
 	int si_signo;
+#ifndef __ARCH_HAS_SWAPPED_SIGINFO
 	int si_errno;
 	int si_code;
+#else
+	int si_code;
+	int si_errno;
+#endif
 
 	union {
 		int _pad[SI_PAD_SIZE];
@@ -91,6 +94,11 @@ typedef struct siginfo {
 #ifdef __ARCH_SI_TRAPNO
 			int _trapno;	/* TRAP # which caused the signal */
 #endif
+#ifdef __ia64__
+			int _imm;		/* immediate value for "break" */
+			unsigned int _flags;	/* see ia64 si_flags */
+			unsigned long _isr;	/* isr */
+#endif
 			short _addr_lsb; /* LSB of the reported address */
 			union {
 				/* used when si_code=SEGV_BNDERR */
@@ -118,10 +126,6 @@ typedef struct siginfo {
 	} _sifields;
 } __ARCH_SI_ATTRIBUTES siginfo_t;
 
-/* If the arch shares siginfo, then it has SIGSYS. */
-#define __ARCH_SIGSYS
-#endif
-
 /*
  * How these fields are to be accessed.
  */
@@ -146,11 +150,9 @@ typedef struct siginfo {
 #define si_pkey		_sifields._sigfault._pkey
 #define si_band		_sifields._sigpoll._band
 #define si_fd		_sifields._sigpoll._fd
-#ifdef __ARCH_SIGSYS
 #define si_call_addr	_sifields._sigsys._call_addr
 #define si_syscall	_sifields._sigsys._syscall
 #define si_arch		_sifields._sigsys._arch
-#endif
 
 /*
  * si_code values
@@ -180,7 +182,12 @@ typedef struct siginfo {
 #define ILL_PRVREG	6	/* privileged register */
 #define ILL_COPROC	7	/* coprocessor error */
 #define ILL_BADSTK	8	/* internal stack error */
-#define NSIGILL		8
+#ifdef __ia64__
+# define ILL_BADIADDR	9	/* unimplemented instruction address */
+# define __ILL_BREAK	10	/* illegal break */
+# define __ILL_BNDMOD	11	/* bundle-update (modification) in progress */
+#endif
+#define NSIGILL		11
 
 /*
  * SIGFPE si_codes
@@ -193,7 +200,14 @@ typedef struct siginfo {
 #define FPE_FLTRES	6	/* floating point inexact result */
 #define FPE_FLTINV	7	/* floating point invalid operation */
 #define FPE_FLTSUB	8	/* subscript out of range */
-#define NSIGFPE		8
+#ifdef __ia64__
+# define __FPE_DECOVF	9	/* decimal overflow */
+# define __FPE_DECDIV	10	/* decimal division by zero */
+# define __FPE_DECERR	11	/* packed decimal error */
+# define __FPE_INVASC	12	/* invalid ASCII digit */
+# define __FPE_INVDEC	13	/* invalid decimal digit */
+#endif
+#define NSIGFPE		13
 
 /*
  * SIGSEGV si_codes
@@ -201,7 +215,11 @@ typedef struct siginfo {
 #define SEGV_MAPERR	1	/* address not mapped to object */
 #define SEGV_ACCERR	2	/* invalid permissions for mapped object */
 #define SEGV_BNDERR	3	/* failed address bound checks */
-#define SEGV_PKUERR	4	/* failed protection key checks */
+#ifdef __ia64__
+# define __SEGV_PSTKOVF	4	/* paragraph stack overflow */
+#else
+# define SEGV_PKUERR	4	/* failed protection key checks */
+#endif
 #define NSIGSEGV	4
 
 /*

@@ -489,6 +489,7 @@ static int byt_rt5640_init(struct snd_soc_pcm_runtime *runtime)
 	if (ret)
 		return ret;
 
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	if (byt_rt5640_quirk & BYT_RT5640_SSP2_AIF2) {
 		ret = snd_soc_dapm_add_routes(&card->dapm,
 					byt_rt5640_ssp2_aif2_map,
@@ -508,6 +509,7 @@ static int byt_rt5640_init(struct snd_soc_pcm_runtime *runtime)
 	}
 	if (ret)
 		return ret;
+#endif
 
 	if (byt_rt5640_quirk & BYT_RT5640_MONO_SPEAKER) {
 		ret = snd_soc_dapm_add_routes(&card->dapm,
@@ -713,7 +715,7 @@ static struct snd_soc_card byt_rt5640_card = {
 	.fully_routed = true,
 };
 
-static char byt_rt5640_codec_name[16]; /* i2c-<HID>:00 with HID being 8 chars */
+static char byt_rt5640_codec_name[SND_ACPI_I2C_ID_LEN];
 static char byt_rt5640_codec_aif_name[12]; /*  = "rt5640-aif[1|2]" */
 static char byt_rt5640_cpu_dai_name[10]; /*  = "ssp[0|2]-port" */
 
@@ -762,7 +764,7 @@ static int snd_byt_rt5640_mc_probe(struct platform_device *pdev)
 	}
 
 	/* fixup codec name based on HID */
-	i2c_name = snd_soc_acpi_find_name_from_hid(mach->id);
+	i2c_name = acpi_dev_get_first_match_name(mach->id, NULL, -1);
 	if (i2c_name) {
 		snprintf(byt_rt5640_codec_name, sizeof(byt_rt5640_codec_name),
 			"%s%s", "i2c-", i2c_name);
@@ -775,11 +777,13 @@ static int snd_byt_rt5640_mc_probe(struct platform_device *pdev)
 	 * (will be overridden if DMI quirk is detected)
 	 */
 	if (is_valleyview()) {
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL) /* FIXME: bytcr not supported yet */
 		struct sst_platform_info *p_info = mach->pdata;
 		const struct sst_res_info *res_info = p_info->res_info;
 
 		if (res_info->acpi_ipc_irq_index == 0)
 			is_bytcr = true;
+#endif
 	}
 
 	if (is_bytcr) {

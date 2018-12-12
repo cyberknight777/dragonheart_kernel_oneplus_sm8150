@@ -24,6 +24,14 @@
 #include "amdgpu.h"
 #define MAX_KIQ_REG_WAIT	100000000 /* in usecs */
 
+bool amdgpu_virt_mmio_blocked(struct amdgpu_device *adev)
+{
+	/* By now all MMIO pages except mailbox are blocked */
+	/* if blocking is enabled in hypervisor. Choose the */
+	/* SCRATCH_REG0 to test. */
+	return RREG32_NO_KIQ(0xc040) == 0xffffffff;
+}
+
 int amdgpu_allocate_static_csa(struct amdgpu_device *adev)
 {
 	int r;
@@ -37,6 +45,12 @@ int amdgpu_allocate_static_csa(struct amdgpu_device *adev)
 
 	memset(ptr, 0, AMDGPU_CSA_SIZE);
 	return 0;
+}
+
+void amdgpu_free_static_csa(struct amdgpu_device *adev) {
+	amdgpu_bo_free_kernel(&adev->virt.csa_obj,
+						&adev->virt.csa_vmid0_addr,
+						NULL);
 }
 
 /*
@@ -107,25 +121,24 @@ void amdgpu_virt_init_setting(struct amdgpu_device *adev)
 	adev->enable_virtual_display = true;
 	adev->cg_flags = 0;
 	adev->pg_flags = 0;
-
-	mutex_init(&adev->virt.lock_reset);
 }
 
 uint32_t amdgpu_virt_kiq_rreg(struct amdgpu_device *adev, uint32_t reg)
 {
 	signed long r;
+	unsigned long flags;
 	uint32_t val, seq;
 	struct amdgpu_kiq *kiq = &adev->gfx.kiq;
 	struct amdgpu_ring *ring = &kiq->ring;
 
 	BUG_ON(!ring->funcs->emit_rreg);
 
-	spin_lock(&kiq->ring_lock);
+	spin_lock_irqsave(&kiq->ring_lock, flags);
 	amdgpu_ring_alloc(ring, 32);
 	amdgpu_ring_emit_rreg(ring, reg);
 	amdgpu_fence_emit_polling(ring, &seq);
 	amdgpu_ring_commit(ring);
-	spin_unlock(&kiq->ring_lock);
+	spin_unlock_irqrestore(&kiq->ring_lock, flags);
 
 	r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
 	if (r < 1) {
@@ -140,18 +153,19 @@ uint32_t amdgpu_virt_kiq_rreg(struct amdgpu_device *adev, uint32_t reg)
 void amdgpu_virt_kiq_wreg(struct amdgpu_device *adev, uint32_t reg, uint32_t v)
 {
 	signed long r;
+	unsigned long flags;
 	uint32_t seq;
 	struct amdgpu_kiq *kiq = &adev->gfx.kiq;
 	struct amdgpu_ring *ring = &kiq->ring;
 
 	BUG_ON(!ring->funcs->emit_wreg);
 
-	spin_lock(&kiq->ring_lock);
+	spin_lock_irqsave(&kiq->ring_lock, flags);
 	amdgpu_ring_alloc(ring, 32);
 	amdgpu_ring_emit_wreg(ring, reg, v);
 	amdgpu_fence_emit_polling(ring, &seq);
 	amdgpu_ring_commit(ring);
-	spin_unlock(&kiq->ring_lock);
+	spin_unlock_irqrestore(&kiq->ring_lock, flags);
 
 	r = amdgpu_fence_wait_polling(ring, seq, MAX_KIQ_REG_WAIT);
 	if (r < 1)
@@ -226,6 +240,22 @@ int amdgpu_virt_reset_gpu(struct amdgpu_device *adev)
 }
 
 /**
+ * amdgpu_virt_wait_reset() - wait for reset gpu completed
+ * @amdgpu:	amdgpu device.
+ * Wait for GPU reset completed.
+ * Return: Zero if reset success, otherwise will return error.
+ */
+int amdgpu_virt_wait_reset(struct amdgpu_device *adev)
+{
+	struct amdgpu_virt *virt = &adev->virt;
+
+	if (!virt->ops || !virt->ops->wait_reset)
+		return -EINVAL;
+
+	return virt->ops->wait_reset(adev);
+}
+
+/**
  * amdgpu_virt_alloc_mm_table() - alloc memory for mm table
  * @amdgpu:	amdgpu device.
  * MM table is used by UVD and VCE for its initialization
@@ -294,7 +324,6 @@ int amdgpu_virt_fw_reserve_get_checksum(void *obj,
 
 void amdgpu_virt_init_data_exchange(struct amdgpu_device *adev)
 {
-	uint32_t pf2vf_ver = 0;
 	uint32_t pf2vf_size = 0;
 	uint32_t checksum = 0;
 	uint32_t checkval;
@@ -307,9 +336,9 @@ void amdgpu_virt_init_data_exchange(struct amdgpu_device *adev)
 		adev->virt.fw_reserve.p_pf2vf =
 			(struct amdgim_pf2vf_info_header *)(
 			adev->fw_vram_usage.va + AMDGIM_DATAEXCHANGE_OFFSET);
-		pf2vf_ver = adev->virt.fw_reserve.p_pf2vf->version;
 		AMDGPU_FW_VRAM_PF2VF_READ(adev, header.size, &pf2vf_size);
 		AMDGPU_FW_VRAM_PF2VF_READ(adev, checksum, &checksum);
+		AMDGPU_FW_VRAM_PF2VF_READ(adev, feature_flags, &adev->virt.gim_feature);
 
 		/* pf2vf message must be in 4K */
 		if (pf2vf_size > 0 && pf2vf_size < 4096) {

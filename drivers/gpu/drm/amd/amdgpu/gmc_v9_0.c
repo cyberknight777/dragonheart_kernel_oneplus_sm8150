@@ -25,20 +25,19 @@
 #include "gmc_v9_0.h"
 #include "amdgpu_atomfirmware.h"
 
-#include "vega10/soc15ip.h"
-#include "vega10/HDP/hdp_4_0_offset.h"
-#include "vega10/HDP/hdp_4_0_sh_mask.h"
-#include "vega10/GC/gc_9_0_sh_mask.h"
-#include "vega10/DC/dce_12_0_offset.h"
-#include "vega10/DC/dce_12_0_sh_mask.h"
-#include "vega10/vega10_enum.h"
-#include "vega10/MMHUB/mmhub_1_0_offset.h"
-#include "vega10/ATHUB/athub_1_0_offset.h"
+#include "hdp/hdp_4_0_offset.h"
+#include "hdp/hdp_4_0_sh_mask.h"
+#include "gc/gc_9_0_sh_mask.h"
+#include "dce/dce_12_0_offset.h"
+#include "dce/dce_12_0_sh_mask.h"
+#include "vega10_enum.h"
+#include "mmhub/mmhub_1_0_offset.h"
+#include "athub/athub_1_0_offset.h"
 
+#include "soc15.h"
 #include "soc15_common.h"
+#include "umc/umc_6_0_sh_mask.h"
 
-#include "nbio_v6_1.h"
-#include "nbio_v7_0.h"
 #include "gfxhub_v1_0.h"
 #include "mmhub_v1_0.h"
 
@@ -55,6 +54,14 @@
 #define DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK                                                        0x000000F0L
 #define DF_CS_AON0_DramBaseAddress0__IntLvAddrSel_MASK                                                        0x00000700L
 #define DF_CS_AON0_DramBaseAddress0__DramBaseAddr_MASK                                                        0xFFFFF000L
+
+/* add these here since we already include dce12 headers and these are for DCN */
+#define mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION                                                          0x055d
+#define mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION_BASE_IDX                                                 2
+#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_WIDTH__SHIFT                                        0x0
+#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_HEIGHT__SHIFT                                       0x10
+#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_WIDTH_MASK                                          0x00003FFFL
+#define HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION__PRI_VIEWPORT_HEIGHT_MASK                                         0x3FFF0000L
 
 /* XXX Move this macro to VEGA10 header file, which is like vid.h for VI.*/
 #define AMDGPU_NUM_OF_VMIDS			8
@@ -73,16 +80,131 @@ static const u32 golden_settings_vega10_hdp[] =
 	0xf6e, 0x0fffffff, 0x00000000,
 };
 
-static const u32 golden_settings_mmhub_1_0_0[] =
+static const struct soc15_reg_golden golden_settings_mmhub_1_0_0[] =
 {
-	SOC15_REG_OFFSET(MMHUB, 0, mmDAGB1_WRCLI2), 0x00000007, 0xfe5fe0fa,
-	SOC15_REG_OFFSET(MMHUB, 0, mmMMEA1_DRAM_WR_CLI2GRP_MAP0), 0x00000030, 0x55555565
+	SOC15_REG_GOLDEN_VALUE(MMHUB, 0, mmDAGB1_WRCLI2, 0x00000007, 0xfe5fe0fa),
+	SOC15_REG_GOLDEN_VALUE(MMHUB, 0, mmMMEA1_DRAM_WR_CLI2GRP_MAP0, 0x00000030, 0x55555565)
 };
 
-static const u32 golden_settings_athub_1_0_0[] =
+static const struct soc15_reg_golden golden_settings_athub_1_0_0[] =
 {
-	SOC15_REG_OFFSET(ATHUB, 0, mmRPB_ARB_CNTL), 0x0000ff00, 0x00000800,
-	SOC15_REG_OFFSET(ATHUB, 0, mmRPB_ARB_CNTL2), 0x00ff00ff, 0x00080008
+	SOC15_REG_GOLDEN_VALUE(ATHUB, 0, mmRPB_ARB_CNTL, 0x0000ff00, 0x00000800),
+	SOC15_REG_GOLDEN_VALUE(ATHUB, 0, mmRPB_ARB_CNTL2, 0x00ff00ff, 0x00080008)
+};
+
+/* Ecc related register addresses, (BASE + reg offset) */
+/* Universal Memory Controller caps (may be fused). */
+/* UMCCH:UmcLocalCap */
+#define UMCLOCALCAPS_ADDR0	(0x00014306 + 0x00000000)
+#define UMCLOCALCAPS_ADDR1	(0x00014306 + 0x00000800)
+#define UMCLOCALCAPS_ADDR2	(0x00014306 + 0x00001000)
+#define UMCLOCALCAPS_ADDR3	(0x00014306 + 0x00001800)
+#define UMCLOCALCAPS_ADDR4	(0x00054306 + 0x00000000)
+#define UMCLOCALCAPS_ADDR5	(0x00054306 + 0x00000800)
+#define UMCLOCALCAPS_ADDR6	(0x00054306 + 0x00001000)
+#define UMCLOCALCAPS_ADDR7	(0x00054306 + 0x00001800)
+#define UMCLOCALCAPS_ADDR8	(0x00094306 + 0x00000000)
+#define UMCLOCALCAPS_ADDR9	(0x00094306 + 0x00000800)
+#define UMCLOCALCAPS_ADDR10	(0x00094306 + 0x00001000)
+#define UMCLOCALCAPS_ADDR11	(0x00094306 + 0x00001800)
+#define UMCLOCALCAPS_ADDR12	(0x000d4306 + 0x00000000)
+#define UMCLOCALCAPS_ADDR13	(0x000d4306 + 0x00000800)
+#define UMCLOCALCAPS_ADDR14	(0x000d4306 + 0x00001000)
+#define UMCLOCALCAPS_ADDR15	(0x000d4306 + 0x00001800)
+
+/* Universal Memory Controller Channel config. */
+/* UMCCH:UMC_CONFIG */
+#define UMCCH_UMC_CONFIG_ADDR0	(0x00014040 + 0x00000000)
+#define UMCCH_UMC_CONFIG_ADDR1	(0x00014040 + 0x00000800)
+#define UMCCH_UMC_CONFIG_ADDR2	(0x00014040 + 0x00001000)
+#define UMCCH_UMC_CONFIG_ADDR3	(0x00014040 + 0x00001800)
+#define UMCCH_UMC_CONFIG_ADDR4	(0x00054040 + 0x00000000)
+#define UMCCH_UMC_CONFIG_ADDR5	(0x00054040 + 0x00000800)
+#define UMCCH_UMC_CONFIG_ADDR6	(0x00054040 + 0x00001000)
+#define UMCCH_UMC_CONFIG_ADDR7	(0x00054040 + 0x00001800)
+#define UMCCH_UMC_CONFIG_ADDR8	(0x00094040 + 0x00000000)
+#define UMCCH_UMC_CONFIG_ADDR9	(0x00094040 + 0x00000800)
+#define UMCCH_UMC_CONFIG_ADDR10	(0x00094040 + 0x00001000)
+#define UMCCH_UMC_CONFIG_ADDR11	(0x00094040 + 0x00001800)
+#define UMCCH_UMC_CONFIG_ADDR12	(0x000d4040 + 0x00000000)
+#define UMCCH_UMC_CONFIG_ADDR13	(0x000d4040 + 0x00000800)
+#define UMCCH_UMC_CONFIG_ADDR14	(0x000d4040 + 0x00001000)
+#define UMCCH_UMC_CONFIG_ADDR15	(0x000d4040 + 0x00001800)
+
+/* Universal Memory Controller Channel Ecc config. */
+/* UMCCH:EccCtrl */
+#define UMCCH_ECCCTRL_ADDR0	(0x00014053 + 0x00000000)
+#define UMCCH_ECCCTRL_ADDR1	(0x00014053 + 0x00000800)
+#define UMCCH_ECCCTRL_ADDR2	(0x00014053 + 0x00001000)
+#define UMCCH_ECCCTRL_ADDR3	(0x00014053 + 0x00001800)
+#define UMCCH_ECCCTRL_ADDR4	(0x00054053 + 0x00000000)
+#define UMCCH_ECCCTRL_ADDR5	(0x00054053 + 0x00000800)
+#define UMCCH_ECCCTRL_ADDR6	(0x00054053 + 0x00001000)
+#define UMCCH_ECCCTRL_ADDR7	(0x00054053 + 0x00001800)
+#define UMCCH_ECCCTRL_ADDR8	(0x00094053 + 0x00000000)
+#define UMCCH_ECCCTRL_ADDR9	(0x00094053 + 0x00000800)
+#define UMCCH_ECCCTRL_ADDR10	(0x00094053 + 0x00001000)
+#define UMCCH_ECCCTRL_ADDR11	(0x00094053 + 0x00001800)
+#define UMCCH_ECCCTRL_ADDR12	(0x000d4053 + 0x00000000)
+#define UMCCH_ECCCTRL_ADDR13	(0x000d4053 + 0x00000800)
+#define UMCCH_ECCCTRL_ADDR14	(0x000d4053 + 0x00001000)
+#define UMCCH_ECCCTRL_ADDR15	(0x000d4053 + 0x00001800)
+
+static const uint32_t ecc_umclocalcap_addrs[] = {
+	UMCLOCALCAPS_ADDR0,
+	UMCLOCALCAPS_ADDR1,
+	UMCLOCALCAPS_ADDR2,
+	UMCLOCALCAPS_ADDR3,
+	UMCLOCALCAPS_ADDR4,
+	UMCLOCALCAPS_ADDR5,
+	UMCLOCALCAPS_ADDR6,
+	UMCLOCALCAPS_ADDR7,
+	UMCLOCALCAPS_ADDR8,
+	UMCLOCALCAPS_ADDR9,
+	UMCLOCALCAPS_ADDR10,
+	UMCLOCALCAPS_ADDR11,
+	UMCLOCALCAPS_ADDR12,
+	UMCLOCALCAPS_ADDR13,
+	UMCLOCALCAPS_ADDR14,
+	UMCLOCALCAPS_ADDR15,
+};
+
+static const uint32_t ecc_umcch_umc_config_addrs[] = {
+	UMCCH_UMC_CONFIG_ADDR0,
+	UMCCH_UMC_CONFIG_ADDR1,
+	UMCCH_UMC_CONFIG_ADDR2,
+	UMCCH_UMC_CONFIG_ADDR3,
+	UMCCH_UMC_CONFIG_ADDR4,
+	UMCCH_UMC_CONFIG_ADDR5,
+	UMCCH_UMC_CONFIG_ADDR6,
+	UMCCH_UMC_CONFIG_ADDR7,
+	UMCCH_UMC_CONFIG_ADDR8,
+	UMCCH_UMC_CONFIG_ADDR9,
+	UMCCH_UMC_CONFIG_ADDR10,
+	UMCCH_UMC_CONFIG_ADDR11,
+	UMCCH_UMC_CONFIG_ADDR12,
+	UMCCH_UMC_CONFIG_ADDR13,
+	UMCCH_UMC_CONFIG_ADDR14,
+	UMCCH_UMC_CONFIG_ADDR15,
+};
+
+static const uint32_t ecc_umcch_eccctrl_addrs[] = {
+	UMCCH_ECCCTRL_ADDR0,
+	UMCCH_ECCCTRL_ADDR1,
+	UMCCH_ECCCTRL_ADDR2,
+	UMCCH_ECCCTRL_ADDR3,
+	UMCCH_ECCCTRL_ADDR4,
+	UMCCH_ECCCTRL_ADDR5,
+	UMCCH_ECCCTRL_ADDR6,
+	UMCCH_ECCCTRL_ADDR7,
+	UMCCH_ECCCTRL_ADDR8,
+	UMCCH_ECCCTRL_ADDR9,
+	UMCCH_ECCCTRL_ADDR10,
+	UMCCH_ECCCTRL_ADDR11,
+	UMCCH_ECCCTRL_ADDR12,
+	UMCCH_ECCCTRL_ADDR13,
+	UMCCH_ECCCTRL_ADDR14,
+	UMCCH_ECCCTRL_ADDR15,
 };
 
 static int gmc_v9_0_vm_fault_interrupt_state(struct amdgpu_device *adev,
@@ -134,7 +256,7 @@ static int gmc_v9_0_process_interrupt(struct amdgpu_device *adev,
 				struct amdgpu_irq_src *source,
 				struct amdgpu_iv_entry *entry)
 {
-	struct amdgpu_vmhub *hub = &adev->vmhub[entry->vm_id_src];
+	struct amdgpu_vmhub *hub = &adev->vmhub[entry->vmid_src];
 	uint32_t status = 0;
 	u64 addr;
 
@@ -148,9 +270,9 @@ static int gmc_v9_0_process_interrupt(struct amdgpu_device *adev,
 
 	if (printk_ratelimit()) {
 		dev_err(adev->dev,
-			"[%s] VMC page fault (src_id:%u ring:%u vm_id:%u pas_id:%u)\n",
-			entry->vm_id_src ? "mmhub" : "gfxhub",
-			entry->src_id, entry->ring_id, entry->vm_id,
+			"[%s] VMC page fault (src_id:%u ring:%u vmid:%u pas_id:%u)\n",
+			entry->vmid_src ? "mmhub" : "gfxhub",
+			entry->src_id, entry->ring_id, entry->vmid,
 			entry->pas_id);
 		dev_err(adev->dev, "  at page 0x%016llx from %d\n",
 			addr, entry->client_id);
@@ -174,13 +296,13 @@ static void gmc_v9_0_set_irq_funcs(struct amdgpu_device *adev)
 	adev->mc.vm_fault.funcs = &gmc_v9_0_irq_funcs;
 }
 
-static uint32_t gmc_v9_0_get_invalidate_req(unsigned int vm_id)
+static uint32_t gmc_v9_0_get_invalidate_req(unsigned int vmid)
 {
 	u32 req = 0;
 
-	/* invalidate using legacy mode on vm_id*/
+	/* invalidate using legacy mode on vmid*/
 	req = REG_SET_FIELD(req, VM_INVALIDATE_ENG0_REQ,
-			    PER_VMID_INVALIDATE_REQ, 1 << vm_id);
+			    PER_VMID_INVALIDATE_REQ, 1 << vmid);
 	req = REG_SET_FIELD(req, VM_INVALIDATE_ENG0_REQ, FLUSH_TYPE, 0);
 	req = REG_SET_FIELD(req, VM_INVALIDATE_ENG0_REQ, INVALIDATE_L2_PTES, 1);
 	req = REG_SET_FIELD(req, VM_INVALIDATE_ENG0_REQ, INVALIDATE_L2_PDE0, 1);
@@ -216,10 +338,7 @@ static void gmc_v9_0_gart_flush_gpu_tlb(struct amdgpu_device *adev,
 	unsigned i, j;
 
 	/* flush hdp cache */
-	if (adev->flags & AMD_IS_APU)
-		nbio_v7_0_hdp_flush(adev);
-	else
-		nbio_v6_1_hdp_flush(adev);
+	adev->nbio_funcs->hdp_flush(adev);
 
 	spin_lock(&adev->mc.invalidate_lock);
 
@@ -358,11 +477,28 @@ static uint64_t gmc_v9_0_get_vm_pte_flags(struct amdgpu_device *adev,
 	return pte_flag;
 }
 
-static u64 gmc_v9_0_get_vm_pde(struct amdgpu_device *adev, u64 addr)
+static void gmc_v9_0_get_vm_pde(struct amdgpu_device *adev, int level,
+				uint64_t *addr, uint64_t *flags)
 {
-	addr = adev->vm_manager.vram_base_offset + addr - adev->mc.vram_start;
-	BUG_ON(addr & 0xFFFF00000000003FULL);
-	return addr;
+	if (!(*flags & AMDGPU_PDE_PTE))
+		*addr = adev->vm_manager.vram_base_offset + *addr -
+			adev->mc.vram_start;
+	BUG_ON(*addr & 0xFFFF00000000003FULL);
+
+	if (!adev->mc.translate_further)
+		return;
+
+	if (level == AMDGPU_VM_PDB1) {
+		/* Set the block fragment size */
+		if (!(*flags & AMDGPU_PDE_PTE))
+			*flags |= AMDGPU_PDE_BFS(0x9);
+
+	} else if (level == AMDGPU_VM_PDB0) {
+		if (*flags & AMDGPU_PDE_PTE)
+			*flags &= ~AMDGPU_PDE_PTE;
+		else
+			*flags |= AMDGPU_PTE_TF;
+	}
 }
 
 static const struct amdgpu_gart_funcs gmc_v9_0_gart_funcs = {
@@ -386,7 +522,94 @@ static int gmc_v9_0_early_init(void *handle)
 	gmc_v9_0_set_gart_funcs(adev);
 	gmc_v9_0_set_irq_funcs(adev);
 
+	adev->mc.shared_aperture_start = 0x2000000000000000ULL;
+	adev->mc.shared_aperture_end =
+		adev->mc.shared_aperture_start + (4ULL << 30) - 1;
+	adev->mc.private_aperture_start =
+		adev->mc.shared_aperture_end + 1;
+	adev->mc.private_aperture_end =
+		adev->mc.private_aperture_start + (4ULL << 30) - 1;
+
 	return 0;
+}
+
+static int gmc_v9_0_ecc_available(struct amdgpu_device *adev)
+{
+	uint32_t reg_val;
+	uint32_t reg_addr;
+	uint32_t field_val;
+	size_t i;
+	uint32_t fv2;
+	size_t lost_sheep;
+
+	DRM_DEBUG("ecc: gmc_v9_0_ecc_available()\n");
+
+	lost_sheep = 0;
+	for (i = 0; i < ARRAY_SIZE(ecc_umclocalcap_addrs); ++i) {
+		reg_addr = ecc_umclocalcap_addrs[i];
+		DRM_DEBUG("ecc: "
+			  "UMCCH_UmcLocalCap[%zu]: reg_addr: 0x%08x\n",
+			  i, reg_addr);
+		reg_val = RREG32(reg_addr);
+		field_val = REG_GET_FIELD(reg_val, UMCCH0_0_UmcLocalCap,
+					  EccDis);
+		DRM_DEBUG("ecc: "
+			  "reg_val: 0x%08x, "
+			  "EccDis: 0x%08x, ",
+			  reg_val, field_val);
+		if (field_val) {
+			DRM_ERROR("ecc: UmcLocalCap:EccDis is set.\n");
+			++lost_sheep;
+		}
+	}
+
+	for (i = 0; i < ARRAY_SIZE(ecc_umcch_umc_config_addrs); ++i) {
+		reg_addr = ecc_umcch_umc_config_addrs[i];
+		DRM_DEBUG("ecc: "
+			  "UMCCH0_0_UMC_CONFIG[%zu]: reg_addr: 0x%08x",
+			  i, reg_addr);
+		reg_val = RREG32(reg_addr);
+		field_val = REG_GET_FIELD(reg_val, UMCCH0_0_UMC_CONFIG,
+					  DramReady);
+		DRM_DEBUG("ecc: "
+			  "reg_val: 0x%08x, "
+			  "DramReady: 0x%08x\n",
+			  reg_val, field_val);
+
+		if (!field_val) {
+			DRM_ERROR("ecc: UMC_CONFIG:DramReady is not set.\n");
+			++lost_sheep;
+		}
+	}
+
+	for (i = 0; i < ARRAY_SIZE(ecc_umcch_eccctrl_addrs); ++i) {
+		reg_addr = ecc_umcch_eccctrl_addrs[i];
+		DRM_DEBUG("ecc: "
+			  "UMCCH_EccCtrl[%zu]: reg_addr: 0x%08x, ",
+			  i, reg_addr);
+		reg_val = RREG32(reg_addr);
+		field_val = REG_GET_FIELD(reg_val, UMCCH0_0_EccCtrl,
+					  WrEccEn);
+		fv2 = REG_GET_FIELD(reg_val, UMCCH0_0_EccCtrl,
+				    RdEccEn);
+		DRM_DEBUG("ecc: "
+			  "reg_val: 0x%08x, "
+			  "WrEccEn: 0x%08x, "
+			  "RdEccEn: 0x%08x\n",
+			  reg_val, field_val, fv2);
+
+		if (!field_val) {
+			DRM_DEBUG("ecc: WrEccEn is not set\n");
+			++lost_sheep;
+		}
+		if (!fv2) {
+			DRM_DEBUG("ecc: RdEccEn is not set\n");
+			++lost_sheep;
+		}
+	}
+
+	DRM_DEBUG("ecc: lost_sheep: %zu\n", lost_sheep);
+	return lost_sheep == 0;
 }
 
 static int gmc_v9_0_late_init(void *handle)
@@ -403,6 +626,12 @@ static int gmc_v9_0_late_init(void *handle)
 	 */
 	unsigned vm_inv_eng[AMDGPU_MAX_VMHUBS] = { 4, 4 };
 	unsigned i;
+	int r;
+
+	/*
+	 * TODO - Uncomment once GART corruption issue is fixed.
+	 */
+	/* amdgpu_bo_late_init(adev); */
 
 	for(i = 0; i < adev->num_rings; ++i) {
 		struct amdgpu_ring *ring = adev->rings[i];
@@ -418,6 +647,18 @@ static int gmc_v9_0_late_init(void *handle)
 	for(i = 0; i < AMDGPU_MAX_VMHUBS; ++i)
 		BUG_ON(vm_inv_eng[i] > 16);
 
+	if (adev->asic_type == CHIP_VEGA10 && !amdgpu_sriov_vf(adev)) {
+		r = gmc_v9_0_ecc_available(adev);
+		if (r == 1) {
+			DRM_INFO("ECC is active.\n");
+		} else if (r == 0) {
+			DRM_INFO("ECC is not present.\n");
+		} else {
+			DRM_ERROR("gmc_v9_0_ecc_available() failed. r: %d\n", r);
+			return r;
+		}
+	}
+
 	return amdgpu_irq_get(adev, &adev->mc.vm_fault, 0);
 }
 
@@ -427,8 +668,8 @@ static void gmc_v9_0_vram_gtt_location(struct amdgpu_device *adev,
 	u64 base = 0;
 	if (!amdgpu_sriov_vf(adev))
 		base = mmhub_v1_0_get_fb_location(adev);
-	amdgpu_vram_location(adev, &adev->mc, base);
-	amdgpu_gart_location(adev, mc);
+	amdgpu_device_vram_location(adev, &adev->mc, base);
+	amdgpu_device_gart_location(adev, mc);
 	/* base offset of vram pages */
 	if (adev->flags & AMD_IS_APU)
 		adev->vm_manager.vram_base_offset = gfxhub_v1_0_get_mc_fb_offset(adev);
@@ -449,11 +690,15 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 {
 	u32 tmp;
 	int chansize, numchan;
+	int r;
 
 	adev->mc.vram_width = amdgpu_atomfirmware_get_vram_width(adev);
 	if (!adev->mc.vram_width) {
 		/* hbm memory channel size */
-		chansize = 128;
+		if (adev->flags & AMD_IS_APU)
+			chansize = 64;
+		else
+			chansize = 128;
 
 		tmp = RREG32_SOC15(DF, 0, mmDF_CS_AON0_DramBaseAddress0);
 		tmp &= DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK;
@@ -491,17 +736,21 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 		adev->mc.vram_width = numchan * chansize;
 	}
 
-	/* Could aper size report 0 ? */
-	adev->mc.aper_base = pci_resource_start(adev->pdev, 0);
-	adev->mc.aper_size = pci_resource_len(adev->pdev, 0);
 	/* size in MB on si */
 	adev->mc.mc_vram_size =
-		((adev->flags & AMD_IS_APU) ? nbio_v7_0_get_memsize(adev) :
-		 nbio_v6_1_get_memsize(adev)) * 1024ULL * 1024ULL;
+		adev->nbio_funcs->get_memsize(adev) * 1024ULL * 1024ULL;
 	adev->mc.real_vram_size = adev->mc.mc_vram_size;
-	adev->mc.visible_vram_size = adev->mc.aper_size;
+
+	if (!(adev->flags & AMD_IS_APU)) {
+		r = amdgpu_device_resize_fb_bar(adev);
+		if (r)
+			return r;
+	}
+	adev->mc.aper_base = pci_resource_start(adev->pdev, 0);
+	adev->mc.aper_size = pci_resource_len(adev->pdev, 0);
 
 	/* In case the PCI BAR is larger than the actual amount of vram */
+	adev->mc.visible_vram_size = adev->mc.aper_size;
 	if (adev->mc.visible_vram_size > adev->mc.real_vram_size)
 		adev->mc.visible_vram_size = adev->mc.real_vram_size;
 
@@ -543,6 +792,51 @@ static int gmc_v9_0_gart_init(struct amdgpu_device *adev)
 	return amdgpu_gart_table_vram_alloc(adev);
 }
 
+static unsigned gmc_v9_0_get_vbios_fb_size(struct amdgpu_device *adev)
+{
+#if 0
+	u32 d1vga_control = RREG32_SOC15(DCE, 0, mmD1VGA_CONTROL);
+#endif
+	unsigned size;
+
+	/*
+	 * TODO Remove once GART corruption is resolved
+	 * Check related code in gmc_v9_0_sw_fini
+	 * */
+	size = 9 * 1024 * 1024;
+
+#if 0
+	if (REG_GET_FIELD(d1vga_control, D1VGA_CONTROL, D1VGA_MODE_ENABLE)) {
+		size = 9 * 1024 * 1024; /* reserve 8MB for vga emulator and 1 MB for FB */
+	} else {
+		u32 viewport;
+
+		switch (adev->asic_type) {
+		case CHIP_RAVEN:
+			viewport = RREG32_SOC15(DCE, 0, mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION);
+			size = (REG_GET_FIELD(viewport,
+					      HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION, PRI_VIEWPORT_HEIGHT) *
+				REG_GET_FIELD(viewport,
+					      HUBP0_DCSURF_PRI_VIEWPORT_DIMENSION, PRI_VIEWPORT_WIDTH) *
+				4);
+			break;
+		case CHIP_VEGA10:
+		default:
+			viewport = RREG32_SOC15(DCE, 0, mmSCL0_VIEWPORT_SIZE);
+			size = (REG_GET_FIELD(viewport, SCL0_VIEWPORT_SIZE, VIEWPORT_HEIGHT) *
+				REG_GET_FIELD(viewport, SCL0_VIEWPORT_SIZE, VIEWPORT_WIDTH) *
+				4);
+			break;
+		}
+	}
+	/* return 0 if the pre-OS buffer uses up most of vram */
+	if ((adev->mc.real_vram_size - size) < (8 * 1024 * 1024))
+		return 0;
+
+#endif
+	return size;
+}
+
 static int gmc_v9_0_sw_init(void *handle)
 {
 	int r;
@@ -558,14 +852,12 @@ static int gmc_v9_0_sw_init(void *handle)
 	case CHIP_RAVEN:
 		adev->mc.vram_type = AMDGPU_VRAM_TYPE_UNKNOWN;
 		if (adev->rev_id == 0x0 || adev->rev_id == 0x1) {
-			adev->vm_manager.vm_size = 1U << 18;
-			adev->vm_manager.block_size = 9;
-			adev->vm_manager.num_level = 3;
-			amdgpu_vm_set_fragment_size(adev, 9);
+			amdgpu_vm_adjust_size(adev, 256 * 1024, 9, 3, 48);
 		} else {
-			/* vm_size is 64GB for legacy 2-level page support */
-			amdgpu_vm_adjust_size(adev, 64, 9);
-			adev->vm_manager.num_level = 1;
+			/* vm_size is 128TB + 512GB for legacy 3-level page support */
+			amdgpu_vm_adjust_size(adev, 128 * 1024 + 512, 9, 2, 48);
+			adev->mc.translate_further =
+				adev->vm_manager.num_level > 1;
 		}
 		break;
 	case CHIP_VEGA10:
@@ -576,19 +868,11 @@ static int gmc_v9_0_sw_init(void *handle)
 		 * vm size is 256TB (48bit), maximum size of Vega10,
 		 * block size 512 (9bit)
 		 */
-		adev->vm_manager.vm_size = 1U << 18;
-		adev->vm_manager.block_size = 9;
-		adev->vm_manager.num_level = 3;
-		amdgpu_vm_set_fragment_size(adev, 9);
+		amdgpu_vm_adjust_size(adev, 256 * 1024, 9, 3, 48);
 		break;
 	default:
 		break;
 	}
-
-	DRM_INFO("vm size is %llu GB, block size is %u-bit,fragment size is %u-bit\n",
-			adev->vm_manager.vm_size,
-			adev->vm_manager.block_size,
-			adev->vm_manager.fragment_size);
 
 	/* This interrupt is VMC page fault.*/
 	r = amdgpu_irq_add_id(adev, AMDGPU_IH_CLIENTID_VMC, 0,
@@ -599,19 +883,11 @@ static int gmc_v9_0_sw_init(void *handle)
 	if (r)
 		return r;
 
-	adev->vm_manager.max_pfn = adev->vm_manager.vm_size << 18;
-
 	/* Set the internal MC address mask
 	 * This is the max address of the GPU's
 	 * internal address space.
 	 */
 	adev->mc.mc_mask = 0xffffffffffffULL; /* 48 bit MC */
-
-	/*
-	 * It needs to reserve 8M stolen memory for vega10
-	 * TODO: Figure out how to avoid that...
-	 */
-	adev->mc.stolen_size = 8 * 1024 * 1024;
 
 	/* set DMA mask + need_dma32 flags.
 	 * PCIE - can handle 44-bits.
@@ -635,6 +911,8 @@ static int gmc_v9_0_sw_init(void *handle)
 	r = gmc_v9_0_mc_init(adev);
 	if (r)
 		return r;
+
+	adev->mc.stolen_size = gmc_v9_0_get_vbios_fb_size(adev);
 
 	/* Memory manager */
 	r = amdgpu_bo_init(adev);
@@ -660,7 +938,7 @@ static int gmc_v9_0_sw_init(void *handle)
 }
 
 /**
- * gmc_v8_0_gart_fini - vm fini callback
+ * gmc_v9_0_gart_fini - vm fini callback
  *
  * @adev: amdgpu_device pointer
  *
@@ -676,9 +954,21 @@ static int gmc_v9_0_sw_fini(void *handle)
 {
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
+	amdgpu_gem_force_release(adev);
 	amdgpu_vm_manager_fini(adev);
 	gmc_v9_0_gart_fini(adev);
-	amdgpu_gem_force_release(adev);
+
+	/*
+	* TODO:
+	* Currently there is a bug where some memory client outside
+	* of the driver writes to first 8M of VRAM on S3 resume,
+	* this overrides GART which by default gets placed in first 8M and
+	* causes VM_FAULTS once GTT is accessed.
+	* Keep the stolen memory reservation until the while this is not solved.
+	* Also check code in gmc_v9_0_get_vbios_fb_size and gmc_v9_0_late_init
+	*/
+	amdgpu_bo_free_kernel(&adev->stolen_vga_memory, NULL, NULL);
+
 	amdgpu_bo_fini(adev);
 
 	return 0;
@@ -686,19 +976,20 @@ static int gmc_v9_0_sw_fini(void *handle)
 
 static void gmc_v9_0_init_golden_registers(struct amdgpu_device *adev)
 {
+
 	switch (adev->asic_type) {
 	case CHIP_VEGA10:
-		amdgpu_program_register_sequence(adev,
+		soc15_program_register_sequence(adev,
 						golden_settings_mmhub_1_0_0,
-						(const u32)ARRAY_SIZE(golden_settings_mmhub_1_0_0));
-		amdgpu_program_register_sequence(adev,
+						ARRAY_SIZE(golden_settings_mmhub_1_0_0));
+		soc15_program_register_sequence(adev,
 						golden_settings_athub_1_0_0,
-						(const u32)ARRAY_SIZE(golden_settings_athub_1_0_0));
+						ARRAY_SIZE(golden_settings_athub_1_0_0));
 		break;
 	case CHIP_RAVEN:
-		amdgpu_program_register_sequence(adev,
+		soc15_program_register_sequence(adev,
 						golden_settings_athub_1_0_0,
-						(const u32)ARRAY_SIZE(golden_settings_athub_1_0_0));
+						ARRAY_SIZE(golden_settings_athub_1_0_0));
 		break;
 	default:
 		break;
@@ -716,9 +1007,9 @@ static int gmc_v9_0_gart_enable(struct amdgpu_device *adev)
 	bool value;
 	u32 tmp;
 
-	amdgpu_program_register_sequence(adev,
-		golden_settings_vega10_hdp,
-		(const u32)ARRAY_SIZE(golden_settings_vega10_hdp));
+	amdgpu_device_program_register_sequence(adev,
+						golden_settings_vega10_hdp,
+						ARRAY_SIZE(golden_settings_vega10_hdp));
 
 	if (adev->gart.robj == NULL) {
 		dev_err(adev->dev, "No VRAM object for PCIE GART.\n");
@@ -751,10 +1042,7 @@ static int gmc_v9_0_gart_enable(struct amdgpu_device *adev)
 	WREG32_SOC15(HDP, 0, mmHDP_HOST_PATH_CNTL, tmp);
 
 	/* After HDP is initialized, flush HDP.*/
-	if (adev->flags & AMD_IS_APU)
-		nbio_v7_0_hdp_flush(adev);
-	else
-		nbio_v6_1_hdp_flush(adev);
+	adev->nbio_funcs->hdp_flush(adev);
 
 	if (amdgpu_vm_fault_stop == AMDGPU_VM_FAULT_STOP_ALWAYS)
 		value = false;
@@ -839,7 +1127,7 @@ static int gmc_v9_0_resume(void *handle)
 	if (r)
 		return r;
 
-	amdgpu_vm_reset_all_ids(adev);
+	amdgpu_vmid_reset_all(adev);
 
 	return 0;
 }

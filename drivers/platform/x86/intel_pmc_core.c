@@ -209,6 +209,27 @@ static void pmc_core_display_map(struct seq_file *s, int index,
 		   pf_map[index].bit_mask & pf_reg ? "Off" : "On");
 }
 
+void pmc_core_ppfear_display(void)
+{
+	struct pmc_dev *pmcdev = &pmc;
+	const struct pmc_bit_map *map = pmcdev->map->pfear_sts;
+	u8 pf_regs[PPFEAR_MAX_NUM_ENTRIES];
+	int index, iter;
+
+	iter = pmcdev->map->ppfear0_offset;
+
+	for (index = 0; index < pmcdev->map->ppfear_buckets &&
+	     index < PPFEAR_MAX_NUM_ENTRIES; index++, iter++)
+		pf_regs[index] = pmc_core_reg_read_byte(pmcdev, iter);
+
+	for (index = 0; map[index].name; index++) {
+		pr_warn("PCH IP: %-2d - %-32s\tState: %s\n",
+		   index, map[index].name,
+		   map[index].bit_mask & pf_regs[index / 8] ? "Off" : "On");
+	}
+}
+EXPORT_SYMBOL_GPL(pmc_core_ppfear_display);
+
 static int pmc_core_ppfear_sts_show(struct seq_file *s, void *unused)
 {
 	struct pmc_dev *pmcdev = s->private;

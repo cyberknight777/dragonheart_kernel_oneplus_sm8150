@@ -119,12 +119,14 @@ u8 drm_dp_get_adjust_request_pre_emphasis(const u8 link_status[DP_LINK_STATUS_SI
 EXPORT_SYMBOL(drm_dp_get_adjust_request_pre_emphasis);
 
 void drm_dp_link_train_clock_recovery_delay(const u8 dpcd[DP_RECEIVER_CAP_SIZE]) {
-	int rd_interval = dpcd[DP_TRAINING_AUX_RD_INTERVAL] & DP_TRAINING_AUX_RD_MASK;
+	int rd_interval = dpcd[DP_TRAINING_AUX_RD_INTERVAL] &
+			  DP_TRAINING_AUX_RD_MASK;
 
 	if (rd_interval > 4)
-		DRM_DEBUG_KMS("AUX interval %d, out of range (max 4)", rd_interval);
+		DRM_DEBUG_KMS("AUX interval %d, out of range (max 4)\n",
+			      rd_interval);
 
-	if (rd_interval == 0)
+	if (rd_interval == 0 || dpcd[DP_DPCD_REV] >= DP_DPCD_REV_14)
 		udelay(100);
 	else
 		mdelay(rd_interval * 4);
@@ -132,10 +134,12 @@ void drm_dp_link_train_clock_recovery_delay(const u8 dpcd[DP_RECEIVER_CAP_SIZE])
 EXPORT_SYMBOL(drm_dp_link_train_clock_recovery_delay);
 
 void drm_dp_link_train_channel_eq_delay(const u8 dpcd[DP_RECEIVER_CAP_SIZE]) {
-	int rd_interval = dpcd[DP_TRAINING_AUX_RD_INTERVAL] & DP_TRAINING_AUX_RD_MASK;
+	int rd_interval = dpcd[DP_TRAINING_AUX_RD_INTERVAL] &
+			  DP_TRAINING_AUX_RD_MASK;
 
 	if (rd_interval > 4)
-		DRM_DEBUG_KMS("AUX interval %d, out of range (max 4)", rd_interval);
+		DRM_DEBUG_KMS("AUX interval %d, out of range (max 4)\n",
+			      rd_interval);
 
 	if (rd_interval == 0)
 		udelay(400);
@@ -1107,7 +1111,6 @@ int drm_dp_aux_register(struct drm_dp_aux *aux)
 	aux->ddc.class = I2C_CLASS_DDC;
 	aux->ddc.owner = THIS_MODULE;
 	aux->ddc.dev.parent = aux->dev;
-	aux->ddc.dev.of_node = aux->dev->of_node;
 
 	strlcpy(aux->ddc.name, aux->name ? aux->name : dev_name(aux->dev),
 		sizeof(aux->ddc.name));
@@ -1152,6 +1155,7 @@ int drm_dp_psr_setup_time(const u8 psr_cap[EDP_PSR_RECEIVER_CAP_SIZE])
 	static const u16 psr_setup_time_us[] = {
 		PSR_SETUP_TIME(330),
 		PSR_SETUP_TIME(275),
+		PSR_SETUP_TIME(220),
 		PSR_SETUP_TIME(165),
 		PSR_SETUP_TIME(110),
 		PSR_SETUP_TIME(55),
@@ -1225,15 +1229,22 @@ EXPORT_SYMBOL(drm_dp_stop_crc);
 
 struct dpcd_quirk {
 	u8 oui[3];
+	u8 device_id[6];
 	bool is_branch;
 	u32 quirks;
 };
 
 #define OUI(first, second, third) { (first), (second), (third) }
+#define DEVICE_ID(first, second, third, fourth, fifth, sixth) \
+	{ (first), (second), (third), (fourth), (fifth), (sixth) }
+
+#define DEVICE_ID_ANY	DEVICE_ID(0, 0, 0, 0, 0, 0)
 
 static const struct dpcd_quirk dpcd_quirk_list[] = {
 	/* Analogix 7737 needs reduced M and N at HBR2 link rates */
-	{ OUI(0x00, 0x22, 0xb9), true, BIT(DP_DPCD_QUIRK_LIMITED_M_N) },
+	{ OUI(0x00, 0x22, 0xb9), DEVICE_ID_ANY, true, BIT(DP_DPCD_QUIRK_CONSTANT_N) },
+	/* LG LP140WF6-SPM1 eDP panel */
+	{ OUI(0x00, 0x22, 0xb9), DEVICE_ID('s', 'i', 'v', 'a', 'r', 'T'), false, BIT(DP_DPCD_QUIRK_CONSTANT_N) },
 };
 
 #undef OUI
@@ -1252,6 +1263,7 @@ drm_dp_get_quirks(const struct drm_dp_dpcd_ident *ident, bool is_branch)
 	const struct dpcd_quirk *quirk;
 	u32 quirks = 0;
 	int i;
+	u8 any_device[] = DEVICE_ID_ANY;
 
 	for (i = 0; i < ARRAY_SIZE(dpcd_quirk_list); i++) {
 		quirk = &dpcd_quirk_list[i];
@@ -1262,11 +1274,18 @@ drm_dp_get_quirks(const struct drm_dp_dpcd_ident *ident, bool is_branch)
 		if (memcmp(quirk->oui, ident->oui, sizeof(ident->oui)) != 0)
 			continue;
 
+		if (memcmp(quirk->device_id, any_device, sizeof(any_device)) != 0 &&
+		    memcmp(quirk->device_id, ident->device_id, sizeof(ident->device_id)) != 0)
+			continue;
+
 		quirks |= quirk->quirks;
 	}
 
 	return quirks;
 }
+
+#undef DEVICE_ID_ANY
+#undef DEVICE_ID
 
 /**
  * drm_dp_read_desc - read sink/branch descriptor from DPCD

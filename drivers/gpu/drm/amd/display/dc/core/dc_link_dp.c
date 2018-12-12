@@ -220,8 +220,7 @@ static void dpcd_set_lt_pattern_and_lane_settings(
 		size_in_bytes);
 
 	dm_logger_write(link->ctx->logger, LOG_HW_LINK_TRAINING,
-		"%s:\n %x VS set = %x  PE set = %x \
-		max VS Reached = %x  max PE Reached = %x\n",
+		"%s:\n %x VS set = %x  PE set = %x max VS Reached = %x  max PE Reached = %x\n",
 		__func__,
 		DP_TRAINING_LANE0_SET,
 		dpcd_lane[0].bits.VOLTAGE_SWING_SET,
@@ -558,8 +557,7 @@ static void dpcd_set_lane_settings(
 	*/
 
 	dm_logger_write(link->ctx->logger, LOG_HW_LINK_TRAINING,
-		"%s\n %x VS set = %x  PE set = %x \
-		max VS Reached = %x  max PE Reached = %x\n",
+		"%s\n %x VS set = %x  PE set = %x max VS Reached = %x  max PE Reached = %x\n",
 		__func__,
 		DP_TRAINING_LANE0_SET,
 		dpcd_lane[0].bits.VOLTAGE_SWING_SET,
@@ -872,9 +870,8 @@ static bool perform_clock_recovery_sequence(
 	if (retry_count >= LINK_TRAINING_MAX_CR_RETRY) {
 		ASSERT(0);
 		dm_logger_write(link->ctx->logger, LOG_ERROR,
-			"%s: Link Training Error, could not \
-			 get CR after %d tries. \
-			Possibly voltage swing issue", __func__,
+			"%s: Link Training Error, could not get CR after %d tries. Possibly voltage swing issue",
+			__func__,
 			LINK_TRAINING_MAX_CR_RETRY);
 
 	}
@@ -1468,7 +1465,13 @@ void decide_link_settings(struct dc_stream_state *stream,
 	/* MST doesn't perform link training for now
 	 * TODO: add MST specific link training routine
 	 */
-	if (is_mst_supported(link)) {
+	if (stream->signal == SIGNAL_TYPE_DISPLAY_PORT_MST) {
+		*link_setting = link->verified_link_cap;
+		return;
+	}
+
+	/* EDP use the link cap setting */
+	if (stream->sink->sink_signal == SIGNAL_TYPE_EDP) {
 		*link_setting = link->verified_link_cap;
 		return;
 	}
@@ -1512,7 +1515,7 @@ static bool hpd_rx_irq_check_link_loss_status(
 	struct dc_link *link,
 	union hpd_irq_data *hpd_irq_dpcd_data)
 {
-	uint8_t irq_reg_rx_power_state;
+	uint8_t irq_reg_rx_power_state = 0;
 	enum dc_status dpcd_result = DC_ERROR_UNEXPECTED;
 	union lane_status lane_status;
 	uint32_t lane;
@@ -1524,60 +1527,55 @@ static bool hpd_rx_irq_check_link_loss_status(
 
 	if (link->cur_link_settings.lane_count == 0)
 		return return_code;
-	/*1. Check that we can handle interrupt: Not in FS DOS,
-	 *  Not in "Display Timeout" state, Link is trained.
-	 */
 
-	dpcd_result = core_link_read_dpcd(link,
-		DP_SET_POWER,
-		&irq_reg_rx_power_state,
-		sizeof(irq_reg_rx_power_state));
+	/*1. Check that Link Status changed, before re-training.*/
 
-	if (dpcd_result != DC_OK) {
-		irq_reg_rx_power_state = DP_SET_POWER_D0;
-		dm_logger_write(link->ctx->logger, LOG_HW_HPD_IRQ,
-			"%s: DPCD read failed to obtain power state.\n",
-			__func__);
+	/*parse lane status*/
+	for (lane = 0; lane < link->cur_link_settings.lane_count; lane++) {
+		/* check status of lanes 0,1
+		 * changed DpcdAddress_Lane01Status (0x202)
+		 */
+		lane_status.raw = get_nibble_at_index(
+			&hpd_irq_dpcd_data->bytes.lane01_status.raw,
+			lane);
+
+		if (!lane_status.bits.CHANNEL_EQ_DONE_0 ||
+			!lane_status.bits.CR_DONE_0 ||
+			!lane_status.bits.SYMBOL_LOCKED_0) {
+			/* if one of the channel equalization, clock
+			 * recovery or symbol lock is dropped
+			 * consider it as (link has been
+			 * dropped) dp sink status has changed
+			 */
+			sink_status_changed = true;
+			break;
+		}
 	}
 
-	if (irq_reg_rx_power_state == DP_SET_POWER_D0) {
+	/* Check interlane align.*/
+	if (sink_status_changed ||
+		!hpd_irq_dpcd_data->bytes.lane_status_updated.bits.INTERLANE_ALIGN_DONE) {
 
-		/*2. Check that Link Status changed, before re-training.*/
+		dm_logger_write(link->ctx->logger, LOG_HW_HPD_IRQ,
+			"%s: Link Status changed.\n", __func__);
 
-		/*parse lane status*/
-		for (lane = 0;
-			lane < link->cur_link_settings.lane_count;
-			lane++) {
+		return_code = true;
 
-			/* check status of lanes 0,1
-			 * changed DpcdAddress_Lane01Status (0x202)*/
-			lane_status.raw = get_nibble_at_index(
-				&hpd_irq_dpcd_data->bytes.lane01_status.raw,
-				lane);
+		/*2. Check that we can handle interrupt: Not in FS DOS,
+		 *  Not in "Display Timeout" state, Link is trained.
+		 */
+		dpcd_result = core_link_read_dpcd(link,
+			DP_SET_POWER,
+			&irq_reg_rx_power_state,
+			sizeof(irq_reg_rx_power_state));
 
-			if (!lane_status.bits.CHANNEL_EQ_DONE_0 ||
-				!lane_status.bits.CR_DONE_0 ||
-				!lane_status.bits.SYMBOL_LOCKED_0) {
-				/* if one of the channel equalization, clock
-				 * recovery or symbol lock is dropped
-				 * consider it as (link has been
-				 * dropped) dp sink status has changed*/
-				sink_status_changed = true;
-				break;
-			}
-
-		}
-
-		/* Check interlane align.*/
-		if (sink_status_changed ||
-			!hpd_irq_dpcd_data->bytes.lane_status_updated.bits.
-			INTERLANE_ALIGN_DONE) {
-
+		if (dpcd_result != DC_OK) {
 			dm_logger_write(link->ctx->logger, LOG_HW_HPD_IRQ,
-				"%s: Link Status changed.\n",
+				"%s: DPCD read failed to obtain power state.\n",
 				__func__);
-
-			return_code = true;
+		} else {
+			if (irq_reg_rx_power_state != DP_SET_POWER_D0)
+				return_code = false;
 		}
 	}
 
@@ -1700,12 +1698,10 @@ static void dp_test_send_link_training(struct dc_link *link)
 	dp_retrain_link_dp_test(link, &link_settings, false);
 }
 
-/* TODO hbr2 compliance eye output is unstable
+/* TODO Raven hbr2 compliance eye output is unstable
  * (toggling on and off) with debugger break
  * This caueses intermittent PHY automation failure
  * Need to look into the root cause */
-static uint8_t force_tps4_for_cp2520 = 1;
-
 static void dp_test_send_phy_test_pattern(struct dc_link *link)
 {
 	union phy_test_pattern dpcd_test_pattern;
@@ -1765,13 +1761,13 @@ static void dp_test_send_phy_test_pattern(struct dc_link *link)
 		break;
 	case PHY_TEST_PATTERN_CP2520_1:
 		/* CP2520 pattern is unstable, temporarily use TPS4 instead */
-		test_pattern = (force_tps4_for_cp2520 == 1) ?
+		test_pattern = (link->dc->caps.force_dp_tps4_for_cp2520 == 1) ?
 				DP_TEST_PATTERN_TRAINING_PATTERN4 :
 				DP_TEST_PATTERN_HBR2_COMPLIANCE_EYE;
 		break;
 	case PHY_TEST_PATTERN_CP2520_2:
 		/* CP2520 pattern is unstable, temporarily use TPS4 instead */
-		test_pattern = (force_tps4_for_cp2520 == 1) ?
+		test_pattern = (link->dc->caps.force_dp_tps4_for_cp2520 == 1) ?
 				DP_TEST_PATTERN_TRAINING_PATTERN4 :
 				DP_TEST_PATTERN_HBR2_COMPLIANCE_EYE;
 		break;
@@ -2062,6 +2058,24 @@ bool is_dp_active_dongle(const struct dc_link *link)
 			(dongle_type == DISPLAY_DONGLE_DP_HDMI_CONVERTER);
 }
 
+static int translate_dpcd_max_bpc(enum dpcd_downstream_port_max_bpc bpc)
+{
+	switch (bpc) {
+	case DOWN_STREAM_MAX_8BPC:
+		return 8;
+	case DOWN_STREAM_MAX_10BPC:
+		return 10;
+	case DOWN_STREAM_MAX_12BPC:
+		return 12;
+	case DOWN_STREAM_MAX_16BPC:
+		return 16;
+	default:
+		break;
+	}
+
+	return -1;
+}
+
 static void get_active_converter_info(
 	uint8_t data, struct dc_link *link)
 {
@@ -2114,7 +2128,7 @@ static void get_active_converter_info(
 
 				union dwnstream_port_caps_byte3_hdmi
 					hdmi_caps = {.raw = det_caps[3] };
-				union dwnstream_port_caps_byte1
+				union dwnstream_port_caps_byte2
 					hdmi_color_caps = {.raw = det_caps[2] };
 				link->dpcd_caps.dongle_caps.dp_hdmi_max_pixel_clk =
 					det_caps[1] * 25000;
@@ -2131,7 +2145,8 @@ static void get_active_converter_info(
 					hdmi_caps.bits.YCrCr420_CONVERSION;
 
 				link->dpcd_caps.dongle_caps.dp_hdmi_max_bpc =
-					hdmi_color_caps.bits.MAX_BITS_PER_COLOR_COMPONENT;
+					translate_dpcd_max_bpc(
+						hdmi_color_caps.bits.MAX_BITS_PER_COLOR_COMPONENT);
 
 				link->dpcd_caps.dongle_caps.extendedCapValid = true;
 			}

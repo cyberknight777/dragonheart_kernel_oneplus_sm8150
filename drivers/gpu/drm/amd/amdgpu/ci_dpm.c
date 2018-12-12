@@ -891,12 +891,12 @@ static void ci_dpm_powergate_uvd(void *handle, bool gate)
 
 	if (gate) {
 		/* stop the UVD block */
-		amdgpu_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
-							AMD_PG_STATE_GATE);
+		amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
+						       AMD_PG_STATE_GATE);
 		ci_update_uvd_dpm(adev, gate);
 	} else {
-		amdgpu_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
-							AMD_PG_STATE_UNGATE);
+		amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
+						       AMD_PG_STATE_UNGATE);
 		ci_update_uvd_dpm(adev, gate);
 	}
 }
@@ -4540,9 +4540,9 @@ static int ci_set_mc_special_registers(struct amdgpu_device *adev,
 					((temp_reg & 0xffff0000)) | ((table->mc_reg_table_entry[k].mc_data[i] & 0xffff0000) >> 16);
 			}
 			j++;
+
 			if (j >= SMU7_DISCRETE_MC_REGISTER_ARRAY_SIZE)
 				return -EINVAL;
-
 			temp_reg = RREG32(mmMC_PMG_CMD_MRS);
 			table->mc_reg_address[j].s1 = mmMC_PMG_CMD_MRS;
 			table->mc_reg_address[j].s0 = mmMC_SEQ_PMG_CMD_MRS_LP;
@@ -4553,10 +4553,10 @@ static int ci_set_mc_special_registers(struct amdgpu_device *adev,
 					table->mc_reg_table_entry[k].mc_data[j] |= 0x100;
 			}
 			j++;
-			if (j > SMU7_DISCRETE_MC_REGISTER_ARRAY_SIZE)
-				return -EINVAL;
 
 			if (adev->mc.vram_type != AMDGPU_VRAM_TYPE_GDDR5) {
+				if (j >= SMU7_DISCRETE_MC_REGISTER_ARRAY_SIZE)
+					return -EINVAL;
 				table->mc_reg_address[j].s1 = mmMC_PMG_AUTO_CMD;
 				table->mc_reg_address[j].s0 = mmMC_PMG_AUTO_CMD;
 				for (k = 0; k < table->num_entries; k++) {
@@ -4564,8 +4564,6 @@ static int ci_set_mc_special_registers(struct amdgpu_device *adev,
 						(table->mc_reg_table_entry[k].mc_data[i] & 0xffff0000) >> 16;
 				}
 				j++;
-				if (j > SMU7_DISCRETE_MC_REGISTER_ARRAY_SIZE)
-					return -EINVAL;
 			}
 			break;
 		case mmMC_SEQ_RESERVE_M:
@@ -4577,8 +4575,6 @@ static int ci_set_mc_special_registers(struct amdgpu_device *adev,
 					(temp_reg & 0xffff0000) | (table->mc_reg_table_entry[k].mc_data[i] & 0x0000ffff);
 			}
 			j++;
-			if (j > SMU7_DISCRETE_MC_REGISTER_ARRAY_SIZE)
-				return -EINVAL;
 			break;
 		default:
 			break;
@@ -6625,9 +6621,9 @@ static int ci_dpm_print_clock_levels(void *handle,
 
 		for (i = 0; i < pcie_table->count; i++)
 			size += sprintf(buf + size, "%d: %s %s\n", i,
-					(pcie_table->dpm_levels[i].value == 0) ? "2.5GB, x1" :
-					(pcie_table->dpm_levels[i].value == 1) ? "5.0GB, x16" :
-					(pcie_table->dpm_levels[i].value == 2) ? "8.0GB, x16" : "",
+					(pcie_table->dpm_levels[i].value == 0) ? "2.5GT/s, x1" :
+					(pcie_table->dpm_levels[i].value == 1) ? "5.0GT/s, x16" :
+					(pcie_table->dpm_levels[i].value == 2) ? "8.0GT/s, x16" : "",
 					(i == now) ? "*" : "");
 		break;
 	default:
@@ -7015,6 +7011,19 @@ static int ci_dpm_read_sensor(void *handle, int idx,
 	}
 }
 
+static int ci_set_powergating_by_smu(void *handle,
+				uint32_t block_type, bool gate)
+{
+	switch (block_type) {
+	case AMD_IP_BLOCK_TYPE_UVD:
+		ci_dpm_powergate_uvd(handle, gate);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
 const struct amd_ip_funcs ci_dpm_ip_funcs = {
 	.name = "ci_dpm",
 	.early_init = ci_dpm_early_init,
@@ -7044,7 +7053,7 @@ const struct amd_pm_funcs ci_dpm_funcs = {
 	.debugfs_print_current_performance_level = &ci_dpm_debugfs_print_current_performance_level,
 	.force_performance_level = &ci_dpm_force_performance_level,
 	.vblank_too_short = &ci_dpm_vblank_too_short,
-	.powergate_uvd = &ci_dpm_powergate_uvd,
+	.set_powergating_by_smu = &ci_set_powergating_by_smu,
 	.set_fan_control_mode = &ci_dpm_set_fan_control_mode,
 	.get_fan_control_mode = &ci_dpm_get_fan_control_mode,
 	.set_fan_speed_percent = &ci_dpm_set_fan_speed_percent,

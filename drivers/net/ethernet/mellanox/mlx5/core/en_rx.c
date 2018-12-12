@@ -635,6 +635,17 @@ static inline bool is_first_ethertype_ip(struct sk_buff *skb)
 	return (ethertype == htons(ETH_P_IP) || ethertype == htons(ETH_P_IPV6));
 }
 
+static u32 mlx5e_get_fcs(const struct sk_buff *skb)
+{
+	const void *fcs_bytes;
+	u32 _fcs_bytes;
+
+	fcs_bytes = skb_header_pointer(skb, skb->len - ETH_FCS_LEN,
+				       ETH_FCS_LEN, &_fcs_bytes);
+
+	return __get_unaligned_cpu32(fcs_bytes);
+}
+
 static inline void mlx5e_handle_csum(struct net_device *netdev,
 				     struct mlx5_cqe64 *cqe,
 				     struct mlx5e_rq *rq,
@@ -653,6 +664,10 @@ static inline void mlx5e_handle_csum(struct net_device *netdev,
 	if (is_first_ethertype_ip(skb)) {
 		skb->ip_summed = CHECKSUM_COMPLETE;
 		skb->csum = csum_unfold((__force __sum16)cqe->check_sum);
+		if (unlikely(netdev->features & NETIF_F_RXFCS))
+			skb->csum = csum_block_add(skb->csum,
+						   (__force __wsum)mlx5e_get_fcs(skb),
+						   skb->len - ETH_FCS_LEN);
 		rq->stats.csum_complete++;
 		return;
 	}

@@ -22,20 +22,28 @@
 
 /*
  * Cr50 timing constants:
- * - can go to sleep not earlier than after CR50_SLEEP_DELAY_MSEC
- * - needs up to CR50_WAKE_START_DELAY_MSEC to wake after sleep
- * - requires at least CR50_ACCESS_DELAY_MSEC between transactions
- * - waits for up to CR50_FLOW_CONTROL_MSEC for flow control 'ready' indication
+ * - can go to sleep not earlier than after CR50_SLEEP_DELAY_MSEC.
+ * - needs up to CR50_WAKE_START_DELAY_MSEC to wake after sleep.
+ * - requires waiting for "ready" IRQ, if supported; or waiting for at least
+ *   CR50_NOIRQ_ACCESS_DELAY_MSEC between transactions, if IRQ is not supported.
+ * - waits for up to CR50_FLOW_CONTROL_MSEC for flow control 'ready' indication.
  */
 #define CR50_SLEEP_DELAY_MSEC			1000
 #define CR50_WAKE_START_DELAY_MSEC		1
-#define CR50_ACCESS_DELAY_MSEC			2
+#define CR50_NOIRQ_ACCESS_DELAY_MSEC		2
+#define CR50_READY_IRQ_TIMEOUT_MSEC		TPM2_TIMEOUT_A
 #define CR50_FLOW_CONTROL_MSEC			TPM2_TIMEOUT_A
+#define MAX_IRQ_CONFIRMATION_ATTEMPTS		3
 
 #define MAX_SPI_FRAMESIZE			64
 
 #define TPM_CR50_FW_VER(l)			(0x0F90 | ((l) << 12))
 #define TPM_CR50_MAX_FW_VER_LEN			64
+
+static unsigned short rng_quality = 1022;
+module_param(rng_quality, ushort, 0644);
+MODULE_PARM_DESC(rng_quality,
+		 "Estimation of true entropy, in bits per 1024 bits.");
 
 struct cr50_spi_phy {
 	struct tpm_tis_data priv;
@@ -50,6 +58,10 @@ struct cr50_spi_phy {
 	unsigned int wake_start_delay_msec;
 
 	struct completion tpm_ready;
+
+	unsigned int irq_confirmation_attempt;
+	bool irq_needs_confirmation;
+	bool irq_confirmed;
 
 	u8 tx_buf[MAX_SPI_FRAMESIZE] ____cacheline_aligned;
 	u8 rx_buf[MAX_SPI_FRAMESIZE] ____cacheline_aligned;
@@ -69,6 +81,7 @@ static irqreturn_t cr50_spi_irq_handler(int dummy, void *dev_id)
 {
 	struct cr50_spi_phy *phy = dev_id;
 
+	phy->irq_confirmed = true;
 	complete(&phy->tpm_ready);
 
 	return IRQ_HANDLED;
@@ -92,8 +105,28 @@ static void cr50_ensure_access_delay(struct cr50_spi_phy *phy)
 
 	if (time_in_range_open(time_now,
 			       phy->last_access_jiffies, allowed_access)) {
-		wait_for_completion_timeout(&phy->tpm_ready,
-					    allowed_access - time_now);
+		unsigned long remaining =
+			wait_for_completion_timeout(&phy->tpm_ready,
+						    allowed_access - time_now);
+		if (remaining == 0 && phy->irq_confirmed) {
+			dev_warn(&phy->spi_device->dev,
+				 "Timeout waiting for TPM ready IRQ");
+		}
+	}
+	if (phy->irq_needs_confirmation) {
+		if (phy->irq_confirmed) {
+			phy->irq_needs_confirmation = false;
+			phy->access_delay_jiffies =
+				msecs_to_jiffies(CR50_READY_IRQ_TIMEOUT_MSEC);
+			dev_info(&phy->spi_device->dev,
+				 "TPM ready IRQ confirmed on attempt %u.\n",
+				 phy->irq_confirmation_attempt);
+		} else if (++phy->irq_confirmation_attempt >
+			   MAX_IRQ_CONFIRMATION_ATTEMPTS) {
+			phy->irq_needs_confirmation = false;
+			dev_warn(&phy->spi_device->dev,
+				 "IRQ not confirmed - will use delays.\n");
+		}
 	}
 }
 
@@ -313,7 +346,8 @@ static int cr50_spi_probe(struct spi_device *dev)
 
 	phy->spi_device = dev;
 
-	phy->access_delay_jiffies = msecs_to_jiffies(CR50_ACCESS_DELAY_MSEC);
+	phy->access_delay_jiffies =
+		msecs_to_jiffies(CR50_NOIRQ_ACCESS_DELAY_MSEC);
 	phy->sleep_delay_jiffies = msecs_to_jiffies(CR50_SLEEP_DELAY_MSEC);
 	phy->wake_start_delay_msec = CR50_WAKE_START_DELAY_MSEC;
 
@@ -337,11 +371,19 @@ static int cr50_spi_probe(struct spi_device *dev)
 			 * be completed without a registered irq handler.
 			 * So, just fall through.
 			 */
+		} else {
+			/*
+			 * IRQ requested, let's verify that it is actually
+			 * triggered, before relying on it.
+			 */
+			phy->irq_needs_confirmation = true;
 		}
 	} else {
 		dev_warn(&dev->dev,
 			 "No IRQ - will use delays between transactions.\n");
 	}
+
+	phy->priv.rng_quality = rng_quality;
 
 	rc = tpm_tis_core_init(&dev->dev, &phy->priv, -1, &cr50_spi_phy_ops,
 			       NULL);

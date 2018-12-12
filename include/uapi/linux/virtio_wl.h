@@ -16,6 +16,9 @@
 #define VIRTWL_MAX_ALLOC 0x800
 #define VIRTWL_PFN_SHIFT 12
 
+/* Enables the transition to new flag semantics */
+#define VIRTIO_WL_F_TRANS_FLAGS 1
+
 struct virtio_wl_config {
 };
 
@@ -28,15 +31,22 @@ enum virtio_wl_ctrl_type {
 	VIRTIO_WL_CMD_VFD_CLOSE, /* virtio_wl_ctrl_vfd */
 	VIRTIO_WL_CMD_VFD_SEND, /* virtio_wl_ctrl_vfd_send + data */
 	VIRTIO_WL_CMD_VFD_RECV, /* virtio_wl_ctrl_vfd_recv + data */
-	VIRTIO_WL_CMD_VFD_NEW_CTX, /* virtio_wl_ctrl_vfd */
+	VIRTIO_WL_CMD_VFD_NEW_CTX, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_CMD_VFD_NEW_PIPE, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_CMD_VFD_HUP, /* virtio_wl_ctrl_vfd */
+	VIRTIO_WL_CMD_VFD_NEW_DMABUF, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_CMD_VFD_DMABUF_SYNC, /* virtio_wl_ctrl_vfd_dmabuf_sync */
 
 	VIRTIO_WL_RESP_OK = 0x1000,
 	VIRTIO_WL_RESP_VFD_NEW = 0x1001, /* virtio_wl_ctrl_vfd_new */
+	VIRTIO_WL_RESP_VFD_NEW_DMABUF = 0x1002, /* virtio_wl_ctrl_vfd_new */
 
 	VIRTIO_WL_RESP_ERR = 0x1100,
 	VIRTIO_WL_RESP_OUT_OF_MEMORY,
 	VIRTIO_WL_RESP_INVALID_ID,
 	VIRTIO_WL_RESP_INVALID_TYPE,
+	VIRTIO_WL_RESP_INVALID_FLAGS,
+	VIRTIO_WL_RESP_INVALID_CMD,
 };
 
 struct virtio_wl_ctrl_hdr {
@@ -45,9 +55,8 @@ struct virtio_wl_ctrl_hdr {
 };
 
 enum virtio_wl_vfd_flags {
-	VIRTIO_WL_VFD_WRITE = 0x1, /* mapped area is writable */
-	VIRTIO_WL_VFD_MAP = 0x2, /* fixed size and mapped into a pfn range */
-	VIRTIO_WL_VFD_CONTROL = 0x4, /* send/recv can transmit VFDs */
+	VIRTIO_WL_VFD_WRITE = 0x1, /* intended to be written by guest */
+	VIRTIO_WL_VFD_READ = 0x2, /* intended to be read by guest */
 };
 
 struct virtio_wl_ctrl_vfd {
@@ -67,7 +76,19 @@ struct virtio_wl_ctrl_vfd_new {
 	__le32 vfd_id; /* MSB indicates device allocated vfd */
 	__le32 flags; /* virtio_wl_vfd_flags */
 	__le64 pfn; /* first guest physical page frame number if VFD_MAP */
-	__le32 size; /* size in bytes if VIRTIO_WL_VFD_MAP */
+	__le32 size; /* size in bytes if VIRTIO_WL_CMD_VFD_NEW* */
+	/* buffer description if VIRTIO_WL_CMD_VFD_NEW_DMABUF */
+	struct {
+		__le32 width; /* width in pixels */
+		__le32 height; /* height in pixels */
+		__le32 format; /* fourcc format */
+		__le32 stride0; /* return stride0 */
+		__le32 stride1; /* return stride1 */
+		__le32 stride2; /* return stride2 */
+		__le32 offset0; /* return offset0 */
+		__le32 offset1; /* return offset1 */
+		__le32 offset2; /* return offset2 */
+	} dmabuf;
 };
 
 struct virtio_wl_ctrl_vfd_send {
@@ -82,6 +103,12 @@ struct virtio_wl_ctrl_vfd_recv {
 	__le32 vfd_id;
 	__le32 vfd_count; /* struct is followed by this many IDs */
 	/* the remainder is raw data */
+};
+
+struct virtio_wl_ctrl_vfd_dmabuf_sync {
+	struct virtio_wl_ctrl_hdr hdr;
+	__le32 vfd_id;
+	__le32 flags;
 };
 
 #endif /* _LINUX_VIRTIO_WL_H */

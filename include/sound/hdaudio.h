@@ -112,8 +112,7 @@ void snd_hdac_device_unregister(struct hdac_device *codec);
 int snd_hdac_device_set_chip_name(struct hdac_device *codec, const char *name);
 int snd_hdac_codec_modalias(struct hdac_device *hdac, char *buf, size_t size);
 
-int snd_hdac_refresh_widgets(struct hdac_device *codec);
-int snd_hdac_refresh_widget_sysfs(struct hdac_device *codec);
+int snd_hdac_refresh_widgets(struct hdac_device *codec, bool sysfs);
 
 unsigned int snd_hdac_make_cmd(struct hdac_device *codec, hda_nid_t nid,
 			       unsigned int verb, unsigned int parm);
@@ -147,6 +146,8 @@ int snd_hdac_codec_write(struct hdac_device *hdac, hda_nid_t nid,
 			int flags, unsigned int verb, unsigned int parm);
 bool snd_hdac_check_power_state(struct hdac_device *hdac,
 		hda_nid_t nid, unsigned int target_state);
+unsigned int snd_hdac_sync_power_state(struct hdac_device *hdac,
+		      hda_nid_t nid, unsigned int target_state);
 /**
  * snd_hdac_read_parm - read a codec parameter
  * @codec: the codec object
@@ -187,6 +188,11 @@ struct hdac_driver {
 	const struct hda_device_id *id_table;
 	int (*match)(struct hdac_device *dev, struct hdac_driver *drv);
 	void (*unsol_event)(struct hdac_device *dev, unsigned int event);
+
+	/* fields used by ext bus APIs */
+	int (*probe)(struct hdac_device *dev);
+	int (*remove)(struct hdac_device *dev);
+	void (*shutdown)(struct hdac_device *dev);
 };
 
 #define drv_to_hdac_driver(_drv) container_of(_drv, struct hdac_driver, driver)
@@ -205,6 +211,14 @@ struct hdac_bus_ops {
 			    unsigned int *res);
 	/* control the link power  */
 	int (*link_power)(struct hdac_bus *bus, bool enable);
+};
+
+/*
+ * ops used for ASoC HDA codec drivers
+ */
+struct hdac_ext_bus_ops {
+	int (*hdev_attach)(struct hdac_device *hdev);
+	int (*hdev_detach)(struct hdac_device *hdev);
 };
 
 /*
@@ -252,11 +266,17 @@ struct hdac_rb {
  * @mlcap: MultiLink capabilities pointer
  * @gtscap: gts capabilities pointer
  * @drsmcap: dma resume capabilities pointer
+ * @num_streams: streams supported
+ * @idx: HDA link index
+ * @hlink_list: link list of HDA links
+ * @lock: lock for link mgmt
+ * @cmd_dma_state: state of cmd DMAs: CORB and RIRB
  */
 struct hdac_bus {
 	struct device *dev;
 	const struct hdac_bus_ops *ops;
 	const struct hdac_io_ops *io_ops;
+	const struct hdac_ext_bus_ops *ext_ops;
 
 	/* h/w resources */
 	unsigned long addr;
@@ -319,6 +339,16 @@ struct hdac_bus {
 	/* i915 component interface */
 	struct i915_audio_component *audio_component;
 	int i915_power_refcount;
+
+	/* parameters required for enhanced capabilities */
+	int num_streams;
+	int idx;
+
+	struct list_head hlink_list;
+
+	struct mutex lock;
+	bool cmd_dma_state;
+
 };
 
 int snd_hdac_bus_init(struct hdac_bus *bus, struct device *dev,
@@ -334,6 +364,7 @@ void snd_hdac_bus_queue_event(struct hdac_bus *bus, u32 res, u32 res_ex);
 int snd_hdac_bus_add_device(struct hdac_bus *bus, struct hdac_device *codec);
 void snd_hdac_bus_remove_device(struct hdac_bus *bus,
 				struct hdac_device *codec);
+void snd_hdac_bus_process_unsol_events(struct work_struct *work);
 
 static inline void snd_hdac_codec_link_up(struct hdac_device *codec)
 {
@@ -357,6 +388,7 @@ void snd_hdac_bus_init_cmd_io(struct hdac_bus *bus);
 void snd_hdac_bus_stop_cmd_io(struct hdac_bus *bus);
 void snd_hdac_bus_enter_link_reset(struct hdac_bus *bus);
 void snd_hdac_bus_exit_link_reset(struct hdac_bus *bus);
+int snd_hdac_bus_reset_link(struct hdac_bus *bus, bool full_reset);
 
 void snd_hdac_bus_update_rirb(struct hdac_bus *bus);
 int snd_hdac_bus_handle_stream_irq(struct hdac_bus *bus, unsigned int status,

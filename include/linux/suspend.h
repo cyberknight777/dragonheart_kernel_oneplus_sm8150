@@ -254,6 +254,8 @@ static inline bool idle_should_enter_s2idle(void)
 extern void __init pm_states_init(void);
 extern void s2idle_set_ops(const struct platform_s2idle_ops *ops);
 extern void s2idle_wake(void);
+int tick_set_freeze_event(int cpu, ktime_t expires);
+int tick_clear_freeze_event(int cpu);
 
 /**
  * arch_suspend_disable_irqs - disable IRQs for suspend
@@ -289,6 +291,8 @@ static inline bool idle_should_enter_s2idle(void) { return false; }
 static inline void __init pm_states_init(void) {}
 static inline void s2idle_set_ops(const struct platform_s2idle_ops *ops) {}
 static inline void s2idle_wake(void) {}
+static inline int tick_set_freeze_event(int cpu, ktime_t expires) { return 0; }
+static inline int tick_clear_freeze_event(int cpu) { return 0; }
 #endif /* !CONFIG_SUSPEND */
 
 /* struct pbe is used for creating lists of pages that should be restored
@@ -384,6 +388,8 @@ extern int swsusp_page_is_forbidden(struct page *);
 extern void swsusp_set_page_free(struct page *);
 extern void swsusp_unset_page_free(struct page *);
 extern unsigned long get_safe_page(gfp_t gfp_mask);
+extern asmlinkage int swsusp_arch_suspend(void);
+extern asmlinkage int swsusp_arch_resume(void);
 
 extern void hibernation_set_ops(const struct platform_hibernation_ops *ops);
 extern int hibernate(void);
@@ -438,7 +444,6 @@ extern void pm_system_wakeup(void);
 extern void pm_system_cancel_wakeup(void);
 extern void pm_wakeup_clear(bool reset);
 extern void pm_system_irq_wakeup(unsigned int irq_number);
-extern void pm_set_wakeup_type(enum pm_wakeup_type type);
 extern bool pm_get_wakeup_count(unsigned int *count, bool block);
 extern bool pm_save_wakeup_count(unsigned int count);
 extern void pm_wakep_autosleep_enabled(bool set);

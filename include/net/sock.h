@@ -1459,6 +1459,7 @@ static inline void lock_sock(struct sock *sk)
 	lock_sock_nested(sk, 0);
 }
 
+void __release_sock(struct sock *sk);
 void release_sock(struct sock *sk);
 
 /* BH context may only use the following locking interface. */
@@ -2366,6 +2367,7 @@ bool sk_ns_capable(const struct sock *sk,
 bool sk_capable(const struct sock *sk, int cap);
 bool sk_net_capable(const struct sock *sk, int cap);
 bool inet_sk_allowed(struct net *net, gid_t gid);
+bool android_ns_capable(struct net *net, int cap);
 
 void sk_get_meminfo(const struct sock *sk, u32 *meminfo);
 

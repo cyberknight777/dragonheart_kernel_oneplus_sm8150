@@ -61,10 +61,14 @@
 #include <linux/notifier.h>
 #include <linux/cpu.h>
 #include <linux/moduleparam.h>
+#include <linux/suspend.h>
 #include <asm/cpu_device_id.h>
 #include <asm/intel-family.h>
 #include <asm/mwait.h>
 #include <asm/msr.h>
+#include <asm/pmc_core.h>
+#include <asm/intel_pmc_ipc.h>
+#include <asm/intel_telemetry.h>
 
 #define INTEL_IDLE_VERSION "0.4.1"
 
@@ -93,12 +97,29 @@ struct idle_cpu {
 	bool disable_promotion_to_c1e;
 };
 
+/*
+ * The limit for the exponential backoff for the freeze duration. At this point,
+ * power impact is far from measurable. It's about 3uW based on scaling from
+ * waking up 10 times a second.
+ */
+#define MAX_SLP_S0_SECONDS 1000
+#define SLP_S0_EXP_BASE 10
+
+static bool slp_s0_check;
+static unsigned int slp_s0_seconds;
+
+static DEFINE_SPINLOCK(slp_s0_check_lock);
+static unsigned int slp_s0_num_cpus;
+static bool slp_s0_check_inprogress;
+
 static const struct idle_cpu *icpu;
 static struct cpuidle_device __percpu *intel_idle_cpuidle_devices;
 static int intel_idle(struct cpuidle_device *dev,
 			struct cpuidle_driver *drv, int index);
-static void intel_idle_s2idle(struct cpuidle_device *dev,
+static int intel_idle_s2idle(struct cpuidle_device *dev,
 			      struct cpuidle_driver *drv, int index);
+static int intel_idle_s2idle_and_check(struct cpuidle_device *dev,
+				       struct cpuidle_driver *drv, int index);
 static struct cpuidle_state *cpuidle_state_table;
 
 /*
@@ -597,7 +618,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 2,
 		.target_residency = 2,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C1E",
 		.desc = "MWAIT 0x01",
@@ -605,7 +626,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 10,
 		.target_residency = 20,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C3",
 		.desc = "MWAIT 0x10",
@@ -613,7 +634,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 70,
 		.target_residency = 100,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C6",
 		.desc = "MWAIT 0x20",
@@ -621,7 +642,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 85,
 		.target_residency = 200,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C7s",
 		.desc = "MWAIT 0x33",
@@ -629,7 +650,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 124,
 		.target_residency = 800,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C8",
 		.desc = "MWAIT 0x40",
@@ -637,7 +658,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 200,
 		.target_residency = 800,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C9",
 		.desc = "MWAIT 0x50",
@@ -645,7 +666,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 480,
 		.target_residency = 5000,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C10",
 		.desc = "MWAIT 0x60",
@@ -653,7 +674,7 @@ static struct cpuidle_state skl_cstates[] = {
 		.exit_latency = 890,
 		.target_residency = 5000,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.enter = NULL }
 };
@@ -816,7 +837,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 2,
 		.target_residency = 2,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C1E",
 		.desc = "MWAIT 0x01",
@@ -824,7 +845,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 10,
 		.target_residency = 20,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C6",
 		.desc = "MWAIT 0x20",
@@ -832,7 +853,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 133,
 		.target_residency = 133,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C7s",
 		.desc = "MWAIT 0x31",
@@ -840,7 +861,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 155,
 		.target_residency = 155,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C8",
 		.desc = "MWAIT 0x40",
@@ -848,7 +869,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 1000,
 		.target_residency = 1000,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C9",
 		.desc = "MWAIT 0x50",
@@ -856,7 +877,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 2000,
 		.target_residency = 2000,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.name = "C10",
 		.desc = "MWAIT 0x60",
@@ -864,7 +885,7 @@ static struct cpuidle_state bxt_cstates[] = {
 		.exit_latency = 10000,
 		.target_residency = 10000,
 		.enter = &intel_idle,
-		.enter_s2idle = intel_idle_s2idle, },
+		.enter_s2idle = intel_idle_s2idle_and_check, },
 	{
 		.enter = NULL }
 };
@@ -940,15 +961,128 @@ static __cpuidle int intel_idle(struct cpuidle_device *dev,
  * @dev: cpuidle_device
  * @drv: cpuidle driver
  * @index: state index
+ *
+ * @return 0 for success, no failure state
  */
-static void intel_idle_s2idle(struct cpuidle_device *dev,
+static int intel_idle_s2idle(struct cpuidle_device *dev,
 			     struct cpuidle_driver *drv, int index)
 {
 	unsigned long ecx = 1; /* break on interrupt flag */
 	unsigned long eax = flg2MWAIT(drv->states[index].flags);
 
 	mwait_idle_with_hints(eax, ecx);
+
+	return 0;
 }
+
+static int get_slpS0_count(u64* slp_s0_count)
+{
+	switch (boot_cpu_data.x86_model) {
+
+	case INTEL_FAM6_ATOM_GEMINI_LAKE:
+		return intel_pmc_s0ix_counter_read(slp_s0_count);
+	default:
+		return intel_pmc_slp_s0_counter_read((u32*)slp_s0_count);
+	}
+}
+
+static int check_slp_s0(u64 slp_s0_saved_count)
+{
+	u64 slp_s0_new_count;
+
+	if (get_slpS0_count(&slp_s0_new_count)) {
+		pr_warn("After s2idle attempt: Unable to read SLP S0 residency counter\n");
+		return -EIO;
+	}
+
+	if (slp_s0_saved_count == slp_s0_new_count) {
+		WARN(1, "CPU did not enter SLP S0 for suspend-to-idle.\n");
+		boot_cpu_data.x86_model == INTEL_FAM6_ATOM_GEMINI_LAKE ?
+				telem_soc_states_display() : pmc_core_ppfear_display();
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/**
+ * intel_idle_s2idle_and_check - enters suspend-to-idle and validates the power
+ * state
+ *
+ * This function enters suspend-to-idle with intel_idle_freeze, but also sets up
+ * a timer to check that S0ix (low power state for suspend-to-idle on Intel
+ * CPUs) is properly entered.
+ *
+ * @dev: cpuidle_device
+ * @drv: cpuidle_driver
+ * @index: state index
+ * @return 0 for success, -EERROR if S0ix was not entered.
+ */
+static int intel_idle_s2idle_and_check(struct cpuidle_device *dev,
+				       struct cpuidle_driver *drv, int index)
+{
+	bool check_on_this_cpu = false;
+	u64 slp_s0_saved_count;
+	unsigned long flags;
+	int cpu = smp_processor_id();
+	int ret;
+
+	/* The last CPU to freeze sets up checking SLP S0 assertion. */
+	spin_lock_irqsave(&slp_s0_check_lock, flags);
+	slp_s0_num_cpus++;
+
+	if (slp_s0_seconds &&
+	    slp_s0_num_cpus == num_online_cpus() &&
+	    !slp_s0_check_inprogress &&
+	    !get_slpS0_count(&slp_s0_saved_count)) {
+		ret = tick_set_freeze_event(cpu, ktime_set(slp_s0_seconds, 0));
+		if (ret < 0) {
+			spin_unlock_irqrestore(&slp_s0_check_lock, flags);
+			goto out;
+		}
+
+		/*
+		 * Make sure check_slp_s0 isn't scheduled on another CPU if it
+		 * were to leave freeze and enter it again before this CPU
+		 * leaves freeze.
+		 */
+		slp_s0_check_inprogress = true;
+		check_on_this_cpu = true;
+	}
+	spin_unlock_irqrestore(&slp_s0_check_lock, flags);
+
+	ret = intel_idle_s2idle(dev, drv, index);
+	if (ret < 0)
+		goto out;
+
+	if (check_on_this_cpu && tick_clear_freeze_event(cpu))
+		ret = check_slp_s0(slp_s0_saved_count);
+
+out:
+	spin_lock_irqsave(&slp_s0_check_lock, flags);
+	if (check_on_this_cpu) {
+		slp_s0_check_inprogress = false;
+		slp_s0_seconds = min_t(unsigned int,
+				       SLP_S0_EXP_BASE * slp_s0_seconds,
+				       MAX_SLP_S0_SECONDS);
+	}
+	slp_s0_num_cpus--;
+	spin_unlock_irqrestore(&slp_s0_check_lock, flags);
+	return ret;
+}
+
+static int slp_s0_check_prepare(struct notifier_block *nb, unsigned long action,
+				void *data)
+{
+	if (action == PM_SUSPEND_PREPARE)
+		slp_s0_seconds = slp_s0_check ? 1 : 0;
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block intel_slp_s0_check_nb = {
+	.notifier_call = slp_s0_check_prepare,
+};
 
 static void __setup_broadcast_timer(bool on)
 {
@@ -1061,7 +1195,7 @@ static const struct idle_cpu idle_cpu_dnv = {
 };
 
 #define ICPU(model, cpu) \
-	{ X86_VENDOR_INTEL, 6, model, X86_FEATURE_MWAIT, (unsigned long)&cpu }
+	{ X86_VENDOR_INTEL, 6, model, X86_FEATURE_ANY, (unsigned long)&cpu }
 
 static const struct x86_cpu_id intel_idle_ids[] __initconst = {
 	ICPU(INTEL_FAM6_NEHALEM_EP,		idle_cpu_nehalem),
@@ -1123,6 +1257,11 @@ static int __init intel_idle_probe(void)
 		    boot_cpu_data.x86 == 6)
 			pr_debug("does not run on family %d model %d\n",
 				 boot_cpu_data.x86, boot_cpu_data.x86_model);
+		return -ENODEV;
+	}
+
+	if (!boot_cpu_has(X86_FEATURE_MWAIT)) {
+		pr_debug("Please enable MWAIT in BIOS SETUP\n");
 		return -ENODEV;
 	}
 
@@ -1454,6 +1593,13 @@ static int __init intel_idle_init(void)
 		goto init_driver_fail;
 	}
 
+	retval = register_pm_notifier(&intel_slp_s0_check_nb);
+	if (retval) {
+		free_percpu(intel_idle_cpuidle_devices);
+		cpuidle_unregister_driver(&intel_idle_driver);
+		goto pm_nb_fail;
+	}
+
 	if (boot_cpu_has(X86_FEATURE_ARAT))	/* Always Reliable APIC Timer */
 		lapic_timer_reliable_states = LAPIC_TIMER_ALWAYS_RELIABLE;
 
@@ -1469,6 +1615,8 @@ static int __init intel_idle_init(void)
 
 hp_setup_fail:
 	intel_idle_cpuidle_devices_uninit();
+	unregister_pm_notifier(&intel_slp_s0_check_nb);
+pm_nb_fail:
 	cpuidle_unregister_driver(&intel_idle_driver);
 init_driver_fail:
 	free_percpu(intel_idle_cpuidle_devices);
@@ -1484,3 +1632,4 @@ device_initcall(intel_idle_init);
  * is the easiest way (currently) to continue doing that.
  */
 module_param(max_cstate, int, 0444);
+module_param(slp_s0_check, bool, 0644);

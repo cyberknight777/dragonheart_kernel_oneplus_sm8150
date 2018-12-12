@@ -56,6 +56,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"MIC1", NULL, "Headset Mic"},
 	{"MIC2", NULL, "Mic"},
 
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	/* SOC-codec link */
 	{"ssp2 Tx", NULL, "codec_out0"},
 	{"ssp2 Tx", NULL, "codec_out1"},
@@ -64,6 +65,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 	{"Playback", NULL, "ssp2 Tx"},
 	{"ssp2 Rx", NULL, "Capture"},
+#endif
 };
 
 static int codec_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -219,7 +221,7 @@ static struct snd_soc_card bytcht_da7213_card = {
 	.num_dapm_routes = ARRAY_SIZE(audio_map),
 };
 
-static char codec_name[16]; /* i2c-<HID>:00 with HID being 8 chars */
+static char codec_name[SND_ACPI_I2C_ID_LEN];
 
 static int bytcht_da7213_probe(struct platform_device *pdev)
 {
@@ -243,7 +245,7 @@ static int bytcht_da7213_probe(struct platform_device *pdev)
 	}
 
 	/* fixup codec name based on HID */
-	i2c_name = snd_soc_acpi_find_name_from_hid(mach->id);
+	i2c_name = acpi_dev_get_first_match_name(mach->id, NULL, -1);
 	if (i2c_name) {
 		snprintf(codec_name, sizeof(codec_name),
 			"%s%s", "i2c-", i2c_name);

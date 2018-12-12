@@ -426,9 +426,9 @@ static void vega10_init_dpm_defaults(struct pp_hwmgr *hwmgr)
 		data->smu_features[GNLD_VR0HOT].supported = true;
 
 	smum_send_msg_to_smc(hwmgr, PPSMC_MSG_GetSmuVersion);
-	vega10_read_arg_from_smc(hwmgr, &(data->smu_version));
+	vega10_read_arg_from_smc(hwmgr, &(hwmgr->smu_version));
 		/* ACG firmware has major version 5 */
-	if ((data->smu_version & 0xff000000) == 0x5000000)
+	if ((hwmgr->smu_version & 0xff000000) == 0x5000000)
 		data->smu_features[GNLD_ACG].supported = true;
 
 	if (data->registry_data.didt_support)
@@ -546,8 +546,7 @@ static void vega10_patch_with_vdd_leakage(struct pp_hwmgr *hwmgr,
 	}
 
 	if (*voltage > ATOM_VIRTUAL_VOLTAGE_ID0)
-		pr_info("Voltage value looks like a Leakage ID \
-				but it's not patched\n");
+		pr_info("Voltage value looks like a Leakage ID but it's not patched\n");
 }
 
 /**
@@ -701,18 +700,14 @@ static int vega10_set_private_data_based_on_pptable(struct pp_hwmgr *hwmgr)
 			table_info->vdd_dep_on_mclk;
 
 	PP_ASSERT_WITH_CODE(allowed_sclk_vdd_table,
-		"VDD dependency on SCLK table is missing. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on SCLK table is missing. This table is mandatory", return -EINVAL);
 	PP_ASSERT_WITH_CODE(allowed_sclk_vdd_table->count >= 1,
-		"VDD dependency on SCLK table is empty. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on SCLK table is empty. This table is mandatory", return -EINVAL);
 
 	PP_ASSERT_WITH_CODE(allowed_mclk_vdd_table,
-		"VDD dependency on MCLK table is missing. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on MCLK table is missing.  This table is mandatory", return -EINVAL);
 	PP_ASSERT_WITH_CODE(allowed_mclk_vdd_table->count >= 1,
-		"VDD dependency on MCLK table is empty. \
-		This table is mandatory", return -EINVAL);
+		"VDD dependency on MCLK table is empty.  This table is mandatory", return -EINVAL);
 
 	table_info->max_clock_voltage_on_ac.sclk =
 		allowed_sclk_vdd_table->entries[allowed_sclk_vdd_table->count - 1].clk;
@@ -753,6 +748,7 @@ static int vega10_hwmgr_backend_init(struct pp_hwmgr *hwmgr)
 	uint32_t config_telemetry = 0;
 	struct pp_atomfwctrl_voltage_table vol_table;
 	struct cgs_system_info sys_info = {0};
+	uint32_t reg;
 
 	data = kzalloc(sizeof(struct vega10_hwmgr), GFP_KERNEL);
 	if (data == NULL)
@@ -858,6 +854,16 @@ static int vega10_hwmgr_backend_init(struct pp_hwmgr *hwmgr)
 			hwmgr->thermal_controller.
 			advanceFanControlParameters.usFanPWMMinLimit *
 			hwmgr->thermal_controller.fanInfo.ulMaxRPM / 100;
+
+	reg = soc15_get_register_offset(DF_HWID, 0,
+			mmDF_CS_AON0_DramBaseAddress0_BASE_IDX,
+			mmDF_CS_AON0_DramBaseAddress0);
+	data->mem_channels = (cgs_read_register(hwmgr->device, reg) &
+			DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK) >>
+			DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
+	PP_ASSERT_WITH_CODE(data->mem_channels < ARRAY_SIZE(channel_number),
+			"Mem Channel Index Exceeded maximum!",
+			return -EINVAL);
 
 	return result;
 }
@@ -1777,7 +1783,7 @@ static int vega10_populate_all_memory_levels(struct pp_hwmgr *hwmgr)
 	struct vega10_single_dpm_table *dpm_table =
 			&(data->dpm_table.mem_table);
 	int result = 0;
-	uint32_t i, j, reg, mem_channels;
+	uint32_t i, j;
 
 	for (i = 0; i < dpm_table->count; i++) {
 		result = vega10_populate_single_memory_level(hwmgr,
@@ -1801,16 +1807,10 @@ static int vega10_populate_all_memory_levels(struct pp_hwmgr *hwmgr)
 		i++;
 	}
 
-	reg = soc15_get_register_offset(DF_HWID, 0,
-			mmDF_CS_AON0_DramBaseAddress0_BASE_IDX,
-			mmDF_CS_AON0_DramBaseAddress0);
-	mem_channels = (cgs_read_register(hwmgr->device, reg) &
-			DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK) >>
-			DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
-	pp_table->NumMemoryChannels = cpu_to_le16(mem_channels);
+	pp_table->NumMemoryChannels = (uint16_t)(data->mem_channels);
 	pp_table->MemoryChannelWidth =
-			cpu_to_le16(HBM_MEMORY_CHANNEL_WIDTH *
-					channel_number[mem_channels]);
+			(uint16_t)(HBM_MEMORY_CHANNEL_WIDTH *
+					channel_number[data->mem_channels]);
 
 	pp_table->LowestUclkReservedForUlv =
 			(uint8_t)(data->lowest_uclk_reserved_for_ulv);
@@ -2879,8 +2879,8 @@ static int vega10_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
 			"DPM is already running right , skipping re-enablement!",
 			return 0);
 
-	if ((data->smu_version == 0x001c2c00) ||
-			(data->smu_version == 0x001c2d00)) {
+	if ((hwmgr->smu_version == 0x001c2c00) ||
+			(hwmgr->smu_version == 0x001c2d00)) {
 		tmp_result = smum_send_msg_to_smc_with_parameter(hwmgr,
 				PPSMC_MSG_UpdatePkgPwrPidAlpha, 1);
 		PP_ASSERT_WITH_CODE(!tmp_result,
@@ -3124,9 +3124,6 @@ static int vega10_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 		}
 	}
 
-	vega10_ps->vce_clks.evclk = hwmgr->vce_arbiter.evclk;
-	vega10_ps->vce_clks.ecclk = hwmgr->vce_arbiter.ecclk;
-
 	cgs_get_active_displays_info(hwmgr->device, &info);
 
 	/* result = PHM_CheckVBlankTime(hwmgr, &vblankTooShort);*/
@@ -3134,6 +3131,8 @@ static int vega10_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 	minimum_clocks.memoryClock = hwmgr->display_config.min_mem_set_clock;
 
 	if (PP_CAP(PHM_PlatformCaps_StablePState)) {
+		stable_pstate_sclk_dpm_percentage =
+			data->registry_data.stable_pstate_sclk_dpm_percentage;
 		PP_ASSERT_WITH_CODE(
 			data->registry_data.stable_pstate_sclk_dpm_percentage >= 1 &&
 			data->registry_data.stable_pstate_sclk_dpm_percentage <= 100,
@@ -3161,38 +3160,6 @@ static int vega10_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 
 		minimum_clocks.engineClock = stable_pstate_sclk;
 		minimum_clocks.memoryClock = stable_pstate_mclk;
-	}
-
-	if (minimum_clocks.engineClock < hwmgr->gfx_arbiter.sclk)
-		minimum_clocks.engineClock = hwmgr->gfx_arbiter.sclk;
-
-	if (minimum_clocks.memoryClock < hwmgr->gfx_arbiter.mclk)
-		minimum_clocks.memoryClock = hwmgr->gfx_arbiter.mclk;
-
-	vega10_ps->sclk_threshold = hwmgr->gfx_arbiter.sclk_threshold;
-
-	if (hwmgr->gfx_arbiter.sclk_over_drive) {
-		PP_ASSERT_WITH_CODE((hwmgr->gfx_arbiter.sclk_over_drive <=
-				hwmgr->platform_descriptor.overdriveLimit.engineClock),
-				"Overdrive sclk exceeds limit",
-				hwmgr->gfx_arbiter.sclk_over_drive =
-						hwmgr->platform_descriptor.overdriveLimit.engineClock);
-
-		if (hwmgr->gfx_arbiter.sclk_over_drive >= hwmgr->gfx_arbiter.sclk)
-			vega10_ps->performance_levels[1].gfx_clock =
-					hwmgr->gfx_arbiter.sclk_over_drive;
-	}
-
-	if (hwmgr->gfx_arbiter.mclk_over_drive) {
-		PP_ASSERT_WITH_CODE((hwmgr->gfx_arbiter.mclk_over_drive <=
-				hwmgr->platform_descriptor.overdriveLimit.memoryClock),
-				"Overdrive mclk exceeds limit",
-				hwmgr->gfx_arbiter.mclk_over_drive =
-						hwmgr->platform_descriptor.overdriveLimit.memoryClock);
-
-		if (hwmgr->gfx_arbiter.mclk_over_drive >= hwmgr->gfx_arbiter.mclk)
-			vega10_ps->performance_levels[1].mem_clock =
-					hwmgr->gfx_arbiter.mclk_over_drive;
 	}
 
 	disable_mclk_switching_for_frame_lock = phm_cap_enabled(
@@ -3412,8 +3379,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 					DPMTABLE_OD_UPDATE_SCLK)) {
 			result = vega10_populate_all_graphic_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate SCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate SCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 
@@ -3422,8 +3388,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 					DPMTABLE_OD_UPDATE_MCLK)){
 			result = vega10_populate_all_memory_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate MCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate MCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 	} else {
@@ -3540,8 +3505,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 			data->apply_optimized_settings) {
 			result = vega10_populate_all_graphic_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate SCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate SCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 
@@ -3549,8 +3513,7 @@ static int vega10_populate_and_upload_sclk_mclk_dpm_levels(
 				(DPMTABLE_OD_UPDATE_MCLK + DPMTABLE_UPDATE_MCLK)) {
 			result = vega10_populate_all_memory_levels(hwmgr);
 			PP_ASSERT_WITH_CODE(!result,
-					"Failed to populate MCLK during \
-					PopulateNewDPMClocksStates Function!",
+					"Failed to populate MCLK during PopulateNewDPMClocksStates Function!",
 					return result);
 		}
 	}
@@ -3824,10 +3787,7 @@ static int vega10_update_sclk_threshold(struct pp_hwmgr *hwmgr)
 	uint32_t low_sclk_interrupt_threshold = 0;
 
 	if (PP_CAP(PHM_PlatformCaps_SclkThrottleLowNotification) &&
-	    (hwmgr->gfx_arbiter.sclk_threshold !=
-				data->low_sclk_interrupt_threshold)) {
-		data->low_sclk_interrupt_threshold =
-				hwmgr->gfx_arbiter.sclk_threshold;
+		(data->low_sclk_interrupt_threshold != 0)) {
 		low_sclk_interrupt_threshold =
 				data->low_sclk_interrupt_threshold;
 
@@ -4650,9 +4610,9 @@ static int vega10_print_clock_levels(struct pp_hwmgr *hwmgr,
 
 		for (i = 0; i < pcie_table->count; i++)
 			size += sprintf(buf + size, "%d: %s %s\n", i,
-					(pcie_table->pcie_gen[i] == 0) ? "2.5GB, x1" :
-					(pcie_table->pcie_gen[i] == 1) ? "5.0GB, x16" :
-					(pcie_table->pcie_gen[i] == 2) ? "8.0GB, x16" : "",
+					(pcie_table->pcie_gen[i] == 0) ? "2.5GT/s, x1" :
+					(pcie_table->pcie_gen[i] == 1) ? "5.0GT/s, x16" :
+					(pcie_table->pcie_gen[i] == 2) ? "8.0GT/s, x16" : "",
 					(i == now) ? "*" : "");
 		break;
 	default:

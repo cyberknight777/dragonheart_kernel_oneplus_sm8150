@@ -1,4 +1,6 @@
 /*
+ * Copyright 2017 Advanced Micro Devices, Inc.
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
@@ -29,8 +31,9 @@
 #include <linux/power_supply.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
+#include "hwmgr.h"
+#define WIDTH_4K 3840
 
-#include "amd_powerplay.h"
 
 static int amdgpu_debugfs_pm_init(struct amdgpu_device *adev);
 
@@ -946,6 +949,10 @@ static umode_t hwmon_attributes_visible(struct kobject *kobj,
 	struct amdgpu_device *adev = dev_get_drvdata(dev);
 	umode_t effective_mode = attr->mode;
 
+	/* no skipping for powerplay */
+	if (adev->powerplay.cgs_device)
+		return effective_mode;
+
 	/* Skip limit attributes if DPM is not enabled */
 	if (!adev->pm.dpm_enabled &&
 	    (attr == &sensor_dev_attr_temp1_crit.dev_attr.attr ||
@@ -1239,10 +1246,10 @@ static void amdgpu_dpm_change_power_state_locked(struct amdgpu_device *adev)
 
 void amdgpu_dpm_enable_uvd(struct amdgpu_device *adev, bool enable)
 {
-	if (adev->powerplay.pp_funcs->powergate_uvd) {
+	if (adev->powerplay.pp_funcs->set_powergating_by_smu) {
 		/* enable/disable UVD */
 		mutex_lock(&adev->pm.mutex);
-		amdgpu_dpm_powergate_uvd(adev, !enable);
+		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_UVD, !enable);
 		mutex_unlock(&adev->pm.mutex);
 	} else {
 		if (enable) {
@@ -1257,14 +1264,29 @@ void amdgpu_dpm_enable_uvd(struct amdgpu_device *adev, bool enable)
 		}
 		amdgpu_pm_compute_clocks(adev);
 	}
+	/* enable/disable Low Memory PState for UVD (4k videos) */
+	if (adev->asic_type == CHIP_STONEY &&
+		adev->uvd.decode_image_width >= WIDTH_4K) {
+		struct pp_hwmgr *hwmgr;
+		struct pp_instance *pp_handle =
+			(struct pp_instance *)adev->powerplay.pp_handle;
+		if (pp_handle) {
+			hwmgr = pp_handle->hwmgr;
+			if (hwmgr && hwmgr->hwmgr_func &&
+				hwmgr->hwmgr_func->update_nbdpm_pstate)
+				hwmgr->hwmgr_func->update_nbdpm_pstate(hwmgr,
+									!enable,
+									true);
+		}
+	}
 }
 
 void amdgpu_dpm_enable_vce(struct amdgpu_device *adev, bool enable)
 {
-	if (adev->powerplay.pp_funcs->powergate_vce) {
+	if (adev->powerplay.pp_funcs->set_powergating_by_smu) {
 		/* enable/disable VCE */
 		mutex_lock(&adev->pm.mutex);
-		amdgpu_dpm_powergate_vce(adev, !enable);
+		amdgpu_dpm_set_powergating_by_smu(adev, AMD_IP_BLOCK_TYPE_VCE, !enable);
 		mutex_unlock(&adev->pm.mutex);
 	} else {
 		if (enable) {
@@ -1273,16 +1295,16 @@ void amdgpu_dpm_enable_vce(struct amdgpu_device *adev, bool enable)
 			/* XXX select vce level based on ring/task */
 			adev->pm.dpm.vce_level = AMD_VCE_LEVEL_AC_ALL;
 			mutex_unlock(&adev->pm.mutex);
-			amdgpu_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
-							AMD_CG_STATE_UNGATE);
-			amdgpu_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
-							AMD_PG_STATE_UNGATE);
+			amdgpu_device_ip_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+							       AMD_CG_STATE_UNGATE);
+			amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+							       AMD_PG_STATE_UNGATE);
 			amdgpu_pm_compute_clocks(adev);
 		} else {
-			amdgpu_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
-							AMD_PG_STATE_GATE);
-			amdgpu_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
-							AMD_CG_STATE_GATE);
+			amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+							       AMD_PG_STATE_GATE);
+			amdgpu_device_ip_set_clockgating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+							       AMD_CG_STATE_GATE);
 			mutex_lock(&adev->pm.mutex);
 			adev->pm.dpm.vce_active = false;
 			mutex_unlock(&adev->pm.mutex);
@@ -1579,7 +1601,7 @@ static int amdgpu_debugfs_pm_info(struct seq_file *m, void *data)
 	struct drm_device *ddev = adev->ddev;
 	u32 flags = 0;
 
-	amdgpu_get_clockgating_state(adev, &flags);
+	amdgpu_device_ip_get_clockgating_state(adev, &flags);
 	seq_printf(m, "Clock Gating Flags Mask: 0x%x\n", flags);
 	amdgpu_parse_cg_state(m, flags);
 	seq_printf(m, "\n");

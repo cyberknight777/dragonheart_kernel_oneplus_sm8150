@@ -46,7 +46,7 @@ static inline unsigned swp_type(swp_entry_t entry)
  * Extract the `offset' field from a swp_entry_t.  The swp_entry_t is in
  * arch-independent format
  */
-static inline pgoff_t swp_offset(swp_entry_t entry)
+static inline pgoff_t _swp_offset(swp_entry_t entry)
 {
 	return entry.val & SWP_OFFSET_MASK(entry);
 }
@@ -81,7 +81,7 @@ static inline pte_t swp_entry_to_pte(swp_entry_t entry)
 {
 	swp_entry_t arch_entry;
 
-	arch_entry = __swp_entry(swp_type(entry), swp_offset(entry));
+	arch_entry = __swp_entry(swp_type(entry), _swp_offset(entry));
 	return __swp_entry_to_pte(arch_entry);
 }
 
@@ -100,6 +100,63 @@ static inline void *swp_to_radix_entry(swp_entry_t entry)
 	value = entry.val << RADIX_TREE_EXCEPTIONAL_SHIFT;
 	return (void *)(value | RADIX_TREE_EXCEPTIONAL_ENTRY);
 }
+
+/*
+ * We squeeze swapout timestamp into swp_offset because we don't
+ * want to allocate extra memory for it. Normally we have 50 bits
+ * in swp_offset on x86_64 and arm64. So we use 25 bits for the
+ * timestamp and the rest for offset. The timestamp is uptime in
+ * second, and it won't overflow within one year. The max size of
+ * swapfile is 128G, which is more than enough for now. If we have
+ * less than 50 bits in swp_offset due to 32-bit swp_entry_t or
+ * X86_BUG_L1TF, we don't enable the timestamp.
+ */
+#define SWP_TIME_BITS	25
+#define SWP_OFFSET_BITS	25
+#define SWP_TM_OFF_BITS	(SWP_TIME_BITS + SWP_OFFSET_BITS)
+
+extern bool swap_refault_enabled __read_mostly;
+
+#ifdef CONFIG_MM_METRICS
+
+static inline pgoff_t swp_offset(swp_entry_t swap)
+{
+	return swap_refault_enabled && swp_type(swap) < MAX_SWAPFILES ?
+	       _swp_offset(swap) & GENMASK_ULL(SWP_OFFSET_BITS - 1, 0) :
+	       _swp_offset(swap);
+}
+
+static inline bool swp_entry_same(swp_entry_t s1, swp_entry_t s2)
+{
+	return swp_type(s1) == swp_type(s2) && swp_offset(s1) == swp_offset(s2);
+}
+
+static inline bool swp_page_same(swp_entry_t swap, struct page *page)
+{
+	swp_entry_t entry = { .val = page_private(page) };
+
+	VM_BUG_ON(!PageSwapCache(page));
+
+	return swp_entry_same(swap, entry);
+}
+
+static inline bool swp_radix_same(swp_entry_t swap, void *radix)
+{
+	return radix_tree_exceptional_entry(radix) &&
+	       swp_entry_same(swap, radix_to_swp_entry(radix));
+}
+
+#else /* CONFIG_MM_METRICS */
+
+#define swp_offset(swap)		_swp_offset(swap)
+
+#define swp_entry_same(s1, s2)		((s1).val == (s2).val)
+
+#define swp_page_same(swap, page)	((swap).val == page_private(page))
+
+#define swp_radix_same(swap, radix)	(swp_to_radix_entry(swap) == (radix))
+
+#endif /* CONFIG_MM_METRICS */
 
 #if IS_ENABLED(CONFIG_DEVICE_PRIVATE)
 static inline swp_entry_t make_device_private_entry(struct page *page, bool write)

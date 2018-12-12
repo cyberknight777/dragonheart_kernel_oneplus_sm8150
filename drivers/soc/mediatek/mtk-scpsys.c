@@ -874,15 +874,13 @@ static const struct of_device_id of_scpsys_match_tbl[] = {
 
 static int scpsys_probe(struct platform_device *pdev)
 {
-	const struct of_device_id *match;
 	const struct scp_subdomain *sd;
 	const struct scp_soc_data *soc;
 	struct scp *scp;
 	struct genpd_onecell_data *pd_data;
 	int i, ret;
 
-	match = of_match_device(of_scpsys_match_tbl, &pdev->dev);
-	soc = (const struct scp_soc_data *)match->data;
+	soc = of_device_get_match_data(&pdev->dev);
 
 	scp = init_scp(pdev, soc->domains, soc->num_domains, &soc->regs);
 	if (IS_ERR(scp))
@@ -892,7 +890,7 @@ static int scpsys_probe(struct platform_device *pdev)
 
 	pd_data = &scp->pd_data;
 
-	for (i = 0, sd = soc->subdomains ; i < soc->num_subdomains ; i++) {
+	for (i = 0, sd = soc->subdomains; i < soc->num_subdomains; i++, sd++) {
 		ret = pm_genpd_add_subdomain(pd_data->domains[sd->origin],
 					     pd_data->domains[sd->subdomain]);
 		if (ret && IS_ENABLED(CONFIG_PM))

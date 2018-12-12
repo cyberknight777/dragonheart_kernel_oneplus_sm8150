@@ -25,6 +25,7 @@
 #include <linux/dmi.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mfd/cros_ec_lpc_reg.h>
@@ -35,6 +36,9 @@
 
 #define DRV_NAME "cros_ec_lpcs"
 #define ACPI_DRV_NAME "GOOG0004"
+
+/* True if ACPI device is present */
+static bool cros_ec_lpc_acpi_device_found;
 
 static int ec_response_timed_out(void)
 {
@@ -55,7 +59,6 @@ static int ec_response_timed_out(void)
 static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
 				struct cros_ec_command *msg)
 {
-	struct ec_host_request *request;
 	struct ec_host_response response;
 	u8 sum;
 	int ret = 0;
@@ -65,8 +68,6 @@ static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
 
 	/* Write buffer */
 	cros_ec_lpc_write_bytes(EC_LPC_ADDR_HOST_PACKET, ret, ec->dout);
-
-	request = (struct ec_host_request *)ec->dout;
 
 	/* Here we go */
 	sum = EC_COMMAND_PROTOCOL_3;
@@ -232,6 +233,8 @@ static void cros_ec_lpc_acpi_notify(acpi_handle device, u32 value, void *data)
 {
 	struct cros_ec_device *ec_dev = data;
 
+	ec_dev->last_event_time = cros_ec_get_time_ns();
+
 	if (ec_dev->mkbp_event_supported &&
 	    cros_ec_get_next_event(ec_dev, NULL) > 0)
 		blocking_notifier_call_chain(&ec_dev->event_notifier, 0,
@@ -248,7 +251,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	acpi_status status;
 	struct cros_ec_device *ec_dev;
 	u8 buf[2];
-	int ret;
+	int irq, ret;
 
 	if (!devm_request_region(dev, EC_LPC_ADDR_MEMMAP, EC_MEMMAP_SIZE,
 				 dev_name(dev))) {
@@ -287,6 +290,18 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 			   sizeof(struct ec_response_get_protocol_info);
 	ec_dev->dout_size = sizeof(struct ec_host_request);
 
+	/*
+	 * Some boards do not have an IRQ allotted for cros_ec_lpc,
+	 * which makes ENXIO an expected (and safe) scenario.
+	 */
+	irq = platform_get_irq(pdev, 0);
+	if (irq > 0)
+		ec_dev->irq = irq;
+	else if (irq != -ENXIO) {
+		dev_err(dev, "couldn't retrieve IRQ number (%d)\n", irq);
+		return irq;
+	}
+
 	ret = cros_ec_register(ec_dev);
 	if (ret) {
 		dev_err(dev, "couldn't register ec_dev (%d)\n", ret);
@@ -294,8 +309,13 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	}
 
 	/*
-	 * Connect a notify handler to process MKBP messages if we have a
-	 * companion ACPI device.
+	 * If we have a companion ACPI device, connect a notify handler
+	 * to process MKBP messages coming via SCI. Specific board
+	 * configurations may send MKBP events solely via the registered IRQ,
+	 * at which point this handler will produce no effect. Detecting
+	 * whether the current system is one such board, however, is a tricky
+	 * and error-prone endeavor, so register the handler anyway, and trust
+	 * the EC to send the proper MKBP event signals.
 	 */
 	adev = ACPI_COMPANION(dev);
 	if (adev) {
@@ -366,6 +386,13 @@ static const struct dmi_system_id cros_ec_lpc_dmi_table[] __initconst = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Peppy"),
 		},
 	},
+	{
+		/* x86-glimmer, the Lenovo Thinkpad Yoga 11e. */
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Glimmer"),
+		},
+	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(dmi, cros_ec_lpc_dmi_table);
@@ -403,9 +430,6 @@ static struct platform_driver cros_ec_lpc_driver = {
 static struct platform_device cros_ec_lpc_device = {
 	.name = DRV_NAME
 };
-
-/* True if ACPI device is present */
-static bool cros_ec_lpc_acpi_device_found;
 
 static acpi_status cros_ec_lpc_parse_device(acpi_handle handle, u32 level,
 					    void *context, void **retval)
@@ -449,11 +473,13 @@ static int __init cros_ec_lpc_init(void)
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 static void __exit cros_ec_lpc_exit(void)
 {
+	if (!cros_ec_lpc_acpi_device_found)
+		platform_device_unregister(&cros_ec_lpc_device);
 	platform_driver_unregister(&cros_ec_lpc_driver);
 	cros_ec_lpc_reg_destroy();
 }

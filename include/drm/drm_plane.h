@@ -50,8 +50,8 @@ struct drm_modeset_acquire_ctx;
  *	plane with a lower ID.
  * @normalized_zpos: normalized value of zpos: unique, range from 0 to N-1
  *	where N is the number of active planes for given crtc. Note that
- *	the driver must call drm_atomic_normalize_zpos() to update this before
- *	it can be trusted.
+ *	the driver must set drm_mode_config.normalize_zpos or call
+ *	drm_atomic_normalize_zpos() to update this before it can be trusted.
  * @src: clipped source coordinates of the plane (in 16.16)
  * @dst: clipped destination coordinates of the plane
  * @state: backpointer to global drm_atomic_state
@@ -474,8 +474,8 @@ enum drm_plane_type {
  * @format_types: array of formats supported by this plane
  * @format_count: number of formats supported
  * @format_default: driver hasn't supplied supported formats for the plane
- * @crtc: currently bound CRTC
- * @fb: currently bound fb
+ * @modifiers: array of modifiers supported by this plane
+ * @modifier_count: number of modifiers supported
  * @old_fb: Temporary tracking of the old fb while a modeset is ongoing. Used by
  * 	drm_mode_set_config_internal() to implement correct refcounting.
  * @funcs: helper functions
@@ -512,7 +512,17 @@ struct drm_plane {
 	uint64_t *modifiers;
 	unsigned int modifier_count;
 
+	/**
+	 * @crtc: Currently bound CRTC, only really meaningful for non-atomic
+	 * drivers.  Atomic drivers should instead check &drm_plane_state.crtc.
+	 */
 	struct drm_crtc *crtc;
+
+	/**
+	 * @fb: Currently bound framebuffer, only really meaningful for
+	 * non-atomic drivers.  Atomic drivers should instead check
+	 * &drm_plane_state.fb.
+	 */
 	struct drm_framebuffer *fb;
 
 	struct drm_framebuffer *old_fb;
@@ -591,6 +601,7 @@ int drm_mode_plane_set_obj_prop(struct drm_plane *plane,
 /**
  * drm_plane_find - find a &drm_plane
  * @dev: DRM device
+ * @file_priv: drm file to check for lease against.
  * @id: plane id
  *
  * Returns the plane with @id, NULL if it doesn't exist. Simple wrapper around

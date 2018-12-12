@@ -35,8 +35,7 @@
 #include "soc15d.h"
 #include "soc15_common.h"
 
-#include "vega10/soc15ip.h"
-#include "raven1/VCN/vcn_1_0_offset.h"
+#include "vcn/vcn_1_0_offset.h"
 
 /* 1 second timeout */
 #define VCN_IDLE_TIMEOUT	msecs_to_jiffies(1000)
@@ -51,7 +50,7 @@ static void amdgpu_vcn_idle_work_handler(struct work_struct *work);
 int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
 {
 	struct amdgpu_ring *ring;
-	struct amd_sched_rq *rq;
+	struct drm_sched_rq *rq;
 	unsigned long bo_size;
 	const char *fw_name;
 	const struct common_firmware_header *hdr;
@@ -85,6 +84,7 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
 	}
 
 	hdr = (const struct common_firmware_header *)adev->vcn.fw->data;
+	adev->vcn.fw_version = le32_to_cpu(hdr->ucode_version);
 	family_id = le32_to_cpu(hdr->ucode_version) & 0xff;
 	version_major = (le32_to_cpu(hdr->ucode_version) >> 24) & 0xff;
 	version_minor = (le32_to_cpu(hdr->ucode_version) >> 8) & 0xff;
@@ -92,9 +92,10 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
 		version_major, version_minor, family_id);
 
 
-	bo_size = AMDGPU_GPU_PAGE_ALIGN(le32_to_cpu(hdr->ucode_size_bytes) + 8)
-		  +  AMDGPU_VCN_STACK_SIZE + AMDGPU_VCN_HEAP_SIZE
+	bo_size = AMDGPU_VCN_STACK_SIZE + AMDGPU_VCN_HEAP_SIZE
 		  +  AMDGPU_VCN_SESSION_SIZE * 40;
+	if (adev->firmware.load_type != AMDGPU_FW_LOAD_PSP)
+		bo_size += AMDGPU_GPU_PAGE_ALIGN(le32_to_cpu(hdr->ucode_size_bytes) + 8);
 	r = amdgpu_bo_create_kernel(adev, bo_size, PAGE_SIZE,
 				    AMDGPU_GEM_DOMAIN_VRAM, &adev->vcn.vcpu_bo,
 				    &adev->vcn.gpu_addr, &adev->vcn.cpu_addr);
@@ -104,18 +105,18 @@ int amdgpu_vcn_sw_init(struct amdgpu_device *adev)
 	}
 
 	ring = &adev->vcn.ring_dec;
-	rq = &ring->sched.sched_rq[AMD_SCHED_PRIORITY_NORMAL];
-	r = amd_sched_entity_init(&ring->sched, &adev->vcn.entity_dec,
-				  rq, amdgpu_sched_jobs);
+	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+	r = drm_sched_entity_init(&ring->sched, &adev->vcn.entity_dec,
+				  rq, amdgpu_sched_jobs, NULL);
 	if (r != 0) {
 		DRM_ERROR("Failed setting up VCN dec run queue.\n");
 		return r;
 	}
 
 	ring = &adev->vcn.ring_enc[0];
-	rq = &ring->sched.sched_rq[AMD_SCHED_PRIORITY_NORMAL];
-	r = amd_sched_entity_init(&ring->sched, &adev->vcn.entity_enc,
-				  rq, amdgpu_sched_jobs);
+	rq = &ring->sched.sched_rq[DRM_SCHED_PRIORITY_NORMAL];
+	r = drm_sched_entity_init(&ring->sched, &adev->vcn.entity_enc,
+				  rq, amdgpu_sched_jobs, NULL);
 	if (r != 0) {
 		DRM_ERROR("Failed setting up VCN enc run queue.\n");
 		return r;
@@ -130,9 +131,9 @@ int amdgpu_vcn_sw_fini(struct amdgpu_device *adev)
 
 	kfree(adev->vcn.saved_bo);
 
-	amd_sched_entity_fini(&adev->vcn.ring_dec.sched, &adev->vcn.entity_dec);
+	drm_sched_entity_fini(&adev->vcn.ring_dec.sched, &adev->vcn.entity_dec);
 
-	amd_sched_entity_fini(&adev->vcn.ring_enc[0].sched, &adev->vcn.entity_enc);
+	drm_sched_entity_fini(&adev->vcn.ring_enc[0].sched, &adev->vcn.entity_enc);
 
 	amdgpu_bo_free_kernel(&adev->vcn.vcpu_bo,
 			      &adev->vcn.gpu_addr,
@@ -153,10 +154,10 @@ int amdgpu_vcn_suspend(struct amdgpu_device *adev)
 	unsigned size;
 	void *ptr;
 
+	cancel_delayed_work_sync(&adev->vcn.idle_work);
+
 	if (adev->vcn.vcpu_bo == NULL)
 		return 0;
-
-	cancel_delayed_work_sync(&adev->vcn.idle_work);
 
 	size = amdgpu_bo_size(adev->vcn.vcpu_bo);
 	ptr = adev->vcn.cpu_addr;
@@ -190,11 +191,13 @@ int amdgpu_vcn_resume(struct amdgpu_device *adev)
 		unsigned offset;
 
 		hdr = (const struct common_firmware_header *)adev->vcn.fw->data;
-		offset = le32_to_cpu(hdr->ucode_array_offset_bytes);
-		memcpy_toio(adev->vcn.cpu_addr, adev->vcn.fw->data + offset,
-			    le32_to_cpu(hdr->ucode_size_bytes));
-		size -= le32_to_cpu(hdr->ucode_size_bytes);
-		ptr += le32_to_cpu(hdr->ucode_size_bytes);
+		if (adev->firmware.load_type != AMDGPU_FW_LOAD_PSP) {
+			offset = le32_to_cpu(hdr->ucode_array_offset_bytes);
+			memcpy_toio(adev->vcn.cpu_addr, adev->vcn.fw->data + offset,
+				    le32_to_cpu(hdr->ucode_size_bytes));
+			size -= le32_to_cpu(hdr->ucode_size_bytes);
+			ptr += le32_to_cpu(hdr->ucode_size_bytes);
+		}
 		memset_io(ptr, 0, size);
 	}
 
@@ -261,7 +264,7 @@ int amdgpu_vcn_dec_ring_test_ring(struct amdgpu_ring *ring)
 	}
 
 	if (i < adev->usec_timeout) {
-		DRM_INFO("ring test on %d succeeded in %d usecs\n",
+		DRM_DEBUG("ring test on %d succeeded in %d usecs\n",
 			 ring->idx, i);
 	} else {
 		DRM_ERROR("amdgpu: ring %d test failed (0x%08X)\n",
@@ -274,6 +277,7 @@ int amdgpu_vcn_dec_ring_test_ring(struct amdgpu_ring *ring)
 static int amdgpu_vcn_dec_send_msg(struct amdgpu_ring *ring, struct amdgpu_bo *bo,
 			       bool direct, struct dma_fence **fence)
 {
+	struct ttm_operation_ctx ctx = { true, false };
 	struct ttm_validate_buffer tv;
 	struct ww_acquire_ctx ticket;
 	struct list_head head;
@@ -294,7 +298,7 @@ static int amdgpu_vcn_dec_send_msg(struct amdgpu_ring *ring, struct amdgpu_bo *b
 	if (r)
 		return r;
 
-	r = ttm_bo_validate(&bo->tbo, &bo->placement, true, false);
+	r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
 	if (r)
 		goto err;
 
@@ -467,7 +471,7 @@ int amdgpu_vcn_dec_ring_test_ib(struct amdgpu_ring *ring, long timeout)
 	} else if (r < 0) {
 		DRM_ERROR("amdgpu: fence wait failed (%ld).\n", r);
 	} else {
-		DRM_INFO("ib test on ring %d succeeded\n",  ring->idx);
+		DRM_DEBUG("ib test on ring %d succeeded\n",  ring->idx);
 		r = 0;
 	}
 
@@ -500,7 +504,7 @@ int amdgpu_vcn_enc_ring_test_ring(struct amdgpu_ring *ring)
 	}
 
 	if (i < adev->usec_timeout) {
-		DRM_INFO("ring test on %d succeeded in %d usecs\n",
+		DRM_DEBUG("ring test on %d succeeded in %d usecs\n",
 			 ring->idx, i);
 	} else {
 		DRM_ERROR("amdgpu: ring %d test failed\n",
@@ -643,7 +647,7 @@ int amdgpu_vcn_enc_ring_test_ib(struct amdgpu_ring *ring, long timeout)
 	} else if (r < 0) {
 		DRM_ERROR("amdgpu: fence wait failed (%ld).\n", r);
 	} else {
-		DRM_INFO("ib test on ring %d succeeded\n", ring->idx);
+		DRM_DEBUG("ib test on ring %d succeeded\n", ring->idx);
 		r = 0;
 	}
 error:

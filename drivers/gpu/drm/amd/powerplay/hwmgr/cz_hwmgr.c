@@ -672,8 +672,12 @@ static void cz_init_power_gate_state(struct pp_hwmgr *hwmgr)
 	cz_hwmgr->uvd_power_gated = false;
 	cz_hwmgr->vce_power_gated = false;
 	cz_hwmgr->samu_power_gated = false;
+#ifdef CONFIG_DRM_AMD_ACP
 	cz_hwmgr->acp_power_gated = false;
-	cz_hwmgr->pgacpinit = true;
+#else
+	smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerOFF);
+	cz_hwmgr->acp_power_gated = true;
+#endif
 }
 
 static void cz_init_sclk_threshold(struct pp_hwmgr *hwmgr)
@@ -728,9 +732,6 @@ static int cz_update_sclk_limit(struct pp_hwmgr *hwmgr)
 
 		if (clock < stable_pstate_sclk)
 			clock = stable_pstate_sclk;
-	} else {
-		if (clock < hwmgr->gfx_arbiter.sclk)
-			clock = hwmgr->gfx_arbiter.sclk;
 	}
 
 	if (cz_hwmgr->sclk_dpm.soft_min_clk != clock) {
@@ -886,7 +887,7 @@ static int cz_set_power_state_tasks(struct pp_hwmgr *hwmgr, const void *input)
 	cz_update_low_mem_pstate(hwmgr, input);
 
 	return 0;
-};
+}
 
 
 static int cz_setup_asic_task(struct pp_hwmgr *hwmgr)
@@ -939,14 +940,6 @@ static void cz_reset_cc6_data(struct pp_hwmgr *hwmgr)
 	hw_data->cc6_settings.cpu_cc6_disable = false;
 	hw_data->cc6_settings.cpu_pstate_disable = false;
 }
-
-static int cz_power_off_asic(struct pp_hwmgr *hwmgr)
-{
-	cz_power_up_display_clock_sys_pll(hwmgr);
-	cz_clear_nb_dpm_flag(hwmgr);
-	cz_reset_cc6_data(hwmgr);
-	return 0;
-};
 
 static void cz_program_voting_clients(struct pp_hwmgr *hwmgr)
 {
@@ -1051,7 +1044,7 @@ static int cz_disable_dpm_tasks(struct pp_hwmgr *hwmgr)
 		return -EINVAL;
 
 	return 0;
-};
+}
 
 static int cz_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
 {
@@ -1067,7 +1060,16 @@ static int cz_enable_dpm_tasks(struct pp_hwmgr *hwmgr)
 	cz_reset_acp_boot_level(hwmgr);
 
 	return 0;
-};
+}
+
+static int cz_power_off_asic(struct pp_hwmgr *hwmgr)
+{
+	cz_disable_dpm_tasks(hwmgr);
+	cz_power_up_display_clock_sys_pll(hwmgr);
+	cz_clear_nb_dpm_flag(hwmgr);
+	cz_reset_cc6_data(hwmgr);
+	return 0;
+}
 
 static int cz_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 				struct pp_power_state  *prequest_ps,
@@ -1085,13 +1087,7 @@ static int cz_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 	uint32_t  num_of_active_displays = 0;
 	struct cgs_display_info info = {0};
 
-	cz_ps->evclk = hwmgr->vce_arbiter.evclk;
-	cz_ps->ecclk = hwmgr->vce_arbiter.ecclk;
-
 	cz_ps->need_dfs_bypass = true;
-
-	cz_hwmgr->video_start = (hwmgr->uvd_arbiter.vclk != 0 || hwmgr->uvd_arbiter.dclk != 0 ||
-				hwmgr->vce_arbiter.evclk != 0 || hwmgr->vce_arbiter.ecclk != 0);
 
 	cz_hwmgr->battery_state = (PP_StateUILabel_Battery == prequest_ps->classification.ui_label);
 
@@ -1104,9 +1100,6 @@ static int cz_apply_state_adjust_rules(struct pp_hwmgr *hwmgr,
 
 	if (phm_cap_enabled(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_StablePState))
 		clocks.memoryClock = hwmgr->dyn_state.max_clock_voltage_on_ac.mclk;
-
-	if (clocks.memoryClock < hwmgr->gfx_arbiter.mclk)
-		clocks.memoryClock = hwmgr->gfx_arbiter.mclk;
 
 	force_high = (clocks.memoryClock > cz_hwmgr->sys_info.nbp_memory_clock[CZ_NUM_NBPMEMORYCLOCK - 1])
 			|| (num_of_active_displays >= 3);
@@ -1339,22 +1332,13 @@ int  cz_dpm_update_vce_dpm(struct pp_hwmgr *hwmgr)
 				cz_hwmgr->vce_dpm.hard_min_clk,
 				PPSMC_MSG_SetEclkHardMin));
 	} else {
-		/*Program HardMin based on the vce_arbiter.ecclk */
-		if (hwmgr->vce_arbiter.ecclk == 0) {
-			smum_send_msg_to_smc_with_parameter(hwmgr,
-					    PPSMC_MSG_SetEclkHardMin, 0);
+
+		smum_send_msg_to_smc_with_parameter(hwmgr,
+					PPSMC_MSG_SetEclkHardMin, 0);
 		/* disable ECLK DPM 0. Otherwise VCE could hang if
 		 * switching SCLK from DPM 0 to 6/7 */
-			smum_send_msg_to_smc_with_parameter(hwmgr,
+		smum_send_msg_to_smc_with_parameter(hwmgr,
 					PPSMC_MSG_SetEclkSoftMin, 1);
-		} else {
-			cz_hwmgr->vce_dpm.hard_min_clk = hwmgr->vce_arbiter.ecclk;
-			smum_send_msg_to_smc_with_parameter(hwmgr,
-				PPSMC_MSG_SetEclkHardMin,
-				cz_get_eclk_level(hwmgr,
-					cz_hwmgr->vce_dpm.hard_min_clk,
-					PPSMC_MSG_SetEclkHardMin));
-		}
 	}
 	return 0;
 }
@@ -1879,6 +1863,18 @@ static int cz_notify_cac_buffer_info(struct pp_hwmgr *hwmgr,
 	return 0;
 }
 
+static void cz_dpm_powergate_acp(struct pp_hwmgr *hwmgr, bool bgate)
+{
+	struct cz_hwmgr *data = hwmgr->backend;
+
+	if (data->acp_power_gated == bgate)
+		return;
+
+	if (bgate)
+		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerOFF);
+	else
+		smum_send_msg_to_smc(hwmgr, PPSMC_MSG_ACPPowerON);
+}
 
 static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.backend_init = cz_hwmgr_backend_init,
@@ -1889,6 +1885,7 @@ static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.powerdown_uvd = cz_dpm_powerdown_uvd,
 	.powergate_uvd = cz_dpm_powergate_uvd,
 	.powergate_vce = cz_dpm_powergate_vce,
+	.powergate_acp = cz_dpm_powergate_acp,
 	.get_mclk = cz_dpm_get_mclk,
 	.get_sclk = cz_dpm_get_sclk,
 	.patch_boot_state = cz_dpm_patch_boot_state,
@@ -1911,6 +1908,7 @@ static const struct pp_hwmgr_func cz_hwmgr_funcs = {
 	.power_state_set = cz_set_power_state_tasks,
 	.dynamic_state_management_disable = cz_disable_dpm_tasks,
 	.notify_cac_buffer_info = cz_notify_cac_buffer_info,
+	.update_nbdpm_pstate = cz_nbdpm_pstate_enable_disable,
 };
 
 int cz_init_function_pointers(struct pp_hwmgr *hwmgr)

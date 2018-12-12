@@ -537,7 +537,7 @@ static irqreturn_t mcp23s08_irq(int irq, void *data)
 		    ((gpio_bit_changed || intcap_changed) &&
 			(BIT(i) & mcp->irq_fall) && !gpio_set) ||
 		    defval_changed) {
-			child_irq = irq_find_mapping(mcp->chip.irqdomain, i);
+			child_irq = irq_find_mapping(mcp->chip.irq.domain, i);
 			handle_nested_irq(child_irq);
 		}
 	}
@@ -642,6 +642,14 @@ static int mcp23s08_irq_setup(struct mcp23s08 *mcp)
 			mcp->irq, err);
 		return err;
 	}
+
+	return 0;
+}
+
+static int mcp23s08_irqchip_setup(struct mcp23s08 *mcp)
+{
+	struct gpio_chip *chip = &mcp->chip;
+	int err;
 
 	err =  gpiochip_irqchip_add_nested(chip,
 					   &mcp23s08_irq_chip,
@@ -779,6 +787,7 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 {
 	int status, ret;
 	bool mirror = false;
+	struct regmap_config *one_regmap_config = NULL;
 
 	mutex_init(&mcp->lock);
 
@@ -799,22 +808,36 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	switch (type) {
 #ifdef CONFIG_SPI_MASTER
 	case MCP_TYPE_S08:
-		mcp->regmap = devm_regmap_init(dev, &mcp23sxx_spi_regmap, mcp,
-					       &mcp23x08_regmap);
-		mcp->reg_shift = 0;
-		mcp->chip.ngpio = 8;
-		mcp->chip.label = "mcp23s08";
-		break;
-
 	case MCP_TYPE_S17:
+		switch (type) {
+		case MCP_TYPE_S08:
+			one_regmap_config =
+				devm_kmemdup(dev, &mcp23x08_regmap,
+					sizeof(struct regmap_config), GFP_KERNEL);
+			mcp->reg_shift = 0;
+			mcp->chip.ngpio = 8;
+			mcp->chip.label = "mcp23s08";
+			break;
+		case MCP_TYPE_S17:
+			one_regmap_config =
+				devm_kmemdup(dev, &mcp23x17_regmap,
+					sizeof(struct regmap_config), GFP_KERNEL);
+			mcp->reg_shift = 1;
+			mcp->chip.ngpio = 16;
+			mcp->chip.label = "mcp23s17";
+			break;
+		}
+		if (!one_regmap_config)
+			return -ENOMEM;
+
+		one_regmap_config->name = devm_kasprintf(dev, GFP_KERNEL, "%d", (addr & ~0x40) >> 1);
 		mcp->regmap = devm_regmap_init(dev, &mcp23sxx_spi_regmap, mcp,
-					       &mcp23x17_regmap);
-		mcp->reg_shift = 1;
-		mcp->chip.ngpio = 16;
-		mcp->chip.label = "mcp23s17";
+					       one_regmap_config);
 		break;
 
 	case MCP_TYPE_S18:
+		if (!one_regmap_config)
+			return -ENOMEM;
 		mcp->regmap = devm_regmap_init(dev, &mcp23sxx_spi_regmap, mcp,
 					       &mcp23x17_regmap);
 		mcp->reg_shift = 1;
@@ -892,7 +915,7 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 	}
 
 	if (mcp->irq && mcp->irq_controller) {
-		ret = mcp23s08_irq_setup(mcp);
+		ret = mcp23s08_irqchip_setup(mcp);
 		if (ret)
 			goto fail;
 	}
@@ -916,6 +939,9 @@ static int mcp23s08_probe_one(struct mcp23s08 *mcp, struct device *dev,
 		ret = PTR_ERR(mcp->pctldev);
 		goto fail;
 	}
+
+	if (mcp->irq)
+		ret = mcp23s08_irq_setup(mcp);
 
 fail:
 	if (ret < 0)

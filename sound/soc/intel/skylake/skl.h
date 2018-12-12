@@ -23,6 +23,7 @@
 
 #include <sound/hda_register.h>
 #include <sound/hdaudio_ext.h>
+#include <sound/hda_codec.h>
 #include <sound/soc.h>
 #include "skl-nhlt.h"
 #include "skl-ssp-clk.h"
@@ -33,11 +34,18 @@
 
 #define AZX_PCIREG_PGCTL		0x44
 #define AZX_PGCTL_LSRMD_MASK		(1 << 4)
+#define AZX_PGCTL_ADSPPGD		BIT(2)
 #define AZX_PCIREG_CGCTL		0x48
 #define AZX_CGCTL_MISCBDCGE_MASK	(1 << 6)
+#define AZX_CGCTL_ADSPDCGE		BIT(1)
 /* D0I3C Register fields */
 #define AZX_REG_VS_D0I3C_CIP      0x1 /* Command in progress */
 #define AZX_REG_VS_D0I3C_I3       0x4 /* D0i3 enable */
+#define AZX_PGCTL_ADSPPGD              BIT(2)
+#define AZX_CGCTL_ADSPDCGE             BIT(1)
+#define AZX_REG_VS_EM2_L1SEN           BIT(13)
+
+#define AZX_REG_VS_EM2_L1SEN		BIT(13)
 
 struct skl_dsp_resource {
 	u32 max_mcps;
@@ -63,7 +71,7 @@ struct skl_fw_config {
 };
 
 struct skl {
-	struct hdac_ext_bus ebus;
+	struct hda_bus hbus;
 	struct pci_dev *pci;
 
 	unsigned int init_done:1; /* delayed init status */
@@ -97,9 +105,11 @@ struct skl {
 	struct snd_soc_acpi_mach *mach;
 };
 
-#define skl_to_ebus(s)	(&(s)->ebus)
-#define ebus_to_skl(sbus) \
-	container_of(sbus, struct skl, sbus)
+#define skl_to_bus(s)  (&(s)->hbus.core)
+#define bus_to_skl(bus) container_of(bus, struct skl, hbus.core)
+
+#define skl_to_hbus(s) (&(s)->hbus)
+#define hbus_to_skl(hbus) container_of((hbus), struct skl, (hbus))
 
 /* to pass dai dma data */
 struct skl_dma_params {
@@ -110,6 +120,8 @@ struct skl_dma_params {
 struct skl_machine_pdata {
 	u32 dmic_num;
 	bool use_tplg_pcm; /* use dais and dai links from topology */
+	const char *platform;
+	u32 codec_mask;
 };
 
 struct skl_dsp_ops {

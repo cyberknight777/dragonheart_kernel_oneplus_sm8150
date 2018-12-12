@@ -136,7 +136,6 @@ static struct pid_namespace *create_pid_namespace(struct user_namespace *user_ns
 	ns->user_ns = get_user_ns(user_ns);
 	ns->ucounts = ucounts;
 	ns->nr_hashed = PIDNS_HASH_ADDING;
-	ns->selinux_enforcing = parent_pid_ns->selinux_enforcing;
 	INIT_WORK(&ns->proc_work, proc_cleanup_work);
 
 	set_bit(0, ns->pidmap[0].page);
@@ -297,7 +296,7 @@ void zap_pid_ns_processes(struct pid_namespace *pid_ns)
 }
 
 #ifdef CONFIG_CHECKPOINT_RESTORE
-static int pid_ns_ctl_last_pid_handler(struct ctl_table *table, int write,
+static int pid_ns_ctl_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
@@ -317,49 +316,20 @@ static int pid_ns_ctl_last_pid_handler(struct ctl_table *table, int write,
 }
 
 extern int pid_max;
-#endif	/* CONFIG_CHECKPOINT_RESTORE */
-
-static int pid_ns_ctl_selinux_enforcing_handler(struct ctl_table *table,
-		int write, void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-	struct pid_namespace *pid_ns = task_active_pid_ns(current);
-	struct ctl_table tmp = *table;
-
-	if (write && !ns_capable(pid_ns->user_ns, CAP_SYS_ADMIN))
-		return -EPERM;
-
-	/* This value cannot be lowered. */
-	if (write && pid_ns->selinux_enforcing)
-		return -EPERM;
-
-	tmp.data = &pid_ns->selinux_enforcing;
-	return proc_dointvec_minmax(&tmp, write, buffer, lenp, ppos);
-}
-
 static int zero = 0;
-static int one = 1;
 static struct ctl_table pid_ns_ctl_table[] = {
-#ifdef CONFIG_CHECKPOINT_RESTORE
 	{
 		.procname = "ns_last_pid",
 		.maxlen = sizeof(int),
 		.mode = 0666, /* permissions are checked in the handler */
-		.proc_handler = pid_ns_ctl_last_pid_handler,
+		.proc_handler = pid_ns_ctl_handler,
 		.extra1 = &zero,
 		.extra2 = &pid_max,
-	},
-#endif	/* CONFIG_CHECKPOINT_RESTORE */
-	{
-		.procname = "selinux_enforcing",
-		.maxlen = sizeof(int),
-		.mode = 0666, /* permissions are checked in the handler */
-		.proc_handler = pid_ns_ctl_selinux_enforcing_handler,
-		.extra1 = &zero,
-		.extra2 = &one,
 	},
 	{ }
 };
 static struct ctl_path kern_path[] = { { .procname = "kernel", }, { } };
+#endif	/* CONFIG_CHECKPOINT_RESTORE */
 
 int reboot_pid_ns(struct pid_namespace *pid_ns, int cmd)
 {
@@ -514,7 +484,10 @@ const struct proc_ns_operations pidns_for_children_operations = {
 static __init int pid_namespaces_init(void)
 {
 	pid_ns_cachep = KMEM_CACHE(pid_namespace, SLAB_PANIC);
+
+#ifdef CONFIG_CHECKPOINT_RESTORE
 	register_sysctl_paths(kern_path, pid_ns_ctl_table);
+#endif
 	return 0;
 }
 

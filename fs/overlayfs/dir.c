@@ -181,6 +181,11 @@ static bool ovl_type_origin(struct dentry *dentry)
 	return OVL_TYPE_ORIGIN(ovl_path_type(dentry));
 }
 
+static bool ovl_may_have_whiteouts(struct dentry *dentry)
+{
+	return ovl_test_flag(OVL_WHITEOUTS, d_inode(dentry));
+}
+
 static int ovl_create_upper(struct dentry *dentry, struct inode *inode,
 			    struct cattr *attr, struct dentry *hardlink)
 {
@@ -300,7 +305,6 @@ static struct dentry *ovl_check_empty_and_clear(struct dentry *dentry)
 {
 	int err;
 	struct dentry *ret = NULL;
-	enum ovl_path_type type = ovl_path_type(dentry);
 	LIST_HEAD(list);
 
 	err = ovl_check_empty_dir(dentry, &list);
@@ -313,13 +317,13 @@ static struct dentry *ovl_check_empty_and_clear(struct dentry *dentry)
 	 * When removing an empty opaque directory, then it makes no sense to
 	 * replace it with an exact replica of itself.
 	 *
-	 * If no upperdentry then skip clearing whiteouts.
+	 * If upperdentry has whiteouts, clear them.
 	 *
 	 * Can race with copy-up, since we don't hold the upperdir mutex.
 	 * Doesn't matter, since copy-up can't create a non-empty directory
 	 * from an empty one.
 	 */
-	if (OVL_TYPE_UPPER(type) && OVL_TYPE_MERGE(type))
+	if (!list_empty(&list))
 		ret = ovl_clear_empty(dentry, &list);
 
 out_free:
@@ -391,6 +395,10 @@ static int ovl_create_over_whiteout(struct dentry *dentry, struct inode *inode,
 	err = PTR_ERR(upper);
 	if (IS_ERR(upper))
 		goto out_dput;
+
+	err = -ESTALE;
+	if (d_is_negative(upper) || !IS_WHITEOUT(d_inode(upper)))
+		goto out_dput2;
 
 	err = ovl_create_real(wdir, newdentry, cattr, hardlink, true);
 	if (err)
@@ -595,6 +603,11 @@ static int ovl_link(struct dentry *old, struct inode *newdir,
 	if (err)
 		goto out_drop_write;
 
+	err = ovl_copy_up(new->d_parent);
+	if (err)
+		goto out_drop_write;
+
+
 	err = ovl_nlink_start(old, &locked);
 	if (err)
 		goto out_drop_write;
@@ -698,8 +711,9 @@ static int ovl_remove_upper(struct dentry *dentry, bool is_dir)
 	struct dentry *opaquedir = NULL;
 	int err;
 
-	/* Redirect dir can be !ovl_lower_positive && OVL_TYPE_MERGE */
-	if (is_dir && ovl_dentry_get_redirect(dentry)) {
+	/* Redirect/origin dir can be !ovl_lower_positive && not clean */
+	if (is_dir && (ovl_dentry_get_redirect(dentry) ||
+		       ovl_may_have_whiteouts(dentry))) {
 		opaquedir = ovl_check_empty_and_clear(dentry);
 		err = PTR_ERR(opaquedir);
 		if (IS_ERR(opaquedir))
@@ -946,7 +960,8 @@ static int ovl_rename(struct inode *olddir, struct dentry *old,
 
 	old_cred = ovl_override_creds(old->d_sb);
 
-	if (overwrite && new_is_dir && ovl_type_merge_or_lower(new)) {
+	if (overwrite && new_is_dir && (ovl_type_merge_or_lower(new) ||
+					ovl_may_have_whiteouts(new))) {
 		opaquedir = ovl_check_empty_and_clear(new);
 		err = PTR_ERR(opaquedir);
 		if (IS_ERR(opaquedir)) {
