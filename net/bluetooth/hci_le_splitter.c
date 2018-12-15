@@ -23,12 +23,6 @@ struct hci_le_splitter_le_conn {
 	size_t tx_in_flight;
 };
 
-enum {
-	SPLITTER_STATE_NOT_SET,
-	SPLITTER_STATE_DISABLED,
-	SPLITTER_STATE_ENABLED,
-};
-
 
 /* This mutex protects the below (essentially splitter internal state) */
 static DEFINE_MUTEX(hci_state_lock);
@@ -1073,4 +1067,9 @@ int hci_le_splitter_sysfs_init(void)
 		return -1;
 	}
 	return 0;
+}
+
+int hci_le_splitter_get_enabled_state(void)
+{
+	return splitter_enable_state;
 }
