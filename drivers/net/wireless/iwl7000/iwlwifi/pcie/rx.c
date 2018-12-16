@@ -593,7 +593,9 @@ static void iwl_pcie_rx_allocator(struct iwl_trans *trans)
 			i++;
 		}
 
+		atomic_dec(&rba->req_pending);
 		pending--;
+
 		if (!pending) {
 			pending = atomic_read(&rba->req_pending);
 			IWL_DEBUG_RX(trans,
@@ -609,7 +611,7 @@ static void iwl_pcie_rx_allocator(struct iwl_trans *trans)
 		spin_unlock(&rba->lock);
 
 		atomic_inc(&rba->req_ready);
-		atomic_dec(&rba->req_pending);
+
 	}
 
 	spin_lock(&rba->lock);
