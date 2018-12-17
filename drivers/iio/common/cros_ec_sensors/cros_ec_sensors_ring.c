@@ -564,6 +564,19 @@ static void cros_ec_ring_spread_add(
 				continue;
 			}
 
+			/*
+			 * Send out flush packets, but do not start a batch
+			 * from a flush, as it happens asynchronously to the
+			 * regular flow of events.
+			 */
+			if (batch_start->flag &
+				MOTIONSENSE_SENSOR_FLAG_FLUSH) {
+				iio_push_to_buffers(indio_dev,
+					(u8 *)batch_start);
+				next_batch_start = batch_start + 1;
+				continue;
+			}
+
 			if (batch_start->timestamp <=
 				state->last_batch_timestamp[id]) {
 
@@ -599,6 +612,9 @@ static void cros_ec_ring_spread_add(
 					continue;
 				if (s->timestamp != batch_timestamp)
 					/* we discovered the next batch */
+					break;
+				if (s->flag & MOTIONSENSE_SENSOR_FLAG_FLUSH)
+					/* break on flush packets */
 					break;
 				batch_end = s;
 				batch_len++;
