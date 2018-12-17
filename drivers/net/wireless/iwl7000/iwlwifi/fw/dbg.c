@@ -1236,8 +1236,9 @@ iwl_dump_ini_mem(struct iwl_fw_runtime *fwrt,
 				   sizeof(*range) + ops->get_size(fwrt, reg));
 
 	header->num_of_ranges = cpu_to_le32(num_of_ranges);
-	header->name_len = reg->name_len;
-	memcpy(header->name, reg->name, le32_to_cpu(reg->name_len));
+	header->name_len = cpu_to_le32(min_t(int, IWL_FW_INI_MAX_NAME,
+					     le32_to_cpu(reg->name_len)));
+	memcpy(header->name, reg->name, le32_to_cpu(header->name_len));
 
 	range = ops->fill_mem_hdr(fwrt, header);
 	if (!range)
