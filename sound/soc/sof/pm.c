@@ -387,15 +387,9 @@ EXPORT_SYMBOL(snd_sof_resume);
 
 int snd_sof_suspend(struct device *dev)
 {
-	return 0;
+	return sof_suspend(dev, false);
 }
 EXPORT_SYMBOL(snd_sof_suspend);
-
-int snd_sof_suspend_late(struct device *dev)
-{
-	return sof_suspend(dev, !RUNTIME_PM);
-}
-EXPORT_SYMBOL(snd_sof_suspend_late);
 
 int snd_sof_prepare(struct device *dev)
 {
