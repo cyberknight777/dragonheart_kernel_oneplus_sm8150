@@ -120,7 +120,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	/* digital mics */
 	{"DMic", NULL, "SoC DMIC"},
 
-#ifndef DISABLE_HDMI
 	/* CODEC BE connections */
 	{"HDMI1", NULL, "hif5-0 Output"},
 	{"HDMI2", NULL, "hif6-0 Output"},
@@ -132,7 +131,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"iDisp2 Tx", NULL, "iDisp2_out"},
 	{"hifi1", NULL, "iDisp1 Tx"},
 	{"iDisp1 Tx", NULL, "iDisp1_out"},
-#endif
 
 	/* DMIC */
 	{"dmic01_hifi", NULL, "DMIC01 Rx"},
@@ -529,7 +527,6 @@ static struct snd_soc_dai_link broxton_dais[] = {
 		.dpcm_capture = 1,
 		.no_pcm = 1,
 	},
-#ifndef DISABLE_HDMI
 	{
 		.name = "iDisp1",
 		.id = 3,
@@ -563,7 +560,6 @@ static struct snd_soc_dai_link broxton_dais[] = {
 		.dpcm_playback = 1,
 		.no_pcm = 1,
 	},
-#endif
 };
 
 /* geminilake digital audio interface glue - connects codec <--> CPU */
