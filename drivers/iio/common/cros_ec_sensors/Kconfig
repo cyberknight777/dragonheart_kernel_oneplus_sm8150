@@ -31,6 +31,15 @@ config IIO_CROS_EC_ACTIVITY
 	  They are being reported by physical devices or the EC itself.
 	  Creates an IIO device to manage all activities.
 
+config IIO_CROS_EC_SENSORS_LID_ANGLE
+	tristate "ChromeOS EC Sensor for lid angle"
+	depends on IIO_CROS_EC_SENSORS_CORE
+	help
+	  Module to report the angle between lid and base for some
+	  convertible devices.
+	  This module is loaded when the EC can calculate the angle between the base
+	  and the lid.
+
 config IIO_CROS_EC_SENSORS_RING
 	tristate "ChromeOS EC Sensors Ring"
 	depends on IIO_CROS_EC_SENSORS || IIO_CROS_EC_LIGHT_PROX
