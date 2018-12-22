@@ -62,6 +62,7 @@
 #include <linux/random.h>
 #include <linux/rcuwait.h>
 #include <linux/compat.h>
+#include <linux/security.h>
 
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
@@ -783,6 +784,8 @@ void __noreturn do_exit(long code)
 	 * kernel address.
 	 */
 	set_fs(USER_DS);
+
+	security_task_exit(tsk);
 
 	ptrace_event(PTRACE_EVENT_EXIT, code);
 

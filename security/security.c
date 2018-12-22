@@ -1121,6 +1121,11 @@ int security_task_kill(struct task_struct *p, struct siginfo *info,
 	return call_int_hook(task_kill, 0, p, info, sig, secid);
 }
 
+void security_task_exit(struct task_struct *p)
+{
+	call_void_hook(task_exit, p);
+}
+
 int security_task_prctl(int option, unsigned long arg2, unsigned long arg3,
 			 unsigned long arg4, unsigned long arg5)
 {
