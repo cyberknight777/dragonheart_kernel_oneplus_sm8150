@@ -364,6 +364,8 @@ struct iwl_txq {
 	u32 id;
 	int low_mark;
 	int high_mark;
+
+	bool overflow_tx;
 };
 
 static inline dma_addr_t
