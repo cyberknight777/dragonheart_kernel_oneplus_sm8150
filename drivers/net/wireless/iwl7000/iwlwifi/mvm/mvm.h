@@ -847,9 +847,11 @@ iwl_mvm_txq_from_tid(struct ieee80211_sta *sta, u8 tid)
 /**
  * struct iwl_mvm_tvqm_txq_info - maps TVQM hw queue to tid
  *
+ * @sta_id: sta id
  * @txq_tid: txq tid
  */
 struct iwl_mvm_tvqm_txq_info {
+	u8 sta_id;
 	u8 txq_tid;
 };
 

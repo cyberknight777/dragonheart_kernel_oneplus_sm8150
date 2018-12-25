@@ -1294,13 +1294,17 @@ static void iwl_mvm_queue_state_change(struct iwl_op_mode *op_mode,
 				       int hw_queue, bool start)
 {
 	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
-	u8 sta_id = mvm->queue_info[hw_queue].ra_sta_id;
 	struct ieee80211_sta *sta;
 	struct ieee80211_txq *txq;
 	struct iwl_mvm_txq *mvmtxq;
 	int i;
 	unsigned long tid_bitmap;
 	struct iwl_mvm_sta *mvmsta;
+	u8 sta_id;
+
+	sta_id = iwl_mvm_has_new_tx_api(mvm) ?
+		mvm->tvqm_info[hw_queue].sta_id :
+		mvm->queue_info[hw_queue].ra_sta_id;
 
 	if (WARN_ON_ONCE(sta_id >= ARRAY_SIZE(mvm->fw_id_to_mac_id)))
 		return;
