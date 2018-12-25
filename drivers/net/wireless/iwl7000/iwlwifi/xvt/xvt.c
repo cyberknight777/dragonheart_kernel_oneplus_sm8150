@@ -219,7 +219,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	static const u8 no_reclaim_cmds[] = {
 		TX_CMD,
 	};
-	u8 i, num_of_lmacs;
+	u8 i;
 	int err;
 
 	op_mode = kzalloc(sizeof(struct iwl_op_mode) +
@@ -299,9 +299,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	iwl_dnt_init(xvt->trans, dbgfs_dir);
 
-	num_of_lmacs = iwl_xvt_is_cdb_supported(xvt) ? NUM_OF_LMACS : 1;
-
-	for (i = 0; i < num_of_lmacs; i++) {
+	for (i = 0; i < NUM_OF_LMACS; i++) {
 		init_waitqueue_head(&xvt->tx_meta_data[i].mod_tx_wq);
 		init_waitqueue_head(&xvt->tx_meta_data[i].mod_tx_done_wq);
 		xvt->tx_meta_data[i].queue = -1;
