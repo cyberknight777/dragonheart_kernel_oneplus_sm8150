@@ -846,7 +846,7 @@ struct iwl_trans {
 
 	u32 lmac_error_event_table[2];
 	u32 umac_error_event_table;
-	unsigned long error_event_table_tlv_status;
+	unsigned int error_event_table_tlv_status;
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */
