@@ -57,7 +57,7 @@ static int msm_iommu_map(struct msm_mmu *mmu, uint64_t iova,
 	size_t ret;
 
 	ret = iommu_map_sg(iommu->domain, iova, sgt->sgl, sgt->nents, prot);
-	WARN_ON(ret < 0);
+	WARN_ON(!ret);
 
 	return (ret == len) ? 0 : -EINVAL;
 }
