@@ -1282,9 +1282,9 @@ static int _iwl_dbgfs_inject_beacon_ie(struct iwl_mvm *mvm, char *bin, int len)
 	if (!iwl_mvm_firmware_running(mvm))
 		return -EIO;
 
-	if (!iwl_mvm_has_new_tx_api(mvm) ||
-	    fw_has_api(&mvm->fw->ucode_capa,
-		       IWL_UCODE_TLV_API_NEW_BEACON_TEMPLATE))
+	if (!iwl_mvm_has_new_tx_api(mvm) &&
+	    !fw_has_api(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_API_NEW_BEACON_TEMPLATE))
 		return -EINVAL;
 
 	rcu_read_lock();
