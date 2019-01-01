@@ -7,7 +7,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -29,7 +29,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -195,6 +195,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(bool, MVM_FTM_INITIATOR_DYNACK)
 	IWL_DBG_CFG_NODEF(bool, MVM_FTM_INITIATOR_MCSI_ENABLED)
 	IWL_DBG_CFG_NODEF(u16, MVM_FTM_INITIATOR_COMMON_CALIB)
+	IWL_DBG_CFG(bool, MVM_D3_DEBUG)
 	IWL_MVM_MOD_PARAM(int, power_scheme)
 	IWL_MVM_MOD_PARAM(bool, init_dbg)
 	IWL_MVM_MOD_PARAM(bool, tfd_q_hang_detect)
