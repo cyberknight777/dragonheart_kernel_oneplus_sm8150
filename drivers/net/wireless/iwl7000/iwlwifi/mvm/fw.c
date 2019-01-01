@@ -373,7 +373,8 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 		struct iwl_trans *trans = mvm->trans;
 
 		if (ret == -ETIMEDOUT)
-			iwl_fw_alive_timeout_dump(&mvm->fwrt);
+			iwl_fw_dbg_error_collect(&mvm->fwrt,
+						 FW_DBG_TRIGGER_ALIVE_TIMEOUT);
 
 		if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22000)
 			IWL_ERR(mvm,
@@ -1233,7 +1234,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	ret = iwl_mvm_load_rt_fw(mvm);
 	if (ret) {
 		IWL_ERR(mvm, "Failed to start RT ucode: %d\n", ret);
-		iwl_fw_dbg_error_collect(&mvm->fwrt);
+		iwl_fw_dbg_error_collect(&mvm->fwrt, FW_DBG_TRIGGER_DRIVER);
 		goto error;
 	}
 
