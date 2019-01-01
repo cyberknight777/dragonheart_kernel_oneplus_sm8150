@@ -349,8 +349,6 @@ int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev)
 		if (ret < 0) {
 			dev_err(sdev->dev, "error: iteration %d of load fw failed err: %d\n",
 				i, ret);
-			hda_dsp_core_reset_power_down(sdev, HDA_DSP_CORE_MASK(0) |
-							    HDA_DSP_CORE_MASK(1));
 			continue;
 		}
 
