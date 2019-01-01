@@ -1868,9 +1868,8 @@ void iwl_fw_dbg_collect_sync(struct iwl_fw_runtime *fwrt)
 	if (!test_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
 		return;
 
-	if (fwrt->ops && fwrt->ops->fw_running &&
-	    !fwrt->ops->fw_running(fwrt->ops_ctx)) {
-		IWL_ERR(fwrt, "Firmware not running - cannot dump error\n");
+	if (!test_bit(STATUS_DEVICE_ENABLED, &fwrt->trans->status)) {
+		IWL_ERR(fwrt, "Device is not enabled - cannot dump error\n");
 		iwl_fw_free_dump_desc(fwrt);
 		clear_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status);
 		return;
