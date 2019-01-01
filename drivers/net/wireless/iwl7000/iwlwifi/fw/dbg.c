@@ -1140,7 +1140,8 @@ iwl_dump_ini_mon_dram_iter(struct iwl_fw_runtime *fwrt,
 			   struct iwl_fw_ini_region_cfg *reg,
 			   int idx)
 {
-	u32 start_addr = iwl_read_prph(fwrt->trans, MON_BUFF_BASE_ADDR_VER2);
+	u32 start_addr = iwl_read_umac_prph(fwrt->trans,
+					    MON_BUFF_BASE_ADDR_VER2);
 
 	if (start_addr == 0x5a5a5a5a)
 		return -1;
@@ -1173,8 +1174,10 @@ static struct iwl_fw_ini_error_dump_range
 		IWL_ERR(fwrt, "Failed to get DRAM monitor header\n");
 		return NULL;
 	}
-	write_ptr = iwl_read_prph_no_grab(fwrt->trans, MON_BUFF_WRPTR_VER2);
-	cycle_cnt = iwl_read_prph_no_grab(fwrt->trans, MON_BUFF_CYCLE_CNT_VER2);
+	write_ptr = iwl_read_umac_prph_no_grab(fwrt->trans,
+					       MON_BUFF_WRPTR_VER2);
+	cycle_cnt = iwl_read_umac_prph_no_grab(fwrt->trans,
+					       MON_BUFF_CYCLE_CNT_VER2);
 	iwl_trans_release_nic_access(fwrt->trans, &flags);
 
 	mon_dump->write_ptr = cpu_to_le32(write_ptr);

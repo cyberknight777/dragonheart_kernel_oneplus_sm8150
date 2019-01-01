@@ -5,7 +5,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -18,7 +18,7 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -178,7 +178,7 @@ int iwl_pcie_ctxt_info_gen3_init(struct iwl_trans *trans,
 	iwl_write32(trans, CSR_IML_SIZE_ADDR, trans->iml_len);
 
 	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
-		iwl_write_prph(trans, UREG_CPU_INIT_RUN, 1);
+		iwl_write_umac_prph(trans, UREG_CPU_INIT_RUN, 1);
 	} else {
 		iwl_set_bit(trans, CSR_CTXT_INFO_BOOT_CTRL,
 			    CSR_AUTO_FUNC_BOOT_ENA);
