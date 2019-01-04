@@ -133,8 +133,7 @@ static const struct snd_soc_ops broadwell_rt286_ops = {
 #if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 static int broadwell_rtd_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
-	struct sst_pdata *pdata = dev_get_platdata(component->dev);
+	struct sst_pdata *pdata = dev_get_platdata(rtd->platform->dev);
 	struct sst_hsw *broadwell = pdata->dsp;
 	int ret;
 
