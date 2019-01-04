@@ -141,7 +141,7 @@ static ssize_t sta_aqm_read(struct file *file, char __user *userbuf,
 {
 	struct sta_info *sta = file->private_data;
 	struct ieee80211_local *local = sta->local;
-	size_t bufsz = AQM_TXQ_ENTRY_LEN*(IEEE80211_NUM_TIDS+1);
+	size_t bufsz = AQM_TXQ_ENTRY_LEN * (IEEE80211_NUM_TIDS + 2);
 	char *buf = kzalloc(bufsz, GFP_KERNEL), *p = buf;
 	struct txq_info *txqi;
 	ssize_t rv;
@@ -161,12 +161,14 @@ static ssize_t sta_aqm_read(struct file *file, char __user *userbuf,
 		       sta->cparams.ecn ? "yes" : "no");
 	p += scnprintf(p,
 		       bufsz+buf-p,
-		       "tid ac backlog-bytes backlog-packets new-flows drops marks overlimit collisions tx-bytes tx-packets\n");
+		       "tid ac backlog-bytes backlog-packets new-flows drops marks overlimit collisions tx-bytes tx-packets flags\n");
 
-	for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+	for (i = 0; i < ARRAY_SIZE(sta->sta.txq); i++) {
+		if (!sta->sta.txq[i])
+			continue;
 		txqi = to_txq_info(sta->sta.txq[i]);
 		p += scnprintf(p, bufsz+buf-p,
-			       "%d %d %u %u %u %u %u %u %u %u %u\n",
+			       "%d %d %u %u %u %u %u %u %u %u %u 0x%lx(%s%s%s)\n",
 			       txqi->txq.tid,
 			       txqi->txq.ac,
 			       txqi->tin.backlog_bytes,
@@ -177,7 +179,11 @@ static ssize_t sta_aqm_read(struct file *file, char __user *userbuf,
 			       txqi->tin.overlimit,
 			       txqi->tin.collisions,
 			       txqi->tin.tx_bytes,
-			       txqi->tin.tx_packets);
+			       txqi->tin.tx_packets,
+			       txqi->flags,
+			       txqi->flags & (1<<IEEE80211_TXQ_STOP) ? "STOP" : "RUN",
+			       txqi->flags & (1<<IEEE80211_TXQ_AMPDU) ? " AMPDU" : "",
+			       txqi->flags & (1<<IEEE80211_TXQ_NO_AMSDU) ? " NO-AMSDU" : "");
 	}
 
 	rcu_read_unlock();
@@ -516,8 +522,8 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 
 	cap = hec->he_cap_elem.mac_cap_info;
 	p += scnprintf(p, buf_sz + buf - p,
-		       "MAC-CAP: %#.2x %#.2x %#.2x %#.2x %#.2x\n",
-		       cap[0], cap[1], cap[2], cap[3], cap[4]);
+		       "MAC-CAP: %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x\n",
+		       cap[0], cap[1], cap[2], cap[3], cap[4], cap[5]);
 
 #define PRINT(fmt, ...)							\
 	p += scnprintf(p, buf_sz + buf - p, "\t\t" fmt "\n",		\
@@ -557,7 +563,8 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 			    "MIN-FRAG-SIZE-%d", UNLIMITED, "UNLIMITED");
 	PFLAG_RANGE_DEFAULT(MAC, 1, TF_MAC_PAD_DUR, 0, 8, 0,
 			    "TF-MAC-PAD-DUR-%dUS", MASK, "UNKNOWN");
-	PFLAG_RANGE(MAC, 1, MULTI_TID_AGG_QOS, 0, 1, 1, "MULTI-TID-AGG-QOS-%d");
+	PFLAG_RANGE(MAC, 1, MULTI_TID_AGG_RX_QOS, 0, 1, 1,
+		    "MULTI-TID-AGG-RX-QOS-%d");
 
 	if (cap[0] & IEEE80211_HE_MAC_CAP0_HTC_HE) {
 		switch (((cap[2] << 1) | (cap[1] >> 7)) & 0x3) {
@@ -577,52 +584,55 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 	}
 
 	PFLAG(MAC, 2, ALL_ACK, "ALL-ACK");
-	PFLAG(MAC, 2, UL_MU_RESP_SCHED, "UL-MU-RESP-SCHED");
+	PFLAG(MAC, 2, TRS, "TRS");
 	PFLAG(MAC, 2, BSR, "BSR");
 	PFLAG(MAC, 2, BCAST_TWT, "BCAST-TWT");
 	PFLAG(MAC, 2, 32BIT_BA_BITMAP, "32BIT-BA-BITMAP");
 	PFLAG(MAC, 2, MU_CASCADING, "MU-CASCADING");
 	PFLAG(MAC, 2, ACK_EN, "ACK-EN");
 
-	PFLAG(MAC, 3, GRP_ADDR_MULTI_STA_BA_DL_MU,
-	      "GRP-ADDR-MULTI-STA-BA-DL-MU");
 	PFLAG(MAC, 3, OMI_CONTROL, "OMI-CONTROL");
 	PFLAG(MAC, 3, OFDMA_RA, "OFDMA-RA");
 
-	switch (cap[3] & IEEE80211_HE_MAC_CAP3_MAX_A_AMPDU_LEN_EXP_MASK) {
-	case IEEE80211_HE_MAC_CAP3_MAX_A_AMPDU_LEN_EXP_USE_VHT:
-		PRINT("MAX-A-AMPDU-LEN-EXP-USE-VHT");
+	switch (cap[3] & IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_MASK) {
+	case IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_USE_VHT:
+		PRINT("MAX-AMPDU-LEN-EXP-USE-VHT");
 		break;
-	case IEEE80211_HE_MAC_CAP3_MAX_A_AMPDU_LEN_EXP_VHT_1:
-		PRINT("MAX-A-AMPDU-LEN-EXP-VHT-1");
+	case IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_1:
+		PRINT("MAX-AMPDU-LEN-EXP-VHT-1");
 		break;
-	case IEEE80211_HE_MAC_CAP3_MAX_A_AMPDU_LEN_EXP_VHT_2:
-		PRINT("MAX-A-AMPDU-LEN-EXP-VHT-2");
+	case IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2:
+		PRINT("MAX-AMPDU-LEN-EXP-VHT-2");
 		break;
-	case IEEE80211_HE_MAC_CAP3_MAX_A_AMPDU_LEN_EXP_RESERVED:
-		PRINT("MAX-A-AMPDU-LEN-EXP-RESERVED");
+	case IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_RESERVED:
+		PRINT("MAX-AMPDU-LEN-EXP-RESERVED");
 		break;
 	}
 
-	PFLAG(MAC, 3, A_AMSDU_FRAG, "A-AMSDU-FRAG");
+	PFLAG(MAC, 3, AMSDU_FRAG, "AMSDU-FRAG");
 	PFLAG(MAC, 3, FLEX_TWT_SCHED, "FLEX-TWT-SCHED");
 	PFLAG(MAC, 3, RX_CTRL_FRAME_TO_MULTIBSS, "RX-CTRL-FRAME-TO-MULTIBSS");
 
 	PFLAG(MAC, 4, BSRP_BQRP_A_MPDU_AGG, "BSRP-BQRP-A-MPDU-AGG");
 	PFLAG(MAC, 4, QTP, "QTP");
 	PFLAG(MAC, 4, BQR, "BQR");
-	PFLAG(MAC, 4, SR_RESP, "SR-RESP");
+	PFLAG(MAC, 4, SRP_RESP, "SRP-RESP");
 	PFLAG(MAC, 4, NDP_FB_REP, "NDP-FB-REP");
 	PFLAG(MAC, 4, OPS, "OPS");
 	PFLAG(MAC, 4, AMDSU_IN_AMPDU, "AMSDU-IN-AMPDU");
 
+	PRINT("MULTI-TID-AGG-TX-QOS-%d", ((cap[5] << 1) | (cap[4] >> 7)) & 0x7);
+
+	PFLAG(MAC, 5, SUBCHAN_SELECVITE_TRANSMISSION,
+	      "SUBCHAN-SELECVITE-TRANSMISSION");
+	PFLAG(MAC, 5, UL_2x996_TONE_RU, "UL-2x996-TONE-RU");
+	PFLAG(MAC, 5, OM_CTRL_UL_MU_DATA_DIS_RX, "OM-CTRL-UL-MU-DATA-DIS-RX");
+
 	cap = hec->he_cap_elem.phy_cap_info;
 	p += scnprintf(p, buf_sz + buf - p,
-		       "PHY CAP: %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x\n",
+		       "PHY CAP: %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x %#.2x\n",
 		       cap[0], cap[1], cap[2], cap[3], cap[4], cap[5], cap[6],
-		       cap[7], cap[8]);
-
-	PFLAG(PHY, 0, DUAL_BAND, "DUAL-BAND");
+		       cap[7], cap[8], cap[9], cap[10]);
 
 	PFLAG(PHY, 0, CHANNEL_WIDTH_SET_40MHZ_IN_2G,
 	      "CHANNEL-WIDTH-SET-40MHZ-IN-2G");
@@ -748,7 +758,36 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 	PFLAG(PHY, 8, 80MHZ_IN_160MHZ_HE_PPDU, "80MHZ-IN-160MHZ-HE-PPDU");
 	PFLAG(PHY, 8, HE_ER_SU_1XLTF_AND_08_US_GI,
 	      "HE-ER-SU-1XLTF-AND-08-US-GI");
-	PFLAG(PHY, 8, MIDAMBLE_RX_2X_AND_1XLTF, "MIDAMBLE-RX-2X-AND-1XLTF");
+	PFLAG(PHY, 8, MIDAMBLE_RX_TX_2X_AND_1XLTF,
+	      "MIDAMBLE-RX-TX-2X-AND-1XLTF");
+
+	switch (cap[8] & IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_MASK) {
+	case IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_20MHZ:
+		PRINT("DDCM-MAX-BW-20MHZ");
+		break;
+	case IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_40MHZ:
+		PRINT("DCM-MAX-BW-40MHZ");
+		break;
+	case IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_80MHZ:
+		PRINT("DCM-MAX-BW-80MHZ");
+		break;
+	case IEEE80211_HE_PHY_CAP8_DCM_MAX_BW_160_OR_80P80_MHZ:
+		PRINT("DCM-MAX-BW-160-OR-80P80-MHZ");
+		break;
+	}
+
+	PFLAG(PHY, 9, LONGER_THAN_16_SIGB_OFDM_SYM,
+	      "LONGER-THAN-16-SIGB-OFDM-SYM");
+	PFLAG(PHY, 9, NON_TRIGGERED_CQI_FEEDBACK,
+	      "NON-TRIGGERED-CQI-FEEDBACK");
+	PFLAG(PHY, 9, TX_1024_QAM_LESS_THAN_242_TONE_RU,
+	      "TX-1024-QAM-LESS-THAN-242-TONE-RU");
+	PFLAG(PHY, 9, RX_1024_QAM_LESS_THAN_242_TONE_RU,
+	      "RX-1024-QAM-LESS-THAN-242-TONE-RU");
+	PFLAG(PHY, 9, RX_FULL_BW_SU_USING_MU_WITH_COMP_SIGB,
+	      "RX-FULL-BW-SU-USING-MU-WITH-COMP-SIGB");
+	PFLAG(PHY, 9, RX_FULL_BW_SU_USING_MU_WITH_NON_COMP_SIGB,
+	      "RX-FULL-BW-SU-USING-MU-WITH-NON-COMP-SIGB");
 
 #undef PFLAG_RANGE_DEFAULT
 #undef PFLAG_RANGE
@@ -777,18 +816,18 @@ static ssize_t sta_he_capa_read(struct file *file, char __user *userbuf,
 		}							\
 	} while (0)
 
-	PRINT_NSS_SUPP(rx_msc_80, "RX-MCS-80");
-	PRINT_NSS_SUPP(tx_msc_80, "TX-MCS-80");
+	PRINT_NSS_SUPP(rx_mcs_80, "RX-MCS-80");
+	PRINT_NSS_SUPP(tx_mcs_80, "TX-MCS-80");
 
 	if (cap[0] & IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G) {
-		PRINT_NSS_SUPP(rx_msc_160, "RX-MCS-160");
-		PRINT_NSS_SUPP(tx_msc_160, "TX-MCS-160");
+		PRINT_NSS_SUPP(rx_mcs_160, "RX-MCS-160");
+		PRINT_NSS_SUPP(tx_mcs_160, "TX-MCS-160");
 	}
 
 	if (cap[0] &
 	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G) {
-		PRINT_NSS_SUPP(rx_msc_80p80, "RX-MCS-80P80");
-		PRINT_NSS_SUPP(tx_msc_80p80, "TX-MCS-80P80");
+		PRINT_NSS_SUPP(rx_mcs_80p80, "RX-MCS-80P80");
+		PRINT_NSS_SUPP(tx_mcs_80p80, "TX-MCS-80P80");
 	}
 
 #undef PRINT_NSS_SUPP

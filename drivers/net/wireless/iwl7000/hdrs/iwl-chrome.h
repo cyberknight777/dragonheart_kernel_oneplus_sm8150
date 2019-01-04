@@ -33,6 +33,13 @@
 #include <crypto/algapi.h>
 #include <linux/pci.h>
 #include <linux/if_vlan.h>
+#include <linux/overflow.h>
+#include "net/fq.h"
+
+/* avoid conflicts with other headers */
+#ifdef is_signed_type
+#undef is_signed_type
+#endif
 
 #define LINUX_VERSION_IS_LESS(x1,x2,x3) (LINUX_VERSION_CODE < KERNEL_VERSION(x1,x2,x3))
 #define LINUX_VERSION_IS_GEQ(x1,x2,x3)  (LINUX_VERSION_CODE >= KERNEL_VERSION(x1,x2,x3))
@@ -79,9 +86,6 @@ static inline u64 ktime_get_real_ns(void)
 #include <hdrs/mac80211-bp.h>
 
 #include <hdrs/net/codel.h>
-#include <hdrs/net/codel_impl.h>
-#include <hdrs/net/fq.h>
-#include <hdrs/net/fq_impl.h>
 #include <hdrs/net/mac80211.h>
 
 /* artifacts of backports - never in upstream */
@@ -855,9 +859,21 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 	(offsetof(TYPE, MEMBER)	+ sizeof(((TYPE *)0)->MEMBER))
 #endif
 
-int alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
-                           size_t max_size, unsigned int cpu_mult,
-                           gfp_t gfp);
+
+int __alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *lock_mask,
+			     size_t max_size, unsigned int cpu_mult,
+			     gfp_t gfp, const char *name,
+			     struct lock_class_key *key);
+
+#define alloc_bucket_spinlocks(locks, lock_mask, max_size, cpu_mult, gfp)    \
+	({								     \
+		static struct lock_class_key key;			     \
+		int ret;						     \
+									     \
+		ret = __alloc_bucket_spinlocks(locks, lock_mask, max_size,   \
+					       cpu_mult, gfp, #locks, &key); \
+		ret;							\
+	})
 void free_bucket_spinlocks(spinlock_t *locks);
 
 #ifndef READ_ONCE

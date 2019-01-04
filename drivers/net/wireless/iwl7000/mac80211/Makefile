@@ -55,6 +55,9 @@ mac80211-y += rhashtable.o
 
 CFLAGS_trace.o := -I$(src)
 
+CFLAGS_tx.o += -include "hdrs/iwl-tx.h"
+CFLAGS_debugfs.o += -include "hdrs/net/fq.h"
+
 rc80211_minstrel-y := rc80211_minstrel.o
 rc80211_minstrel-$(CPTCFG_MAC80211_DEBUGFS) += rc80211_minstrel_debugfs.o
 

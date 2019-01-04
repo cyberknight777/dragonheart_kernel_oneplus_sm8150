@@ -1058,7 +1058,9 @@ static void ieee80211_update_sta_info(struct ieee80211_sub_if_data *sdata,
 			struct ieee80211_vht_cap cap_ie;
 			struct ieee80211_sta_vht_cap cap = sta->sta.vht_cap;
 
-			ieee80211_chandef_vht_oper(elems->vht_operation,
+			ieee80211_chandef_vht_oper(&local->hw,
+						   elems->vht_operation,
+						   elems->ht_operation,
 						   &chandef);
 			memcpy(&cap_ie, elems->vht_cap_elem, sizeof(cap_ie));
 			ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
@@ -1206,10 +1208,9 @@ void ieee80211_ibss_rx_no_sta(struct ieee80211_sub_if_data *sdata,
 		return;
 	}
 
-	ieee80211_send_probe_req(sdata, sdata->vif.addr, addr,
-				 sdata->u.ibss.ssid, sdata->u.ibss.ssid_len,
-				 NULL, 0, (u32)-1, true, 0,
-				 chanctx_conf->def.chan, false);
+	ieee80211_mlme_send_probe_req(sdata, sdata->vif.addr, addr,
+				      sdata->u.ibss.ssid, sdata->u.ibss.ssid_len,
+				      chanctx_conf->def.chan);
 	rcu_read_unlock();
 }
 
@@ -1787,11 +1788,12 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 		  IEEE80211_HT_OP_MODE_PROTECTION_NONHT_MIXED
 		| IEEE80211_HT_PARAM_RIFS_MODE;
 
-	changed |= BSS_CHANGED_HT;
+	changed |= BSS_CHANGED_HT | BSS_CHANGED_MCAST_RATE;
 	ieee80211_bss_info_change_notify(sdata, changed);
 
 	sdata->smps_mode = IEEE80211_SMPS_OFF;
 	sdata->needed_rx_chains = local->rx_chains;
+	sdata->control_port_over_nl80211 = cfg_control_port_over_nl80211(params);
 
 	ieee80211_queue_work(&local->hw, &sdata->work);
 

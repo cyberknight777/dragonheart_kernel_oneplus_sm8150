@@ -216,7 +216,11 @@ static int iwl_pcie_gen2_set_tb(struct iwl_trans *trans,
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	int idx = iwl_pcie_gen2_get_num_tbs(trans, tfd);
-	struct iwl_tfh_tb *tb = &tfd->tbs[idx];
+	struct iwl_tfh_tb *tb;
+
+	if (WARN_ON(idx >= IWL_TFH_NUM_TBS))
+		return -EINVAL;
+	tb = &tfd->tbs[idx];
 
 	/* Each TFD can point to a maximum max_tbs Tx buffers */
 	if (le16_to_cpu(tfd->num_tbs) >= trans_pcie->max_tbs) {
@@ -240,7 +244,7 @@ static int iwl_pcie_gen2_build_amsdu(struct iwl_trans *trans,
 {
 #ifdef CONFIG_INET
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
-	struct iwl_tx_cmd *tx_cmd = (void *)dev_cmd->payload;
+	struct iwl_tx_cmd_gen2 *tx_cmd = (void *)dev_cmd->payload;
 	struct ieee80211_hdr *hdr = (void *)skb->data;
 	unsigned int snap_ip_tcp_hdrlen, ip_hdrlen, total_len, hdr_room;
 	unsigned int mss = skb_shinfo(skb)->gso_size;
@@ -332,7 +336,7 @@ static int iwl_pcie_gen2_build_amsdu(struct iwl_trans *trans,
 			goto out_err;
 		}
 		iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, tb_len);
-		trace_iwlwifi_dev_tx_tso_chunk(trans->dev, start_hdr, tb_len);
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb, start_hdr, tb_len);
 		/* add this subframe's headers' length to the tx_cmd */
 		le16_add_cpu(&tx_cmd->len, hdr_page->pos - subf_hdrs_start);
 
@@ -349,8 +353,8 @@ static int iwl_pcie_gen2_build_amsdu(struct iwl_trans *trans,
 				goto out_err;
 			}
 			iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, tb_len);
-			trace_iwlwifi_dev_tx_tso_chunk(trans->dev, tso.data,
-						       tb_len);
+			trace_iwlwifi_dev_tx_tb(trans->dev, skb, tso.data,
+						tb_len);
 
 			data_left -= tb_len;
 			tso_build_data(skb, &tso, tb_len);
@@ -410,7 +414,7 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx_amsdu(struct iwl_trans *trans,
 		goto out_err;
 
 	/* building the A-MSDU might have changed this data, memcpy it now */
-	memcpy(&txq->first_tb_bufs[idx], &dev_cmd->hdr, IWL_FIRST_TB_SIZE);
+	memcpy(&txq->first_tb_bufs[idx], dev_cmd, IWL_FIRST_TB_SIZE);
 	return tfd;
 
 out_err:
@@ -440,6 +444,9 @@ static int iwl_pcie_gen2_tx_add_frags(struct iwl_trans *trans,
 			return -ENOMEM;
 		tb_idx = iwl_pcie_gen2_set_tb(trans, tfd, tb_phys,
 					      skb_frag_size(frag));
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb,
+					skb_frag_address(frag),
+					skb_frag_size(frag));
 		if (tb_idx < 0)
 			return tb_idx;
 
@@ -456,7 +463,8 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 				    struct sk_buff *skb,
 				    struct iwl_cmd_meta *out_meta,
 				    int hdr_len,
-				    int tx_cmd_len)
+				    int tx_cmd_len,
+				    bool pad)
 {
 	int idx = iwl_pcie_get_cmd_index(txq, txq->write_ptr);
 	struct iwl_tfh_tfd *tfd = iwl_pcie_get_tfd(trans, txq, idx);
@@ -468,7 +476,7 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 	tb_phys = iwl_pcie_get_first_tb_dma(txq, idx);
 
 	/* The first TB points to bi-directional DMA data */
-	memcpy(&txq->first_tb_bufs[idx], &dev_cmd->hdr, IWL_FIRST_TB_SIZE);
+	memcpy(&txq->first_tb_bufs[idx], dev_cmd, IWL_FIRST_TB_SIZE);
 
 	iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, IWL_FIRST_TB_SIZE);
 
@@ -481,7 +489,10 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 	len = tx_cmd_len + sizeof(struct iwl_cmd_header) + hdr_len -
 	      IWL_FIRST_TB_SIZE;
 
-	tb1_len = ALIGN(len, 4);
+	if (pad)
+		tb1_len = ALIGN(len, 4);
+	else
+		tb1_len = len;
 
 	/* map the data for TB1 */
 	tb1_addr = ((u8 *)&dev_cmd->hdr) + IWL_FIRST_TB_SIZE;
@@ -489,6 +500,8 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 	if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 		goto out_err;
 	iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, tb1_len);
+	trace_iwlwifi_dev_tx(trans->dev, skb, tfd, sizeof(*tfd), &dev_cmd->hdr,
+			     IWL_FIRST_TB_SIZE + tb1_len, hdr_len);
 
 	/* set up TFD's third entry to point to remainder of skb's head */
 	tb2_len = skb_headlen(skb) - hdr_len;
@@ -499,6 +512,9 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 		if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 			goto out_err;
 		iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, tb2_len);
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb,
+					skb->data + hdr_len,
+					tb2_len);
 	}
 
 	if (iwl_pcie_gen2_tx_add_frags(trans, skb, tfd, out_meta))
@@ -510,13 +526,12 @@ iwl_tfh_tfd *iwl_pcie_gen2_build_tx(struct iwl_trans *trans,
 		if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 			goto out_err;
 		iwl_pcie_gen2_set_tb(trans, tfd, tb_phys, skb_headlen(frag));
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb,
+					frag->data,
+					skb_headlen(frag));
 		if (iwl_pcie_gen2_tx_add_frags(trans, frag, tfd, out_meta))
 			goto out_err;
 	}
-
-	trace_iwlwifi_dev_tx(trans->dev, skb, tfd, sizeof(*tfd), &dev_cmd->hdr,
-			     IWL_FIRST_TB_SIZE + tb1_len, hdr_len);
-	trace_iwlwifi_dev_tx_data(trans->dev, skb, hdr_len);
 
 	return tfd;
 
@@ -563,7 +578,7 @@ struct iwl_tfh_tfd *iwl_pcie_gen2_build_tfd(struct iwl_trans *trans,
 		return iwl_pcie_gen2_build_tx_amsdu(trans, txq, dev_cmd, skb,
 						    out_meta, hdr_len, len);
 	return iwl_pcie_gen2_build_tx(trans, txq, dev_cmd, skb, out_meta,
-				      hdr_len, len);
+				      hdr_len, len, !amsdu);
 }
 
 int iwl_trans_pcie_gen2_tx(struct iwl_trans *trans, struct sk_buff *skb,
@@ -838,14 +853,14 @@ static int iwl_pcie_gen2_enqueue_hcmd(struct iwl_trans *trans,
 
 	/* start the TFD with the minimum copy bytes */
 	tb0_size = min_t(int, copy_size, IWL_FIRST_TB_SIZE);
-	memcpy(&txq->first_tb_bufs[idx], &out_cmd->hdr, tb0_size);
+	memcpy(&txq->first_tb_bufs[idx], out_cmd, tb0_size);
 	iwl_pcie_gen2_set_tb(trans, tfd, iwl_pcie_get_first_tb_dma(txq, idx),
 			     tb0_size);
 
 	/* map first command fragment, if any remains */
 	if (copy_size > tb0_size) {
 		phys_addr = dma_map_single(trans->dev,
-					   ((u8 *)&out_cmd->hdr) + tb0_size,
+					   (u8 *)out_cmd + tb0_size,
 					   copy_size - tb0_size,
 					   DMA_TO_DEVICE);
 		if (dma_mapping_error(trans->dev, phys_addr)) {

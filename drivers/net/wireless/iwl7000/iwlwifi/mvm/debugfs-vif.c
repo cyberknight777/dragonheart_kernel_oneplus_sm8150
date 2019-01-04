@@ -766,6 +766,7 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm *mvm = mvmvif->mvm;
 	u32 value;
+	s16 svalue;
 	int ret = 0;
 	char *data;
 
@@ -861,19 +862,19 @@ static ssize_t iwl_dbgfs_tof_range_request_write(struct ieee80211_vif *vif,
 
 	data = iwl_dbgfs_is_match("common_calib=", buf);
 	if (data) {
-		ret = kstrtou32(data, 10, &value);
+		ret = kstrtos16(data, 10, &svalue);
 		if (ret == 0)
 			mvm->tof_data.range_req.common_calib =
-				cpu_to_le16(value);
+				cpu_to_le16(svalue);
 		goto out;
 	}
 
 	data = iwl_dbgfs_is_match("specific_calib=", buf);
 	if (data) {
-		ret = kstrtou32(data, 10, &value);
+		ret = kstrtos16(data, 10, &svalue);
 		if (ret == 0)
 			mvm->tof_data.range_req.specific_calib =
-				cpu_to_le16(value);
+				cpu_to_le16(svalue);
 		goto out;
 	}
 
@@ -1288,6 +1289,7 @@ static ssize_t iwl_dbgfs_tof_responder_config_write(
 	struct iwl_mvm *mvm = mvmvif->mvm;
 	u32 cmd_valid_fields;
 	u32 responder_cfg_flags;
+	s16 common_calib;
 	int ret = 0;
 	char *data;
 
@@ -1309,6 +1311,16 @@ static ssize_t iwl_dbgfs_tof_responder_config_write(
 		if (ret == 0)
 			mvm->tof_data.responder_cfg.responder_cfg_flags =
 				cpu_to_le32(responder_cfg_flags);
+		else
+			goto out;
+	}
+
+	data = iwl_dbgfs_is_match("common_calib=", buf);
+	if (data) {
+		ret = kstrtos16(data, 0, &common_calib);
+		if (ret == 0)
+			mvm->tof_data.responder_cfg.common_calib =
+				cpu_to_le16(common_calib);
 		else
 			goto out;
 	}
@@ -1458,10 +1470,11 @@ static ssize_t iwl_dbgfs_low_latency_read(struct file *file,
 	int len;
 
 	len = scnprintf(buf, sizeof(buf) - 1,
-			"traffic=%d\ndbgfs=%d\nvcmd=%d\n",
+			"traffic=%d\ndbgfs=%d\nvcmd=%d\nvif_type=%d\n",
 			!!(mvmvif->low_latency & LOW_LATENCY_TRAFFIC),
 			!!(mvmvif->low_latency & LOW_LATENCY_DEBUGFS),
-			!!(mvmvif->low_latency & LOW_LATENCY_VCMD));
+			!!(mvmvif->low_latency & LOW_LATENCY_VCMD),
+			!!(mvmvif->low_latency & LOW_LATENCY_VIF_TYPE));
 	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
 }
 
@@ -1599,15 +1612,6 @@ static ssize_t iwl_dbgfs_quota_min_read(struct file *file,
 	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
 }
 
-static const char * const chanwidths[] = {
-	[NL80211_CHAN_WIDTH_20_NOHT] = "noht",
-	[NL80211_CHAN_WIDTH_20] = "ht20",
-	[NL80211_CHAN_WIDTH_40] = "ht40",
-	[NL80211_CHAN_WIDTH_80] = "vht80",
-	[NL80211_CHAN_WIDTH_80P80] = "vht80p80",
-	[NL80211_CHAN_WIDTH_160] = "vht160",
-};
-
 #define MVM_DEBUGFS_WRITE_FILE_OPS(name, bufsz) \
 	_MVM_DEBUGFS_WRITE_FILE_OPS(name, bufsz, struct ieee80211_vif)
 #define MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz) \
@@ -1669,57 +1673,49 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	if (iwlmvm_mod_params.power_scheme != IWL_POWER_SCHEME_CAM &&
 	    ((vif->type == NL80211_IFTYPE_STATION && !vif->p2p) ||
 	     (vif->type == NL80211_IFTYPE_STATION && vif->p2p)))
-		MVM_DEBUGFS_ADD_FILE_VIF(pm_params, mvmvif->dbgfs_dir, S_IWUSR |
-					 S_IRUSR);
+		MVM_DEBUGFS_ADD_FILE_VIF(pm_params, mvmvif->dbgfs_dir, 0600);
 
-	MVM_DEBUGFS_ADD_FILE_VIF(tx_pwr_lmt, mvmvif->dbgfs_dir, S_IRUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(mac_params, mvmvif->dbgfs_dir, S_IRUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(low_latency, mvmvif->dbgfs_dir,
-				 S_IRUSR | S_IWUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(uapsd_misbehaving, mvmvif->dbgfs_dir,
-				 S_IRUSR | S_IWUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(rx_phyinfo, mvmvif->dbgfs_dir,
-				 S_IRUSR | S_IWUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(quota_min, mvmvif->dbgfs_dir,
-				 S_IRUSR | S_IWUSR);
-	MVM_DEBUGFS_ADD_FILE_VIF(os_device_timediff,
-				 mvmvif->dbgfs_dir, S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE_VIF(tx_pwr_lmt, mvmvif->dbgfs_dir, 0400);
+	MVM_DEBUGFS_ADD_FILE_VIF(mac_params, mvmvif->dbgfs_dir, 0400);
+	MVM_DEBUGFS_ADD_FILE_VIF(low_latency, mvmvif->dbgfs_dir, 0600);
+	MVM_DEBUGFS_ADD_FILE_VIF(uapsd_misbehaving, mvmvif->dbgfs_dir, 0600);
+	MVM_DEBUGFS_ADD_FILE_VIF(rx_phyinfo, mvmvif->dbgfs_dir, 0600);
+	MVM_DEBUGFS_ADD_FILE_VIF(quota_min, mvmvif->dbgfs_dir, 0600);
+	MVM_DEBUGFS_ADD_FILE_VIF(os_device_timediff, mvmvif->dbgfs_dir, 0400);
 
 	if (vif->type == NL80211_IFTYPE_STATION && !vif->p2p &&
 	    mvmvif == mvm->bf_allowed_vif)
-		MVM_DEBUGFS_ADD_FILE_VIF(bf_params, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+		MVM_DEBUGFS_ADD_FILE_VIF(bf_params, mvmvif->dbgfs_dir, 0600);
 
 	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TOF_SUPPORT) &&
 	    !vif->p2p && (vif->type != NL80211_IFTYPE_P2P_DEVICE) &&
 	    (!ieee80211_viftype_nan(vif->type))) {
 		if (IWL_MVM_TOF_IS_RESPONDER && vif->type == NL80211_IFTYPE_AP)
 			MVM_DEBUGFS_ADD_FILE_VIF(tof_responder_params,
-						 mvmvif->dbgfs_dir,
-						 S_IRUSR | S_IWUSR);
+						 mvmvif->dbgfs_dir, 0600);
 
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_range_request, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_range_req_ext, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_enable, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_range_abort, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_range_response, mvmvif->dbgfs_dir,
-					 S_IRUSR);
+					 0444);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_algo_type, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_toa_offset, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_responder_config,
 					 mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_initiator_config,
 					 mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 		MVM_DEBUGFS_ADD_FILE_VIF(tof_enable_dyn_ack, mvmvif->dbgfs_dir,
-					 S_IRUSR | S_IWUSR);
+					 0600);
 	}
 
 	/*

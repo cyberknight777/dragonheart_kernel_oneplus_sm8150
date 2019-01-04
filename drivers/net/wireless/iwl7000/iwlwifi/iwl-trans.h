@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -86,6 +81,8 @@
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "fw/testmode.h"
 #endif
+#include "fw/api/dbg-tlv.h"
+#include "iwl-dbg-tlv.h"
 
 /**
  * DOC: Transport layer - what is it ?
@@ -342,9 +339,6 @@ enum iwl_d3_status {
  * @STATUS_TRANS_IDLE: the trans is idle - general commands are not to be sent
  * @STATUS_TA_ACTIVE: target access is in progress
  * @STATUS_TRANS_DEAD: trans is dead - avoid any read/write operation
-#ifdef CPTCFG_IWLWIFI_VENDOR_MODE
- * @STATUS_HCMD_RESP: the host expects a response on the sent command
-#endif
  */
 enum iwl_trans_status {
 	STATUS_SYNC_HCMD_ACTIVE,
@@ -552,6 +546,8 @@ struct iwl_trans_rxq_dma_data {
  * @dump_data: return a vmalloc'ed buffer with debug data, maybe containing last
  *	TX'ed commands and similar. The buffer will be vfree'd by the caller.
  *	Note that the transport must fill in the proper file headers.
+ * @debugfs_cleanup: used in the driver unload flow to make a proper cleanup
+ *	of the trans debugfs
  */
 struct iwl_trans_ops {
 
@@ -625,8 +621,8 @@ struct iwl_trans_ops {
 	void (*resume)(struct iwl_trans *trans);
 
 	struct iwl_trans_dump_data *(*dump_data)(struct iwl_trans *trans,
-						 const struct iwl_fw_dbg_trigger_tlv
-						 *trigger);
+						 u32 dump_mask);
+	void (*debugfs_cleanup)(struct iwl_trans *trans);
 };
 
 /**
@@ -702,7 +698,6 @@ enum iwl_plat_pm_mode {
  * enter/exit (in msecs).
  */
 #define IWL_TRANS_IDLE_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * 2000)
-#define IWL_MAX_DEBUG_ALLOCATIONS	1
 
 /**
  * struct iwl_dram_data
@@ -757,6 +752,7 @@ struct iwl_dram_data {
  * @runtime_pm_mode: the runtime power management mode in use.  This
  *	mode is set during the initialization phase and is not
  *	supposed to change during runtime.
+ * @dbg_rec_on: true iff there is a fw debug recording currently active
  */
 struct iwl_trans {
 	const struct iwl_trans_ops *ops;
@@ -801,18 +797,23 @@ struct iwl_trans {
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	struct iwl_dbg_cfg dbg_cfg;
 #endif
+	struct iwl_apply_point_data apply_points[IWL_FW_INI_APPLY_NUM];
+	struct iwl_apply_point_data apply_points_ext[IWL_FW_INI_APPLY_NUM];
+
+	bool external_ini_loaded;
+	bool ini_valid;
 
 	const struct iwl_fw_dbg_dest_tlv_v1 *dbg_dest_tlv;
 	const struct iwl_fw_dbg_conf_tlv *dbg_conf_tlv[FW_DBG_CONF_MAX];
 	struct iwl_fw_dbg_trigger_tlv * const *dbg_trigger_tlv;
-	u32 dbg_dump_mask;
 	u8 dbg_n_dest_reg;
 	int num_blocks;
-	struct iwl_dram_data fw_mon[IWL_MAX_DEBUG_ALLOCATIONS];
+	struct iwl_dram_data fw_mon[IWL_FW_INI_APPLY_NUM];
 
 	enum iwl_plat_pm_mode system_pm_mode;
 	enum iwl_plat_pm_mode runtime_pm_mode;
 	bool suspending;
+	bool dbg_rec_on;
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	struct iwl_testmode testmode;
@@ -954,12 +955,11 @@ static inline void iwl_trans_resume(struct iwl_trans *trans)
 }
 
 static inline struct iwl_trans_dump_data *
-iwl_trans_dump_data(struct iwl_trans *trans,
-		    const struct iwl_fw_dbg_trigger_tlv *trigger)
+iwl_trans_dump_data(struct iwl_trans *trans, u32 dump_mask)
 {
 	if (!trans->ops->dump_data)
 		return NULL;
-	return trans->ops->dump_data(trans, trigger);
+	return trans->ops->dump_data(trans, dump_mask);
 }
 
 static inline struct iwl_device_cmd *

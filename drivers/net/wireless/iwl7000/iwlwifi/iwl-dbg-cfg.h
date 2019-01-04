@@ -18,11 +18,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -256,6 +251,11 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, d0i3_debug)
 	IWL_DBG_CFG_NODEF(u32, valid_ants)
 	IWL_DBG_CFG_NODEF(u32, no_ack_en)
+	IWL_DBG_CFG_NODEF(bool, no_ldpc)
+	IWL_DBG_CFG_NODEF(u16, rx_mcs_80)
+	IWL_DBG_CFG_NODEF(u16, tx_mcs_80)
+	IWL_DBG_CFG_NODEF(u16, rx_mcs_160)
+	IWL_DBG_CFG_NODEF(u16, tx_mcs_160)
 	IWL_DBG_CFG_NODEF(u32, secure_boot_cfg)
 	IWL_MOD_PARAM(u32, uapsd_disable)
 	IWL_MOD_PARAM(bool, d0i3_disable)
@@ -272,6 +272,8 @@ struct iwl_dbg_cfg {
 	IWL_MOD_PARAM(uint, disable_11n)
 	IWL_MOD_PARAM(uint, d0i3_timeout)
 	IWL_DBG_CFG_BIN(he_ppe_thres)
+	IWL_DBG_CFG_NODEF(u8, he_chan_width_dis)
+	IWL_DBG_CFG_NODEF(u32, vht_cap_flip)
 #ifdef CPTCFG_IWLWIFI_DEBUG
 	IWL_MOD_PARAM(u32, debug_level)
 #endif /* CPTCFG_IWLWIFI_DEBUG */

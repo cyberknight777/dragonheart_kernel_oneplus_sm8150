@@ -85,6 +85,11 @@ enum iwl_data_path_subcmd_ids {
 	TRIGGER_RX_QUEUES_NOTIF_CMD = 0x2,
 
 	/**
+	 * @STA_HE_CTXT_CMD: &struct iwl_he_sta_context_cmd
+	 */
+	STA_HE_CTXT_CMD = 0x7,
+
+	/**
 	 * @AX_SOFTAP_CLIENT_TESTMODE: &struct ax_softap_client_testmode_cmd
 	 */
 	AX_SOFTAP_CLIENT_TESTMODE = 0xC,
@@ -98,6 +103,16 @@ enum iwl_data_path_subcmd_ids {
 	 * @TLC_MNG_CONFIG_CMD: &struct iwl_tlc_config_cmd
 	 */
 	TLC_MNG_CONFIG_CMD = 0xF,
+
+	/**
+	 * @HE_AIR_SNIFFER_CONFIG_CMD: &struct iwl_he_monitor_cmd
+	 */
+	HE_AIR_SNIFFER_CONFIG_CMD = 0x13,
+
+	/**
+	 * @RX_NO_DATA_NOTIF: &struct iwl_rx_no_data
+	 */
+	RX_NO_DATA_NOTIF = 0xF5,
 
 	/**
 	 * @TLC_MNG_UPDATE_NOTIF: &struct iwl_tlc_update_notif

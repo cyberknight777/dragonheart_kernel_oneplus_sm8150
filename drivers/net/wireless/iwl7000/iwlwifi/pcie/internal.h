@@ -17,9 +17,6 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program.
- *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
@@ -56,8 +53,6 @@
 /*
  * RX related structures and functions
  */
-#define RX_NUM_QUEUES 1
-#define RX_POST_REQ_ALLOC 2
 #define RX_CLAIM_REQ_ALLOC 8
 #define RX_PENDING_WATERMARK 16
 #define FIRST_RX_QUEUE 512
@@ -159,8 +154,9 @@ struct iwl_rx_completion_desc {
  * @cr_tail_dma: physical address of the buffer for the completion ring tail
  * @read: Shared index to newest available Rx buffer
  * @write: Shared index to oldest written Rx packet
- * @free_count: Number of pre-allocated buffers in rx_free
- * @used_count: Number of RBDs handled to allocator to use for allocation
+ * @free_count: Number of buffers in rx_free
+ * @used_count: Number of RBDs in rx_used
+ * @alloc_reqs: Number of times the rba's req_pending was increased for this rxq
  * @write_actual:
  * @rx_free: list of RBDs with allocated RB ready for use
  * @rx_used: list of RBDs with no RB attached
@@ -190,6 +186,7 @@ struct iwl_rxq {
 	u32 write;
 	u32 free_count;
 	u32 used_count;
+	u32 alloc_reqs;
 	u32 write_actual;
 	u32 queue_size;
 	struct list_head rx_free;
@@ -381,6 +378,23 @@ struct iwl_tso_hdr_page {
 	u8 *pos;
 };
 
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+/**
+ * enum iwl_fw_mon_dbgfs_state - the different states of the monitor_data
+ * debugfs file
+ *
+ * @IWL_FW_MON_DBGFS_STATE_CLOSED: the file is closed.
+ * @IWL_FW_MON_DBGFS_STATE_OPEN: the file is open.
+ * @IWL_FW_MON_DBGFS_STATE_DISABLED: the file is disabled, once this state is
+ *	set the file can no longer be used.
+ */
+enum iwl_fw_mon_dbgfs_state {
+	IWL_FW_MON_DBGFS_STATE_CLOSED,
+	IWL_FW_MON_DBGFS_STATE_OPEN,
+	IWL_FW_MON_DBGFS_STATE_DISABLED,
+};
+#endif
+
 /**
  * enum iwl_shared_irq_flags - level of sharing for irq
  * @IWL_SHARED_IRQ_NON_RX: interrupt vector serves non rx causes.
@@ -416,6 +430,26 @@ struct iwl_self_init_dram {
 	struct iwl_dram_data *paging;
 	int paging_cnt;
 };
+
+/**
+ * struct cont_rec: continuous recording data structure
+ * @prev_wr_ptr: the last address that was read in monitor_data
+ *	debugfs file
+ * @prev_wrap_cnt: the wrap count that was used during the last read in
+ *	monitor_data debugfs file
+ * @state: the state of monitor_data debugfs file as described
+ *	in &iwl_fw_mon_dbgfs_state enum
+ * @mutex: locked while reading from monitor_data debugfs file
+ */
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+struct cont_rec {
+	u32 prev_wr_ptr;
+	u32 prev_wrap_cnt;
+	u8  state;
+	/* Used to sync monitor_data debugfs file with driver unload flow */
+	struct mutex mutex;
+};
+#endif
 
 /**
  * struct iwl_trans_pcie - PCIe transport specific data
@@ -454,6 +488,9 @@ struct iwl_self_init_dram {
  * @reg_lock: protect hw register access
  * @mutex: to protect stop_device / start_fw / start_hw
  * @cmd_in_flight: true when we have a host command in flight
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+ * @fw_mon_data: fw continuous recording data
+#endif
  * @msix_entries: array of MSI-X entries
  * @msix_enabled: true if managed to enable MSI-X
  * @shared_vec_mask: the type of causes the shared vector handles
@@ -540,6 +577,10 @@ struct iwl_trans_pcie {
 	spinlock_t reg_lock;
 	bool cmd_hold_nic_awake;
 	bool ref_cmd_in_flight;
+
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	struct cont_rec fw_mon_data;
+#endif
 
 	struct msix_entry msix_entries[IWL_MAX_RX_HW_QUEUES];
 	bool msix_enabled;
@@ -965,6 +1006,11 @@ static inline void __iwl_trans_pcie_set_bit(struct iwl_trans *trans,
 					    u32 reg, u32 mask)
 {
 	__iwl_trans_pcie_set_bits_mask(trans, reg, mask, mask);
+}
+
+static inline bool iwl_pcie_dbg_on(struct iwl_trans *trans)
+{
+	return (trans->dbg_dest_tlv || trans->ini_valid);
 }
 
 void iwl_trans_pcie_rf_kill(struct iwl_trans *trans, bool state);

@@ -5,8 +5,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -26,8 +25,7 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2014 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2014 - 2014 Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,18 +55,30 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
-#ifndef __IWL_CONSTANTS_H
-#define __IWL_CONSTANTS_H
+#ifndef __iwl_dbg_tlv_h__
+#define __iwl_dbg_tlv_h__
 
-enum {
-	IWL_D0I3_DBG_KEEP_BUS		= BIT(0),
-	IWL_D0I3_DBG_KEEP_WAKE_LOCK	= BIT(1),
+#include <linux/device.h>
+#include <linux/types.h>
+
+/**
+ * struct iwl_apply_point_data
+ * @data: start address of this apply point data
+ * @size total size of the data
+ * @offset: current offset of the copied data
+ */
+struct iwl_apply_point_data {
+	void *data;
+	int size;
+	int offset;
 };
 
-#ifndef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-#define IWL_D0I3_DEBUG			0
-#else /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
-#define IWL_D0I3_DEBUG			(trans->dbg_cfg.d0i3_debug)
-#endif /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
+struct iwl_trans;
+void iwl_load_fw_dbg_tlv(struct device *dev, struct iwl_trans *trans);
+void iwl_fw_dbg_free(struct iwl_trans *trans);
+void iwl_fw_dbg_copy_tlv(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
+			 bool ext);
+void iwl_alloc_dbg_tlv(struct iwl_trans *trans, size_t len, const u8 *data,
+		       bool ext);
 
-#endif /* __IWL_CONSTANTS_H */
+#endif /* __iwl_dbg_tlv_h__*/

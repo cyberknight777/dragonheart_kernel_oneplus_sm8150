@@ -17,10 +17,6 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
@@ -1166,10 +1162,11 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 			 */
 			iwl_trans_tx(trans, skb, dev_cmd_ptr, txq_id);
 		}
-		spin_lock_bh(&txq->lock);
 
 		if (iwl_queue_space(trans, txq) > txq->low_mark)
 			iwl_wake_queue(trans, txq);
+
+		spin_lock_bh(&txq->lock);
 	}
 
 	if (txq->read_ptr == txq->write_ptr) {
@@ -2000,6 +1997,9 @@ static int iwl_fill_data_tbs(struct iwl_trans *trans, struct sk_buff *skb,
 						    head_tb_len, DMA_TO_DEVICE);
 		if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 			return -EINVAL;
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb,
+					skb->data + hdr_len,
+					head_tb_len);
 		iwl_pcie_txq_build_tfd(trans, txq, tb_phys, head_tb_len, false);
 	}
 
@@ -2017,6 +2017,9 @@ static int iwl_fill_data_tbs(struct iwl_trans *trans, struct sk_buff *skb,
 
 		if (unlikely(dma_mapping_error(trans->dev, tb_phys)))
 			return -EINVAL;
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb,
+					skb_frag_address(frag),
+					skb_frag_size(frag));
 		tb_idx = iwl_pcie_txq_build_tfd(trans, txq, tb_phys,
 						skb_frag_size(frag), false);
 		if (tb_idx < 0)
@@ -2196,8 +2199,8 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 		}
 		iwl_pcie_txq_build_tfd(trans, txq, hdr_tb_phys,
 				       hdr_tb_len, false);
-		trace_iwlwifi_dev_tx_tso_chunk(trans->dev, start_hdr,
-					       hdr_tb_len);
+		trace_iwlwifi_dev_tx_tb(trans->dev, skb, start_hdr,
+					hdr_tb_len);
 		/* add this subframe's headers' length to the tx_cmd */
 		le16_add_cpu(&tx_cmd->len, hdr_page->pos - subf_hdrs_start);
 
@@ -2222,8 +2225,8 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 
 			iwl_pcie_txq_build_tfd(trans, txq, tb_phys,
 					       size, false);
-			trace_iwlwifi_dev_tx_tso_chunk(trans->dev, tso.data,
-						       size);
+			trace_iwlwifi_dev_tx_tb(trans->dev, skb, tso.data,
+						size);
 
 			data_left -= size;
 			tso_build_data(skb, &tso, size);
@@ -2404,6 +2407,13 @@ int iwl_trans_pcie_tx(struct iwl_trans *trans, struct sk_buff *skb,
 		goto out_err;
 	iwl_pcie_txq_build_tfd(trans, txq, tb1_phys, tb1_len, false);
 
+	trace_iwlwifi_dev_tx(trans->dev, skb,
+			     iwl_pcie_get_tfd(trans, txq,
+					      txq->write_ptr),
+			     trans_pcie->tfd_size,
+			     &dev_cmd->hdr, IWL_FIRST_TB_SIZE + tb1_len,
+			     hdr_len);
+
 	/*
 	 * If gso_size wasn't set, don't give the frame "amsdu treatment"
 	 * (adding subframes, etc.).
@@ -2427,19 +2437,10 @@ int iwl_trans_pcie_tx(struct iwl_trans *trans, struct sk_buff *skb,
 						       out_meta)))
 				goto out_err;
 		}
-
-		trace_iwlwifi_dev_tx(trans->dev, skb,
-				     iwl_pcie_get_tfd(trans, txq,
-						      txq->write_ptr),
-				     trans_pcie->tfd_size,
-				     &dev_cmd->hdr, IWL_FIRST_TB_SIZE + tb1_len,
-				     hdr_len);
-		trace_iwlwifi_dev_tx_data(trans->dev, skb, hdr_len);
 	}
 
 	/* building the A-MSDU might have changed this data, so memcpy it now */
-	memcpy(&txq->first_tb_bufs[txq->write_ptr], &dev_cmd->hdr,
-	       IWL_FIRST_TB_SIZE);
+	memcpy(&txq->first_tb_bufs[txq->write_ptr], dev_cmd, IWL_FIRST_TB_SIZE);
 
 	tfd = iwl_pcie_get_tfd(trans, txq, txq->write_ptr);
 	/* Set up entry for this TFD in Tx byte-count array */

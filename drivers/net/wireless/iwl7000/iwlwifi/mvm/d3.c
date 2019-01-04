@@ -1644,31 +1644,9 @@ out_free_resp:
 }
 
 static struct iwl_wowlan_status *
-iwl_mvm_get_wakeup_status(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
+iwl_mvm_get_wakeup_status(struct iwl_mvm *mvm)
 {
-	u32 base = mvm->error_event_table[0];
-	struct error_table_start {
-		/* cf. struct iwl_error_event_table */
-		u32 valid;
-		u32 error_id;
-	} err_info;
 	int ret;
-
-	iwl_trans_read_mem_bytes(mvm->trans, base,
-				 &err_info, sizeof(err_info));
-
-	if (err_info.valid) {
-		IWL_INFO(mvm, "error table is valid (%d) with error (%d)\n",
-			 err_info.valid, err_info.error_id);
-		if (err_info.error_id == RF_KILL_INDICATOR_FOR_WOWLAN) {
-			struct cfg80211_wowlan_wakeup wakeup = {
-				.rfkill_release = true,
-			};
-			ieee80211_report_wowlan_wakeup(vif, &wakeup,
-						       GFP_KERNEL);
-		}
-		return ERR_PTR(-EIO);
-	}
 
 	/* only for tracing for now */
 	ret = iwl_mvm_send_cmd_pdu(mvm, OFFLOADS_QUERY_CMD, 0, 0, NULL);
@@ -1688,7 +1666,7 @@ static bool iwl_mvm_query_wakeup_reasons(struct iwl_mvm *mvm,
 	bool keep;
 	struct iwl_mvm_sta *mvm_ap_sta;
 
-	fw_status = iwl_mvm_get_wakeup_status(mvm, vif);
+	fw_status = iwl_mvm_get_wakeup_status(mvm);
 	if (IS_ERR_OR_NULL(fw_status))
 		goto out_unlock;
 
@@ -1813,7 +1791,7 @@ static void iwl_mvm_query_netdetect_reasons(struct iwl_mvm *mvm,
 	u32 reasons = 0;
 	int i, j, n_matches, ret;
 
-	fw_status = iwl_mvm_get_wakeup_status(mvm, vif);
+	fw_status = iwl_mvm_get_wakeup_status(mvm);
 	if (!IS_ERR_OR_NULL(fw_status)) {
 		reasons = le32_to_cpu(fw_status->wakeup_reasons);
 		kfree(fw_status);
@@ -1839,8 +1817,7 @@ static void iwl_mvm_query_netdetect_reasons(struct iwl_mvm *mvm,
 		n_matches = 0;
 	}
 
-	net_detect = kzalloc(sizeof(*net_detect) +
-			     (n_matches * sizeof(net_detect->matches[0])),
+	net_detect = kzalloc(struct_size(net_detect, matches, n_matches),
 			     GFP_KERNEL);
 	if (!net_detect || !n_matches)
 		goto out_report_nd;
@@ -1855,8 +1832,7 @@ static void iwl_mvm_query_netdetect_reasons(struct iwl_mvm *mvm,
 		for (j = 0; j < SCAN_OFFLOAD_MATCHING_CHANNELS_LEN; j++)
 			n_channels += hweight8(fw_match->matching_channels[j]);
 
-		match = kzalloc(sizeof(*match) +
-				(n_channels * sizeof(*match->channels)),
+		match = kzalloc(struct_size(match, channels, n_channels),
 				GFP_KERNEL);
 		if (!match)
 			goto out_report_nd;
@@ -1926,6 +1902,29 @@ static void iwl_mvm_d3_disconnect_iter(void *data, u8 *mac,
 		ieee80211_resume_disconnect(vif);
 }
 
+static int iwl_mvm_check_rt_status(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif)
+{
+	u32 base = mvm->error_event_table[0];
+	struct error_table_start {
+		/* cf. struct iwl_error_event_table */
+		u32 valid;
+		u32 error_id;
+	} err_info;
+
+	iwl_trans_read_mem_bytes(mvm->trans, base,
+				 &err_info, sizeof(err_info));
+
+	if (err_info.valid &&
+	    err_info.error_id == RF_KILL_INDICATOR_FOR_WOWLAN) {
+		struct cfg80211_wowlan_wakeup wakeup = {
+			.rfkill_release = true,
+		};
+		ieee80211_report_wowlan_wakeup(vif, &wakeup, GFP_KERNEL);
+	}
+	return err_info.valid;
+}
+
 static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 {
 	struct ieee80211_vif *vif = NULL;
@@ -1956,6 +1955,15 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	iwl_fw_dbg_read_d3_debug_data(&mvm->fwrt);
 	/* query SRAM first in case we want event logging */
 	iwl_mvm_read_d3_sram(mvm);
+
+	if (iwl_mvm_check_rt_status(mvm, vif)) {
+		set_bit(STATUS_FW_ERROR, &mvm->trans->status);
+		iwl_mvm_dump_nic_error_log(mvm);
+		iwl_fw_dbg_collect_desc(&mvm->fwrt, &iwl_dump_desc_assert,
+					false, 0);
+		ret = 1;
+		goto err;
+	}
 
 	if (d0i3_first) {
 		ret = iwl_mvm_send_cmd_pdu(mvm, D0I3_END_CMD, 0, 0, NULL);

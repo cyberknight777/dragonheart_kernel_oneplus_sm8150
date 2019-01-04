@@ -519,6 +519,8 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 			master->control_port_protocol;
 		sdata->control_port_no_encrypt =
 			master->control_port_no_encrypt;
+		sdata->control_port_over_nl80211 =
+			master->control_port_over_nl80211;
 		sdata->vif.cab_queue = master->vif.cab_queue;
 		memcpy(sdata->vif.hw_queue, master->vif.hw_queue,
 		       sizeof(sdata->vif.hw_queue));
@@ -1145,7 +1147,12 @@ static void ieee80211_uninit(struct net_device *dev)
 	ieee80211_teardown_sdata(IEEE80211_DEV_TO_SUB_IF(dev));
 }
 
-#if LINUX_VERSION_IS_GEQ(3,14,0) || \
+#if LINUX_VERSION_IS_GEQ(4,19,0)
+static u16 ieee80211_netdev_select_queue(struct net_device *dev,
+					 struct sk_buff *skb,
+					 struct net_device *sb_dev,
+					 select_queue_fallback_t fallback)
+#elif LINUX_VERSION_IS_GEQ(3,14,0) || \
     (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30)
 static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 struct sk_buff *skb,
@@ -1214,6 +1221,7 @@ static const struct net_device_ops ieee80211_dataif_ops = {
 #if LINUX_VERSION_IS_LESS(4,10,0)
 	.ndo_change_mtu = __change_mtu,
 #endif
+
 	.ndo_open		= ieee80211_open,
 	.ndo_stop		= ieee80211_stop,
 	.ndo_uninit		= ieee80211_uninit,
@@ -1226,9 +1234,15 @@ static const struct net_device_ops ieee80211_dataif_ops = {
 #else
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
 #endif
+
 };
 
-#if LINUX_VERSION_IS_GEQ(3,14,0) || \
+#if LINUX_VERSION_IS_GEQ(4,19,0)
+static u16 ieee80211_monitor_select_queue(struct net_device *dev,
+					  struct sk_buff *skb,
+					  struct net_device *sb_dev,
+					  select_queue_fallback_t fallback)
+#elif LINUX_VERSION_IS_GEQ(3,14,0) || \
     (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30)
 static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  struct sk_buff *skb,
@@ -1264,6 +1278,7 @@ static const struct net_device_ops ieee80211_monitorif_ops = {
 #if LINUX_VERSION_IS_LESS(4,10,0)
 	.ndo_change_mtu = __change_mtu,
 #endif
+
 	.ndo_open		= ieee80211_open,
 	.ndo_stop		= ieee80211_stop,
 	.ndo_uninit		= ieee80211_uninit,
@@ -1276,6 +1291,7 @@ static const struct net_device_ops ieee80211_monitorif_ops = {
 #else
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
 #endif
+
 };
 
 static void ieee80211_if_free(struct net_device *dev)

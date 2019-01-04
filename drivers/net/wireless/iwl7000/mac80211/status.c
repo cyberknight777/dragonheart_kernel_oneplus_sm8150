@@ -188,9 +188,18 @@ static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 	struct ieee80211_mgmt *mgmt = (void *) skb->data;
 	struct ieee80211_local *local = sta->local;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
+	struct ieee80211_tx_info *txinfo = IEEE80211_SKB_CB(skb);
 
-	if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS))
+	if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS)) {
 		sta->status_stats.last_ack = jiffies;
+		if (txinfo->status.is_valid_ack_signal) {
+			sta->status_stats.last_ack_signal =
+					 (s8)txinfo->status.ack_signal;
+			sta->status_stats.ack_signal_filled = true;
+			ewma_avg_signal_add(&sta->status_stats.avg_ack_signal,
+					    -txinfo->status.ack_signal);
+		}
+	}
 
 	if (ieee80211_is_data_qos(mgmt->frame_control)) {
 		struct ieee80211_hdr *hdr = (void *) skb->data;
@@ -471,11 +480,6 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 	if (!skb)
 		return;
 
-	if (dropped) {
-		dev_kfree_skb_any(skb);
-		return;
-	}
-
 	if (info->flags & IEEE80211_TX_INTFL_NL80211_FRAME_TX) {
 		u64 cookie = IEEE80211_SKB_CB(skb)->ack.cookie;
 		struct ieee80211_sub_if_data *sdata;
@@ -485,10 +489,19 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 		sdata = ieee80211_sdata_from_skb(local, skb);
 		if (sdata) {
 			if (ieee80211_is_nullfunc(hdr->frame_control) ||
-			    ieee80211_is_qos_nullfunc(hdr->frame_control))
+			    ieee80211_is_qos_nullfunc(hdr->frame_control)) {
+#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0)
+				cfg80211_probe_status(sdata->dev, hdr->addr1,
+						      cookie, acked,
+						      info->status.ack_signal,
+						      info->status.is_valid_ack_signal,
+						      GFP_ATOMIC);
+#else
 				cfg80211_probe_status(sdata->dev, hdr->addr1,
 						      cookie, acked,
 						      GFP_ATOMIC);
+#endif
+			}
 			else
 				cfg80211_mgmt_tx_status(&sdata->wdev, cookie,
 							skb->data, skb->len,
@@ -496,6 +509,8 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 		}
 		rcu_read_unlock();
 
+		dev_kfree_skb_any(skb);
+	} else if (dropped) {
 		dev_kfree_skb_any(skb);
 	} else {
 		/* consumes skb */
@@ -551,6 +566,11 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 	}
 
 	ieee80211_led_tx(local);
+
+	if (skb_has_frag_list(skb)) {
+		kfree_skb_list(skb_shinfo(skb)->frag_list);
+		skb_shinfo(skb)->frag_list = NULL;
+	}
 }
 
 /*

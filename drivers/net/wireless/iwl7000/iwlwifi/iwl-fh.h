@@ -18,9 +18,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program.
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -617,9 +614,9 @@ static inline unsigned int FH_MEM_CBBC_QUEUE(struct iwl_trans *trans,
 #define MQ_RX_TABLE_SIZE	512
 #define MQ_RX_TABLE_MASK	(MQ_RX_TABLE_SIZE - 1)
 #define MQ_RX_NUM_RBDS		(MQ_RX_TABLE_SIZE - 1)
-#define RX_POOL_SIZE		(MQ_RX_NUM_RBDS +	\
-				 IWL_MAX_RX_HW_QUEUES *	\
-				 (RX_CLAIM_REQ_ALLOC - RX_POST_REQ_ALLOC))
+#define RX_POOL_SIZE		(MQ_RX_NUM_RBDS + \
+				 IWL_MAX_RX_HW_QUEUES * RX_CLAIM_REQ_ALLOC)
+
 /* cb size is the exponent */
 #define RX_QUEUE_CB_SIZE(x)	ilog2(x)
 

@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -882,7 +877,7 @@ static void iwl_xvt_set_seq_number(struct iwl_xvt *xvt,
 	qc = ieee80211_get_qos_ctl(hdr);
 	tid = *qc & IEEE80211_QOS_CTL_TID_MASK;
 	if (WARN_ON(tid >= IWL_MAX_TID_COUNT))
-		tid = IWL_MAX_TID_COUNT;
+		tid = IWL_MAX_TID_COUNT - 1;
 
 	/* frag_num is expected to be zero in case of no fragmentation */
 	hdr->seq_ctrl = cpu_to_le16(meta_tx->seq_num[tid] |

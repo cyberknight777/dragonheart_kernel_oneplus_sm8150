@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -786,19 +781,40 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 	}
 
 	ctxt_sta->bi = cpu_to_le32(vif->bss_conf.beacon_int);
-	ctxt_sta->bi_reciprocal =
-		cpu_to_le32(iwl_mvm_reciprocal(vif->bss_conf.beacon_int));
 	ctxt_sta->dtim_interval = cpu_to_le32(vif->bss_conf.beacon_int *
 					      vif->bss_conf.dtim_period);
-	ctxt_sta->dtim_reciprocal =
-		cpu_to_le32(iwl_mvm_reciprocal(vif->bss_conf.beacon_int *
-					       vif->bss_conf.dtim_period));
 
 	ctxt_sta->listen_interval = cpu_to_le32(mvm->hw->conf.listen_interval);
 	ctxt_sta->assoc_id = cpu_to_le32(vif->bss_conf.aid);
 
 	if (vif->probe_req_reg && vif->bss_conf.assoc && vif->p2p)
 		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_PROBE_REQUEST);
+
+	if (vif->bss_conf.assoc && vif->bss_conf.he_support &&
+	    !iwlwifi_mod_params.disable_11ax) {
+		struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+		u8 sta_id = mvmvif->ap_sta_id;
+
+		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
+		if (sta_id != IWL_MVM_INVALID_STA) {
+			struct ieee80211_sta *sta;
+
+			sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[sta_id],
+				lockdep_is_held(&mvm->mutex));
+
+			/*
+			 * TODO: we should check the ext cap IE but it is
+			 * unclear why the spec requires two bits (one in HE
+			 * cap IE, and one in the ext cap IE). In the meantime
+			 * rely on the HE cap IE only.
+			 */
+			if (sta && (sta->he_cap.he_cap_elem.mac_cap_info[0] &
+				    IEEE80211_HE_MAC_CAP0_TWT_RES))
+				ctxt_sta->data_policy |=
+					cpu_to_le32(TWT_SUPPORTED);
+		}
+	}
+
 
 	return iwl_mvm_mac_ctxt_send_cmd(mvm, &cmd);
 }
@@ -847,8 +863,6 @@ static int iwl_mvm_mac_ctxt_cmd_ibss(struct iwl_mvm *mvm,
 
 	/* cmd.ibss.beacon_time/cmd.ibss.beacon_tsf are curently ignored */
 	cmd.ibss.bi = cpu_to_le32(vif->bss_conf.beacon_int);
-	cmd.ibss.bi_reciprocal =
-		cpu_to_le32(iwl_mvm_reciprocal(vif->bss_conf.beacon_int));
 
 	/* TODO: Assumes that the beacon id == mac context id */
 	cmd.ibss.beacon_template = cpu_to_le32(mvmvif->id);
@@ -880,8 +894,6 @@ static int iwl_mvm_mac_ctxt_cmd_p2p_device(struct iwl_mvm *mvm,
 	WARN_ON(vif->type != NL80211_IFTYPE_P2P_DEVICE);
 
 	iwl_mvm_mac_ctxt_cmd_common(mvm, vif, &cmd, NULL, action);
-
-	cmd.protection_flags |= cpu_to_le32(MAC_PROT_FLG_TGG_PROTECT);
 
 	/* Override the filter flags to accept only probe requests */
 	cmd.filter_flags = cpu_to_le32(MAC_FILTER_IN_PROBE_REQUEST);
@@ -985,9 +997,7 @@ static void iwl_mvm_mac_ctxt_set_tx(struct iwl_mvm *mvm,
 	 */
 	if (!fw_has_capa(&mvm->fw->ucode_capa,
 			 IWL_UCODE_TLV_CAPA_BEACON_ANT_SELECTION) || true) {
-		mvm->mgmt_last_antenna_idx =
-			iwl_mvm_next_antenna(mvm, iwl_mvm_get_valid_tx_ant(mvm),
-					     mvm->mgmt_last_antenna_idx);
+		iwl_mvm_toggle_tx_ant(mvm, &mvm->mgmt_last_antenna_idx);
 
 		tx->rate_n_flags =
 			cpu_to_le32(BIT(mvm->mgmt_last_antenna_idx) <<
@@ -1203,14 +1213,12 @@ static void iwl_mvm_mac_ctxt_cmd_fill_ap(struct iwl_mvm *mvm,
 		IWL_DEBUG_HC(mvm, "No need to receive beacons\n");
 	}
 
+	if (vif->bss_conf.he_support && !iwlwifi_mod_params.disable_11ax)
+		cmd->filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
+
 	ctxt_ap->bi = cpu_to_le32(vif->bss_conf.beacon_int);
-	ctxt_ap->bi_reciprocal =
-		cpu_to_le32(iwl_mvm_reciprocal(vif->bss_conf.beacon_int));
 	ctxt_ap->dtim_interval = cpu_to_le32(vif->bss_conf.beacon_int *
 					     vif->bss_conf.dtim_period);
-	ctxt_ap->dtim_reciprocal =
-		cpu_to_le32(iwl_mvm_reciprocal(vif->bss_conf.beacon_int *
-					       vif->bss_conf.dtim_period));
 
 	if (!fw_has_api(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_API_STA_TYPE))
@@ -1513,8 +1521,9 @@ static void iwl_mvm_beacon_loss_iterator(void *_data, u8 *mac,
 	 * TODO: the threshold should be adjusted based on latency conditions,
 	 * and/or in case of a CS flow on one of the other AP vifs.
 	 */
-	if (le32_to_cpu(missed_beacons->consec_missed_beacons_since_last_rx) >
-	     IWL_MVM_MISSED_BEACONS_THRESHOLD)
+	if (rx_missed_bcon > IWL_MVM_MISSED_BEACONS_THRESHOLD_LONG)
+		iwl_mvm_connection_loss(mvm, vif, "missed beacons");
+	else if (rx_missed_bcon_since_rx > IWL_MVM_MISSED_BEACONS_THRESHOLD)
 		ieee80211_beacon_loss(vif);
 
 	trigger = iwl_fw_dbg_trigger_on(&mvm->fwrt, ieee80211_vif_to_wdev(vif),
@@ -1552,6 +1561,8 @@ void iwl_mvm_rx_missed_beacons_notif(struct iwl_mvm *mvm,
 						   IEEE80211_IFACE_ITER_NORMAL,
 						   iwl_mvm_beacon_loss_iterator,
 						   mb);
+
+	iwl_fw_dbg_apply_point(&mvm->fwrt, IWL_FW_INI_APPLY_MISSED_BEACONS);
 }
 
 void iwl_mvm_rx_stored_beacon_notif(struct iwl_mvm *mvm,

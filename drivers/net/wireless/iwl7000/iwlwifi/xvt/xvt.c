@@ -18,11 +18,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -677,7 +672,7 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 		kfree(p_table_umac);
 	}
 
-	iwl_fw_dbg_collect_desc(&xvt->fwrt, &iwl_dump_desc_assert, NULL);
+	iwl_fw_dbg_collect_desc(&xvt->fwrt, &iwl_dump_desc_assert, false, 0);
 }
 
 static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)

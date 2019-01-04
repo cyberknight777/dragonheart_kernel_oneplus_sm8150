@@ -64,6 +64,12 @@ static inline int crypto_memneq(const void *a, const void *b, size_t size)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
+
+static inline u32 reciprocal_scale(u32 val, u32 ep_ro)
+{
+	return (u32)(((u64) val * ep_ro) >> 32);
+}
+
 #include "u64_stats_sync.h"
 
 struct pcpu_sw_netstats {
@@ -1117,7 +1123,17 @@ struct backport_sinfo {
 
 	u64 rx_beacon;
 	u8 rx_beacon_signal_avg;
+#if CFG80211_VERSION < KERNEL_VERSION(4,18,0)
+	/*
+	 * With < 4.18 we use an array here, like before, so we don't
+	 * need to alloc/free it
+	 */
 	struct cfg80211_tid_stats pertid[IEEE80211_NUM_TIDS + 1];
+#else
+	struct cfg80211_tid_stats *pertid;
+#endif
+	s8 ack_signal;
+	s8 avg_ack_signal;
 };
 
 /* these are constants in nl80211.h, so it's
@@ -1173,6 +1189,10 @@ static inline void iwl7000_convert_sinfo(struct backport_sinfo *bpsinfo,
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 	COPY(expected_throughput);
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
+	COPY(ack_signal);
+	COPY(avg_ack_signal);
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,0,0)
 	COPY(rx_beacon);
@@ -1684,6 +1704,10 @@ cfg80211_sta_support_p2p_ps(struct station_parameters *params, bool p2p_go)
 	return p2p_go;
 }
 
+#if LINUX_VERSION_IS_LESS(4,4,0)
+int match_string(const char * const *array, size_t n, const char *string);
+#endif /* LINUX_VERSION_IS_LESS(4,4,0) */
+
 #if LINUX_VERSION_IS_LESS(4,5,0)
 void *memdup_user_nul(const void __user *src, size_t len);
 #endif /* LINUX_VERSION_IS_LESS(4,5,0) */
@@ -1954,10 +1978,7 @@ void iwl7000_cqm_rssi_notify(struct net_device *dev,
 #define cfg80211_cqm_rssi_notify iwl7000_cqm_rssi_notify
 #endif
 
-/*
- * TODO: When we know the minimal kernel version to support HE - update below
- */
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define IEEE80211_HE_PPE_THRES_MAX_LEN		25
 
 /**
@@ -2018,46 +2039,13 @@ struct ieee80211_sta_he_cap {
  * This structure encapsulates sband data that is relevant for the interface
  * types defined in %types
  *
- * @types: interface types (bits)
+ * @types_mask: interface types (bits)
  * @he_cap: holds the HE capabilities
  */
 struct ieee80211_sband_iftype_data {
-	u16 types;
+	u16 types_mask;
 	struct ieee80211_sta_he_cap he_cap;
 };
-
-static inline void
-ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
-				     u16 n)
-{
-}
-
-static inline u16
-ieee80211_sband_get_num_iftypes_data(struct ieee80211_supported_band *sband)
-{
-	return 0;
-}
-
-static inline void
-ieee80211_sband_set_iftypes_data(struct ieee80211_supported_band *sband,
-				 const struct ieee80211_sband_iftype_data *data)
-{
-}
-
-static inline struct ieee80211_sband_iftype_data *
-ieee80211_sband_get_iftypes_data(struct ieee80211_supported_band *sband)
-{
-	return NULL;
-}
-
-static inline struct ieee80211_sband_iftype_data *
-ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
-				       u16 i)
-{
-	WARN_ONCE(1,
-		  "Tried to use unsupported sband iftype data\n");
-	return NULL;
-}
 
 /**
  * ieee80211_get_he_sta_cap - return HE capabilities for an sband's STA
@@ -2268,6 +2256,18 @@ static inline void skb_put_u8(struct sk_buff *skb, u8 val)
 }
 #endif
 
+#if LINUX_VERSION_IS_LESS(3, 10, 0)
+static inline void kfree_skb_list(struct sk_buff *segs)
+{
+	while (segs) {
+		struct sk_buff *next = segs->next;
+
+		kfree_skb(segs);
+		segs = next;
+	}
+}
+#endif
+
 #if LINUX_VERSION_IS_LESS(3,18,0)
 static inline void __percpu *__alloc_gfp_warn(void)
 {
@@ -2362,3 +2362,225 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 #define VHT_MUMIMO_GROUPS_DATA_LEN (WLAN_MEMBERSHIP_LEN +\
 				    WLAN_USER_POSITION_LEN)
 #endif
+
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
+#define cfg_he_cap(params) params->he_cap
+#else
+#define cfg_he_cap(params) NULL
+
+/* Layer 2 Update frame (802.2 Type 1 LLC XID Update response) */
+struct iapp_layer2_update {
+	u8 da[ETH_ALEN];	/* broadcast */
+	u8 sa[ETH_ALEN];	/* STA addr */
+	__be16 len;		/* 6 */
+	u8 dsap;		/* 0 */
+	u8 ssap;		/* 0 */
+	u8 control;
+	u8 xid_info[3];
+} __packed;
+
+static inline
+void cfg80211_send_layer2_update(struct net_device *dev, const u8 *addr)
+{
+	struct iapp_layer2_update *msg;
+	struct sk_buff *skb;
+
+	/* Send Level 2 Update Frame to update forwarding tables in layer 2
+	 * bridge devices */
+
+	skb = dev_alloc_skb(sizeof(*msg));
+	if (!skb)
+		return;
+	msg = skb_put(skb, sizeof(*msg));
+
+	/* 802.2 Type 1 Logical Link Control (LLC) Exchange Identifier (XID)
+	 * Update response frame; IEEE Std 802.2-1998, 5.4.1.2.1 */
+
+	eth_broadcast_addr(msg->da);
+	ether_addr_copy(msg->sa, addr);
+	msg->len = htons(6);
+	msg->dsap = 0;
+	msg->ssap = 0x01;	/* NULL LSAP, CR Bit: Response */
+	msg->control = 0xaf;	/* XID response lsb.1111F101.
+				 * F=0 (no poll command; unsolicited frame) */
+	msg->xid_info[0] = 0x81;	/* XID format identifier */
+	msg->xid_info[1] = 1;	/* LLC types/classes: Type 1 LLC */
+	msg->xid_info[2] = 0;	/* XID sender's receive window size (RW) */
+
+	skb->dev = dev;
+	skb->protocol = eth_type_trans(skb, dev);
+	memset(skb->cb, 0, sizeof(skb->cb));
+	netif_rx_ni(skb);
+}
+
+#define NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 -1
+#endif /* >= 4.20 */
+
+/*
+ * Upstream this is on 4.16+, but it was backported to chromeos 4.4
+ * and 4.14.
+ */
+#if LINUX_VERSION_IS_LESS(4,4,0)
+static inline void sk_pacing_shift_update(struct sock *sk, int val)
+{
+#if LINUX_VERSION_IS_GEQ(4,4,0)
+	if (!sk || !sk_fullsock(sk) || sk->sk_pacing_shift == val)
+		return;
+	sk->sk_pacing_shift = val;
+#endif /* >= 4.4 */
+}
+#endif /* < 4.4 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
+#define NL80211_EXT_FEATURE_SCAN_RANDOM_SN		-1
+#define NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT	-1
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
+#define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211	-1
+
+/* define it here so we can set the values in mac80211... */
+struct sta_opmode_info {
+	u32 changed;
+	enum nl80211_smps_mode smps_mode;
+	enum nl80211_chan_width bw;
+	u8 rx_nss;
+};
+
+#define STA_OPMODE_MAX_BW_CHANGED	0
+#define STA_OPMODE_SMPS_MODE_CHANGED	0
+#define STA_OPMODE_N_SS_CHANGED		0
+
+/* ...but make the user an empty function, since we don't have it in cfg80211 */
+#define cfg80211_sta_opmode_change_notify(...)  do { } while (0)
+
+/*
+ * we should never call this function since we force
+ * cfg_control_port_over_nl80211 to be 0.
+ */
+#define cfg80211_rx_control_port(...) do { } while (0)
+
+#define cfg_control_port_over_nl80211(params) 0
+#else
+#if CFG80211_VERSION >= KERNEL_VERSION(4,17,0) && \
+	CFG80211_VERSION < KERNEL_VERSION(4,18,0)
+static inline bool iwl7000_cfg80211_rx_control_port(struct net_device *dev,
+				    struct sk_buff *skb, bool unencrypted)
+{
+	struct ethhdr *ehdr;
+
+	/*
+	 * Try to linearize the skb, because in 4.17
+	 * cfg80211_rx_control_port() is broken and needs it to be
+	 * linear.  If it fails, too bad, we fail too.
+	 */
+	if (skb_linearize(skb))
+		return false;
+
+	ehdr = eth_hdr(skb);
+
+	return cfg80211_rx_control_port(dev, skb->data, skb->len,
+				ehdr->h_source,
+				be16_to_cpu(skb->protocol), unencrypted);
+}
+#define cfg80211_rx_control_port iwl7000_cfg80211_rx_control_port
+#endif
+#define cfg_control_port_over_nl80211(params) (params)->control_port_over_nl80211
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,18,0)
+#define NL80211_EXT_FEATURE_TXQS -1
+
+/*
+ * This function just allocates tidstats and returns 0 if it
+ * succeeded.  Since pre-4.18 tidstats is pre-allocated as part of
+ * sinfo, we can simply return 0 because it's already allocated.
+ */
+#define cfg80211_sinfo_alloc_tid_stats(...) 0
+
+#define WIPHY_PARAM_TXQ_LIMIT		0
+#define WIPHY_PARAM_TXQ_MEMORY_LIMIT	0
+#define WIPHY_PARAM_TXQ_QUANTUM		0
+
+#define ieee80211_data_to_8023_exthdr iwl7000_ieee80211_data_to_8023_exthdr
+int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
+				  const u8 *addr, enum nl80211_iftype iftype,
+				  u8 data_offset);
+#else
+static inline int
+backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
+{
+	int ret;
+	cfg_station_info_t cfg_info = {};
+
+	ret = cfg80211_sinfo_alloc_tid_stats(&cfg_info, gfp);
+	if (ret)
+		return ret;
+
+	sinfo->pertid = cfg_info.pertid;
+
+	return 0;
+}
+#define cfg80211_sinfo_alloc_tid_stats backport_cfg80211_sinfo_alloc_tid_stats
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
+#define NL80211_SCAN_FLAG_RANDOM_SN		0
+#define NL80211_SCAN_FLAG_MIN_PREQ_CONTENT	0
+#endif
+
+#ifndef ETH_P_PREAUTH
+#define ETH_P_PREAUTH  0x88C7	/* 802.11 Preauthentication */
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,21,0)
+static inline void
+ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
+				     u16 n)
+{
+}
+
+static inline u16
+ieee80211_sband_get_num_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return 0;
+}
+
+static inline void
+ieee80211_sband_set_iftypes_data(struct ieee80211_supported_band *sband,
+				 const struct ieee80211_sband_iftype_data *data)
+{
+}
+
+static inline struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return NULL;
+}
+
+static inline struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
+				       u16 i)
+{
+	WARN_ONCE(1,
+		  "Tried to use unsupported sband iftype data\n");
+	return NULL;
+}
+
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
+
+/* This was actually added in 4.12, but chromeos backported to 3.18 */
+#if LINUX_VERSION_IS_LESS(3,18,0)
+#include <net/flow_keys.h>
+#include <linux/jhash.h>
+
+static inline u32 skb_get_hash_perturb(struct sk_buff *skb, u32 key)
+{
+	struct flow_keys keys;
+
+	skb_flow_dissect(skb, &keys);
+	return jhash_3words((__force u32)keys.dst,
+			    (__force u32)keys.src ^ keys.ip_proto,
+			    (__force u32)keys.ports, key);
+}
+#endif /* LINUX_VERSION_IS_LESS(4,2,0) */

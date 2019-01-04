@@ -220,7 +220,8 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		memcpy(&he_oper_vht_cap, he_oper->optional, 3);
 		he_oper_vht_cap.basic_mcs_set = cpu_to_le16(0);
 
-		if (!ieee80211_chandef_vht_oper(&he_oper_vht_cap,
+		if (!ieee80211_chandef_vht_oper(&sdata->local->hw,
+						&he_oper_vht_cap, ht_oper,
 						&vht_chandef)) {
 			if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
 				sdata_info(sdata,
@@ -228,7 +229,8 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 			ret = IEEE80211_STA_DISABLE_HE;
 			goto out;
 		}
-	} else if (!ieee80211_chandef_vht_oper(vht_oper, &vht_chandef)) {
+	} else if (!ieee80211_chandef_vht_oper(&sdata->local->hw, vht_oper,
+					       ht_oper, &vht_chandef)) {
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information is invalid, disable VHT\n");
@@ -989,7 +991,8 @@ void ieee80211_send_nullfunc(struct ieee80211_local *local,
 	    !(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
 		return;
 
-	skb = ieee80211_nullfunc_get(&local->hw, &sdata->vif, true);
+	skb = ieee80211_nullfunc_get(&local->hw, &sdata->vif,
+		!ieee80211_hw_check(&local->hw, DOESNT_SUPPORT_QOS_NDP));
 	if (!skb)
 		return;
 
@@ -2165,8 +2168,6 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 
 	/* deauthenticate/disassociate now */
 	if (tx || frame_buf) {
-		struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-
 		/*
 		 * In multi channel scenarios guarantee that the virtual
 		 * interface is granted immediate airtime to transmit the
@@ -2372,6 +2373,20 @@ void ieee80211_sta_tx_notify(struct ieee80211_sub_if_data *sdata,
 		ieee80211_sta_reset_conn_monitor(sdata);
 }
 
+void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
+				   const u8 *src, const u8 *dst,
+				   const u8 *ssid, size_t ssid_len,
+				   struct ieee80211_channel *channel)
+{
+	struct sk_buff *skb;
+
+	skb = ieee80211_build_probe_req(sdata, src, dst, (u32)-1, channel,
+					ssid, ssid_len, NULL, 0,
+					IEEE80211_PROBE_FLAG_DIRECTED);
+	if (skb)
+		ieee80211_tx_skb(sdata, skb);
+}
+
 static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
@@ -2418,10 +2433,9 @@ static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 		else
 			ssid_len = ssid[1];
 
-		ieee80211_send_probe_req(sdata, sdata->vif.addr, dst,
-					 ssid + 2, ssid_len, NULL,
-					 0, (u32) -1, true, 0,
-					 ifmgd->associated->channel, false);
+		ieee80211_mlme_send_probe_req(sdata, sdata->vif.addr, dst,
+					      ssid + 2, ssid_len,
+					      ifmgd->associated->channel);
 		rcu_read_unlock();
 	}
 
@@ -2523,7 +2537,7 @@ struct sk_buff *ieee80211_ap_probereq_get(struct ieee80211_hw *hw,
 	skb = ieee80211_build_probe_req(sdata, sdata->vif.addr, cbss->bssid,
 					(u32) -1, cbss->channel,
 					ssid + 2, ssid_len,
-					NULL, 0, true);
+					NULL, 0, IEEE80211_PROBE_FLAG_DIRECTED);
 	rcu_read_unlock();
 
 	return skb;
@@ -3205,19 +3219,16 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 	}
 
 	if (bss_conf->he_support) {
-		u32 he_oper_params =
-			le32_to_cpu(elems.he_operation->he_oper_params);
+		bss_conf->bss_color =
+			le32_get_bits(elems.he_operation->he_oper_params,
+				      IEEE80211_HE_OPERATION_BSS_COLOR_MASK);
 
-		bss_conf->bss_color = he_oper_params &
-				      IEEE80211_HE_OPERATION_BSS_COLOR_MASK;
 		bss_conf->htc_trig_based_pkt_ext =
-			(he_oper_params &
-			 IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK) <<
-			IEEE80211_HE_OPERATION_DFLT_PE_DURATION_OFFSET;
+			le32_get_bits(elems.he_operation->he_oper_params,
+			      IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK);
 		bss_conf->frame_time_rts_th =
-			(he_oper_params &
-			 IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK) <<
-			IEEE80211_HE_OPERATION_RTS_THRESHOLD_OFFSET;
+			le32_get_bits(elems.he_operation->he_oper_params,
+			      IEEE80211_HE_OPERATION_RTS_THRESHOLD_MASK);
 
 		bss_conf->multi_sta_back_32bit =
 			sta->sta.he_cap.he_cap_elem.mac_cap_info[2] &
@@ -3526,82 +3537,14 @@ static const u64 care_about_ies =
 	(1ULL << WLAN_EID_HT_OPERATION) |
 	(1ULL << WLAN_EID_EXT_CHANSWITCH_ANN);
 
-static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
-				     struct ieee80211_mgmt *mgmt, size_t len,
-				     struct ieee80211_rx_status *rx_status)
+static void ieee80211_handle_beacon_sig(struct ieee80211_sub_if_data *sdata,
+					struct ieee80211_if_managed *ifmgd,
+					struct ieee80211_bss_conf *bss_conf,
+					struct ieee80211_local *local,
+					struct ieee80211_rx_status *rx_status)
 {
-	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	struct ieee80211_bss_conf *bss_conf = &sdata->vif.bss_conf;
-	size_t baselen;
-	struct ieee802_11_elems elems;
-	struct ieee80211_local *local = sdata->local;
-	struct ieee80211_chanctx_conf *chanctx_conf;
-	struct ieee80211_channel *chan;
-	struct sta_info *sta;
-	u32 changed = 0;
-	bool erp_valid;
-	u8 erp_value = 0;
-	u32 ncrc;
-	u8 *bssid;
-	u8 deauth_buf[IEEE80211_DEAUTH_FRAME_LEN];
-
-	sdata_assert_lock(sdata);
-
-	/* Process beacon from the current BSS */
-	baselen = (u8 *) mgmt->u.beacon.variable - (u8 *) mgmt;
-	if (baselen > len)
-		return;
-
-	rcu_read_lock();
-	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
-	if (!chanctx_conf) {
-		rcu_read_unlock();
-		return;
-	}
-
-	if (rx_status->freq != chanctx_conf->def.chan->center_freq) {
-		rcu_read_unlock();
-		return;
-	}
-	chan = chanctx_conf->def.chan;
-	rcu_read_unlock();
-
-	if (ifmgd->assoc_data && ifmgd->assoc_data->need_beacon &&
-	    ether_addr_equal(mgmt->bssid, ifmgd->assoc_data->bss->bssid)) {
-		ieee802_11_parse_elems(mgmt->u.beacon.variable,
-				       len - baselen, false, &elems);
-
-		ieee80211_rx_bss_info(sdata, mgmt, len, rx_status, &elems);
-		if (elems.tim && !elems.parse_error) {
-			const struct ieee80211_tim_ie *tim_ie = elems.tim;
-			ifmgd->dtim_period = tim_ie->dtim_period;
-		}
-		ifmgd->have_beacon = true;
-		ifmgd->assoc_data->need_beacon = false;
-		if (ieee80211_hw_check(&local->hw, TIMING_BEACON_ONLY)) {
-			sdata->vif.bss_conf.sync_tsf =
-				le64_to_cpu(mgmt->u.beacon.timestamp);
-			sdata->vif.bss_conf.sync_device_ts =
-				rx_status->device_timestamp;
-			if (elems.tim)
-				sdata->vif.bss_conf.sync_dtim_count =
-					elems.tim->dtim_count;
-			else
-				sdata->vif.bss_conf.sync_dtim_count = 0;
-		}
-		/* continue assoc process */
-		ifmgd->assoc_data->timeout = jiffies;
-		ifmgd->assoc_data->timeout_started = true;
-		run_again(sdata, ifmgd->assoc_data->timeout);
-		return;
-	}
-
-	if (!ifmgd->associated ||
-	    !ether_addr_equal(mgmt->bssid, ifmgd->associated->bssid))
-		return;
-	bssid = ifmgd->associated->bssid;
-
 	/* Track average RSSI from the Beacon frames of the current AP */
+
 	if (ifmgd->flags & IEEE80211_STA_RESET_SIGNAL_AVE) {
 		ifmgd->flags &= ~IEEE80211_STA_RESET_SIGNAL_AVE;
 		ewma_beacon_signal_init(&ifmgd->ave_beacon_signal);
@@ -3688,6 +3631,86 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 				sig, GFP_KERNEL);
 		}
 	}
+}
+
+static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
+				     struct ieee80211_mgmt *mgmt, size_t len,
+				     struct ieee80211_rx_status *rx_status)
+{
+	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+	struct ieee80211_bss_conf *bss_conf = &sdata->vif.bss_conf;
+	size_t baselen;
+	struct ieee802_11_elems elems;
+	struct ieee80211_local *local = sdata->local;
+	struct ieee80211_chanctx_conf *chanctx_conf;
+	struct ieee80211_channel *chan;
+	struct sta_info *sta;
+	u32 changed = 0;
+	bool erp_valid;
+	u8 erp_value = 0;
+	u32 ncrc;
+	u8 *bssid;
+	u8 deauth_buf[IEEE80211_DEAUTH_FRAME_LEN];
+
+	sdata_assert_lock(sdata);
+
+	/* Process beacon from the current BSS */
+	baselen = (u8 *) mgmt->u.beacon.variable - (u8 *) mgmt;
+	if (baselen > len)
+		return;
+
+	rcu_read_lock();
+	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
+	if (!chanctx_conf) {
+		rcu_read_unlock();
+		return;
+	}
+
+	if (rx_status->freq != chanctx_conf->def.chan->center_freq) {
+		rcu_read_unlock();
+		return;
+	}
+	chan = chanctx_conf->def.chan;
+	rcu_read_unlock();
+
+	if (ifmgd->assoc_data && ifmgd->assoc_data->need_beacon &&
+	    ether_addr_equal(mgmt->bssid, ifmgd->assoc_data->bss->bssid)) {
+		ieee802_11_parse_elems(mgmt->u.beacon.variable,
+				       len - baselen, false, &elems);
+
+		ieee80211_rx_bss_info(sdata, mgmt, len, rx_status, &elems);
+		if (elems.tim && !elems.parse_error) {
+			const struct ieee80211_tim_ie *tim_ie = elems.tim;
+			ifmgd->dtim_period = tim_ie->dtim_period;
+		}
+		ifmgd->have_beacon = true;
+		ifmgd->assoc_data->need_beacon = false;
+		if (ieee80211_hw_check(&local->hw, TIMING_BEACON_ONLY)) {
+			sdata->vif.bss_conf.sync_tsf =
+				le64_to_cpu(mgmt->u.beacon.timestamp);
+			sdata->vif.bss_conf.sync_device_ts =
+				rx_status->device_timestamp;
+			if (elems.tim)
+				sdata->vif.bss_conf.sync_dtim_count =
+					elems.tim->dtim_count;
+			else
+				sdata->vif.bss_conf.sync_dtim_count = 0;
+		}
+		/* continue assoc process */
+		ifmgd->assoc_data->timeout = jiffies;
+		ifmgd->assoc_data->timeout_started = true;
+		run_again(sdata, ifmgd->assoc_data->timeout);
+		return;
+	}
+
+	if (!ifmgd->associated ||
+	    !ether_addr_equal(mgmt->bssid, ifmgd->associated->bssid))
+		return;
+	bssid = ifmgd->associated->bssid;
+
+	if (!(rx_status->flag & RX_FLAG_NO_SIGNAL_VAL))
+		ieee80211_handle_beacon_sig(sdata, ifmgd, bss_conf,
+					    local, rx_status);
 
 	if (ifmgd->flags & IEEE80211_STA_CONNECTION_POLL) {
 		mlme_dbg_ratelimited(sdata,
@@ -4482,11 +4505,13 @@ ieee80211_verify_sta_he_mcs_support(struct ieee80211_supported_band *sband,
 {
 	const struct ieee80211_sta_he_cap *sta_he_cap =
 		ieee80211_get_he_sta_cap(sband);
-	u16 ap_min_req_set = le16_to_cpu(he_op->he_mcs_nss_set);
+	u16 ap_min_req_set;
 	int i;
 
 	if (!sta_he_cap || !he_op)
 		return false;
+
+	ap_min_req_set = le16_to_cpu(he_op->he_mcs_nss_set);
 
 	/* Need to go over for 80MHz, 160MHz and for 80+80 */
 	for (i = 0; i < 3; i++) {
@@ -4614,8 +4639,7 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		else
 			he_oper = NULL;
 
-		if (!he_oper ||
-		    !ieee80211_verify_sta_he_mcs_support(sband, he_oper))
+		if (!ieee80211_verify_sta_he_mcs_support(sband, he_oper))
 			ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 	}
 
@@ -5202,6 +5226,8 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 
 	sdata->control_port_protocol = req->crypto.control_port_ethertype;
 	sdata->control_port_no_encrypt = req->crypto.control_port_no_encrypt;
+	sdata->control_port_over_nl80211 =
+					cfg_control_port_over_nl80211(&req->crypto);
 	sdata->encrypt_headroom = ieee80211_cs_headroom(local, &req->crypto,
 							sdata->vif.type);
 

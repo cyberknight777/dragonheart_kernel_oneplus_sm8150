@@ -147,6 +147,8 @@
  *	future connect commands. These parameters will affect all following
  *	connect commands. To clear previous configuration, send the command with
  *	no attributes.
+ * @IWL_MVM_VENDOR_CMD_FMAC_CONFIG: set one of the fmac configuration options.
+ *	&IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR specifies the configuration string.
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -185,6 +187,7 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_GET_SAR_GEO_PROFILE			= 0x20,
 	IWL_MVM_VENDOR_CMD_TEST_FIPS				= 0x21,
 	IWL_MVM_VENDOR_CMD_FMAC_CONNECT_PARAMS			= 0x22,
+	IWL_MVM_VENDOR_CMD_FMAC_CONFIG				= 0x23,
 };
 
 /**
@@ -793,6 +796,8 @@ enum iwl_vendor_fips_test_vector_hw {
  *	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST is set.
  * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES: number of APs to try
  *	before notifying connection failure.
+ * @IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR: a key=value string where key is an
+ *	fmac configuration option.
  */
 enum iwl_mvm_vendor_attr {
 	__IWL_MVM_VENDOR_ATTR_INVALID				= 0x00,
@@ -871,6 +876,7 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST	= 0x49,
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST	= 0x4a,
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES	= 0x4b,
+	IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR			= 0x4c,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,

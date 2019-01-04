@@ -101,8 +101,9 @@
  * Drivers indicate that they use this model by implementing the .wake_tx_queue
  * driver operation.
  *
- * Intermediate queues (struct ieee80211_txq) are kept per-sta per-tid, with a
- * single per-vif queue for multicast data frames.
+ * Intermediate queues (struct ieee80211_txq) are kept per-sta per-tid, with
+ * another per-sta for non-data/non-mgmt and bufferable management frames, and
+ * a single per-vif queue for multicast data frames.
  *
  * The driver is expected to initialize its private per-queue data for stations
  * and interfaces in the .add_interface and .sta_add ops.
@@ -307,6 +308,8 @@ struct ieee80211_vif_chanctx_switch {
  * @BSS_CHANGED_MU_GROUPS: VHT MU-MIMO group id or user position changed
  * @BSS_CHANGED_KEEP_ALIVE: keep alive options (idle period or protected
  *	keep alive) changed.
+ * @BSS_CHANGED_MCAST_RATE: Multicast Rate setting changed for this interface
+ *
  */
 enum ieee80211_bss_change {
 	BSS_CHANGED_ASSOC		= 1<<0,
@@ -334,6 +337,7 @@ enum ieee80211_bss_change {
 	BSS_CHANGED_OCB                 = 1<<22,
 	BSS_CHANGED_MU_GROUPS		= 1<<23,
 	BSS_CHANGED_KEEP_ALIVE		= 1<<24,
+	BSS_CHANGED_MCAST_RATE		= 1<<25,
 
 	/* when adding here, make sure to change ieee80211_reconfig */
 };
@@ -959,6 +963,7 @@ struct ieee80211_tx_info {
 			u8 ampdu_len;
 			u8 antenna;
 			u16 tx_time;
+			bool is_valid_ack_signal;
 			void *status_driver_data[19 / sizeof(void *)];
 		} status;
 		struct {
@@ -1138,6 +1143,11 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  *	from the RX info data, so leave those zeroed when building this data)
  * @RX_FLAG_RADIOTAP_HE_MU: HE MU radiotap data is present
  *	(&struct ieee80211_radiotap_he_mu)
+ * @RX_FLAG_RADIOTAP_LSIG: L-SIG radiotap data is present
+ * @RX_FLAG_NO_PSDU: use the frame only for radiotap reporting, with
+ *	the "0-length PSDU" field included there.  The value for it is
+ *	in &struct ieee80211_rx_status.  Note that if this value isn't
+ *	known the frame shouldn't be reported.
  */
 enum mac80211_rx_flags {
 	RX_FLAG_MMIC_ERROR		= BIT(0),
@@ -1168,6 +1178,8 @@ enum mac80211_rx_flags {
 	RX_FLAG_AMPDU_EOF_BIT_KNOWN	= BIT(25),
 	RX_FLAG_RADIOTAP_HE		= BIT(26),
 	RX_FLAG_RADIOTAP_HE_MU		= BIT(27),
+	RX_FLAG_RADIOTAP_LSIG		= BIT(28),
+	RX_FLAG_NO_PSDU			= BIT(29),
 };
 
 /**
@@ -1242,6 +1254,7 @@ enum mac80211_rx_encoding {
  * @ampdu_reference: A-MPDU reference number, must be a different value for
  *	each A-MPDU but the same for each subframe within one A-MPDU
  * @ampdu_delimiter_crc: A-MPDU delimiter CRC
+ * @zero_length_psdu_type: radiotap type of the 0-length PSDU
  */
 struct ieee80211_rx_status {
 	u64 mactime;
@@ -1262,6 +1275,7 @@ struct ieee80211_rx_status {
 	u8 chains;
 	s8 chain_signal[IEEE80211_MAX_CHAINS];
 	u8 ampdu_delimiter_crc;
+	u8 zero_length_psdu_type;
 };
 
 /**
@@ -1507,6 +1521,8 @@ enum ieee80211_vif_flags {
  * @drv_priv: data area for driver use, will always be aligned to
  *	sizeof(void \*).
  * @txq: the multicast data TX queue (if driver uses the TXQ abstraction)
+ * @txqs_stopped: per AC flag to indicate that intermediate TXQs are stopped,
+ *	protected by fq->lock.
  */
 struct ieee80211_vif {
 	enum nl80211_iftype type;
@@ -1535,6 +1551,8 @@ struct ieee80211_vif {
 #endif
 
 	unsigned int probe_req_reg;
+
+	bool txqs_stopped[IEEE80211_NUM_ACS];
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
@@ -1847,7 +1865,9 @@ struct ieee80211_sta_rates {
  *	unlimited.
  * @support_p2p_ps: indicates whether the STA supports P2P PS mechanism or not.
  * @max_rc_amsdu_len: Maximum A-MSDU size in bytes recommended by rate control.
- * @txq: per-TID data TX queues (if driver uses the TXQ abstraction)
+ * @max_tid_amsdu_len: Maximum A-MSDU size in bytes for this TID
+ * @txq: per-TID data TX queues (if driver uses the TXQ abstraction); note that
+ *	the last entry (%IEEE80211_NUM_TIDS) is used for non-data frames
  */
 struct ieee80211_sta {
 	u32 supp_rates[NUM_NL80211_BANDS];
@@ -1887,8 +1907,9 @@ struct ieee80211_sta {
 	u16 max_amsdu_len;
 	bool support_p2p_ps;
 	u16 max_rc_amsdu_len;
+	u16 max_tid_amsdu_len[IEEE80211_NUM_TIDS];
 
-	struct ieee80211_txq *txq[IEEE80211_NUM_TIDS];
+	struct ieee80211_txq *txq[IEEE80211_NUM_TIDS + 1];
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
@@ -1922,7 +1943,8 @@ struct ieee80211_tx_control {
  *
  * @vif: &struct ieee80211_vif pointer from the add_interface callback.
  * @sta: station table entry, %NULL for per-vif queue
- * @tid: the TID for this queue (unused for per-vif queue)
+ * @tid: the TID for this queue (unused for per-vif queue),
+ *	%IEEE80211_NUM_TIDS for non-data (if enabled)
  * @ac: the AC for this queue
  * @drv_priv: driver private area, sized by hw->txq_data_size
  *
@@ -2132,6 +2154,22 @@ struct ieee80211_txq {
  *	the frame, as it is not synced with the AP/P2P GO yet, and thus the
  *	deauthentication frame might not be transmitted.
  *
+ * @IEEE80211_HW_DOESNT_SUPPORT_QOS_NDP: The driver (or firmware) doesn't
+ *	support QoS NDP for AP probing - that's most likely a driver bug.
+ *
+ * @IEEE80211_HW_BUFF_MMPDU_TXQ: use the TXQ for bufferable MMPDUs, this of
+ *	course requires the driver to use TXQs to start with.
+ *
+ * @IEEE80211_HW_SUPPORTS_VHT_EXT_NSS_BW: (Hardware) rate control supports VHT
+ *	extended NSS BW (dot11VHTExtendedNSSBWCapable). This flag will be set if
+ *	the selected rate control algorithm sets %RATE_CTRL_CAPA_VHT_EXT_NSS_BW
+ *	but if the rate control is built-in then it must be set by the driver.
+ *	See also the documentation for that flag.
+ *
+ * @IEEE80211_HW_STA_MMPDU_TXQ: use the extra non-TID per-station TXQ for all
+ *	MMPDUs on station interfaces. This of course requires the driver to use
+ *	TXQs to start with.
+ *
  * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
  */
 enum ieee80211_hw_flags {
@@ -2176,6 +2214,10 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_SUPPORTS_TX_FRAG,
 	IEEE80211_HW_SUPPORTS_TDLS_BUFFER_STA,
 	IEEE80211_HW_DEAUTH_NEED_MGD_TX_PREP,
+	IEEE80211_HW_DOESNT_SUPPORT_QOS_NDP,
+	IEEE80211_HW_BUFF_MMPDU_TXQ,
+	IEEE80211_HW_SUPPORTS_VHT_EXT_NSS_BW,
+	IEEE80211_HW_STA_MMPDU_TXQ,
 
 	/* keep last, obviously */
 	NUM_IEEE80211_HW_FLAGS
@@ -2315,6 +2357,10 @@ struct ieee80211_tx_thrshld_md {
  *	supported by HW.
  * @max_nan_de_entries: maximum number of NAN DE functions supported by the
  *	device.
+ *
+ * @tx_sk_pacing_shift: Pacing shift to set on TCP sockets when frames from
+ *	them are encountered. The default should typically not be changed,
+ *	unless the driver has good reasons for needing more buffers.
  */
 struct ieee80211_hw {
 	struct ieee80211_conf conf;
@@ -2350,6 +2396,7 @@ struct ieee80211_hw {
 	u8 n_cipher_schemes;
 	const struct ieee80211_cipher_scheme *cipher_schemes;
 	u8 max_nan_de_entries;
+	u8 tx_sk_pacing_shift;
 };
 
 static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw,
@@ -2531,6 +2578,19 @@ void ieee80211_free_txskb(struct ieee80211_hw *hw, struct sk_buff *skb);
  * The set_default_unicast_key() call updates the default WEP key index
  * configured to the hardware for WEP encryption type. This is required
  * for devices that support offload of data packets (e.g. ARP responses).
+ *
+ * Mac80211 drivers should set the @NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 flag
+ * when they are able to replace in-use PTK keys according to to following
+ * requirements:
+ * 1) They do not hand over frames decrypted with the old key to
+      mac80211 once the call to set_key() with command %DISABLE_KEY has been
+      completed when also setting @IEEE80211_KEY_FLAG_GENERATE_IV for any key,
+   2) either drop or continue to use the old key for any outgoing frames queued
+      at the time of the key deletion (including re-transmits),
+   3) never send out a frame queued prior to the set_key() %SET_KEY command
+      encrypted with the new key and
+   4) never send out a frame unencrypted when it should be encrypted.
+   Mac80211 will not queue any new frames for a deleted key to the driver.
  */
 
 /**
@@ -3573,6 +3633,10 @@ enum ieee80211_reconfig_type {
  * @del_nan_func: Remove a NAN function. The driver must call
  *	ieee80211_nan_func_terminated() with
  *	NL80211_NAN_FUNC_TERM_REASON_USER_REQUEST reason code upon removal.
+ * @can_aggregate_in_amsdu: Called in order to determine if HW supports
+ *	aggregating two specific frames in the same A-MSDU. The relation
+ *	between the skbs should be symmetric and transitive. Note that while
+ *	skb is always a real frame, head may or may not be an A-MSDU.
  */
 struct ieee80211_ops {
 	void (*tx)(struct ieee80211_hw *hw,
@@ -3866,6 +3930,9 @@ struct ieee80211_ops {
 	void (*del_nan_func)(struct ieee80211_hw *hw,
 			    struct ieee80211_vif *vif,
 			    u8 instance_id);
+	bool (*can_aggregate_in_amsdu)(struct ieee80211_hw *hw,
+				       struct sk_buff *head,
+				       struct sk_buff *skb);
 };
 
 /**
@@ -4266,7 +4333,7 @@ void ieee80211_sta_uapsd_trigger(struct ieee80211_sta *sta, u8 tid);
  * The TX headroom reserved by mac80211 for its own tx_status functions.
  * This is enough for the radiotap header.
  */
-#define IEEE80211_TX_STATUS_HEADROOM	14
+#define IEEE80211_TX_STATUS_HEADROOM	ALIGN(14, 4)
 
 /**
  * ieee80211_sta_set_buffered - inform mac80211 about driver-buffered frames
@@ -5686,7 +5753,22 @@ struct ieee80211_tx_rate_control {
 	bool bss;
 };
 
+/**
+ * enum rate_control_capabilities - rate control capabilities
+ */
+enum rate_control_capabilities {
+	/**
+	 * @RATE_CTRL_CAPA_VHT_EXT_NSS_BW:
+	 * Support for extended NSS BW support (dot11VHTExtendedNSSCapable)
+	 * Note that this is only looked at if the minimum number of chains
+	 * that the AP uses is < the number of TX chains the hardware has,
+	 * otherwise the NSS difference doesn't bother us.
+	 */
+	RATE_CTRL_CAPA_VHT_EXT_NSS_BW = BIT(0),
+};
+
 struct rate_control_ops {
+	unsigned long capa;
 	const char *name;
 	void *(*alloc)(struct ieee80211_hw *hw, struct dentry *debugfsdir);
 	void (*free)(void *priv);

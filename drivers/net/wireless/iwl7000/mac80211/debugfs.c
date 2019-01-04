@@ -3,6 +3,7 @@
  *
  * Copyright 2007	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2015  Intel Mobile Communications GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * GPLv2
  *
@@ -328,6 +329,10 @@ static const char *hw_flag_names[] = {
 	FLAG(SUPPORTS_TX_FRAG),
 	FLAG(SUPPORTS_TDLS_BUFFER_STA),
 	FLAG(DEAUTH_NEED_MGD_TX_PREP),
+	FLAG(DOESNT_SUPPORT_QOS_NDP),
+	FLAG(BUFF_MMPDU_TXQ),
+	FLAG(SUPPORTS_VHT_EXT_NSS_BW),
+	FLAG(STA_MMPDU_TXQ),
 #undef FLAG
 };
 

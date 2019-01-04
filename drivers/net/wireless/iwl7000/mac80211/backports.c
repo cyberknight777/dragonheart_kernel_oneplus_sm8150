@@ -19,9 +19,25 @@
 #include <asm/unaligned.h>
 #include <linux/device.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
+static unsigned int __ieee80211_get_mesh_hdrlen(u8 flags)
+{
+	int ae = flags & MESH_FLAGS_AE;
+	/* 802.11-2012, 8.2.4.7.3 */
+	switch (ae) {
+	default:
+	case 0:
+		return 6;
+	case MESH_FLAGS_AE_A4:
+		return 12;
+	case MESH_FLAGS_AE_A5_A6:
+		return 18;
+	}
+}
+
 int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
-				  const u8 *addr, enum nl80211_iftype iftype)
+				  const u8 *addr, enum nl80211_iftype iftype,
+				  u8 data_offset)
 {
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
 	struct {
@@ -35,7 +51,7 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 	if (unlikely(!ieee80211_is_data_present(hdr->frame_control)))
 		return -1;
 
-	hdrlen = ieee80211_hdrlen(hdr->frame_control);
+	hdrlen = ieee80211_hdrlen(hdr->frame_control) + data_offset;
 	if (skb->len < hdrlen + 8)
 		return -1;
 
@@ -54,6 +70,8 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 	if (iftype == NL80211_IFTYPE_MESH_POINT)
 		skb_copy_bits(skb, hdrlen, &mesh_flags, 1);
 
+	mesh_flags &= MESH_FLAGS_AE;
+
 	switch (hdr->frame_control &
 		cpu_to_le16(IEEE80211_FCTL_TODS | IEEE80211_FCTL_FROMDS)) {
 	case cpu_to_le16(IEEE80211_FCTL_TODS):
@@ -64,22 +82,44 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 		break;
 	case cpu_to_le16(IEEE80211_FCTL_TODS | IEEE80211_FCTL_FROMDS):
 		if (unlikely(iftype != NL80211_IFTYPE_WDS &&
+			     iftype != NL80211_IFTYPE_MESH_POINT &&
 			     iftype != NL80211_IFTYPE_AP_VLAN &&
 			     iftype != NL80211_IFTYPE_STATION))
 			return -1;
+		if (iftype == NL80211_IFTYPE_MESH_POINT) {
+			if (mesh_flags == MESH_FLAGS_AE_A4)
+				return -1;
+			if (mesh_flags == MESH_FLAGS_AE_A5_A6) {
+				skb_copy_bits(skb, hdrlen +
+					offsetof(struct ieee80211s_hdr, eaddr1),
+					tmp.h_dest, 2 * ETH_ALEN);
+			}
+			hdrlen += __ieee80211_get_mesh_hdrlen(mesh_flags);
+		}
 		break;
 	case cpu_to_le16(IEEE80211_FCTL_FROMDS):
 		if ((iftype != NL80211_IFTYPE_STATION &&
-		     iftype != NL80211_IFTYPE_P2P_CLIENT) ||
+		     iftype != NL80211_IFTYPE_P2P_CLIENT &&
+		     iftype != NL80211_IFTYPE_MESH_POINT) ||
 		    (is_multicast_ether_addr(tmp.h_dest) &&
 		     ether_addr_equal(tmp.h_source, addr)))
 			return -1;
+		if (iftype == NL80211_IFTYPE_MESH_POINT) {
+			if (mesh_flags == MESH_FLAGS_AE_A5_A6)
+				return -1;
+			if (mesh_flags == MESH_FLAGS_AE_A4)
+				skb_copy_bits(skb, hdrlen +
+					offsetof(struct ieee80211s_hdr, eaddr1),
+					tmp.h_source, ETH_ALEN);
+			hdrlen += __ieee80211_get_mesh_hdrlen(mesh_flags);
+		}
 		break;
 	case cpu_to_le16(0):
 		if (iftype != NL80211_IFTYPE_ADHOC &&
 		    iftype != NL80211_IFTYPE_STATION &&
-		    !ieee80211_viftype_ocb(iftype))
-			return -1;
+		    !ieee80211_viftype_ocb(iftype) &&
+		    !ieee80211_viftype_nan_data(iftype))
+				return -1;
 		break;
 	}
 
@@ -99,13 +139,16 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 	pskb_pull(skb, hdrlen);
 
 	if (!ehdr)
-		ehdr = (struct ethhdr *) skb_push(skb, sizeof(struct ethhdr));
+		ehdr = skb_push(skb, sizeof(struct ethhdr));
 	memcpy(ehdr, &tmp, sizeof(tmp));
 
 	return 0;
 }
-EXPORT_SYMBOL(ieee80211_data_to_8023_exthdr);
+EXPORT_SYMBOL(/* don't auto-generate a rename */
+	ieee80211_data_to_8023_exthdr);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
 static void
 __frame_add_frag(struct sk_buff *skb, struct page *page,
 		 void *ptr, int len, int size)
@@ -535,6 +578,35 @@ void tso_start(struct sk_buff *skb, struct tso_t *tso)
 }
 EXPORT_SYMBOL(tso_start);
 
+/* This was only included in upstream v4.6, but was cherry-picked to
+ * chromeos-4.4.  Since we don't expect to have a chromeos-4.5, we can
+ * just check on < 4.4.
+ */
+/**
+ * match_string - matches given string in an array
+ * @array:	array of strings
+ * @n:		number of strings in the array or -1 for NULL terminated arrays
+ * @string:	string to match with
+ *
+ * Return:
+ * index of a @string in the @array if matches, or %-EINVAL otherwise.
+ */
+int match_string(const char * const *array, size_t n, const char *string)
+{
+	int index;
+	const char *item;
+
+	for (index = 0; index < n; index++) {
+		item = array[index];
+		if (!item)
+			break;
+		if (!strcmp(item, string))
+			return index;
+	}
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL(match_string);
 #endif /* < 4.4.0 */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)

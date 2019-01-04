@@ -187,6 +187,8 @@ enum iwl_fw_error_dump_family {
  * @fw_human_readable: human readable FW version
  * @dev_human_readable: name of the device
  * @bus_human_readable: name of the bus used
+ * @rt_status: the error_id/rt_status that that triggered the latest dump
+ *	if the dump collection was not initiated by an assert, the value is 0
  */
 struct iwl_fw_error_dump_info {
 	__le32 device_family;
@@ -194,6 +196,7 @@ struct iwl_fw_error_dump_info {
 	u8 fw_human_readable[FW_VER_HUMAN_READABLE_SZ];
 	u8 dev_human_readable[64];
 	u8 bus_human_readable[8];
+	__le32 rt_status;
 } __packed;
 
 /**
@@ -249,6 +252,7 @@ struct iwl_fw_error_dump_prph {
 enum iwl_fw_error_dump_mem_type {
 	IWL_FW_ERROR_DUMP_MEM_SRAM,
 	IWL_FW_ERROR_DUMP_MEM_SMEM,
+	IWL_FW_ERROR_DUMP_MEM_NAMED_MEM = 10,
 };
 
 /**
@@ -260,6 +264,22 @@ enum iwl_fw_error_dump_mem_type {
 struct iwl_fw_error_dump_mem {
 	__le32 type;
 	__le32 offset;
+	u8 data[];
+};
+
+/**
+ * struct iwl_fw_error_dump_named_mem - chunk of memory
+ * @type: &enum iwl_fw_error_dump_mem_type
+ * @offset: the offset from which the memory was read
+ * @name_len: name length
+ * @name: file name
+ * @data: the content of the memory
+ */
+struct iwl_fw_error_dump_named_mem {
+	__le32 type;
+	__le32 offset;
+	u8 name_len;
+	u8 name[32];
 	u8 data[];
 };
 
@@ -330,7 +350,7 @@ iwl_fw_error_next_data(struct iwl_fw_error_dump_data *data)
  *  the firmware sends a tx reply.
  * @FW_DBG_TRIGGER_USER_EXTENDED: trigger log collection upon user space
  *  request.
- * @FW_DBG_TRIGGER_NO_ALIVE: trigger log collection if alive flow fails
+ * @FW_DBG_TRIGGER_ALIVE_TIMEOUT: trigger log collection if alive flow timeouts
  */
 enum iwl_fw_dbg_trigger {
 	FW_DBG_TRIGGER_INVALID = 0,
@@ -349,7 +369,7 @@ enum iwl_fw_dbg_trigger {
 	FW_DBG_TRIGGER_TDLS,
 	FW_DBG_TRIGGER_TX_STATUS,
 	FW_DBG_TRIGGER_USER_EXTENDED,
-	FW_DBG_TRIGGER_NO_ALIVE,
+	FW_DBG_TRIGGER_ALIVE_TIMEOUT,
 
 	/* must be last */
 	FW_DBG_TRIGGER_MAX,

@@ -98,7 +98,11 @@ static u8 rs_fw_sgi_cw_support(struct ieee80211_sta *sta)
 {
 	struct ieee80211_sta_ht_cap *ht_cap = &sta->ht_cap;
 	struct ieee80211_sta_vht_cap *vht_cap = &sta->vht_cap;
+	struct ieee80211_sta_he_cap *he_cap = &sta->he_cap;
 	u8 supp = 0;
+
+	if (he_cap && he_cap->has_he)
+		return 0;
 
 	if (ht_cap->cap & IEEE80211_HT_CAP_SGI_20)
 		supp |= BIT(IWL_TLC_MNG_CH_WIDTH_20MHZ);
@@ -227,8 +231,8 @@ rs_fw_he_set_enabled_rates(const struct ieee80211_sta *sta,
 			   const struct ieee80211_sta_he_cap *he_cap,
 			   struct iwl_tlc_config_cmd *cmd)
 {
-	u16 mcs_160 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_msc_160);
-	u16 mcs_80 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_msc_80);
+	u16 mcs_160 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_mcs_160);
+	u16 mcs_80 = le16_to_cpu(he_cap->he_mcs_nss_supp.rx_mcs_80);
 	int i;
 
 	for (i = 0; i < sta->rx_nss && i < MAX_NSS; i++) {

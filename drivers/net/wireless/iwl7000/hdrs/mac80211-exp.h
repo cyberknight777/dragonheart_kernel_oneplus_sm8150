@@ -8,9 +8,6 @@
 #define ieee80211_start_tx_ba_cb_irqsafe __iwl7000_ieee80211_start_tx_ba_cb_irqsafe
 #define ieee80211_stop_tx_ba_session __iwl7000_ieee80211_stop_tx_ba_session
 #define ieee80211_stop_tx_ba_cb_irqsafe __iwl7000_ieee80211_stop_tx_ba_cb_irqsafe
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
-#define ieee80211_data_to_8023_exthdr __iwl7000_ieee80211_data_to_8023_exthdr
-#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 #define dev_coredumpsg __iwl7000_dev_coredumpsg
 #endif /* < 4.7.0 */
@@ -26,6 +23,7 @@
 #define tso_build_hdr __iwl7000_tso_build_hdr
 #define tso_build_data __iwl7000_tso_build_data
 #define tso_start __iwl7000_tso_start
+#define match_string __iwl7000_match_string
 #endif /* < 4.4.0 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 #define netdev_rss_key_fill __iwl7000_netdev_rss_key_fill
@@ -45,7 +43,7 @@
 #define sg_pcopy_from_buffer __iwl7000_sg_pcopy_from_buffer
 #define sg_pcopy_to_buffer __iwl7000_sg_pcopy_to_buffer
 #endif /* < 3.11 */
-#define alloc_bucket_spinlocks __iwl7000_alloc_bucket_spinlocks
+#define __alloc_bucket_spinlocks __iwl7000___alloc_bucket_spinlocks
 #define free_bucket_spinlocks __iwl7000_free_bucket_spinlocks
 #if CFG80211_VERSION < KERNEL_VERSION(4,1,0)
 #define ieee80211_ie_split_ric __iwl7000_ieee80211_ie_split_ric

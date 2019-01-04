@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -100,15 +95,11 @@
 #include "fw/api/nan.h"
 
 /* The ETSI patches were introduced in 4.17 and backported to
- * chromeos-4.4, we need our limits on any version outside that
+ * chromeos-4.4, but we use our version in 4.4 anyway.  Also, due to
+ * backporting issues (some wmm rules code was moved to cfg80211), we
+ * only use the outer kernel version starting from 4.19.
  */
-#if (CFG80211_VERSION < KERNEL_VERSION(4,17,0) &&	\
-	!(CFG80211_VERSION >= KERNEL_VERSION(4,4,0) && \
-	  CFG80211_VERSION < KERNEL_VERSION(4,5,0)))
-#define IWL7000_NEED_ETSI_WMM_LIMITS
-#endif
-
-#ifdef IWL7000_NEED_ETSI_WMM_LIMITS
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 const static struct ieee80211_wmm_rule wmm_rules = {
 	.client = {
 		{.cw_min = 3, .cw_max = 7, .aifsn = 2, .cot = 2000},
@@ -396,8 +387,12 @@ struct ieee80211_regdomain *iwl_mvm_get_regdomain(struct wiphy *wiphy,
 		goto out;
 	}
 
-	if (changed)
-		*changed = (resp->status == MCC_RESP_NEW_CHAN_PROFILE);
+	if (changed) {
+		u32 status = le32_to_cpu(resp->status);
+
+		*changed = (status == MCC_RESP_NEW_CHAN_PROFILE ||
+			    status == MCC_RESP_ILLEGAL);
+	}
 
 	regd = iwl_parse_nvm_mcc_info(mvm->trans->dev, mvm->cfg,
 				      __le32_to_cpu(resp->n_channels),
@@ -513,6 +508,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
 	ieee80211_hw_set(hw, NEEDS_UNIQUE_STA_ADDR);
 	ieee80211_hw_set(hw, DEAUTH_NEED_MGD_TX_PREP);
+	ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
 
 	if (iwl_mvm_has_tlc_offload(mvm)) {
 		ieee80211_hw_set(hw, TX_AMPDU_SETUP_IN_HW);
@@ -686,6 +682,11 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	/* Extract additional MAC addresses if available */
 	num_mac = (mvm->nvm_data->n_hw_addrs > 1) ?
 		min(IWL_MVM_MAX_ADDRESSES, mvm->nvm_data->n_hw_addrs) : 1;
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.hw_address.len)
+		num_mac = IWL_MVM_MAX_ADDRESSES;
+#endif
 
 	for (i = 1; i < num_mac; i++) {
 		memcpy(mvm->addresses[i].addr, mvm->addresses[i-1].addr,
@@ -1269,13 +1270,17 @@ int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
 	}
 	ret = iwl_mvm_up(mvm);
 
+	iwl_fw_dbg_apply_point(&mvm->fwrt, IWL_FW_INI_APPLY_POST_INIT);
+
 	if (ret && test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
 		/* Something went wrong - we need to finish some cleanup
 		 * that normally iwl_mvm_mac_restart_complete() below
 		 * would do.
 		 */
 		clear_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status);
+#ifdef CONFIG_PM
 		iwl_mvm_d0i3_enable_tx(mvm, NULL);
+#endif
 	}
 
 	return ret;
@@ -1313,7 +1318,9 @@ static void iwl_mvm_restart_complete(struct iwl_mvm *mvm)
 	mutex_lock(&mvm->mutex);
 
 	clear_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status);
+#ifdef CONFIG_PM
 	iwl_mvm_d0i3_enable_tx(mvm, NULL);
+#endif
 	ret = iwl_mvm_update_quotas(mvm, true, NULL);
 	if (ret)
 		IWL_ERR(mvm, "Failed to update quotas after restart (%d)\n",
@@ -2114,6 +2121,213 @@ void iwl_mvm_mu_mimo_grp_notif(struct iwl_mvm *mvm,
 			iwl_mvm_mu_mimo_iface_iterator, notif);
 }
 
+static u8 iwl_mvm_he_get_ppe_val(u8 *ppe, u8 ppe_pos_bit)
+{
+	u8 byte_num = ppe_pos_bit / 8;
+	u8 bit_num = ppe_pos_bit % 8;
+	u8 residue_bits;
+	u8 res;
+
+	if (bit_num <= 5)
+		return (ppe[byte_num] >> bit_num) &
+		       (BIT(IEEE80211_PPE_THRES_INFO_PPET_SIZE) - 1);
+
+	/*
+	 * If bit_num > 5, we have to combine bits with next byte.
+	 * Calculate how many bits we need to take from current byte (called
+	 * here "residue_bits"), and add them to bits from next byte.
+	 */
+
+	residue_bits = 8 - bit_num;
+
+	res = (ppe[byte_num + 1] &
+	       (BIT(IEEE80211_PPE_THRES_INFO_PPET_SIZE - residue_bits) - 1)) <<
+	      residue_bits;
+	res += (ppe[byte_num] >> bit_num) & (BIT(residue_bits) - 1);
+
+	return res;
+}
+
+static const u8 mac80211_ac_to_ucode_ac[] = {
+	AC_VO,
+	AC_VI,
+	AC_BE,
+	AC_BK
+};
+
+static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
+			       struct ieee80211_vif *vif, u8 sta_id)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_he_sta_context_cmd sta_ctxt_cmd = {
+		.sta_id = sta_id,
+		.tid_limit = IWL_MAX_TID_COUNT,
+		.bss_color = vif->bss_conf.bss_color,
+		.htc_trig_based_pkt_ext = vif->bss_conf.htc_trig_based_pkt_ext,
+		.frame_time_rts_th =
+			cpu_to_le16(vif->bss_conf.frame_time_rts_th),
+	};
+	struct ieee80211_sta *sta;
+	u32 flags;
+	int i;
+
+	rcu_read_lock();
+
+	sta = rcu_dereference(mvm->fw_id_to_mac_id[sta_ctxt_cmd.sta_id]);
+	if (IS_ERR(sta)) {
+		rcu_read_unlock();
+		WARN(1, "Can't find STA to configure HE\n");
+		return;
+	}
+
+	if (!sta->he_cap.has_he) {
+		rcu_read_unlock();
+		return;
+	}
+
+	flags = 0;
+
+	/* HTC flags */
+	if (sta->he_cap.he_cap_elem.mac_cap_info[0] &
+	    IEEE80211_HE_MAC_CAP0_HTC_HE)
+		sta_ctxt_cmd.htc_flags |= cpu_to_le32(IWL_HE_HTC_SUPPORT);
+	if ((sta->he_cap.he_cap_elem.mac_cap_info[1] &
+	      IEEE80211_HE_MAC_CAP1_LINK_ADAPTATION) ||
+	    (sta->he_cap.he_cap_elem.mac_cap_info[2] &
+	      IEEE80211_HE_MAC_CAP2_LINK_ADAPTATION)) {
+		u8 link_adap =
+			((sta->he_cap.he_cap_elem.mac_cap_info[2] &
+			  IEEE80211_HE_MAC_CAP2_LINK_ADAPTATION) << 1) +
+			 (sta->he_cap.he_cap_elem.mac_cap_info[1] &
+			  IEEE80211_HE_MAC_CAP1_LINK_ADAPTATION);
+
+		if (link_adap == 2)
+			sta_ctxt_cmd.htc_flags |=
+				cpu_to_le32(IWL_HE_HTC_LINK_ADAP_UNSOLICITED);
+		else if (link_adap == 3)
+			sta_ctxt_cmd.htc_flags |=
+				cpu_to_le32(IWL_HE_HTC_LINK_ADAP_BOTH);
+	}
+	if (sta->he_cap.he_cap_elem.mac_cap_info[2] & IEEE80211_HE_MAC_CAP2_BSR)
+		sta_ctxt_cmd.htc_flags |= cpu_to_le32(IWL_HE_HTC_BSR_SUPP);
+	if (sta->he_cap.he_cap_elem.mac_cap_info[3] &
+	    IEEE80211_HE_MAC_CAP3_OMI_CONTROL)
+		sta_ctxt_cmd.htc_flags |= cpu_to_le32(IWL_HE_HTC_OMI_SUPP);
+	if (sta->he_cap.he_cap_elem.mac_cap_info[4] & IEEE80211_HE_MAC_CAP4_BQR)
+		sta_ctxt_cmd.htc_flags |= cpu_to_le32(IWL_HE_HTC_BQR_SUPP);
+
+	/*
+	 * Initialize the PPE thresholds to "None" (7), as described in Table
+	 * 9-262ac of 80211.ax/D3.0.
+	 */
+	memset(&sta_ctxt_cmd.pkt_ext, 7, sizeof(sta_ctxt_cmd.pkt_ext));
+
+	/* If PPE Thresholds exist, parse them into a FW-familiar format. */
+	if (sta->he_cap.he_cap_elem.phy_cap_info[6] &
+	    IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
+		u8 nss = (sta->he_cap.ppe_thres[0] &
+			  IEEE80211_PPE_THRES_NSS_MASK) + 1;
+		u8 ru_index_bitmap =
+			(sta->he_cap.ppe_thres[0] &
+			 IEEE80211_PPE_THRES_RU_INDEX_BITMASK_MASK) >>
+			IEEE80211_PPE_THRES_RU_INDEX_BITMASK_POS;
+		u8 *ppe = &sta->he_cap.ppe_thres[0];
+		u8 ppe_pos_bit = 7; /* Starting after PPE header */
+
+		/*
+		 * FW currently supports only nss == MAX_HE_SUPP_NSS
+		 *
+		 * If nss > MAX: we can ignore values we don't support
+		 * If nss < MAX: we can set zeros in other streams
+		 */
+		if (nss > MAX_HE_SUPP_NSS) {
+			IWL_INFO(mvm, "Got NSS = %d - trimming to %d\n", nss,
+				 MAX_HE_SUPP_NSS);
+			nss = MAX_HE_SUPP_NSS;
+		}
+
+		for (i = 0; i < nss; i++) {
+			u8 ru_index_tmp = ru_index_bitmap << 1;
+			u8 bw;
+
+			for (bw = 0; bw < MAX_HE_CHANNEL_BW_INDX; bw++) {
+				ru_index_tmp >>= 1;
+				if (!(ru_index_tmp & 1))
+					continue;
+
+				sta_ctxt_cmd.pkt_ext.pkt_ext_qam_th[i][bw][1] =
+					iwl_mvm_he_get_ppe_val(ppe,
+							       ppe_pos_bit);
+				ppe_pos_bit +=
+					IEEE80211_PPE_THRES_INFO_PPET_SIZE;
+				sta_ctxt_cmd.pkt_ext.pkt_ext_qam_th[i][bw][0] =
+					iwl_mvm_he_get_ppe_val(ppe,
+							       ppe_pos_bit);
+				ppe_pos_bit +=
+					IEEE80211_PPE_THRES_INFO_PPET_SIZE;
+			}
+		}
+
+		flags |= STA_CTXT_HE_PACKET_EXT;
+	}
+	rcu_read_unlock();
+
+	/* Mark MU EDCA as enabled, unless none detected on some AC */
+	flags |= STA_CTXT_HE_MU_EDCA_CW;
+	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
+		struct ieee80211_he_mu_edca_param_ac_rec *mu_edca =
+			&mvmvif->queue_params[i].mu_edca_param_rec;
+		u8 ac = mac80211_ac_to_ucode_ac[i];
+
+		if (!mvmvif->queue_params[i].mu_edca) {
+			flags &= ~STA_CTXT_HE_MU_EDCA_CW;
+			break;
+		}
+
+		sta_ctxt_cmd.trig_based_txf[ac].cwmin =
+			cpu_to_le16(mu_edca->ecw_min_max & 0xf);
+		sta_ctxt_cmd.trig_based_txf[ac].cwmax =
+			cpu_to_le16((mu_edca->ecw_min_max & 0xf0) >> 4);
+		sta_ctxt_cmd.trig_based_txf[ac].aifsn =
+			cpu_to_le16(mu_edca->aifsn & 0xf);
+		sta_ctxt_cmd.trig_based_txf[ac].mu_time =
+			cpu_to_le16(mu_edca->mu_edca_timer);
+	}
+
+	if (vif->bss_conf.multi_sta_back_32bit)
+		flags |= STA_CTXT_HE_32BIT_BA_BITMAP;
+
+	if (vif->bss_conf.ack_enabled)
+		flags |= STA_CTXT_HE_ACK_ENABLED;
+
+	if (vif->bss_conf.uora_exists) {
+		flags |= STA_CTXT_HE_TRIG_RND_ALLOC;
+
+		sta_ctxt_cmd.rand_alloc_ecwmin =
+			vif->bss_conf.uora_ocw_range & 0x7;
+		sta_ctxt_cmd.rand_alloc_ecwmax =
+			(vif->bss_conf.uora_ocw_range >> 3) & 0x7;
+	}
+
+	if (!(sta->he_cap.he_cap_elem.mac_cap_info[2] &
+	      IEEE80211_HE_MAC_CAP2_ACK_EN))
+		flags |= STA_CTXT_HE_NIC_NOT_ACK_ENABLED;
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.no_ack_en & 0x2)
+		flags &= ~STA_CTXT_HE_ACK_ENABLED;
+#endif
+
+	/* TODO: support Multi BSSID IE */
+
+	sta_ctxt_cmd.flags = cpu_to_le32(flags);
+
+	if (iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(STA_HE_CTXT_CMD,
+						 DATA_PATH_GROUP, 0),
+				 0, sizeof(sta_ctxt_cmd), &sta_ctxt_cmd))
+		IWL_ERR(mvm, "Failed to config FW to work HE!\n");
+}
+
 static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 					     struct ieee80211_vif *vif,
 					     struct ieee80211_bss_conf *bss_conf,
@@ -2127,8 +2341,13 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 	 * beacon interval, which was not known when the station interface was
 	 * added.
 	 */
-	if (changes & BSS_CHANGED_ASSOC && bss_conf->assoc)
+	if (changes & BSS_CHANGED_ASSOC && bss_conf->assoc) {
+		if (vif->bss_conf.he_support &&
+		    !iwlwifi_mod_params.disable_11ax)
+			iwl_mvm_cfg_he_sta(mvm, vif, mvmvif->ap_sta_id);
+
 		iwl_mvm_mac_ctxt_recalc_tsf_id(mvm, vif);
+	}
 
 	/*
 	 * If we're not associated yet, take the (new) BSSID before associating
@@ -2391,6 +2610,12 @@ static int iwl_mvm_start_ap_ibss(struct ieee80211_hw *hw,
 	/* must be set before quota calculations */
 	mvmvif->ap_ibss_active = true;
 
+	if (vif->type == NL80211_IFTYPE_AP && !vif->p2p) {
+		iwl_mvm_vif_set_low_latency(mvmvif, true,
+					    LOW_LATENCY_VIF_TYPE);
+		iwl_mvm_send_low_latency_cmd(mvm, true, mvmvif->id);
+	}
+
 	/* power updated needs to be done before quotas */
 	iwl_mvm_power_update_mac(mvm);
 
@@ -2455,6 +2680,12 @@ static void iwl_mvm_stop_ap_ibss(struct ieee80211_hw *hw,
 
 	mvmvif->ap_ibss_active = false;
 	mvm->ap_last_beacon_gp2 = 0;
+
+	if (vif->type == NL80211_IFTYPE_AP && !vif->p2p) {
+		iwl_mvm_vif_set_low_latency(mvmvif, false,
+					    LOW_LATENCY_VIF_TYPE);
+		iwl_mvm_send_low_latency_cmd(mvm, false,  mvmvif->id);
+	}
 
 	iwl_mvm_bt_coex_vif_change(mvm);
 
@@ -2956,6 +3187,9 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 		if (vif->type == NL80211_IFTYPE_AP) {
 			mvmvif->ap_assoc_sta_count++;
 			iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
+			if (vif->bss_conf.he_support &&
+			    !iwlwifi_mod_params.disable_11ax)
+				iwl_mvm_cfg_he_sta(mvm, vif, mvm_sta->sta_id);
 		}
 
 		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
@@ -3008,6 +3242,16 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 			iwl_mvm_tdls_check_trigger(mvm, vif, sta->addr,
 						   NL80211_TDLS_DISABLE_LINK);
 		}
+
+		/* Remove STA key if this is an AP using WEP */
+		if (vif->type == NL80211_IFTYPE_AP && mvmvif->ap_wep_key) {
+			int rm_ret = iwl_mvm_remove_sta_key(mvm, vif, sta,
+							    mvmvif->ap_wep_key);
+
+			if (!ret)
+				ret = rm_ret;
+		}
+
 	} else {
 		ret = -EIO;
 	}
@@ -3046,7 +3290,7 @@ static void iwl_mvm_sta_rc_update(struct ieee80211_hw *hw,
 		iwl_mvm_sf_update(mvm, vif, false);
 }
 
-#ifdef IWL7000_NEED_ETSI_WMM_LIMITS
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 static void iwl_mvm_limit_wmm_ac(struct iwl_mvm *mvm,
 				 struct ieee80211_vif *vif,
 				 struct ieee80211_tx_queue_params *params,
@@ -3112,7 +3356,7 @@ static int iwl_mvm_mac_conf_tx(struct ieee80211_hw *hw,
 
 	mvmvif->queue_params[ac] = *params;
 
-#ifdef IWL7000_NEED_ETSI_WMM_LIMITS
+#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 	iwl_mvm_limit_wmm_ac(mvm, vif, &mvmvif->queue_params[ac], ac);
 #endif
 
@@ -3323,9 +3567,8 @@ static int iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 
 			mvmsta = iwl_mvm_sta_from_mac80211(sta);
 			WARN_ON(rcu_access_pointer(mvmsta->ptk_pn[keyidx]));
-			ptk_pn = kzalloc(sizeof(*ptk_pn) +
-					 mvm->trans->num_rx_queues *
-						sizeof(ptk_pn->q[0]),
+			ptk_pn = kzalloc(struct_size(ptk_pn, q,
+						     mvm->trans->num_rx_queues),
 					 GFP_KERNEL);
 			if (!ptk_pn) {
 				ret = -ENOMEM;
@@ -3428,7 +3671,7 @@ static bool iwl_mvm_rx_aux_roc(struct iwl_notif_wait_data *notif_wait,
 	resp = (void *)pkt->data;
 
 	IWL_DEBUG_TE(mvm,
-		     "Aux ROC: Recieved response from ucode: status=%d uid=%d\n",
+		     "Aux ROC: Received response from ucode: status=%d uid=%d\n",
 		     resp->status, resp->event_unique_id);
 
 	te_data->uid = le32_to_cpu(resp->event_unique_id);
@@ -4559,7 +4802,7 @@ static void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 
 	if (mvmsta->avg_energy) {
 		sinfo->signal_avg = mvmsta->avg_energy;
-		sinfo->filled |= BIT(NL80211_STA_INFO_SIGNAL_AVG);
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG);
 	}
 
 	/* if beacon filtering isn't on mac80211 does it anyway */
@@ -4579,11 +4822,11 @@ static void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 
 	sinfo->rx_beacon = mvmvif->beacon_stats.num_beacons +
 			   mvmvif->beacon_stats.accu_num_beacons;
-	sinfo->filled |= BIT(NL80211_STA_INFO_BEACON_RX);
+	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_BEACON_RX);
 	if (mvmvif->beacon_stats.avg_signal) {
 		/* firmware only reports a value after RXing a few beacons */
 		sinfo->rx_beacon_signal_avg = mvmvif->beacon_stats.avg_signal;
-		sinfo->filled |= BIT(NL80211_STA_INFO_BEACON_SIGNAL_AVG);
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_BEACON_SIGNAL_AVG);
 	}
  unlock:
 	mutex_unlock(&mvm->mutex);

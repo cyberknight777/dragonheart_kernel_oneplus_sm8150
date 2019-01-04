@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -69,6 +64,8 @@
 #ifndef __iwl_fw_img_h__
 #define __iwl_fw_img_h__
 #include <linux/types.h>
+
+#include "api/dbg-tlv.h"
 
 #include "file.h"
 #include "error-dump.h"
@@ -223,6 +220,30 @@ struct iwl_fw_dbg {
 	struct iwl_fw_dbg_mem_seg_tlv *mem_tlv;
 	size_t n_mem_tlv;
 	u32 dump_mask;
+};
+
+/**
+ * struct iwl_fw_ini_active_triggers
+ * @active: is this trigger active
+ * @apply_point: last apply point that updated this trigger
+ * @conf: active trigger
+ * @conf_ext: second trigger, contains extra regions to dump
+ */
+struct iwl_fw_ini_active_triggers {
+	bool active;
+	enum iwl_fw_ini_apply_point apply_point;
+	struct iwl_fw_ini_trigger *conf;
+	struct iwl_fw_ini_trigger *conf_ext;
+};
+
+/**
+ * struct iwl_fw_ini_active_regs
+ * @reg: active region from TLV
+ * @apply_point: apply point where it became active
+ */
+struct iwl_fw_ini_active_regs {
+	struct iwl_fw_ini_region_cfg *reg;
+	enum iwl_fw_ini_apply_point apply_point;
 };
 
 /**

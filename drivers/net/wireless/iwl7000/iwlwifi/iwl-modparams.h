@@ -17,9 +17,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program;
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -127,6 +124,7 @@ enum iwl_uapsd_disable {
  * @disable_11ac: disable VHT capabilities, default = false.
  * @disable_msix: disable MSI-X and fall back to MSI on PCIe, default = false.
  * @remove_when_gone: remove an inaccessible device from the PCIe bus.
+ * @enable_ini: enable new FW debug infratructure (INI TLVs)
  */
 struct iwl_mod_params {
 	int swcrypto;
@@ -151,8 +149,13 @@ struct iwl_mod_params {
 	bool lar_disable;
 	bool fw_monitor;
 	bool disable_11ac;
+	/**
+	 * @disable_11ax: disable HE capabilities, default = false
+	 */
+	bool disable_11ax;
 	bool disable_msix;
 	bool remove_when_gone;
+	bool enable_ini;
 };
 
 #endif /* #__iwl_modparams_h__ */

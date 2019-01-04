@@ -229,52 +229,6 @@ struct iwl_tlc_update_notif {
 	__le32 amsdu_enabled;
 } __packed; /* TLC_MNG_UPDATE_NTFY_API_S_VER_2 */
 
-/**
- * enum iwl_tlc_debug_flags - debug options
- * @IWL_TLC_DEBUG_FIXED_RATE: set fixed rate for rate scaling
- * @IWL_TLC_DEBUG_AGG_DURATION_LIM: time limit for a BA session, in usec
- * @IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM: set max number of frames in an aggregation
- * @IWL_TLC_DEBUG_FLAGS_NUM: number of flags. Used to define the data array in
- *                           %struct iwl_dhc_tlc_cmd
- * @IWL_TLC_DEBUG_TPC_ENABLED: enable or disable tpc
- * @IWL_TLC_DEBUG_TPC_STATS: get number of frames Tx'ed in each tpc step
- */
-enum iwl_tlc_debug_flags {
-	IWL_TLC_DEBUG_FIXED_RATE,
-	IWL_TLC_DEBUG_AGG_DURATION_LIM,
-	IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM,
-	IWL_TLC_DEBUG_TPC_ENABLED,
-	IWL_TLC_DEBUG_TPC_STATS,
-
-	IWL_TLC_DEBUG_FLAGS_NUM,
-}; /* TLC_MNG_DEBUG_FLAGS_API_E */
-
-/**
- * struct iwl_dhc_tlc_dbg - fixed debug config
- * @sta_id: bit 0 - enable/disable, bits 1 - 7 hold station id
- * @reserved1: reserved
- * @flags: bitmap of %IWL_TLC_DEBUG_\*
- * @data: for each bit i set in te %flags, data[i] holds the corresponding data
- */
-struct iwl_dhc_tlc_cmd {
-	u8 sta_id;
-	u8 reserved1[3];
-	__le32 flags;
-	__le32 data[IWL_TLC_DEBUG_FLAGS_NUM];
-} __packed; /* TLC_MNG_DEBUG_CMD_S */
-
-/**
- * struct iwl_tpc_stats - statistics on the number of frames sent at each tpc
- *                        step.
- * @no_tpc: number of frames sent with no Tx-power reduction
- * @step: number of frames sent at each step (0 - 3db reduction, ... 4 - 15db
- *        reduction)
- */
-struct iwl_tpc_stats {
-	__le32 no_tpc;
-	__le32 step[5];
-} __packed;
-
 /*
  * These serve as indexes into
  * struct iwl_rate_info fw_rate_idx_to_plcp[IWL_RATE_COUNT];

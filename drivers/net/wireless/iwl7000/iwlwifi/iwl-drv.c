@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -79,6 +74,7 @@
 #include "iwl-op-mode.h"
 #include "iwl-agn-hw.h"
 #include "fw/img.h"
+#include "iwl-dbg-tlv.h"
 #include "iwl-config.h"
 #include "iwl-modparams.h"
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
@@ -426,21 +422,18 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 {
 	const struct iwl_cfg *cfg = drv->trans->cfg;
 	char tag[8];
-	const char *fw_pre_name;
 #if defined(CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES)
 	char fw_name_temp[64];
 #endif
 
 	if (drv->trans->cfg->device_family == IWL_DEVICE_FAMILY_9000 &&
-	    (CSR_HW_REV_STEP(drv->trans->hw_rev) == SILICON_B_STEP ||
-	     CSR_HW_REV_STEP(drv->trans->hw_rev) == SILICON_C_STEP))
-		fw_pre_name = cfg->fw_name_pre_b_or_c_step;
-	else if (drv->trans->cfg->integrated &&
-		 CSR_HW_RFID_STEP(drv->trans->hw_rf_id) == SILICON_B_STEP &&
-		 cfg->fw_name_pre_rf_next_step)
-		fw_pre_name = cfg->fw_name_pre_rf_next_step;
-	else
-		fw_pre_name = cfg->fw_name_pre;
+	    (CSR_HW_REV_STEP(drv->trans->hw_rev) != SILICON_B_STEP &&
+	     CSR_HW_REV_STEP(drv->trans->hw_rev) != SILICON_C_STEP)) {
+		IWL_ERR(drv,
+			"Only HW steps B and C are currently supported (0x%0x)\n",
+			drv->trans->hw_rev);
+		return -EINVAL;
+	}
 
 	if (first) {
 		drv->fw_index = cfg->ucode_api_max;
@@ -467,15 +460,13 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 		IWL_ERR(drv, "no suitable firmware found!\n");
 
 		if (cfg->ucode_api_min == cfg->ucode_api_max) {
-			IWL_ERR(drv, "%s%d is required\n", fw_pre_name,
+			IWL_ERR(drv, "%s%d is required\n", cfg->fw_name_pre,
 				cfg->ucode_api_max);
 		} else {
 			IWL_ERR(drv, "minimum version required: %s%d\n",
-				fw_pre_name,
-				cfg->ucode_api_min);
+				cfg->fw_name_pre, cfg->ucode_api_min);
 			IWL_ERR(drv, "maximum version supported: %s%d\n",
-				fw_pre_name,
-				cfg->ucode_api_max);
+				cfg->fw_name_pre, cfg->ucode_api_max);
 		}
 
 		IWL_ERR(drv,
@@ -484,7 +475,7 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 	}
 
 	snprintf(drv->firmware_name, sizeof(drv->firmware_name), "%s%s.ucode",
-		 fw_pre_name, tag);
+		 cfg->fw_name_pre, tag);
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	if (drv->trans->dbg_cfg.fw_file_pre) {
@@ -901,6 +892,9 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 fw_dbg_conf:
 #endif
+
+	if (iwlwifi_mod_params.enable_ini)
+		iwl_alloc_dbg_tlv(drv->trans, len, data, false);
 
 	while (len >= sizeof(*tlv)) {
 		len -= sizeof(*tlv);
@@ -1374,6 +1368,14 @@ fw_dbg_conf:
 				return -ENOMEM;
 			break;
 			}
+		case IWL_UCODE_TLV_TYPE_BUFFER_ALLOCATION:
+		case IWL_UCODE_TLV_TYPE_HCMD:
+		case IWL_UCODE_TLV_TYPE_REGIONS:
+		case IWL_UCODE_TLV_TYPE_TRIGGERS:
+		case IWL_UCODE_TLV_TYPE_DEBUG_FLOW:
+			if (iwlwifi_mod_params.enable_ini)
+				iwl_fw_dbg_copy_tlv(drv->trans, tlv, false);
+			break;
 		default:
 			IWL_DEBUG_INFO(drv, "unknown TLV: %d\n", tlv_type);
 			break;
@@ -1787,6 +1789,7 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 		break;
 	default:
 		WARN(1, "Invalid fw type %d\n", fw->type);
+		/* fall through */
 	case IWL_FW_MVM:
 		op = &iwlwifi_opmode_table[MVM_OP_MODE];
 		break;
@@ -1875,6 +1878,8 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans)
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	trans->dbg_cfg = current_dbg_config;
 	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
+
+	iwl_load_fw_dbg_tlv(drv->trans->dev, drv->trans);
 #endif
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
@@ -1885,7 +1890,7 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans)
 	if (!drv->dbgfs_drv) {
 		IWL_ERR(drv, "failed to create debugfs directory\n");
 		ret = -ENOMEM;
-		goto err_free_drv;
+		goto err_free_tlv;
 	}
 
 	/* Create transport layer debugfs dir */
@@ -1925,7 +1930,8 @@ err_fw:
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 err_free_dbgfs:
 	debugfs_remove_recursive(drv->dbgfs_drv);
-err_free_drv:
+err_free_tlv:
+	iwl_fw_dbg_free(drv->trans);
 #endif
 	kfree(drv);
 err:
@@ -1951,12 +1957,15 @@ void iwl_drv_stop(struct iwl_drv *drv)
 	mutex_unlock(&iwlwifi_opmode_table_mtx);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
+	drv->trans->ops->debugfs_cleanup(drv->trans);
+
 	debugfs_remove_recursive(drv->dbgfs_drv);
 #endif
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	iwl_dbg_cfg_free(&drv->trans->dbg_cfg);
 #endif
+	iwl_fw_dbg_free(drv->trans);
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	iwl_remove_sysfs_file(drv);
@@ -2083,8 +2092,7 @@ static void __exit iwl_drv_exit(void)
 module_exit(iwl_drv_exit);
 
 #ifdef CPTCFG_IWLWIFI_DEBUG
-module_param_named(debug, iwlwifi_mod_params.debug_level, uint,
-		   S_IRUGO | S_IWUSR);
+module_param_named(debug, iwlwifi_mod_params.debug_level, uint, 0644);
 MODULE_PARM_DESC(debug, "debug output mask");
 #endif
 
@@ -2094,43 +2102,43 @@ module_param_named(xvt_default_mode, iwlwifi_mod_params.xvt_default_mode,
 MODULE_PARM_DESC(xvt_default_mode, "xVT is the default operation mode (default: false)");
 #endif
 
-module_param_named(swcrypto, iwlwifi_mod_params.swcrypto, int, S_IRUGO);
+module_param_named(swcrypto, iwlwifi_mod_params.swcrypto, int, 0444);
 MODULE_PARM_DESC(swcrypto, "using crypto in software (default 0 [hardware])");
-module_param_named(11n_disable, iwlwifi_mod_params.disable_11n, uint, S_IRUGO);
+module_param_named(11n_disable, iwlwifi_mod_params.disable_11n, uint, 0444);
 MODULE_PARM_DESC(11n_disable,
 	"disable 11n functionality, bitmap: 1: full, 2: disable agg TX, 4: disable agg RX, 8 enable agg TX");
-module_param_named(amsdu_size, iwlwifi_mod_params.amsdu_size,
-		   int, S_IRUGO);
+module_param_named(amsdu_size, iwlwifi_mod_params.amsdu_size, int, 0444);
 MODULE_PARM_DESC(amsdu_size,
 		 "amsdu size 0: 12K for multi Rx queue devices, 2K for 22560 devices, "
 		 "4K for other devices 1:4K 2:8K 3:12K 4: 2K (default 0)");
-module_param_named(fw_restart, iwlwifi_mod_params.fw_restart, bool, S_IRUGO);
+module_param_named(fw_restart, iwlwifi_mod_params.fw_restart, bool, 0444);
 MODULE_PARM_DESC(fw_restart, "restart firmware in case of error (default true)");
 
 module_param_named(antenna_coupling, iwlwifi_mod_params.antenna_coupling,
-		   int, S_IRUGO);
+		   int, 0444);
 MODULE_PARM_DESC(antenna_coupling,
 		 "specify antenna coupling in dB (default: 0 dB)");
 
-module_param_named(nvm_file, iwlwifi_mod_params.nvm_file, charp, S_IRUGO);
+module_param_named(nvm_file, iwlwifi_mod_params.nvm_file, charp, 0444);
 MODULE_PARM_DESC(nvm_file, "NVM file name");
 
-module_param_named(d0i3_disable, iwlwifi_mod_params.d0i3_disable,
-		   bool, S_IRUGO);
+module_param_named(d0i3_disable, iwlwifi_mod_params.d0i3_disable, bool, 0444);
 #ifdef CPTCFG_IWLWIFI_D0I3_DEFAULT_DISABLE
 MODULE_PARM_DESC(d0i3_disable, "disable d0i3 functionality (default: Y)");
 #else
 MODULE_PARM_DESC(d0i3_disable, "disable d0i3 functionality (default: N)");
 #endif
 
-module_param_named(lar_disable, iwlwifi_mod_params.lar_disable,
-		   bool, S_IRUGO);
+module_param_named(lar_disable, iwlwifi_mod_params.lar_disable, bool, 0444);
 MODULE_PARM_DESC(lar_disable, "disable LAR functionality (default: N)");
 
-module_param_named(uapsd_disable, iwlwifi_mod_params.uapsd_disable,
-		   uint, S_IRUGO | S_IWUSR);
+module_param_named(uapsd_disable, iwlwifi_mod_params.uapsd_disable, uint, 0644);
 MODULE_PARM_DESC(uapsd_disable,
 		 "disable U-APSD functionality bitmap 1: BSS 2: P2P Client (default: 3)");
+module_param_named(enable_ini, iwlwifi_mod_params.enable_ini,
+		   bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(enable_ini,
+		 "Enable debug INI TLV FW debug infrastructure (default: 0");
 
 /*
  * set bt_coex_active to true, uCode will do kill/defer
@@ -2149,41 +2157,38 @@ MODULE_PARM_DESC(uapsd_disable,
  * default: bt_coex_active = true (BT_COEX_ENABLE)
  */
 module_param_named(bt_coex_active, iwlwifi_mod_params.bt_coex_active,
-		bool, S_IRUGO);
+		   bool, 0444);
 MODULE_PARM_DESC(bt_coex_active, "enable wifi/bt co-exist (default: enable)");
 
-module_param_named(led_mode, iwlwifi_mod_params.led_mode, int, S_IRUGO);
+module_param_named(led_mode, iwlwifi_mod_params.led_mode, int, 0444);
 MODULE_PARM_DESC(led_mode, "0=system default, "
 		"1=On(RF On)/Off(RF Off), 2=blinking, 3=Off (default: 0)");
 
-module_param_named(power_save, iwlwifi_mod_params.power_save,
-		bool, S_IRUGO);
+module_param_named(power_save, iwlwifi_mod_params.power_save, bool, 0444);
 MODULE_PARM_DESC(power_save,
 		 "enable WiFi power management (default: disable)");
 
-module_param_named(power_level, iwlwifi_mod_params.power_level,
-		int, S_IRUGO);
+module_param_named(power_level, iwlwifi_mod_params.power_level, int, 0444);
 MODULE_PARM_DESC(power_level,
 		 "default power save level (range from 1 - 5, default: 1)");
 
-module_param_named(fw_monitor, iwlwifi_mod_params.fw_monitor, bool, S_IRUGO);
+module_param_named(fw_monitor, iwlwifi_mod_params.fw_monitor, bool, 0444);
 MODULE_PARM_DESC(fw_monitor,
 		 "firmware monitor - to debug FW (default: false - needs lots of memory)");
 
-module_param_named(d0i3_timeout, iwlwifi_mod_params.d0i3_timeout,
-		   uint, S_IRUGO);
+module_param_named(d0i3_timeout, iwlwifi_mod_params.d0i3_timeout, uint, 0444);
 MODULE_PARM_DESC(d0i3_timeout, "Timeout to D0i3 entry when idle (ms)");
 
-module_param_named(disable_11ac, iwlwifi_mod_params.disable_11ac, bool,
-		   S_IRUGO);
+module_param_named(disable_11ac, iwlwifi_mod_params.disable_11ac, bool, 0444);
 MODULE_PARM_DESC(disable_11ac, "Disable VHT capabilities (default: false)");
 
-module_param_named(disable_msix, iwlwifi_mod_params.disable_msix, bool,
-		   S_IRUGO);
+module_param_named(disable_11ax, iwlwifi_mod_params.disable_11ax, bool, 0444);
+MODULE_PARM_DESC(disable_11ax, "Disable HE capabilities (default: false)");
+
+module_param_named(disable_msix, iwlwifi_mod_params.disable_msix, bool, 0444);
 MODULE_PARM_DESC(disable_msix, "Disable MSI-X and use MSI instead (default: false)");
 
 module_param_named(remove_when_gone,
-		   iwlwifi_mod_params.remove_when_gone, bool,
-		   S_IRUGO);
+		   iwlwifi_mod_params.remove_when_gone, bool, 0444);
 MODULE_PARM_DESC(remove_when_gone,
 		 "Remove dev from PCIe bus if it is deemed inaccessible (default: false)");

@@ -17,11 +17,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -102,6 +97,7 @@ void iwl_mvm_tof_init(struct iwl_mvm *mvm)
 
 	tof_data->range_req.req_timeout = 1;
 	tof_data->range_req.initiator = 1;
+	tof_data->range_req.macaddr_random = 1;
 	tof_data->range_req.report_policy = IWL_MVM_TOF_RESPONSE_COMPLETE;
 
 	tof_data->range_req_ext.tsf_timer_offset_msec =
@@ -420,8 +416,8 @@ iwl_mvm_tof_set_responder_dyn(struct iwl_mvm *mvm,
 	memcpy(cmd->lci_civic + aligned + 2, params->civic, params->civic_len);
 }
 
-int iwl_mvm_tof_responder_dyn_cfg_cmd(struct iwl_mvm *mvm,
-				struct ieee80211_vif *vif)
+static int iwl_mvm_tof_responder_dyn_cfg_cmd(struct iwl_mvm *mvm,
+					     struct ieee80211_vif *vif)
 {
 	struct iwl_tof_responder_dyn_config_cmd *cmd =
 		&mvm->tof_data.responder_dyn_cfg;
@@ -526,7 +522,6 @@ int iwl_mvm_tof_perform_ftm(struct iwl_mvm *mvm, u64 cookie,
 	cmd->req_timeout = req->timeout;
 	cmd->report_policy = IWL_MVM_TOF_RESPONSE_COMPLETE;
 	cmd->num_of_ap = req->num_of_targets;
-	cmd->macaddr_random = 1;
 	memcpy(cmd->macaddr_template, req->macaddr_template, ETH_ALEN);
 	for (i = 0; i < ETH_ALEN; i++)
 		cmd->macaddr_mask[i] = ~req->macaddr_mask[i];

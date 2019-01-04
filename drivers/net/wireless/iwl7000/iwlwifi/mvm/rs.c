@@ -977,7 +977,7 @@ static int rs_rate_from_ucode_rate(const u32 ucode_rate,
 	}
 
 	WARN_ON_ONCE(rate->bw == RATE_MCS_CHAN_WIDTH_80 &&
-		     !is_vht(rate));
+		     !is_he(rate) && !is_vht(rate));
 
 	return 0;
 }
@@ -1757,7 +1757,11 @@ static void rs_set_amsdu_len(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	else
 		mvmsta->amsdu_enabled = 0xFFFF;
 
-	mvmsta->max_amsdu_len = sta->max_amsdu_len;
+	if (mvmsta->vif->bss_conf.he_support &&
+	    !iwlwifi_mod_params.disable_11ax)
+		mvmsta->max_amsdu_len = sta->max_amsdu_len;
+	else
+		mvmsta->max_amsdu_len = min_t(int, sta->max_amsdu_len, 8500);
 }
 
 /*
@@ -4060,18 +4064,18 @@ static void rs_drv_add_sta_debugfs(void *mvm, void *priv_sta,
 	if (!mvmsta->vif)
 		return;
 
-	debugfs_create_file("rate_scale_table", S_IRUSR | S_IWUSR, dir,
+	debugfs_create_file("rate_scale_table", 0600, dir,
 			    lq_sta, &rs_sta_dbgfs_scale_table_ops);
-	debugfs_create_file("rate_stats_table", S_IRUSR, dir,
+	debugfs_create_file("rate_stats_table", 0400, dir,
 			    lq_sta, &rs_sta_dbgfs_stats_table_ops);
-	debugfs_create_file("drv_tx_stats", S_IRUSR | S_IWUSR, dir,
+	debugfs_create_file("drv_tx_stats", 0600, dir,
 			    lq_sta, &rs_sta_dbgfs_drv_tx_stats_ops);
-	debugfs_create_u8("tx_agg_tid_enable", S_IRUSR | S_IWUSR, dir,
+	debugfs_create_u8("tx_agg_tid_enable", 0600, dir,
 			  &lq_sta->tx_agg_tid_en);
-	debugfs_create_u8("reduced_tpc", S_IRUSR | S_IWUSR, dir,
+	debugfs_create_u8("reduced_tpc", 0600, dir,
 			  &lq_sta->pers.dbg_fixed_txp_reduction);
 
-	MVM_DEBUGFS_ADD_FILE_RS(ss_force, dir, S_IRUSR | S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE_RS(ss_force, dir, 0600);
 	return;
 err:
 	IWL_ERR((struct iwl_mvm *)mvm, "Can't create debugfs entity\n");

@@ -19,11 +19,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -325,13 +320,12 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 					 enum iwl_ucode_type ucode_type)
 {
 	struct iwl_notification_wait alive_wait;
-	struct iwl_mvm_alive_data alive_data;
+	struct iwl_mvm_alive_data alive_data = {};
 	const struct fw_img *fw;
 	int ret, i;
 	enum iwl_ucode_type old_type = mvm->fwrt.cur_fw_img;
 	static const u16 alive_cmd[] = { MVM_ALIVE };
 
-	set_bit(IWL_FWRT_STATUS_WAIT_ALIVE, &mvm->fwrt.status);
 	if (ucode_type == IWL_UCODE_REGULAR &&
 	    iwl_fw_dbg_conf_usniffer(mvm->fw, FW_DBG_START_FROM_ALIVE) &&
 	    !(fw_has_capa(&mvm->fw->ucode_capa,
@@ -361,8 +355,12 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	 */
 	ret = iwl_wait_notification(&mvm->notif_wait, &alive_wait,
 				    MVM_UCODE_ALIVE_TIMEOUT);
+
 	if (ret) {
 		struct iwl_trans *trans = mvm->trans;
+
+		if (ret == -ETIMEDOUT)
+			iwl_fw_alive_timeout_dump(&mvm->fwrt);
 
 		if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_22000)
 			IWL_ERR(mvm,
@@ -396,13 +394,22 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	 */
 
 	memset(&mvm->queue_info, 0, sizeof(mvm->queue_info));
-	mvm->queue_info[IWL_MVM_DQA_CMD_QUEUE].hw_queue_refcount = 1;
+	/*
+	 * Set a 'fake' TID for the command queue, since we use the
+	 * hweight() of the tid_bitmap as a refcount now. Not that
+	 * we ever even consider the command queue as one we might
+	 * want to reuse, but be safe nevertheless.
+	 */
+	mvm->queue_info[IWL_MVM_DQA_CMD_QUEUE].tid_bitmap =
+		BIT(IWL_MAX_TID_COUNT + 2);
 
 	for (i = 0; i < IEEE80211_MAX_QUEUES; i++)
 		atomic_set(&mvm->mac80211_queue_stop_count[i], 0);
 
 	set_bit(IWL_MVM_STATUS_FIRMWARE_RUNNING, &mvm->status);
-	clear_bit(IWL_FWRT_STATUS_WAIT_ALIVE, &mvm->fwrt.status);
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	iwl_fw_set_dbg_rec_on(&mvm->fwrt);
+#endif
 
 	return 0;
 }
@@ -644,7 +651,9 @@ int iwl_run_init_mvm_ucode(struct iwl_mvm *mvm, bool read_nvm)
 	if (mvm->nvm_file_name)
 		iwl_mvm_load_nvm_to_nic(mvm);
 
-	WARN_ON(iwl_nvm_check_version(mvm->nvm_data, mvm->trans));
+	WARN_ONCE(mvm->nvm_data->nvm_version < mvm->trans->cfg->nvm_ver,
+		  "Too old NVM version (0x%0x, required = 0x%0x)",
+		  mvm->nvm_data->nvm_version, mvm->trans->cfg->nvm_ver);
 
 	/*
 	 * abort after reading the nvm in case RF Kill is on, we will complete
@@ -1033,6 +1042,11 @@ static int iwl_mvm_sar_get_ewrd_table(struct iwl_mvm *mvm)
 	return -ENOENT;
 }
 
+static int iwl_mvm_sar_get_wgds_table(struct iwl_mvm *mvm)
+{
+	return -ENOENT;
+}
+
 static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 {
 	return 0;
@@ -1059,8 +1073,11 @@ static int iwl_mvm_sar_init(struct iwl_mvm *mvm)
 		IWL_DEBUG_RADIO(mvm,
 				"WRDS SAR BIOS table invalid or unavailable. (%d)\n",
 				ret);
-		/* if not available, don't fail and don't bother with EWRD */
-		return 0;
+		/*
+		 * If not available, don't fail and don't bother with EWRD.
+		 * Return 1 to tell that we can't use WGDS either.
+		 */
+		return 1;
 	}
 
 	ret = iwl_mvm_sar_get_ewrd_table(mvm);
@@ -1082,9 +1099,13 @@ static int iwl_mvm_sar_init(struct iwl_mvm *mvm)
 #endif
 	ret = iwl_mvm_sar_select_profile(mvm, 1, 1);
 
-	/* if we don't have profile 0 from BIOS, just skip it */
+	/*
+	 * If we don't have profile 0 from BIOS, just skip it.  This
+	 * means that SAR Geo will not be enabled either, even if we
+	 * have other valid profiles.
+	 */
 	if (ret == -ENOENT)
-		return 0;
+		return 1;
 
 	return ret;
 }
@@ -1116,9 +1137,13 @@ static int iwl_mvm_load_rt_fw(struct iwl_mvm *mvm)
 	if (ret)
 		return ret;
 
+	iwl_fw_dbg_apply_point(&mvm->fwrt, IWL_FW_INI_APPLY_EARLY);
+
 	ret = iwl_mvm_load_ucode_wait_alive(mvm, IWL_UCODE_REGULAR);
 	if (ret)
 		return ret;
+
+	iwl_fw_dbg_apply_point(&mvm->fwrt, IWL_FW_INI_APPLY_AFTER_ALIVE);
 
 	return iwl_init_paging(&mvm->fwrt, mvm->fwrt.cur_fw_img);
 }
@@ -1152,11 +1177,13 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	iwl_dnt_start(mvm->trans);
 #endif
 
-	mvm->fwrt.dump.conf = FW_DBG_INVALID;
-	/* if we have a destination, assume EARLY START */
-	if (mvm->fw->dbg.dest_tlv)
-		mvm->fwrt.dump.conf = FW_DBG_START_FROM_ALIVE;
-	iwl_fw_start_dbg_conf(&mvm->fwrt, FW_DBG_START_FROM_ALIVE);
+	if (!mvm->trans->ini_valid) {
+		mvm->fwrt.dump.conf = FW_DBG_INVALID;
+		/* if we have a destination, assume EARLY START */
+		if (mvm->fw->dbg.dest_tlv)
+			mvm->fwrt.dump.conf = FW_DBG_START_FROM_ALIVE;
+		iwl_fw_start_dbg_conf(&mvm->fwrt, FW_DBG_START_FROM_ALIVE);
+	}
 
 	ret = iwl_send_tx_ant_cfg(mvm, iwl_mvm_get_valid_tx_ant(mvm));
 	if (ret)
@@ -1317,11 +1344,19 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 #endif
 
 	ret = iwl_mvm_sar_init(mvm);
-	if (ret)
-		goto error;
+	if (ret == 0) {
+		ret = iwl_mvm_sar_geo_init(mvm);
+	} else if (ret > 0 && !iwl_mvm_sar_get_wgds_table(mvm)) {
+		/*
+		 * If basic SAR is not available, we check for WGDS,
+		 * which should *not* be available either.  If it is
+		 * available, issue an error, because we can't use SAR
+		 * Geo without basic SAR.
+		 */
+		IWL_ERR(mvm, "BIOS contains WGDS but no WRDS\n");
+	}
 
-	ret = iwl_mvm_sar_geo_init(mvm);
-	if (ret)
+	if (ret < 0)
 		goto error;
 
 	iwl_mvm_leds_sync(mvm);
