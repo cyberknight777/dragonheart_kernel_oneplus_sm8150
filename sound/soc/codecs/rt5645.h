@@ -2200,10 +2200,10 @@ enum {
 	RT5645_AD_MONO_R_FILTER = (0x1 << 5),
 };
 
-int rt5645_sel_asrc_clk_src(struct snd_soc_component *component,
+int rt5645_sel_asrc_clk_src(struct snd_soc_codec *codec,
 		unsigned int filter_mask, unsigned int clk_src);
 
-int rt5645_set_jack_detect(struct snd_soc_component *component,
+int rt5645_set_jack_detect(struct snd_soc_codec *codec,
 	struct snd_soc_jack *hp_jack, struct snd_soc_jack *mic_jack,
 	struct snd_soc_jack *btn_jack);
 #endif /* __RT5645_H__ */
