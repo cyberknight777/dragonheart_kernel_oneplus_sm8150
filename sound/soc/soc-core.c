@@ -1721,8 +1721,6 @@ static int soc_probe_link_dais(struct snd_soc_card *card,
 		soc_dpcm_debugfs_add(rtd);
 #endif
 
-	num = rtd->num;
-
 	/*
 	 * most drivers will register their PCMs using DAI link ordering but
 	 * topology based drivers can use the DAI link id field to set PCM
@@ -2137,7 +2135,7 @@ match:
 
 			/* override any BE fixups */
 			dai_link->be_hw_params_fixup =
-			platform->driver->be_hw_params_fixup;
+				platform->driver->be_hw_params_fixup;
 
 			/* most BE links don't set stream name, so set it to
 			 * dai link name if it's NULL to help bind widgets.
@@ -2148,16 +2146,9 @@ match:
 
 		/* Inform userspace we are using alternate topology */
 		if (platform->driver->topology_name_prefix) {
-
-			/* topology shortname created ? */
-			if (!card->topology_shortname_created) {
-				snprintf(card->topology_shortname, 32, "%s-%s",
-					 platform->driver->topology_name_prefix,
-					 card->name);
-				card->topology_shortname_created = true;
-			}
-
-			/* use topology shortname */
+			snprintf(card->topology_shortname, 32, "%s-%s",
+				 platform->driver->topology_name_prefix,
+				 card->name);
 			card->name = card->topology_shortname;
 		}
 	}
