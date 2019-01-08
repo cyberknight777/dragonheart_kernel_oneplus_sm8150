@@ -418,53 +418,19 @@ bool chromiumos_check_setuid_policy_hashtable_key_value(kuid_t parent,
 	return false;
 }
 
-bool setuid_syscall(int num)
-{
-#ifdef CONFIG_X86_64
-	if (!(num == __NR_setreuid ||
-	      num == __NR_setuid ||
-	      num == __NR_setresuid ||
-	      num == __NR_setfsuid))
-		return false;
-#elif defined CONFIG_ARM64
-	if (!(num == __NR_setuid ||
-	      num == __NR_setreuid ||
-	      num == __NR_setfsuid ||
-	      num == __NR_setresuid ||
-	      num == __NR_compat_setuid ||
-	      num == __NR_compat_setreuid ||
-	      num == __NR_compat_setfsuid ||
-	      num == __NR_compat_setresuid ||
-	      num == __NR_compat_setreuid32 ||
-	      num == __NR_compat_setresuid32 ||
-	      num == __NR_compat_setuid32 ||
-	      num == __NR_compat_setfsuid32))
-		return false;
-#else /* CONFIG_ARM */
-	if (!(num == __NR_setreuid32 ||
-	      num == __NR_setuid32 ||
-	      num == __NR_setresuid32 ||
-	      num == __NR_setfsuid32))
-		return false;
-#endif
-	return true;
-}
-
 int chromiumos_security_capable(const struct cred *cred,
 				struct user_namespace *ns,
 				int cap,
-				int audit)
+				unsigned int opts)
 {
 	/* The current->mm check will fail if this is a kernel thread. */
 	if (!disable_process_management_policies &&
 	    cap == CAP_SETUID &&
-	    current->mm &&
 	    chromiumos_check_setuid_policy_hashtable_key(cred->uid)) {
 		// syscall_get_nr can theoretically return 0 or -1, but that
 		// would signify that the syscall is being aborted due to a
 		// signal, so we don't need to check for this case here.
-		if (!(setuid_syscall(syscall_get_nr(current,
-						    current_pt_regs())))) {
+		if (!(opts & CAP_OPT_INSETID)) {
 			// Deny if we're not in a set*uid() syscall to avoid
 			// giving powers gated by CAP_SETUID that are related
 			// to functionality other than calling set*uid() (e.g.
