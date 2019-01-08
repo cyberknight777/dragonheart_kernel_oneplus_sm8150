@@ -7,6 +7,7 @@
  *
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
  * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -28,6 +29,7 @@
  *
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
  * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -142,9 +144,6 @@ int iwl_mvm_ftm_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		 * have filled our local address there instead.
 		 */
 		.macaddr_random = 1,
-#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-		.common_calib = cpu_to_le16(IWL_MVM_FTM_INITIATOR_COMMON_CALIB),
-#endif
 	};
 	struct iwl_host_cmd hcmd = {
 		.id = iwl_cmd_id(TOF_RANGE_REQ_CMD, LOCATION_GROUP, 0),
@@ -167,6 +166,15 @@ int iwl_mvm_ftm_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	memcpy(cmd.macaddr_template, req->mac_addr, ETH_ALEN);
 	for (i = 0; i < ETH_ALEN; i++)
 		cmd.macaddr_mask[i] = ~req->mac_addr_mask[i];
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (IWL_MVM_FTM_INITIATOR_COMMON_CALIB) {
+		cmd.common_calib =
+			cpu_to_le16(IWL_MVM_FTM_INITIATOR_COMMON_CALIB);
+		cmd.initiator_flags =
+			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB);
+	}
+#endif
 
 	for (i = 0; i < cmd.num_of_ap; i++) {
 		struct cfg80211_pmsr_request_peer *peer = &req->peers[i];
