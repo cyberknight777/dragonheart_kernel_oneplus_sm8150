@@ -54,5 +54,7 @@ extern unsigned int evdi_loglevel;
 #define EVDI_ENTER() EVDI_VERBOSE("enter\n")
 #define EVDI_EXIT() EVDI_VERBOSE("exit\n")
 
+void evdi_log_process(void);
+
 #endif /* EVDI_DEBUG_H */
 

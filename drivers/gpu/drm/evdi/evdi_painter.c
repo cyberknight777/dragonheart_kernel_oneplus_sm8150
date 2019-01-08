@@ -507,9 +507,9 @@ evdi_painter_connect(struct evdi_device *evdi,
 	struct edid *new_edid = NULL;
 	int expected_edid_size = 0;
 
-	EVDI_CHECKPT();
-	EVDI_DEBUG("(dev=%d) process %d trying to connect\n", evdi->dev_index,
-		   (int)task_pid_nr(current));
+	EVDI_DEBUG("(dev=%d) Process is trying to connect\n",
+		   evdi->dev_index);
+	evdi_log_process();
 
 	if (edid_length < sizeof(struct edid)) {
 		EVDI_ERROR("Edid length too small\n");
