@@ -245,6 +245,8 @@ static void iwl_mvm_add_rtap_sniffer_config(struct iwl_mvm *mvm,
 
 	/* fill the data now */
 	memcpy(radiotap->data, &mvm->cur_aid, sizeof(mvm->cur_aid));
+	/* and clear the padding */
+	memset(radiotap->data + sizeof(__le16), 0, radiotap->pad);
 
 	rx_status->flag |= RX_FLAG_RADIOTAP_VENDOR_DATA;
 }
