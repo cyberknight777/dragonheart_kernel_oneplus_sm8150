@@ -5215,6 +5215,7 @@ static void iwl_mvm_mac_event_callback(struct ieee80211_hw *hw,
 	}
 }
 
+#define SYNC_RX_QUEUE_TIMEOUT (HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 				     struct iwl_mvm_internal_rxq_notif *notif,
 				     u32 size)
@@ -5243,7 +5244,7 @@ void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 		ret = wait_event_timeout(mvm->rx_sync_waitq,
 					 atomic_read(&mvm->queue_sync_counter) == 0 ||
 					 iwl_mvm_is_radio_killed(mvm),
-					 HZ);
+					 SYNC_RX_QUEUE_TIMEOUT);
 		WARN_ON_ONCE(!ret && !iwl_mvm_is_radio_killed(mvm));
 	}
 
