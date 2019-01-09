@@ -215,13 +215,15 @@ static void sof_suspend_streams(struct snd_sof_dev *sdev)
 
 		if (substream && substream->runtime) {
 			state = substream->runtime->status->state;
-			snd_pcm_suspend(substream);
+			if (state == SNDRV_PCM_STATE_RUNNING) {
+				snd_pcm_suspend(substream);
 
-			/*
-			 * set restore_stream so that hw_params can be
-			 * restored during resume
-			 */
-			spcm->restore_stream[dir] = 1;
+				/*
+				 * set restore_stream so that hw_params can be
+				 * restored during resume
+				 */
+				spcm->restore_stream[dir] = 1;
+			}
 		}
 
 		/* suspend running capture stream */
@@ -230,13 +232,15 @@ static void sof_suspend_streams(struct snd_sof_dev *sdev)
 
 		if (substream && substream->runtime) {
 			state = substream->runtime->status->state;
-			snd_pcm_suspend(substream);
+			if (state == SNDRV_PCM_STATE_RUNNING) {
+				snd_pcm_suspend(substream);
 
-			/*
-			 * set restore_stream so that hw_params can be
-			 * restored during resume
-			 */
-			spcm->restore_stream[dir] = 1;
+				/*
+				 * set restore_stream so that hw_params can be
+				 * restored during resume
+				 */
+				spcm->restore_stream[dir] = 1;
+			}
 		}
 
 		mutex_unlock(&spcm->mutex);
