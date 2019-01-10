@@ -1467,6 +1467,11 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 		}
 
 		if (!(flags & TTU_IGNORE_ACCESS)) {
+			if (kstaled_is_enabled() && pte_young(*pvmw.pte)) {
+				kstaled_direct_aging(&pvmw);
+				ret = false;
+				break;
+			}
 			if (ptep_clear_flush_young_notify(vma, address,
 						pvmw.pte)) {
 				ret = false;

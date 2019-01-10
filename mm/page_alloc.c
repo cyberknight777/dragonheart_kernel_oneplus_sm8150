@@ -3760,6 +3760,9 @@ should_reclaim_retry(gfp_t gfp_mask, unsigned order,
 	 */
 	if (*no_progress_loops > MAX_RECLAIM_RETRIES) {
 		low_mem_notify();
+		if (kstaled_is_enabled())
+			kstaled_throttle_alloc(ac->zonelist->_zonerefs->zone,
+					       order, gfp_mask);
 		/* Before OOM, exhaust highatomic_reserve */
 		return unreserve_highatomic_pageblock(ac, true);
 	}

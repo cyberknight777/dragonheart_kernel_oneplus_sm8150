@@ -18,6 +18,7 @@
 #include <linux/pageblock-flags.h>
 #include <linux/page-flags-layout.h>
 #include <linux/atomic.h>
+#include <linux/kstaled.h>
 #include <asm/page.h>
 
 /* Free memory management - zoned buddy allocator.  */
@@ -181,6 +182,15 @@ enum node_stat_item {
 	NR_DIRTIED,		/* page dirtyings since bootup */
 	NR_WRITTEN,		/* page writings since bootup */
 	NR_INDIRECTLY_RECLAIMABLE_BYTES, /* measured in bytes */
+#ifdef CONFIG_KSTALED
+	KSTALED_TIMEOUT,
+	KSTALED_AGING_STALLS,
+	KSTALED_RECLAIM_STALLS,
+	KSTALED_BACKGROUND_AGING,
+	KSTALED_BACKGROUND_HOT,
+	KSTALED_DIRECT_AGING,
+	KSTALED_DIRECT_HOT,
+#endif
 	NR_VM_NODE_STAT_ITEMS
 };
 
@@ -727,6 +737,10 @@ typedef struct pglist_data {
 	/* Per-node vmstats */
 	struct per_cpu_nodestat __percpu *per_cpu_nodestats;
 	atomic_long_t		vm_stat[NR_VM_NODE_STAT_ITEMS];
+
+	ZONE_PADDING(_pad3_)
+
+	struct kstaled_struct	kstaled;
 } pg_data_t;
 
 #define node_present_pages(nid)	(NODE_DATA(nid)->node_present_pages)

@@ -467,6 +467,133 @@ TRACE_EVENT(mm_vmscan_inactive_list_is_low,
 		__entry->ratio,
 		show_reclaim_flags(__entry->reclaim_flags))
 );
+
+TRACE_EVENT(kstaled_ring,
+	TP_PROTO(int nid, const char *op, unsigned ring_head, unsigned tail_anon,
+		 unsigned tail_file),
+
+	TP_ARGS(nid, op, ring_head, tail_anon, tail_file),
+
+	TP_STRUCT__entry(
+		__field(int, nid)
+		__field(const char *, op)
+		__field(unsigned, ring_head)
+		__field(unsigned, tail_anon)
+		__field(unsigned, tail_file)
+	),
+
+	TP_fast_assign(
+		__entry->nid = nid;
+		__entry->op = op;
+		__entry->ring_head = ring_head;
+		__entry->tail_anon = tail_anon;
+		__entry->tail_file = tail_file;
+	),
+
+	TP_printk("node %4u; %10s; head %12u; tail anon %12u, file %12u",
+		  __entry->nid, __entry->op, __entry->ring_head, __entry->tail_anon,
+		  __entry->tail_file)
+);
+
+TRACE_EVENT(kstaled_aging,
+	TP_PROTO(int nid, bool background, unsigned long hot),
+
+	TP_ARGS(nid, background, hot),
+
+	TP_STRUCT__entry(
+		__field(int, nid)
+		__field(bool, background)
+		__field(unsigned long, hot)
+	),
+
+	TP_fast_assign(
+		__entry->nid = nid;
+		__entry->background = background;
+		__entry->hot = hot;
+	),
+
+	TP_printk("node %4u; %10s hot %12lu",
+		  __entry->nid,
+		  __entry->background ? "background" : "direct",
+		  __entry->hot)
+);
+
+TRACE_EVENT(kstaled_reclaim,
+	TP_PROTO(int nid, bool file, bool clean_only, unsigned span,
+		 unsigned long scanned, unsigned long sorted,
+		 unsigned long isolated, unsigned long reclaimed),
+
+	TP_ARGS(nid, file, clean_only, span, scanned, sorted, isolated,
+		reclaimed),
+
+	TP_STRUCT__entry(
+		__field(int, nid)
+		__field(bool, file)
+		__field(bool, clean_only)
+		__field(unsigned, span)
+		__field(unsigned long, scanned)
+		__field(unsigned long, sorted)
+		__field(unsigned long, isolated)
+		__field(unsigned long, reclaimed)
+	),
+
+	TP_fast_assign(
+		__entry->nid = nid;
+		__entry->file = file;
+		__entry->clean_only = clean_only;
+		__entry->span = span;
+		__entry->scanned = scanned;
+		__entry->sorted = sorted;
+		__entry->isolated = isolated;
+		__entry->reclaimed = reclaimed;
+	),
+
+	TP_printk("node %4u; %5s %s; span %4u; scanned %12lu; sorted %12lu; isolated %12lu; reclaimed %12lu",
+		  __entry->nid,
+		  __entry->clean_only ? "clean" : "",
+		  __entry->file ? "file" : "anon",
+		  __entry->span, __entry->scanned, __entry->sorted,
+		  __entry->isolated, __entry->reclaimed)
+);
+
+TRACE_EVENT(kstaled_estimate,
+	TP_PROTO(int nid, unsigned long total, unsigned long free,
+		 unsigned long drop, unsigned long growth, unsigned span_anon,
+		 unsigned span_file, bool walk_pmdp,
+		 unsigned long nr_to_reclaim),
+
+	TP_ARGS(nid, total, free, drop, growth, span_anon, span_file,
+		walk_pmdp, nr_to_reclaim),
+
+	TP_STRUCT__entry(
+		__field(int, nid)
+		__field(unsigned long, total)
+		__field(unsigned long, free)
+		__field(unsigned long, drop)
+		__field(unsigned long, growth)
+		__field(unsigned, span_anon)
+		__field(unsigned, span_file)
+		__field(bool, walk_pmdp)
+		__field(unsigned long, nr_to_reclaim)
+	),
+
+	TP_fast_assign(
+		__entry->nid = nid;
+		__entry->total = total;
+		__entry->free = free;
+		__entry->drop = drop;
+		__entry->growth = growth;
+		__entry->span_anon = span_anon;
+		__entry->span_file = span_file;
+		__entry->walk_pmdp = walk_pmdp;
+		__entry->nr_to_reclaim = nr_to_reclaim;
+	),
+
+	TP_printk("node %4u; total %12lu; free %12lu; drop %12lu; growth %12lu; span anon %4u, file %4u; PMD walk %d; reclaim target %12lu",
+		  __entry->nid, __entry->total, __entry->free, __entry->drop,
+		  __entry->growth, __entry->span_anon, __entry->span_file,
+		  __entry->walk_pmdp, __entry->nr_to_reclaim)
+);
 #endif /* _TRACE_VMSCAN_H */
 
 /* This part must be outside protection */

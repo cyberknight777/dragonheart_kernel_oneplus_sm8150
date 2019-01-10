@@ -5,6 +5,7 @@
 #include <linux/threads.h>
 #include <linux/mm.h>		/* for struct page */
 #include <linux/pagemap.h>
+#include <linux/kstaled.h>
 
 static inline int  __paravirt_pgd_alloc(struct mm_struct *mm) { return 0; }
 
@@ -61,6 +62,9 @@ static inline void pte_free_kernel(struct mm_struct *mm, pte_t *pte)
 
 static inline void pte_free(struct mm_struct *mm, struct page *pte)
 {
+	if (kstaled_put_ptep(pte))
+		return;
+
 	pgtable_page_dtor(pte);
 	__free_page(pte);
 }
@@ -85,6 +89,7 @@ static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
 {
 	unsigned long pfn = page_to_pfn(pte);
 
+	kstaled_init_ptep(pmd, pte);
 	paravirt_alloc_pte(mm, pfn);
 	set_pmd(pmd, __pmd(((pteval_t)pfn << PAGE_SHIFT) | _PAGE_TABLE));
 }
@@ -129,6 +134,7 @@ extern void pud_populate(struct mm_struct *mm, pud_t *pudp, pmd_t *pmd);
 #else	/* !CONFIG_X86_PAE */
 static inline void pud_populate(struct mm_struct *mm, pud_t *pud, pmd_t *pmd)
 {
+	kstaled_init_pmdp(mm, pmd);
 	paravirt_alloc_pmd(mm, __pa(pmd) >> PAGE_SHIFT);
 	set_pud(pud, __pud(_PAGE_TABLE | __pa(pmd)));
 }

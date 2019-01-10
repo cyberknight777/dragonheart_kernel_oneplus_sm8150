@@ -806,3 +806,18 @@ config MM_METRICS
 	  /sys/kernel/debug/mm_metrics/{swap_refault,swap_latency,reclaim_latency}
 	  in histograms.
 	default n
+
+config KSTALED
+	bool "kstaled: a kswapd alternative"
+	depends on X86_64
+	depends on NR_CPUS >= SPLIT_PTLOCK_CPUS && ARCH_ENABLE_SPLIT_PMD_PTLOCK
+	depends on !NEED_MULTIPLE_NODES && !IDLE_PAGE_TRACKING
+	help
+	  kstaled wakes up every second, checks how fast free pages drop,
+	  and if necessary, updates age of accessed pages and reclaims the
+	  LRU pages based on the age.
+
+	  By default, kstaled is disabled. To enable it, write a positive
+	  integer to /sys/kernel/mm/kstaled/ratio. Larger values make
+	  kstaled more proactive but also consume more CPU.
+	default n

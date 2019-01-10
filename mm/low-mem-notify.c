@@ -76,12 +76,14 @@ static int low_mem_notify_open(struct inode *inode, struct file *file)
 	}
 
 	file->private_data = info;
+	kstaled_disable_throttle();
 out:
 	return err;
 }
 
 static int low_mem_notify_release(struct inode *inode, struct file *file)
 {
+	kstaled_enable_throttle();
 	kfree(file->private_data);
 	return 0;
 }
