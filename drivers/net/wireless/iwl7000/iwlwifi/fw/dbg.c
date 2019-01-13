@@ -1730,8 +1730,7 @@ int iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 		       u32 id, const char *str, size_t len)
 {
 	struct iwl_fw_dump_desc *desc;
-	struct iwl_fw_ini_active_triggers *active =
-		&fwrt->dump.active_trigs[id];
+	struct iwl_fw_ini_active_triggers *active;
 	u32 occur, delay;
 
 	if (!fwrt->trans->ini_valid)
@@ -1739,6 +1738,8 @@ int iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 
 	if (id == FW_DBG_TRIGGER_USER)
 		id = IWL_FW_TRIGGER_ID_USER_TRIGGER;
+
+	active = &fwrt->dump.active_trigs[id];
 
 	if (WARN_ON(!active->active))
 		return -EINVAL;
