@@ -312,17 +312,6 @@ config SND_SOC_INTEL_KBL_RT5663_RT5514_MAX98927_MACH
           Say Y or m if you have such a device. This is a recommended option.
           If unsure select "N".
 
-config SND_SOC_INTEL_CNL_RT274_MACH
-	tristate "ASoC Audio driver for Cannonlake with RT274 I2S mode"
-	depends on X86_INTEL_LPSS && ACPI && I2C
-	select SND_SOC_RT274
-	select SND_SOC_DMIC
-	help
-	   This adds support for ASoC machine driver for Cannonlake platform
-	   with RT274 I2S audio codec.
-	   Say Y if you have such a device.
-	   If unsure select "N".
-
 config SND_SOC_INTEL_SKL_HDA_DSP_GENERIC_MACH
 	tristate "SKL/KBL/BXT/APL with HDA Codecs"
 	select SND_SOC_HDAC_HDMI
