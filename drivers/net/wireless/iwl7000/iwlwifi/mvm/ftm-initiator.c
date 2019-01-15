@@ -210,6 +210,7 @@ static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	}
 #endif
 	/* TODO: fill in tsf_mac_id if needed */
+	cmd->tsf_mac_id = cpu_to_le32(0xff);
 }
 
 static int iwl_mvm_ftm_target_chandef(struct iwl_mvm *mvm,
@@ -311,7 +312,7 @@ static int iwl_mvm_ftm_put_target(struct iwl_mvm *mvm,
 	if (peer->ftm.request_lci)
 		FTM_PUT_FLAG(LCI_REQUEST);
 
-	if (peer->ftm.request_lci)
+	if (peer->ftm.request_civicloc)
 		FTM_PUT_FLAG(CIVIC_REQUEST);
 
 	if (IWL_MVM_FTM_INITIATOR_DYNACK)
