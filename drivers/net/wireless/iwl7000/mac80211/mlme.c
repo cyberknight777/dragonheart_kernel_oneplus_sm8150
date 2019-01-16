@@ -1305,7 +1305,10 @@ ieee80211_sta_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 	if (res < 0) {
 		ieee80211_queue_work(&local->hw,
 				     &ifmgd->csa_connection_drop_work);
-	} else if (beacon && sdata->vif.csa_active && !ifmgd->csa_waiting_bcn) {
+		return;
+	}
+
+	if (beacon && sdata->vif.csa_active && !ifmgd->csa_waiting_bcn) {
 		if (res)
 			ieee80211_sta_abort_chanswitch(sdata);
 		else
