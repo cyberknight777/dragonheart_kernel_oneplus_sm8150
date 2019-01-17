@@ -18,6 +18,7 @@
 #include <linux/sched/rt.h>
 #include <linux/livepatch.h>
 #include <linux/mm_types.h>
+#include <linux/audit.h>
 
 #include <asm/thread_info.h>
 

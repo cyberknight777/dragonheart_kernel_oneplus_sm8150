@@ -9,7 +9,6 @@
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
-#include <linux/audit.h>
 
 #include <linux/alt-syscall.h>
 
