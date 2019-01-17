@@ -1295,8 +1295,7 @@ ieee80211_sta_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 	if (!res) {
 		ch_switch.timestamp = timestamp;
 		ch_switch.device_timestamp = device_timestamp;
-		if (beacon)
-			ch_switch.block_tx = csa_ie.mode;
+		ch_switch.block_tx =  beacon ? csa_ie.mode : 0;
 		ch_switch.chandef = csa_ie.chandef;
 		ch_switch.count = csa_ie.count;
 		ch_switch.delay = csa_ie.max_switch_time;
