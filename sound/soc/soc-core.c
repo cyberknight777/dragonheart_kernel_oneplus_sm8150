@@ -1026,7 +1026,7 @@ static int snd_soc_init_platform(struct snd_soc_card *card,
 	 * this function should be removed in the future
 	 */
 	/* convert Legacy platform link */
-	if (dai_link->platform && !dai_link->legacy_platform)
+	if (dai_link->platform)
 		return 0;
 
 	dai_link->platform = devm_kzalloc(card->dev,
@@ -1035,7 +1035,6 @@ static int snd_soc_init_platform(struct snd_soc_card *card,
 	if (!dai_link->platform)
 		return -ENOMEM;
 
-	dai_link->legacy_platform       = 1;
 	dai_link->platform->name	= dai_link->platform_name;
 	dai_link->platform->of_node	= dai_link->platform_of_node;
 	dai_link->platform->dai_name	= NULL;
