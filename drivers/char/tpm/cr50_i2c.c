@@ -98,8 +98,7 @@ static int cr50_i2c_wait_tpm_ready(struct tpm_chip *chip)
 		msecs_to_jiffies(chip->timeout_a));
 
 	if (rc == 0) {
-		dev_err(&chip->dev, "Timeout waiting for TPM ready\n");
-		return -ETIMEDOUT;
+		dev_warn(&chip->dev, "Timeout waiting for TPM ready\n");
 	}
 	return (int)rc;
 }
@@ -253,8 +252,8 @@ static int cr50_i2c_write(struct tpm_chip *chip, u8 addr, u8 *buffer,
 	if (rc <= 0)
 		goto out;
 
-	/* Wait for TPM to be ready */
-	rc = cr50_i2c_wait_tpm_ready(chip);
+	/* Wait for TPM to be ready, ignore timeout */
+	cr50_i2c_wait_tpm_ready(chip);
 
 out:
 	cr50_i2c_disable_tpm_irq(chip);
