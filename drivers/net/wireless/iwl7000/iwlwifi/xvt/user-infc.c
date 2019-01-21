@@ -7,8 +7,8 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018         Intel Corporation
+ * Copyright(C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,8 +30,8 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1750,10 +1750,10 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 			       sizeof(mac_addr_info->mac_addr));
 		} else {
 			/* read the mac address from WFMP registers */
-			mac_addr0 = iwl_trans_read_prph(xvt->trans,
-							WFMP_MAC_ADDR_0);
-			mac_addr1 = iwl_trans_read_prph(xvt->trans,
-							WFMP_MAC_ADDR_1);
+			mac_addr0 = iwl_read_umac_prph_no_grab(xvt->trans,
+							       WFMP_MAC_ADDR_0);
+			mac_addr1 = iwl_read_umac_prph_no_grab(xvt->trans,
+							       WFMP_MAC_ADDR_1);
 
 			hw_addr = (const u8 *)&mac_addr0;
 			temp_mac_addr[0] = hw_addr[3];
