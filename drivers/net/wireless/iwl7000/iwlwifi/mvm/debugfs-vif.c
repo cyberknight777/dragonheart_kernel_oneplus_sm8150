@@ -751,9 +751,8 @@ static ssize_t iwl_dbgfs_quota_min_read(struct file *file,
 #define MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz) \
 	_MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz, struct ieee80211_vif)
 #define MVM_DEBUGFS_ADD_FILE_VIF(name, parent, mode) do {		\
-		if (!debugfs_create_file(#name, mode, parent, vif,	\
-					 &iwl_dbgfs_##name##_ops))	\
-			goto err;					\
+		debugfs_create_file(#name, mode, parent, vif,		\
+				    &iwl_dbgfs_##name##_ops);		\
 	} while (0)
 
 MVM_DEBUGFS_READ_FILE_OPS(mac_params);
@@ -782,17 +781,6 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 		return;
 
 	mvmvif->dbgfs_dir = debugfs_create_dir("iwlmvm", dbgfs_dir);
-
-	if (!mvmvif->dbgfs_dir) {
-#if LINUX_VERSION_IS_GEQ(3,12,0)
-		IWL_ERR(mvm, "Failed to create debugfs directory under %pd\n",
-			dbgfs_dir);
-#else
-		IWL_ERR(mvm, "Failed to create debugfs directory under %s\n",
-			dbgfs_dir->d_name.name);
-#endif
-		return;
-	}
 
 	if (iwlmvm_mod_params.power_scheme != IWL_POWER_SCHEME_CAM &&
 	    ((vif->type == NL80211_IFTYPE_STATION && !vif->p2p) ||
@@ -833,17 +821,6 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	mvmvif->dbgfs_slink = debugfs_create_symlink(dbgfs_dir->d_name.name,
 						     mvm->debugfs_dir, buf);
-	if (!mvmvif->dbgfs_slink)
-#if LINUX_VERSION_IS_GEQ(3,12,0)
-		IWL_ERR(mvm, "Can't create debugfs symbolic link under %pd\n",
-			dbgfs_dir);
-#else
-		IWL_ERR(mvm, "Can't create debugfs symbolic link under %s\n",
-			dbgfs_dir->d_name.name);
-#endif
-	return;
-err:
-	IWL_ERR(mvm, "Can't create debugfs entity\n");
 }
 
 void iwl_mvm_vif_dbgfs_clean(struct iwl_mvm *mvm, struct ieee80211_vif *vif)

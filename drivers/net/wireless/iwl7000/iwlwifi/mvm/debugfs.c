@@ -1770,9 +1770,8 @@ static ssize_t iwl_dbgfs_d0i3_refs_write(struct iwl_mvm *mvm, char *buf,
 #define MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz) \
 	_MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz, struct iwl_mvm)
 #define MVM_DEBUGFS_ADD_FILE_ALIAS(alias, name, parent, mode) do {	\
-		if (!debugfs_create_file(alias, mode, parent, mvm,	\
-					 &iwl_dbgfs_##name##_ops))	\
-			goto err;					\
+		debugfs_create_file(alias, mode, parent, mvm,		\
+				    &iwl_dbgfs_##name##_ops);		\
 	} while (0)
 #define MVM_DEBUGFS_ADD_FILE(name, parent, mode) \
 	MVM_DEBUGFS_ADD_FILE_ALIAS(#name, name, parent, mode)
@@ -1783,9 +1782,8 @@ static ssize_t iwl_dbgfs_d0i3_refs_write(struct iwl_mvm *mvm, char *buf,
 	_MVM_DEBUGFS_READ_WRITE_FILE_OPS(name, bufsz, struct ieee80211_sta)
 
 #define MVM_DEBUGFS_ADD_STA_FILE_ALIAS(alias, name, parent, mode) do {	\
-		if (!debugfs_create_file(alias, mode, parent, sta,	\
-					 &iwl_dbgfs_##name##_ops))	\
-			goto err;					\
+		debugfs_create_file(alias, mode, parent, sta,		\
+				    &iwl_dbgfs_##name##_ops);		\
 	} while (0)
 #define MVM_DEBUGFS_ADD_STA_FILE(name, parent, mode) \
 	MVM_DEBUGFS_ADD_STA_FILE_ALIAS(#name, name, parent, mode)
@@ -2477,13 +2475,9 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 	if (iwl_mvm_has_tlc_offload(mvm)) {
 		MVM_DEBUGFS_ADD_STA_FILE(rs_data, dir, 0400);
 	}
-
-	return;
-err:
-	IWL_ERR(mvm, "Can't create the mvm station debugfs entry\n");
 }
 
-int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
+void iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 {
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
 	struct iwl_tt_params *tt_params = &mvm->thermal_throttle.params;
@@ -2542,14 +2536,12 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 		MVM_DEBUGFS_ADD_FILE(csi_count, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_timeout, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_frame_types, mvm->debugfs_dir, 0600);
-		if (!debugfs_create_u32("csi_rate_n_flags_val", 0600,
-					mvm->debugfs_dir,
-					&mvm->csi_cfg.rate_n_flags_val))
-			goto err;
-		if (!debugfs_create_u32("csi_rate_n_flags_mask", 0600,
-					mvm->debugfs_dir,
-					&mvm->csi_cfg.rate_n_flags_mask))
-			goto err;
+		debugfs_create_u32("csi_rate_n_flags_val", 0600,
+				   mvm->debugfs_dir,
+				   &mvm->csi_cfg.rate_n_flags_val);
+		debugfs_create_u32("csi_rate_n_flags_mask", 0600,
+				   mvm->debugfs_dir,
+				   &mvm->csi_cfg.rate_n_flags_mask);
 	}
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
@@ -2560,14 +2552,10 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 #endif
 	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0600);
 
-	if (!debugfs_create_bool("enable_scan_iteration_notif",
-				 0600,
-				 mvm->debugfs_dir,
-				 &mvm->scan_iter_notif_enabled))
-		goto err;
-	if (!debugfs_create_bool("drop_bcn_ap_mode", 0600,
-				 mvm->debugfs_dir, &mvm->drop_bcn_ap_mode))
-		goto err;
+	debugfs_create_bool("enable_scan_iteration_notif", 0600,
+			    mvm->debugfs_dir, &mvm->scan_iter_notif_enabled);
+	debugfs_create_bool("drop_bcn_ap_mode", 0600, mvm->debugfs_dir,
+			    &mvm->drop_bcn_ap_mode);
 
 	MVM_DEBUGFS_ADD_FILE(uapsd_noagg_bssids, mvm->debugfs_dir, 0400);
 
@@ -2575,13 +2563,9 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {
 		bcast_dir = debugfs_create_dir("bcast_filtering",
 					       mvm->debugfs_dir);
-		if (!bcast_dir)
-			goto err;
 
-		if (!debugfs_create_bool("override", 0600,
-					 bcast_dir,
-					 &mvm->dbgfs_bcast_filtering.override))
-			goto err;
+		debugfs_create_bool("override", 0600, bcast_dir,
+				    &mvm->dbgfs_bcast_filtering.override);
 
 		MVM_DEBUGFS_ADD_FILE_ALIAS("filters", bcast_filters,
 					   bcast_dir, 0600);
@@ -2593,65 +2577,49 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 #ifdef CONFIG_PM_SLEEP
 	MVM_DEBUGFS_ADD_FILE(d3_sram, mvm->debugfs_dir, 0600);
 	MVM_DEBUGFS_ADD_FILE(d3_test, mvm->debugfs_dir, 0400);
-	if (!debugfs_create_bool("d3_wake_sysassert", 0600,
-				 mvm->debugfs_dir, &mvm->d3_wake_sysassert))
-		goto err;
-	if (!debugfs_create_u32("last_netdetect_scans", 0400,
-				mvm->debugfs_dir, &mvm->last_netdetect_scans))
-		goto err;
+	debugfs_create_bool("d3_wake_sysassert", 0600, mvm->debugfs_dir,
+			    &mvm->d3_wake_sysassert);
+	debugfs_create_u32("last_netdetect_scans", 0400, mvm->debugfs_dir,
+			   &mvm->last_netdetect_scans);
 #endif
 
-	if (!debugfs_create_u8("ps_disabled", 0400,
-			       mvm->debugfs_dir, &mvm->ps_disabled))
-		goto err;
-	if (!debugfs_create_blob("nvm_hw", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_hw_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_sw", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_sw_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_calib", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_calib_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_prod", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_prod_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_phy_sku", 0400,
-				 mvm->debugfs_dir, &mvm->nvm_phy_sku_blob))
-		goto err;
-	if (!debugfs_create_blob("nvm_reg", S_IRUSR,
-				 mvm->debugfs_dir, &mvm->nvm_reg_blob))
-		goto err;
+	debugfs_create_u8("ps_disabled", 0400, mvm->debugfs_dir,
+			  &mvm->ps_disabled);
+	debugfs_create_blob("nvm_hw", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_hw_blob);
+	debugfs_create_blob("nvm_sw", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_sw_blob);
+	debugfs_create_blob("nvm_calib", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_calib_blob);
+	debugfs_create_blob("nvm_prod", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_prod_blob);
+	debugfs_create_blob("nvm_phy_sku", 0400, mvm->debugfs_dir,
+			    &mvm->nvm_phy_sku_blob);
+	debugfs_create_blob("nvm_reg", S_IRUSR,
+			    mvm->debugfs_dir, &mvm->nvm_reg_blob);
 
 #ifdef CPTCFG_IWLWIFI_THERMAL_DEBUGFS
-	if (!debugfs_create_u32("ct_kill_exit", 0600,
-				mvm->debugfs_dir,
-				&tt_params->ct_kill_exit))
-		goto err;
-	if (!debugfs_create_u32("ct_kill_entry", 0600,
-				mvm->debugfs_dir,
-				&tt_params->ct_kill_entry))
-		goto err;
-	if (!debugfs_create_u32("ct_kill_duration", 0600,
-				mvm->debugfs_dir,
-				&tt_params->ct_kill_duration))
-		goto err;
-	if (!debugfs_create_u32("dynamic_smps_entry", 0600,
-				mvm->debugfs_dir,
-				&tt_params->dynamic_smps_entry))
-		goto err;
-	if (!debugfs_create_u32("dynamic_smps_exit", 0600,
-				mvm->debugfs_dir,
-				&tt_params->dynamic_smps_exit))
-		goto err;
-	if (!debugfs_create_u32("tx_protection_entry", 0600,
-				mvm->debugfs_dir,
-				&tt_params->tx_protection_entry))
-		goto err;
-	if (!debugfs_create_u32("tx_protection_exit", 0600,
-				mvm->debugfs_dir,
-				&tt_params->tx_protection_exit))
-		goto err;
+	debugfs_create_u32("ct_kill_exit", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->ct_kill_exit);
+	debugfs_create_u32("ct_kill_entry", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->ct_kill_entry);
+	debugfs_create_u32("ct_kill_duration", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->ct_kill_duration);
+	debugfs_create_u32("dynamic_smps_entry", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->dynamic_smps_entry);
+	debugfs_create_u32("dynamic_smps_exit", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->dynamic_smps_exit);
+	debugfs_create_u32("tx_protection_entry", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->tx_protection_entry);
+	debugfs_create_u32("tx_protection_exit", 0600,
+			   mvm->debugfs_dir,
+			   &tt_params->tx_protection_exit);
 #endif
 
 	debugfs_create_file("mem", 0600, dbgfs_dir, mvm, &iwl_dbgfs_mem_ops);
@@ -2667,11 +2635,5 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 		 dbgfs_dir->d_parent->d_parent->d_name.name,
 		 dbgfs_dir->d_parent->d_name.name);
 #endif
-	if (!debugfs_create_symlink("iwlwifi", mvm->hw->wiphy->debugfsdir, buf))
-		goto err;
-
-	return 0;
-err:
-	IWL_ERR(mvm, "Can't create the mvm debugfs directory\n");
-	return -ENOMEM;
+	debugfs_create_symlink("iwlwifi", mvm->hw->wiphy->debugfsdir, buf);
 }
