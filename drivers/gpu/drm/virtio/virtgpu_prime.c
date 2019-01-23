@@ -59,8 +59,21 @@ int virtgpu_gem_prime_mmap(struct drm_gem_object *gobj,
 	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
 	int ret = 0;
 
+	/*
+	 * ttm_fbdev_mmap() returns -EACCESS unless vma->vm_pgoff is 0.
+	 * vma->vm_pgoff is tentatively set to 0 and updated after
+	 * ttm_fbdev_mmap().
+	 */
+	unsigned long pgoff = vma->vm_pgoff;
+
+	vma->vm_pgoff = 0;
 	ret = ttm_fbdev_mmap(vma, &obj->tbo);
-	vma->vm_pgoff = drm_vma_node_start(&obj->tbo.vma_node);
+
+	/*
+	 * TTM does the real mapping via its page fault handler,
+	 * ttm_bo_vm_fault(), which handles vma->vm_pgoff correctly.
+	 */
+	vma->vm_pgoff = pgoff + drm_vma_node_start(&obj->tbo.vma_node);
 
 	return ret;
 }
