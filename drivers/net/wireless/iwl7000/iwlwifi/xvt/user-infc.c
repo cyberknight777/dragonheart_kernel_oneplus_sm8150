@@ -1814,6 +1814,15 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 	int ret = 0;
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
+		struct iwl_tx_queue_cfg_cmd queue_cfg_cmd = {
+			.flags = 0,
+			.sta_id = cmd->sta_id,
+			.tid = cmd->tid,
+		};
+
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0,
+					   sizeof(queue_cfg_cmd),
+					   &queue_cfg_cmd);
 		iwl_trans_txq_free(xvt->trans, cmd->scd_queue);
 	} else {
 		iwl_trans_txq_disable(xvt->trans, cmd->scd_queue, false);
