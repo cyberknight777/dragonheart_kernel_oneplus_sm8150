@@ -5332,13 +5332,12 @@ static void iwl_mvm_abort_pmsr(struct ieee80211_hw *hw,
 
 static bool iwl_mvm_can_hw_csum(struct sk_buff *skb)
 {
-#if IS_ENABLED(CONFIG_INET)
 	u8 protocol = ip_hdr(skb)->protocol;
 
+	if (!IS_ENABLED(CONFIG_INET))
+		return false;
+
 	return protocol == IPPROTO_TCP || protocol == IPPROTO_UDP;
-#else
-	return false;
-#endif
 }
 
 static bool iwl_mvm_mac_can_aggregate(struct ieee80211_hw *hw,
