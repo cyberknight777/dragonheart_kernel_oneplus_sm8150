@@ -1224,6 +1224,10 @@ struct iwl_mvm {
 
 	/* we can have up to four chunks, plus the first notification */
 	struct iwl_csi_data_buffer csi_data_entries[5];
+
+	unsigned int csi_portid;
+
+	struct list_head list;
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 	struct ieee80211_vif *nan_vif;
@@ -2154,7 +2158,11 @@ void iwl_mvm_update_changed_regdom(struct iwl_mvm *mvm);
 int iwl_mvm_sf_update(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		      bool added_vif);
 
-void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy);
+/* vendor commands */
+void iwl_mvm_vendor_cmd_init(void);
+void iwl_mvm_vendor_cmd_exit(void);
+void iwl_mvm_vendor_cmds_register(struct iwl_mvm *mvm);
+void iwl_mvm_vendor_cmds_unregister(struct iwl_mvm *mvm);
 
 /* FTM responder */
 int iwl_mvm_ftm_start_responder(struct iwl_mvm *mvm, struct ieee80211_vif *vif);

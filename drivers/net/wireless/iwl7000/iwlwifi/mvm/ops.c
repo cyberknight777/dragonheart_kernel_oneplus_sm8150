@@ -141,6 +141,10 @@ static int __init iwl_mvm_init(void)
 	if (ret)
 		pr_err("Unable to register MVM op_mode: %d\n", ret);
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	iwl_mvm_vendor_cmd_init();
+#endif
+
 	return ret;
 }
 module_init(iwl_mvm_init);
@@ -149,6 +153,9 @@ static void __exit iwl_mvm_exit(void)
 {
 	iwl_opmode_deregister("iwlmvm");
 	iwl_mvm_rate_control_unregister();
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	iwl_mvm_vendor_cmd_exit();
+#endif
 }
 module_exit(iwl_mvm_exit);
 
@@ -1018,6 +1025,9 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		return op_mode;
 
 	ieee80211_unregister_hw(mvm->hw);
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	iwl_mvm_vendor_cmds_unregister(mvm);
+#endif
 	mvm->hw_registered = false;
 	iwl_mvm_leds_exit(mvm);
 	iwl_mvm_thermal_exit(mvm);
@@ -1069,6 +1079,7 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	kfree(mvm->mcast_active_filter_cmd);
 	mvm->mcast_active_filter_cmd = NULL;
+	iwl_mvm_vendor_cmds_unregister(mvm);
 #endif
 
 #if defined(CONFIG_PM_SLEEP) && defined(CPTCFG_IWLWIFI_DEBUGFS)

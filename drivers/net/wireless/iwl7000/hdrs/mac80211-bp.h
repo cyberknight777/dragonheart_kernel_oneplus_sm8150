@@ -2598,3 +2598,28 @@ static inline void u64_to_ether_addr(u64 u, u8 *addr)
 	}
 }
 #endif /* < 4,11,0 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,1,0)
+static inline int cfg80211_vendor_cmd_get_sender(struct wiphy *wiphy)
+{
+	/* cfg80211 doesn't really let us backport this */
+	return 0;
+}
+
+static inline struct sk_buff *
+cfg80211_vendor_event_alloc_ucast(struct wiphy *wiphy,
+				  struct wireless_dev *wdev,
+				  unsigned int portid, int approxlen,
+				  int event_idx, gfp_t gfp)
+{
+	/*
+	 * We might be able to fake backporting this, but not the
+	 * associated changes to __cfg80211_send_event_skb(), at
+	 * least not without duplicating all that code.
+	 * And in any case, we cannot backport the get_sender()
+	 * function above properly, so we might as well ignore
+	 * this all.
+	 */
+	return NULL;
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */

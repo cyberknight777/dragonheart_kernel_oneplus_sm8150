@@ -893,10 +893,6 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	mvm->bcast_filters = iwl_mvm_default_bcast_filters;
 #endif
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	iwl_mvm_set_wiphy_vendor_commands(hw->wiphy);
-#endif
-
 	ret = iwl_mvm_leds_init(mvm);
 	if (ret)
 		return ret;
@@ -927,8 +923,15 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		wiphy_ext_feature_set(hw->wiphy,
 				      NL80211_EXT_FEATURE_MU_MIMO_AIR_SNIFFER);
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	iwl_mvm_vendor_cmds_register(mvm);
+#endif
+
 	ret = ieee80211_register_hw(mvm->hw);
 	if (ret) {
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+		iwl_mvm_vendor_cmds_unregister(mvm);
+#endif
 		iwl_mvm_leds_exit(mvm);
 		return ret;
 	}

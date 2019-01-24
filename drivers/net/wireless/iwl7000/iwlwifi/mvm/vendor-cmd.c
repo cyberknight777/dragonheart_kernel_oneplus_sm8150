@@ -8,8 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,8 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -73,6 +71,44 @@
 
 #include "iwl-io.h"
 #include "iwl-prph.h"
+
+static LIST_HEAD(device_list);
+static spinlock_t device_list_lock;
+
+static int iwl_mvm_netlink_notifier(struct notifier_block *nb,
+				    unsigned long state,
+				    void *_notify)
+{
+	struct netlink_notify *notify = _notify;
+	struct iwl_mvm *mvm;
+
+	if (state != NETLINK_URELEASE || notify->protocol != NETLINK_GENERIC)
+		return NOTIFY_DONE;
+
+	spin_lock_bh(&device_list_lock);
+	list_for_each_entry(mvm, &device_list, list) {
+		if (mvm->csi_portid == netlink_notify_portid(notify))
+			mvm->csi_portid = 0;
+	}
+	spin_unlock_bh(&device_list_lock);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block iwl_mvm_netlink_notifier_block = {
+	.notifier_call = iwl_mvm_netlink_notifier,
+};
+
+void iwl_mvm_vendor_cmd_init(void)
+{
+	WARN_ON(netlink_register_notifier(&iwl_mvm_netlink_notifier_block));
+	spin_lock_init(&device_list_lock);
+}
+
+void iwl_mvm_vendor_cmd_exit(void)
+{
+	netlink_unregister_notifier(&iwl_mvm_netlink_notifier_block);
+}
 
 static const struct nla_policy
 iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
@@ -1140,6 +1176,18 @@ free:
 	return ret;
 }
 
+static int iwl_mvm_vendor_csi_register(struct wiphy *wiphy,
+				       struct wireless_dev *wdev,
+				       const void *data, int data_len)
+{
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+
+	mvm->csi_portid = cfg80211_vendor_cmd_get_sender(wiphy);
+
+	return 0;
+}
+
 static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 	{
 		.info = {
@@ -1290,6 +1338,13 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 		.doit = iwl_mvm_vendor_test_fips,
 	},
 #endif
+	{
+		.info = {
+			.vendor_id = INTEL_OUI,
+			.subcmd = IWL_MVM_VENDOR_CMD_CSI_EVENT,
+		},
+		.doit = iwl_mvm_vendor_csi_register,
+	},
 };
 
 enum iwl_mvm_vendor_events_idx {
@@ -1310,12 +1365,23 @@ iwl_mvm_vendor_events[NUM_IWL_MVM_VENDOR_EVENT_IDX] = {
 	},
 };
 
-void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy)
+void iwl_mvm_vendor_cmds_register(struct iwl_mvm *mvm)
 {
-	wiphy->vendor_commands = iwl_mvm_vendor_commands;
-	wiphy->n_vendor_commands = ARRAY_SIZE(iwl_mvm_vendor_commands);
-	wiphy->vendor_events = iwl_mvm_vendor_events;
-	wiphy->n_vendor_events = ARRAY_SIZE(iwl_mvm_vendor_events);
+	mvm->hw->wiphy->vendor_commands = iwl_mvm_vendor_commands;
+	mvm->hw->wiphy->n_vendor_commands = ARRAY_SIZE(iwl_mvm_vendor_commands);
+	mvm->hw->wiphy->vendor_events = iwl_mvm_vendor_events;
+	mvm->hw->wiphy->n_vendor_events = ARRAY_SIZE(iwl_mvm_vendor_events);
+
+	spin_lock_bh(&device_list_lock);
+	list_add_tail(&mvm->list, &device_list);
+	spin_unlock_bh(&device_list_lock);
+}
+
+void iwl_mvm_vendor_cmds_unregister(struct iwl_mvm *mvm)
+{
+	spin_lock_bh(&device_list_lock);
+	list_del(&mvm->list);
+	spin_unlock_bh(&device_list_lock);
 }
 
 static enum iwl_mvm_vendor_load
@@ -1381,13 +1447,17 @@ iwl_mvm_send_csi_event(struct iwl_mvm *mvm,
 	u8 *pos;
 	int i;
 
+	if (!mvm->csi_portid)
+		return;
+
 	for (i = 0; len[i] && data[i]; i++)
 		data_len += len[i];
 
-	msg = cfg80211_vendor_event_alloc(mvm->hw->wiphy, NULL,
-					  100 + hdr_len + data_len,
-					  IWL_MVM_VENDOR_EVENT_IDX_CSI,
-					  GFP_KERNEL);
+	msg = cfg80211_vendor_event_alloc_ucast(mvm->hw->wiphy, NULL,
+						mvm->csi_portid,
+						100 + hdr_len + data_len,
+						IWL_MVM_VENDOR_EVENT_IDX_CSI,
+						GFP_KERNEL);
 
 	if (!msg)
 		return;
