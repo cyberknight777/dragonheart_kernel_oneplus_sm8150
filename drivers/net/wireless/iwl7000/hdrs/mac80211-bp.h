@@ -2230,6 +2230,10 @@ void cfg80211_send_layer2_update(struct net_device *dev, const u8 *addr)
 }
 
 #define NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 -1
+
+int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
+			      enum ieee80211_vht_chanwidth bw,
+			      int mcs, bool ext_nss_bw_capable);
 #endif /* >= 4.20 */
 
 /*
