@@ -1058,6 +1058,11 @@ int iwl_mvm_mac_ctxt_beacon_changed(struct iwl_mvm *mvm,
 	if (!beacon)
 		return -ENOMEM;
 
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	if (mvm->beacon_inject_active)
+		return -EBUSY;
+#endif
+
 	ret = iwl_mvm_mac_ctxt_send_beacon(mvm, vif, beacon);
 	dev_kfree_skb(beacon);
 	return ret;
