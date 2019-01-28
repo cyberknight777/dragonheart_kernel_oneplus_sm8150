@@ -148,7 +148,7 @@ static void csm_disable(void)
 	schema_ConfigurationRequest req = schema_ConfigurationRequest_init_zero;
 
 	/* Expect the lock to be held for write before this call. */
-	lockdep_assert_held_exclusive(&csm_rwsem_vsocket);
+	lockdep_assert_held_exclusive(&csm_rwsem_config);
 
 	/* Zero configuration disable all collectors. */
 	csm_update_config(&req);
