@@ -707,6 +707,9 @@ enum iwl_plat_pm_mode {
  */
 #define IWL_TRANS_IDLE_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * 2000)
 
+/* Max time to wait for nmi interrupt */
+#define IWL_TRANS_NMI_TIMEOUT (HZ / 4 * CPTCFG_IWL_TIMEOUT_FACTOR)
+
 /**
  * struct iwl_dram_data
  * @physical: page phy pointer
