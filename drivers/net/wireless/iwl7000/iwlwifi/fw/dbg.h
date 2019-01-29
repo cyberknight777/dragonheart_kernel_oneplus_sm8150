@@ -457,7 +457,8 @@ static inline void iwl_fw_umac_set_alive_err_table(struct iwl_trans *trans,
 }
 
 void iwl_fwrt_stop_device(struct iwl_fw_runtime *fwrt);
-#endif  /* __iwl_fw_dbg_h__ */
 
 /* This bit is used to differentiate the legacy dump from the ini dump */
 #define INI_DUMP_BIT BIT(31)
+
+#endif  /* __iwl_fw_dbg_h__ */
