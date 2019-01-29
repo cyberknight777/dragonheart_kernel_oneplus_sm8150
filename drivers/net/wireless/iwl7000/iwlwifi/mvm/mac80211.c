@@ -933,12 +933,9 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		iwl_mvm_vendor_cmds_unregister(mvm);
 #endif
 		iwl_mvm_leds_exit(mvm);
-		return ret;
 	}
 
-	mvm->init_status |= IWL_MVM_INIT_STATUS_REG_HW_INIT_COMPLETE;
-
-	return 0;
+	return ret;
 }
 
 static bool iwl_mvm_defer_tx(struct iwl_mvm *mvm,
