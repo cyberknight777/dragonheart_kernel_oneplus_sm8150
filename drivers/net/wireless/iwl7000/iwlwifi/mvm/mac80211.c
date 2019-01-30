@@ -2501,8 +2501,8 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	} else if ((sta->he_cap.he_cap_elem.phy_cap_info[9] &
 		    IEEE80211_HE_PHY_CAP9_NOMIMAL_PKT_PADDING_MASK) !=
 		  IEEE80211_HE_PHY_CAP9_NOMIMAL_PKT_PADDING_RESERVED) {
-		u8 low_th = -1;
-		u8 high_th = -1;
+		int low_th = -1;
+		int high_th = -1;
 
 		/* Take the PPE thresholds from the nominal padding info */
 		switch (sta->he_cap.he_cap_elem.phy_cap_info[9] &
