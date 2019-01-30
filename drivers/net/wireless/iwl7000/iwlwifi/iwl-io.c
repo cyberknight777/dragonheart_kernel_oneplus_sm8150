@@ -498,7 +498,7 @@ int iwl_finish_nic_init(struct iwl_trans *trans)
 
 	if (trans->cfg->bisr_workaround) {
 		/* ensure the TOP FSM isn't still in previous reset */
-		msleep(2);
+		mdelay(2);
 	}
 
 	/*
