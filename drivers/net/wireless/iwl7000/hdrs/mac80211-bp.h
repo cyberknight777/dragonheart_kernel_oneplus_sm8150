@@ -2647,4 +2647,10 @@ cfg80211_find_elem(u8 eid, const u8 *ies, int len)
 {
 	return (void *)cfg80211_find_ie(eid, ies, len);
 }
+
+static inline const struct element *
+cfg80211_find_ext_elem(u8 ext_eid, const u8 *ies, int len)
+{
+	return (void *)cfg80211_find_ext_ie(ext_eid, ies, len);
+}
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */
