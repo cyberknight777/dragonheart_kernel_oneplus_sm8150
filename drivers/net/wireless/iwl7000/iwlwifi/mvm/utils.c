@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1460,6 +1460,12 @@ void iwl_mvm_get_sync_time(struct iwl_mvm *mvm, u32 *gp2, u64 *boottime)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 {
+	/*
+	 * Note: v1 and v2 are compatible, except for the
+	 * reserved value and the new flag, both of which
+	 * are ignored by older FW, and the additional
+	 * fields which we need to strip.
+	 */
 	struct iwl_channel_estimation_cfg cfg = {
 		.flags = cpu_to_le32(mvm->csi_cfg.flags),
 		.timer = cpu_to_le32(mvm->csi_cfg.timer),
@@ -1468,10 +1474,23 @@ int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 		.rate_n_flags_val = cpu_to_le32(mvm->csi_cfg.rate_n_flags_val),
 		.rate_n_flags_mask =
 			cpu_to_le32(mvm->csi_cfg.rate_n_flags_mask),
+		.min_time_between_collection =
+			cpu_to_le32(mvm->csi_cfg.interval),
+		.num_filter_addrs = cpu_to_le32(mvm->csi_cfg.num_filter_addrs),
 	};
 	u32 id = iwl_cmd_id(CHEST_COLLECTOR_FILTER_CONFIG_CMD,
 			    DATA_PATH_GROUP, 0);
+	unsigned int size = sizeof(cfg);
+	int i;
 
-	return iwl_mvm_send_cmd_pdu(mvm, id, 0, sizeof(cfg), &cfg);
+	for (i = 0; i < mvm->csi_cfg.num_filter_addrs; i++)
+		ether_addr_copy(cfg.filter_addrs[i].addr,
+				mvm->csi_cfg.filter_addrs[i].addr);
+
+	if (!fw_has_capa(&mvm->fw->ucode_capa,
+			 IWL_UCODE_TLV_CAPA_CSI_REPORTING_V2))
+		size = sizeof(struct iwl_channel_estimation_cfg_v1);
+
+	return iwl_mvm_send_cmd_pdu(mvm, id, 0, size, &cfg);
 }
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */

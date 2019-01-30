@@ -2171,6 +2171,102 @@ static ssize_t iwl_dbgfs_csi_frame_types_write(struct iwl_mvm *mvm, char *buf,
 
 	return count;
 }
+
+static ssize_t iwl_dbgfs_csi_interval_read(struct file *file,
+					   char __user *user_buf,
+					   size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[32];
+	int len;
+
+	len = scnprintf(buf, sizeof(buf), "%u\n", mvm->csi_cfg.interval);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static ssize_t iwl_dbgfs_csi_interval_write(struct iwl_mvm *mvm, char *buf,
+					    size_t count, loff_t *ppos)
+{
+	int err;
+	u32 interval;
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	err = kstrtou32(buf, 0, &interval);
+	if (err)
+		return err;
+
+	mvm->csi_cfg.interval = interval;
+	if (interval)
+		mvm->csi_cfg.flags |= IWL_CHANNEL_ESTIMATION_INTERVAL;
+	else
+		mvm->csi_cfg.flags &= ~IWL_CHANNEL_ESTIMATION_INTERVAL;
+
+	return count;
+}
+
+static ssize_t iwl_dbgfs_csi_addresses_read(struct file *file,
+					    char __user *user_buf,
+					    size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	u8 buf[2 + ETH_ALEN * 3 * IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS];
+	u8 *pos = buf;
+	int i;
+
+	for (i = 0; i < mvm->csi_cfg.num_filter_addrs; i++)
+		pos += scnprintf(pos, sizeof(buf) - (pos - buf),
+				 "%pM\n", mvm->csi_cfg.filter_addrs[i].addr);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, pos - buf);
+}
+
+static ssize_t iwl_dbgfs_csi_addresses_write(struct iwl_mvm *mvm, char *buf,
+					     size_t count, loff_t *ppos)
+{
+	char *pos = buf;
+	int num = 0, i;
+	struct {
+		u8 addr[ETH_ALEN] __aligned(2);
+	} addrs[IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS];
+
+	if (buf[count - 1] != '\n')
+		return -EINVAL;
+	buf[count - 1] = 0;
+
+	while (num < IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS) {
+		char *addrstr = strsep(&pos, "\n ");
+		u8 addr[ETH_ALEN];
+		int n;
+
+		if (!addrstr)
+			break;
+
+		n = sscanf(addrstr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+			   &addr[0], &addr[1], &addr[2],
+			   &addr[3], &addr[4], &addr[5]);
+
+		if (n != ETH_ALEN)
+			return -EINVAL;
+
+		ether_addr_copy(addrs[num].addr, addr);
+		num++;
+	}
+
+	/* too many specified if the string isn't NULL now */
+	if (pos)
+		return -EINVAL;
+
+	mvm->csi_cfg.num_filter_addrs = num;
+	for (i = 0; i < num; i++)
+		ether_addr_copy(mvm->csi_cfg.filter_addrs[i].addr,
+				addrs[i].addr);
+
+	return count;
+}
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 
@@ -2217,6 +2313,10 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_enabled, 8);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_count, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_timeout, 32);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_frame_types, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_interval, 32);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(csi_addresses,
+				2 + ETH_ALEN * 3 *
+				    IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS);
 #endif
 
 MVM_DEBUGFS_READ_FILE_OPS(uapsd_noagg_bssids);
@@ -2435,7 +2535,9 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(tx_power_status, mvm->debugfs_dir, 0400);
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
-			IWL_UCODE_TLV_CAPA_CSI_REPORTING)) {
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING) ||
+	    fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING_V2)) {
 		MVM_DEBUGFS_ADD_FILE(csi_enabled, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_count, mvm->debugfs_dir, 0600);
 		MVM_DEBUGFS_ADD_FILE(csi_timeout, mvm->debugfs_dir, 0600);
@@ -2448,6 +2550,12 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 					mvm->debugfs_dir,
 					&mvm->csi_cfg.rate_n_flags_mask))
 			goto err;
+	}
+
+	if (fw_has_capa(&mvm->fw->ucode_capa,
+			IWL_UCODE_TLV_CAPA_CSI_REPORTING_V2)) {
+		MVM_DEBUGFS_ADD_FILE(csi_interval, mvm->debugfs_dir, 0600);
+		MVM_DEBUGFS_ADD_FILE(csi_addresses, mvm->debugfs_dir, 0600);
 	}
 #endif
 	MVM_DEBUGFS_ADD_FILE(he_sniffer_params, mvm->debugfs_dir, 0600);

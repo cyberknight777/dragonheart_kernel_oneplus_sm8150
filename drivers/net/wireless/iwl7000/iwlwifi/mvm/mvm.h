@@ -1219,6 +1219,11 @@ struct iwl_mvm {
 		u64 frame_types;
 		u32 rate_n_flags_val;
 		u32 rate_n_flags_mask;
+		u32 interval;
+		struct {
+			u8 addr[ETH_ALEN] __aligned(2);
+		} filter_addrs[IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS];
+		u8 num_filter_addrs;
 	} csi_cfg;
 
 	/* we can have up to four chunks, plus the first notification */
