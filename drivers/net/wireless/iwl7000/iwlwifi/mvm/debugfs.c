@@ -1873,7 +1873,8 @@ static bool iwl_mvm_sniffer_apply(struct iwl_notif_wait_data *notif_data,
 	struct iwl_mvm_sniffer_apply *apply = data;
 
 	apply->mvm->cur_aid = cpu_to_le16(apply->aid);
-	memcpy(apply->mvm->cur_bssid, apply->bssid, ETH_ALEN);
+	memcpy(apply->mvm->cur_bssid, apply->bssid,
+	       sizeof(apply->mvm->cur_bssid));
 
 	return true;
 }
