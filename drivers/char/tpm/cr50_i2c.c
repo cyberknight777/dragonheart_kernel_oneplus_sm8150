@@ -424,7 +424,7 @@ static int cr50_i2c_tis_recv(struct tpm_chip *chip, u8 *buf, size_t buf_len)
 
 	if (burstcnt > buf_len || burstcnt < TPM_HEADER_SIZE) {
 		dev_err(&chip->dev,
-			"Unexpected burstcnt: %zu (max=%zu, min=%zu)\n",
+			"Unexpected burstcnt: %zu (max=%zu, min=%d)\n",
 			burstcnt, buf_len, TPM_HEADER_SIZE);
 		rc = -EIO;
 		goto out_err;
