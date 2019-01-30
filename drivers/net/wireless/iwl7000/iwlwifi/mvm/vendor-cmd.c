@@ -73,7 +73,7 @@
 #include "iwl-prph.h"
 
 static LIST_HEAD(device_list);
-static spinlock_t device_list_lock;
+static DEFINE_SPINLOCK(device_list_lock);
 
 static int iwl_mvm_netlink_notifier(struct notifier_block *nb,
 				    unsigned long state,
