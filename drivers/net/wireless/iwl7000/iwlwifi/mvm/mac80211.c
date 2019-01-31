@@ -1372,11 +1372,6 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 
 	/* keep statistics ticking */
 	iwl_mvm_accu_radio_stats(mvm);
-
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	if (mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_ENABLE)
-		iwl_mvm_send_csi_cmd(mvm);
-#endif
 }
 
 int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
@@ -1460,6 +1455,11 @@ static void iwl_mvm_restart_complete(struct iwl_mvm *mvm)
 	if (ret)
 		IWL_ERR(mvm, "Failed to update quotas after restart (%d)\n",
 			ret);
+
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	if (mvm->csi_cfg.flags & IWL_CHANNEL_ESTIMATION_ENABLE)
+		iwl_mvm_send_csi_cmd(mvm);
+#endif
 
 	/* allow transport/FW low power modes */
 	iwl_mvm_unref(mvm, IWL_MVM_REF_UCODE_DOWN);
