@@ -97,19 +97,31 @@ static u64 amdgpu_vram_mgr_vis_size(struct amdgpu_device *adev,
 }
 
 /**
- * amdgpu_vram_mgr_bo_invisible_size - CPU invisible BO size
+ * amdgpu_vram_mgr_bo_visible_size - CPU visible BO size
  *
  * @bo: &amdgpu_bo buffer object (must be in VRAM)
  *
  * Returns:
- * How much of the given &amdgpu_bo buffer object lies in CPU invisible VRAM.
+ * How much of the given &amdgpu_bo buffer object lies in CPU visible VRAM.
  */
-u64 amdgpu_vram_mgr_bo_invisible_size(struct amdgpu_bo *bo)
+u64 amdgpu_vram_mgr_bo_visible_size(struct amdgpu_bo *bo)
 {
-	if (bo->flags & AMDGPU_GEM_CREATE_NO_CPU_ACCESS)
+	struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
+	struct ttm_mem_reg *mem = &bo->tbo.mem;
+	struct drm_mm_node *nodes = mem->mm_node;
+	unsigned pages = mem->num_pages;
+	u64 usage;
+
+	if (adev->gmc.visible_vram_size == adev->gmc.real_vram_size)
 		return amdgpu_bo_size(bo);
 
-	return 0;
+	if (mem->start >= adev->gmc.visible_vram_size >> PAGE_SHIFT)
+		return 0;
+
+	for (usage = 0; nodes && pages; pages -= nodes->size, nodes++)
+		usage += amdgpu_vram_mgr_vis_size(adev, nodes);
+
+	return usage;
 }
 
 /**

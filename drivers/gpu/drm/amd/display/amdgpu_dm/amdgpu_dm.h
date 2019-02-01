@@ -28,7 +28,6 @@
 
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
-#include "dc.h"
 
 /*
  * This file contains the definition for amdgpu_display_manager
@@ -53,6 +52,7 @@
 struct amdgpu_device;
 struct drm_device;
 struct amdgpu_dm_irq_handler_data;
+struct dc;
 
 struct amdgpu_dm_prev_state {
 	struct drm_framebuffer *fb;
@@ -78,30 +78,6 @@ struct dm_comressor_info {
 	struct amdgpu_bo *bo_ptr;
 	uint64_t gpu_addr;
 };
-#endif
-
-/**
- * for_each_oldnew_plane_in_state_reverse - iterate over all planes in an atomic
- * update in reverse order
- * @__state: &struct drm_atomic_state pointer
- * @plane: &struct drm_plane iteration cursor
- * @old_plane_state: &struct drm_plane_state iteration cursor for the old state
- * @new_plane_state: &struct drm_plane_state iteration cursor for the new state
- * @__i: int iteration cursor, for macro-internal use
- *
- * This iterates over all planes in an atomic update in reverse order,
- * tracking both old and  new state. This is useful in places where the
- * state delta needs to be considered, for example in atomic check functions.
- */
-#ifndef for_each_oldnew_plane_in_state_reverse
-#define for_each_oldnew_plane_in_state_reverse(__state, plane, old_plane_state, new_plane_state, __i) \
-	for ((__i) = ((__state)->dev->mode_config.num_total_plane - 1);	\
-	     (__i) >= 0;						\
-	     (__i)--)							\
-		for_each_if ((__state)->planes[__i].ptr &&		\
-			     ((plane) = (__state)->planes[__i].ptr,	\
-			      (old_plane_state) = (__state)->planes[__i].old_state,\
-			      (new_plane_state) = (__state)->planes[__i].new_state, 1))
 #endif
 
 struct amdgpu_display_manager {
@@ -243,6 +219,7 @@ struct dm_connector_state {
 	uint8_t underscan_hborder;
 	bool underscan_enable;
 	struct mod_freesync_user_enable user_enable;
+	bool freesync_capable;
 };
 
 #define to_dm_connector_state(x)\
@@ -269,7 +246,7 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
 				     struct dc_link *link,
 				     int link_index);
 
-int amdgpu_dm_connector_mode_valid(struct drm_connector *connector,
+enum drm_mode_status amdgpu_dm_connector_mode_valid(struct drm_connector *connector,
 				   struct drm_display_mode *mode);
 
 void dm_restore_drm_connector_state(struct drm_device *dev,
