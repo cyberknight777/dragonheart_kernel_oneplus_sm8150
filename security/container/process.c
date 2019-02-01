@@ -462,10 +462,13 @@ int csm_bprm_check_security(struct linux_binprm *bprm)
 	/* Provide information about the launched binary */
 	proc->binary.fullpath.funcs.encode = pb_encode_string_field;
 	proc->binary.fullpath.arg = path;
-	dentry = bprm->file->f_path.dentry;
-	overlayfs = &proc->binary.filesystem.overlayfs;
-	overlayfs->lower_layer = ovl_dentry_lower(dentry);
-	overlayfs->upper_layer = ovl_dentry_upper(dentry);
+
+	if (is_overlayfs_mounted(bprm->file)) {
+		dentry = bprm->file->f_path.dentry;
+		overlayfs = &proc->binary.filesystem.overlayfs;
+		overlayfs->lower_layer = ovl_dentry_lower(dentry);
+		overlayfs->upper_layer = ovl_dentry_upper(dentry);
+	}
 	proc->binary.which_filesystem = schema_File_overlayfs_tag;
 
 	stack = kmap_argument_stack(bprm, &ctx);
