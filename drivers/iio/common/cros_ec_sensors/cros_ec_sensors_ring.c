@@ -476,6 +476,15 @@ static bool cros_ec_ring_process_event(
 		}
 	}
 
+	if (in->flags & MOTIONSENSE_SENSOR_FLAG_ODR) {
+		state->last_batch_len[in->sensor_num] = 0;
+		/*
+		 * ODR change is only useful for the sensor_ring, it does not
+		 * convey information to clients.
+		 */
+		return false;
+	}
+
 	if (in->flags & MOTIONSENSE_SENSOR_FLAG_FLUSH) {
 		out->sensor_id = in->sensor_num;
 		out->timestamp = *current_timestamp;
