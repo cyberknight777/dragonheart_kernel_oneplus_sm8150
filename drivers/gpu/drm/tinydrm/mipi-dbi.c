@@ -279,7 +279,8 @@ static const struct drm_framebuffer_funcs mipi_dbi_fb_funcs = {
  * &drm_simple_display_pipe_funcs->enable callback.
  */
 void mipi_dbi_pipe_enable(struct drm_simple_display_pipe *pipe,
-			  struct drm_crtc_state *crtc_state)
+			  struct drm_crtc_state *crtc_state,
+			  struct drm_plane_state *plane_state)
 {
 	struct tinydrm_device *tdev = pipe_to_tinydrm(pipe);
 	struct mipi_dbi *mipi = mipi_dbi_from_tinydrm(tdev);
