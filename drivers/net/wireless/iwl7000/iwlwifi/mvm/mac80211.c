@@ -256,7 +256,7 @@ static const struct iwl_fw_bcast_filter iwl_mvm_default_bcast_filters[] = {
 };
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,0,0)
 static const struct cfg80211_pmsr_capabilities iwl_mvm_pmsr_capa = {
 	.max_peers = IWL_MVM_TOF_MAX_APS,
 	.report_ap_tsf = 1,
@@ -650,7 +650,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		hw->wiphy->n_cipher_suites++;
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,0,0)
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_FTM_CALIBRATED)) {
 		wiphy_ext_feature_set(hw->wiphy,
