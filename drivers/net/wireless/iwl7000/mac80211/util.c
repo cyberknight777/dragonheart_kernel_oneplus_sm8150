@@ -1220,7 +1220,7 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 			if (elen >= sizeof(*elems->max_idle_period_ie))
 				elems->max_idle_period_ie = (void *)pos;
 			break;
-#if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
 		case WLAN_EID_MULTIPLE_BSSID:
 			if (!bss_bssid || !transmitter_bssid || elen < 4)
 				break;
