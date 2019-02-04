@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 OR MIT */
 /**************************************************************************
  *
  * Copyright (c) 2009-2013 VMware, Inc., Palo Alto, CA., USA

@@ -214,6 +214,9 @@ int msm_debugfs_late_init(struct drm_device *dev)
 	if (ret)
 		return ret;
 	ret = late_init_minor(dev->render);
+	if (ret)
+		return ret;
+	ret = late_init_minor(dev->control);
 	return ret;
 }
 

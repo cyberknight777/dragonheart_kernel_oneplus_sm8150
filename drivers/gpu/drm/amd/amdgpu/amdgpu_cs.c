@@ -264,7 +264,7 @@ static void amdgpu_cs_get_threshold_for_moves(struct amdgpu_device *adev,
 		return;
 	}
 
-	total_vram = adev->gmc.real_vram_size - atomic64_read(&adev->vram_pin_size);
+	total_vram = adev->gmc.real_vram_size - adev->vram_pin_size;
 	used_vram = amdgpu_vram_mgr_usage(&adev->mman.bdev.man[TTM_PL_VRAM]);
 	free_vram = used_vram >= total_vram ? 0 : total_vram - used_vram;
 
@@ -389,7 +389,8 @@ retry:
 
 	p->bytes_moved += ctx.bytes_moved;
 	if (adev->gmc.visible_vram_size < adev->gmc.real_vram_size &&
-	    amdgpu_bo_in_cpu_visible_vram(bo))
+	    bo->tbo.mem.mem_type == TTM_PL_VRAM &&
+	    bo->tbo.mem.start < adev->gmc.visible_vram_size >> PAGE_SHIFT)
 		p->bytes_moved_vis += ctx.bytes_moved;
 
 	if (unlikely(r == -ENOMEM) && domain != bo->allowed_domains) {
@@ -417,6 +418,7 @@ static bool amdgpu_cs_try_evict(struct amdgpu_cs_parser *p,
 		struct amdgpu_bo_list_entry *candidate = p->evictable;
 		struct amdgpu_bo *bo = candidate->robj;
 		struct amdgpu_device *adev = amdgpu_ttm_adev(bo->tbo.bdev);
+		u64 initial_bytes_moved, bytes_moved;
 		bool update_bytes_moved_vis;
 		uint32_t other;
 
@@ -440,14 +442,18 @@ static bool amdgpu_cs_try_evict(struct amdgpu_cs_parser *p,
 			continue;
 
 		/* Good we can try to move this BO somewhere else */
+		amdgpu_ttm_placement_from_domain(bo, other);
 		update_bytes_moved_vis =
 			adev->gmc.visible_vram_size < adev->gmc.real_vram_size &&
-			amdgpu_bo_in_cpu_visible_vram(bo);
-		amdgpu_ttm_placement_from_domain(bo, other);
+			bo->tbo.mem.mem_type == TTM_PL_VRAM &&
+			bo->tbo.mem.start < adev->gmc.visible_vram_size >> PAGE_SHIFT;
+		initial_bytes_moved = atomic64_read(&adev->num_bytes_moved);
 		r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
-		p->bytes_moved += ctx.bytes_moved;
+		bytes_moved = atomic64_read(&adev->num_bytes_moved) -
+			initial_bytes_moved;
+		p->bytes_moved += bytes_moved;
 		if (update_bytes_moved_vis)
-			p->bytes_moved_vis += ctx.bytes_moved;
+			p->bytes_moved_vis += bytes_moved;
 
 		if (unlikely(r))
 			break;
@@ -529,9 +535,6 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
 	struct amdgpu_bo_list_entry *e;
 	struct list_head duplicates;
 	unsigned i, tries = 10;
-	struct amdgpu_bo *gds;
-	struct amdgpu_bo *gws;
-	struct amdgpu_bo *oa;
 	int r;
 
 	INIT_LIST_HEAD(&p->validated);
@@ -540,7 +543,7 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
 	if (p->bo_list) {
 		amdgpu_bo_list_get_list(p->bo_list, &p->validated);
 		if (p->bo_list->first_userptr != p->bo_list->num_entries)
-			p->mn = amdgpu_mn_get(p->adev, AMDGPU_MN_TYPE_GFX);
+			p->mn = amdgpu_mn_get(p->adev);
 	}
 
 	INIT_LIST_HEAD(&duplicates);
@@ -663,36 +666,31 @@ static int amdgpu_cs_parser_bos(struct amdgpu_cs_parser *p,
 
 	amdgpu_cs_report_moved_bytes(p->adev, p->bytes_moved,
 				     p->bytes_moved_vis);
-
 	if (p->bo_list) {
+		struct amdgpu_bo *gds = p->bo_list->gds_obj;
+		struct amdgpu_bo *gws = p->bo_list->gws_obj;
+		struct amdgpu_bo *oa = p->bo_list->oa_obj;
 		struct amdgpu_vm *vm = &fpriv->vm;
 		unsigned i;
 
-		gds = p->bo_list->gds_obj;
-		gws = p->bo_list->gws_obj;
-		oa = p->bo_list->oa_obj;
 		for (i = 0; i < p->bo_list->num_entries; i++) {
 			struct amdgpu_bo *bo = p->bo_list->array[i].robj;
 
 			p->bo_list->array[i].bo_va = amdgpu_vm_bo_find(vm, bo);
 		}
-	} else {
-		gds = p->adev->gds.gds_gfx_bo;
-		gws = p->adev->gds.gws_gfx_bo;
-		oa = p->adev->gds.oa_gfx_bo;
-	}
 
-	if (gds) {
-		p->job->gds_base = amdgpu_bo_gpu_offset(gds);
-		p->job->gds_size = amdgpu_bo_size(gds);
-	}
-	if (gws) {
-		p->job->gws_base = amdgpu_bo_gpu_offset(gws);
-		p->job->gws_size = amdgpu_bo_size(gws);
-	}
-	if (oa) {
-		p->job->oa_base = amdgpu_bo_gpu_offset(oa);
-		p->job->oa_size = amdgpu_bo_size(oa);
+		if (gds) {
+			p->job->gds_base = amdgpu_bo_gpu_offset(gds);
+			p->job->gds_size = amdgpu_bo_size(gds);
+		}
+		if (gws) {
+			p->job->gws_base = amdgpu_bo_gpu_offset(gws);
+			p->job->gws_size = amdgpu_bo_size(gws);
+		}
+		if (oa) {
+			p->job->oa_base = amdgpu_bo_gpu_offset(oa);
+			p->job->oa_size = amdgpu_bo_size(oa);
+		}
 	}
 
 	if (!r && p->uf_entry.robj) {
@@ -936,10 +934,6 @@ static int amdgpu_cs_ib_vm_chunk(struct amdgpu_device *adev,
 		r = amdgpu_bo_vm_update_pte(p);
 		if (r)
 			return r;
-
-		r = reservation_object_reserve_shared(vm->root.base.bo->tbo.resv);
-		if (r)
-			return r;
 	}
 
 	return amdgpu_cs_sync_rings(p);
@@ -984,9 +978,13 @@ static int amdgpu_cs_ib_fill(struct amdgpu_device *adev,
 		if (r)
 			return r;
 
-		if (chunk_ib->flags & AMDGPU_IB_FLAG_PREAMBLE)
-			parser->job->preamble_status |=
-				AMDGPU_PREAMBLE_IB_PRESENT;
+		if (chunk_ib->flags & AMDGPU_IB_FLAG_PREAMBLE) {
+			parser->job->preamble_status |= AMDGPU_PREAMBLE_IB_PRESENT;
+			if (!parser->ctx->preamble_presented) {
+				parser->job->preamble_status |= AMDGPU_PREAMBLE_IB_PRESENT_FIRST;
+				parser->ctx->preamble_presented = true;
+			}
+		}
 
 		if (parser->job->ring && parser->job->ring != ring)
 			return -EINVAL;
@@ -1210,12 +1208,6 @@ static int amdgpu_cs_submit(struct amdgpu_cs_parser *p,
 	}
 
 	amdgpu_cs_post_dependencies(p);
-
-	if ((job->preamble_status & AMDGPU_PREAMBLE_IB_PRESENT) &&
-	    !p->ctx->preamble_presented) {
-		job->preamble_status |= AMDGPU_PREAMBLE_IB_PRESENT_FIRST;
-		p->ctx->preamble_presented = true;
-	}
 
 	cs->out.handle = seq;
 	job->uf_sequence = seq;

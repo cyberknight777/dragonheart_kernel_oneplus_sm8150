@@ -41,22 +41,22 @@ uint16_t fixed_point_to_int_frac(
 
 	uint16_t result;
 
-	uint16_t d = (uint16_t)dc_fixpt_floor(
-		dc_fixpt_abs(
+	uint16_t d = (uint16_t)dal_fixed31_32_floor(
+		dal_fixed31_32_abs(
 			arg));
 
 	if (d <= (uint16_t)(1 << integer_bits) - (1 / (uint16_t)divisor))
-		numerator = (uint16_t)dc_fixpt_round(
-			dc_fixpt_mul_int(
+		numerator = (uint16_t)dal_fixed31_32_round(
+			dal_fixed31_32_mul_int(
 				arg,
 				divisor));
 	else {
-		numerator = dc_fixpt_floor(
-			dc_fixpt_sub(
-				dc_fixpt_from_int(
+		numerator = dal_fixed31_32_floor(
+			dal_fixed31_32_sub(
+				dal_fixed31_32_from_int(
 					1LL << integer_bits),
-				dc_fixpt_recip(
-					dc_fixpt_from_int(
+				dal_fixed31_32_recip(
+					dal_fixed31_32_from_int(
 						divisor))));
 	}
 
@@ -66,8 +66,8 @@ uint16_t fixed_point_to_int_frac(
 		result = (uint16_t)(
 		(1 << (integer_bits + fractional_bits + 1)) + numerator);
 
-	if ((result != 0) && dc_fixpt_lt(
-		arg, dc_fixpt_zero))
+	if ((result != 0) && dal_fixed31_32_lt(
+		arg, dal_fixed31_32_zero))
 		result |= 1 << (integer_bits + fractional_bits);
 
 	return result;
@@ -84,15 +84,15 @@ void convert_float_matrix(
 	uint32_t buffer_size)
 {
 	const struct fixed31_32 min_2_13 =
-		dc_fixpt_from_fraction(S2D13_MIN, DIVIDER);
+		dal_fixed31_32_from_fraction(S2D13_MIN, DIVIDER);
 	const struct fixed31_32 max_2_13 =
-		dc_fixpt_from_fraction(S2D13_MAX, DIVIDER);
+		dal_fixed31_32_from_fraction(S2D13_MAX, DIVIDER);
 	uint32_t i;
 
 	for (i = 0; i < buffer_size; ++i) {
 		uint32_t reg_value =
 				fixed_point_to_int_frac(
-					dc_fixpt_clamp(
+					dal_fixed31_32_clamp(
 						flt[i],
 						min_2_13,
 						max_2_13),

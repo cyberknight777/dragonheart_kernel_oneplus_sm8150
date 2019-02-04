@@ -83,10 +83,8 @@ static const char *amdgpu_asic_name[] = {
 	"POLARIS10",
 	"POLARIS11",
 	"POLARIS12",
-	"VEGAM",
 	"VEGA10",
 	"VEGA12",
-	"VEGA20",
 	"RAVEN",
 	"LAST",
 };
@@ -692,8 +690,6 @@ void amdgpu_device_gart_location(struct amdgpu_device *adev,
 {
 	u64 size_af, size_bf;
 
-	mc->gart_size += adev->pm.smu_prv_buffer_size;
-
 	size_af = adev->gmc.mc_mask - mc->vram_end;
 	size_bf = mc->vram_start;
 	if (size_bf > size_af) {
@@ -911,46 +907,6 @@ static void amdgpu_device_check_vm_size(struct amdgpu_device *adev)
 	}
 }
 
-static void amdgpu_device_check_smu_prv_buffer_size(struct amdgpu_device *adev)
-{
-	struct sysinfo si;
-	bool is_os_64 = (sizeof(void *) == 8) ? true : false;
-	uint64_t total_memory;
-	uint64_t dram_size_seven_GB = 0x1B8000000;
-	uint64_t dram_size_three_GB = 0xB8000000;
-
-	if (amdgpu_smu_memory_pool_size == 0)
-		return;
-
-	if (!is_os_64) {
-		DRM_WARN("Not 64-bit OS, feature not supported\n");
-		goto def_value;
-	}
-	si_meminfo(&si);
-	total_memory = (uint64_t)si.totalram * si.mem_unit;
-
-	if ((amdgpu_smu_memory_pool_size == 1) ||
-		(amdgpu_smu_memory_pool_size == 2)) {
-		if (total_memory < dram_size_three_GB)
-			goto def_value1;
-	} else if ((amdgpu_smu_memory_pool_size == 4) ||
-		(amdgpu_smu_memory_pool_size == 8)) {
-		if (total_memory < dram_size_seven_GB)
-			goto def_value1;
-	} else {
-		DRM_WARN("Smu memory pool size not supported\n");
-		goto def_value;
-	}
-	adev->pm.smu_prv_buffer_size = amdgpu_smu_memory_pool_size << 28;
-
-	return;
-
-def_value1:
-	DRM_WARN("No enough system memory\n");
-def_value:
-	adev->pm.smu_prv_buffer_size = 0;
-}
-
 /**
  * amdgpu_device_check_arguments - validate module params
  *
@@ -991,8 +947,6 @@ static void amdgpu_device_check_arguments(struct amdgpu_device *adev)
 		dev_warn(adev->dev, "valid range is between 4 and 9\n");
 		amdgpu_vm_fragment_size = -1;
 	}
-
-	amdgpu_device_check_smu_prv_buffer_size(adev);
 
 	amdgpu_device_check_vm_size(adev);
 
@@ -1085,11 +1039,10 @@ static const struct vga_switcheroo_client_ops amdgpu_switcheroo_ops = {
  * the hardware IP specified.
  * Returns the error code from the last instance.
  */
-int amdgpu_device_ip_set_clockgating_state(void *dev,
+int amdgpu_device_ip_set_clockgating_state(struct amdgpu_device *adev,
 					   enum amd_ip_block_type block_type,
 					   enum amd_clockgating_state state)
 {
-	struct amdgpu_device *adev = dev;
 	int i, r = 0;
 
 	for (i = 0; i < adev->num_ip_blocks; i++) {
@@ -1119,11 +1072,10 @@ int amdgpu_device_ip_set_clockgating_state(void *dev,
  * the hardware IP specified.
  * Returns the error code from the last instance.
  */
-int amdgpu_device_ip_set_powergating_state(void *dev,
+int amdgpu_device_ip_set_powergating_state(struct amdgpu_device *adev,
 					   enum amd_ip_block_type block_type,
 					   enum amd_powergating_state state)
 {
-	struct amdgpu_device *adev = dev;
 	int i, r = 0;
 
 	for (i = 0; i < adev->num_ip_blocks; i++) {
@@ -1368,10 +1320,9 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
 	case CHIP_TOPAZ:
 	case CHIP_TONGA:
 	case CHIP_FIJI:
-	case CHIP_POLARIS10:
 	case CHIP_POLARIS11:
+	case CHIP_POLARIS10:
 	case CHIP_POLARIS12:
-	case CHIP_VEGAM:
 	case CHIP_CARRIZO:
 	case CHIP_STONEY:
 #ifdef CONFIG_DRM_AMDGPU_SI
@@ -1388,7 +1339,6 @@ static int amdgpu_device_parse_gpu_info_fw(struct amdgpu_device *adev)
 	case CHIP_KABINI:
 	case CHIP_MULLINS:
 #endif
-	case CHIP_VEGA20:
 	default:
 		return 0;
 	case CHIP_VEGA10:
@@ -1478,10 +1428,9 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
 	case CHIP_TOPAZ:
 	case CHIP_TONGA:
 	case CHIP_FIJI:
-	case CHIP_POLARIS10:
 	case CHIP_POLARIS11:
+	case CHIP_POLARIS10:
 	case CHIP_POLARIS12:
-	case CHIP_VEGAM:
 	case CHIP_CARRIZO:
 	case CHIP_STONEY:
 		if (adev->asic_type == CHIP_CARRIZO || adev->asic_type == CHIP_STONEY)
@@ -1523,7 +1472,6 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
 #endif
 	case CHIP_VEGA10:
 	case CHIP_VEGA12:
-	case CHIP_VEGA20:
 	case CHIP_RAVEN:
 		if (adev->asic_type == CHIP_RAVEN)
 			adev->family = AMDGPU_FAMILY_RV;
@@ -1550,8 +1498,6 @@ static int amdgpu_device_ip_early_init(struct amdgpu_device *adev)
 		if (r)
 			return -EAGAIN;
 	}
-
-	adev->powerplay.pp_feature = amdgpu_pp_feature_mask;
 
 	for (i = 0; i < adev->num_ip_blocks; i++) {
 		if ((amdgpu_ip_block_mask & (1 << i)) == 0) {
@@ -1717,7 +1663,6 @@ static int amdgpu_device_set_cg_state(struct amdgpu_device *adev,
 		/* skip CG for VCE/UVD, it's handled specially */
 		if (adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_UVD &&
 		    adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCE &&
-		    adev->ip_blocks[i].version->type != AMD_IP_BLOCK_TYPE_VCN &&
 		    adev->ip_blocks[i].version->funcs->set_clockgating_state) {
 			/* enable clockgating to save power */
 			r = adev->ip_blocks[i].version->funcs->set_clockgating_state((void *)adev,
@@ -2220,29 +2165,19 @@ bool amdgpu_device_asic_has_dc_support(enum amd_asic_type asic_type)
 	switch (asic_type) {
 #if defined(CONFIG_DRM_AMD_DC)
 	case CHIP_BONAIRE:
+	case CHIP_HAWAII:
 	case CHIP_KAVERI:
 	case CHIP_KABINI:
 	case CHIP_MULLINS:
-		/*
-		 * We have systems in the wild with these ASICs that require
-		 * LVDS and VGA support which is not supported with DC.
-		 *
-		 * Fallback to the non-DC driver here by default so as not to
-		 * cause regressions.
-		 */
-		return amdgpu_dc > 0;
-	case CHIP_HAWAII:
 	case CHIP_CARRIZO:
 	case CHIP_STONEY:
-	case CHIP_POLARIS10:
 	case CHIP_POLARIS11:
+	case CHIP_POLARIS10:
 	case CHIP_POLARIS12:
-	case CHIP_VEGAM:
 	case CHIP_TONGA:
 	case CHIP_FIJI:
 	case CHIP_VEGA10:
 	case CHIP_VEGA12:
-	case CHIP_VEGA20:
 #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
 	case CHIP_RAVEN:
 #endif
@@ -2869,9 +2804,6 @@ static bool amdgpu_device_ip_check_soft_reset(struct amdgpu_device *adev)
 	if (amdgpu_sriov_vf(adev))
 		return true;
 
-	if (amdgpu_asic_need_full_reset(adev))
-		return true;
-
 	for (i = 0; i < adev->num_ip_blocks; i++) {
 		if (!adev->ip_blocks[i].status.valid)
 			continue;
@@ -2927,9 +2859,6 @@ static int amdgpu_device_ip_pre_soft_reset(struct amdgpu_device *adev)
 static bool amdgpu_device_ip_need_full_reset(struct amdgpu_device *adev)
 {
 	int i;
-
-	if (amdgpu_asic_need_full_reset(adev))
-		return true;
 
 	for (i = 0; i < adev->num_ip_blocks; i++) {
 		if (!adev->ip_blocks[i].status.valid)
@@ -3226,18 +3155,19 @@ static int amdgpu_device_reset_sriov(struct amdgpu_device *adev,
 
 	/* now we are okay to resume SMC/CP/SDMA */
 	r = amdgpu_device_ip_reinit_late_sriov(adev);
+	amdgpu_virt_release_full_gpu(adev, true);
 	if (r)
 		goto error;
 
 	amdgpu_irq_gpu_reset_resume_helper(adev);
 	r = amdgpu_ib_ring_tests(adev);
 
-error:
-	amdgpu_virt_release_full_gpu(adev, true);
 	if (!r && adev->virt.gim_feature & AMDGIM_FEATURE_GIM_FLR_VRAMLOST) {
 		atomic_inc(&adev->vram_lost_counter);
 		r = amdgpu_device_handle_vram_lost(adev);
 	}
+
+error:
 
 	return r;
 }
@@ -3255,6 +3185,7 @@ error:
 int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
 			      struct amdgpu_job *job, bool force)
 {
+	struct drm_atomic_state *state = NULL;
 	int i, r, resched;
 
 	if (!force && !amdgpu_device_ip_check_soft_reset(adev)) {
@@ -3276,6 +3207,10 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
 
 	/* block TTM */
 	resched = ttm_bo_lock_delayed_workqueue(&adev->mman.bdev);
+
+	/* store modesetting */
+	if (amdgpu_device_has_dc_support(adev))
+		state = drm_atomic_helper_suspend(adev->ddev);
 
 	/* block all schedulers and reset given job's ring */
 	for (i = 0; i < AMDGPU_MAX_RINGS; ++i) {
@@ -3316,7 +3251,10 @@ int amdgpu_device_gpu_recover(struct amdgpu_device *adev,
 		kthread_unpark(ring->sched.thread);
 	}
 
-	if (!amdgpu_device_has_dc_support(adev)) {
+	if (amdgpu_device_has_dc_support(adev)) {
+		if (drm_atomic_helper_resume(adev->ddev, state))
+			dev_info(adev->dev, "drm resume failed:%d\n", r);
+	} else {
 		drm_helper_resume_force_mode(adev->ddev);
 	}
 

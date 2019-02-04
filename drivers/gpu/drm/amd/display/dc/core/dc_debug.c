@@ -36,9 +36,8 @@
 #include "hw_sequencer.h"
 
 #include "resource.h"
-
-#define DC_LOGGER_INIT(logger)
-
+#define DC_LOGGER \
+	logger
 
 #define SURFACE_TRACE(...) do {\
 		if (dc->debug.surface_trace) \
@@ -61,7 +60,8 @@ void pre_surface_trace(
 		int surface_count)
 {
 	int i;
-	DC_LOGGER_INIT(dc->ctx->logger);
+	struct dc  *core_dc = dc;
+	struct dal_logger *logger =  core_dc->ctx->logger;
 
 	for (i = 0; i < surface_count; i++) {
 		const struct dc_plane_state *plane_state = plane_states[i];
@@ -72,8 +72,8 @@ void pre_surface_trace(
 				"plane_state->visible = %d;\n"
 				"plane_state->flip_immediate = %d;\n"
 				"plane_state->address.type = %d;\n"
-				"plane_state->address.grph.addr.quad_part = 0x%llX;\n"
-				"plane_state->address.grph.meta_addr.quad_part = 0x%llX;\n"
+				"plane_state->address.grph.addr.quad_part = 0x%X;\n"
+				"plane_state->address.grph.meta_addr.quad_part = 0x%X;\n"
 				"plane_state->scaling_quality.h_taps = %d;\n"
 				"plane_state->scaling_quality.v_taps = %d;\n"
 				"plane_state->scaling_quality.h_taps_c = %d;\n"
@@ -155,6 +155,7 @@ void pre_surface_trace(
 				"plane_state->tiling_info.gfx8.pipe_config = %d;\n"
 				"plane_state->tiling_info.gfx8.array_mode = %d;\n"
 				"plane_state->color_space = %d;\n"
+				"plane_state->input_tf = %d;\n"
 				"plane_state->dcc.enable = %d;\n"
 				"plane_state->format = %d;\n"
 				"plane_state->rotation = %d;\n"
@@ -162,6 +163,7 @@ void pre_surface_trace(
 				plane_state->tiling_info.gfx8.pipe_config,
 				plane_state->tiling_info.gfx8.array_mode,
 				plane_state->color_space,
+				plane_state->input_tf,
 				plane_state->dcc.enable,
 				plane_state->format,
 				plane_state->rotation,
@@ -181,7 +183,8 @@ void update_surface_trace(
 		int surface_count)
 {
 	int i;
-	DC_LOGGER_INIT(dc->ctx->logger);
+	struct dc  *core_dc = dc;
+	struct dal_logger *logger =  core_dc->ctx->logger;
 
 	for (i = 0; i < surface_count; i++) {
 		const struct dc_surface_update *update = &updates[i];
@@ -189,8 +192,8 @@ void update_surface_trace(
 		SURFACE_TRACE("Update %d\n", i);
 		if (update->flip_addr) {
 			SURFACE_TRACE("flip_addr->address.type = %d;\n"
-					"flip_addr->address.grph.addr.quad_part = 0x%llX;\n"
-					"flip_addr->address.grph.meta_addr.quad_part = 0x%llX;\n"
+					"flip_addr->address.grph.addr.quad_part = 0x%X;\n"
+					"flip_addr->address.grph.meta_addr.quad_part = 0x%X;\n"
 					"flip_addr->flip_immediate = %d;\n",
 					update->flip_addr->address.type,
 					update->flip_addr->address.grph.addr.quad_part,
@@ -201,15 +204,16 @@ void update_surface_trace(
 		if (update->plane_info) {
 			SURFACE_TRACE(
 					"plane_info->color_space = %d;\n"
+					"plane_info->input_tf = %d;\n"
 					"plane_info->format = %d;\n"
 					"plane_info->plane_size.grph.surface_pitch = %d;\n"
 					"plane_info->plane_size.grph.surface_size.height = %d;\n"
 					"plane_info->plane_size.grph.surface_size.width = %d;\n"
 					"plane_info->plane_size.grph.surface_size.x = %d;\n"
 					"plane_info->plane_size.grph.surface_size.y = %d;\n"
-					"plane_info->rotation = %d;\n"
-					"plane_info->stereo_format = %d;\n",
+					"plane_info->rotation = %d;\n",
 					update->plane_info->color_space,
+					update->plane_info->input_tf,
 					update->plane_info->format,
 					update->plane_info->plane_size.grph.surface_pitch,
 					update->plane_info->plane_size.grph.surface_size.height,
@@ -299,7 +303,8 @@ void update_surface_trace(
 
 void post_surface_trace(struct dc *dc)
 {
-	DC_LOGGER_INIT(dc->ctx->logger);
+	struct dc  *core_dc = dc;
+	struct dal_logger *logger =  core_dc->ctx->logger;
 
 	SURFACE_TRACE("post surface process.\n");
 
@@ -311,10 +316,10 @@ void context_timing_trace(
 {
 	int i;
 	struct dc  *core_dc = dc;
+	struct dal_logger *logger =  core_dc->ctx->logger;
 	int h_pos[MAX_PIPES], v_pos[MAX_PIPES];
 	struct crtc_position position;
 	unsigned int underlay_idx = core_dc->res_pool->underlay_pipe_index;
-	DC_LOGGER_INIT(dc->ctx->logger);
 
 
 	for (i = 0; i < core_dc->res_pool->pipe_count; i++) {
@@ -349,7 +354,9 @@ void context_clock_trace(
 		struct dc_state *context)
 {
 #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
-	DC_LOGGER_INIT(dc->ctx->logger);
+	struct dc  *core_dc = dc;
+	struct dal_logger *logger =  core_dc->ctx->logger;
+
 	CLOCK_TRACE("Current: dispclk_khz:%d  max_dppclk_khz:%d  dcfclk_khz:%d\n"
 			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d  socclk_khz:%d\n",
 			context->bw.dcn.calc_clk.dispclk_khz,
@@ -364,7 +371,6 @@ void context_clock_trace(
 			context->bw.dcn.calc_clk.dppclk_khz,
 			context->bw.dcn.calc_clk.dcfclk_khz,
 			context->bw.dcn.calc_clk.dcfclk_deep_sleep_khz,
-			context->bw.dcn.calc_clk.fclk_khz,
-			context->bw.dcn.calc_clk.socclk_khz);
+			context->bw.dcn.calc_clk.fclk_khz);
 #endif
 }

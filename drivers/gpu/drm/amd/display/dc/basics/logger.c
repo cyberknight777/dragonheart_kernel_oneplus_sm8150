@@ -61,7 +61,7 @@ static const struct dc_log_type_info log_type_info_tbl[] = {
 		{LOG_EVENT_UNDERFLOW,       "Underflow"},
 		{LOG_IF_TRACE,              "InterfaceTrace"},
 		{LOG_DTN,                   "DTN"},
-		{LOG_DISPLAYSTATS,          "DisplayStats"}
+		{LOG_PROFILING,             "Profiling"}
 };
 
 
@@ -402,4 +402,3 @@ cleanup:
 		entry->max_buf_bytes = 0;
 	}
 }
-

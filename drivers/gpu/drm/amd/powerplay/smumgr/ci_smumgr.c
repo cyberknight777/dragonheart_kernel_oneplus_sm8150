@@ -61,6 +61,9 @@
 
 #define SMC_RAM_END 0x40000
 
+#define VOLTAGE_SCALE               4
+#define VOLTAGE_VID_OFFSET_SCALE1    625
+#define VOLTAGE_VID_OFFSET_SCALE2    100
 #define CISLAND_MINIMUM_ENGINE_CLOCK 800
 #define CISLAND_MAX_DEEPSLEEP_DIVIDER_ID 5
 
@@ -208,7 +211,9 @@ static int ci_send_msg_to_smc(struct pp_hwmgr *hwmgr, uint16_t msg)
 {
 	int ret;
 
-	cgs_write_register(hwmgr->device, mmSMC_RESP_0, 0);
+	if (!ci_is_smc_ram_running(hwmgr))
+		return -EINVAL;
+
 	cgs_write_register(hwmgr->device, mmSMC_MESSAGE_0, msg);
 
 	PHM_WAIT_FIELD_UNEQUAL(hwmgr, SMC_RESP_0, SMC_RESP, 0);
@@ -1177,6 +1182,7 @@ static int ci_populate_single_memory_level(
 	struct smu7_hwmgr *data = (struct smu7_hwmgr *)(hwmgr->backend);
 	int result = 0;
 	bool dll_state_on;
+	struct cgs_display_info info = {0};
 	uint32_t mclk_edc_wr_enable_threshold = 40000;
 	uint32_t mclk_edc_enable_threshold = 40000;
 	uint32_t mclk_strobe_mode_threshold = 40000;
@@ -1230,7 +1236,8 @@ static int ci_populate_single_memory_level(
 	/* default set to low watermark. Highest level will be set to high later.*/
 	memory_level->DisplayWatermark = PPSMC_DISPLAY_WATERMARK_LOW;
 
-	data->display_timing.num_existing_displays = hwmgr->display_config->num_display;
+	cgs_get_active_displays_info(hwmgr->device, &info);
+	data->display_timing.num_existing_displays = info.display_count;
 
 	/* stutter mode not support on ci */
 
@@ -2303,13 +2310,11 @@ static uint32_t ci_get_offsetof(uint32_t type, uint32_t member)
 		case DRAM_LOG_BUFF_SIZE:
 			return offsetof(SMU7_SoftRegisters, DRAM_LOG_BUFF_SIZE);
 		}
-		break;
 	case SMU_Discrete_DpmTable:
 		switch (member) {
 		case LowSclkInterruptThreshold:
 			return offsetof(SMU7_Discrete_DpmTable, LowSclkInterruptT);
 		}
-		break;
 	}
 	pr_debug("can't get the offset of type %x member %x\n", type, member);
 	return 0;
@@ -2779,6 +2784,7 @@ static int ci_smu_fini(struct pp_hwmgr *hwmgr)
 {
 	kfree(hwmgr->smu_backend);
 	hwmgr->smu_backend = NULL;
+	cgs_rel_firmware(hwmgr->device, CGS_UCODE_ID_SMU);
 	return 0;
 }
 

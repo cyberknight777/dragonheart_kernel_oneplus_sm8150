@@ -43,7 +43,6 @@ struct drm_modeset_acquire_ctx;
  *	plane (in 16.16)
  * @src_w: width of visible portion of plane (in 16.16)
  * @src_h: height of visible portion of plane (in 16.16)
- * @alpha: opacity of the plane
  * @rotation: rotation of the plane
  * @zpos: priority of the given plane on crtc (optional)
  *	Note that multiple active planes on the same crtc can have an identical
@@ -80,15 +79,8 @@ struct drm_plane_state {
 	/**
 	 * @fence:
 	 *
-	 * Optional fence to wait for before scanning out @fb. The core atomic
-	 * code will set this when userspace is using explicit fencing. Do not
-	 * write this directly for a driver's implicit fence, use
-	 * drm_atomic_set_fence_for_plane() to ensure that an explicit fence is
-	 * preserved.
-	 *
-	 * Drivers should store any implicit fence in this from their
-	 * &drm_plane_helper.prepare_fb callback. See drm_gem_fb_prepare_fb()
-	 * and drm_gem_fb_simple_display_pipe_prepare_fb() for suitable helpers.
+	 * Optional fence to wait for before scanning out @fb. Do not write this
+	 * directly, use drm_atomic_set_fence_for_plane()
 	 */
 	struct dma_fence *fence;
 
@@ -113,9 +105,6 @@ struct drm_plane_state {
 	/* Source values are 16.16 fixed point */
 	uint32_t src_x, src_y;
 	uint32_t src_h, src_w;
-
-	/* Plane opacity */
-	u16 alpha;
 
 	/* Plane rotation */
 	unsigned int rotation;
@@ -507,7 +496,6 @@ enum drm_plane_type {
  * @funcs: helper functions
  * @properties: property tracking for this plane
  * @type: type of plane (overlay, primary, cursor)
- * @alpha_property: alpha property for this plane
  * @zpos_property: zpos property for this plane
  * @rotation_property: rotation property for this plane
  * @helper_private: mid-layer private data
@@ -576,14 +564,13 @@ struct drm_plane {
 	 * This is protected by @mutex. Note that nonblocking atomic commits
 	 * access the current plane state without taking locks. Either by going
 	 * through the &struct drm_atomic_state pointers, see
-	 * for_each_oldnew_plane_in_state(), for_each_old_plane_in_state() and
-	 * for_each_new_plane_in_state(). Or through careful ordering of atomic
-	 * commit operations as implemented in the atomic helpers, see
-	 * &struct drm_crtc_commit.
+	 * for_each_plane_in_state(), for_each_oldnew_plane_in_state(),
+	 * for_each_old_plane_in_state() and for_each_new_plane_in_state(). Or
+	 * through careful ordering of atomic commit operations as implemented
+	 * in the atomic helpers, see &struct drm_crtc_commit.
 	 */
 	struct drm_plane_state *state;
 
-	struct drm_property *alpha_property;
 	struct drm_property *zpos_property;
 	struct drm_property *rotation_property;
 

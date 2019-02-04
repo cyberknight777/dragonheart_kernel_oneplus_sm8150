@@ -1511,9 +1511,8 @@ int drm_atomic_helper_async_check(struct drm_device *dev,
 {
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *crtc_state;
-	struct drm_plane *plane = NULL;
-	struct drm_plane_state *old_plane_state = NULL;
-	struct drm_plane_state *new_plane_state = NULL;
+	struct drm_plane *plane;
+	struct drm_plane_state *old_plane_state, *new_plane_state;
 	const struct drm_plane_helper_funcs *funcs;
 	int i, n_planes = 0;
 
@@ -1529,8 +1528,7 @@ int drm_atomic_helper_async_check(struct drm_device *dev,
 	if (n_planes != 1)
 		return -EINVAL;
 
-	if (!new_plane_state->crtc ||
-	    old_plane_state->crtc != new_plane_state->crtc)
+	if (!new_plane_state->crtc)
 		return -EINVAL;
 
 	funcs = plane->helper_private;
@@ -1575,17 +1573,6 @@ void drm_atomic_helper_async_commit(struct drm_device *dev,
 	for_each_new_plane_in_state(state, plane, plane_state, i) {
 		funcs = plane->helper_private;
 		funcs->atomic_async_update(plane, plane_state);
-
-		/*
-		 * ->atomic_async_update() is supposed to update the
-		 * plane->state in-place, make sure at least common
-		 * properties have been properly updated.
-		 */
-		WARN_ON_ONCE(plane->state->fb != plane_state->fb);
-		WARN_ON_ONCE(plane->state->crtc_x != plane_state->crtc_x);
-		WARN_ON_ONCE(plane->state->crtc_y != plane_state->crtc_y);
-		WARN_ON_ONCE(plane->state->src_x != plane_state->src_x);
-		WARN_ON_ONCE(plane->state->src_y != plane_state->src_y);
 	}
 }
 EXPORT_SYMBOL(drm_atomic_helper_async_commit);
@@ -2687,7 +2674,7 @@ int drm_atomic_helper_disable_plane(struct drm_plane *plane,
 		goto fail;
 	}
 
-	if (plane_state->crtc && plane_state->crtc->cursor == plane)
+	if (plane_state->crtc && (plane == plane->crtc->cursor))
 		plane_state->state->legacy_cursor_update = true;
 
 	ret = __drm_atomic_helper_disable_plane(plane, plane_state);
@@ -3135,13 +3122,8 @@ int drm_atomic_helper_commit_duplicated_state(struct drm_atomic_state *state,
 
 	state->acquire_ctx = ctx;
 
-	for_each_new_plane_in_state(state, plane, new_plane_state, i) {
-		WARN_ON(plane->crtc != new_plane_state->crtc);
-		WARN_ON(plane->fb != new_plane_state->fb);
-		WARN_ON(plane->old_fb);
-
+	for_each_new_plane_in_state(state, plane, new_plane_state, i)
 		state->planes[i].old_state = plane->state;
-	}
 
 	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i)
 		state->crtcs[i].old_state = crtc->state;
@@ -3517,10 +3499,6 @@ void drm_atomic_helper_plane_reset(struct drm_plane *plane)
 	if (plane->state) {
 		plane->state->plane = plane;
 		plane->state->rotation = DRM_MODE_ROTATE_0;
-
-		/* Reset the alpha value to fully opaque if it matters */
-		if (plane->alpha_property)
-			plane->state->alpha = plane->alpha_property->values[1];
 	}
 }
 EXPORT_SYMBOL(drm_atomic_helper_plane_reset);

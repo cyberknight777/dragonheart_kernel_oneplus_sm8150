@@ -26,13 +26,13 @@
 #include "dm_services.h"
 #include "include/fixed31_32.h"
 
-static inline unsigned long long abs_i64(
-	long long arg)
+static inline uint64_t abs_i64(
+	int64_t arg)
 {
 	if (arg > 0)
-		return (unsigned long long)arg;
+		return (uint64_t)arg;
 	else
-		return (unsigned long long)(-arg);
+		return (uint64_t)(-arg);
 }
 
 /*
@@ -40,12 +40,12 @@ static inline unsigned long long abs_i64(
  * result = dividend / divisor
  * *remainder = dividend % divisor
  */
-static inline unsigned long long complete_integer_division_u64(
-	unsigned long long dividend,
-	unsigned long long divisor,
-	unsigned long long *remainder)
+static inline uint64_t complete_integer_division_u64(
+	uint64_t dividend,
+	uint64_t divisor,
+	uint64_t *remainder)
 {
-	unsigned long long result;
+	uint64_t result;
 
 	ASSERT(divisor);
 
@@ -64,28 +64,30 @@ static inline unsigned long long complete_integer_division_u64(
 #define GET_FRACTIONAL_PART(x) \
 	(FRACTIONAL_PART_MASK & (x))
 
-struct fixed31_32 dc_fixpt_from_fraction(long long numerator, long long denominator)
+struct fixed31_32 dal_fixed31_32_from_fraction(
+	int64_t numerator,
+	int64_t denominator)
 {
 	struct fixed31_32 res;
 
 	bool arg1_negative = numerator < 0;
 	bool arg2_negative = denominator < 0;
 
-	unsigned long long arg1_value = arg1_negative ? -numerator : numerator;
-	unsigned long long arg2_value = arg2_negative ? -denominator : denominator;
+	uint64_t arg1_value = arg1_negative ? -numerator : numerator;
+	uint64_t arg2_value = arg2_negative ? -denominator : denominator;
 
-	unsigned long long remainder;
+	uint64_t remainder;
 
 	/* determine integer part */
 
-	unsigned long long res_value = complete_integer_division_u64(
+	uint64_t res_value = complete_integer_division_u64(
 		arg1_value, arg2_value, &remainder);
 
 	ASSERT(res_value <= LONG_MAX);
 
 	/* determine fractional part */
 	{
-		unsigned int i = FIXED31_32_BITS_PER_FRACTIONAL_PART;
+		uint32_t i = FIXED31_32_BITS_PER_FRACTIONAL_PART;
 
 		do {
 			remainder <<= 1;
@@ -101,14 +103,14 @@ struct fixed31_32 dc_fixpt_from_fraction(long long numerator, long long denomina
 
 	/* round up LSB */
 	{
-		unsigned long long summand = (remainder << 1) >= arg2_value;
+		uint64_t summand = (remainder << 1) >= arg2_value;
 
 		ASSERT(res_value <= LLONG_MAX - summand);
 
 		res_value += summand;
 	}
 
-	res.value = (long long)res_value;
+	res.value = (int64_t)res_value;
 
 	if (arg1_negative ^ arg2_negative)
 		res.value = -res.value;
@@ -116,23 +118,79 @@ struct fixed31_32 dc_fixpt_from_fraction(long long numerator, long long denomina
 	return res;
 }
 
-struct fixed31_32 dc_fixpt_mul(struct fixed31_32 arg1, struct fixed31_32 arg2)
+struct fixed31_32 dal_fixed31_32_from_int_nonconst(
+	int64_t arg)
+{
+	struct fixed31_32 res;
+
+	ASSERT((LONG_MIN <= arg) && (arg <= LONG_MAX));
+
+	res.value = arg << FIXED31_32_BITS_PER_FRACTIONAL_PART;
+
+	return res;
+}
+
+struct fixed31_32 dal_fixed31_32_shl(
+	struct fixed31_32 arg,
+	uint8_t shift)
+{
+	struct fixed31_32 res;
+
+	ASSERT(((arg.value >= 0) && (arg.value <= LLONG_MAX >> shift)) ||
+		((arg.value < 0) && (arg.value >= LLONG_MIN >> shift)));
+
+	res.value = arg.value << shift;
+
+	return res;
+}
+
+struct fixed31_32 dal_fixed31_32_add(
+	struct fixed31_32 arg1,
+	struct fixed31_32 arg2)
+{
+	struct fixed31_32 res;
+
+	ASSERT(((arg1.value >= 0) && (LLONG_MAX - arg1.value >= arg2.value)) ||
+		((arg1.value < 0) && (LLONG_MIN - arg1.value <= arg2.value)));
+
+	res.value = arg1.value + arg2.value;
+
+	return res;
+}
+
+struct fixed31_32 dal_fixed31_32_sub(
+	struct fixed31_32 arg1,
+	struct fixed31_32 arg2)
+{
+	struct fixed31_32 res;
+
+	ASSERT(((arg2.value >= 0) && (LLONG_MIN + arg2.value <= arg1.value)) ||
+		((arg2.value < 0) && (LLONG_MAX + arg2.value >= arg1.value)));
+
+	res.value = arg1.value - arg2.value;
+
+	return res;
+}
+
+struct fixed31_32 dal_fixed31_32_mul(
+	struct fixed31_32 arg1,
+	struct fixed31_32 arg2)
 {
 	struct fixed31_32 res;
 
 	bool arg1_negative = arg1.value < 0;
 	bool arg2_negative = arg2.value < 0;
 
-	unsigned long long arg1_value = arg1_negative ? -arg1.value : arg1.value;
-	unsigned long long arg2_value = arg2_negative ? -arg2.value : arg2.value;
+	uint64_t arg1_value = arg1_negative ? -arg1.value : arg1.value;
+	uint64_t arg2_value = arg2_negative ? -arg2.value : arg2.value;
 
-	unsigned long long arg1_int = GET_INTEGER_PART(arg1_value);
-	unsigned long long arg2_int = GET_INTEGER_PART(arg2_value);
+	uint64_t arg1_int = GET_INTEGER_PART(arg1_value);
+	uint64_t arg2_int = GET_INTEGER_PART(arg2_value);
 
-	unsigned long long arg1_fra = GET_FRACTIONAL_PART(arg1_value);
-	unsigned long long arg2_fra = GET_FRACTIONAL_PART(arg2_value);
+	uint64_t arg1_fra = GET_FRACTIONAL_PART(arg1_value);
+	uint64_t arg2_fra = GET_FRACTIONAL_PART(arg2_value);
 
-	unsigned long long tmp;
+	uint64_t tmp;
 
 	res.value = arg1_int * arg2_int;
 
@@ -142,22 +200,22 @@ struct fixed31_32 dc_fixpt_mul(struct fixed31_32 arg1, struct fixed31_32 arg2)
 
 	tmp = arg1_int * arg2_fra;
 
-	ASSERT(tmp <= (unsigned long long)(LLONG_MAX - res.value));
+	ASSERT(tmp <= (uint64_t)(LLONG_MAX - res.value));
 
 	res.value += tmp;
 
 	tmp = arg2_int * arg1_fra;
 
-	ASSERT(tmp <= (unsigned long long)(LLONG_MAX - res.value));
+	ASSERT(tmp <= (uint64_t)(LLONG_MAX - res.value));
 
 	res.value += tmp;
 
 	tmp = arg1_fra * arg2_fra;
 
 	tmp = (tmp >> FIXED31_32_BITS_PER_FRACTIONAL_PART) +
-		(tmp >= (unsigned long long)dc_fixpt_half.value);
+		(tmp >= (uint64_t)dal_fixed31_32_half.value);
 
-	ASSERT(tmp <= (unsigned long long)(LLONG_MAX - res.value));
+	ASSERT(tmp <= (uint64_t)(LLONG_MAX - res.value));
 
 	res.value += tmp;
 
@@ -167,17 +225,18 @@ struct fixed31_32 dc_fixpt_mul(struct fixed31_32 arg1, struct fixed31_32 arg2)
 	return res;
 }
 
-struct fixed31_32 dc_fixpt_sqr(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_sqr(
+	struct fixed31_32 arg)
 {
 	struct fixed31_32 res;
 
-	unsigned long long arg_value = abs_i64(arg.value);
+	uint64_t arg_value = abs_i64(arg.value);
 
-	unsigned long long arg_int = GET_INTEGER_PART(arg_value);
+	uint64_t arg_int = GET_INTEGER_PART(arg_value);
 
-	unsigned long long arg_fra = GET_FRACTIONAL_PART(arg_value);
+	uint64_t arg_fra = GET_FRACTIONAL_PART(arg_value);
 
-	unsigned long long tmp;
+	uint64_t tmp;
 
 	res.value = arg_int * arg_int;
 
@@ -187,27 +246,28 @@ struct fixed31_32 dc_fixpt_sqr(struct fixed31_32 arg)
 
 	tmp = arg_int * arg_fra;
 
-	ASSERT(tmp <= (unsigned long long)(LLONG_MAX - res.value));
+	ASSERT(tmp <= (uint64_t)(LLONG_MAX - res.value));
 
 	res.value += tmp;
 
-	ASSERT(tmp <= (unsigned long long)(LLONG_MAX - res.value));
+	ASSERT(tmp <= (uint64_t)(LLONG_MAX - res.value));
 
 	res.value += tmp;
 
 	tmp = arg_fra * arg_fra;
 
 	tmp = (tmp >> FIXED31_32_BITS_PER_FRACTIONAL_PART) +
-		(tmp >= (unsigned long long)dc_fixpt_half.value);
+		(tmp >= (uint64_t)dal_fixed31_32_half.value);
 
-	ASSERT(tmp <= (unsigned long long)(LLONG_MAX - res.value));
+	ASSERT(tmp <= (uint64_t)(LLONG_MAX - res.value));
 
 	res.value += tmp;
 
 	return res;
 }
 
-struct fixed31_32 dc_fixpt_recip(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_recip(
+	struct fixed31_32 arg)
 {
 	/*
 	 * @note
@@ -216,40 +276,41 @@ struct fixed31_32 dc_fixpt_recip(struct fixed31_32 arg)
 
 	ASSERT(arg.value);
 
-	return dc_fixpt_from_fraction(
-		dc_fixpt_one.value,
+	return dal_fixed31_32_from_fraction(
+		dal_fixed31_32_one.value,
 		arg.value);
 }
 
-struct fixed31_32 dc_fixpt_sinc(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_sinc(
+	struct fixed31_32 arg)
 {
 	struct fixed31_32 square;
 
-	struct fixed31_32 res = dc_fixpt_one;
+	struct fixed31_32 res = dal_fixed31_32_one;
 
-	int n = 27;
+	int32_t n = 27;
 
 	struct fixed31_32 arg_norm = arg;
 
-	if (dc_fixpt_le(
-		dc_fixpt_two_pi,
-		dc_fixpt_abs(arg))) {
-		arg_norm = dc_fixpt_sub(
+	if (dal_fixed31_32_le(
+		dal_fixed31_32_two_pi,
+		dal_fixed31_32_abs(arg))) {
+		arg_norm = dal_fixed31_32_sub(
 			arg_norm,
-			dc_fixpt_mul_int(
-				dc_fixpt_two_pi,
-				(int)div64_s64(
+			dal_fixed31_32_mul_int(
+				dal_fixed31_32_two_pi,
+				(int32_t)div64_s64(
 					arg_norm.value,
-					dc_fixpt_two_pi.value)));
+					dal_fixed31_32_two_pi.value)));
 	}
 
-	square = dc_fixpt_sqr(arg_norm);
+	square = dal_fixed31_32_sqr(arg_norm);
 
 	do {
-		res = dc_fixpt_sub(
-			dc_fixpt_one,
-			dc_fixpt_div_int(
-				dc_fixpt_mul(
+		res = dal_fixed31_32_sub(
+			dal_fixed31_32_one,
+			dal_fixed31_32_div_int(
+				dal_fixed31_32_mul(
 					square,
 					res),
 				n * (n - 1)));
@@ -258,35 +319,37 @@ struct fixed31_32 dc_fixpt_sinc(struct fixed31_32 arg)
 	} while (n > 2);
 
 	if (arg.value != arg_norm.value)
-		res = dc_fixpt_div(
-			dc_fixpt_mul(res, arg_norm),
+		res = dal_fixed31_32_div(
+			dal_fixed31_32_mul(res, arg_norm),
 			arg);
 
 	return res;
 }
 
-struct fixed31_32 dc_fixpt_sin(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_sin(
+	struct fixed31_32 arg)
 {
-	return dc_fixpt_mul(
+	return dal_fixed31_32_mul(
 		arg,
-		dc_fixpt_sinc(arg));
+		dal_fixed31_32_sinc(arg));
 }
 
-struct fixed31_32 dc_fixpt_cos(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_cos(
+	struct fixed31_32 arg)
 {
 	/* TODO implement argument normalization */
 
-	const struct fixed31_32 square = dc_fixpt_sqr(arg);
+	const struct fixed31_32 square = dal_fixed31_32_sqr(arg);
 
-	struct fixed31_32 res = dc_fixpt_one;
+	struct fixed31_32 res = dal_fixed31_32_one;
 
-	int n = 26;
+	int32_t n = 26;
 
 	do {
-		res = dc_fixpt_sub(
-			dc_fixpt_one,
-			dc_fixpt_div_int(
-				dc_fixpt_mul(
+		res = dal_fixed31_32_sub(
+			dal_fixed31_32_one,
+			dal_fixed31_32_div_int(
+				dal_fixed31_32_mul(
 					square,
 					res),
 				n * (n - 1)));
@@ -304,35 +367,37 @@ struct fixed31_32 dc_fixpt_cos(struct fixed31_32 arg)
  *
  * Calculated as Taylor series.
  */
-static struct fixed31_32 fixed31_32_exp_from_taylor_series(struct fixed31_32 arg)
+static struct fixed31_32 fixed31_32_exp_from_taylor_series(
+	struct fixed31_32 arg)
 {
-	unsigned int n = 9;
+	uint32_t n = 9;
 
-	struct fixed31_32 res = dc_fixpt_from_fraction(
+	struct fixed31_32 res = dal_fixed31_32_from_fraction(
 		n + 2,
 		n + 1);
 	/* TODO find correct res */
 
-	ASSERT(dc_fixpt_lt(arg, dc_fixpt_one));
+	ASSERT(dal_fixed31_32_lt(arg, dal_fixed31_32_one));
 
 	do
-		res = dc_fixpt_add(
-			dc_fixpt_one,
-			dc_fixpt_div_int(
-				dc_fixpt_mul(
+		res = dal_fixed31_32_add(
+			dal_fixed31_32_one,
+			dal_fixed31_32_div_int(
+				dal_fixed31_32_mul(
 					arg,
 					res),
 				n));
 	while (--n != 1);
 
-	return dc_fixpt_add(
-		dc_fixpt_one,
-		dc_fixpt_mul(
+	return dal_fixed31_32_add(
+		dal_fixed31_32_one,
+		dal_fixed31_32_mul(
 			arg,
 			res));
 }
 
-struct fixed31_32 dc_fixpt_exp(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_exp(
+	struct fixed31_32 arg)
 {
 	/*
 	 * @brief
@@ -341,43 +406,44 @@ struct fixed31_32 dc_fixpt_exp(struct fixed31_32 arg)
 	 * where m = round(x / ln(2)), r = x - m * ln(2)
 	 */
 
-	if (dc_fixpt_le(
-		dc_fixpt_ln2_div_2,
-		dc_fixpt_abs(arg))) {
-		int m = dc_fixpt_round(
-			dc_fixpt_div(
+	if (dal_fixed31_32_le(
+		dal_fixed31_32_ln2_div_2,
+		dal_fixed31_32_abs(arg))) {
+		int32_t m = dal_fixed31_32_round(
+			dal_fixed31_32_div(
 				arg,
-				dc_fixpt_ln2));
+				dal_fixed31_32_ln2));
 
-		struct fixed31_32 r = dc_fixpt_sub(
+		struct fixed31_32 r = dal_fixed31_32_sub(
 			arg,
-			dc_fixpt_mul_int(
-				dc_fixpt_ln2,
+			dal_fixed31_32_mul_int(
+				dal_fixed31_32_ln2,
 				m));
 
 		ASSERT(m != 0);
 
-		ASSERT(dc_fixpt_lt(
-			dc_fixpt_abs(r),
-			dc_fixpt_one));
+		ASSERT(dal_fixed31_32_lt(
+			dal_fixed31_32_abs(r),
+			dal_fixed31_32_one));
 
 		if (m > 0)
-			return dc_fixpt_shl(
+			return dal_fixed31_32_shl(
 				fixed31_32_exp_from_taylor_series(r),
-				(unsigned char)m);
+				(uint8_t)m);
 		else
-			return dc_fixpt_div_int(
+			return dal_fixed31_32_div_int(
 				fixed31_32_exp_from_taylor_series(r),
 				1LL << -m);
 	} else if (arg.value != 0)
 		return fixed31_32_exp_from_taylor_series(arg);
 	else
-		return dc_fixpt_one;
+		return dal_fixed31_32_one;
 }
 
-struct fixed31_32 dc_fixpt_log(struct fixed31_32 arg)
+struct fixed31_32 dal_fixed31_32_log(
+	struct fixed31_32 arg)
 {
-	struct fixed31_32 res = dc_fixpt_neg(dc_fixpt_one);
+	struct fixed31_32 res = dal_fixed31_32_neg(dal_fixed31_32_one);
 	/* TODO improve 1st estimation */
 
 	struct fixed31_32 error;
@@ -387,15 +453,15 @@ struct fixed31_32 dc_fixpt_log(struct fixed31_32 arg)
 	/* TODO if arg is zero, return -INF */
 
 	do {
-		struct fixed31_32 res1 = dc_fixpt_add(
-			dc_fixpt_sub(
+		struct fixed31_32 res1 = dal_fixed31_32_add(
+			dal_fixed31_32_sub(
 				res,
-				dc_fixpt_one),
-			dc_fixpt_div(
+				dal_fixed31_32_one),
+			dal_fixed31_32_div(
 				arg,
-				dc_fixpt_exp(res)));
+				dal_fixed31_32_exp(res)));
 
-		error = dc_fixpt_sub(
+		error = dal_fixed31_32_sub(
 			res,
 			res1);
 
@@ -406,23 +472,78 @@ struct fixed31_32 dc_fixpt_log(struct fixed31_32 arg)
 	return res;
 }
 
+struct fixed31_32 dal_fixed31_32_pow(
+	struct fixed31_32 arg1,
+	struct fixed31_32 arg2)
+{
+	return dal_fixed31_32_exp(
+		dal_fixed31_32_mul(
+			dal_fixed31_32_log(arg1),
+			arg2));
+}
+
+int32_t dal_fixed31_32_floor(
+	struct fixed31_32 arg)
+{
+	uint64_t arg_value = abs_i64(arg.value);
+
+	if (arg.value >= 0)
+		return (int32_t)GET_INTEGER_PART(arg_value);
+	else
+		return -(int32_t)GET_INTEGER_PART(arg_value);
+}
+
+int32_t dal_fixed31_32_round(
+	struct fixed31_32 arg)
+{
+	uint64_t arg_value = abs_i64(arg.value);
+
+	const int64_t summand = dal_fixed31_32_half.value;
+
+	ASSERT(LLONG_MAX - (int64_t)arg_value >= summand);
+
+	arg_value += summand;
+
+	if (arg.value >= 0)
+		return (int32_t)GET_INTEGER_PART(arg_value);
+	else
+		return -(int32_t)GET_INTEGER_PART(arg_value);
+}
+
+int32_t dal_fixed31_32_ceil(
+	struct fixed31_32 arg)
+{
+	uint64_t arg_value = abs_i64(arg.value);
+
+	const int64_t summand = dal_fixed31_32_one.value -
+		dal_fixed31_32_epsilon.value;
+
+	ASSERT(LLONG_MAX - (int64_t)arg_value >= summand);
+
+	arg_value += summand;
+
+	if (arg.value >= 0)
+		return (int32_t)GET_INTEGER_PART(arg_value);
+	else
+		return -(int32_t)GET_INTEGER_PART(arg_value);
+}
 
 /* this function is a generic helper to translate fixed point value to
  * specified integer format that will consist of integer_bits integer part and
  * fractional_bits fractional part. For example it is used in
- * dc_fixpt_u2d19 to receive 2 bits integer part and 19 bits fractional
+ * dal_fixed31_32_u2d19 to receive 2 bits integer part and 19 bits fractional
  * part in 32 bits. It is used in hw programming (scaler)
  */
 
-static inline unsigned int ux_dy(
-	long long value,
-	unsigned int integer_bits,
-	unsigned int fractional_bits)
+static inline uint32_t ux_dy(
+	int64_t value,
+	uint32_t integer_bits,
+	uint32_t fractional_bits)
 {
 	/* 1. create mask of integer part */
-	unsigned int result = (1 << integer_bits) - 1;
+	uint32_t result = (1 << integer_bits) - 1;
 	/* 2. mask out fractional part */
-	unsigned int fractional_part = FRACTIONAL_PART_MASK & value;
+	uint32_t fractional_part = FRACTIONAL_PART_MASK & value;
 	/* 3. shrink fixed point integer part to be of integer_bits width*/
 	result &= GET_INTEGER_PART(value);
 	/* 4. make space for fractional part to be filled in after integer */
@@ -433,13 +554,13 @@ static inline unsigned int ux_dy(
 	return result | fractional_part;
 }
 
-static inline unsigned int clamp_ux_dy(
-	long long value,
-	unsigned int integer_bits,
-	unsigned int fractional_bits,
-	unsigned int min_clamp)
+static inline uint32_t clamp_ux_dy(
+	int64_t value,
+	uint32_t integer_bits,
+	uint32_t fractional_bits,
+	uint32_t min_clamp)
 {
-	unsigned int truncated_val = ux_dy(value, integer_bits, fractional_bits);
+	uint32_t truncated_val = ux_dy(value, integer_bits, fractional_bits);
 
 	if (value >= (1LL << (integer_bits + FIXED31_32_BITS_PER_FRACTIONAL_PART)))
 		return (1 << (integer_bits + fractional_bits)) - 1;
@@ -449,35 +570,35 @@ static inline unsigned int clamp_ux_dy(
 		return min_clamp;
 }
 
-unsigned int dc_fixpt_u3d19(struct fixed31_32 arg)
-{
-	return ux_dy(arg.value, 3, 19);
-}
-
-unsigned int dc_fixpt_u2d19(struct fixed31_32 arg)
+uint32_t dal_fixed31_32_u2d19(
+	struct fixed31_32 arg)
 {
 	return ux_dy(arg.value, 2, 19);
 }
 
-unsigned int dc_fixpt_u0d19(struct fixed31_32 arg)
+uint32_t dal_fixed31_32_u0d19(
+	struct fixed31_32 arg)
 {
 	return ux_dy(arg.value, 0, 19);
 }
 
-unsigned int dc_fixpt_clamp_u0d14(struct fixed31_32 arg)
+uint32_t dal_fixed31_32_clamp_u0d14(
+	struct fixed31_32 arg)
 {
 	return clamp_ux_dy(arg.value, 0, 14, 1);
 }
 
-unsigned int dc_fixpt_clamp_u0d10(struct fixed31_32 arg)
+uint32_t dal_fixed31_32_clamp_u0d10(
+	struct fixed31_32 arg)
 {
 	return clamp_ux_dy(arg.value, 0, 10, 1);
 }
 
-int dc_fixpt_s4d19(struct fixed31_32 arg)
+int32_t dal_fixed31_32_s4d19(
+	struct fixed31_32 arg)
 {
 	if (arg.value < 0)
-		return -(int)ux_dy(dc_fixpt_abs(arg).value, 4, 19);
+		return -(int32_t)ux_dy(dal_fixed31_32_abs(arg).value, 4, 19);
 	else
 		return ux_dy(arg.value, 4, 19);
 }

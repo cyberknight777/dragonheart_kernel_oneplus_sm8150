@@ -23,7 +23,7 @@
 
 #include "smumgr.h"
 #include "vega10_inc.h"
-#include "soc15_common.h"
+#include "pp_soc15.h"
 #include "vega10_smumgr.h"
 #include "vega10_hwmgr.h"
 #include "vega10_ppsmc.h"
@@ -34,6 +34,8 @@
 
 #define AVFS_EN_MSB		1568
 #define AVFS_EN_LSB		1568
+
+#define VOLTAGE_SCALE	4
 
 /* Microcode file is stored in this buffer */
 #define BUFFER_SIZE                 80000
@@ -52,13 +54,18 @@
 
 static bool vega10_is_smc_ram_running(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
-	uint32_t mp1_fw_flags;
+	uint32_t mp1_fw_flags, reg;
 
-	WREG32_SOC15(NBIF, 0, mmPCIE_INDEX2,
+	reg = soc15_get_register_offset(NBIF_HWID, 0,
+			mmPCIE_INDEX2_BASE_IDX, mmPCIE_INDEX2);
+
+	cgs_write_register(hwmgr->device, reg,
 			(MP1_Public | (smnMP1_FIRMWARE_FLAGS & 0xffffffff)));
 
-	mp1_fw_flags = RREG32_SOC15(NBIF, 0, mmPCIE_DATA2);
+	reg = soc15_get_register_offset(NBIF_HWID, 0,
+			mmPCIE_DATA2_BASE_IDX, mmPCIE_DATA2);
+
+	mp1_fw_flags = cgs_read_register(hwmgr->device, reg);
 
 	if (mp1_fw_flags & MP1_FIRMWARE_FLAGS__INTERRUPTS_ENABLED_MASK)
 		return true;
@@ -74,11 +81,11 @@ static bool vega10_is_smc_ram_running(struct pp_hwmgr *hwmgr)
  */
 static uint32_t vega10_wait_for_response(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	uint32_t reg;
 	uint32_t ret;
 
-	reg = SOC15_REG_OFFSET(MP1, 0, mmMP1_SMN_C2PMSG_90);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_90_BASE_IDX, mmMP1_SMN_C2PMSG_90);
 
 	ret = phm_wait_for_register_unequal(hwmgr, reg,
 			0, MP1_C2PMSG_90__CONTENT_MASK);
@@ -86,7 +93,7 @@ static uint32_t vega10_wait_for_response(struct pp_hwmgr *hwmgr)
 	if (ret)
 		pr_err("No response from smu\n");
 
-	return RREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_90);
+	return cgs_read_register(hwmgr->device, reg);
 }
 
 /*
@@ -98,9 +105,11 @@ static uint32_t vega10_wait_for_response(struct pp_hwmgr *hwmgr)
 static int vega10_send_msg_to_smc_without_waiting(struct pp_hwmgr *hwmgr,
 		uint16_t msg)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_66, msg);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_66_BASE_IDX, mmMP1_SMN_C2PMSG_66);
+	cgs_write_register(hwmgr->device, reg, msg);
 
 	return 0;
 }
@@ -113,12 +122,14 @@ static int vega10_send_msg_to_smc_without_waiting(struct pp_hwmgr *hwmgr,
  */
 static int vega10_send_msg_to_smc(struct pp_hwmgr *hwmgr, uint16_t msg)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 	uint32_t ret;
 
 	vega10_wait_for_response(hwmgr);
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_90, 0);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_90_BASE_IDX, mmMP1_SMN_C2PMSG_90);
+	cgs_write_register(hwmgr->device, reg, 0);
 
 	vega10_send_msg_to_smc_without_waiting(hwmgr, msg);
 
@@ -139,14 +150,18 @@ static int vega10_send_msg_to_smc(struct pp_hwmgr *hwmgr, uint16_t msg)
 static int vega10_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
 		uint16_t msg, uint32_t parameter)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 	uint32_t ret;
 
 	vega10_wait_for_response(hwmgr);
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_90, 0);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_90_BASE_IDX, mmMP1_SMN_C2PMSG_90);
+	cgs_write_register(hwmgr->device, reg, 0);
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_82, parameter);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_82_BASE_IDX, mmMP1_SMN_C2PMSG_82);
+	cgs_write_register(hwmgr->device, reg, parameter);
 
 	vega10_send_msg_to_smc_without_waiting(hwmgr, msg);
 
@@ -159,9 +174,12 @@ static int vega10_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
 
 static int vega10_get_argument(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
-	return RREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_82);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_82_BASE_IDX, mmMP1_SMN_C2PMSG_82);
+
+	return cgs_read_register(hwmgr->device, reg);
 }
 
 static int vega10_copy_table_from_smc(struct pp_hwmgr *hwmgr,

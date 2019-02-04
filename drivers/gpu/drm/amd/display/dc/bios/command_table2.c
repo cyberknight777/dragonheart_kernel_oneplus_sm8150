@@ -26,18 +26,14 @@
 #include "dm_services.h"
 
 #include "ObjectID.h"
-
 #include "atomfirmware.h"
-#include "atom.h"
+
 #include "include/bios_parser_interface.h"
 
 #include "command_table2.h"
 #include "command_table_helper2.h"
 #include "bios_parser_helper.h"
 #include "bios_parser_types_internal2.h"
-#include "amdgpu.h"
-
-
 #define DC_LOGGER \
 	bp->base.ctx->logger
 
@@ -47,16 +43,16 @@
 		->FieldName)-(char *)0)/sizeof(uint16_t))
 
 #define EXEC_BIOS_CMD_TABLE(fname, params)\
-	(amdgpu_atom_execute_table(((struct amdgpu_device *)bp->base.ctx->driver_context)->mode_info.atom_context, \
+	(cgs_atom_exec_cmd_table(bp->base.ctx->cgs_device, \
 		GET_INDEX_INTO_MASTER_TABLE(command, fname), \
-		(uint32_t *)&params) == 0)
+		&params) == 0)
 
 #define BIOS_CMD_TABLE_REVISION(fname, frev, crev)\
-	amdgpu_atom_parse_cmd_header(((struct amdgpu_device *)bp->base.ctx->driver_context)->mode_info.atom_context, \
+	cgs_atom_get_cmd_table_revs(bp->base.ctx->cgs_device, \
 		GET_INDEX_INTO_MASTER_TABLE(command, fname), &frev, &crev)
 
 #define BIOS_CMD_TABLE_PARA_REVISION(fname)\
-	bios_cmd_table_para_revision(bp->base.ctx->driver_context, \
+	bios_cmd_table_para_revision(bp->base.ctx->cgs_device, \
 			GET_INDEX_INTO_MASTER_TABLE(command, fname))
 
 static void init_dig_encoder_control(struct bios_parser *bp);
@@ -90,18 +86,16 @@ void dal_firmware_parser_init_cmd_tbl(struct bios_parser *bp)
 	init_get_smu_clock_info(bp);
 }
 
-static uint32_t bios_cmd_table_para_revision(void *dev,
+static uint32_t bios_cmd_table_para_revision(void *cgs_device,
 					     uint32_t index)
 {
-	struct amdgpu_device *adev = dev;
 	uint8_t frev, crev;
 
-	if (amdgpu_atom_parse_cmd_header(adev->mode_info.atom_context,
+	if (cgs_atom_get_cmd_table_revs(cgs_device,
 					index,
-					&frev, &crev))
-		return crev;
-	else
+					&frev, &crev) != 0)
 		return 0;
+	return crev;
 }
 
 /******************************************************************************
@@ -207,7 +201,7 @@ static void init_transmitter_control(struct bios_parser *bp)
 	uint8_t frev;
 	uint8_t crev;
 
-	if (BIOS_CMD_TABLE_REVISION(dig1transmittercontrol, frev, crev) == false)
+	if (BIOS_CMD_TABLE_REVISION(dig1transmittercontrol, frev, crev) != 0)
 		BREAK_TO_DEBUGGER();
 	switch (crev) {
 	case 6:

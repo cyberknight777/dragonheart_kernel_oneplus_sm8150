@@ -168,9 +168,11 @@ static void dce_virtual_crtc_disable(struct drm_crtc *crtc)
 	dce_virtual_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
 	if (crtc->primary->fb) {
 		int r;
+		struct amdgpu_framebuffer *amdgpu_fb;
 		struct amdgpu_bo *abo;
 
-		abo = gem_to_amdgpu_bo(crtc->primary->fb->obj[0]);
+		amdgpu_fb = to_amdgpu_framebuffer(crtc->primary->fb);
+		abo = gem_to_amdgpu_bo(amdgpu_fb->obj);
 		r = amdgpu_bo_reserve(abo, true);
 		if (unlikely(r))
 			DRM_ERROR("failed to reserve abo before unpin\n");
@@ -327,7 +329,7 @@ static int dce_virtual_get_modes(struct drm_connector *connector)
 	return 0;
 }
 
-static enum drm_mode_status dce_virtual_mode_valid(struct drm_connector *connector,
+static int dce_virtual_mode_valid(struct drm_connector *connector,
 				  struct drm_display_mode *mode)
 {
 	return MODE_OK;
@@ -460,9 +462,8 @@ static int dce_virtual_hw_init(void *handle)
 		break;
 	case CHIP_CARRIZO:
 	case CHIP_STONEY:
-	case CHIP_POLARIS10:
 	case CHIP_POLARIS11:
-	case CHIP_VEGAM:
+	case CHIP_POLARIS10:
 		dce_v11_0_disable_dce(adev);
 		break;
 	case CHIP_TOPAZ:
@@ -473,7 +474,6 @@ static int dce_virtual_hw_init(void *handle)
 		break;
 	case CHIP_VEGA10:
 	case CHIP_VEGA12:
-	case CHIP_VEGA20:
 		break;
 	default:
 		DRM_ERROR("Virtual display unsupported ASIC type: 0x%X\n", adev->asic_type);

@@ -26,7 +26,7 @@
 #include "vega12_smumgr.h"
 #include "vega12_ppsmc.h"
 #include "vega12_inc.h"
-#include "soc15_common.h"
+#include "pp_soc15.h"
 #include "pp_debug.h"
 
 static int vega12_get_current_rpm(struct pp_hwmgr *hwmgr, uint32_t *current_rpm)
@@ -147,10 +147,13 @@ int vega12_fan_ctrl_reset_fan_speed_to_default(struct pp_hwmgr *hwmgr)
 */
 int vega12_thermal_get_temperature(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	int temp = 0;
+	uint32_t reg;
 
-	temp = RREG32_SOC15(THM, 0, mmCG_MULT_THERMAL_STATUS);
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_MULT_THERMAL_STATUS_BASE_IDX,  mmCG_MULT_THERMAL_STATUS);
+
+	temp = cgs_read_register(hwmgr->device, reg);
 
 	temp = (temp & CG_MULT_THERMAL_STATUS__CTF_TEMP_MASK) >>
 			CG_MULT_THERMAL_STATUS__CTF_TEMP__SHIFT;
@@ -172,12 +175,11 @@ int vega12_thermal_get_temperature(struct pp_hwmgr *hwmgr)
 static int vega12_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
 		struct PP_TemperatureRange *range)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	int low = VEGA12_THERMAL_MINIMUM_ALERT_TEMP *
 			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
 	int high = VEGA12_THERMAL_MAXIMUM_ALERT_TEMP *
 			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
-	uint32_t val;
+	uint32_t val, reg;
 
 	if (low < range->min)
 		low = range->min;
@@ -187,15 +189,18 @@ static int vega12_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
 	if (low > high)
 		return -EINVAL;
 
-	val = RREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_CTRL);
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmTHM_THERMAL_INT_CTRL_BASE_IDX, mmTHM_THERMAL_INT_CTRL);
 
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, MAX_IH_CREDIT, 5);
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, THERM_IH_HW_ENA, 1);
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTH, (high / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTL, (low / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
+	val = cgs_read_register(hwmgr->device, reg);
+
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, MAX_IH_CREDIT, 5);
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, THERM_IH_HW_ENA, 1);
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTH, (high / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTL, (low / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
 	val = val & (~THM_THERMAL_INT_CTRL__THERM_TRIGGER_MASK_MASK);
 
-	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_CTRL, val);
+	cgs_write_register(hwmgr->device, reg, val);
 
 	return 0;
 }
@@ -207,14 +212,15 @@ static int vega12_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
 */
 static int vega12_thermal_enable_alert(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	uint32_t val = 0;
+	uint32_t reg;
 
 	val |= (1 << THM_THERMAL_INT_ENA__THERM_INTH_CLR__SHIFT);
 	val |= (1 << THM_THERMAL_INT_ENA__THERM_INTL_CLR__SHIFT);
 	val |= (1 << THM_THERMAL_INT_ENA__THERM_TRIGGER_CLR__SHIFT);
 
-	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_ENA, val);
+	reg = soc15_get_register_offset(THM_HWID, 0, mmTHM_THERMAL_INT_ENA_BASE_IDX, mmTHM_THERMAL_INT_ENA);
+	cgs_write_register(hwmgr->device, reg, val);
 
 	return 0;
 }
@@ -225,9 +231,10 @@ static int vega12_thermal_enable_alert(struct pp_hwmgr *hwmgr)
 */
 int vega12_thermal_disable_alert(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
-	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_ENA, 0);
+	reg = soc15_get_register_offset(THM_HWID, 0, mmTHM_THERMAL_INT_ENA_BASE_IDX, mmTHM_THERMAL_INT_ENA);
+	cgs_write_register(hwmgr->device, reg, 0);
 
 	return 0;
 }

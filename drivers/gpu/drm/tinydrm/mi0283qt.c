@@ -10,7 +10,6 @@
  */
 
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_modeset_helper.h>
 #include <drm/tinydrm/ili9341.h>
 #include <drm/tinydrm/mipi-dbi.h>
@@ -128,7 +127,7 @@ static const struct drm_simple_display_pipe_funcs mi0283qt_pipe_funcs = {
 	.enable = mipi_dbi_pipe_enable,
 	.disable = mipi_dbi_pipe_disable,
 	.update = tinydrm_display_pipe_update,
-	.prepare_fb = drm_gem_fb_simple_display_pipe_prepare_fb,
+	.prepare_fb = tinydrm_display_pipe_prepare_fb,
 };
 
 static const struct drm_display_mode mi0283qt_mode = {

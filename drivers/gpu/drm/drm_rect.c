@@ -415,8 +415,8 @@ EXPORT_SYMBOL(drm_rect_rotate);
  * them when doing a rotatation and its inverse.
  * That is, if you do ::
  *
- *     drm_rect_rotate(&r, width, height, rotation);
- *     drm_rect_rotate_inv(&r, width, height, rotation);
+ *     DRM_MODE_PROP_ROTATE(&r, width, height, rotation);
+ *     DRM_MODE_ROTATE_inv(&r, width, height, rotation);
  *
  * you will always get back the original rectangle.
  */

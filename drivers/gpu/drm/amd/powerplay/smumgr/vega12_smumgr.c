@@ -23,7 +23,7 @@
 
 #include "smumgr.h"
 #include "vega12_inc.h"
-#include "soc15_common.h"
+#include "pp_soc15.h"
 #include "vega12_smumgr.h"
 #include "vega12_ppsmc.h"
 #include "vega12/smu9_driver_if.h"
@@ -44,13 +44,18 @@
 
 static bool vega12_is_smc_ram_running(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
-	uint32_t mp1_fw_flags;
+	uint32_t mp1_fw_flags, reg;
 
-	WREG32_SOC15(NBIF, 0, mmPCIE_INDEX2,
+	reg = soc15_get_register_offset(NBIF_HWID, 0,
+			mmPCIE_INDEX2_BASE_IDX, mmPCIE_INDEX2);
+
+	cgs_write_register(hwmgr->device, reg,
 			(MP1_Public | (smnMP1_FIRMWARE_FLAGS & 0xffffffff)));
 
-	mp1_fw_flags = RREG32_SOC15(NBIF, 0, mmPCIE_DATA2);
+	reg = soc15_get_register_offset(NBIF_HWID, 0,
+			mmPCIE_DATA2_BASE_IDX, mmPCIE_DATA2);
+
+	mp1_fw_flags = cgs_read_register(hwmgr->device, reg);
 
 	if ((mp1_fw_flags & MP1_FIRMWARE_FLAGS__INTERRUPTS_ENABLED_MASK) >>
 				MP1_FIRMWARE_FLAGS__INTERRUPTS_ENABLED__SHIFT)
@@ -67,15 +72,15 @@ static bool vega12_is_smc_ram_running(struct pp_hwmgr *hwmgr)
  */
 static uint32_t vega12_wait_for_response(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	uint32_t reg;
 
-	reg = SOC15_REG_OFFSET(MP1, 0, mmMP1_SMN_C2PMSG_90);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_90_BASE_IDX, mmMP1_SMN_C2PMSG_90);
 
 	phm_wait_for_register_unequal(hwmgr, reg,
 			0, MP1_C2PMSG_90__CONTENT_MASK);
 
-	return RREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_90);
+	return cgs_read_register(hwmgr->device, reg);
 }
 
 /*
@@ -87,9 +92,11 @@ static uint32_t vega12_wait_for_response(struct pp_hwmgr *hwmgr)
 int vega12_send_msg_to_smc_without_waiting(struct pp_hwmgr *hwmgr,
 		uint16_t msg)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_66, msg);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_66_BASE_IDX, mmMP1_SMN_C2PMSG_66);
+	cgs_write_register(hwmgr->device, reg, msg);
 
 	return 0;
 }
@@ -102,11 +109,13 @@ int vega12_send_msg_to_smc_without_waiting(struct pp_hwmgr *hwmgr,
  */
 int vega12_send_msg_to_smc(struct pp_hwmgr *hwmgr, uint16_t msg)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
 	vega12_wait_for_response(hwmgr);
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_90, 0);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_90_BASE_IDX, mmMP1_SMN_C2PMSG_90);
+	cgs_write_register(hwmgr->device, reg, 0);
 
 	vega12_send_msg_to_smc_without_waiting(hwmgr, msg);
 
@@ -126,13 +135,17 @@ int vega12_send_msg_to_smc(struct pp_hwmgr *hwmgr, uint16_t msg)
 int vega12_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
 		uint16_t msg, uint32_t parameter)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
 	vega12_wait_for_response(hwmgr);
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_90, 0);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_90_BASE_IDX, mmMP1_SMN_C2PMSG_90);
+	cgs_write_register(hwmgr->device, reg, 0);
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_82, parameter);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_82_BASE_IDX, mmMP1_SMN_C2PMSG_82);
+	cgs_write_register(hwmgr->device, reg, parameter);
 
 	vega12_send_msg_to_smc_without_waiting(hwmgr, msg);
 
@@ -153,9 +166,11 @@ int vega12_send_msg_to_smc_with_parameter(struct pp_hwmgr *hwmgr,
 int vega12_send_msg_to_smc_with_parameter_without_waiting(
 		struct pp_hwmgr *hwmgr, uint16_t msg, uint32_t parameter)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
-	WREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_66, parameter);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_66_BASE_IDX, mmMP1_SMN_C2PMSG_66);
+	cgs_write_register(hwmgr->device, reg, parameter);
 
 	return vega12_send_msg_to_smc_without_waiting(hwmgr, msg);
 }
@@ -168,9 +183,12 @@ int vega12_send_msg_to_smc_with_parameter_without_waiting(
  */
 int vega12_read_arg_from_smc(struct pp_hwmgr *hwmgr, uint32_t *arg)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
-	*arg = RREG32_SOC15(MP1, 0, mmMP1_SMN_C2PMSG_82);
+	reg = soc15_get_register_offset(MP1_HWID, 0,
+			mmMP1_SMN_C2PMSG_82_BASE_IDX, mmMP1_SMN_C2PMSG_82);
+
+	*arg = cgs_read_register(hwmgr->device, reg);
 
 	return 0;
 }

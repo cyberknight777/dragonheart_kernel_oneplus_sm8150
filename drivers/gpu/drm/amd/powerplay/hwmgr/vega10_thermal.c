@@ -25,7 +25,7 @@
 #include "vega10_hwmgr.h"
 #include "vega10_ppsmc.h"
 #include "vega10_inc.h"
-#include "soc15_common.h"
+#include "pp_soc15.h"
 #include "pp_debug.h"
 
 static int vega10_get_current_rpm(struct pp_hwmgr *hwmgr, uint32_t *current_rpm)
@@ -89,7 +89,6 @@ int vega10_fan_ctrl_get_fan_speed_percent(struct pp_hwmgr *hwmgr,
 
 int vega10_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t *speed)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	struct vega10_hwmgr *data = hwmgr->backend;
 	uint32_t tach_period;
 	uint32_t crystal_clock_freq;
@@ -101,8 +100,10 @@ int vega10_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t *speed)
 	if (data->smu_features[GNLD_FAN_CONTROL].supported) {
 		result = vega10_get_current_rpm(hwmgr, speed);
 	} else {
+		uint32_t reg = soc15_get_register_offset(THM_HWID, 0,
+				mmCG_TACH_STATUS_BASE_IDX, mmCG_TACH_STATUS);
 		tach_period =
-			REG_GET_FIELD(RREG32_SOC15(THM, 0, mmCG_TACH_STATUS),
+			CGS_REG_GET_FIELD(cgs_read_register(hwmgr->device, reg),
 					  CG_TACH_STATUS,
 					  TACH_PERIOD);
 
@@ -126,23 +127,26 @@ int vega10_fan_ctrl_get_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t *speed)
 */
 int vega10_fan_ctrl_set_static_mode(struct pp_hwmgr *hwmgr, uint32_t mode)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
+
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_FDO_CTRL2_BASE_IDX, mmCG_FDO_CTRL2);
 
 	if (hwmgr->fan_ctrl_is_in_default_mode) {
 		hwmgr->fan_ctrl_default_mode =
-			REG_GET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+			CGS_REG_GET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_FDO_CTRL2, FDO_PWM_MODE);
 		hwmgr->tmin =
-			REG_GET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+			CGS_REG_GET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_FDO_CTRL2, TMIN);
 		hwmgr->fan_ctrl_is_in_default_mode = false;
 	}
 
-	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
-			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+	cgs_write_register(hwmgr->device, reg,
+			CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_FDO_CTRL2, TMIN, 0));
-	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
-			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+	cgs_write_register(hwmgr->device, reg,
+			CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_FDO_CTRL2, FDO_PWM_MODE, mode));
 
 	return 0;
@@ -155,15 +159,18 @@ int vega10_fan_ctrl_set_static_mode(struct pp_hwmgr *hwmgr, uint32_t mode)
 */
 int vega10_fan_ctrl_set_default_mode(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
+
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_FDO_CTRL2_BASE_IDX, mmCG_FDO_CTRL2);
 
 	if (!hwmgr->fan_ctrl_is_in_default_mode) {
-		WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
-			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+		cgs_write_register(hwmgr->device, reg,
+			CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_FDO_CTRL2, FDO_PWM_MODE,
 				hwmgr->fan_ctrl_default_mode));
-		WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
-			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+		cgs_write_register(hwmgr->device, reg,
+			CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_FDO_CTRL2, TMIN,
 				hwmgr->tmin << CG_FDO_CTRL2__TMIN__SHIFT));
 		hwmgr->fan_ctrl_is_in_default_mode = true;
@@ -250,10 +257,10 @@ int vega10_fan_ctrl_stop_smc_fan_control(struct pp_hwmgr *hwmgr)
 int vega10_fan_ctrl_set_fan_speed_percent(struct pp_hwmgr *hwmgr,
 		uint32_t speed)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	uint32_t duty100;
 	uint32_t duty;
 	uint64_t tmp64;
+	uint32_t reg;
 
 	if (hwmgr->thermal_controller.fanInfo.bNoFan)
 		return 0;
@@ -264,7 +271,10 @@ int vega10_fan_ctrl_set_fan_speed_percent(struct pp_hwmgr *hwmgr,
 	if (PP_CAP(PHM_PlatformCaps_MicrocodeFanControl))
 		vega10_fan_ctrl_stop_smc_fan_control(hwmgr);
 
-	duty100 = REG_GET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL1),
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_FDO_CTRL1_BASE_IDX, mmCG_FDO_CTRL1);
+
+	duty100 = CGS_REG_GET_FIELD(cgs_read_register(hwmgr->device, reg),
 				    CG_FDO_CTRL1, FMAX_DUTY100);
 
 	if (duty100 == 0)
@@ -274,8 +284,10 @@ int vega10_fan_ctrl_set_fan_speed_percent(struct pp_hwmgr *hwmgr,
 	do_div(tmp64, 100);
 	duty = (uint32_t)tmp64;
 
-	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL0,
-		REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL0),
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_FDO_CTRL0_BASE_IDX, mmCG_FDO_CTRL0);
+	cgs_write_register(hwmgr->device, reg,
+		CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 			CG_FDO_CTRL0, FDO_STATIC_DUTY, duty));
 
 	return vega10_fan_ctrl_set_static_mode(hwmgr, FDO_PWM_MODE_STATIC);
@@ -305,10 +317,10 @@ int vega10_fan_ctrl_reset_fan_speed_to_default(struct pp_hwmgr *hwmgr)
 */
 int vega10_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t speed)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	uint32_t tach_period;
 	uint32_t crystal_clock_freq;
 	int result = 0;
+	uint32_t reg;
 
 	if (hwmgr->thermal_controller.fanInfo.bNoFan ||
 	    (speed < hwmgr->thermal_controller.fanInfo.ulMinRPM) ||
@@ -321,8 +333,10 @@ int vega10_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t speed)
 	if (!result) {
 		crystal_clock_freq = amdgpu_asic_get_xclk((struct amdgpu_device *)hwmgr->adev);
 		tach_period = 60 * crystal_clock_freq * 10000 / (8 * speed);
-		WREG32_SOC15(THM, 0, mmCG_TACH_STATUS,
-				REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_TACH_STATUS),
+		reg = soc15_get_register_offset(THM_HWID, 0,
+				mmCG_TACH_STATUS_BASE_IDX, mmCG_TACH_STATUS);
+		cgs_write_register(hwmgr->device, reg,
+				CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 					CG_TACH_STATUS, TACH_PERIOD,
 					tach_period));
 	}
@@ -336,10 +350,13 @@ int vega10_fan_ctrl_set_fan_speed_rpm(struct pp_hwmgr *hwmgr, uint32_t speed)
 */
 int vega10_thermal_get_temperature(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	int temp;
+	uint32_t reg;
 
-	temp = RREG32_SOC15(THM, 0, mmCG_MULT_THERMAL_STATUS);
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_MULT_THERMAL_STATUS_BASE_IDX,  mmCG_MULT_THERMAL_STATUS);
+
+	temp = cgs_read_register(hwmgr->device, reg);
 
 	temp = (temp & CG_MULT_THERMAL_STATUS__CTF_TEMP_MASK) >>
 			CG_MULT_THERMAL_STATUS__CTF_TEMP__SHIFT;
@@ -362,12 +379,11 @@ int vega10_thermal_get_temperature(struct pp_hwmgr *hwmgr)
 static int vega10_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
 		struct PP_TemperatureRange *range)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	int low = VEGA10_THERMAL_MINIMUM_ALERT_TEMP *
 			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
 	int high = VEGA10_THERMAL_MAXIMUM_ALERT_TEMP *
 			PP_TEMPERATURE_UNITS_PER_CENTIGRADES;
-	uint32_t val;
+	uint32_t val, reg;
 
 	if (low < range->min)
 		low = range->min;
@@ -377,17 +393,20 @@ static int vega10_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
 	if (low > high)
 		return -EINVAL;
 
-	val = RREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_CTRL);
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmTHM_THERMAL_INT_CTRL_BASE_IDX, mmTHM_THERMAL_INT_CTRL);
 
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, MAX_IH_CREDIT, 5);
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, THERM_IH_HW_ENA, 1);
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTH, (high / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
-	val = REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTL, (low / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
+	val = cgs_read_register(hwmgr->device, reg);
+
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, MAX_IH_CREDIT, 5);
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, THERM_IH_HW_ENA, 1);
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTH, (high / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
+	val = CGS_REG_SET_FIELD(val, THM_THERMAL_INT_CTRL, DIG_THERM_INTL, (low / PP_TEMPERATURE_UNITS_PER_CENTIGRADES));
 	val &= (~THM_THERMAL_INT_CTRL__THERM_TRIGGER_MASK_MASK) &
 			(~THM_THERMAL_INT_CTRL__THERM_INTH_MASK_MASK) &
 			(~THM_THERMAL_INT_CTRL__THERM_INTL_MASK_MASK);
 
-	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_CTRL, val);
+	cgs_write_register(hwmgr->device, reg, val);
 
 	return 0;
 }
@@ -399,17 +418,21 @@ static int vega10_thermal_set_temperature_range(struct pp_hwmgr *hwmgr,
 */
 static int vega10_thermal_initialize(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
+	uint32_t reg;
 
 	if (hwmgr->thermal_controller.fanInfo.ucTachometerPulsesPerRevolution) {
-		WREG32_SOC15(THM, 0, mmCG_TACH_CTRL,
-			REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_TACH_CTRL),
+		reg = soc15_get_register_offset(THM_HWID, 0,
+				mmCG_TACH_CTRL_BASE_IDX, mmCG_TACH_CTRL);
+		cgs_write_register(hwmgr->device, reg,
+			CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 				CG_TACH_CTRL, EDGE_PER_REV,
 				hwmgr->thermal_controller.fanInfo.ucTachometerPulsesPerRevolution - 1));
 	}
 
-	WREG32_SOC15(THM, 0, mmCG_FDO_CTRL2,
-		REG_SET_FIELD(RREG32_SOC15(THM, 0, mmCG_FDO_CTRL2),
+	reg = soc15_get_register_offset(THM_HWID, 0,
+			mmCG_FDO_CTRL2_BASE_IDX, mmCG_FDO_CTRL2);
+	cgs_write_register(hwmgr->device, reg,
+		CGS_REG_SET_FIELD(cgs_read_register(hwmgr->device, reg),
 			CG_FDO_CTRL2, TACH_PWM_RESP_RATE, 0x28));
 
 	return 0;
@@ -422,9 +445,9 @@ static int vega10_thermal_initialize(struct pp_hwmgr *hwmgr)
 */
 static int vega10_thermal_enable_alert(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	struct vega10_hwmgr *data = hwmgr->backend;
 	uint32_t val = 0;
+	uint32_t reg;
 
 	if (data->smu_features[GNLD_FW_CTF].supported) {
 		if (data->smu_features[GNLD_FW_CTF].enabled)
@@ -442,7 +465,8 @@ static int vega10_thermal_enable_alert(struct pp_hwmgr *hwmgr)
 	val |= (1 << THM_THERMAL_INT_ENA__THERM_INTL_CLR__SHIFT);
 	val |= (1 << THM_THERMAL_INT_ENA__THERM_TRIGGER_CLR__SHIFT);
 
-	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_ENA, val);
+	reg = soc15_get_register_offset(THM_HWID, 0, mmTHM_THERMAL_INT_ENA_BASE_IDX, mmTHM_THERMAL_INT_ENA);
+	cgs_write_register(hwmgr->device, reg, val);
 
 	return 0;
 }
@@ -453,8 +477,8 @@ static int vega10_thermal_enable_alert(struct pp_hwmgr *hwmgr)
 */
 int vega10_thermal_disable_alert(struct pp_hwmgr *hwmgr)
 {
-	struct amdgpu_device *adev = hwmgr->adev;
 	struct vega10_hwmgr *data = hwmgr->backend;
+	uint32_t reg;
 
 	if (data->smu_features[GNLD_FW_CTF].supported) {
 		if (!data->smu_features[GNLD_FW_CTF].enabled)
@@ -469,7 +493,8 @@ int vega10_thermal_disable_alert(struct pp_hwmgr *hwmgr)
 		data->smu_features[GNLD_FW_CTF].enabled = false;
 	}
 
-	WREG32_SOC15(THM, 0, mmTHM_THERMAL_INT_ENA, 0);
+	reg = soc15_get_register_offset(THM_HWID, 0, mmTHM_THERMAL_INT_ENA_BASE_IDX, mmTHM_THERMAL_INT_ENA);
+	cgs_write_register(hwmgr->device, reg, 0);
 
 	return 0;
 }

@@ -56,6 +56,7 @@ struct hubp {
 	bool power_gated;
 };
 
+
 struct hubp_funcs {
 	void (*hubp_setup)(
 			struct hubp *hubp,
@@ -120,9 +121,6 @@ struct hubp_funcs {
 
 	void (*hubp_clk_cntl)(struct hubp *hubp, bool enable);
 	void (*hubp_vtg_sel)(struct hubp *hubp, uint32_t otg_inst);
-	void (*hubp_read_state)(struct hubp *hubp);
-	void (*hubp_disable_control)(struct hubp *hubp, bool disable_hubp);
-	unsigned int (*hubp_get_underflow_status)(struct hubp *hubp);
 
 };
 

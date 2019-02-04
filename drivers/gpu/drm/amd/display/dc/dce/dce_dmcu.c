@@ -28,7 +28,7 @@
 #include "dce_dmcu.h"
 #include "dm_services.h"
 #include "reg_helper.h"
-#include "fixed31_32.h"
+#include "fixed32_32.h"
 #include "dc.h"
 
 #define TO_DCE_DMCU(dmcu)\
@@ -150,7 +150,7 @@ static void dce_dmcu_set_psr_enable(struct dmcu *dmcu, bool enable, bool wait)
 	}
 }
 
-static bool dce_dmcu_setup_psr(struct dmcu *dmcu,
+static void dce_dmcu_setup_psr(struct dmcu *dmcu,
 		struct dc_link *link,
 		struct psr_context *psr_context)
 {
@@ -261,8 +261,6 @@ static bool dce_dmcu_setup_psr(struct dmcu *dmcu,
 
 	/* notifyDMCUMsg */
 	REG_UPDATE(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 1);
-
-	return true;
 }
 
 static bool dce_is_dmcu_initialized(struct dmcu *dmcu)
@@ -547,25 +545,24 @@ static void dcn10_dmcu_set_psr_enable(struct dmcu *dmcu, bool enable, bool wait)
 	 *  least a few frames. Should never hit the max retry assert below.
 	 */
 	if (wait == true) {
-		for (retryCount = 0; retryCount <= 1000; retryCount++) {
-			dcn10_get_dmcu_psr_state(dmcu, &psr_state);
-			if (enable) {
-				if (psr_state != 0)
-					break;
-			} else {
-				if (psr_state == 0)
-					break;
-			}
-			udelay(500);
+	for (retryCount = 0; retryCount <= 1000; retryCount++) {
+		dcn10_get_dmcu_psr_state(dmcu, &psr_state);
+		if (enable) {
+			if (psr_state != 0)
+				break;
+		} else {
+			if (psr_state == 0)
+				break;
 		}
+		udelay(500);
+	}
 
-		/* assert if max retry hit */
-		if (retryCount >= 1000)
-			ASSERT(0);
+	/* assert if max retry hit */
+	ASSERT(retryCount <= 1000);
 	}
 }
 
-static bool dcn10_dmcu_setup_psr(struct dmcu *dmcu,
+static void dcn10_dmcu_setup_psr(struct dmcu *dmcu,
 		struct dc_link *link,
 		struct psr_context *psr_context)
 {
@@ -580,7 +577,7 @@ static bool dcn10_dmcu_setup_psr(struct dmcu *dmcu,
 
 	/* If microcontroller is not running, do nothing */
 	if (dmcu->dmcu_state != DMCU_RUNNING)
-		return false;
+		return;
 
 	link->link_enc->funcs->psr_program_dp_dphy_fast_training(link->link_enc,
 			psr_context->psrExitLinkTrainingRequired);
@@ -680,11 +677,6 @@ static bool dcn10_dmcu_setup_psr(struct dmcu *dmcu,
 
 	/* notifyDMCUMsg */
 	REG_UPDATE(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 1);
-
-	/* waitDMCUReadyForCmd */
-	REG_WAIT(MASTER_COMM_CNTL_REG, MASTER_COMM_INTERRUPT, 0, 1, 10000);
-
-	return true;
 }
 
 static void dcn10_psr_wait_loop(

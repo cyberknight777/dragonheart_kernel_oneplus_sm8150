@@ -36,41 +36,41 @@ static bool build_custom_float(
 	uint32_t exp_offset = (1 << (format->exponenta_bits - 1)) - 1;
 
 	const struct fixed31_32 mantissa_constant_plus_max_fraction =
-		dc_fixpt_from_fraction(
+		dal_fixed31_32_from_fraction(
 			(1LL << (format->mantissa_bits + 1)) - 1,
 			1LL << format->mantissa_bits);
 
 	struct fixed31_32 mantiss;
 
-	if (dc_fixpt_eq(
+	if (dal_fixed31_32_eq(
 		value,
-		dc_fixpt_zero)) {
+		dal_fixed31_32_zero)) {
 		*negative = false;
 		*mantissa = 0;
 		*exponenta = 0;
 		return true;
 	}
 
-	if (dc_fixpt_lt(
+	if (dal_fixed31_32_lt(
 		value,
-		dc_fixpt_zero)) {
+		dal_fixed31_32_zero)) {
 		*negative = format->sign;
-		value = dc_fixpt_neg(value);
+		value = dal_fixed31_32_neg(value);
 	} else {
 		*negative = false;
 	}
 
-	if (dc_fixpt_lt(
+	if (dal_fixed31_32_lt(
 		value,
-		dc_fixpt_one)) {
+		dal_fixed31_32_one)) {
 		uint32_t i = 1;
 
 		do {
-			value = dc_fixpt_shl(value, 1);
+			value = dal_fixed31_32_shl(value, 1);
 			++i;
-		} while (dc_fixpt_lt(
+		} while (dal_fixed31_32_lt(
 			value,
-			dc_fixpt_one));
+			dal_fixed31_32_one));
 
 		--i;
 
@@ -81,15 +81,15 @@ static bool build_custom_float(
 		}
 
 		*exponenta = exp_offset - i;
-	} else if (dc_fixpt_le(
+	} else if (dal_fixed31_32_le(
 		mantissa_constant_plus_max_fraction,
 		value)) {
 		uint32_t i = 1;
 
 		do {
-			value = dc_fixpt_shr(value, 1);
+			value = dal_fixed31_32_shr(value, 1);
 			++i;
-		} while (dc_fixpt_lt(
+		} while (dal_fixed31_32_lt(
 			mantissa_constant_plus_max_fraction,
 			value));
 
@@ -98,23 +98,23 @@ static bool build_custom_float(
 		*exponenta = exp_offset;
 	}
 
-	mantiss = dc_fixpt_sub(
+	mantiss = dal_fixed31_32_sub(
 		value,
-		dc_fixpt_one);
+		dal_fixed31_32_one);
 
-	if (dc_fixpt_lt(
+	if (dal_fixed31_32_lt(
 			mantiss,
-			dc_fixpt_zero) ||
-		dc_fixpt_lt(
-			dc_fixpt_one,
+			dal_fixed31_32_zero) ||
+		dal_fixed31_32_lt(
+			dal_fixed31_32_one,
 			mantiss))
-		mantiss = dc_fixpt_zero;
+		mantiss = dal_fixed31_32_zero;
 	else
-		mantiss = dc_fixpt_shl(
+		mantiss = dal_fixed31_32_shl(
 			mantiss,
 			format->mantissa_bits);
 
-	*mantissa = dc_fixpt_floor(mantiss);
+	*mantissa = dal_fixed31_32_floor(mantiss);
 
 	return true;
 }

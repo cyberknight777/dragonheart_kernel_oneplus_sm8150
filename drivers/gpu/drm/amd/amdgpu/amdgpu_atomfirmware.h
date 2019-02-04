@@ -30,6 +30,5 @@ int amdgpu_atomfirmware_allocate_fb_scratch(struct amdgpu_device *adev);
 int amdgpu_atomfirmware_get_vram_width(struct amdgpu_device *adev);
 int amdgpu_atomfirmware_get_vram_type(struct amdgpu_device *adev);
 int amdgpu_atomfirmware_get_clock_info(struct amdgpu_device *adev);
-int amdgpu_atomfirmware_get_gfx_info(struct amdgpu_device *adev);
 
 #endif

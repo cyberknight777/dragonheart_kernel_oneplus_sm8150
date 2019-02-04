@@ -63,33 +63,22 @@ struct kfd_topology_device *kfd_topology_device_by_proximity_domain(
 	return device;
 }
 
-struct kfd_topology_device *kfd_topology_device_by_id(uint32_t gpu_id)
+struct kfd_dev *kfd_device_by_id(uint32_t gpu_id)
 {
-	struct kfd_topology_device *top_dev = NULL;
-	struct kfd_topology_device *ret = NULL;
+	struct kfd_topology_device *top_dev;
+	struct kfd_dev *device = NULL;
 
 	down_read(&topology_lock);
 
 	list_for_each_entry(top_dev, &topology_device_list, list)
 		if (top_dev->gpu_id == gpu_id) {
-			ret = top_dev;
+			device = top_dev->gpu;
 			break;
 		}
 
 	up_read(&topology_lock);
 
-	return ret;
-}
-
-struct kfd_dev *kfd_device_by_id(uint32_t gpu_id)
-{
-	struct kfd_topology_device *top_dev;
-
-	top_dev = kfd_topology_device_by_id(gpu_id);
-	if (!top_dev)
-		return NULL;
-
-	return top_dev->gpu;
+	return device;
 }
 
 struct kfd_dev *kfd_device_by_pci_dev(const struct pci_dev *pdev)
@@ -1247,12 +1236,6 @@ int kfd_topology_add_device(struct kfd_dev *gpu)
 	case CHIP_POLARIS11:
 		pr_debug("Adding doorbell packet type capability\n");
 		dev->node_props.capability |= ((HSA_CAP_DOORBELL_TYPE_1_0 <<
-			HSA_CAP_DOORBELL_TYPE_TOTALBITS_SHIFT) &
-			HSA_CAP_DOORBELL_TYPE_TOTALBITS_MASK);
-		break;
-	case CHIP_VEGA10:
-	case CHIP_RAVEN:
-		dev->node_props.capability |= ((HSA_CAP_DOORBELL_TYPE_2_0 <<
 			HSA_CAP_DOORBELL_TYPE_TOTALBITS_SHIFT) &
 			HSA_CAP_DOORBELL_TYPE_TOTALBITS_MASK);
 		break;

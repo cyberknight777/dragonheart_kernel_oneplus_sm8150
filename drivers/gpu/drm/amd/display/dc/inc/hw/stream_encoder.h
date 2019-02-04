@@ -29,40 +29,31 @@
 #define STREAM_ENCODER_H_
 
 #include "audio_types.h"
-#include "hw_shared.h"
 
 struct dc_bios;
 struct dc_context;
 struct dc_crtc_timing;
 
-enum dp_pixel_encoding_type {
-	DP_PIXEL_ENCODING_TYPE_RGB444		= 0x00000000,
-	DP_PIXEL_ENCODING_TYPE_YCBCR422		= 0x00000001,
-	DP_PIXEL_ENCODING_TYPE_YCBCR444		= 0x00000002,
-	DP_PIXEL_ENCODING_TYPE_RGB_WIDE_GAMUT	= 0x00000003,
-	DP_PIXEL_ENCODING_TYPE_Y_ONLY		= 0x00000004,
-	DP_PIXEL_ENCODING_TYPE_YCBCR420		= 0x00000005
-};
-
-enum dp_component_depth {
-	DP_COMPONENT_PIXEL_DEPTH_6BPC		= 0x00000000,
-	DP_COMPONENT_PIXEL_DEPTH_8BPC		= 0x00000001,
-	DP_COMPONENT_PIXEL_DEPTH_10BPC		= 0x00000002,
-	DP_COMPONENT_PIXEL_DEPTH_12BPC		= 0x00000003,
-	DP_COMPONENT_PIXEL_DEPTH_16BPC		= 0x00000004
+struct encoder_info_packet {
+	bool valid;
+	uint8_t hb0;
+	uint8_t hb1;
+	uint8_t hb2;
+	uint8_t hb3;
+	uint8_t sb[32];
 };
 
 struct encoder_info_frame {
 	/* auxiliary video information */
-	struct dc_info_packet avi;
-	struct dc_info_packet gamut;
-	struct dc_info_packet vendor;
+	struct encoder_info_packet avi;
+	struct encoder_info_packet gamut;
+	struct encoder_info_packet vendor;
 	/* source product description */
-	struct dc_info_packet spd;
+	struct encoder_info_packet spd;
 	/* video stream configuration */
-	struct dc_info_packet vsc;
+	struct encoder_info_packet vsc;
 	/* HDR Static MetaData */
-	struct dc_info_packet hdrsmd;
+	struct encoder_info_packet hdrsmd;
 };
 
 struct encoder_unblank_param {
@@ -156,7 +147,6 @@ struct stream_encoder_funcs {
 
 	void (*set_avmute)(
 		struct stream_encoder *enc, bool enable);
-
 };
 
 #endif /* STREAM_ENCODER_H_ */

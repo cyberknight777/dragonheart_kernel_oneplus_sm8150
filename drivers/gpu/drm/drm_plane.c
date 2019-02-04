@@ -756,7 +756,6 @@ static int drm_mode_cursor_universal(struct drm_crtc *crtc,
 				     struct drm_modeset_acquire_ctx *ctx)
 {
 	struct drm_device *dev = crtc->dev;
-	struct drm_plane *plane = crtc->cursor;
 	struct drm_framebuffer *fb = NULL;
 	struct drm_mode_fb_cmd2 fbreq = {
 		.width = req->width,
@@ -770,8 +769,8 @@ static int drm_mode_cursor_universal(struct drm_crtc *crtc,
 	uint32_t src_w = 0, src_h = 0;
 	int ret = 0;
 
-	BUG_ON(!plane);
-	WARN_ON(plane->crtc != crtc && plane->crtc != NULL);
+	BUG_ON(!crtc->cursor);
+	WARN_ON(crtc->cursor->crtc != crtc && crtc->cursor->crtc != NULL);
 
 	/*
 	 * Obtain fb we'll be using (either new or existing) and take an extra
@@ -785,18 +784,13 @@ static int drm_mode_cursor_universal(struct drm_crtc *crtc,
 				DRM_DEBUG_KMS("failed to wrap cursor buffer in drm framebuffer\n");
 				return PTR_ERR(fb);
 			}
-
 			fb->hot_x = req->hot_x;
 			fb->hot_y = req->hot_y;
 		} else {
 			fb = NULL;
 		}
 	} else {
-		if (plane->state)
-			fb = plane->state->fb;
-		else
-			fb = plane->fb;
-
+		fb = crtc->cursor->fb;
 		if (fb)
 			drm_framebuffer_get(fb);
 	}
@@ -816,7 +810,7 @@ static int drm_mode_cursor_universal(struct drm_crtc *crtc,
 		src_h = fb->height << 16;
 	}
 
-	ret = __setplane_internal(plane, crtc, fb,
+	ret = __setplane_internal(crtc->cursor, crtc, fb,
 				  crtc_x, crtc_y, crtc_w, crtc_h,
 				  0, 0, src_w, src_h, ctx);
 
@@ -937,8 +931,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 {
 	struct drm_mode_crtc_page_flip_target *page_flip = data;
 	struct drm_crtc *crtc;
-	struct drm_plane *plane;
-	struct drm_framebuffer *fb = NULL, *old_fb;
+	struct drm_framebuffer *fb = NULL;
 	struct drm_pending_vblank_event *e = NULL;
 	u32 target_vblank = page_flip->sequence;
 	struct drm_modeset_acquire_ctx ctx;
@@ -965,8 +958,6 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	crtc = drm_crtc_find(dev, file_priv, page_flip->crtc_id);
 	if (!crtc)
 		return -ENOENT;
-
-	plane = crtc->primary;
 
 	if (crtc->funcs->page_flip_target) {
 		u32 current_vblank;
@@ -1012,16 +1003,11 @@ retry:
 	ret = drm_modeset_lock(&crtc->mutex, &ctx);
 	if (ret)
 		goto out;
-	ret = drm_modeset_lock(&plane->mutex, &ctx);
+	ret = drm_modeset_lock(&crtc->primary->mutex, &ctx);
 	if (ret)
 		goto out;
 
-	if (plane->state)
-		old_fb = plane->state->fb;
-	else
-		old_fb = plane->fb;
-
-	if (old_fb == NULL) {
+	if (crtc->primary->fb == NULL) {
 		/* The framebuffer is currently unbound, presumably
 		 * due to a hotplug event, that userspace has not
 		 * yet discovered.
@@ -1036,8 +1022,8 @@ retry:
 		goto out;
 	}
 
-	if (plane->state) {
-		const struct drm_plane_state *state = plane->state;
+	if (crtc->state) {
+		const struct drm_plane_state *state = crtc->primary->state;
 
 		ret = drm_framebuffer_check_src_coords(state->src_x,
 						       state->src_y,
@@ -1045,13 +1031,12 @@ retry:
 						       state->src_h,
 						       fb);
 	} else {
-		ret = drm_crtc_check_viewport(crtc, crtc->x, crtc->y,
-					      &crtc->mode, fb);
+		ret = drm_crtc_check_viewport(crtc, crtc->x, crtc->y, &crtc->mode, fb);
 	}
 	if (ret)
 		goto out;
 
-	if (old_fb->format != fb->format) {
+	if (crtc->primary->fb->format != fb->format) {
 		DRM_DEBUG_KMS("Page flip is not allowed to change frame buffer format.\n");
 		ret = -EINVAL;
 		goto out;
@@ -1063,12 +1048,10 @@ retry:
 			ret = -ENOMEM;
 			goto out;
 		}
-
 		e->event.base.type = DRM_EVENT_FLIP_COMPLETE;
 		e->event.base.length = sizeof(e->event);
 		e->event.vbl.user_data = page_flip->user_data;
 		e->event.vbl.crtc_id = crtc->base.id;
-
 		ret = drm_event_reserve_init(dev, file_priv, &e->base, &e->event.base);
 		if (ret) {
 			kfree(e);
@@ -1077,7 +1060,7 @@ retry:
 		}
 	}
 
-	plane->old_fb = plane->fb;
+	crtc->primary->old_fb = crtc->primary->fb;
 	if (crtc->funcs->page_flip_target)
 		ret = crtc->funcs->page_flip_target(crtc, fb, e,
 						    page_flip->flags,
@@ -1090,18 +1073,19 @@ retry:
 		if (page_flip->flags & DRM_MODE_PAGE_FLIP_EVENT)
 			drm_event_cancel_free(dev, &e->base);
 		/* Keep the old fb, don't unref it. */
-		plane->old_fb = NULL;
+		crtc->primary->old_fb = NULL;
 	} else {
-		plane->fb = fb;
-		drm_framebuffer_get(fb);
+		crtc->primary->fb = fb;
+		/* Unref only the old framebuffer. */
+		fb = NULL;
 	}
 
 out:
 	if (fb)
 		drm_framebuffer_put(fb);
-	if (plane->old_fb)
-		drm_framebuffer_put(plane->old_fb);
-	plane->old_fb = NULL;
+	if (crtc->primary->old_fb)
+		drm_framebuffer_put(crtc->primary->old_fb);
+	crtc->primary->old_fb = NULL;
 
 	if (ret == -EDEADLK) {
 		ret = drm_modeset_backoff(&ctx);

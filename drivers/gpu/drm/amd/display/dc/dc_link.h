@@ -51,14 +51,6 @@ struct link_mst_stream_allocation_table {
 	struct link_mst_stream_allocation stream_allocations[MAX_CONTROLLER_NUM];
 };
 
-struct time_stamp {
-	uint64_t edp_poweroff;
-	uint64_t edp_poweron;
-};
-
-struct link_trace {
-	struct time_stamp time_stamp;
-};
 /*
  * A link contains one or more sinks and their connected status.
  * The currently active signal type (HDMI, DP-SST, DP-MST) is also reported.
@@ -122,7 +114,6 @@ struct dc_link {
 
 	struct dc_link_status link_status;
 
-	struct link_trace link_trace;
 };
 
 const struct dc_link_status *dc_link_get_status(const struct dc_link *dc_link);

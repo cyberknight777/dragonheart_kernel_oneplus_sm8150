@@ -53,7 +53,10 @@
 
 #define FIJI_SMC_SIZE 0x20000
 
+#define VOLTAGE_SCALE 4
 #define POWERTUNE_DEFAULT_SET_MAX    1
+#define VOLTAGE_VID_OFFSET_SCALE1   625
+#define VOLTAGE_VID_OFFSET_SCALE2   100
 #define VDDC_VDDCI_DELTA            300
 #define MC_CG_ARB_FREQ_F1           0x0b
 
@@ -285,7 +288,8 @@ static int fiji_start_smu(struct pp_hwmgr *hwmgr)
 	struct fiji_smumgr *priv = (struct fiji_smumgr *)(hwmgr->smu_backend);
 
 	/* Only start SMC if SMC RAM is not running */
-	if (!smu7_is_smc_ram_running(hwmgr) && hwmgr->not_vf) {
+	if (!(smu7_is_smc_ram_running(hwmgr)
+		|| cgs_is_virtualization_enabled(hwmgr->device))) {
 		/* Check if SMU is running in protected mode */
 		if (0 == PHM_READ_VFPF_INDIRECT_FIELD(hwmgr->device,
 				CGS_IND_REG__SMC,
@@ -303,13 +307,13 @@ static int fiji_start_smu(struct pp_hwmgr *hwmgr)
 	}
 
 	/* To initialize all clock gating before RLC loaded and running.*/
-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+	cgs_set_clockgating_state(hwmgr->device,
 			AMD_IP_BLOCK_TYPE_GFX, AMD_CG_STATE_GATE);
-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+	cgs_set_clockgating_state(hwmgr->device,
 			AMD_IP_BLOCK_TYPE_GMC, AMD_CG_STATE_GATE);
-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+	cgs_set_clockgating_state(hwmgr->device,
 			AMD_IP_BLOCK_TYPE_SDMA, AMD_CG_STATE_GATE);
-	amdgpu_device_ip_set_clockgating_state(hwmgr->adev,
+	cgs_set_clockgating_state(hwmgr->device,
 			AMD_IP_BLOCK_TYPE_COMMON, AMD_CG_STATE_GATE);
 
 	/* Setup SoftRegsStart here for register lookup in case
@@ -331,10 +335,10 @@ static bool fiji_is_hw_avfs_present(struct pp_hwmgr *hwmgr)
 	uint32_t efuse = 0;
 	uint32_t mask = (1 << ((AVFS_EN_MSB - AVFS_EN_LSB) + 1)) - 1;
 
-	if (!hwmgr->not_vf)
-		return false;
+	if (cgs_is_virtualization_enabled(hwmgr->device))
+		return 0;
 
-	if (!atomctrl_read_efuse(hwmgr, AVFS_EN_LSB, AVFS_EN_MSB,
+	if (!atomctrl_read_efuse(hwmgr->device, AVFS_EN_LSB, AVFS_EN_MSB,
 			mask, &efuse)) {
 		if (efuse)
 			return true;
@@ -985,11 +989,11 @@ static int fiji_populate_single_graphic_level(struct pp_hwmgr *hwmgr,
 
 	threshold = clock * data->fast_watermark_threshold / 100;
 
-	data->display_timing.min_clock_in_sr = hwmgr->display_config->min_core_set_clock_in_sr;
+	data->display_timing.min_clock_in_sr = hwmgr->display_config.min_core_set_clock_in_sr;
 
 	if (phm_cap_enabled(hwmgr->platform_descriptor.platformCaps, PHM_PlatformCaps_SclkDeepSleep))
 		level->DeepSleepDivId = smu7_get_sleep_divider_id_from_clock(clock,
-								hwmgr->display_config->min_core_set_clock_in_sr);
+								hwmgr->display_config.min_core_set_clock_in_sr);
 
 
 	/* Default to slow, highest DPM level will be
@@ -2372,7 +2376,6 @@ static uint32_t fiji_get_offsetof(uint32_t type, uint32_t member)
 		case DRAM_LOG_BUFF_SIZE:
 			return offsetof(SMU73_SoftRegisters, DRAM_LOG_BUFF_SIZE);
 		}
-		break;
 	case SMU_Discrete_DpmTable:
 		switch (member) {
 		case UvdBootLevel:
@@ -2384,7 +2387,6 @@ static uint32_t fiji_get_offsetof(uint32_t type, uint32_t member)
 		case LowSclkInterruptThreshold:
 			return offsetof(SMU73_Discrete_DpmTable, LowSclkInterruptThreshold);
 		}
-		break;
 	}
 	pr_warn("can't get the offset of type %x member %x\n", type, member);
 	return 0;
