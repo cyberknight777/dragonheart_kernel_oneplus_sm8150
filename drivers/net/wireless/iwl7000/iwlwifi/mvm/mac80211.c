@@ -3777,6 +3777,8 @@ static int iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 		break;
 	case WLAN_CIPHER_SUITE_WEP40:
 	case WLAN_CIPHER_SUITE_WEP104:
+		if (vif->type == NL80211_IFTYPE_STATION)
+			break;
 		if (iwl_mvm_has_new_tx_api(mvm))
 			return -EOPNOTSUPP;
 		/* support HW crypto on TX */
