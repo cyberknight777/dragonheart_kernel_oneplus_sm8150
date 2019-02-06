@@ -978,9 +978,9 @@ static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 		sdata->vif.bss_conf.ftm_responder = params->ftm_responder;
 		err = ieee80211_set_ftm_responder_params(sdata,
 							 params->lci,
-							 params->lci_len,
+							 beacon_ftm_len(params, lci_len),
 							 params->civicloc,
-							 params->civicloc_len);
+							 beacon_ftm_len(params, civicloc_len));
 
 		if (err < 0)
 			return err;
@@ -2116,6 +2116,9 @@ static int ieee80211_update_mesh_config(struct wiphy *wiphy,
 			nconf->dot11MeshAwakeWindowDuration;
 	if (_chg_mesh_attr(NL80211_MESHCONF_PLINK_TIMEOUT, mask))
 		conf->plink_timeout = nconf->plink_timeout;
+	if (_chg_mesh_attr(NL80211_MESHCONF_CONNECTED_TO_GATE, mask))
+		conf->dot11MeshConnectedToMeshGate =
+			nconf->dot11MeshConnectedToMeshGate;
 	ieee80211_mbss_info_change_notify(sdata, BSS_CHANGED_BEACON);
 	return 0;
 }
@@ -2998,7 +3001,8 @@ cfg80211_beacon_dup(struct cfg80211_beacon_data *beacon)
 
 	len = beacon->head_len + beacon->tail_len + beacon->beacon_ies_len +
 	      beacon->proberesp_ies_len + beacon->assocresp_ies_len +
-	      beacon->probe_resp_len;
+	      beacon->probe_resp_len + beacon_ftm_len(beacon, lci_len) + beacon_ftm_len(beacon,
+											civicloc_len);
 
 	new_beacon = kzalloc(sizeof(*new_beacon) + len, GFP_KERNEL);
 	if (!new_beacon)
@@ -3041,24 +3045,27 @@ cfg80211_beacon_dup(struct cfg80211_beacon_data *beacon)
 		memcpy(pos, beacon->probe_resp, beacon->probe_resp_len);
 		pos += beacon->probe_resp_len;
 	}
+
+	/* might copy -1, meaning no changes requested */
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
-	if (beacon->ftm_responder)
-		new_beacon->ftm_responder = beacon->ftm_responder;
+	new_beacon->ftm_responder = beacon->ftm_responder;
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (beacon->lci) {
-		new_beacon->lci_len = beacon->lci_len;
+		new_beacon->lci_len = beacon_ftm_len(beacon, lci_len);
 		new_beacon->lci = pos;
-		memcpy(pos, beacon->lci, beacon->lci_len);
-		pos += beacon->lci_len;
+		memcpy(pos, beacon->lci, beacon_ftm_len(beacon, lci_len));
+		pos += beacon_ftm_len(beacon, lci_len);
 	}
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 	if (beacon->civicloc) {
-		new_beacon->civicloc_len = beacon->civicloc_len;
+		new_beacon->civicloc_len = beacon_ftm_len(beacon,
+							  civicloc_len);
 		new_beacon->civicloc = pos;
-		memcpy(pos, beacon->civicloc, beacon->civicloc_len);
-		pos += beacon->civicloc_len;
+		memcpy(pos, beacon->civicloc,
+		       beacon_ftm_len(beacon, civicloc_len));
+		pos += beacon_ftm_len(beacon, civicloc_len);
 	}
 #endif
 

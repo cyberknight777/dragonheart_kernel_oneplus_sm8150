@@ -469,6 +469,9 @@ static void iwl_mvm_dump_umac_error_log(struct iwl_mvm *mvm)
 	if (table.valid)
 		mvm->fwrt.dump.umac_err_id = table.error_id;
 
+	if (table.valid)
+		mvm->fwrt.dump.umac_err_id = table.error_id;
+
 	if (ERROR_START_OFFSET <= table.valid * ERROR_ELEM_SIZE) {
 		IWL_ERR(trans, "Start IWL Error Log Dump:\n");
 		IWL_ERR(trans, "Status: 0x%08lX, count: %d\n",

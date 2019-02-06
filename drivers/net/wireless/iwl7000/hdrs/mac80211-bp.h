@@ -1480,6 +1480,12 @@ bool ieee80211_has_nan_iftype(unsigned int iftype)
 #define nan_conf_cdw_5g(conf) ((conf)->cdw_5g)
 #endif
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
+#define beacon_ftm_len(beacon, m) 0
+#else
+#define beacon_ftm_len(beacon, m) ((beacon)->(m))
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
 static inline long ktime_get_seconds(void)
 {
