@@ -207,12 +207,10 @@ static int acp_hw_init(void *handle)
 		return r;
 	}
 
-	r = cgs_get_pci_resource(adev->acp.cgs_device, CGS_RESOURCE_TYPE_MMIO,
-			0x5289, 0, &acp_base);
-	if (r == -ENODEV)
-		return 0;
-	else if (r)
-		return r;
+	if (adev->rmmio_size == 0 || adev->rmmio_size < 0x5289)
+		return -EINVAL;
+
+	acp_base = adev->rmmio_base;
 
 	adev->acp.acp_genpd = kzalloc(sizeof(struct acp_pm_domain), GFP_KERNEL);
 	if (adev->acp.acp_genpd == NULL)
