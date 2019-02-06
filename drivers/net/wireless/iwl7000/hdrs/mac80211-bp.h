@@ -1066,6 +1066,7 @@ size_t ieee80211_ie_split_ric(const u8 *ies, size_t ielen,
 			      size_t offset);
 size_t ieee80211_ie_split(const u8 *ies, size_t ielen,
 			  const u8 *ids, int n_ids, size_t offset);
+#define NL80211_EXT_FEATURE_VHT_IBSS -1
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,3,0)
