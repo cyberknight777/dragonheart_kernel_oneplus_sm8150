@@ -1324,19 +1324,6 @@ static void iwl_mvm_cleanup_iterator(void *data, u8 *mac,
 
 static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 {
-	/* clear the D3 reconfig, we only need it to avoid dumping a
-	 * firmware coredump on reconfiguration, we shouldn't do that
-	 * on D3->D0 transition
-	 */
-	if (!test_and_clear_bit(IWL_MVM_STATUS_D3_RECONFIG, &mvm->status)) {
-		mvm->fwrt.dump.desc = &iwl_dump_desc_assert;
-		iwl_fw_error_dump(&mvm->fwrt);
-
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-		iwl_dnt_dispatch_handle_nic_err(mvm->trans);
-#endif
-	}
-
 	/* cleanup all stale references (scan, roc), but keep the
 	 * ucode_down ref until reconfig is complete
 	 */
