@@ -257,8 +257,8 @@ int cros_ec_pd_get_polarity(int port, int *polarity)
 	int ret;
 
 	if (!pd_dev) {
-		dev_err(dev, "No pd_ec device found\n");
-		return  -ENODEV;
+		pr_err("No pd_ec device found\n");
+		return -ENODEV;
 	}
 
 	dev = pd_dev->dev;
