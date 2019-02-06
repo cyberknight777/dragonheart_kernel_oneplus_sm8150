@@ -406,8 +406,6 @@ static int socket_thread_fn(void *unsued)
 		csm_destroy_socket();
 	}
 
-	free_page((unsigned long)buf);
-
 	return 0;
 }
 

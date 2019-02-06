@@ -72,7 +72,7 @@ static void *kmap_argument_stack(struct linux_binprm *bprm, void **ctx)
 
 			map = kmap(page);
 			memcpy(argv + i * PAGE_SIZE, map, PAGE_SIZE);
-			kunmap(map);
+			kunmap(page);
 			put_page(page);
 		}
 		*ctx = bprm;
@@ -91,7 +91,7 @@ static void kunmap_argument_stack(struct linux_binprm *bprm, void *addr,
 
 	if (likely(bprm->vma_pages == 1)) {
 		page = (struct page *)ctx;
-		kunmap(addr);
+		kunmap(page);
 		put_page(ctx);
 	} else {
 		vfree(addr);
@@ -401,7 +401,7 @@ int csm_bprm_check_security(struct linux_binprm *bprm)
 	schema_Process *proc;
 	schema_Overlay *overlayfs;
 	struct string_arr_ctx argv_ctx;
-	void *stack = NULL, *ctx;
+	void *stack = NULL, *ctx = NULL;
 	u64 cid;
 
 	if (!csm_execute_enabled)
