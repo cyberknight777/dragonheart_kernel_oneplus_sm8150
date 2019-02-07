@@ -897,11 +897,10 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 			    u64 filter, u32 crc, u8 *transmitter_bssid,
 			    u8 *bss_bssid)
 {
-	struct element *elem;
+	const struct element *elem, *sub;
 	bool calc_crc = filter != 0;
 	DECLARE_BITMAP(seen_elems, 256);
 	const u8 *ie;
-	const u8 *sub_elem;
 
 	bitmap_zero(seen_elems, 256);
 
@@ -1216,19 +1215,22 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 
 			elems->max_bssid_indicator = pos[0];
 
-			for (sub_elem = pos + 1; sub_elem < pos + elen - 1;
-			     sub_elem += 2 + sub_elem[1]) {
-				u8 sub_len = sub_elem[1];
+			for_each_element(sub, pos + 1, elen - 1) {
+				u8 sub_len = sub->datalen;
 				u8 new_bssid[ETH_ALEN];
 				const u8 *index;
 
-				if (sub_elem[0] != 0 || sub_elem[1] < 4) {
+				/*
+				 * we only expect the "non-transmitted BSSID
+				 * profile" subelement (subelement id 0)
+				 */
+				if (sub->id != 0 || sub->datalen < 4) {
 					/* not a valid BSS profile */
 					continue;
 				}
 
-				if (sub_elem[2] != WLAN_EID_NON_TX_BSSID_CAP ||
-				    sub_elem[3] != 2) {
+				if (sub->data[0] != WLAN_EID_NON_TX_BSSID_CAP ||
+				    sub->data[1] != 2) {
 					/* The first element of the
 					 * Nontransmitted BSSID Profile is not
 					 * the Nontransmitted BSSID Capability
@@ -1239,7 +1241,7 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 
 				/* found a Nontransmitted BSSID Profile */
 				index = cfg80211_find_ie(WLAN_EID_MULTI_BSSID_IDX,
-							 sub_elem + 2, sub_len);
+							 sub->data, sub_len);
 				if (!index || index[1] < 1 || index[2] == 0) {
 					/* Invalid MBSSID Index element */
 					continue;
@@ -1251,7 +1253,7 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 						       new_bssid);
 				if (ether_addr_equal(new_bssid, bss_bssid)) {
 					elems->nontransmitted_bssid_profile =
-						sub_elem;
+						(void *)sub;
 					elems->bssid_index_len = index[1];
 					elems->bssid_index = (void *)&index[2];
 					break;
