@@ -1318,15 +1318,6 @@ static void iwl_mvm_queue_state_change(struct iwl_op_mode *op_mode,
 	struct iwl_mvm_sta *mvmsta;
 	u8 sta_id;
 
-	if (iwl_mvm_is_static_queue(mvm, hw_queue)) {
-		if (start)
-			ieee80211_wake_queues(mvm->hw);
-		else
-			ieee80211_stop_queues(mvm->hw);
-
-		return;
-	}
-
 	sta_id = iwl_mvm_has_new_tx_api(mvm) ?
 		mvm->tvqm_info[hw_queue].sta_id :
 		mvm->queue_info[hw_queue].ra_sta_id;
@@ -1340,6 +1331,15 @@ static void iwl_mvm_queue_state_change(struct iwl_op_mode *op_mode,
 	if (IS_ERR_OR_NULL(sta))
 		goto out;
 	mvmsta = iwl_mvm_sta_from_mac80211(sta);
+
+	if (iwl_mvm_is_static_queue(mvm, hw_queue)) {
+		if (!start)
+			ieee80211_stop_queues(mvm->hw);
+		else if (mvmsta->sta_state != IEEE80211_STA_NOTEXIST)
+			ieee80211_wake_queues(mvm->hw);
+
+		goto out;
+	}
 
 	if (iwl_mvm_has_new_tx_api(mvm)) {
 		int tid = mvm->tvqm_info[hw_queue].txq_tid;
