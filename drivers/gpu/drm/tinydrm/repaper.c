@@ -660,7 +660,8 @@ static void power_off(struct repaper_epd *epd)
 }
 
 static void repaper_pipe_enable(struct drm_simple_display_pipe *pipe,
-				struct drm_crtc_state *crtc_state)
+				struct drm_crtc_state *crtc_state,
+				struct drm_plane_state *plane_state)
 {
 	struct tinydrm_device *tdev = pipe_to_tinydrm(pipe);
 	struct repaper_epd *epd = epd_from_tinydrm(tdev);
@@ -853,7 +854,7 @@ static const struct drm_simple_display_pipe_funcs repaper_pipe_funcs = {
 	.enable = repaper_pipe_enable,
 	.disable = repaper_pipe_disable,
 	.update = tinydrm_display_pipe_update,
-	.prepare_fb = tinydrm_display_pipe_prepare_fb,
+	.prepare_fb = drm_gem_fb_simple_display_pipe_prepare_fb,
 };
 
 static const uint32_t repaper_formats[] = {

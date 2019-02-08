@@ -127,6 +127,7 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 	struct amdgpu_vm *vm;
 	uint64_t fence_ctx;
 	uint32_t status = 0, alloc_size;
+	unsigned fence_flags = 0;
 
 	unsigned i;
 	int r = 0;
@@ -163,8 +164,10 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 		return r;
 	}
 
+	need_ctx_switch = ring->current_ctx != fence_ctx;
 	if (ring->funcs->emit_pipeline_sync && job &&
 	    ((tmp = amdgpu_sync_get_fence(&job->sched_sync, NULL)) ||
+	     (amdgpu_sriov_vf(adev) && need_ctx_switch) ||
 	     amdgpu_vm_need_pipeline_sync(ring, job))) {
 		need_pipe_sync = true;
 		dma_fence_put(tmp);
@@ -195,7 +198,6 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 	}
 
 	skip_preamble = ring->current_ctx == fence_ctx;
-	need_ctx_switch = ring->current_ctx != fence_ctx;
 	if (job && ring->funcs->emit_cntxcntl) {
 		if (need_ctx_switch)
 			status |= AMDGPU_HAVE_CTX_SWITCH;
@@ -227,7 +229,16 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 #endif
 		amdgpu_asic_invalidate_hdp(adev, ring);
 
-	r = amdgpu_fence_emit(ring, f);
+	if (ib->flags & AMDGPU_IB_FLAG_TC_WB_NOT_INVALIDATE)
+		fence_flags |= AMDGPU_FENCE_FLAG_TC_WB_ONLY;
+
+	/* wrap the last IB with fence */
+	if (job && job->uf_addr) {
+		amdgpu_ring_emit_fence(ring, job->uf_addr, job->uf_sequence,
+				       fence_flags | AMDGPU_FENCE_FLAG_64BIT);
+	}
+
+	r = amdgpu_fence_emit(ring, f, fence_flags);
 	if (r) {
 		dev_err(adev->dev, "failed to emit fence (%d)\n", r);
 		if (job && job->vmid)
@@ -238,12 +249,6 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 
 	if (ring->funcs->insert_end)
 		ring->funcs->insert_end(ring);
-
-	/* wrap the last IB with fence */
-	if (job && job->uf_addr) {
-		amdgpu_ring_emit_fence(ring, job->uf_addr, job->uf_sequence,
-				       AMDGPU_FENCE_FLAG_64BIT);
-	}
 
 	if (patch_offset != ~0 && ring->funcs->patch_cond_exec)
 		amdgpu_ring_patch_cond_exec(ring, patch_offset);

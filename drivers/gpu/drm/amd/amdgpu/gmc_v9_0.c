@@ -43,20 +43,6 @@
 #include "gfxhub_v1_0.h"
 #include "mmhub_v1_0.h"
 
-#define mmDF_CS_AON0_DramBaseAddress0                                                                  0x0044
-#define mmDF_CS_AON0_DramBaseAddress0_BASE_IDX                                                         0
-//DF_CS_AON0_DramBaseAddress0
-#define DF_CS_AON0_DramBaseAddress0__AddrRngVal__SHIFT                                                        0x0
-#define DF_CS_AON0_DramBaseAddress0__LgcyMmioHoleEn__SHIFT                                                    0x1
-#define DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT                                                      0x4
-#define DF_CS_AON0_DramBaseAddress0__IntLvAddrSel__SHIFT                                                      0x8
-#define DF_CS_AON0_DramBaseAddress0__DramBaseAddr__SHIFT                                                      0xc
-#define DF_CS_AON0_DramBaseAddress0__AddrRngVal_MASK                                                          0x00000001L
-#define DF_CS_AON0_DramBaseAddress0__LgcyMmioHoleEn_MASK                                                      0x00000002L
-#define DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK                                                        0x000000F0L
-#define DF_CS_AON0_DramBaseAddress0__IntLvAddrSel_MASK                                                        0x00000700L
-#define DF_CS_AON0_DramBaseAddress0__DramBaseAddr_MASK                                                        0xFFFFF000L
-
 /* add these here since we already include dce12 headers and these are for DCN */
 #define mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION                                                          0x055d
 #define mmHUBP0_DCSURF_PRI_VIEWPORT_DIMENSION_BASE_IDX                                                 2
@@ -393,11 +379,9 @@ static uint64_t gmc_v9_0_emit_flush_gpu_tlb(struct amdgpu_ring *ring,
 	amdgpu_ring_emit_wreg(ring, hub->ctx0_ptb_addr_hi32 + (2 * vmid),
 			      upper_32_bits(pd_addr));
 
-	amdgpu_ring_emit_wreg(ring, hub->vm_inv_eng0_req + eng, req);
-
-	/* wait for the invalidate to complete */
-	amdgpu_ring_emit_reg_wait(ring, hub->vm_inv_eng0_ack + eng,
-				  1 << vmid, 1 << vmid);
+	amdgpu_ring_emit_reg_write_reg_wait(ring, hub->vm_inv_eng0_req + eng,
+					    hub->vm_inv_eng0_ack + eng,
+					    req, 1 << vmid);
 
 	return pd_addr;
 }
@@ -564,8 +548,7 @@ static int gmc_v9_0_early_init(void *handle)
 	adev->gmc.shared_aperture_start = 0x2000000000000000ULL;
 	adev->gmc.shared_aperture_end =
 		adev->gmc.shared_aperture_start + (4ULL << 30) - 1;
-	adev->gmc.private_aperture_start =
-		adev->gmc.shared_aperture_end + 1;
+	adev->gmc.private_aperture_start = 0x1000000000000000ULL;
 	adev->gmc.private_aperture_end =
 		adev->gmc.private_aperture_start + (4ULL << 30) - 1;
 
@@ -692,6 +675,7 @@ static int gmc_v9_0_late_init(void *handle)
 			DRM_INFO("ECC is active.\n");
 		} else if (r == 0) {
 			DRM_INFO("ECC is not present.\n");
+			adev->df_funcs->enable_ecc_force_par_wr_rmw(adev, false);
 		} else {
 			DRM_ERROR("gmc_v9_0_ecc_available() failed. r: %d\n", r);
 			return r;
@@ -710,10 +694,7 @@ static void gmc_v9_0_vram_gtt_location(struct amdgpu_device *adev,
 	amdgpu_device_vram_location(adev, &adev->gmc, base);
 	amdgpu_device_gart_location(adev, mc);
 	/* base offset of vram pages */
-	if (adev->flags & AMD_IS_APU)
-		adev->vm_manager.vram_base_offset = gfxhub_v1_0_get_mc_fb_offset(adev);
-	else
-		adev->vm_manager.vram_base_offset = 0;
+	adev->vm_manager.vram_base_offset = gfxhub_v1_0_get_mc_fb_offset(adev);
 }
 
 /**
@@ -727,7 +708,6 @@ static void gmc_v9_0_vram_gtt_location(struct amdgpu_device *adev,
  */
 static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 {
-	u32 tmp;
 	int chansize, numchan;
 	int r;
 
@@ -740,39 +720,7 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 		else
 			chansize = 128;
 
-		tmp = RREG32_SOC15(DF, 0, mmDF_CS_AON0_DramBaseAddress0);
-		tmp &= DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK;
-		tmp >>= DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
-		switch (tmp) {
-		case 0:
-		default:
-			numchan = 1;
-			break;
-		case 1:
-			numchan = 2;
-			break;
-		case 2:
-			numchan = 0;
-			break;
-		case 3:
-			numchan = 4;
-			break;
-		case 4:
-			numchan = 0;
-			break;
-		case 5:
-			numchan = 8;
-			break;
-		case 6:
-			numchan = 0;
-			break;
-		case 7:
-			numchan = 16;
-			break;
-		case 8:
-			numchan = 2;
-			break;
-		}
+		numchan = adev->df_funcs->get_hbm_channel_number(adev);
 		adev->gmc.vram_width = numchan * chansize;
 	}
 
@@ -805,6 +753,7 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 		switch (adev->asic_type) {
 		case CHIP_VEGA10:  /* all engines support GPUVM */
 		case CHIP_VEGA12:  /* all engines support GPUVM */
+		case CHIP_VEGA20:
 		default:
 			adev->gmc.gart_size = 512ULL << 20;
 			break;
@@ -909,6 +858,7 @@ static int gmc_v9_0_sw_init(void *handle)
 		break;
 	case CHIP_VEGA10:
 	case CHIP_VEGA12:
+	case CHIP_VEGA20:
 		/*
 		 * To fulfill 4-level page support,
 		 * vm size is 256TB (48bit), maximum size of Vega10,
@@ -1026,6 +976,7 @@ static void gmc_v9_0_init_golden_registers(struct amdgpu_device *adev)
 
 	switch (adev->asic_type) {
 	case CHIP_VEGA10:
+	case CHIP_VEGA20:
 		soc15_program_register_sequence(adev,
 						golden_settings_mmhub_1_0_0,
 						ARRAY_SIZE(golden_settings_mmhub_1_0_0));

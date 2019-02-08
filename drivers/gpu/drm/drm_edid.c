@@ -172,8 +172,9 @@ static const struct edid_quirk {
 	/* Rotel RSX-1058 forwards sink's EDID but only does HDMI 1.1*/
 	{ "ETR", 13896, EDID_QUIRK_FORCE_8BPC },
 
-	/* HTC Vive VR Headset */
+	/* HTC Vive and Vive Pro VR Headsets */
 	{ "HVR", 0xaa01, EDID_QUIRK_NON_DESKTOP },
+	{ "HVR", 0xaa02, EDID_QUIRK_NON_DESKTOP },
 
 	/* Oculus Rift DK1, DK2, and CV1 VR Headsets */
 	{ "OVR", 0x0001, EDID_QUIRK_NON_DESKTOP },
@@ -2939,10 +2940,14 @@ cea_mode_alternate_timings(u8 vic, struct drm_display_mode *mode)
 static u8 drm_match_cea_mode_clock_tolerance(const struct drm_display_mode *to_match,
 					     unsigned int clock_tolerance)
 {
+	unsigned int match_flags = DRM_MODE_MATCH_TIMINGS | DRM_MODE_MATCH_FLAGS;
 	u8 vic;
 
 	if (!to_match->clock)
 		return 0;
+
+	if (to_match->picture_aspect_ratio)
+		match_flags |= DRM_MODE_MATCH_ASPECT_RATIO;
 
 	for (vic = 1; vic < ARRAY_SIZE(edid_cea_modes); vic++) {
 		struct drm_display_mode cea_mode = edid_cea_modes[vic];
@@ -2957,7 +2962,7 @@ static u8 drm_match_cea_mode_clock_tolerance(const struct drm_display_mode *to_m
 			continue;
 
 		do {
-			if (drm_mode_equal_no_clocks_no_stereo(to_match, &cea_mode))
+			if (drm_mode_match(to_match, &cea_mode, match_flags))
 				return vic;
 		} while (cea_mode_alternate_timings(vic, &cea_mode));
 	}
@@ -2974,10 +2979,14 @@ static u8 drm_match_cea_mode_clock_tolerance(const struct drm_display_mode *to_m
  */
 u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
 {
+	unsigned int match_flags = DRM_MODE_MATCH_TIMINGS | DRM_MODE_MATCH_FLAGS;
 	u8 vic;
 
 	if (!to_match->clock)
 		return 0;
+
+	if (to_match->picture_aspect_ratio)
+		match_flags |= DRM_MODE_MATCH_ASPECT_RATIO;
 
 	for (vic = 1; vic < ARRAY_SIZE(edid_cea_modes); vic++) {
 		struct drm_display_mode cea_mode = edid_cea_modes[vic];
@@ -2992,7 +3001,7 @@ u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
 			continue;
 
 		do {
-			if (drm_mode_equal_no_clocks_no_stereo(to_match, &cea_mode))
+			if (drm_mode_match(to_match, &cea_mode, match_flags))
 				return vic;
 		} while (cea_mode_alternate_timings(vic, &cea_mode));
 	}
@@ -3039,6 +3048,7 @@ hdmi_mode_alternate_clock(const struct drm_display_mode *hdmi_mode)
 static u8 drm_match_hdmi_mode_clock_tolerance(const struct drm_display_mode *to_match,
 					      unsigned int clock_tolerance)
 {
+	unsigned int match_flags = DRM_MODE_MATCH_TIMINGS | DRM_MODE_MATCH_FLAGS;
 	u8 vic;
 
 	if (!to_match->clock)
@@ -3056,7 +3066,7 @@ static u8 drm_match_hdmi_mode_clock_tolerance(const struct drm_display_mode *to_
 		    abs(to_match->clock - clock2) > clock_tolerance)
 			continue;
 
-		if (drm_mode_equal_no_clocks(to_match, hdmi_mode))
+		if (drm_mode_match(to_match, hdmi_mode, match_flags))
 			return vic;
 	}
 
@@ -3073,6 +3083,7 @@ static u8 drm_match_hdmi_mode_clock_tolerance(const struct drm_display_mode *to_
  */
 static u8 drm_match_hdmi_mode(const struct drm_display_mode *to_match)
 {
+	unsigned int match_flags = DRM_MODE_MATCH_TIMINGS | DRM_MODE_MATCH_FLAGS;
 	u8 vic;
 
 	if (!to_match->clock)
@@ -3088,7 +3099,7 @@ static u8 drm_match_hdmi_mode(const struct drm_display_mode *to_match)
 
 		if ((KHZ2PICOS(to_match->clock) == KHZ2PICOS(clock1) ||
 		     KHZ2PICOS(to_match->clock) == KHZ2PICOS(clock2)) &&
-		    drm_mode_equal_no_clocks_no_stereo(to_match, hdmi_mode))
+		    drm_mode_match(to_match, hdmi_mode, match_flags))
 			return vic;
 	}
 	return 0;
@@ -4464,7 +4475,6 @@ drm_reset_display_info(struct drm_connector *connector)
 
 	info->non_desktop = 0;
 }
-EXPORT_SYMBOL_GPL(drm_reset_display_info);
 
 u32 drm_add_display_info(struct drm_connector *connector, const struct edid *edid)
 {
@@ -4542,7 +4552,6 @@ u32 drm_add_display_info(struct drm_connector *connector, const struct edid *edi
 		info->color_formats |= DRM_COLOR_FORMAT_YCRCB422;
 	return quirks;
 }
-EXPORT_SYMBOL_GPL(drm_add_display_info);
 
 static int validate_displayid(u8 *displayid, int length, int idx)
 {
@@ -4834,6 +4843,7 @@ drm_hdmi_avi_infoframe_from_display_mode(struct hdmi_avi_infoframe *frame,
 					 const struct drm_display_mode *mode,
 					 bool is_hdmi2_sink)
 {
+	enum hdmi_picture_aspect picture_aspect;
 	int err;
 
 	if (!frame || !mode)
@@ -4876,13 +4886,23 @@ drm_hdmi_avi_infoframe_from_display_mode(struct hdmi_avi_infoframe *frame,
 	 * Populate picture aspect ratio from either
 	 * user input (if specified) or from the CEA mode list.
 	 */
-	if (mode->picture_aspect_ratio == HDMI_PICTURE_ASPECT_4_3 ||
-		mode->picture_aspect_ratio == HDMI_PICTURE_ASPECT_16_9)
-		frame->picture_aspect = mode->picture_aspect_ratio;
-	else if (frame->video_code > 0)
-		frame->picture_aspect = drm_get_cea_aspect_ratio(
-						frame->video_code);
+	picture_aspect = mode->picture_aspect_ratio;
+	if (picture_aspect == HDMI_PICTURE_ASPECT_NONE)
+		picture_aspect = drm_get_cea_aspect_ratio(frame->video_code);
 
+	/*
+	 * The infoframe can't convey anything but none, 4:3
+	 * and 16:9, so if the user has asked for anything else
+	 * we can only satisfy it by specifying the right VIC.
+	 */
+	if (picture_aspect > HDMI_PICTURE_ASPECT_16_9) {
+		if (picture_aspect !=
+		    drm_get_cea_aspect_ratio(frame->video_code))
+			return -EINVAL;
+		picture_aspect = HDMI_PICTURE_ASPECT_NONE;
+	}
+
+	frame->picture_aspect = picture_aspect;
 	frame->active_aspect = HDMI_ACTIVE_ASPECT_PICTURE;
 	frame->scan_mode = HDMI_SCAN_MODE_UNDERSCAN;
 
