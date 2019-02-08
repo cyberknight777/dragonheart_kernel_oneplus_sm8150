@@ -226,8 +226,16 @@ static inline void audit_log_task_info(struct audit_buffer *ab,
 
 /* These are defined in auditsc.c */
 				/* Public API */
+struct audit_task_info {
+	kuid_t			loginuid;
+	unsigned int		sessionid;
+	u64			contid;
+	struct audit_context	*ctx;
+};
+extern struct audit_task_info init_struct_audit;
+extern void __init audit_task_init(void);
 extern int  audit_alloc(struct task_struct *task);
-extern void __audit_free(struct task_struct *task);
+extern void audit_free(struct task_struct *task);
 extern void __audit_syscall_entry(int major, unsigned long a0, unsigned long a1,
 				  unsigned long a2, unsigned long a3);
 extern void __audit_syscall_exit(int ret_success, long ret_value);
@@ -245,26 +253,35 @@ extern void __audit_inode_child(struct inode *parent,
 extern void __audit_seccomp(unsigned long syscall, long signr, int code);
 extern void __audit_ptrace(struct task_struct *t);
 
+static inline void audit_set_context(struct task_struct *task, struct audit_context *ctx)
+{
+	task->audit->ctx = ctx;
+}
+
+static inline struct audit_context *audit_context(void)
+{
+	if (current->audit)
+		return current->audit->ctx;
+	else
+		return NULL;
+}
+
 static inline bool audit_dummy_context(void)
 {
-	void *p = current->audit_context;
+	void *p = audit_context();
 	return !p || *(int *)p;
 }
-static inline void audit_free(struct task_struct *task)
-{
-	if (unlikely(task->audit_context))
-		__audit_free(task);
-}
+
 static inline void audit_syscall_entry(int major, unsigned long a0,
 				       unsigned long a1, unsigned long a2,
 				       unsigned long a3)
 {
-	if (unlikely(current->audit_context))
+	if (unlikely(audit_context()))
 		__audit_syscall_entry(major, a0, a1, a2, a3);
 }
 static inline void audit_syscall_exit(void *pt_regs)
 {
-	if (unlikely(current->audit_context)) {
+	if (unlikely(audit_context())) {
 		int success = is_syscall_success(pt_regs);
 		long return_code = regs_return_value(pt_regs);
 
@@ -329,15 +346,30 @@ extern unsigned int audit_serial(void);
 extern int auditsc_get_stamp(struct audit_context *ctx,
 			      struct timespec64 *t, unsigned int *serial);
 extern int audit_set_loginuid(kuid_t loginuid);
+extern int audit_set_contid(struct task_struct *tsk, u64 contid);
 
 static inline kuid_t audit_get_loginuid(struct task_struct *tsk)
 {
-	return tsk->loginuid;
+	if (tsk->audit)
+		return tsk->audit->loginuid;
+	else
+		return INVALID_UID;
 }
 
 static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
 {
-	return tsk->sessionid;
+	if (tsk->audit)
+		return tsk->audit->sessionid;
+	else
+		return AUDIT_SID_UNSET;
+}
+
+static inline u64 audit_get_contid(struct task_struct *tsk)
+{
+	if (!tsk->audit)
+		return AUDIT_CID_UNSET;
+	else
+		return tsk->audit->contid;
 }
 
 extern void __audit_ipc_obj(struct kern_ipc_perm *ipcp);
@@ -455,6 +487,8 @@ static inline void audit_log_kern_module(char *name)
 extern int audit_n_rules;
 extern int audit_signals;
 #else /* CONFIG_AUDITSYSCALL */
+static inline void __init audit_task_init(void)
+{ }
 static inline int audit_alloc(struct task_struct *task)
 {
 	return 0;
@@ -470,6 +504,12 @@ static inline void audit_syscall_exit(void *pt_regs)
 static inline bool audit_dummy_context(void)
 {
 	return true;
+}
+static inline void audit_set_context(struct task_struct *task, struct audit_context *ctx)
+{ }
+static inline struct audit_context *audit_context(void)
+{
+	return NULL;
 }
 static inline struct filename *audit_reusename(const __user char *name)
 {
@@ -516,7 +556,11 @@ static inline kuid_t audit_get_loginuid(struct task_struct *tsk)
 }
 static inline unsigned int audit_get_sessionid(struct task_struct *tsk)
 {
-	return -1;
+	return AUDIT_SID_UNSET;
+}
+static inline u64 audit_get_contid(struct task_struct *tsk)
+{
+	return AUDIT_CID_UNSET;
 }
 static inline void audit_ipc_obj(struct kern_ipc_perm *ipcp)
 { }
@@ -577,6 +621,16 @@ static inline void audit_ptrace(struct task_struct *t)
 static inline bool audit_loginuid_set(struct task_struct *tsk)
 {
 	return uid_valid(audit_get_loginuid(tsk));
+}
+
+static inline bool audit_contid_valid(u64 contid)
+{
+	return contid != AUDIT_CID_UNSET;
+}
+
+static inline bool audit_contid_set(struct task_struct *tsk)
+{
+	return audit_contid_valid(audit_get_contid(tsk));
 }
 
 static inline void audit_log_string(struct audit_buffer *ab, const char *buf)

@@ -71,6 +71,8 @@ int drm_mode_destroy_dumb_ioctl(struct drm_device *dev,
 				void *data, struct drm_file *file_priv);
 
 /* drm_color_mgmt.c */
+const char *drm_get_color_encoding_name(enum drm_color_encoding encoding);
+const char *drm_get_color_range_name(enum drm_color_range range);
 
 /* IOCTLs */
 int drm_mode_gamma_get_ioctl(struct drm_device *dev,
@@ -142,6 +144,7 @@ int drm_mode_connector_set_obj_prop(struct drm_mode_object *obj,
 				    uint64_t value);
 int drm_connector_create_standard_properties(struct drm_device *dev);
 const char *drm_get_connector_force_name(enum drm_connector_force force);
+void drm_connector_free_work_fn(struct work_struct *work);
 
 /* IOCTL */
 int drm_mode_connector_property_set_ioctl(struct drm_device *dev,
@@ -195,8 +198,8 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 /* drm_plane.c */
 int drm_plane_register_all(struct drm_device *dev);
 void drm_plane_unregister_all(struct drm_device *dev);
-int drm_plane_check_pixel_format(const struct drm_plane *plane,
-				 u32 format);
+int drm_plane_check_pixel_format(struct drm_plane *plane,
+				 u32 format, u64 modifier);
 
 /* drm_bridge.c */
 void drm_bridge_detach(struct drm_bridge *bridge);

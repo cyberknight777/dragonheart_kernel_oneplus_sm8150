@@ -79,6 +79,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_ES7134
 	select SND_SOC_GTM601
 	select SND_SOC_HDAC_HDMI
+	select SND_SOC_HDAC_HDA
 	select SND_SOC_ICS43432
 	select SND_SOC_INNO_RK3036
 	select SND_SOC_ISABELLE if I2C
@@ -131,10 +132,10 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_RT5665 if I2C
 	select SND_SOC_RT5670 if I2C
 	select SND_SOC_RT5677 if I2C && SPI_MASTER
+	select SND_SOC_RT5682 if I2C
 	select SND_SOC_SGTL5000 if I2C
 	select SND_SOC_SI476X if MFD_SI476X_CORE
 	select SND_SOC_SIRF_AUDIO_CODEC
-	select SND_SOC_SN95031 if INTEL_SCU_IPC
 	select SND_SOC_SPDIF
 	select SND_SOC_SSM2518 if I2C
 	select SND_SOC_SSM2602_SPI if SPI_MASTER
@@ -215,9 +216,9 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM8998 if MFD_WM8998
 	select SND_SOC_WM9081 if I2C
 	select SND_SOC_WM9090 if I2C
-	select SND_SOC_WM9705 if SND_SOC_AC97_BUS
-	select SND_SOC_WM9712 if SND_SOC_AC97_BUS
-	select SND_SOC_WM9713 if SND_SOC_AC97_BUS
+	select SND_SOC_WM9705 if (SND_SOC_AC97_BUS || SND_SOC_AC97_BUS_NEW)
+	select SND_SOC_WM9712 if (SND_SOC_AC97_BUS || SND_SOC_AC97_BUS_NEW)
+	select SND_SOC_WM9713 if (SND_SOC_AC97_BUS || SND_SOC_AC97_BUS_NEW)
         help
           Normally ASoC codec drivers are only built if a machine driver which
           uses them is also built since they are only usable with a machine
@@ -579,6 +580,10 @@ config SND_SOC_HDAC_HDMI
 	select SND_PCM_ELD
 	select HDMI
 
+config SND_SOC_HDAC_HDA
+	tristate
+	select SND_HDA
+
 config SND_SOC_ICS43432
 	tristate
 
@@ -715,6 +720,7 @@ config SND_SOC_RL6231
 	default y if SND_SOC_RT5665=y
 	default y if SND_SOC_RT5670=y
 	default y if SND_SOC_RT5677=y
+	default y if SND_SOC_RT5682=y
 	default m if SND_SOC_RT5514=m
 	default m if SND_SOC_RT5616=m
 	default m if SND_SOC_RT5640=m
@@ -726,6 +732,7 @@ config SND_SOC_RL6231
 	default m if SND_SOC_RT5665=m
 	default m if SND_SOC_RT5670=m
 	default m if SND_SOC_RT5677=m
+	default m if SND_SOC_RT5682=m
 
 config SND_SOC_RL6347A
 	tristate
@@ -795,6 +802,9 @@ config SND_SOC_RT5677_SPI
 	tristate
 	default SND_SOC_RT5677 && SPI
 
+config SND_SOC_RT5682
+	tristate
+
 #Freescale sgtl5000 codec
 config SND_SOC_SGTL5000
 	tristate "Freescale SGTL5000 CODEC"
@@ -818,9 +828,6 @@ config SND_SOC_SIGMADSP_REGMAP
 config SND_SOC_SIRF_AUDIO_CODEC
 	tristate "SiRF SoC internal audio codec"
 	select REGMAP_MMIO
-
-config SND_SOC_SN95031
-	tristate
 
 config SND_SOC_SPDIF
 	tristate "S/PDIF CODEC"
@@ -1133,14 +1140,17 @@ config SND_SOC_WM9090
 config SND_SOC_WM9705
 	tristate
 	select REGMAP_AC97
+	select AC97_BUS_COMPAT if AC97_BUS_NEW
 
 config SND_SOC_WM9712
 	tristate
 	select REGMAP_AC97
+	select AC97_BUS_COMPAT if AC97_BUS_NEW
 
 config SND_SOC_WM9713
 	tristate
 	select REGMAP_AC97
+	select AC97_BUS_COMPAT if AC97_BUS_NEW
 
 config SND_SOC_ZX_AUD96P22
 	tristate "ZTE ZX AUD96P22 CODEC"

@@ -1254,6 +1254,7 @@ ieee80211_rx_h_check_dup(struct ieee80211_rx_data *rx)
 		return RX_CONTINUE;
 
 	if (ieee80211_is_ctl(hdr->frame_control) ||
+	    ieee80211_is_nullfunc(hdr->frame_control) ||
 	    ieee80211_is_qos_nullfunc(hdr->frame_control) ||
 	    is_multicast_ether_addr(hdr->addr1))
 		return RX_CONTINUE;
@@ -3928,7 +3929,7 @@ static bool ieee80211_invoke_fast_rx(struct ieee80211_rx_data *rx,
 	if ((hdr->frame_control & cpu_to_le16(IEEE80211_FCTL_FROMDS |
 					      IEEE80211_FCTL_TODS)) !=
 	    fast_rx->expected_ds_bits)
-		goto drop;
+		return false;
 
 	/* assign the key to drop unencrypted frames (later)
 	 * and strip the IV/MIC if necessary

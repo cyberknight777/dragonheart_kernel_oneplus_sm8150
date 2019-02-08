@@ -16,6 +16,7 @@
 #include <linux/jump_label_ratelimit.h>
 #include <linux/bug.h>
 #include <linux/cpu.h>
+#include <asm/sections.h>
 
 #ifdef HAVE_JUMP_LABEL
 
@@ -79,11 +80,11 @@ int static_key_count(struct static_key *key)
 }
 EXPORT_SYMBOL_GPL(static_key_count);
 
-static void static_key_slow_inc_cpuslocked(struct static_key *key)
+void static_key_slow_inc_cpuslocked(struct static_key *key)
 {
 	int v, v1;
 
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 
 	/*
 	 * Careful if we get concurrent static_key_slow_inc() calls;
@@ -128,7 +129,7 @@ EXPORT_SYMBOL_GPL(static_key_slow_inc);
 
 void static_key_enable_cpuslocked(struct static_key *key)
 {
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 
 	if (atomic_read(&key->enabled) > 0) {
 		WARN_ON_ONCE(atomic_read(&key->enabled) != 1);
@@ -158,7 +159,7 @@ EXPORT_SYMBOL_GPL(static_key_enable);
 
 void static_key_disable_cpuslocked(struct static_key *key)
 {
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 
 	if (atomic_read(&key->enabled) != 1) {
 		WARN_ON_ONCE(atomic_read(&key->enabled) != 0);
@@ -180,7 +181,7 @@ void static_key_disable(struct static_key *key)
 }
 EXPORT_SYMBOL_GPL(static_key_disable);
 
-static void static_key_slow_dec_cpuslocked(struct static_key *key,
+static void __static_key_slow_dec_cpuslocked(struct static_key *key,
 					   unsigned long rate_limit,
 					   struct delayed_work *work)
 {
@@ -211,7 +212,7 @@ static void __static_key_slow_dec(struct static_key *key,
 				  struct delayed_work *work)
 {
 	cpus_read_lock();
-	static_key_slow_dec_cpuslocked(key, rate_limit, work);
+	__static_key_slow_dec_cpuslocked(key, rate_limit, work);
 	cpus_read_unlock();
 }
 
@@ -224,21 +225,27 @@ static void jump_label_update_timeout(struct work_struct *work)
 
 void static_key_slow_dec(struct static_key *key)
 {
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 	__static_key_slow_dec(key, 0, NULL);
 }
 EXPORT_SYMBOL_GPL(static_key_slow_dec);
 
+void static_key_slow_dec_cpuslocked(struct static_key *key)
+{
+	STATIC_KEY_CHECK_USE(key);
+	__static_key_slow_dec_cpuslocked(key, 0, NULL);
+}
+
 void static_key_slow_dec_deferred(struct static_key_deferred *key)
 {
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 	__static_key_slow_dec(&key->key, key->timeout, &key->work);
 }
 EXPORT_SYMBOL_GPL(static_key_slow_dec_deferred);
 
 void static_key_deferred_flush(struct static_key_deferred *key)
 {
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 	flush_delayed_work(&key->work);
 }
 EXPORT_SYMBOL_GPL(static_key_deferred_flush);
@@ -246,7 +253,7 @@ EXPORT_SYMBOL_GPL(static_key_deferred_flush);
 void jump_label_rate_limit(struct static_key_deferred *key,
 		unsigned long rl)
 {
-	STATIC_KEY_CHECK_USE();
+	STATIC_KEY_CHECK_USE(key);
 	key->timeout = rl;
 	INIT_DELAYED_WORK(&key->work, jump_label_update_timeout);
 }
@@ -409,6 +416,20 @@ void __init jump_label_init(void)
 	static_key_initialized = true;
 	jump_label_unlock();
 	cpus_read_unlock();
+}
+
+/* Disable any jump label entries in __init code */
+void __init jump_label_invalidate_init(void)
+{
+	struct jump_entry *iter_start = __start___jump_table;
+	struct jump_entry *iter_stop = __stop___jump_table;
+	struct jump_entry *iter;
+
+	for (iter = iter_start; iter < iter_stop; iter++) {
+		if (iter->code >= (unsigned long)_sinittext &&
+		    iter->code < (unsigned long)_einittext)
+			iter->code = 0;
+	}
 }
 
 #ifdef CONFIG_MODULES
@@ -627,6 +648,7 @@ static void jump_label_del_module(struct module *mod)
 	}
 }
 
+/* Disable any jump label entries in module init code */
 static void jump_label_invalidate_module_init(struct module *mod)
 {
 	struct jump_entry *iter_start = mod->jump_entries;

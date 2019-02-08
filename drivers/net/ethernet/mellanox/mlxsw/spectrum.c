@@ -333,8 +333,13 @@ static int mlxsw_sp_firmware_flash(struct mlxsw_sp *mlxsw_sp,
 		},
 		.mlxsw_sp = mlxsw_sp
 	};
+	int err;
 
-	return mlxfw_firmware_flash(&mlxsw_sp_mlxfw_dev.mlxfw_dev, firmware);
+	mlxsw_core_fw_flash_start(mlxsw_sp->core);
+	err = mlxfw_firmware_flash(&mlxsw_sp_mlxfw_dev.mlxfw_dev, firmware);
+	mlxsw_core_fw_flash_end(mlxsw_sp->core);
+
+	return err;
 }
 
 static bool mlxsw_sp_fw_rev_ge(const struct mlxsw_fw_rev *a,
@@ -1417,6 +1422,7 @@ mlxsw_sp_port_vlan_create(struct mlxsw_sp_port *mlxsw_sp_port, u16 vid)
 	}
 
 	mlxsw_sp_port_vlan->mlxsw_sp_port = mlxsw_sp_port;
+	mlxsw_sp_port_vlan->ref_count = 1;
 	mlxsw_sp_port_vlan->vid = vid;
 	list_add(&mlxsw_sp_port_vlan->list, &mlxsw_sp_port->vlans_list);
 
@@ -1444,8 +1450,10 @@ mlxsw_sp_port_vlan_get(struct mlxsw_sp_port *mlxsw_sp_port, u16 vid)
 	struct mlxsw_sp_port_vlan *mlxsw_sp_port_vlan;
 
 	mlxsw_sp_port_vlan = mlxsw_sp_port_vlan_find_by_vid(mlxsw_sp_port, vid);
-	if (mlxsw_sp_port_vlan)
+	if (mlxsw_sp_port_vlan) {
+		mlxsw_sp_port_vlan->ref_count++;
 		return mlxsw_sp_port_vlan;
+	}
 
 	return mlxsw_sp_port_vlan_create(mlxsw_sp_port, vid);
 }
@@ -1453,6 +1461,9 @@ mlxsw_sp_port_vlan_get(struct mlxsw_sp_port *mlxsw_sp_port, u16 vid)
 void mlxsw_sp_port_vlan_put(struct mlxsw_sp_port_vlan *mlxsw_sp_port_vlan)
 {
 	struct mlxsw_sp_fid *fid = mlxsw_sp_port_vlan->fid;
+
+	if (--mlxsw_sp_port_vlan->ref_count != 0)
+		return;
 
 	if (mlxsw_sp_port_vlan->bridge_port)
 		mlxsw_sp_port_vlan_bridge_leave(mlxsw_sp_port_vlan);
@@ -3465,7 +3476,6 @@ static int mlxsw_sp_cpu_policers_set(struct mlxsw_core *mlxsw_core)
 			burst_size = 7;
 			break;
 		case MLXSW_REG_HTGT_TRAP_GROUP_SP_IP2ME:
-			is_bytes = true;
 			rate = 4 * 1024;
 			burst_size = 4;
 			break;
@@ -4266,12 +4276,15 @@ static int mlxsw_sp_netdevice_port_upper_event(struct net_device *lower_dev,
 							   lower_dev,
 							   upper_dev);
 		} else if (netif_is_lag_master(upper_dev)) {
-			if (info->linking)
+			if (info->linking) {
 				err = mlxsw_sp_port_lag_join(mlxsw_sp_port,
 							     upper_dev);
-			else
+			} else {
+				mlxsw_sp_port_lag_tx_en_set(mlxsw_sp_port,
+							    false);
 				mlxsw_sp_port_lag_leave(mlxsw_sp_port,
 							upper_dev);
+			}
 		} else if (netif_is_ovs_master(upper_dev)) {
 			if (info->linking)
 				err = mlxsw_sp_port_ovs_join(mlxsw_sp_port);

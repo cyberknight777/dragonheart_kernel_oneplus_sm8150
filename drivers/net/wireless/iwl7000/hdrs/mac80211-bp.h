@@ -10,6 +10,7 @@
 /* ipv6_addr_is_multicast moved - include old header */
 #include <net/addrconf.h>
 #include <net/ieee80211_radiotap.h>
+#include <crypto/hash.h>
 
 /* make sure we include iw_handler.h to get wireless_nlevent_flush() */
 #include <net/iw_handler.h>
@@ -2067,6 +2068,9 @@ ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
 	       crypto_shash_descsize(ctx)] CRYPTO_MINALIGN_ATTR; \
 	struct shash_desc *shash = (struct shash_desc *)__##shash##_desc
 
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,11,0)
 static inline void *backport_idr_remove(struct idr *idr, int id)
 {
 	void *item = idr_find(idr, id);

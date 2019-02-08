@@ -342,6 +342,7 @@ struct hid_item {
 #define HID_QUIRK_SKIP_OUTPUT_REPORTS		0x00010000
 #define HID_QUIRK_SKIP_OUTPUT_REPORT_ID		0x00020000
 #define HID_QUIRK_NO_OUTPUT_REPORTS_ON_INTR_EP	0x00040000
+#define HID_QUIRK_INCREMENT_USAGE_ON_DUPLICATE	0x00100000
 #define HID_QUIRK_FULLSPEED_INTERVAL		0x10000000
 #define HID_QUIRK_NO_INIT_REPORTS		0x20000000
 #define HID_QUIRK_NO_IGNORE			0x40000000
@@ -500,6 +501,7 @@ struct hid_output_fifo {
 
 #define HID_STAT_ADDED		1
 #define HID_STAT_PARSED		2
+#define HID_STAT_DUP_DETECTED	4
 
 struct hid_input {
 	struct list_head list;
@@ -512,6 +514,12 @@ enum hid_type {
 	HID_TYPE_OTHER = 0,
 	HID_TYPE_USBMOUSE,
 	HID_TYPE_USBNONE
+};
+
+enum hid_battery_status {
+	HID_BATTERY_UNKNOWN = 0,
+	HID_BATTERY_QUERIED,		/* Kernel explicitly queried battery strength */
+	HID_BATTERY_REPORTED,		/* Device sent unsolicited battery strength report */
 };
 
 struct hid_driver;
@@ -556,7 +564,8 @@ struct hid_device {							/* device report descriptor */
 	__s32 battery_max;
 	__s32 battery_report_type;
 	__s32 battery_report_id;
-	bool battery_reported;
+	enum hid_battery_status battery_status;
+	bool battery_avoid_query;
 #endif
 
 	unsigned int status;						/* see STAT flags above */
@@ -841,7 +850,7 @@ extern int hidinput_connect(struct hid_device *hid, unsigned int force);
 extern void hidinput_disconnect(struct hid_device *);
 
 int hid_set_field(struct hid_field *, unsigned, __s32);
-int hid_input_report(struct hid_device *, int type, u8 *, int, int);
+int hid_input_report(struct hid_device *, int type, u8 *, u32, int);
 int hidinput_find_field(struct hid_device *hid, unsigned int type, unsigned int code, struct hid_field **field);
 struct hid_field *hidinput_get_led_field(struct hid_device *hid);
 unsigned int hidinput_count_leds(struct hid_device *hid);
@@ -1088,14 +1097,42 @@ static inline void hid_hw_wait(struct hid_device *hdev)
  *
  * @report: the report we want to know the length
  */
-static inline int hid_report_len(struct hid_report *report)
+static inline u32 hid_report_len(struct hid_report *report)
 {
 	/* equivalent to DIV_ROUND_UP(report->size, 8) + !!(report->id > 0) */
 	return ((report->size - 1) >> 3) + 1 + (report->id > 0);
 }
 
-int hid_report_raw_event(struct hid_device *hid, int type, u8 *data, int size,
+int hid_report_raw_event(struct hid_device *hid, int type, u8 *data, u32 size,
 		int interrupt);
+
+
+/**
+ * struct hid_scroll_counter - Utility class for processing high-resolution
+ *                             scroll events.
+ * @dev: the input device for which events should be reported.
+ * @microns_per_hi_res_unit: the amount moved by the user's finger for each
+ *                           high-resolution unit reported by the mouse, in
+ *                           microns.
+ * @resolution_multiplier: the wheel's resolution in high-resolution mode as a
+ *                         multiple of its lower resolution. For example, if
+ *                         moving the wheel by one "notch" would result in a
+ *                         value of 1 in low-resolution mode but 8 in
+ *                         high-resolution, the multiplier is 8.
+ * @remainder: counts the number of high-resolution units moved since the last
+ *             low-resolution event (REL_WHEEL or REL_HWHEEL) was sent. Should
+ *             only be used by class methods.
+ */
+struct hid_scroll_counter {
+	struct input_dev *dev;
+	int microns_per_hi_res_unit;
+	int resolution_multiplier;
+
+	int remainder;
+};
+
+void hid_scroll_counter_handle_scroll(struct hid_scroll_counter *counter,
+				      int hi_res_value);
 
 /* HID quirks API */
 u32 usbhid_lookup_quirk(const u16 idVendor, const u16 idProduct);

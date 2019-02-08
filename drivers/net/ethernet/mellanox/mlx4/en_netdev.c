@@ -3318,12 +3318,11 @@ int mlx4_en_init_netdev(struct mlx4_en_dev *mdev, int port,
 					   MAX_TX_RINGS, GFP_KERNEL);
 		if (!priv->tx_ring[t]) {
 			err = -ENOMEM;
-			goto err_free_tx;
+			goto out;
 		}
 		priv->tx_cq[t] = kzalloc(sizeof(struct mlx4_en_cq *) *
 					 MAX_TX_RINGS, GFP_KERNEL);
 		if (!priv->tx_cq[t]) {
-			kfree(priv->tx_ring[t]);
 			err = -ENOMEM;
 			goto out;
 		}
@@ -3335,6 +3334,13 @@ int mlx4_en_init_netdev(struct mlx4_en_dev *mdev, int port,
 	priv->msg_enable = MLX4_EN_MSG_LEVEL;
 #ifdef CONFIG_MLX4_EN_DCB
 	if (!mlx4_is_slave(priv->mdev->dev)) {
+		u8 prio;
+
+		for (prio = 0; prio < IEEE_8021QAZ_MAX_TCS; ++prio) {
+			priv->ets.prio_tc[prio] = prio;
+			priv->ets.tc_tsa[prio]  = IEEE_8021QAZ_TSA_VENDOR;
+		}
+
 		priv->dcbx_cap = DCB_CAP_DCBX_VER_CEE | DCB_CAP_DCBX_HOST |
 			DCB_CAP_DCBX_VER_IEEE;
 		priv->flags |= MLX4_EN_DCB_ENABLED;
@@ -3499,8 +3505,8 @@ int mlx4_en_init_netdev(struct mlx4_en_dev *mdev, int port,
 		dev->gso_partial_features = NETIF_F_GSO_UDP_TUNNEL_CSUM;
 	}
 
-	/* MTU range: 46 - hw-specific max */
-	dev->min_mtu = MLX4_EN_MIN_MTU;
+	/* MTU range: 68 - hw-specific max */
+	dev->min_mtu = ETH_MIN_MTU;
 	dev->max_mtu = priv->max_mtu;
 
 	mdev->pndev[port] = dev;
@@ -3569,11 +3575,6 @@ int mlx4_en_init_netdev(struct mlx4_en_dev *mdev, int port,
 
 	return 0;
 
-err_free_tx:
-	while (t--) {
-		kfree(priv->tx_ring[t]);
-		kfree(priv->tx_cq[t]);
-	}
 out:
 	mlx4_en_destroy_netdev(dev);
 	return err;

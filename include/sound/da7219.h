@@ -36,6 +36,10 @@ struct da7219_aad_pdata;
 struct da7219_pdata {
 	bool wakeup_source;
 
+	const char *dai_clks_name;
+
+	const char *mclk_name;
+
 	/* Mic */
 	enum da7219_micbias_voltage micbias_lvl;
 	enum da7219_mic_amp_in_sel mic_amp_in_sel;

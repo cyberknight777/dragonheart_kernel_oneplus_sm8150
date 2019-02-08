@@ -152,6 +152,8 @@ struct hfi1_ib_stats {
 extern struct hfi1_ib_stats hfi1_stats;
 extern const struct pci_error_handlers hfi1_pci_err_handler;
 
+extern int num_driver_cntrs;
+
 /*
  * First-cut criterion for "device is active" is
  * two thousand dwords combined Tx, Rx traffic per
@@ -1523,13 +1525,13 @@ void set_link_ipg(struct hfi1_pportdata *ppd);
 void process_becn(struct hfi1_pportdata *ppd, u8 sl, u32 rlid, u32 lqpn,
 		  u32 rqpn, u8 svc_type);
 void return_cnp(struct hfi1_ibport *ibp, struct rvt_qp *qp, u32 remote_qpn,
-		u32 pkey, u32 slid, u32 dlid, u8 sc5,
+		u16 pkey, u32 slid, u32 dlid, u8 sc5,
 		const struct ib_grh *old_grh);
 void return_cnp_16B(struct hfi1_ibport *ibp, struct rvt_qp *qp,
-		    u32 remote_qpn, u32 pkey, u32 slid, u32 dlid,
+		    u32 remote_qpn, u16 pkey, u32 slid, u32 dlid,
 		    u8 sc5, const struct ib_grh *old_grh);
 typedef void (*hfi1_handle_cnp)(struct hfi1_ibport *ibp, struct rvt_qp *qp,
-				u32 remote_qpn, u32 pkey, u32 slid, u32 dlid,
+				u32 remote_qpn, u16 pkey, u32 slid, u32 dlid,
 				u8 sc5, const struct ib_grh *old_grh);
 
 /* We support only two types - 9B and 16B for now */
@@ -1851,6 +1853,7 @@ struct cc_state *get_cc_state_protected(struct hfi1_pportdata *ppd)
 #define HFI1_HAS_SDMA_TIMEOUT  0x8
 #define HFI1_HAS_SEND_DMA      0x10   /* Supports Send DMA */
 #define HFI1_FORCED_FREEZE     0x80   /* driver forced freeze mode */
+#define HFI1_SHUTDOWN          0x100  /* device is shutting down */
 
 /* IB dword length mask in PBC (lower 11 bits); same for all chips */
 #define HFI1_PBC_LENGTH_MASK                     ((1 << 11) - 1)
@@ -1954,6 +1957,7 @@ void hfi1_verbs_unregister_sysfs(struct hfi1_devdata *dd);
 int qsfp_dump(struct hfi1_pportdata *ppd, char *buf, int len);
 
 int hfi1_pcie_init(struct pci_dev *pdev, const struct pci_device_id *ent);
+void hfi1_clean_up_interrupts(struct hfi1_devdata *dd);
 void hfi1_pcie_cleanup(struct pci_dev *pdev);
 int hfi1_pcie_ddinit(struct hfi1_devdata *dd, struct pci_dev *pdev);
 void hfi1_pcie_ddcleanup(struct hfi1_devdata *);
@@ -2430,7 +2434,7 @@ static inline void hfi1_make_16b_hdr(struct hfi1_16b_header *hdr,
 		((slid >> OPA_16B_SLID_SHIFT) << OPA_16B_SLID_HIGH_SHIFT);
 	lrh2 = (lrh2 & ~OPA_16B_DLID_MASK) |
 		((dlid >> OPA_16B_DLID_SHIFT) << OPA_16B_DLID_HIGH_SHIFT);
-	lrh2 = (lrh2 & ~OPA_16B_PKEY_MASK) | (pkey << OPA_16B_PKEY_SHIFT);
+	lrh2 = (lrh2 & ~OPA_16B_PKEY_MASK) | ((u32)pkey << OPA_16B_PKEY_SHIFT);
 	lrh2 = (lrh2 & ~OPA_16B_L4_MASK) | l4;
 
 	hdr->lrh[0] = lrh0;

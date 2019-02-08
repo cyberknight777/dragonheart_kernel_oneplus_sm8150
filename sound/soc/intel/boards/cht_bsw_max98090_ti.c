@@ -88,12 +88,14 @@ static const struct snd_soc_dapm_route cht_audio_map[] = {
 	{"Headphone", NULL, "HPR"},
 	{"Ext Spk", NULL, "SPKL"},
 	{"Ext Spk", NULL, "SPKR"},
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	{"HiFi Playback", NULL, "ssp2 Tx"},
 	{"ssp2 Tx", NULL, "codec_out0"},
 	{"ssp2 Tx", NULL, "codec_out1"},
 	{"codec_in0", NULL, "ssp2 Rx" },
 	{"codec_in1", NULL, "ssp2 Rx" },
 	{"ssp2 Rx", NULL, "HiFi Capture"},
+#endif
 	{"Headphone", NULL, "Platform Clock"},
 	{"Headset Mic", NULL, "Platform Clock"},
 	{"Int Mic", NULL, "Platform Clock"},
@@ -147,6 +149,40 @@ static struct notifier_block cht_jack_nb = {
 	.notifier_call = cht_ti_jack_event,
 };
 
+static struct snd_soc_jack_pin hs_jack_pins[] = {
+	{
+		.pin	= "Headphone",
+		.mask	= SND_JACK_HEADPHONE,
+	},
+	{
+		.pin	= "Headset Mic",
+		.mask	= SND_JACK_MICROPHONE,
+	},
+};
+
+static struct snd_soc_jack_gpio hs_jack_gpios[] = {
+	{
+		.name		= "hp",
+		.report		= SND_JACK_HEADPHONE | SND_JACK_LINEOUT,
+		.debounce_time	= 200,
+	},
+	{
+		.name		= "mic",
+		.invert		= 1,
+		.report		= SND_JACK_MICROPHONE,
+		.debounce_time	= 200,
+	},
+};
+
+static const struct acpi_gpio_params hp_gpios = { 0, 0, false };
+static const struct acpi_gpio_params mic_gpios = { 1, 0, false };
+
+static const struct acpi_gpio_mapping acpi_max98090_gpios[] = {
+	{ "hp-gpios", &hp_gpios, 1 },
+	{ "mic-gpios", &mic_gpios, 1 },
+	{},
+};
+
 static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 {
 	int ret;
@@ -166,14 +202,24 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 	jack_type = SND_JACK_HEADPHONE | SND_JACK_MICROPHONE;
 
 	ret = snd_soc_card_jack_new(runtime->card, "Headset Jack",
-					jack_type, jack, NULL, 0);
+				    jack_type, jack,
+				    hs_jack_pins, ARRAY_SIZE(hs_jack_pins));
 	if (ret) {
 		dev_err(runtime->dev, "Headset Jack creation failed %d\n", ret);
 		return ret;
 	}
 
-	if (ctx->ts3a227e_present)
-		snd_soc_jack_notifier_register(jack, &cht_jack_nb);
+	ret = snd_soc_jack_add_gpiods(runtime->card->dev->parent, jack,
+				      ARRAY_SIZE(hs_jack_gpios),
+				      hs_jack_gpios);
+	if (ret) {
+		/*
+		 * flag error but don't bail if jack detect is broken
+		 * due to platform issues or bad BIOS/configuration
+		 */
+		dev_err(runtime->dev,
+			"jack detection gpios not added, error %d\n", ret);
+	}
 
 	/*
 	 * The firmware might enable the clock at
@@ -263,7 +309,7 @@ static int cht_max98090_headset_init(struct snd_soc_component *component)
 		return ret;
 	}
 
-	return ts3a227e_enable_jack_detect(component, &ctx->jack);
+	return ts3a227e_enable_jack_detect(component, jack);
 }
 
 static const struct snd_soc_ops cht_aif1_ops = {
@@ -343,10 +389,11 @@ static struct snd_soc_card snd_soc_card_cht = {
 
 static int snd_cht_mc_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	int ret_val = 0;
 	struct cht_mc_private *drv;
 
-	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_ATOMIC);
+	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
 		return -ENOMEM;
 
@@ -355,6 +402,11 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 		/* no need probe TI jack detection chip */
 		snd_soc_card_cht.aux_dev = NULL;
 		snd_soc_card_cht.num_aux_devs = 0;
+
+		ret_val = devm_acpi_dev_add_driver_gpios(dev->parent,
+							 acpi_max98090_gpios);
+		if (ret_val)
+			dev_dbg(dev, "Unable to add GPIO mapping table\n");
 	}
 
 	/* register the soc card */

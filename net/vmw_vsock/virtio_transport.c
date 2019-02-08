@@ -187,7 +187,7 @@ virtio_transport_send_pkt(struct virtio_vsock_pkt *pkt)
 		return -ENODEV;
 	}
 
-	if (le32_to_cpu(pkt->hdr.dst_cid) == vsock->guest_cid) {
+	if (le64_to_cpu(pkt->hdr.dst_cid) == vsock->guest_cid) {
 		// Loopback is disabled on chrome os because we don't use it and
 		// it's easier to just block all loopback connections in the
 		// kernel instead of trying to have each individual application

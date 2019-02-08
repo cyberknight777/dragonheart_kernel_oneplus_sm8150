@@ -142,6 +142,7 @@ static int drm_new_set_master(struct drm_device *dev, struct drm_file *fpriv)
 
 	lockdep_assert_held_once(&dev->master_mutex);
 
+	WARN_ON(fpriv->is_master);
 	old_master = fpriv->master;
 	fpriv->master = drm_master_create(dev);
 	if (!fpriv->master) {
@@ -170,6 +171,7 @@ out_err:
 	/* drop references and restore old master on failure */
 	drm_master_put(&fpriv->master);
 	fpriv->master = old_master;
+	fpriv->is_master = 0;
 
 	return ret;
 }
@@ -229,6 +231,12 @@ int drm_dropmaster_ioctl(struct drm_device *dev, void *data,
 
 	if (!dev->master)
 		goto out_unlock;
+
+	if (file_priv->master->lessor != NULL) {
+		DRM_DEBUG_LEASE("Attempt to drop lessee %d as master\n", file_priv->master->lessee_id);
+		ret = -EINVAL;
+		goto out_unlock;
+	}
 
 	ret = 0;
 	drm_drop_master(dev, file_priv);

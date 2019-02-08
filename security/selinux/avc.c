@@ -23,7 +23,6 @@
 #include <linux/skbuff.h>
 #include <linux/percpu.h>
 #include <linux/list.h>
-#include <linux/pid_namespace.h>
 #include <net/sock.h>
 #include <linux/un.h>
 #include <net/af_unix.h>
@@ -34,7 +33,6 @@
 #include "avc.h"
 #include "avc_ss.h"
 #include "classmap.h"
-#include "objsec.h"
 
 #define AVC_CACHE_SLOTS			512
 #define AVC_DEF_CACHE_THRESHOLD		512
@@ -990,23 +988,6 @@ static noinline int avc_denied(u32 ssid, u32 tsid,
 				u8 driver, u8 xperm, unsigned flags,
 				struct av_decision *avd)
 {
-	const struct task_security_struct *tsec = current_security();
-	const u32 current_sid = tsec->sid;
-	/*
-	 * Hack to only enforce SELinux on Android processes.
-	 * This API does not guarantee that this access check is being performed
-	 * on behalf of current. This works on ARC++ because only the Android
-	 * PID namespace has selinux_enforcing enabled, and there is no overlap
-	 * between process contexts inside and outside of the Android container.
-	 */
-	const bool ns_selinux_permissive =
-	    ssid == current_sid &&
-	    !task_active_pid_ns(current)->selinux_enforcing;
-	if (ssid == SECINITSID_KERNEL || ns_selinux_permissive) {
-		avd->allowed = 0xffffffff;
-		return 0;
-	}
-
 	if (flags & AVC_STRICT)
 		return -EACCES;
 

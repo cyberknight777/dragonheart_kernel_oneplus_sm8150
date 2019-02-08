@@ -869,6 +869,13 @@ struct vmbus_channel {
 
 	bool probe_done;
 
+	/*
+	 * We must offload the handling of the primary/sub channels
+	 * from the single-threaded vmbus_connection.work_queue to
+	 * two different workqueue, otherwise we can block
+	 * vmbus_connection.work_queue and hang: see vmbus_process_offer().
+	 */
+	struct work_struct add_channel_work;
 };
 
 static inline bool is_hvsock_channel(const struct vmbus_channel *c)
@@ -1025,6 +1032,8 @@ extern int vmbus_establish_gpadl(struct vmbus_channel *channel,
 
 extern int vmbus_teardown_gpadl(struct vmbus_channel *channel,
 				     u32 gpadl_handle);
+
+void vmbus_reset_channel_cb(struct vmbus_channel *channel);
 
 extern int vmbus_recvpacket(struct vmbus_channel *channel,
 				  void *buffer,

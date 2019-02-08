@@ -42,6 +42,8 @@
 #include <linux/vfio.h>
 #include <linux/mdev.h>
 
+#include <linux/nospec.h>
+
 #include "i915_drv.h"
 #include "gvt.h"
 
@@ -813,11 +815,18 @@ write_err:
 	return -EFAULT;
 }
 
+static inline bool intel_vgpu_in_aperture(struct intel_vgpu *vgpu,
+					  unsigned long off)
+{
+	return off >= vgpu_aperture_offset(vgpu) &&
+		off < vgpu_aperture_offset(vgpu) + vgpu_aperture_sz(vgpu);
+}
+
 static int intel_vgpu_mmap(struct mdev_device *mdev, struct vm_area_struct *vma)
 {
 	unsigned int index;
 	u64 virtaddr;
-	unsigned long req_size, pgoff = 0;
+	unsigned long req_size, pgoff, req_start;
 	pgprot_t pg_prot;
 	struct intel_vgpu *vgpu = mdev_get_drvdata(mdev);
 
@@ -835,7 +844,17 @@ static int intel_vgpu_mmap(struct mdev_device *mdev, struct vm_area_struct *vma)
 	pg_prot = vma->vm_page_prot;
 	virtaddr = vma->vm_start;
 	req_size = vma->vm_end - vma->vm_start;
-	pgoff = vgpu_aperture_pa_base(vgpu) >> PAGE_SHIFT;
+	pgoff = vma->vm_pgoff &
+		((1U << (VFIO_PCI_OFFSET_SHIFT - PAGE_SHIFT)) - 1);
+	req_start = pgoff << PAGE_SHIFT;
+
+	if (!intel_vgpu_in_aperture(vgpu, req_start))
+		return -EINVAL;
+	if (req_start + req_size >
+	    vgpu_aperture_offset(vgpu) + vgpu_aperture_sz(vgpu))
+		return -EINVAL;
+
+	pgoff = (gvt_aperture_pa_base(vgpu->gvt) >> PAGE_SHIFT) + pgoff;
 
 	return remap_pfn_range(vma, virtaddr, pgoff, req_size, pg_prot);
 }
@@ -961,7 +980,8 @@ static long intel_vgpu_ioctl(struct mdev_device *mdev, unsigned int cmd,
 	} else if (cmd == VFIO_DEVICE_GET_REGION_INFO) {
 		struct vfio_region_info info;
 		struct vfio_info_cap caps = { .buf = NULL, .size = 0 };
-		int i, ret;
+		unsigned int i;
+		int ret;
 		struct vfio_region_info_cap_sparse_mmap *sparse = NULL;
 		size_t size;
 		int nr_areas = 1;
@@ -1038,6 +1058,10 @@ static long intel_vgpu_ioctl(struct mdev_device *mdev, unsigned int cmd,
 				if (info.index >= VFIO_PCI_NUM_REGIONS +
 						vgpu->vdev.num_regions)
 					return -EINVAL;
+				info.index =
+					array_index_nospec(info.index,
+							VFIO_PCI_NUM_REGIONS +
+							vgpu->vdev.num_regions);
 
 				i = info.index - VFIO_PCI_NUM_REGIONS;
 
@@ -1161,7 +1185,7 @@ static long intel_vgpu_ioctl(struct mdev_device *mdev, unsigned int cmd,
 		return 0;
 	}
 
-	return 0;
+	return -ENOTTY;
 }
 
 static ssize_t

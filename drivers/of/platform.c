@@ -499,6 +499,7 @@ EXPORT_SYMBOL_GPL(of_platform_default_populate);
 #ifndef CONFIG_PPC
 static const struct of_device_id reserved_mem_matches[] = {
 	{ .compatible = "qcom,rmtfs-mem" },
+	{ .compatible = "qcom,cmd-db" },
 	{ .compatible = "ramoops" },
 	{}
 };
@@ -518,6 +519,10 @@ static int __init of_platform_default_populate_init(void)
 	for_each_matching_node(node, reserved_mem_matches)
 		of_platform_device_create(node, NULL, NULL);
 
+	node = of_find_node_by_path("/firmware");
+	if (node)
+		of_platform_populate(node, NULL, NULL, NULL);
+
 	/* Populate everything else. */
 	of_platform_default_populate(NULL, NULL, NULL);
 
@@ -536,6 +541,9 @@ int of_platform_device_destroy(struct device *dev, void *data)
 	if (of_node_check_flag(dev->of_node, OF_POPULATED_BUS))
 		device_for_each_child(dev, NULL, of_platform_device_destroy);
 
+	of_node_clear_flag(dev->of_node, OF_POPULATED);
+	of_node_clear_flag(dev->of_node, OF_POPULATED_BUS);
+
 	if (dev->bus == &platform_bus_type)
 		platform_device_unregister(to_platform_device(dev));
 #ifdef CONFIG_ARM_AMBA
@@ -543,8 +551,6 @@ int of_platform_device_destroy(struct device *dev, void *data)
 		amba_device_unregister(to_amba_device(dev));
 #endif
 
-	of_node_clear_flag(dev->of_node, OF_POPULATED);
-	of_node_clear_flag(dev->of_node, OF_POPULATED_BUS);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(of_platform_device_destroy);

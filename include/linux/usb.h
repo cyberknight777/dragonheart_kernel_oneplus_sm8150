@@ -407,11 +407,11 @@ struct usb_host_bos {
 };
 
 int __usb_get_extra_descriptor(char *buffer, unsigned size,
-	unsigned char type, void **ptr);
+	unsigned char type, void **ptr, size_t min);
 #define usb_get_extra_descriptor(ifpoint, type, ptr) \
 				__usb_get_extra_descriptor((ifpoint)->extra, \
 				(ifpoint)->extralen, \
-				type, (void **)ptr)
+				type, (void **)ptr, sizeof(**(ptr)))
 
 /* ----------------------------------------------------------------------- */
 
@@ -488,6 +488,16 @@ enum usb_port_connect_type {
 	USB_PORT_CONNECT_TYPE_HARD_WIRED,
 	USB_PORT_NOT_USED,
 };
+
+/*
+ * USB port quirks.
+ */
+
+/* For the given port, prefer the old (faster) enumeration scheme. */
+#define USB_PORT_QUIRK_OLD_SCHEME	BIT(0)
+
+/* Decrease TRSTRCY to 10ms during device enumeration. */
+#define USB_PORT_QUIRK_FAST_ENUM	BIT(1)
 
 /*
  * USB 2.0 Link Power Management (LPM) parameters.

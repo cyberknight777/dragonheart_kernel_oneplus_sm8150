@@ -450,7 +450,7 @@ static inline int ptr_ring_consume_batched_bh(struct ptr_ring *r,
  */
 static inline void **__ptr_ring_init_queue_alloc(unsigned int size, gfp_t gfp)
 {
-	if (size * sizeof(void *) > KMALLOC_MAX_SIZE)
+	if (size > KMALLOC_MAX_SIZE / sizeof(void *))
 		return NULL;
 	return kvmalloc_array(size, sizeof(void *), gfp | __GFP_ZERO);
 }
@@ -551,6 +551,8 @@ static inline void **__ptr_ring_swap_queue(struct ptr_ring *r, void **queue,
 		else if (destroy)
 			destroy(ptr);
 
+	if (producer >= size)
+		producer = 0;
 	__ptr_ring_set_size(r, size);
 	r->producer = producer;
 	r->consumer_head = 0;

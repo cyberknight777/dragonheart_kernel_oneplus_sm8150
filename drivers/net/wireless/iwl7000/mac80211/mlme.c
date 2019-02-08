@@ -184,7 +184,7 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		 * it should be OK.
 		 */
 		sdata_info(sdata,
-			   "Wrong control channel: center-freq: %d ht-cfreq: %d ht->primary_chan: %d band: %d - Disabling HT\n",
+			   "mismatch: center-freq: %d ht-cfreq: %d ht->primary_chan: %d band: %d - Disable HT\n",
 			   channel->center_freq, ht_cfreq,
 			   ht_oper->primary_chan, channel->band);
 		ret = IEEE80211_STA_DISABLE_HT | IEEE80211_STA_DISABLE_VHT;

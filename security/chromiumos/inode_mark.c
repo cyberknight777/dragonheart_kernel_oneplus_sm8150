@@ -304,7 +304,7 @@ int chromiumos_flush_inode_security_policies(struct super_block *sb)
 }
 
 enum chromiumos_inode_security_policy chromiumos_get_inode_security_policy(
-	struct dentry *dentry,
+	struct dentry *dentry, struct inode *inode,
 	enum chromiumos_inode_security_policy_type type)
 {
 	struct chromiumos_super_block_mark *sbm;
@@ -317,11 +317,10 @@ enum chromiumos_inode_security_policy chromiumos_get_inode_security_policy(
 	enum chromiumos_inode_security_policy policy =
 		CHROMIUMOS_INODE_POLICY_INHERIT;
 
-	if (!dentry || !dentry->d_inode ||
-			type >= CHROMIUMOS_NUMBER_OF_POLICIES)
+	if (!dentry || !inode || type >= CHROMIUMOS_NUMBER_OF_POLICIES)
 		return policy;
 
-	sbm = chromiumos_super_block_lookup(dentry->d_inode->i_sb);
+	sbm = chromiumos_super_block_lookup(inode->i_sb);
 	if (!sbm)
 		return policy;
 
@@ -329,7 +328,7 @@ enum chromiumos_inode_security_policy chromiumos_get_inode_security_policy(
 	rcu_read_lock();
 	while (1) {
 		struct fsnotify_mark *mark = fsnotify_find_mark(
-			&dentry->d_inode->i_fsnotify_marks, sbm->fsn_group);
+			&inode->i_fsnotify_marks, sbm->fsn_group);
 		if (mark) {
 			struct chromiumos_inode_mark *inode_mark =
 				chromiumos_to_inode_mark(mark);
@@ -342,7 +341,12 @@ enum chromiumos_inode_security_policy chromiumos_get_inode_security_policy(
 
 		if (IS_ROOT(dentry))
 			break;
-		dentry = dentry->d_parent;
+		dentry = READ_ONCE(dentry->d_parent);
+		if (!dentry)
+			break;
+		inode = d_inode_rcu(dentry);
+		if (!inode)
+			break;
 	}
 	rcu_read_unlock();
 

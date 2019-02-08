@@ -629,15 +629,17 @@ end:
 }
 
 static int handle_in_packet_without_header(struct amdtp_stream *s,
-			unsigned int payload_quadlets, unsigned int cycle,
+			unsigned int payload_length, unsigned int cycle,
 			unsigned int index)
 {
 	__be32 *buffer;
+	unsigned int payload_quadlets;
 	unsigned int data_blocks;
 	struct snd_pcm_substream *pcm;
 	unsigned int pcm_frames;
 
 	buffer = s->buffer.packets[s->packet_index].buffer;
+	payload_quadlets = payload_length / 4;
 	data_blocks = payload_quadlets / s->data_block_quadlets;
 
 	trace_in_packet_without_header(s, cycle, payload_quadlets, data_blocks,
@@ -773,8 +775,6 @@ static void amdtp_stream_first_callback(struct fw_iso_context *context,
 	u32 cycle;
 	unsigned int packets;
 
-	s->max_payload_length = amdtp_stream_get_max_payload(s);
-
 	/*
 	 * For in-stream, first packet has come.
 	 * For out-stream, prepared to transmit first packet
@@ -878,6 +878,9 @@ int amdtp_stream_start(struct amdtp_stream *s, int channel, int speed)
 	}
 
 	amdtp_stream_update(s);
+
+	if (s->direction == AMDTP_IN_STREAM)
+		s->max_payload_length = amdtp_stream_get_max_payload(s);
 
 	if (s->flags & CIP_NO_HEADER)
 		s->tag = TAG_NO_CIP_HEADER;

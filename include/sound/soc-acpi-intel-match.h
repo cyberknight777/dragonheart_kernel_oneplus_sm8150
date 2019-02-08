@@ -16,6 +16,7 @@
 #ifndef __LINUX_SND_SOC_ACPI_INTEL_MATCH_H
 #define __LINUX_SND_SOC_ACPI_INTEL_MATCH_H
 
+#include <linux/module.h>
 #include <linux/stddef.h>
 #include <linux/acpi.h>
 
@@ -28,5 +29,16 @@ extern struct snd_soc_acpi_mach snd_soc_acpi_intel_broadwell_machines[];
 extern struct snd_soc_acpi_mach snd_soc_acpi_intel_baytrail_legacy_machines[];
 extern struct snd_soc_acpi_mach snd_soc_acpi_intel_baytrail_machines[];
 extern struct snd_soc_acpi_mach snd_soc_acpi_intel_cherrytrail_machines[];
+extern struct snd_soc_acpi_mach snd_soc_acpi_intel_skl_machines[];
+extern struct snd_soc_acpi_mach snd_soc_acpi_intel_kbl_machines[];
+extern struct snd_soc_acpi_mach snd_soc_acpi_intel_bxt_machines[];
+extern struct snd_soc_acpi_mach snd_soc_acpi_intel_glk_machines[];
+extern struct snd_soc_acpi_mach snd_soc_acpi_intel_cnl_machines[];
+
+/*
+ * generic table used for HDA codec-based platforms, possibly with
+ * additional ACPI-enumerated codecs
+ */
+extern struct snd_soc_acpi_mach snd_soc_acpi_intel_hda_machines[];
 
 #endif

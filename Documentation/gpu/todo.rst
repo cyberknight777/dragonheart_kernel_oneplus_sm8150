@@ -373,11 +373,6 @@ those drivers as simple as possible, so lots of room for refactoring:
   one of the ideas for having a shared dsi/dbi helper, abstracting away the
   transport details more.
 
-- tinydrm_lastclose could be drm_fb_helper_lastclose. Only thing we need
-  for that is to store the drm_fb_helper pointer somewhere in
-  drm_device->mode_config. And then we could roll that out to all the
-  drivers.
-
 - tinydrm_gem_cma_prime_import_sg_table should probably go into the cma
   helpers, as a _vmapped variant (since not every driver needs the vmap).
   And tinydrm_gem_cma_free_object could the be merged into
@@ -390,11 +385,6 @@ those drivers as simple as possible, so lots of room for refactoring:
 - Quick aside: The unregister devm stuff is kinda getting the lifetimes of
   a drm_device wrong. Doesn't matter, since everyone else gets it wrong
   too :-)
-
-- With the fbdev pointer in dev->mode_config we could also make
-  suspend/resume helpers entirely generic, at least if we add a
-  dev->mode_config.suspend_state. We could even provide a generic pm_ops
-  structure with those.
 
 - also rework the drm_framebuffer_funcs->dirty hook wire-up, see above.
 

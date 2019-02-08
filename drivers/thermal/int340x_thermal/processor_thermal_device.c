@@ -39,6 +39,9 @@
 #define PCI_DEVICE_ID_PROC_BXTX_THERMAL  0x4A8C
 #define PCI_DEVICE_ID_PROC_BXTP_THERMAL  0x5A8C
 
+/* GeminiLake thermal reporting device */
+#define PCI_DEVICE_ID_PROC_GLK_THERMAL	0x318C
+
 struct power_config {
 	u32	index;
 	u32	min_uw;
@@ -461,6 +464,7 @@ static const struct pci_device_id proc_thermal_pci_ids[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_PROC_BXT1_THERMAL)},
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_PROC_BXTX_THERMAL)},
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_PROC_BXTP_THERMAL)},
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_PROC_GLK_THERMAL)},
 	{ 0, },
 };
 

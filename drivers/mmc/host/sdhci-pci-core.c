@@ -32,7 +32,6 @@
 
 #include "sdhci.h"
 #include "sdhci-pci.h"
-#include "sdhci-pci-o2micro.h"
 
 static int sdhci_pci_enable_dma(struct sdhci_host *host);
 static void sdhci_pci_hw_reset(struct sdhci_host *host);
@@ -806,6 +805,8 @@ static int intel_mrfld_mmc_probe_slot(struct sdhci_pci_slot *slot)
 		slot->host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 		break;
 	case INTEL_MRFLD_SDIO:
+		/* Advertise 2.0v for compatibility with the SDIO card's OCR */
+		slot->host->ocr_mask = MMC_VDD_20_21 | MMC_VDD_165_195;
 		slot->host->mmc->caps |= MMC_CAP_NONREMOVABLE |
 					 MMC_CAP_POWER_OFF_CARD;
 		break;
@@ -824,15 +825,6 @@ static const struct sdhci_pci_fixes sdhci_intel_mrfld_mmc = {
 	.allow_runtime_pm = true,
 	.probe_slot	= intel_mrfld_mmc_probe_slot,
 };
-
-/* O2Micro extra registers */
-#define O2_SD_LOCK_WP		0xD3
-#define O2_SD_MULTI_VCC3V	0xEE
-#define O2_SD_CLKREQ		0xEC
-#define O2_SD_CAPS		0xE0
-#define O2_SD_ADMA1		0xE2
-#define O2_SD_ADMA2		0xE7
-#define O2_SD_INF_MOD		0xF1
 
 static int jmicron_pmos(struct sdhci_pci_chip *chip, int on)
 {
@@ -1190,7 +1182,7 @@ static void amd_enable_manual_tuning(struct pci_dev *pdev)
 	pci_write_config_dword(pdev, AMD_SD_MISC_CONTROL, val);
 }
 
-static int amd_execute_tuning(struct sdhci_host *host, u32 opcode)
+static int amd_execute_tuning_hs200(struct sdhci_host *host, u32 opcode)
 {
 	struct sdhci_pci_slot *slot = sdhci_priv(host);
 	struct pci_dev *pdev = slot->chip->pdev;
@@ -1229,6 +1221,27 @@ static int amd_execute_tuning(struct sdhci_host *host, u32 opcode)
 	return 0;
 }
 
+static int amd_execute_tuning(struct mmc_host *mmc, u32 opcode)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	/* AMD requires custom HS200 tuning */
+	if (host->timing == MMC_TIMING_MMC_HS200)
+		return amd_execute_tuning_hs200(host, opcode);
+
+	/* Otherwise perform standard SDHCI tuning */
+	return sdhci_execute_tuning(mmc, opcode);
+}
+
+static int amd_probe_slot(struct sdhci_pci_slot *slot)
+{
+	struct mmc_host_ops *ops = &slot->host->mmc_host_ops;
+
+	ops->execute_tuning = amd_execute_tuning;
+
+	return 0;
+}
+
 static int amd_probe(struct sdhci_pci_chip *chip)
 {
 	struct pci_dev	*smbus_dev;
@@ -1263,12 +1276,12 @@ static const struct sdhci_ops amd_sdhci_pci_ops = {
 	.set_bus_width			= sdhci_set_bus_width,
 	.reset				= sdhci_reset,
 	.set_uhs_signaling		= sdhci_set_uhs_signaling,
-	.platform_execute_tuning	= amd_execute_tuning,
 };
 
 static const struct sdhci_pci_fixes sdhci_amd = {
 	.probe		= amd_probe,
 	.ops		= &amd_sdhci_pci_ops,
+	.probe_slot	= amd_probe_slot,
 };
 
 static const struct pci_device_id pci_ids[] = {
@@ -1584,8 +1597,13 @@ static struct sdhci_pci_slot *sdhci_pci_probe_slot(
 	host->mmc->caps2 |= MMC_CAP2_NO_PRESCAN_POWERUP;
 
 	if (slot->cd_idx >= 0) {
-		ret = mmc_gpiod_request_cd(host->mmc, NULL, slot->cd_idx,
+		ret = mmc_gpiod_request_cd(host->mmc, "cd", slot->cd_idx,
 					   slot->cd_override_level, 0, NULL);
+		if (ret && ret != -EPROBE_DEFER)
+			ret = mmc_gpiod_request_cd(host->mmc, NULL,
+						   slot->cd_idx,
+						   slot->cd_override_level,
+						   0, NULL);
 		if (ret == -EPROBE_DEFER)
 			goto remove;
 

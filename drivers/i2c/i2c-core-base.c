@@ -390,7 +390,7 @@ static int i2c_device_probe(struct device *dev)
 		goto err_clear_wakeup_irq;
 
 	status = dev_pm_domain_attach(&client->dev, true);
-	if (status == -EPROBE_DEFER)
+	if (status)
 		goto err_clear_wakeup_irq;
 
 	/*
@@ -638,7 +638,7 @@ static int i2c_check_addr_busy(struct i2c_adapter *adapter, int addr)
 static void i2c_adapter_lock_bus(struct i2c_adapter *adapter,
 				 unsigned int flags)
 {
-	rt_mutex_lock(&adapter->bus_lock);
+	rt_mutex_lock_nested(&adapter->bus_lock, i2c_adapter_depth(adapter));
 }
 
 /**
@@ -766,6 +766,7 @@ i2c_new_device(struct i2c_adapter *adap, struct i2c_board_info const *info)
 	client->dev.of_node = info->of_node;
 	client->dev.fwnode = info->fwnode;
 
+	device_enable_async_suspend(&client->dev);
 	i2c_dev_set_name(adap, client);
 
 	if (info->properties) {
@@ -808,8 +809,11 @@ EXPORT_SYMBOL_GPL(i2c_new_device);
  */
 void i2c_unregister_device(struct i2c_client *client)
 {
-	if (client->dev.of_node)
+	if (client->dev.of_node) {
 		of_node_clear_flag(client->dev.of_node, OF_POPULATED);
+		of_node_put(client->dev.of_node);
+	}
+
 	if (ACPI_COMPANION(&client->dev))
 		acpi_device_clear_enumerated(ACPI_COMPANION(&client->dev));
 	device_unregister(&client->dev);
@@ -1823,9 +1827,15 @@ static int i2c_check_for_quirks(struct i2c_adapter *adap, struct i2c_msg *msgs, 
 		if (msgs[i].flags & I2C_M_RD) {
 			if (do_len_check && i2c_quirk_exceeded(len, q->max_read_len))
 				return i2c_quirk_error(adap, &msgs[i], "msg too long");
+
+			if (q->flags & I2C_AQ_NO_ZERO_LEN_READ && len == 0)
+				return i2c_quirk_error(adap, &msgs[i], "no zero length");
 		} else {
 			if (do_len_check && i2c_quirk_exceeded(len, q->max_write_len))
 				return i2c_quirk_error(adap, &msgs[i], "msg too long");
+
+			if (q->flags & I2C_AQ_NO_ZERO_LEN_WRITE && len == 0)
+				return i2c_quirk_error(adap, &msgs[i], "no zero length");
 		}
 	}
 
@@ -1952,63 +1962,35 @@ int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 EXPORT_SYMBOL(i2c_transfer);
 
 /**
- * i2c_master_send - issue a single I2C message in master transmit mode
+ * i2c_transfer_buffer_flags - issue a single I2C message transferring data
+ *			       to/from a buffer
  * @client: Handle to slave device
- * @buf: Data that will be written to the slave
- * @count: How many bytes to write, must be less than 64k since msg.len is u16
+ * @buf: Where the data is stored
+ * @count: How many bytes to transfer, must be less than 64k since msg.len is u16
+ * @flags: The flags to be used for the message, e.g. I2C_M_RD for reads
  *
- * Returns negative errno, or else the number of bytes written.
+ * Returns negative errno, or else the number of bytes transferred.
  */
-int i2c_master_send(const struct i2c_client *client, const char *buf, int count)
+int i2c_transfer_buffer_flags(const struct i2c_client *client, char *buf,
+			      int count, u16 flags)
 {
 	int ret;
-	struct i2c_adapter *adap = client->adapter;
-	struct i2c_msg msg;
+	struct i2c_msg msg = {
+		.addr = client->addr,
+		.flags = flags | (client->flags & I2C_M_TEN),
+		.len = count,
+		.buf = buf,
+	};
 
-	msg.addr = client->addr;
-	msg.flags = client->flags & I2C_M_TEN;
-	msg.len = count;
-	msg.buf = (char *)buf;
-
-	ret = i2c_transfer(adap, &msg, 1);
+	ret = i2c_transfer(client->adapter, &msg, 1);
 
 	/*
-	 * If everything went ok (i.e. 1 msg transmitted), return #bytes
-	 * transmitted, else error code.
+	 * If everything went ok (i.e. 1 msg transferred), return #bytes
+	 * transferred, else error code.
 	 */
 	return (ret == 1) ? count : ret;
 }
-EXPORT_SYMBOL(i2c_master_send);
-
-/**
- * i2c_master_recv - issue a single I2C message in master receive mode
- * @client: Handle to slave device
- * @buf: Where to store data read from slave
- * @count: How many bytes to read, must be less than 64k since msg.len is u16
- *
- * Returns negative errno, or else the number of bytes read.
- */
-int i2c_master_recv(const struct i2c_client *client, char *buf, int count)
-{
-	struct i2c_adapter *adap = client->adapter;
-	struct i2c_msg msg;
-	int ret;
-
-	msg.addr = client->addr;
-	msg.flags = client->flags & I2C_M_TEN;
-	msg.flags |= I2C_M_RD;
-	msg.len = count;
-	msg.buf = buf;
-
-	ret = i2c_transfer(adap, &msg, 1);
-
-	/*
-	 * If everything went ok (i.e. 1 msg received), return #bytes received,
-	 * else error code.
-	 */
-	return (ret == 1) ? count : ret;
-}
-EXPORT_SYMBOL(i2c_master_recv);
+EXPORT_SYMBOL(i2c_transfer_buffer_flags);
 
 /* ----------------------------------------------------
  * the i2c address scanning function
@@ -2240,6 +2222,53 @@ void i2c_put_adapter(struct i2c_adapter *adap)
 	module_put(adap->owner);
 }
 EXPORT_SYMBOL(i2c_put_adapter);
+
+/**
+ * i2c_get_dma_safe_msg_buf() - get a DMA safe buffer for the given i2c_msg
+ * @msg: the message to be checked
+ * @threshold: the minimum number of bytes for which using DMA makes sense
+ *
+ * Return: NULL if a DMA safe buffer was not obtained. Use msg->buf with PIO.
+ *	   Or a valid pointer to be used with DMA. After use, release it by
+ *	   calling i2c_release_dma_safe_msg_buf().
+ *
+ * This function must only be called from process context!
+ */
+u8 *i2c_get_dma_safe_msg_buf(struct i2c_msg *msg, unsigned int threshold)
+{
+	if (msg->len < threshold)
+		return NULL;
+
+	if (msg->flags & I2C_M_DMA_SAFE)
+		return msg->buf;
+
+	pr_debug("using bounce buffer for addr=0x%02x, len=%d\n",
+		 msg->addr, msg->len);
+
+	if (msg->flags & I2C_M_RD)
+		return kzalloc(msg->len, GFP_KERNEL);
+	else
+		return kmemdup(msg->buf, msg->len, GFP_KERNEL);
+}
+EXPORT_SYMBOL_GPL(i2c_get_dma_safe_msg_buf);
+
+/**
+ * i2c_put_dma_safe_msg_buf - release DMA safe buffer and sync with i2c_msg
+ * @buf: the buffer obtained from i2c_get_dma_safe_msg_buf(). May be NULL.
+ * @msg: the message which the buffer corresponds to
+ * @xferred: bool saying if the message was transferred
+ */
+void i2c_put_dma_safe_msg_buf(u8 *buf, struct i2c_msg *msg, bool xferred)
+{
+	if (!buf || buf == msg->buf)
+		return;
+
+	if (xferred && msg->flags & I2C_M_RD)
+		memcpy(msg->buf, buf, msg->len);
+
+	kfree(buf);
+}
+EXPORT_SYMBOL_GPL(i2c_put_dma_safe_msg_buf);
 
 MODULE_AUTHOR("Simon G. Vogl <simon@tk.uni-linz.ac.at>");
 MODULE_DESCRIPTION("I2C-Bus main module");

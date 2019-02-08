@@ -29,6 +29,21 @@ static struct kmem_cache *nat_entry_slab;
 static struct kmem_cache *free_nid_slab;
 static struct kmem_cache *nat_entry_set_slab;
 
+/*
+ * Check whether the given nid is within node id range.
+ */
+int check_nid_range(struct f2fs_sb_info *sbi, nid_t nid)
+{
+	if (unlikely(nid < F2FS_ROOT_INO(sbi) || nid >= NM_I(sbi)->max_nid)) {
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		f2fs_msg(sbi->sb, KERN_WARNING,
+				"%s: out-of-range nid=%x, run fsck to fix.",
+				__func__, nid);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 bool available_free_memory(struct f2fs_sb_info *sbi, int type)
 {
 	struct f2fs_nm_info *nm_i = NM_I(sbi);
@@ -319,8 +334,7 @@ static void set_node_addr(struct f2fs_sb_info *sbi, struct node_info *ni,
 			new_blkaddr == NULL_ADDR);
 	f2fs_bug_on(sbi, nat_get_blkaddr(e) == NEW_ADDR &&
 			new_blkaddr == NEW_ADDR);
-	f2fs_bug_on(sbi, nat_get_blkaddr(e) != NEW_ADDR &&
-			nat_get_blkaddr(e) != NULL_ADDR &&
+	f2fs_bug_on(sbi, is_valid_data_blkaddr(sbi, nat_get_blkaddr(e)) &&
 			new_blkaddr == NEW_ADDR);
 
 	/* increment version no as node is removed */
@@ -335,7 +349,7 @@ static void set_node_addr(struct f2fs_sb_info *sbi, struct node_info *ni,
 
 	/* change address */
 	nat_set_blkaddr(e, new_blkaddr);
-	if (new_blkaddr == NEW_ADDR || new_blkaddr == NULL_ADDR)
+	if (!is_valid_data_blkaddr(sbi, new_blkaddr))
 		set_nat_flag(e, IS_CHECKPOINTED, false);
 	__set_nat_cache_dirty(nm_i, e);
 
@@ -1122,7 +1136,8 @@ void ra_node_page(struct f2fs_sb_info *sbi, nid_t nid)
 
 	if (!nid)
 		return;
-	f2fs_bug_on(sbi, check_nid_range(sbi, nid));
+	if (check_nid_range(sbi, nid))
+		return;
 
 	rcu_read_lock();
 	apage = radix_tree_lookup(&NODE_MAPPING(sbi)->page_tree, nid);
@@ -1146,7 +1161,8 @@ static struct page *__get_node_page(struct f2fs_sb_info *sbi, pgoff_t nid,
 
 	if (!nid)
 		return ERR_PTR(-ENOENT);
-	f2fs_bug_on(sbi, check_nid_range(sbi, nid));
+	if (check_nid_range(sbi, nid))
+		return ERR_PTR(-EINVAL);
 repeat:
 	page = f2fs_grab_cache_page(NODE_MAPPING(sbi), nid, false);
 	if (!page)
@@ -1382,6 +1398,12 @@ static int __write_node_page(struct page *page, bool atomic, bool *submitted,
 		return 0;
 	}
 
+	if (__is_valid_data_blkaddr(ni.blk_addr) &&
+		!f2fs_is_valid_blkaddr(sbi, ni.blk_addr, DATA_GENERIC)) {
+		up_read(&sbi->node_write);
+		goto redirty_out;
+	}
+
 	if (atomic && !test_opt(sbi, NOBARRIER))
 		fio.op_flags |= REQ_PREFLUSH | REQ_FUA;
 
@@ -1593,7 +1615,9 @@ next_step:
 						!is_cold_node(page)))
 				continue;
 lock_node:
-			if (!trylock_page(page))
+			if (wbc->sync_mode == WB_SYNC_ALL)
+				lock_page(page);
+			else if (!trylock_page(page))
 				continue;
 
 			if (unlikely(page->mapping != NODE_MAPPING(sbi))) {

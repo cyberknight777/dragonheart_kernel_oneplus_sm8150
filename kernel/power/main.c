@@ -15,9 +15,6 @@
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
-#include <linux/pm.h>
-#include <linux/pm_dark_resume.h>
-#include <linux/pm_wakeup.h>
 
 #include "power.h"
 
@@ -586,54 +583,6 @@ static ssize_t wakeup_count_store(struct kobject *kobj,
 
 power_attr(wakeup_count);
 
-static const char * const unknown = "unknown";
-static const char * const automatic = "automatic";
-static const char * const user = "user";
-static const char * const invalid = "invalid";
-
-static ssize_t wakeup_type_show(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				char *buf)
-{
-	enum pm_wakeup_type type = pm_get_wakeup_source_type();
-
-	/*
-	 * Hack to support dark_resume_always with wakeup_type until we can get
-	 * rid of dark_resume_always.
-	 */
-	if (pm_dark_resume_active())
-		return sprintf(buf, "%s\n", automatic);
-
-	switch (type) {
-	case WAKEUP_UNKNOWN:
-		return sprintf(buf, "%s\n", unknown);
-	case WAKEUP_AUTOMATIC:
-		return sprintf(buf, "%s\n", automatic);
-	case WAKEUP_USER:
-		return sprintf(buf, "%s\n", user);
-	default:
-		return sprintf(buf, "%s\n", invalid);
-	}
-}
-
-static ssize_t wakeup_type_store(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				const char *buf, size_t n)
-{
-	/*
-	 * Just the funcionality to set wakeup_type to "unknown" from userspace
-	 * is supported and is all that's needed.
-	 */
-	if (sysfs_streq(unknown, buf)) {
-		pm_set_wakeup_type(WAKEUP_UNKNOWN);
-		return n;
-	}
-
-	return -EINVAL;
-}
-
-power_attr(wakeup_type);
-
 #ifdef CONFIG_PM_AUTOSLEEP
 static ssize_t autosleep_show(struct kobject *kobj,
 			      struct kobj_attribute *attr,
@@ -713,33 +662,6 @@ static ssize_t wake_unlock_store(struct kobject *kobj,
 power_attr(wake_unlock);
 
 #endif /* CONFIG_PM_WAKELOCKS */
-
-/*
- * Debug configuration for always waking up in dark resume.
- */
-static ssize_t dark_resume_always_show(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				char *buf)
-{
-	return sprintf(buf, "%u\n", pm_dark_resume_always() ? 1 : 0);
-}
-
-static ssize_t dark_resume_always_store(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				const char *buf, size_t n)
-{
-	unsigned int val;
-
-	if (sscanf(buf, "%u", &val) == 1) {
-		if (val == 0 || val == 1) {
-			pm_dark_resume_set_always(val ? true : false);
-			return n;
-		}
-	}
-	return -EINVAL;
-}
-
-power_attr(dark_resume_always);
 #endif /* CONFIG_PM_SLEEP */
 
 #ifdef CONFIG_PM_TRACE
@@ -817,7 +739,6 @@ static struct attribute * g[] = {
 #ifdef CONFIG_SUSPEND
 	&mem_sleep_attr.attr,
 #endif
-	&wakeup_type_attr.attr,
 #ifdef CONFIG_PM_AUTOSLEEP
 	&autosleep_attr.attr,
 #endif
@@ -825,7 +746,6 @@ static struct attribute * g[] = {
 	&wake_lock_attr.attr,
 	&wake_unlock_attr.attr,
 #endif
-	&dark_resume_always_attr.attr,
 #ifdef CONFIG_PM_SLEEP_DEBUG
 	&pm_test_attr.attr,
 	&pm_print_times_attr.attr,

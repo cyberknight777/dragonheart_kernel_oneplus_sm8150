@@ -592,7 +592,7 @@ static int snd_timer_stop1(struct snd_timer_instance *timeri, bool stop)
 	else
 		timeri->flags |= SNDRV_TIMER_IFLG_PAUSED;
 	snd_timer_notify1(timeri, stop ? SNDRV_TIMER_EVENT_STOP :
-			  SNDRV_TIMER_EVENT_CONTINUE);
+			  SNDRV_TIMER_EVENT_PAUSE);
  unlock:
 	spin_unlock_irqrestore(&timer->lock, flags);
 	return result;
@@ -614,7 +614,7 @@ static int snd_timer_stop_slave(struct snd_timer_instance *timeri, bool stop)
 		list_del_init(&timeri->ack_list);
 		list_del_init(&timeri->active_list);
 		snd_timer_notify1(timeri, stop ? SNDRV_TIMER_EVENT_STOP :
-				  SNDRV_TIMER_EVENT_CONTINUE);
+				  SNDRV_TIMER_EVENT_PAUSE);
 		spin_unlock(&timeri->timer->lock);
 	}
 	spin_unlock_irqrestore(&slave_active_lock, flags);
@@ -1069,15 +1069,17 @@ EXPORT_SYMBOL(snd_timer_global_register);
 
 struct snd_timer_system_private {
 	struct timer_list tlist;
+	struct snd_timer *snd_timer;
 	unsigned long last_expires;
 	unsigned long last_jiffies;
 	unsigned long correction;
 };
 
-static void snd_timer_s_function(unsigned long data)
+static void snd_timer_s_function(struct timer_list *t)
 {
-	struct snd_timer *timer = (struct snd_timer *)data;
-	struct snd_timer_system_private *priv = timer->private_data;
+	struct snd_timer_system_private *priv = from_timer(priv, t,
+								tlist);
+	struct snd_timer *timer = priv->snd_timer;
 	unsigned long jiff = jiffies;
 	if (time_after(jiff, priv->last_expires))
 		priv->correction += (long)jiff - (long)priv->last_expires;
@@ -1159,7 +1161,8 @@ static int snd_timer_register_system(void)
 		snd_timer_free(timer);
 		return -ENOMEM;
 	}
-	setup_timer(&priv->tlist, snd_timer_s_function, (unsigned long) timer);
+	priv->snd_timer = timer;
+	timer_setup(&priv->tlist, snd_timer_s_function, 0);
 	timer->private_data = priv;
 	timer->private_free = snd_timer_free_system;
 	return snd_timer_global_register(timer);
@@ -1514,7 +1517,7 @@ static int snd_timer_user_next_device(struct snd_timer_id __user *_tid)
 				} else {
 					if (id.subdevice < 0)
 						id.subdevice = 0;
-					else
+					else if (id.subdevice < INT_MAX)
 						id.subdevice++;
 				}
 			}

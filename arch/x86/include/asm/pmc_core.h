@@ -24,8 +24,9 @@
 /* API to read SLP_S0_RESIDENCY counter */
 #ifdef CONFIG_INTEL_PMC_CORE
 extern int intel_pmc_slp_s0_counter_read(u32 *data);
+void pmc_core_ppfear_display(void);
 #else
 static inline int intel_pmc_slp_s0_counter_read(u32 *data) { return -EPERM; }
+static inline void pmc_core_ppfear_display(void) {};
 #endif
-
 #endif /* _ASM_PMC_CORE_H */

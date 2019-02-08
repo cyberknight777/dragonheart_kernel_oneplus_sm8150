@@ -104,7 +104,7 @@ static int create_in_format_blob(struct drm_device *dev, struct drm_plane *plane
 	if (IS_ERR(blob))
 		return -1;
 
-	blob_data = (struct drm_format_modifier_blob *)blob->data;
+	blob_data = blob->data;
 	blob_data->version = FORMAT_BLOB_CURRENT;
 	blob_data->count_formats = plane->format_count;
 	blob_data->formats_offset = sizeof(struct drm_format_modifier_blob);
@@ -172,6 +172,10 @@ int drm_universal_plane_init(struct drm_device *dev, struct drm_plane *plane,
 	struct drm_mode_config *config = &dev->mode_config;
 	unsigned int format_modifier_count = 0;
 	int ret;
+
+	/* plane index is used with 32bit bitmasks */
+	if (WARN_ON(config->num_total_plane >= 32))
+		return -EINVAL;
 
 	ret = drm_mode_object_add(dev, &plane->base, DRM_MODE_OBJECT_PLANE);
 	if (ret)
@@ -545,24 +549,40 @@ int drm_mode_getplane(struct drm_device *dev, void *data,
 	return 0;
 }
 
-int drm_plane_check_pixel_format(const struct drm_plane *plane, u32 format)
+int drm_plane_check_pixel_format(struct drm_plane *plane,
+				 u32 format, u64 modifier)
 {
 	unsigned int i;
 
 	for (i = 0; i < plane->format_count; i++) {
 		if (format == plane->format_types[i])
-			return 0;
+			break;
 	}
+	if (i == plane->format_count)
+		return -EINVAL;
 
-	return -EINVAL;
+	if (!plane->modifier_count)
+		return 0;
+
+	for (i = 0; i < plane->modifier_count; i++) {
+		if (modifier == plane->modifiers[i])
+			break;
+	}
+	if (i == plane->modifier_count)
+		return -EINVAL;
+
+	if (plane->funcs->format_mod_supported &&
+	    !plane->funcs->format_mod_supported(plane, format, modifier))
+		return -EINVAL;
+
+	return 0;
 }
 
 /*
- * setplane_internal - setplane handler for internal callers
+ * __setplane_internal - setplane handler for internal callers
  *
- * Note that we assume an extra reference has already been taken on fb.  If the
- * update fails, this reference will be dropped before return; if it succeeds,
- * the previous framebuffer (if any) will be unreferenced instead.
+ * This function will take a reference on the new fb for the plane
+ * on success.
  *
  * src_{x,y,w,h} are provided in 16.16 fixed point format
  */
@@ -599,12 +619,14 @@ static int __setplane_internal(struct drm_plane *plane,
 	}
 
 	/* Check whether this plane supports the fb pixel format. */
-	ret = drm_plane_check_pixel_format(plane, fb->format->format);
+	ret = drm_plane_check_pixel_format(plane, fb->format->format,
+					   fb->modifier);
 	if (ret) {
 		struct drm_format_name_buf format_name;
-		DRM_DEBUG_KMS("Invalid pixel format %s\n",
-		              drm_get_format_name(fb->format->format,
-		                                  &format_name));
+		DRM_DEBUG_KMS("Invalid pixel format %s, modifier 0x%llx\n",
+			      drm_get_format_name(fb->format->format,
+						  &format_name),
+			      fb->modifier);
 		goto out;
 	}
 
@@ -630,14 +652,12 @@ static int __setplane_internal(struct drm_plane *plane,
 	if (!ret) {
 		plane->crtc = crtc;
 		plane->fb = fb;
-		fb = NULL;
+		drm_framebuffer_get(plane->fb);
 	} else {
 		plane->old_fb = NULL;
 	}
 
 out:
-	if (fb)
-		drm_framebuffer_put(fb);
 	if (plane->old_fb)
 		drm_framebuffer_put(plane->old_fb);
 	plane->old_fb = NULL;
@@ -685,6 +705,7 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 	struct drm_plane *plane;
 	struct drm_crtc *crtc = NULL;
 	struct drm_framebuffer *fb = NULL;
+	int ret;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
@@ -717,15 +738,16 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 		}
 	}
 
-	/*
-	 * setplane_internal will take care of deref'ing either the old or new
-	 * framebuffer depending on success.
-	 */
-	return setplane_internal(plane, crtc, fb,
-				 plane_req->crtc_x, plane_req->crtc_y,
-				 plane_req->crtc_w, plane_req->crtc_h,
-				 plane_req->src_x, plane_req->src_y,
-				 plane_req->src_w, plane_req->src_h);
+	ret = setplane_internal(plane, crtc, fb,
+				plane_req->crtc_x, plane_req->crtc_y,
+				plane_req->crtc_w, plane_req->crtc_h,
+				plane_req->src_x, plane_req->src_y,
+				plane_req->src_w, plane_req->src_h);
+
+	if (fb)
+		drm_framebuffer_put(fb);
+
+	return ret;
 }
 
 static int drm_mode_cursor_universal(struct drm_crtc *crtc,
@@ -788,13 +810,12 @@ static int drm_mode_cursor_universal(struct drm_crtc *crtc,
 		src_h = fb->height << 16;
 	}
 
-	/*
-	 * setplane_internal will take care of deref'ing either the old or new
-	 * framebuffer depending on success.
-	 */
 	ret = __setplane_internal(crtc->cursor, crtc, fb,
-				crtc_x, crtc_y, crtc_w, crtc_h,
-				0, 0, src_w, src_h, ctx);
+				  crtc_x, crtc_y, crtc_w, crtc_h,
+				  0, 0, src_w, src_h, ctx);
+
+	if (fb)
+		drm_framebuffer_put(fb);
 
 	/* Update successful; save new cursor position, if necessary */
 	if (ret == 0 && req->flags & DRM_MODE_CURSOR_MOVE) {
@@ -946,7 +967,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 		if (r)
 			return r;
 
-		current_vblank = drm_crtc_vblank_count(crtc);
+		current_vblank = (u32)drm_crtc_vblank_count(crtc);
 
 		switch (page_flip->flags & DRM_MODE_PAGE_FLIP_TARGET) {
 		case DRM_MODE_PAGE_FLIP_TARGET_ABSOLUTE:
@@ -1030,6 +1051,7 @@ retry:
 		e->event.base.type = DRM_EVENT_FLIP_COMPLETE;
 		e->event.base.length = sizeof(e->event);
 		e->event.vbl.user_data = page_flip->user_data;
+		e->event.vbl.crtc_id = crtc->base.id;
 		ret = drm_event_reserve_init(dev, file_priv, &e->base, &e->event.base);
 		if (ret) {
 			kfree(e);

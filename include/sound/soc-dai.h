@@ -102,6 +102,8 @@ struct snd_compr_stream;
 			       SNDRV_PCM_FMTBIT_S16_BE |\
 			       SNDRV_PCM_FMTBIT_S20_3LE |\
 			       SNDRV_PCM_FMTBIT_S20_3BE |\
+			       SNDRV_PCM_FMTBIT_S20_LE |\
+			       SNDRV_PCM_FMTBIT_S20_BE |\
 			       SNDRV_PCM_FMTBIT_S24_3LE |\
 			       SNDRV_PCM_FMTBIT_S24_3BE |\
                                SNDRV_PCM_FMTBIT_S32_LE |\
@@ -292,11 +294,8 @@ struct snd_soc_dai {
 	struct snd_soc_dai_driver *driver;
 
 	/* DAI runtime info */
-	unsigned int capture_active:1;		/* stream is in use */
-	unsigned int playback_active:1;		/* stream is in use */
-	unsigned int symmetric_rates:1;
-	unsigned int symmetric_channels:1;
-	unsigned int symmetric_samplebits:1;
+	unsigned int capture_active;		/* stream usage count */
+	unsigned int playback_active;		/* stream usage count */
 	unsigned int probed:1;
 
 	unsigned int active;

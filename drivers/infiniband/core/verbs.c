@@ -1285,7 +1285,7 @@ EXPORT_SYMBOL(ib_resolve_eth_dmac);
 
 /**
  * ib_modify_qp_with_udata - Modifies the attributes for the specified QP.
- * @qp: The QP to modify.
+ * @ib_qp: The QP to modify.
  * @attr: On input, specifies the QP attributes to modify.  On output,
  *   the current values of selected QP attributes are returned.
  * @attr_mask: A bit-mask used to specify which attributes of the QP
@@ -1294,9 +1294,10 @@ EXPORT_SYMBOL(ib_resolve_eth_dmac);
  *   are being modified.
  * It returns 0 on success and returns appropriate error code on error.
  */
-int ib_modify_qp_with_udata(struct ib_qp *qp, struct ib_qp_attr *attr,
+int ib_modify_qp_with_udata(struct ib_qp *ib_qp, struct ib_qp_attr *attr,
 			    int attr_mask, struct ib_udata *udata)
 {
+	struct ib_qp *qp = ib_qp->real_qp;
 	int ret;
 
 	if (attr_mask & IB_QP_AV) {
@@ -2115,10 +2116,16 @@ static void __ib_drain_sq(struct ib_qp *qp)
 	struct ib_cq *cq = qp->send_cq;
 	struct ib_qp_attr attr = { .qp_state = IB_QPS_ERR };
 	struct ib_drain_cqe sdrain;
-	struct ib_send_wr swr = {}, *bad_swr;
+	struct ib_send_wr *bad_swr;
+	struct ib_rdma_wr swr = {
+		.wr = {
+			.next = NULL,
+			{ .wr_cqe	= &sdrain.cqe, },
+			.opcode	= IB_WR_RDMA_WRITE,
+		},
+	};
 	int ret;
 
-	swr.wr_cqe = &sdrain.cqe;
 	sdrain.cqe.done = ib_drain_qp_done;
 	init_completion(&sdrain.done);
 
@@ -2128,7 +2135,7 @@ static void __ib_drain_sq(struct ib_qp *qp)
 		return;
 	}
 
-	ret = ib_post_send(qp, &swr, &bad_swr);
+	ret = ib_post_send(qp, &swr.wr, &bad_swr);
 	if (ret) {
 		WARN_ONCE(ret, "failed to drain send queue: %d\n", ret);
 		return;

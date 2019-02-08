@@ -28,6 +28,7 @@ static guid_t osc_guid =
 	GUID_INIT(0xA69F886E, 0x6CEB, 0x4594,
 		  0xA4, 0x1F, 0x7B, 0x5D, 0xCE, 0x24, 0xC5, 0x53);
 
+
 struct nhlt_acpi_table *skl_nhlt_init(struct device *dev)
 {
 	acpi_handle handle;
@@ -140,7 +141,7 @@ struct nhlt_specific_cfg
 {
 	struct nhlt_fmt *fmt;
 	struct nhlt_endpoint *epnt;
-	struct hdac_bus *bus = ebus_to_hbus(&skl->ebus);
+	struct hdac_bus *bus = skl_to_bus(skl);
 	struct device *dev = bus->dev;
 	struct nhlt_specific_cfg *sp_config;
 	struct nhlt_acpi_table *nhlt = skl->nhlt;
@@ -227,7 +228,7 @@ static void skl_nhlt_trim_space(char *trim)
 int skl_nhlt_update_topology_bin(struct skl *skl)
 {
 	struct nhlt_acpi_table *nhlt = (struct nhlt_acpi_table *)skl->nhlt;
-	struct hdac_bus *bus = ebus_to_hbus(&skl->ebus);
+	struct hdac_bus *bus = skl_to_bus(skl);
 	struct device *dev = bus->dev;
 
 	dev_dbg(dev, "oem_id %.6s, oem_table_id %8s oem_revision %d\n",
@@ -247,8 +248,8 @@ static ssize_t skl_nhlt_platform_id_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
 	struct pci_dev *pci = to_pci_dev(dev);
-	struct hdac_ext_bus *ebus = pci_get_drvdata(pci);
-	struct skl *skl = ebus_to_skl(ebus);
+	struct hdac_bus *bus = pci_get_drvdata(pci);
+	struct skl *skl = bus_to_skl(bus);
 	struct nhlt_acpi_table *nhlt = (struct nhlt_acpi_table *)skl->nhlt;
 	char platform_id[32];
 
@@ -287,6 +288,7 @@ void skl_nhlt_remove_sysfs(struct skl *skl)
 static void skl_get_ssp_clks(struct skl *skl, struct skl_ssp_clk *ssp_clks,
 				struct nhlt_fmt *fmt, u8 id)
 {
+	struct skl_i2s_config_blob_ext *i2s_config_ext;
 	struct skl_i2s_config_blob_legacy *i2s_config;
 	struct skl_clk_parent_src *parent;
 	struct skl_ssp_clk *sclk, *sclkfs;
@@ -347,12 +349,18 @@ static void skl_get_ssp_clks(struct skl *skl, struct skl_ssp_clk *ssp_clks,
 
 		/* Fill rate and parent for sclk/sclkfs */
 		if (!present) {
-			/* MCLK Divider Source Select */
-			i2s_config = (struct skl_i2s_config_blob_legacy *)
+			i2s_config_ext = (struct skl_i2s_config_blob_ext *)
 						fmt->fmt_config[0].config.caps;
-			clk_src = ((i2s_config->mclk.mdivctrl)
-					& SKL_MNDSS_DIV_CLK_SRC_MASK) >>
-					SKL_SHIFT(SKL_MNDSS_DIV_CLK_SRC_MASK);
+
+			/* MCLK Divider Source Select */
+			if (is_legacy_blob(i2s_config_ext->hdr.sig)) {
+				i2s_config = ext_to_legacy_blob(i2s_config_ext);
+				clk_src = get_clk_src(i2s_config->mclk,
+						SKL_MNDSS_DIV_CLK_SRC_MASK);
+			} else {
+				clk_src = get_clk_src(i2s_config_ext->mclk,
+						SKL_MNDSS_DIV_CLK_SRC_MASK);
+			}
 
 			parent = skl_get_parent_clk(clk_src);
 
@@ -378,6 +386,7 @@ static void skl_get_ssp_clks(struct skl *skl, struct skl_ssp_clk *ssp_clks,
 static void skl_get_mclk(struct skl *skl, struct skl_ssp_clk *mclk,
 				struct nhlt_fmt *fmt, u8 id)
 {
+	struct skl_i2s_config_blob_ext *i2s_config_ext;
 	struct skl_i2s_config_blob_legacy *i2s_config;
 	struct nhlt_specific_cfg *fmt_cfg;
 	struct skl_clk_parent_src *parent;
@@ -385,13 +394,21 @@ static void skl_get_mclk(struct skl *skl, struct skl_ssp_clk *mclk,
 	u8 clk_src;
 
 	fmt_cfg = &fmt->fmt_config[0].config;
-	i2s_config = (struct skl_i2s_config_blob_legacy *)fmt_cfg->caps;
+	i2s_config_ext = (struct skl_i2s_config_blob_ext *)fmt_cfg->caps;
 
-	/* MCLK Divider Source Select */
-	clk_src = ((i2s_config->mclk.mdivctrl) & SKL_MCLK_DIV_CLK_SRC_MASK) >>
-					SKL_SHIFT(SKL_MCLK_DIV_CLK_SRC_MASK);
-
-	clkdiv = i2s_config->mclk.mdivr & SKL_MCLK_DIV_RATIO_MASK;
+	/* MCLK Divider Source Select and divider */
+	if (is_legacy_blob(i2s_config_ext->hdr.sig)) {
+		i2s_config = ext_to_legacy_blob(i2s_config_ext);
+		clk_src = get_clk_src(i2s_config->mclk,
+				SKL_MCLK_DIV_CLK_SRC_MASK);
+		clkdiv = i2s_config->mclk.mdivr &
+				SKL_MCLK_DIV_RATIO_MASK;
+	} else {
+		clk_src = get_clk_src(i2s_config_ext->mclk,
+				SKL_MCLK_DIV_CLK_SRC_MASK);
+		clkdiv = i2s_config_ext->mclk.mdivr[0] &
+				SKL_MCLK_DIV_RATIO_MASK;
+	}
 
 	/* bypass divider */
 	div_ratio = 1;

@@ -665,6 +665,7 @@ static int nvme_submit_user_cmd(struct request_queue *q,
 				ret = PTR_ERR(meta);
 				goto out_unmap;
 			}
+			req->cmd_flags |= REQ_INTEGRITY;
 		}
 	}
 
@@ -1015,7 +1016,7 @@ static int nvme_user_cmd(struct nvme_ctrl *ctrl, struct nvme_ns *ns,
 
 	status = nvme_submit_user_cmd(ns ? ns->queue : ctrl->admin_q, &c,
 			(void __user *)(uintptr_t)cmd.addr, cmd.data_len,
-			(void __user *)(uintptr_t)cmd.metadata, cmd.metadata,
+			(void __user *)(uintptr_t)cmd.metadata, cmd.metadata_len,
 			0, &cmd.result, timeout);
 	if (status >= 0) {
 		if (put_user(cmd.result, &ucmd->result))
@@ -2079,7 +2080,7 @@ static ssize_t wwid_show(struct device *dev, struct device_attribute *attr,
 	return sprintf(buf, "nvme.%04x-%*phN-%*phN-%08x\n", ctrl->vid,
 		serial_len, ctrl->serial, model_len, ctrl->model, ns->ns_id);
 }
-static DEVICE_ATTR(wwid, S_IRUGO, wwid_show, NULL);
+static DEVICE_ATTR_RO(wwid);
 
 static ssize_t nguid_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
@@ -2087,7 +2088,7 @@ static ssize_t nguid_show(struct device *dev, struct device_attribute *attr,
 	struct nvme_ns *ns = nvme_get_ns_from_dev(dev);
 	return sprintf(buf, "%pU\n", ns->nguid);
 }
-static DEVICE_ATTR(nguid, S_IRUGO, nguid_show, NULL);
+static DEVICE_ATTR_RO(nguid);
 
 static ssize_t uuid_show(struct device *dev, struct device_attribute *attr,
 								char *buf)
@@ -2104,7 +2105,7 @@ static ssize_t uuid_show(struct device *dev, struct device_attribute *attr,
 	}
 	return sprintf(buf, "%pU\n", &ns->uuid);
 }
-static DEVICE_ATTR(uuid, S_IRUGO, uuid_show, NULL);
+static DEVICE_ATTR_RO(uuid);
 
 static ssize_t eui_show(struct device *dev, struct device_attribute *attr,
 								char *buf)
@@ -2112,7 +2113,7 @@ static ssize_t eui_show(struct device *dev, struct device_attribute *attr,
 	struct nvme_ns *ns = nvme_get_ns_from_dev(dev);
 	return sprintf(buf, "%8phd\n", ns->eui);
 }
-static DEVICE_ATTR(eui, S_IRUGO, eui_show, NULL);
+static DEVICE_ATTR_RO(eui);
 
 static ssize_t nsid_show(struct device *dev, struct device_attribute *attr,
 								char *buf)
@@ -2120,7 +2121,7 @@ static ssize_t nsid_show(struct device *dev, struct device_attribute *attr,
 	struct nvme_ns *ns = nvme_get_ns_from_dev(dev);
 	return sprintf(buf, "%d\n", ns->ns_id);
 }
-static DEVICE_ATTR(nsid, S_IRUGO, nsid_show, NULL);
+static DEVICE_ATTR_RO(nsid);
 
 static struct attribute *nvme_ns_attrs[] = {
 	&dev_attr_wwid.attr,
@@ -2571,6 +2572,9 @@ void nvme_remove_namespaces(struct nvme_ctrl *ctrl)
 {
 	struct nvme_ns *ns, *next;
 
+	/* prevent racing with ns scanning */
+	flush_work(&ctrl->scan_work);
+
 	/*
 	 * The dead states indicates the controller was not gracefully
 	 * disconnected. In that case, we won't be able to flush any data while
@@ -2742,7 +2746,6 @@ void nvme_stop_ctrl(struct nvme_ctrl *ctrl)
 {
 	nvme_stop_keep_alive(ctrl);
 	flush_work(&ctrl->async_event_work);
-	flush_work(&ctrl->scan_work);
 	cancel_work_sync(&ctrl->fw_act_work);
 }
 EXPORT_SYMBOL_GPL(nvme_stop_ctrl);

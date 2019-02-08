@@ -1,4 +1,26 @@
 /*
+ * Copyright 2017 Advanced Micro Devices, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ */
+/*
  * dc_debug.c
  *
  *  Created on: Nov 3, 2016
@@ -14,26 +36,22 @@
 #include "hw_sequencer.h"
 
 #include "resource.h"
+#define DC_LOGGER \
+	logger
 
 #define SURFACE_TRACE(...) do {\
 		if (dc->debug.surface_trace) \
-			dm_logger_write(logger, \
-					LOG_IF_TRACE, \
-					##__VA_ARGS__); \
+			DC_LOG_IF_TRACE(__VA_ARGS__); \
 } while (0)
 
 #define TIMING_TRACE(...) do {\
 	if (dc->debug.timing_trace) \
-		dm_logger_write(logger, \
-				LOG_SYNC, \
-				##__VA_ARGS__); \
+		DC_LOG_SYNC(__VA_ARGS__); \
 } while (0)
 
 #define CLOCK_TRACE(...) do {\
 	if (dc->debug.clock_trace) \
-		dm_logger_write(logger, \
-				LOG_BANDWIDTH_CALCS, \
-				##__VA_ARGS__); \
+		DC_LOG_BANDWIDTH_CALCS(__VA_ARGS__); \
 } while (0)
 
 void pre_surface_trace(
@@ -137,6 +155,7 @@ void pre_surface_trace(
 				"plane_state->tiling_info.gfx8.pipe_config = %d;\n"
 				"plane_state->tiling_info.gfx8.array_mode = %d;\n"
 				"plane_state->color_space = %d;\n"
+				"plane_state->input_tf = %d;\n"
 				"plane_state->dcc.enable = %d;\n"
 				"plane_state->format = %d;\n"
 				"plane_state->rotation = %d;\n"
@@ -144,6 +163,7 @@ void pre_surface_trace(
 				plane_state->tiling_info.gfx8.pipe_config,
 				plane_state->tiling_info.gfx8.array_mode,
 				plane_state->color_space,
+				plane_state->input_tf,
 				plane_state->dcc.enable,
 				plane_state->format,
 				plane_state->rotation,
@@ -184,6 +204,7 @@ void update_surface_trace(
 		if (update->plane_info) {
 			SURFACE_TRACE(
 					"plane_info->color_space = %d;\n"
+					"plane_info->input_tf = %d;\n"
 					"plane_info->format = %d;\n"
 					"plane_info->plane_size.grph.surface_pitch = %d;\n"
 					"plane_info->plane_size.grph.surface_size.height = %d;\n"
@@ -192,6 +213,7 @@ void update_surface_trace(
 					"plane_info->plane_size.grph.surface_size.y = %d;\n"
 					"plane_info->rotation = %d;\n",
 					update->plane_info->color_space,
+					update->plane_info->input_tf,
 					update->plane_info->format,
 					update->plane_info->plane_size.grph.surface_pitch,
 					update->plane_info->plane_size.grph.surface_size.height,
@@ -335,25 +357,20 @@ void context_clock_trace(
 	struct dc  *core_dc = dc;
 	struct dal_logger *logger =  core_dc->ctx->logger;
 
-	CLOCK_TRACE("Current: dispclk_khz:%d  dppclk_div:%d  dcfclk_khz:%d\n"
-			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d\n"
-			"dram_ccm_us:%d  min_active_dram_ccm_us:%d\n",
+	CLOCK_TRACE("Current: dispclk_khz:%d  max_dppclk_khz:%d  dcfclk_khz:%d\n"
+			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d  socclk_khz:%d\n",
 			context->bw.dcn.calc_clk.dispclk_khz,
-			context->bw.dcn.calc_clk.dppclk_div,
+			context->bw.dcn.calc_clk.dppclk_khz,
 			context->bw.dcn.calc_clk.dcfclk_khz,
 			context->bw.dcn.calc_clk.dcfclk_deep_sleep_khz,
 			context->bw.dcn.calc_clk.fclk_khz,
-			context->bw.dcn.calc_clk.dram_ccm_us,
-			context->bw.dcn.calc_clk.min_active_dram_ccm_us);
-	CLOCK_TRACE("Calculated: dispclk_khz:%d  dppclk_div:%d  dcfclk_khz:%d\n"
-			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d\n"
-			"dram_ccm_us:%d  min_active_dram_ccm_us:%d\n",
+			context->bw.dcn.calc_clk.socclk_khz);
+	CLOCK_TRACE("Calculated: dispclk_khz:%d  max_dppclk_khz:%d  dcfclk_khz:%d\n"
+			"dcfclk_deep_sleep_khz:%d  fclk_khz:%d  socclk_khz:%d\n",
 			context->bw.dcn.calc_clk.dispclk_khz,
-			context->bw.dcn.calc_clk.dppclk_div,
+			context->bw.dcn.calc_clk.dppclk_khz,
 			context->bw.dcn.calc_clk.dcfclk_khz,
 			context->bw.dcn.calc_clk.dcfclk_deep_sleep_khz,
-			context->bw.dcn.calc_clk.fclk_khz,
-			context->bw.dcn.calc_clk.dram_ccm_us,
-			context->bw.dcn.calc_clk.min_active_dram_ccm_us);
+			context->bw.dcn.calc_clk.fclk_khz);
 #endif
 }

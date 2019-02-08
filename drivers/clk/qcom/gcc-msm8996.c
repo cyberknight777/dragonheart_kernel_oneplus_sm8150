@@ -32,8 +32,6 @@
 #include "reset.h"
 #include "gdsc.h"
 
-#define F(f, s, h, m, n) { (f), (s), (2 * (h) - 1), (m), (n) }
-
 enum {
 	P_XO,
 	P_GPLL0,
@@ -1418,6 +1416,7 @@ static struct clk_branch gcc_usb3_phy_aux_clk = {
 
 static struct clk_branch gcc_usb3_phy_pipe_clk = {
 	.halt_reg = 0x50004,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x50004,
 		.enable_mask = BIT(0),
@@ -2472,6 +2471,7 @@ static struct clk_branch gcc_pcie_0_aux_clk = {
 
 static struct clk_branch gcc_pcie_0_pipe_clk = {
 	.halt_reg = 0x6b018,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x6b018,
 		.enable_mask = BIT(0),
@@ -2547,6 +2547,7 @@ static struct clk_branch gcc_pcie_1_aux_clk = {
 
 static struct clk_branch gcc_pcie_1_pipe_clk = {
 	.halt_reg = 0x6d018,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x6d018,
 		.enable_mask = BIT(0),
@@ -2622,6 +2623,7 @@ static struct clk_branch gcc_pcie_2_aux_clk = {
 
 static struct clk_branch gcc_pcie_2_pipe_clk = {
 	.halt_reg = 0x6e018,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x6e018,
 		.enable_mask = BIT(0),

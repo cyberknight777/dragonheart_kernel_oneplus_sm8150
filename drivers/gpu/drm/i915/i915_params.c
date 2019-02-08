@@ -63,6 +63,7 @@ i915_param_named_unsafe(enable_dc, int, 0400,
 
 i915_param_named_unsafe(enable_fbc, int, 0600,
 	"Enable frame buffer compression for power savings "
+	"(0 = disable; 1 = enable fbc). "
 	"(default: -1 (use per-chip default))");
 
 i915_param_named_unsafe(lvds_channel_mode, int, 0400,
@@ -103,7 +104,7 @@ i915_param_named_unsafe(enable_execlists, int, 0400,
 	"Override execlists usage. "
 	"(-1=auto [default], 0=disabled, 1=enabled)");
 
-i915_param_named_unsafe(enable_psr, int, 0600,
+i915_param_named(enable_psr, int, 0600,
 	"Enable PSR "
 	"(0=disabled, 1=enabled - link mode chosen per-platform, 2=force link-standby mode, 3=force link-off mode) "
 	"Default: -1 (use per-chip default)");

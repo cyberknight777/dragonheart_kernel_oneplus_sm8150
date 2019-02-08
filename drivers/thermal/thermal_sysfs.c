@@ -51,8 +51,17 @@ static ssize_t
 mode_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct thermal_zone_device *tz = to_thermal_zone(dev);
+	enum thermal_device_mode mode;
+	int result;
 
-	return sprintf(buf, "%s\n", tz->mode == THERMAL_DEVICE_ENABLED ? "enabled"
+	if (!tz->ops->get_mode)
+		return -EPERM;
+
+	result = tz->ops->get_mode(tz, &mode);
+	if (result)
+		return result;
+
+	return sprintf(buf, "%s\n", mode == THERMAL_DEVICE_ENABLED ? "enabled"
 		       : "disabled");
 }
 
@@ -61,17 +70,18 @@ mode_store(struct device *dev, struct device_attribute *attr,
 	   const char *buf, size_t count)
 {
 	struct thermal_zone_device *tz = to_thermal_zone(dev);
-	enum thermal_device_mode mode;
 	int result;
 
-	if (!strncmp(buf, "enabled", sizeof("enabled") - 1))
-		mode = THERMAL_DEVICE_ENABLED;
-	else if (!strncmp(buf, "disabled", sizeof("disabled") - 1))
-		mode = THERMAL_DEVICE_DISABLED;
-	else
-		return -EINVAL;
+	if (!tz->ops->set_mode)
+		return -EPERM;
 
-	result = thermal_zone_set_mode(tz, mode);
+	if (!strncmp(buf, "enabled", sizeof("enabled") - 1))
+		result = tz->ops->set_mode(tz, THERMAL_DEVICE_ENABLED);
+	else if (!strncmp(buf, "disabled", sizeof("disabled") - 1))
+		result = tz->ops->set_mode(tz, THERMAL_DEVICE_DISABLED);
+	else
+		result = -EINVAL;
+
 	if (result)
 		return result;
 
@@ -386,16 +396,15 @@ create_s32_tzp_attr(offset);
  * All the attributes created for tzp (create_s32_tzp_attr) also are always
  * present on the sysfs interface.
  */
-static DEVICE_ATTR(type, 0444, type_show, NULL);
-static DEVICE_ATTR(temp, 0444, temp_show, NULL);
-static DEVICE_ATTR(policy, S_IRUGO | S_IWUSR, policy_show, policy_store);
-static DEVICE_ATTR(available_policies, S_IRUGO, available_policies_show, NULL);
-static DEVICE_ATTR(sustainable_power, S_IWUSR | S_IRUGO, sustainable_power_show,
-		   sustainable_power_store);
+static DEVICE_ATTR_RO(type);
+static DEVICE_ATTR_RO(temp);
+static DEVICE_ATTR_RW(policy);
+static DEVICE_ATTR_RO(available_policies);
+static DEVICE_ATTR_RW(sustainable_power);
 
 /* These thermal zone device attributes are created based on conditions */
-static DEVICE_ATTR(mode, 0644, mode_show, mode_store);
-static DEVICE_ATTR(passive, S_IRUGO | S_IWUSR, passive_show, passive_store);
+static DEVICE_ATTR_RW(mode);
+static DEVICE_ATTR_RW(passive);
 
 /* These attributes are unconditionally added to a thermal zone */
 static struct attribute *thermal_zone_dev_attrs[] = {

@@ -222,16 +222,6 @@ config MFD_CROS_EC_SPI
 	  response time cannot be guaranteed, we support ignoring
 	  'pre-amble' bytes before the response actually starts.
 
-config MFD_CROS_EC_CHARDEV
-	tristate "Chrome OS Embedded Controller userspace device interface"
-	depends on MFD_CROS_EC
-	select CROS_EC_CTL
-	---help---
-	  This driver adds support to talk with the ChromeOS EC from userspace.
-
-	  If you have a supported Chromebook, choose Y or M here.
-	  The module will be called cros_ec_dev
-
 config MFD_CROS_EC_PD_UPDATE
 	tristate "ChromeOS Embedded Controller PD device update driver"
 	depends on MFD_CROS_EC
@@ -242,6 +232,16 @@ config MFD_CROS_EC_PD_UPDATE
 
 	  To compile this driver as a module, choose M here: the module will be
 	  called cros_ec_pd_update.
+
+config MFD_CROS_EC_CHARDEV
+        tristate "Chrome OS Embedded Controller userspace device interface"
+        depends on MFD_CROS_EC
+        select CROS_EC_CTL
+        ---help---
+          This driver adds support to talk with the ChromeOS EC from userspace.
+
+          If you have a supported Chromebook, choose Y or M here.
+          The module will be called cros_ec_dev.
 
 config MFD_ASIC3
 	bool "Compaq ASIC3"
@@ -1766,6 +1766,20 @@ config MFD_WM8994
 	  supported via the relevant subsystems.  This driver provides
 	  core support for the WM8994, in order to use the actual
 	  functionaltiy of the device other drivers must be enabled.
+
+config MFD_WM97xx
+	tristate "Wolfson Microelectronics WM97xx"
+	select MFD_CORE
+	select REGMAP_AC97
+	select AC97_BUS_COMPAT
+	depends on AC97_BUS_NEW
+	help
+	  The WM9705, WM9712 and WM9713 is a highly integrated hi-fi CODEC
+	  designed for smartphone applications.  As well as audio functionality
+	  it has on board GPIO and a touchscreen functionality which is
+	  supported via the relevant subsystems.  This driver provides core
+	  support for the WM97xx, in order to use the actual functionaltiy of
+	  the device other drivers must be enabled.
 
 config MFD_STW481X
 	tristate "Support for ST Microelectronics STw481x"
