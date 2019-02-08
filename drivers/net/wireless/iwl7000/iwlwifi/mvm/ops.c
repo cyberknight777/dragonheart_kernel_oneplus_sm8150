@@ -686,8 +686,6 @@ static int iwl_mvm_fwrt_send_hcmd(void *ctx, struct iwl_host_cmd *host_cmd)
 
 static bool iwl_mvm_d3_debug_enable(void *ctx)
 {
-	struct iwl_mvm *mvm = ctx;
-
 	return IWL_MVM_D3_DEBUG;
 }
 
