@@ -2637,6 +2637,12 @@ cfg80211_vendor_event_alloc_ucast(struct wiphy *wiphy,
 	 */
 	return NULL;
 }
+
+static inline const struct element *
+cfg80211_find_elem(u8 eid, const u8 *ies, int len)
+{
+	return (void *)cfg80211_find_ie(eid, ies, len);
+}
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */
 
 #ifndef for_each_element
