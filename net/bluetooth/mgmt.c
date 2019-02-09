@@ -107,6 +107,7 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_READ_EXT_INFO,
 	MGMT_OP_SET_APPEARANCE,
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
+	MGMT_OP_SET_EVENT_MASK,
 };
 
 static const u16 mgmt_events[] = {
@@ -4328,6 +4329,72 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 	return err;
 }
 
+static void set_event_mask_complete(struct hci_dev *hdev, u8 status, u16 opcode)
+{
+	struct mgmt_pending_cmd *cmd;
+
+	BT_DBG("status 0x%02x", status);
+
+	hci_dev_lock(hdev);
+
+	/* Saving of the new event mask is done in  */
+	cmd = pending_find_data(MGMT_OP_SET_EVENT_MASK, hdev, NULL);
+	if (!cmd)
+		goto unlock;
+
+	cmd->cmd_complete(cmd, mgmt_status(status));
+	mgmt_pending_remove(cmd);
+
+unlock:
+	hci_dev_unlock(hdev);
+}
+
+static int set_event_mask(struct sock *sk, struct hci_dev *hdev,
+			  void *data, u16 len)
+{
+	struct mgmt_cp_set_event_mask *cp = data;
+	struct mgmt_pending_cmd *cmd;
+	struct hci_request req;
+	u8 new_events[8], i;
+	int err;
+
+	BT_DBG("request for %s", hdev->name);
+
+	hci_dev_lock(hdev);
+
+	if (pending_find(MGMT_OP_SET_EVENT_MASK, hdev)) {
+		err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_EVENT_MASK,
+					MGMT_STATUS_BUSY, NULL, 0);
+		goto failed;
+	}
+
+	cmd = mgmt_pending_add(sk, MGMT_OP_SET_EVENT_MASK, hdev, data, len);
+	cmd->cmd_complete = generic_cmd_complete;
+
+	if (!cmd) {
+		err = -ENOMEM;
+		goto failed;
+	}
+
+	hci_req_init(&req, hdev);
+	for (i = 0 ; i < HCI_SET_EVENT_MASK_SIZE; i++) {
+		/* Modify only bits that are requested by the stack */
+		new_events[i] = hdev->event_mask[i];
+		new_events[i] &= ~cp->mask[i];
+		new_events[i] |= cp->mask[i] & cp->events[i];
+	}
+
+	hci_req_add(&req, HCI_OP_SET_EVENT_MASK, sizeof(new_events),
+		    new_events);
+	err = hci_req_run(&req, set_event_mask_complete);
+	if (err < 0)
+		mgmt_pending_remove(cmd);
+
+failed:
+	hci_dev_unlock(hdev);
+	return err;
+}
+
 static void set_bredr_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 {
 	struct mgmt_pending_cmd *cmd;
@@ -6618,6 +6685,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 						HCI_MGMT_UNTRUSTED },
 	{ set_appearance,	   MGMT_SET_APPEARANCE_SIZE },
 	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
+	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
 };
 
 void mgmt_index_added(struct hci_dev *hdev)

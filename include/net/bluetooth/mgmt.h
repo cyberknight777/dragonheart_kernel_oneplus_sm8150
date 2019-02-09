@@ -612,6 +612,82 @@ struct mgmt_cp_set_advertising_intervals {
 } __packed;
 #define MGMT_SET_ADVERTISING_INTERVALS_SIZE	4
 
+#define MGMT_OP_SET_EVENT_MASK			0x0045
+struct mgmt_cp_set_event_mask {
+	/*
+	 * The mask variable enables modifying a subset of the 'event mask'.
+	 * Bits that are set to 0 in mask[] should be ignored in events[]
+	 */
+	uint8_t	mask[HCI_SET_EVENT_MASK_SIZE];
+	uint8_t	events[HCI_SET_EVENT_MASK_SIZE];
+} __packed;
+#define MGMT_SET_EVENT_MASK_CP_SIZE  (2 * HCI_SET_EVENT_MASK_SIZE)
+enum mgmt_set_event_mask_byte_0 {
+	MGMT_EVENT_MASK_INQUIRY_COMPLETE		=  (1 << 0), // bit 0
+	MGMT_EVENT_MASK_INQUIRY_RESULT			=  (1 << 1),
+	MGMT_EVENT_MASK_CONNECTION_COMPLETE		=  (1 << 2),
+	MGMT_EVENT_MASK_CONNECTION_REQUEST		=  (1 << 3),
+	MGMT_EVENT_MASK_DISCONNECTION_COMPLETE		=  (1 << 4),
+	MGMT_EVENT_MASK_AUTH_COMPLETE			=  (1 << 5),
+	MGMT_EVENT_MASK_RMT_NAME_REQ_COMPLETE		=  (1 << 6),
+	MGMT_EVENT_MASK_ENCRYPTION_CHANGE		=  (1 << 7)
+};
+enum mgmt_set_event_mask_byte_1 {
+	MGMT_EVENT_MASK_CHNG_CON_LINK_KEY_COMP		=  (1 << 0), // bit 8
+	MGMT_EVENT_MASK_MASTER_LINK_KEY_COMP		=  (1 << 1),
+	MGMT_EVENT_MASK_READ_RMT_SUPPORT_FEAT_COMP	=  (1 << 2),
+	MGMT_EVENT_MASK_READ_RMT_VER_INFO_COMP		=  (1 << 3),
+	MGMT_EVENT_MASK_QOS_SETUP_COMPLETE		=  (1 << 4),
+	MGMT_EVENT_MASK_HARDWARE_ERROR			=  (1 << 7)
+};
+enum mgmt_set_event_mask_byte_2 {
+	MGMT_EVENT_MASK_FLUSH_OCCURRED			=  (1 << 0), // bit 16
+	MGMT_EVENT_MASK_ROLE_CHANGE			=  (1 << 1),
+	MGMT_EVENT_MASK_MODE_CHANGE			=  (1 << 3),
+	MGMT_EVENT_MASK_RETURN_LINK_KEYS		=  (1 << 4),
+	MGMT_EVENT_MASK_PIN_CODE_REQUEST		=  (1 << 5),
+	MGMT_EVENT_MASK_LINK_KEY_REQUEST		=  (1 << 6),
+	MGMT_EVENT_MASK_LINK_KEY_NOTIFICATION		=  (1 << 7)
+};
+enum mgmt_set_event_mask_byte_3 {
+	MGMT_EVENT_MASK_LOOPBACK_COMMAND		=  (1 << 0), // bit 24
+	MGMT_EVENT_MASK_DATA_BUFFER_OVERFLOW		=  (1 << 1),
+	MGMT_EVENT_MASK_MAX_SLOT_CHANGE			=  (1 << 2),
+	MGMT_EVENT_MASK_READ_CLOCK_OFFSET_COMP		=  (1 << 3),
+	MGMT_EVENT_MASK_CON_PKT_TYPE_CHANGE		=  (1 << 4),
+	MGMT_EVENT_MASK_QOS_VIOLATION			=  (1 << 5),
+	MGMT_EVENT_MASK_PAGE_SCAN_MODE_CHANGE		=  (1 << 6),
+	MGMT_EVENT_MASK_PAGE_SCAN_REP_MODE_CHANGE	=  (1 << 7)
+};
+enum mgmt_set_event_mask_byte_4 {
+	MGMT_EVENT_MASK_FLOW_SPEC_COMPLETE		=  (1 << 0), // bit 32
+	MGMT_EVENT_MASK_IQUIRY_RSULT_WITH_RSSI		=  (1 << 1),
+	MGMT_EVENT_MASK_READ_RMT_EXTENDED_FEAT		=  (1 << 2)
+};
+enum mgmt_set_event_mask_byte_5 {
+	MGMT_EVENT_MASK_SYNC_CON_COMPLETE		=  (1 << 3),  // bit 43
+	MGMT_EVENT_MASK_SYNC_CON_CHANGED		=  (1 << 4),
+	MGMT_EVENT_MASK_SNIFF_SUBRATING			=  (1 << 5),
+	MGMT_EVENT_MASK_EXTENDED_INQUIRY_RESULT		=  (1 << 6),
+	MGMT_EVENT_MASK_ENCRYPTION_KEY_REFRESH		=  (1 << 7)
+};
+enum mgmt_set_event_mask_byte_6 {
+	MGMT_EVENT_MASK_IO_CAPABILITY_REQUEST		=  (1 << 1),  // bit 48
+	MGMT_EVENT_MASK_IO_CAPABILITY_RESPONSE		=  (1 << 2),
+	MGMT_EVENT_MASK_USER_CONFIRMATION_REQUEST	=  (1 << 3),
+	MGMT_EVENT_MASK_USER_PASSKEY_REQUEST		=  (1 << 4),
+	MGMT_EVENT_MASK_REMOTE_OOB_DATA_REQUEST		=  (1 << 5),
+	MGMT_EVENT_MASK_SIMPLE_PAIRING_COMPLETE		=  (1 << 6),
+	MGMT_EVENT_MASK_LSTO_CHANGED			=  (1 << 7)
+};
+enum mgmt_set_event_mask_byte_7 {
+	MGMT_EVENT_MASK_ENHACNED_FLUSH_COMPLETE		=  (1 << 1),  // bit 56
+	MGMT_EVENT_MASK_USER_PASSKEY_NOTIFICATION	=  (1 << 3),
+	MGMT_EVENT_MASK_KEY_PRESS_NOTIFICATION		=  (1 << 4),
+	MGMT_EVENT_MASK_RMT_HOST_SUPPORTED_FEAT		=  (1 << 5),
+	MGMT_EVENT_MASK_LE_META				=  (1 << 6),
+};
+
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
 	__le16	opcode;
