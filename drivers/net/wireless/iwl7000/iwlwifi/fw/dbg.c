@@ -1300,14 +1300,17 @@ iwl_dump_ini_mem(struct iwl_fw_runtime *fwrt,
 	memcpy(header->name, reg->name, le32_to_cpu(header->name_len));
 
 	range = ops->fill_mem_hdr(fwrt, header);
-	if (!range)
+	if (!range) {
+		memset(*data, 0, le32_to_cpu((*data)->len));
 		return;
+	}
 
 	for (i = 0; i < num_of_ranges; i++) {
 		int range_data_size = ops->fill_range(fwrt, range, reg, i);
 
 		if (range_data_size < 0) {
 			IWL_ERR(fwrt, "Failed to dump region type %d\n", type);
+			memset(*data, 0, le32_to_cpu((*data)->len));
 			return;
 		}
 		range = ((void *)range) + sizeof(*range) + range_data_size;
