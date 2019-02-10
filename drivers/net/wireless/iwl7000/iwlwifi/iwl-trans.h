@@ -344,7 +344,6 @@ enum iwl_d3_status {
  * @STATUS_TRANS_IDLE: the trans is idle - general commands are not to be sent
  * @STATUS_TA_ACTIVE: target access is in progress
  * @STATUS_TRANS_DEAD: trans is dead - avoid any read/write operation
- * @STATUS_FW_WAIT_DUMP: if set, wait until cleared before collecting dump
  */
 enum iwl_trans_status {
 	STATUS_SYNC_HCMD_ACTIVE,
@@ -358,7 +357,6 @@ enum iwl_trans_status {
 	STATUS_TRANS_IDLE,
 	STATUS_TA_ACTIVE,
 	STATUS_TRANS_DEAD,
-	STATUS_FW_WAIT_DUMP,
 };
 
 static inline int
@@ -852,7 +850,6 @@ struct iwl_trans {
 	u32 lmac_error_event_table[2];
 	u32 umac_error_event_table;
 	unsigned int error_event_table_tlv_status;
-	wait_queue_head_t fw_halt_waitq;
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */
@@ -1294,10 +1291,6 @@ static inline void iwl_trans_fw_error(struct iwl_trans *trans)
 	/* prevent double restarts due to the same erroneous FW */
 	if (!test_and_set_bit(STATUS_FW_ERROR, &trans->status))
 		iwl_op_mode_nic_error(trans->op_mode);
-
-	if (test_and_clear_bit(STATUS_FW_WAIT_DUMP, &trans->status))
-		wake_up(&trans->fw_halt_waitq);
-
 }
 
 static inline bool iwl_trans_fw_running(struct iwl_trans *trans)
