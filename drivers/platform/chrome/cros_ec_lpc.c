@@ -24,7 +24,6 @@
 #include <linux/acpi.h>
 #include <linux/dmi.h>
 #include <linux/delay.h>
-#include <linux/gpio/consumer.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/cros_ec.h>
@@ -252,7 +251,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	acpi_status status;
 	struct cros_ec_device *ec_dev;
 	u8 buf[2];
-	int irq = 0, ret;
+	int irq, ret;
 
 	if (!devm_request_region(dev, EC_LPC_ADDR_MEMMAP, EC_MEMMAP_SIZE,
 				 dev_name(dev))) {
@@ -293,16 +292,12 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 
 	/*
 	 * Some boards do not have an IRQ allotted for cros_ec_lpc,
-	 * which makes ENXIO or ENOENT an expected (and safe) scenario.
+	 * which makes ENXIO an expected (and safe) scenario.
 	 */
-	adev = ACPI_COMPANION(dev);
-	if (adev)
-		irq = acpi_dev_gpio_irq_get(adev, 0);
-	if (irq == 0 || irq == -ENOENT)
-		irq = platform_get_irq(pdev, 0);
+	irq = platform_get_irq(pdev, 0);
 	if (irq > 0)
 		ec_dev->irq = irq;
-	else if (irq != -ENXIO && irq != -ENOENT) {
+	else if (irq != -ENXIO) {
 		dev_err(dev, "couldn't retrieve IRQ number (%d)\n", irq);
 		return irq;
 	}
@@ -322,6 +317,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	 * and error-prone endeavor, so register the handler anyway, and trust
 	 * the EC to send the proper MKBP event signals.
 	 */
+	adev = ACPI_COMPANION(dev);
 	if (adev) {
 		status = acpi_install_notify_handler(adev->handle,
 						     ACPI_ALL_NOTIFY,
