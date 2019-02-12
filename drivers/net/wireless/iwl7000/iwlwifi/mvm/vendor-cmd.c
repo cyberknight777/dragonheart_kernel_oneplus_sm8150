@@ -761,7 +761,7 @@ static int iwl_mvm_vendor_dbg_collect(struct wiphy *wiphy,
 	len = nla_len(tb[IWL_MVM_VENDOR_ATTR_DBG_COLLECT_TRIGGER]);
 
 	iwl_fw_dbg_collect(&mvm->fwrt, FW_DBG_TRIGGER_USER_EXTENDED,
-			   trigger_desc, len);
+			   trigger_desc, len, NULL);
 	err = 0;
 
 free:
