@@ -39,6 +39,9 @@
 #define ZERO_KEY "\x00\x00\x00\x00\x00\x00\x00\x00" \
 		 "\x00\x00\x00\x00\x00\x00\x00\x00"
 
+/* Minimum encryption key length, value adopted from BLE (7 bytes) */
+#define MIN_ENC_KEY_LEN 7
+
 /* Handle HCI Event packets */
 
 static void hci_cc_inquiry_cancel(struct hci_dev *hdev, struct sk_buff *skb)
@@ -2590,6 +2593,13 @@ static void read_enc_key_size_complete(struct hci_dev *hdev, u8 status,
 		conn->enc_key_size = HCI_LINK_KEY_SIZE;
 	} else {
 		conn->enc_key_size = rp->key_size;
+	}
+
+	if (conn->enc_key_size < MIN_ENC_KEY_LEN) {
+		BT_DBG("Dropping connection with weak encryption key length");
+		hci_disconnect(conn, HCI_ERROR_REMOTE_USER_TERM);
+		hci_conn_drop(conn);
+		goto unlock;
 	}
 
 	if (conn->state == BT_CONFIG) {
