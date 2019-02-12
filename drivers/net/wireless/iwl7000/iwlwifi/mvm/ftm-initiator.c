@@ -485,6 +485,10 @@ static int iwl_mvm_ftm_range_resp_valid(struct iwl_mvm *mvm, u8 request_id,
 static void iwl_mvm_debug_range_resp(struct iwl_mvm *mvm, u8 index,
 				     struct cfg80211_pmsr_result *res)
 {
+	s64 rtt_avg = res->ftm.rtt_avg * 100;
+
+	do_div(rtt_avg, 6666);
+
 	IWL_DEBUG_INFO(mvm, "entry %d\n", index);
 	IWL_DEBUG_INFO(mvm, "\tstatus: %d\n", res->status);
 	IWL_DEBUG_INFO(mvm, "\tBSSID: %pM\n", res->addr);
@@ -496,8 +500,7 @@ static void iwl_mvm_debug_range_resp(struct iwl_mvm *mvm, u8 index,
 	IWL_DEBUG_INFO(mvm, "\trtt: %lld\n", res->ftm.rtt_avg);
 	IWL_DEBUG_INFO(mvm, "\trtt var: %llu\n", res->ftm.rtt_variance);
 	IWL_DEBUG_INFO(mvm, "\trtt spread: %llu\n", res->ftm.rtt_spread);
-	IWL_DEBUG_INFO(mvm, "\tdistance: %lld\n",
-		       res->ftm.rtt_avg * 100 / 6666);
+	IWL_DEBUG_INFO(mvm, "\tdistance: %lld\n", rtt_avg);
 }
 
 void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
