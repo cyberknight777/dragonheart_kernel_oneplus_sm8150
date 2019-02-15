@@ -182,13 +182,6 @@ static bool check_envp_allowlist(char *envp)
 	char *strs, *equal;
 	size_t str_size, equal_pos;
 
-	/*
-	 * Identify the key=value separation.
-	 * If none exists use the whole string as a key.
-	 */
-	equal = strchr(envp, '=');
-	equal_pos = equal ? (equal - envp) : strlen(envp);
-
 	/* If execute is not enabled, skip all. */
 	if (!csm_execute_enabled)
 		goto out;
@@ -200,23 +193,30 @@ static bool check_envp_allowlist(char *envp)
 		goto out;
 	}
 
+	/*
+	 * Identify the key=value separation.
+	 * If none exists use the whole string as a key.
+	 */
+	equal = strchr(envp, '=');
+	equal_pos = equal ? (equal - envp) : strlen(envp);
+
 	/* Default to skip if no match found. */
 	ret = false;
 
 	do {
-		str_size = strlen(strs) + 1;
+		str_size = strlen(strs);
 
 		/*
 		 * If the filter length align with the key value equal sign,
 		 * it might be a match, check the key value.
 		 */
 		if (str_size == equal_pos &&
-		    !strncmp(strs, envp, str_size - 1)) {
+		    !strncmp(strs, envp, str_size)) {
 			ret = true;
 			goto out;
 		}
 
-		strs += str_size;
+		strs += str_size + 1;
 	} while (*strs != 0);
 
 out:
