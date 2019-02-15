@@ -1981,17 +1981,7 @@ ARM_SMMU_MATCH_DATA(smmu_generic_v2, ARM_SMMU_V2, GENERIC_SMMU);
 ARM_SMMU_MATCH_DATA(arm_mmu401, ARM_SMMU_V1_64K, GENERIC_SMMU);
 ARM_SMMU_MATCH_DATA(arm_mmu500, ARM_SMMU_V2, ARM_MMU500);
 ARM_SMMU_MATCH_DATA(cavium_smmuv2, ARM_SMMU_V2, CAVIUM_SMMUV2);
-
-static const char * const qcom_smmuv2_clks[] = {
-	"bus", "iface",
-};
-
-static const struct arm_smmu_match_data qcom_smmuv2 = {
-	.version = ARM_SMMU_V2,
-	.model = QCOM_SMMUV2,
-	.clks = qcom_smmuv2_clks,
-	.num_clks = ARRAY_SIZE(qcom_smmuv2_clks),
-};
+ARM_SMMU_MATCH_DATA(qcom_smmuv2, ARM_SMMU_V2, QCOM_SMMUV2);
 
 static const struct of_device_id arm_smmu_of_match[] = {
 	{ .compatible = "arm,smmu-v1", .data = &smmu_generic_v1 },
