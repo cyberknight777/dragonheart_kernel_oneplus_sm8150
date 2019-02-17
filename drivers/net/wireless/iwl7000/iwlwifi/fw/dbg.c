@@ -1748,7 +1748,7 @@ static int iwl_fw_ini_get_trigger_len(struct iwl_fw_runtime *fwrt,
 		case IWL_FW_INI_REGION_RXF:
 			size += hdr_len + iwl_dump_ini_rxf_get_size(fwrt, reg);
 			break;
-		case IWL_FW_INI_REGION_PAGING: {
+		case IWL_FW_INI_REGION_PAGING:
 			size += hdr_len;
 			if (iwl_fw_dbg_is_paging_enabled(fwrt)) {
 				size += iwl_dump_ini_paging_get_size(fwrt, reg);
@@ -1757,7 +1757,6 @@ static int iwl_fw_ini_get_trigger_len(struct iwl_fw_runtime *fwrt,
 									  reg);
 			}
 			break;
-		}
 		case IWL_FW_INI_REGION_DRAM_BUFFER:
 			if (!fwrt->trans->num_blocks)
 				break;
@@ -1833,7 +1832,7 @@ static void iwl_fw_ini_dump_trigger(struct iwl_fw_runtime *fwrt,
 			ops.fill_range = iwl_dump_ini_dev_mem_iter;
 			iwl_dump_ini_mem(fwrt, type, data, reg, &ops);
 			break;
-		case IWL_FW_INI_REGION_PAGING: {
+		case IWL_FW_INI_REGION_PAGING:
 			ops.fill_mem_hdr = iwl_dump_ini_mem_fill_header;
 			if (iwl_fw_dbg_is_paging_enabled(fwrt)) {
 				ops.get_num_of_ranges =
@@ -1850,7 +1849,6 @@ static void iwl_fw_ini_dump_trigger(struct iwl_fw_runtime *fwrt,
 
 			iwl_dump_ini_mem(fwrt, type, data, reg, &ops);
 			break;
-		}
 		case IWL_FW_INI_REGION_TXF: {
 			struct iwl_ini_txf_iter_data iter = { .init = true };
 			void *fifo_iter = fwrt->dump.fifo_iter;
