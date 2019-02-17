@@ -652,12 +652,7 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 static void iwl_init_he_hw_capab(struct ieee80211_supported_band *sband,
 				 u8 tx_chains, u8 rx_chains)
 {
-	if (sband->band == NL80211_BAND_2GHZ ||
-	    sband->band == NL80211_BAND_5GHZ)
-		ieee80211_sband_set_iftypes_data(sband, iwl_he_capa);
-	else
-		return;
-
+	ieee80211_sband_set_iftypes_data(sband, iwl_he_capa);
 	ieee80211_sband_set_num_iftypes_data(sband, ARRAY_SIZE(iwl_he_capa));
 
 	/* If not 2x2, we need to indicate 1x1 in the Midamble RX Max NSTS */
@@ -693,10 +688,6 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 {
 	struct ieee80211_sband_iftype_data *iftype_data;
 	int i;
-
-	if (sband->band != NL80211_BAND_2GHZ &&
-	    sband->band != NL80211_BAND_5GHZ)
-		return;
 
 	for (i = 0; i < ARRAY_SIZE(iwl_he_capa); i++) {
 		iftype_data = &iwl_he_capa[i];
