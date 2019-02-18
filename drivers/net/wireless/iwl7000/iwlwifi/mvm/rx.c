@@ -566,7 +566,8 @@ void iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct napi_struct *napi,
 	if (fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TOF_SUPPORT) &&
 	    (ieee80211_is_beacon(hdr->frame_control) ||
 	     ieee80211_is_probe_resp(hdr->frame_control)))
-		iwl_mvm_tof_update_tsf(mvm, pkt);
+		iwl_mvm_tof_update_tsf(mvm, hdr,
+				       le32_to_cpu(phy_info->system_timestamp));
 #endif
 
 	if (unlikely(ieee80211_is_beacon(hdr->frame_control) ||

@@ -73,7 +73,8 @@ struct iwl_mvm_tof_tsf_entry {
 	u32 delta;
 };
 
-void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt);
+void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
+			    u32 gp2);
 #endif
 
 /* The buffer at the end of this struct holds lci_len bytes of lci data followed
