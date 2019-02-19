@@ -487,7 +487,7 @@ static void iwl_mvm_debug_range_resp(struct iwl_mvm *mvm, u8 index,
 {
 	s64 rtt_avg = res->ftm.rtt_avg * 100;
 
-	do_div(rtt_avg, 6666);
+	div64_s64(rtt_avg, 6666);
 
 	IWL_DEBUG_INFO(mvm, "entry %d\n", index);
 	IWL_DEBUG_INFO(mvm, "\tstatus: %d\n", res->status);
