@@ -1007,6 +1007,7 @@ struct iwl_mvm {
 	u32 dbgfs_prph_reg_addr;
 	bool disable_power_off;
 	bool disable_power_off_d3;
+	bool beacon_inject_active;
 
 	bool scan_iter_notif_enabled;
 
@@ -1069,7 +1070,6 @@ struct iwl_mvm {
 	u32 d3_test_pme_ptr;
 	struct ieee80211_vif *keep_vif;
 	u32 last_netdetect_scans; /* no. of scans in the last net-detect wake */
-	bool beacon_inject_active;
 #endif
 #endif
 
