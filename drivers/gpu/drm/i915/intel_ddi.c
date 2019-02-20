@@ -2214,7 +2214,7 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 
 	intel_ddi_init_dp_buf_reg(encoder);
 
-	if (intel_ddi_is_reversed(port))
+	if (!intel_dp_is_edp(intel_dp) && intel_ddi_is_reversed(port))
 		intel_dp->DP |= DDI_BUF_PORT_REVERSAL;
 	else
 		intel_dp->DP &= ~DDI_BUF_PORT_REVERSAL;
