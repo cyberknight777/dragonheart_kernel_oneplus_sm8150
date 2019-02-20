@@ -1302,22 +1302,6 @@ int iwl_fw_dbg_collect_desc(struct iwl_fw_runtime *fwrt,
 			    bool monitor_only,
 			    unsigned int delay)
 {
-	/*
-	 * If the loading of the FW completed successfully, the next step is to
-	 * get the SMEM config data. Thus, if fwrt->smem_cfg.num_lmacs is non
-	 * zero, the FW was already loaded successully. If the state is "NO_FW"
-	 * in such a case - exit, since FW may be dead. Otherwise, we
-	 * can try to collect the data, since FW might just not be fully
-	 * loaded (no "ALIVE" yet), and the debug data is accessible.
-	 *
-	 * Corner case: got the FW alive but crashed before getting the SMEM
-	 *	config. In such a case, due to HW access problems, we might
-	 *	collect garbage.
-	 */
-	if (fwrt->trans->state == IWL_TRANS_NO_FW &&
-	    fwrt->smem_cfg.num_lmacs)
-		return -EIO;
-
 	if (test_and_set_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
 		return -EBUSY;
 
@@ -1330,7 +1314,7 @@ int iwl_fw_dbg_collect_desc(struct iwl_fw_runtime *fwrt,
 	fwrt->dump.desc = desc;
 	fwrt->dump.monitor_only = monitor_only;
 
-	schedule_delayed_work(&fwrt->dump.wk, delay);
+	schedule_delayed_work(&fwrt->dump.wk, usecs_to_jiffies(delay));
 
 	return 0;
 }
@@ -1359,8 +1343,10 @@ int _iwl_fw_dbg_collect(struct iwl_fw_runtime *fwrt,
 		}
 
 		trigger->occurrences = cpu_to_le16(occurrences);
-		delay = le16_to_cpu(trigger->trig_dis_ms);
 		monitor_only = trigger->mode & IWL_FW_DBG_TRIGGER_MONITOR_ONLY;
+
+		/* convert msec to usec */
+		delay = le32_to_cpu(trigger->stop_delay) * USEC_PER_MSEC;
 	}
 
 	desc = kzalloc(sizeof(*desc) + len, GFP_ATOMIC);
@@ -1727,8 +1713,6 @@ static void iwl_fw_dbg_update_triggers(struct iwl_fw_runtime *fwrt,
 		/* Since zero means infinity - just set to -1 */
 		if (!le32_to_cpu(trig->occurrences))
 			trig->occurrences = cpu_to_le32(-1);
-		if (!le32_to_cpu(trig->ignore_consec))
-			trig->ignore_consec = cpu_to_le32(-1);
 
 		iter += sizeof(*trig) +
 			le32_to_cpu(trig->num_regions) * sizeof(__le32);

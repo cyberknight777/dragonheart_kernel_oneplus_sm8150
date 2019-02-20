@@ -500,7 +500,7 @@ static void iwl_pcie_rx_allocator(struct iwl_trans *trans)
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_rb_allocator *rba = &trans_pcie->rba;
 	struct list_head local_empty;
-	int pending = atomic_xchg(&rba->req_pending, 0);
+	int pending = atomic_read(&rba->req_pending);
 
 	IWL_DEBUG_RX(trans, "Pending allocation requests = %d\n", pending);
 
@@ -555,11 +555,13 @@ static void iwl_pcie_rx_allocator(struct iwl_trans *trans)
 			i++;
 		}
 
+		atomic_dec(&rba->req_pending);
 		pending--;
+
 		if (!pending) {
-			pending = atomic_xchg(&rba->req_pending, 0);
+			pending = atomic_read(&rba->req_pending);
 			IWL_DEBUG_RX(trans,
-				     "Pending allocation requests = %d\n",
+				     "Got more pending allocation requests = %d\n",
 				     pending);
 		}
 
@@ -571,12 +573,15 @@ static void iwl_pcie_rx_allocator(struct iwl_trans *trans)
 		spin_unlock(&rba->lock);
 
 		atomic_inc(&rba->req_ready);
+
 	}
 
 	spin_lock(&rba->lock);
 	/* return unused rbds to the allocator empty list */
 	list_splice_tail(&local_empty, &rba->rbd_empty);
 	spin_unlock(&rba->lock);
+
+	IWL_DEBUG_RX(trans, "%s, exit.\n", __func__);
 }
 
 /*
@@ -712,30 +717,24 @@ static int iwl_pcie_alloc_rxq_dma(struct iwl_trans *trans,
 	 * Allocate the circular buffer of Read Buffer Descriptors
 	 * (RBDs)
 	 */
-	rxq->bd = dma_zalloc_coherent(dev,
-				      free_size * rxq->queue_size,
-				      &rxq->bd_dma, GFP_KERNEL);
+	rxq->bd = dma_alloc_coherent(dev, free_size * rxq->queue_size,
+				     &rxq->bd_dma, GFP_KERNEL);
 	if (!rxq->bd)
 		goto err;
 
 	if (trans->cfg->mq_rx_supported) {
-		rxq->used_bd = dma_zalloc_coherent(dev,
-						   (use_rx_td ?
-						   sizeof(*rxq->cd) :
-						   sizeof(__le32)) *
-						   rxq->queue_size,
-						   &rxq->used_bd_dma,
-						   GFP_KERNEL);
+		rxq->used_bd = dma_alloc_coherent(dev,
+						  (use_rx_td ? sizeof(*rxq->cd) : sizeof(__le32)) * rxq->queue_size,
+						  &rxq->used_bd_dma,
+						  GFP_KERNEL);
 		if (!rxq->used_bd)
 			goto err;
 	}
 
 	/* Allocate the driver's pointer to receive buffer status */
-	rxq->rb_stts = dma_zalloc_coherent(dev, use_rx_td ?
-					   sizeof(__le16) :
-					   sizeof(struct iwl_rb_status),
-					   &rxq->rb_stts_dma,
-					   GFP_KERNEL);
+	rxq->rb_stts = dma_alloc_coherent(dev,
+					  use_rx_td ? sizeof(__le16) : sizeof(struct iwl_rb_status),
+					  &rxq->rb_stts_dma, GFP_KERNEL);
 	if (!rxq->rb_stts)
 		goto err;
 
@@ -743,16 +742,14 @@ static int iwl_pcie_alloc_rxq_dma(struct iwl_trans *trans,
 		return 0;
 
 	/* Allocate the driver's pointer to TR tail */
-	rxq->tr_tail = dma_zalloc_coherent(dev, sizeof(__le16),
-					   &rxq->tr_tail_dma,
-					   GFP_KERNEL);
+	rxq->tr_tail = dma_alloc_coherent(dev, sizeof(__le16),
+					  &rxq->tr_tail_dma, GFP_KERNEL);
 	if (!rxq->tr_tail)
 		goto err;
 
 	/* Allocate the driver's pointer to CR tail */
-	rxq->cr_tail = dma_zalloc_coherent(dev, sizeof(__le16),
-					   &rxq->cr_tail_dma,
-					   GFP_KERNEL);
+	rxq->cr_tail = dma_alloc_coherent(dev, sizeof(__le16),
+					  &rxq->cr_tail_dma, GFP_KERNEL);
 	if (!rxq->cr_tail)
 		goto err;
 	/*
@@ -1948,9 +1945,8 @@ int iwl_pcie_alloc_ict(struct iwl_trans *trans)
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 
 	trans_pcie->ict_tbl =
-		dma_zalloc_coherent(trans->dev, ICT_SIZE,
-				   &trans_pcie->ict_tbl_dma,
-				   GFP_KERNEL);
+		dma_alloc_coherent(trans->dev, ICT_SIZE,
+				   &trans_pcie->ict_tbl_dma, GFP_KERNEL);
 	if (!trans_pcie->ict_tbl)
 		return -ENOMEM;
 

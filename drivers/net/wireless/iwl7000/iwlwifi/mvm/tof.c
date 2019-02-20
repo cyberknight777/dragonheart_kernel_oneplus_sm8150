@@ -129,24 +129,23 @@ void iwl_mvm_tof_init(struct iwl_mvm *mvm)
 }
 
 #ifdef CPTCFG_IWLMVM_TOF_TSF_WA
-void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct iwl_rx_packet *pkt)
+void iwl_mvm_tof_update_tsf(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
+			    u32 gp2)
 {
 	u32 delta, ts;
 	u8 delta_sign;
 	struct iwl_mvm_tof_tsf_entry *tsf_entry;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)(pkt->data +
-					sizeof(struct iwl_rx_mpdu_res_start));
 	struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)hdr;
 
 	if (!mvm->tof_data.tsf_hash_valid)
 		return;
 
 	ts = (u32)le64_to_cpu(mgmt->u.beacon.timestamp);
-	if (ts > le32_to_cpu(mvm->last_phy_info.system_timestamp)) {
-		delta = ts - le32_to_cpu(mvm->last_phy_info.system_timestamp);
+	if (ts > gp2) {
+		delta = ts - gp2;
 		delta_sign = 0;
 	} else {
-		delta = le32_to_cpu(mvm->last_phy_info.system_timestamp) - ts;
+		delta = gp2 - ts;
 		delta_sign = 1;
 	}
 
