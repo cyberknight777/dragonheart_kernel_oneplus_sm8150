@@ -20,6 +20,10 @@
 #define BACKPORTS_GIT_TRACKED "chromium:" UTS_RELEASE
 #define BACKPORTS_BUILD_TSTAMP __DATE__ " " __TIME__
 
+/* Dummy RHEL macros */
+#define RHEL_RELEASE_CODE 0
+#define RHEL_RELEASE_VERSION(a,b) 1
+
 #ifndef netdev_alloc_pcpu_stats
 #define netdev_alloc_pcpu_stats(type)				\
 ({								\
