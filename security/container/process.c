@@ -404,9 +404,10 @@ int csm_bprm_check_security(struct linux_binprm *bprm)
 	void *stack = NULL, *ctx = NULL;
 	u64 cid;
 
-	if (!csm_execute_enabled)
-		return 0;
-
+	/*
+	 * Always create a container-id for containerized processes.
+	 * If the LSM is enabled later, we can track existing containers.
+	 */
 	cid = audit_get_contid(current);
 
 	if (cid == AUDIT_CID_UNSET) {
@@ -418,6 +419,9 @@ int csm_bprm_check_security(struct linux_binprm *bprm)
 		if (cid == AUDIT_CID_UNSET)
 			return 0;
 	}
+
+	if (!csm_execute_enabled)
+		return 0;
 
 	buf = (char *)__get_free_page(GFP_KERNEL);
 	if (!buf)
