@@ -505,6 +505,7 @@ void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_tof_range_rsp_ntfy_v5 *fw_resp_v5 = (void *)pkt->data;
+	struct iwl_tof_range_rsp_ntfy_v6 *fw_resp_v6 = (void *)pkt->data;
 	struct iwl_tof_range_rsp_ntfy *fw_resp = (void *)pkt->data;
 	int i;
 	bool new_api = fw_has_api(&mvm->fw->ucode_capa,
@@ -544,7 +545,12 @@ void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 		int peer_idx;
 
 		if (new_api) {
-			fw_ap = &fw_resp->ap[i];
+			if (fw_has_api(&mvm->fw->ucode_capa,
+				       IWL_UCODE_TLV_API_FTM_RTT_ACCURACY))
+				fw_ap = &fw_resp->ap[i];
+			else
+				fw_ap = (void *)&fw_resp_v6->ap[i];
+
 			result.final = fw_resp->ap[i].last_burst;
 		} else {
 			/* the first part is the same for old and new APIs */
@@ -612,6 +618,11 @@ void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 		cfg80211_pmsr_report(mvm->ftm_initiator.req_wdev,
 				     mvm->ftm_initiator.req,
 				     &result, GFP_KERNEL);
+
+		if (fw_has_api(&mvm->fw->ucode_capa,
+			       IWL_UCODE_TLV_API_FTM_RTT_ACCURACY))
+			IWL_DEBUG_INFO(mvm, "RTT confidence: %hhu\n",
+				       fw_ap->rttConfidence);
 
 		iwl_mvm_debug_range_resp(mvm, i, &result);
 	}
