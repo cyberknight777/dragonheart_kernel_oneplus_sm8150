@@ -124,6 +124,8 @@ static int csm_sendmsg(int type, const void *buf, size_t len)
 			pr_warn_ratelimited("sendmsg error (msg_type=%d, msg_length=%u): %d\n",
 					    type, le32_to_cpu(hdr.msg_length),
 					    res);
+		} else {
+			res = 0;
 		}
 	}
 	up_read(&csm_rwsem_vsocket);
