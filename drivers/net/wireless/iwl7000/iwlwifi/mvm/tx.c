@@ -1078,6 +1078,7 @@ static int iwl_mvm_tx_mpdu(struct iwl_mvm *mvm, struct sk_buff *skb,
 	u16 txq_id;
 	bool is_ampdu = false;
 	int hdrlen;
+	unsigned long flags;
 
 	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	fc = hdr->frame_control;
@@ -1107,7 +1108,7 @@ static int iwl_mvm_tx_mpdu(struct iwl_mvm *mvm, struct sk_buff *skb,
 	 */
 	info->flags &= ~IEEE80211_TX_STATUS_EOSP;
 
-	spin_lock(&mvmsta->lock);
+	spin_lock_irqsave(&mvmsta->lock, flags);
 
 	/* nullfunc frames should go to the MGMT queue regardless of QOS,
 	 * the condition of !ieee80211_is_qos_nullfunc(fc) keeps the default
@@ -1146,7 +1147,7 @@ static int iwl_mvm_tx_mpdu(struct iwl_mvm *mvm, struct sk_buff *skb,
 
 	if (WARN_ONCE(txq_id == IWL_MVM_INVALID_QUEUE, "Invalid TXQ id")) {
 		iwl_trans_free_tx_cmd(mvm->trans, dev_cmd);
-		spin_unlock(&mvmsta->lock);
+		spin_unlock_irqrestore(&mvmsta->lock, flags);
 		return 0;
 	}
 
@@ -1182,7 +1183,7 @@ static int iwl_mvm_tx_mpdu(struct iwl_mvm *mvm, struct sk_buff *skb,
 	if (tid < IWL_MAX_TID_COUNT && !ieee80211_has_morefrags(fc))
 		mvmsta->tid_data[tid].seq_number = seq_number + 0x10;
 
-	spin_unlock(&mvmsta->lock);
+	spin_unlock_irqrestore(&mvmsta->lock, flags);
 
 	if (iwl_mvm_tx_pkt_queued(mvm, mvmsta,
 				  tid == IWL_MAX_TID_COUNT ? 0 : tid))
@@ -1192,7 +1193,7 @@ static int iwl_mvm_tx_mpdu(struct iwl_mvm *mvm, struct sk_buff *skb,
 
 drop_unlock_sta:
 	iwl_trans_free_tx_cmd(mvm->trans, dev_cmd);
-	spin_unlock(&mvmsta->lock);
+	spin_unlock_irqrestore(&mvmsta->lock, flags);
 drop:
 	IWL_DEBUG_TX(mvm, "TX to [%d|%d] dropped\n", mvmsta->sta_id, tid);
 	return -1;
