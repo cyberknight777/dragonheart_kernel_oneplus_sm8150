@@ -741,8 +741,8 @@ err_nomem:
 		/* Reset the page to write-back before releasing */
 		set_memory_wb((unsigned long)win->block[i].bdesc, 1);
 #endif
-		dma_free_coherent(msc_dev(msc), size, win->block[i].bdesc,
-				  win->block[i].addr);
+		dma_free_coherent(msc_dev(msc)->parent->parent, size,
+				  win->block[i].bdesc, win->block[i].addr);
 	}
 	kfree(win);
 
@@ -777,7 +777,7 @@ static void msc_buffer_win_free(struct msc *msc, struct msc_window *win)
 		/* Reset the page to write-back before releasing */
 		set_memory_wb((unsigned long)win->block[i].bdesc, 1);
 #endif
-		dma_free_coherent(msc_dev(win->msc), PAGE_SIZE,
+		dma_free_coherent(msc_dev(win->msc)->parent->parent, PAGE_SIZE,
 				  win->block[i].bdesc, win->block[i].addr);
 	}
 
@@ -1431,7 +1431,8 @@ nr_pages_store(struct device *dev, struct device_attribute *attr,
 		if (!end)
 			break;
 
-		len -= end - p;
+		/* consume the number and the following comma, hence +1 */
+		len -= end - p + 1;
 		p = end + 1;
 	} while (len);
 

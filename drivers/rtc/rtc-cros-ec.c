@@ -331,7 +331,8 @@ static SIMPLE_DEV_PM_OPS(cros_ec_rtc_pm_ops, cros_ec_rtc_suspend,
 
 static int cros_ec_rtc_probe(struct platform_device *pdev)
 {
-	struct cros_ec_device *cros_ec_dev = dev_get_drvdata(pdev->dev.parent);
+	struct cros_ec_dev *ec_dev = dev_get_drvdata(pdev->dev.parent);
+	struct cros_ec_device *cros_ec = ec_dev->ec_dev;
 	struct cros_ec_rtc *cros_ec_rtc;
 	struct rtc_time tm;
 	int ret;
@@ -342,7 +343,7 @@ static int cros_ec_rtc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, cros_ec_rtc);
-	cros_ec_rtc->cros_ec = cros_ec_dev;
+	cros_ec_rtc->cros_ec = cros_ec;
 
 	/* Get initial time */
 	ret = cros_ec_rtc_read_time(&pdev->dev, &tm);
@@ -368,7 +369,7 @@ static int cros_ec_rtc_probe(struct platform_device *pdev)
 
 	/* Get RTC events from the EC. */
 	cros_ec_rtc->notifier.notifier_call = cros_ec_rtc_event;
-	ret = blocking_notifier_chain_register(&cros_ec_dev->event_notifier,
+	ret = blocking_notifier_chain_register(&cros_ec->event_notifier,
 					       &cros_ec_rtc->notifier);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register notifier\n");

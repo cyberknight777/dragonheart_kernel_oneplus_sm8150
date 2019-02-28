@@ -49,7 +49,7 @@ struct convert_context {
 	struct bio *bio_out;
 	struct bvec_iter iter_in;
 	struct bvec_iter iter_out;
-	sector_t cc_sector;
+	u64 cc_sector;
 	atomic_t cc_pending;
 	union {
 		struct skcipher_request *req;
@@ -81,7 +81,7 @@ struct dm_crypt_request {
 	struct convert_context *ctx;
 	struct scatterlist sg_in[4];
 	struct scatterlist sg_out[4];
-	sector_t iv_sector;
+	u64 iv_sector;
 };
 
 struct crypt_config;
@@ -148,6 +148,8 @@ struct crypt_config {
 	mempool_t *tag_pool;
 	unsigned tag_pool_max_sectors;
 
+	struct percpu_counter n_allocated_pages;
+
 	struct bio_set *bs;
 	struct mutex bio_alloc_lock;
 
@@ -170,7 +172,7 @@ struct crypt_config {
 		struct iv_lmk_private lmk;
 		struct iv_tcw_private tcw;
 	} iv_gen_private;
-	sector_t iv_offset;
+	u64 iv_offset;
 	unsigned int iv_size;
 	unsigned short int sector_size;
 	unsigned char sector_shift;
@@ -218,6 +220,12 @@ struct crypt_config {
 #define MIN_IOS		64
 #define MAX_TAG_SIZE	480
 #define POOL_ENTRY_SIZE	512
+
+static DEFINE_SPINLOCK(dm_crypt_clients_lock);
+static unsigned dm_crypt_clients_n = 0;
+static volatile unsigned long dm_crypt_pages_per_client;
+#define DM_CRYPT_MEMORY_PERCENT			2
+#define DM_CRYPT_MIN_PAGES_PER_CLIENT		(BIO_MAX_PAGES * 16)
 
 static void clone_init(struct dm_crypt_io *, struct bio *);
 static void kcryptd_queue_crypt(struct dm_crypt_io *io);
@@ -927,7 +935,7 @@ static int dm_crypt_integrity_io_alloc(struct dm_crypt_io *io, struct bio *bio)
 	if (IS_ERR(bip))
 		return PTR_ERR(bip);
 
-	tag_len = io->cc->on_disk_tag_size * bio_sectors(bio);
+	tag_len = io->cc->on_disk_tag_size * (bio_sectors(bio) >> io->cc->sector_shift);
 
 	bip->bip_iter.bi_size = tag_len;
 	bip->bip_iter.bi_sector = io->cc->start + io->sector;
@@ -2156,6 +2164,43 @@ static int crypt_wipe_key(struct crypt_config *cc)
 	return r;
 }
 
+static void crypt_calculate_pages_per_client(void)
+{
+	unsigned long pages = (totalram_pages - totalhigh_pages) * DM_CRYPT_MEMORY_PERCENT / 100;
+
+	if (!dm_crypt_clients_n)
+		return;
+
+	pages /= dm_crypt_clients_n;
+	if (pages < DM_CRYPT_MIN_PAGES_PER_CLIENT)
+		pages = DM_CRYPT_MIN_PAGES_PER_CLIENT;
+	dm_crypt_pages_per_client = pages;
+}
+
+static void *crypt_page_alloc(gfp_t gfp_mask, void *pool_data)
+{
+	struct crypt_config *cc = pool_data;
+	struct page *page;
+
+	if (unlikely(percpu_counter_compare(&cc->n_allocated_pages, dm_crypt_pages_per_client) >= 0) &&
+	    likely(gfp_mask & __GFP_NORETRY))
+		return NULL;
+
+	page = alloc_page(gfp_mask);
+	if (likely(page != NULL))
+		percpu_counter_add(&cc->n_allocated_pages, 1);
+
+	return page;
+}
+
+static void crypt_page_free(void *page, void *pool_data)
+{
+	struct crypt_config *cc = pool_data;
+
+	__free_page(page);
+	percpu_counter_sub(&cc->n_allocated_pages, 1);
+}
+
 static void crypt_dtr(struct dm_target *ti)
 {
 	struct crypt_config *cc = ti->private;
@@ -2182,6 +2227,10 @@ static void crypt_dtr(struct dm_target *ti)
 	mempool_destroy(cc->req_pool);
 	mempool_destroy(cc->tag_pool);
 
+	if (cc->page_pool)
+		WARN_ON(percpu_counter_sum(&cc->n_allocated_pages) != 0);
+	percpu_counter_destroy(&cc->n_allocated_pages);
+
 	if (cc->iv_gen_ops && cc->iv_gen_ops->dtr)
 		cc->iv_gen_ops->dtr(cc);
 
@@ -2196,6 +2245,12 @@ static void crypt_dtr(struct dm_target *ti)
 
 	/* Must zero key material before freeing */
 	kzfree(cc);
+
+	spin_lock(&dm_crypt_clients_lock);
+	WARN_ON(!dm_crypt_clients_n);
+	dm_crypt_clients_n--;
+	crypt_calculate_pages_per_client();
+	spin_unlock(&dm_crypt_clients_lock);
 }
 
 static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
@@ -2358,9 +2413,21 @@ static int crypt_ctr_cipher_new(struct dm_target *ti, char *cipher_in, char *key
 	 * capi:cipher_api_spec-iv:ivopts
 	 */
 	tmp = &cipher_in[strlen("capi:")];
-	cipher_api = strsep(&tmp, "-");
-	*ivmode = strsep(&tmp, ":");
-	*ivopts = tmp;
+
+	/* Separate IV options if present, it can contain another '-' in hash name */
+	*ivopts = strrchr(tmp, ':');
+	if (*ivopts) {
+		**ivopts = '\0';
+		(*ivopts)++;
+	}
+	/* Parse IV mode */
+	*ivmode = strrchr(tmp, '-');
+	if (*ivmode) {
+		**ivmode = '\0';
+		(*ivmode)++;
+	}
+	/* The rest is crypto API spec */
+	cipher_api = tmp;
 
 	if (*ivmode && !strcmp(*ivmode, "lmk"))
 		cc->tfms_count = 64;
@@ -2430,11 +2497,8 @@ static int crypt_ctr_cipher_old(struct dm_target *ti, char *cipher_in, char *key
 		goto bad_mem;
 
 	chainmode = strsep(&tmp, "-");
-	*ivopts = strsep(&tmp, "-");
-	*ivmode = strsep(&*ivopts, ":");
-
-	if (tmp)
-		DMWARN("Ignoring unexpected additional cipher options");
+	*ivmode = strsep(&tmp, ":");
+	*ivopts = tmp;
 
 	/*
 	 * For compatibility with the original dm-crypt mapping format, if
@@ -2643,6 +2707,15 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	ti->private = cc;
 
+	spin_lock(&dm_crypt_clients_lock);
+	dm_crypt_clients_n++;
+	crypt_calculate_pages_per_client();
+	spin_unlock(&dm_crypt_clients_lock);
+
+	ret = percpu_counter_init(&cc->n_allocated_pages, 0, GFP_KERNEL);
+	if (ret < 0)
+		goto bad;
+
 	/* Optional parameters need to be read before cipher constructor */
 	if (argc > 5) {
 		ret = crypt_ctr_optional(ti, argc - 5, &argv[5]);
@@ -2697,7 +2770,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		ALIGN(sizeof(struct dm_crypt_io) + cc->dmreq_start + additional_req_size,
 		      ARCH_KMALLOC_MINALIGN);
 
-	cc->page_pool = mempool_create_page_pool(BIO_MAX_PAGES, 0);
+	cc->page_pool = mempool_create(BIO_MAX_PAGES, crypt_page_alloc, crypt_page_free, cc);
 	if (!cc->page_pool) {
 		ti->error = "Cannot allocate page mempool";
 		goto bad;
@@ -3008,11 +3081,11 @@ static void crypt_io_hints(struct dm_target *ti, struct queue_limits *limits)
 	 */
 	limits->max_segment_size = PAGE_SIZE;
 
-	if (cc->sector_size != (1 << SECTOR_SHIFT)) {
-		limits->logical_block_size = cc->sector_size;
-		limits->physical_block_size = cc->sector_size;
-		blk_limits_io_min(limits, cc->sector_size);
-	}
+	limits->logical_block_size =
+		max_t(unsigned short, limits->logical_block_size, cc->sector_size);
+	limits->physical_block_size =
+		max_t(unsigned, limits->physical_block_size, cc->sector_size);
+	limits->io_min = max_t(unsigned, limits->io_min, cc->sector_size);
 }
 
 static struct target_type crypt_target = {

@@ -2785,6 +2785,14 @@ static void binder_transaction(struct binder_proc *proc,
 			else
 				return_error = BR_DEAD_REPLY;
 			mutex_unlock(&context->context_mgr_node_lock);
+			if (target_node && target_proc == proc) {
+				binder_user_error("%d:%d got transaction to context manager from process owning it\n",
+						  proc->pid, thread->pid);
+				return_error = BR_FAILED_REPLY;
+				return_error_param = -EINVAL;
+				return_error_line = __LINE__;
+				goto err_invalid_target_handle;
+			}
 		}
 		if (!target_node) {
 			/*
@@ -2910,7 +2918,6 @@ static void binder_transaction(struct binder_proc *proc,
 		t->buffer = NULL;
 		goto err_binder_alloc_buf_failed;
 	}
-	t->buffer->allow_user_free = 0;
 	t->buffer->debug_id = t->debug_id;
 	t->buffer->transaction = t;
 	t->buffer->target_node = target_node;
@@ -3399,14 +3406,18 @@ static int binder_thread_write(struct binder_proc *proc,
 
 			buffer = binder_alloc_prepare_to_free(&proc->alloc,
 							      data_ptr);
-			if (buffer == NULL) {
-				binder_user_error("%d:%d BC_FREE_BUFFER u%016llx no match\n",
-					proc->pid, thread->pid, (u64)data_ptr);
-				break;
-			}
-			if (!buffer->allow_user_free) {
-				binder_user_error("%d:%d BC_FREE_BUFFER u%016llx matched unreturned buffer\n",
-					proc->pid, thread->pid, (u64)data_ptr);
+			if (IS_ERR_OR_NULL(buffer)) {
+				if (PTR_ERR(buffer) == -EPERM) {
+					binder_user_error(
+						"%d:%d BC_FREE_BUFFER u%016llx matched unreturned or currently freeing buffer\n",
+						proc->pid, thread->pid,
+						(u64)data_ptr);
+				} else {
+					binder_user_error(
+						"%d:%d BC_FREE_BUFFER u%016llx no match\n",
+						proc->pid, thread->pid,
+						(u64)data_ptr);
+				}
 				break;
 			}
 			binder_debug(BINDER_DEBUG_FREE_BUFFER,

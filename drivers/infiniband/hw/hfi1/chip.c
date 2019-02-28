@@ -5945,6 +5945,7 @@ static void is_sendctxt_err_int(struct hfi1_devdata *dd,
 	u64 status;
 	u32 sw_index;
 	int i = 0;
+	unsigned long irq_flags;
 
 	sw_index = dd->hw_to_sw[hw_context];
 	if (sw_index >= dd->num_send_contexts) {
@@ -5954,10 +5955,12 @@ static void is_sendctxt_err_int(struct hfi1_devdata *dd,
 		return;
 	}
 	sci = &dd->send_contexts[sw_index];
+	spin_lock_irqsave(&dd->sc_lock, irq_flags);
 	sc = sci->sc;
 	if (!sc) {
 		dd_dev_err(dd, "%s: context %u(%u): no sc?\n", __func__,
 			   sw_index, hw_context);
+		spin_unlock_irqrestore(&dd->sc_lock, irq_flags);
 		return;
 	}
 
@@ -5979,6 +5982,7 @@ static void is_sendctxt_err_int(struct hfi1_devdata *dd,
 	 */
 	if (sc->type != SC_USER)
 		queue_work(dd->pport->hfi1_wq, &sc->halt_work);
+	spin_unlock_irqrestore(&dd->sc_lock, irq_flags);
 
 	/*
 	 * Update the counters for the corresponding status bits.
@@ -6718,6 +6722,7 @@ void start_freeze_handling(struct hfi1_pportdata *ppd, int flags)
 	struct hfi1_devdata *dd = ppd->dd;
 	struct send_context *sc;
 	int i;
+	int sc_flags;
 
 	if (flags & FREEZE_SELF)
 		write_csr(dd, CCE_CTRL, CCE_CTRL_SPC_FREEZE_SMASK);
@@ -6728,11 +6733,13 @@ void start_freeze_handling(struct hfi1_pportdata *ppd, int flags)
 	/* notify all SDMA engines that they are going into a freeze */
 	sdma_freeze_notify(dd, !!(flags & FREEZE_LINK_DOWN));
 
+	sc_flags = SCF_FROZEN | SCF_HALTED | (flags & FREEZE_LINK_DOWN ?
+					      SCF_LINK_DOWN : 0);
 	/* do halt pre-handling on all enabled send contexts */
 	for (i = 0; i < dd->num_send_contexts; i++) {
 		sc = dd->send_contexts[i].sc;
 		if (sc && (sc->flags & SCF_ENABLED))
-			sc_stop(sc, SCF_FROZEN | SCF_HALTED);
+			sc_stop(sc, sc_flags);
 	}
 
 	/* Send context are frozen. Notify user space */
@@ -6825,7 +6832,7 @@ static void rxe_kernel_unfreeze(struct hfi1_devdata *dd)
 		}
 		rcvmask = HFI1_RCVCTRL_CTXT_ENB;
 		/* HFI1_RCVCTRL_TAILUPD_[ENB|DIS] needs to be set explicitly */
-		rcvmask |= HFI1_CAP_KGET_MASK(rcd->flags, DMA_RTAIL) ?
+		rcvmask |= rcd->rcvhdrtail_kvaddr ?
 			HFI1_RCVCTRL_TAILUPD_ENB : HFI1_RCVCTRL_TAILUPD_DIS;
 		hfi1_rcvctrl(dd, rcvmask, rcd);
 		hfi1_rcd_put(rcd);
@@ -8294,8 +8301,8 @@ static irqreturn_t sdma_interrupt(int irq, void *data)
 		/* handle the interrupt(s) */
 		sdma_engine_interrupt(sde, status);
 	} else {
-		dd_dev_err_ratelimited(dd, "SDMA engine %u interrupt, but no status bits set\n",
-				       sde->this_idx);
+		dd_dev_info_ratelimited(dd, "SDMA engine %u interrupt, but no status bits set\n",
+					sde->this_idx);
 	}
 	return IRQ_HANDLED;
 }
@@ -8337,7 +8344,7 @@ static inline int check_packet_present(struct hfi1_ctxtdata *rcd)
 	u32 tail;
 	int present;
 
-	if (!HFI1_CAP_IS_KSET(DMA_RTAIL))
+	if (!rcd->rcvhdrtail_kvaddr)
 		present = (rcd->seq_cnt ==
 				rhf_rcv_seq(rhf_to_cpu(get_rhf_addr(rcd))));
 	else /* is RDMA rtail */
@@ -10642,6 +10649,8 @@ int set_link_state(struct hfi1_pportdata *ppd, u32 state)
 		add_rcvctrl(dd, RCV_CTRL_RCV_PORT_ENABLE_SMASK);
 
 		handle_linkup_change(dd, 1);
+		pio_kernel_linkup(dd);
+
 		ppd->host_link_state = HLS_UP_INIT;
 		break;
 	case HLS_UP_ARMED:
@@ -11809,7 +11818,7 @@ void hfi1_rcvctrl(struct hfi1_devdata *dd, unsigned int op,
 		/* reset the tail and hdr addresses, and sequence count */
 		write_kctxt_csr(dd, ctxt, RCV_HDR_ADDR,
 				rcd->rcvhdrq_dma);
-		if (HFI1_CAP_KGET_MASK(rcd->flags, DMA_RTAIL))
+		if (rcd->rcvhdrtail_kvaddr)
 			write_kctxt_csr(dd, ctxt, RCV_HDR_TAIL_ADDR,
 					rcd->rcvhdrqtailaddr_dma);
 		rcd->seq_cnt = 1;
@@ -11889,7 +11898,7 @@ void hfi1_rcvctrl(struct hfi1_devdata *dd, unsigned int op,
 		rcvctrl |= RCV_CTXT_CTRL_INTR_AVAIL_SMASK;
 	if (op & HFI1_RCVCTRL_INTRAVAIL_DIS)
 		rcvctrl &= ~RCV_CTXT_CTRL_INTR_AVAIL_SMASK;
-	if (op & HFI1_RCVCTRL_TAILUPD_ENB && rcd->rcvhdrqtailaddr_dma)
+	if ((op & HFI1_RCVCTRL_TAILUPD_ENB) && rcd->rcvhdrtail_kvaddr)
 		rcvctrl |= RCV_CTXT_CTRL_TAIL_UPD_SMASK;
 	if (op & HFI1_RCVCTRL_TAILUPD_DIS) {
 		/* See comment on RcvCtxtCtrl.TailUpd above */
@@ -12440,7 +12449,8 @@ static int init_cntrs(struct hfi1_devdata *dd)
 	}
 
 	/* allocate space for the counter values */
-	dd->cntrs = kcalloc(dd->ndevcntrs, sizeof(u64), GFP_KERNEL);
+	dd->cntrs = kcalloc(dd->ndevcntrs + num_driver_cntrs, sizeof(u64),
+			    GFP_KERNEL);
 	if (!dd->cntrs)
 		goto bail;
 
@@ -12967,7 +12977,14 @@ static void disable_intx(struct pci_dev *pdev)
 	pci_intx(pdev, 0);
 }
 
-static void clean_up_interrupts(struct hfi1_devdata *dd)
+/**
+ * hfi1_clean_up_interrupts() - Free all IRQ resources
+ * @dd: valid device data data structure
+ *
+ * Free the MSI or INTx IRQs and assoicated PCI resources,
+ * if they have been allocated.
+ */
+void hfi1_clean_up_interrupts(struct hfi1_devdata *dd)
 {
 	int i;
 
@@ -13344,7 +13361,7 @@ static int set_up_interrupts(struct hfi1_devdata *dd)
 	return 0;
 
 fail:
-	clean_up_interrupts(dd);
+	hfi1_clean_up_interrupts(dd);
 	return ret;
 }
 
@@ -14770,7 +14787,6 @@ void hfi1_start_cleanup(struct hfi1_devdata *dd)
 	aspm_exit(dd);
 	free_cntrs(dd);
 	free_rcverr(dd);
-	clean_up_interrupts(dd);
 	finish_chip_resources(dd);
 }
 
@@ -15229,7 +15245,7 @@ bail_free_rcverr:
 bail_free_cntrs:
 	free_cntrs(dd);
 bail_clear_intr:
-	clean_up_interrupts(dd);
+	hfi1_clean_up_interrupts(dd);
 bail_cleanup:
 	hfi1_pcie_ddcleanup(dd);
 bail_free:

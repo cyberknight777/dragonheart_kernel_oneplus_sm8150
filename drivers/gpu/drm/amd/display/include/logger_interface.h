@@ -57,6 +57,11 @@ void dm_logger_append(
 		const char *msg,
 		...);
 
+void dm_logger_append_va(
+		struct log_entry *entry,
+		const char *msg,
+		va_list args);
+
 void dm_logger_open(
 		struct dal_logger *logger,
 		struct log_entry *entry,
@@ -184,5 +189,14 @@ void context_clock_trace(
 		} \
 	} \
 } while (0)
+
+#define DISPLAY_STATS_BEGIN(entry) \
+	dm_logger_open(dc->ctx->logger, &entry, LOG_DISPLAYSTATS)
+
+#define DISPLAY_STATS(msg, ...) \
+	dm_logger_append(&log_entry, msg, ##__VA_ARGS__)
+
+#define DISPLAY_STATS_END(entry) \
+	dm_logger_close(&entry)
 
 #endif /* __DAL_LOGGER_INTERFACE_H__ */

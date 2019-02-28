@@ -146,6 +146,7 @@ config BT_HCIUART_LL
 config BT_HCIUART_3WIRE
 	bool "Three-wire UART (H5) protocol support"
 	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
 	help
 	  The HCI Three-wire UART Transport Layer makes it possible to
 	  user the Bluetooth HCI over a serial port interface. The HCI
@@ -181,6 +182,7 @@ config BT_HCIUART_BCM
 config BT_HCIUART_QCA
 	bool "Qualcomm Atheros protocol support"
 	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
 	select BT_HCIUART_H4
 	select BT_QCA
 	help

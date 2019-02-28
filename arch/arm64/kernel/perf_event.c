@@ -824,6 +824,12 @@ static int armv8pmu_set_event_filter(struct hw_perf_event *event,
 	return 0;
 }
 
+static int armv8pmu_filter_match(struct perf_event *event)
+{
+	unsigned long evtype = event->hw.config_base & ARMV8_PMU_EVTYPE_EVENT;
+	return evtype != ARMV8_PMUV3_PERFCTR_CHAIN;
+}
+
 static void armv8pmu_reset(void *info)
 {
 	struct arm_pmu *cpu_pmu = (struct arm_pmu *)info;
@@ -914,9 +920,9 @@ static void __armv8pmu_probe_pmu(void *info)
 	int pmuver;
 
 	dfr0 = read_sysreg(id_aa64dfr0_el1);
-	pmuver = cpuid_feature_extract_signed_field(dfr0,
+	pmuver = cpuid_feature_extract_unsigned_field(dfr0,
 			ID_AA64DFR0_PMUVER_SHIFT);
-	if (pmuver < 1)
+	if (pmuver == 0xf || pmuver == 0)
 		return;
 
 	probe->present = true;
@@ -970,6 +976,7 @@ static int armv8_pmu_init(struct arm_pmu *cpu_pmu)
 	cpu_pmu->reset			= armv8pmu_reset,
 	cpu_pmu->max_period		= (1LLU << 32) - 1,
 	cpu_pmu->set_event_filter	= armv8pmu_set_event_filter;
+	cpu_pmu->filter_match		= armv8pmu_filter_match;
 
 	return 0;
 }
@@ -1123,6 +1130,7 @@ static struct platform_driver armv8_pmu_driver = {
 	.driver		= {
 		.name	= ARMV8_PMU_PDEV_NAME,
 		.of_match_table = armv8_pmu_of_device_ids,
+		.suppress_bind_attrs = true,
 	},
 	.probe		= armv8_pmu_device_probe,
 };

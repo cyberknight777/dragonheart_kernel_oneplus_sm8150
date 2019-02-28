@@ -1,6 +1,7 @@
 config SECURITY_CHROMIUMOS
 	bool "Chromium OS Security Module"
 	depends on SECURITY
+	depends on X86_64 || ARM64
 	help
 	  The purpose of the Chromium OS security module is to reduce attacking
 	  surface by preventing access to general purpose access modes not
@@ -38,6 +39,7 @@ config SECURITY_CHROMIUMOS_DEVICE_JAIL
 config ALT_SYSCALL_CHROMIUMOS
 	bool "Chromium OS Alt-Syscall Tables"
 	depends on ALT_SYSCALL
+	depends on X86_64 || ARM64
 	help
 	  Register restricted, alternate syscall tables used by Chromium OS
 	  using the alt-syscall infrastructure.  Alternate syscall tables

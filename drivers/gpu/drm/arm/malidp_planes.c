@@ -23,6 +23,7 @@
 
 /* Layer specific register offsets */
 #define MALIDP_LAYER_FORMAT		0x000
+#define   LAYER_FORMAT_MASK		0x3f
 #define MALIDP_LAYER_CONTROL		0x004
 #define   LAYER_ENABLE			(1 << 0)
 #define   LAYER_FLOWCFG_MASK		7
@@ -59,7 +60,7 @@ static void malidp_de_plane_destroy(struct drm_plane *plane)
 	if (mp->base.fb)
 		drm_framebuffer_unreference(mp->base.fb);
 
-	drm_plane_helper_disable(plane);
+	drm_plane_helper_disable(plane, NULL);
 	drm_plane_cleanup(plane);
 	devm_kfree(plane->dev->dev, mp);
 }
@@ -141,16 +142,14 @@ static int malidp_se_check_scaling(struct malidp_plane *mp,
 	struct drm_crtc_state *crtc_state =
 		drm_atomic_get_existing_crtc_state(state->state, state->crtc);
 	struct malidp_crtc_state *mc;
-	struct drm_rect clip = { 0 };
 	u32 src_w, src_h;
 	int ret;
 
 	if (!crtc_state)
 		return -EINVAL;
 
-	clip.x2 = crtc_state->adjusted_mode.hdisplay;
-	clip.y2 = crtc_state->adjusted_mode.vdisplay;
-	ret = drm_plane_helper_check_state(state, &clip, 0, INT_MAX, true, true);
+	ret = drm_atomic_helper_check_plane_state(state, crtc_state,
+						  0, INT_MAX, true, true);
 	if (ret)
 		return ret;
 
@@ -278,7 +277,9 @@ static void malidp_de_plane_update(struct drm_plane *plane,
 	dest_w = plane->state->crtc_w;
 	dest_h = plane->state->crtc_h;
 
-	malidp_hw_write(mp->hwdev, ms->format, mp->layer->base);
+	val = malidp_hw_read(mp->hwdev, mp->layer->base);
+	val = (val & ~LAYER_FORMAT_MASK) | ms->format;
+	malidp_hw_write(mp->hwdev, val, mp->layer->base);
 
 	for (i = 0; i < ms->n_planes; i++) {
 		/* calculate the offset for the layer's plane registers */

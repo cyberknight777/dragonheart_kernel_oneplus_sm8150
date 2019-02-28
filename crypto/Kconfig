@@ -930,7 +930,8 @@ config CRYPTO_AES_TI
 	  8 for decryption), this implementation only uses just two S-boxes of
 	  256 bytes each, and attempts to eliminate data dependent latencies by
 	  prefetching the entire table into the cache at the start of each
-	  block.
+	  block. Interrupts are also disabled to avoid races where cachelines
+	  are evicted when the CPU is interrupted to do something else.
 
 config CRYPTO_AES_586
 	tristate "AES cipher algorithms (i586)"
@@ -1314,32 +1315,6 @@ config CRYPTO_KHAZAD
 
 config CRYPTO_SALSA20
 	tristate "Salsa20 stream cipher algorithm"
-	select CRYPTO_BLKCIPHER
-	help
-	  Salsa20 stream cipher algorithm.
-
-	  Salsa20 is a stream cipher submitted to eSTREAM, the ECRYPT
-	  Stream Cipher Project. See <http://www.ecrypt.eu.org/stream/>
-
-	  The Salsa20 stream cipher algorithm is designed by Daniel J.
-	  Bernstein <djb@cr.yp.to>. See <http://cr.yp.to/snuffle.html>
-
-config CRYPTO_SALSA20_586
-	tristate "Salsa20 stream cipher algorithm (i586)"
-	depends on (X86 || UML_X86) && !64BIT
-	select CRYPTO_BLKCIPHER
-	help
-	  Salsa20 stream cipher algorithm.
-
-	  Salsa20 is a stream cipher submitted to eSTREAM, the ECRYPT
-	  Stream Cipher Project. See <http://www.ecrypt.eu.org/stream/>
-
-	  The Salsa20 stream cipher algorithm is designed by Daniel J.
-	  Bernstein <djb@cr.yp.to>. See <http://cr.yp.to/snuffle.html>
-
-config CRYPTO_SALSA20_X86_64
-	tristate "Salsa20 stream cipher algorithm (x86_64)"
-	depends on (X86 || UML_X86) && 64BIT
 	select CRYPTO_BLKCIPHER
 	help
 	  Salsa20 stream cipher algorithm.

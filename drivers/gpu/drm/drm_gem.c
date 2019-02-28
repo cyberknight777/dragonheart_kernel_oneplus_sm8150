@@ -37,9 +37,11 @@
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 #include <linux/mem_encrypt.h>
+#include <linux/pagevec.h>
 #include <drm/drmP.h>
 #include <drm/drm_vma_manager.h>
 #include <drm/drm_gem.h>
+#include <drm/drm_print.h>
 #include "drm_internal.h"
 
 /** @file drm_gem.c
@@ -97,7 +99,7 @@ drm_gem_init(struct drm_device *dev)
 	struct drm_vma_offset_manager *vma_offset_manager;
 
 	mutex_init(&dev->object_name_lock);
-	idr_init(&dev->object_name_idr);
+	idr_init_base(&dev->object_name_idr, 1);
 
 	vma_offset_manager = kzalloc(sizeof(*vma_offset_manager), GFP_KERNEL);
 	if (!vma_offset_manager) {
@@ -348,7 +350,7 @@ EXPORT_SYMBOL_GPL(drm_gem_dumb_map_offset);
  * @file: drm file-private structure to remove the dumb handle from
  * @dev: corresponding drm_device
  * @handle: the dumb handle to remove
- * 
+ *
  * This implements the &drm_driver.dumb_destroy kms driver callback for drivers
  * which use gem to manage their backing storage.
  */
@@ -365,7 +367,7 @@ EXPORT_SYMBOL(drm_gem_dumb_destroy);
  * @file_priv: drm file-private structure to register the handle for
  * @obj: object to register
  * @handlep: pointer to return the created handle to the caller
- * 
+ *
  * This expects the &drm_device.object_name_lock to be held already and will
  * drop it before returning. Used to avoid races in establishing new handles
  * when importing an object from either an flink name or a dma-buf.
@@ -435,9 +437,12 @@ err_unref:
  * @obj: object to register
  * @handlep: pionter to return the created handle to the caller
  *
- * Create a handle for this object. This adds a handle reference
- * to the object, which includes a regular reference count. Callers
- * will likely want to dereference the object afterwards.
+ * Create a handle for this object. This adds a handle reference to the object,
+ * which includes a regular reference count. Callers will likely want to
+ * dereference the object afterwards.
+ *
+ * Since this publishes @obj to userspace it must be fully set up by this point,
+ * drivers must call this last in their buffer object creation callbacks.
  */
 int drm_gem_handle_create(struct drm_file *file_priv,
 			  struct drm_gem_object *obj,
@@ -516,6 +521,17 @@ int drm_gem_create_mmap_offset(struct drm_gem_object *obj)
 }
 EXPORT_SYMBOL(drm_gem_create_mmap_offset);
 
+/*
+ * Move pages to appropriate lru and release the pagevec, decrementing the
+ * ref count of those pages.
+ */
+static void drm_gem_check_release_pagevec(struct pagevec *pvec)
+{
+	check_move_unevictable_pages(pvec);
+	__pagevec_release(pvec);
+	cond_resched();
+}
+
 /**
  * drm_gem_get_pages - helper to allocate backing pages for a GEM object
  * from shmem
@@ -541,6 +557,7 @@ struct page **drm_gem_get_pages(struct drm_gem_object *obj)
 {
 	struct address_space *mapping;
 	struct page *p, **pages;
+	struct pagevec pvec;
 	int i, npages;
 
 	/* This is the shared memory object that backs the GEM resource */
@@ -557,6 +574,8 @@ struct page **drm_gem_get_pages(struct drm_gem_object *obj)
 	pages = kvmalloc_array(npages, sizeof(struct page *), GFP_KERNEL);
 	if (pages == NULL)
 		return ERR_PTR(-ENOMEM);
+
+	mapping_set_unevictable(mapping);
 
 	for (i = 0; i < npages; i++) {
 		p = shmem_read_mapping_page(mapping, i);
@@ -576,8 +595,14 @@ struct page **drm_gem_get_pages(struct drm_gem_object *obj)
 	return pages;
 
 fail:
-	while (i--)
-		put_page(pages[i]);
+	mapping_clear_unevictable(mapping);
+	pagevec_init(&pvec, 0);
+	while (i--) {
+		if (!pagevec_add(&pvec, pages[i]))
+			drm_gem_check_release_pagevec(&pvec);
+	}
+	if (pagevec_count(&pvec))
+		drm_gem_check_release_pagevec(&pvec);
 
 	kvfree(pages);
 	return ERR_CAST(p);
@@ -595,6 +620,11 @@ void drm_gem_put_pages(struct drm_gem_object *obj, struct page **pages,
 		bool dirty, bool accessed)
 {
 	int i, npages;
+	struct address_space *mapping;
+	struct pagevec pvec;
+
+	mapping = file_inode(obj->filp)->i_mapping;
+	mapping_clear_unevictable(mapping);
 
 	/* We already BUG_ON() for non-page-aligned sizes in
 	 * drm_gem_object_init(), so we should never hit this unless
@@ -604,6 +634,7 @@ void drm_gem_put_pages(struct drm_gem_object *obj, struct page **pages,
 
 	npages = obj->size >> PAGE_SHIFT;
 
+	pagevec_init(&pvec, 0);
 	for (i = 0; i < npages; i++) {
 		if (dirty)
 			set_page_dirty(pages[i]);
@@ -612,8 +643,11 @@ void drm_gem_put_pages(struct drm_gem_object *obj, struct page **pages,
 			mark_page_accessed(pages[i]);
 
 		/* Undo the reference we took when populating the table */
-		put_page(pages[i]);
+		if (!pagevec_add(&pvec, pages[i]))
+			drm_gem_check_release_pagevec(&pvec);
 	}
+	if (pagevec_count(&pvec))
+		drm_gem_check_release_pagevec(&pvec);
 
 	kvfree(pages);
 }
@@ -775,7 +809,7 @@ drm_gem_open_ioctl(struct drm_device *dev, void *data,
 void
 drm_gem_open(struct drm_device *dev, struct drm_file *file_private)
 {
-	idr_init(&file_private->object_idr);
+	idr_init_base(&file_private->object_idr, 1);
 	spin_lock_init(&file_private->table_lock);
 }
 
@@ -1040,3 +1074,19 @@ int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	return ret;
 }
 EXPORT_SYMBOL(drm_gem_mmap);
+
+void drm_gem_print_info(struct drm_printer *p, unsigned int indent,
+			const struct drm_gem_object *obj)
+{
+	drm_printf_indent(p, indent, "name=%d\n", obj->name);
+	drm_printf_indent(p, indent, "refcount=%u\n",
+			  kref_read(&obj->refcount));
+	drm_printf_indent(p, indent, "start=%08lx\n",
+			  drm_vma_node_start(&obj->vma_node));
+	drm_printf_indent(p, indent, "size=%zu\n", obj->size);
+	drm_printf_indent(p, indent, "imported=%s\n",
+			  obj->import_attach ? "yes" : "no");
+
+	if (obj->dev->driver->gem_print_info)
+		obj->dev->driver->gem_print_info(p, indent, obj);
+}

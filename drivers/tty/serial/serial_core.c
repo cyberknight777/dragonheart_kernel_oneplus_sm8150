@@ -143,6 +143,9 @@ static void uart_start(struct tty_struct *tty)
 	struct uart_port *port;
 	unsigned long flags;
 
+	if (!state)
+		return;
+
 	port = uart_port_lock(state, flags);
 	__uart_start(tty);
 	uart_port_unlock(port, flags);
@@ -195,6 +198,7 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 {
 	struct uart_port *uport = uart_port_check(state);
 	unsigned long page;
+	unsigned long flags = 0;
 	int retval = 0;
 
 	if (uport->type == PORT_UNKNOWN)
@@ -209,14 +213,22 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 	 * Initialise and allocate the transmit and temporary
 	 * buffer.
 	 */
-	if (!state->xmit.buf) {
-		/* This is protected by the per port mutex */
-		page = get_zeroed_page(GFP_KERNEL);
-		if (!page)
-			return -ENOMEM;
+	page = get_zeroed_page(GFP_KERNEL);
+	if (!page)
+		return -ENOMEM;
 
+	uart_port_lock(state, flags);
+	if (!state->xmit.buf) {
 		state->xmit.buf = (unsigned char *) page;
 		uart_circ_clear(&state->xmit);
+		uart_port_unlock(uport, flags);
+	} else {
+		uart_port_unlock(uport, flags);
+		/*
+		 * Do not free() the page under the port lock, see
+		 * uart_shutdown().
+		 */
+		free_page(page);
 	}
 
 	retval = uport->ops->startup(uport);
@@ -276,6 +288,8 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 {
 	struct uart_port *uport = uart_port_check(state);
 	struct tty_port *port = &state->port;
+	unsigned long flags = 0;
+	char *xmit_buf = NULL;
 
 	/*
 	 * Set the TTY IO error marker
@@ -306,12 +320,18 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 	tty_port_set_suspended(port, 0);
 
 	/*
-	 * Free the transmit buffer page.
+	 * Do not free() the transmit buffer page under the port lock since
+	 * this can create various circular locking scenarios. For instance,
+	 * console driver may need to allocate/free a debug object, which
+	 * can endup in printk() recursion.
 	 */
-	if (state->xmit.buf) {
-		free_page((unsigned long)state->xmit.buf);
-		state->xmit.buf = NULL;
-	}
+	uart_port_lock(state, flags);
+	xmit_buf = state->xmit.buf;
+	state->xmit.buf = NULL;
+	uart_port_unlock(uport, flags);
+
+	if (xmit_buf)
+		free_page((unsigned long)xmit_buf);
 }
 
 /**
@@ -546,10 +566,12 @@ static int uart_put_char(struct tty_struct *tty, unsigned char c)
 	int ret = 0;
 
 	circ = &state->xmit;
-	if (!circ->buf)
-		return 0;
-
 	port = uart_port_lock(state, flags);
+	if (!circ->buf) {
+		uart_port_unlock(port, flags);
+		return 0;
+	}
+
 	if (port && uart_circ_chars_free(circ) != 0) {
 		circ->buf[circ->head] = c;
 		circ->head = (circ->head + 1) & (UART_XMIT_SIZE - 1);
@@ -582,11 +604,13 @@ static int uart_write(struct tty_struct *tty,
 		return -EL3HLT;
 	}
 
-	circ = &state->xmit;
-	if (!circ->buf)
-		return 0;
-
 	port = uart_port_lock(state, flags);
+	circ = &state->xmit;
+	if (!circ->buf) {
+		uart_port_unlock(port, flags);
+		return 0;
+	}
+
 	while (port) {
 		c = CIRC_SPACE_TO_END(circ->head, circ->tail, UART_XMIT_SIZE);
 		if (count < c)
@@ -1157,6 +1181,8 @@ static int uart_do_autoconfig(struct tty_struct *tty,struct uart_state *state)
 		uport->ops->config_port(uport, flags);
 
 		ret = uart_startup(tty, state, 1);
+		if (ret == 0)
+			tty_port_set_initialized(port, true);
 		if (ret > 0)
 			ret = 0;
 	}
@@ -2391,6 +2417,9 @@ static void uart_poll_put_char(struct tty_driver *driver, int line, char ch)
 	struct uart_driver *drv = driver->driver_state;
 	struct uart_state *state = drv->state + line;
 	struct uart_port *port;
+
+	if (!state)
+		return;
 
 	port = uart_port_ref(state);
 	if (!port)

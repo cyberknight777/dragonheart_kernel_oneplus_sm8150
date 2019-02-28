@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Qualcomm Atheros, Inc. All rights reserved.
+ * Copyright (c) 2016-2017 Qualcomm Atheros, Inc. All rights reserved.
  * Copyright (c) 2015 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -669,7 +669,8 @@ static void ath10k_ahb_hif_stop(struct ath10k *ar)
 	napi_disable(&ar->napi);
 }
 
-static int ath10k_ahb_hif_power_up(struct ath10k *ar)
+static int ath10k_ahb_hif_power_up(struct ath10k *ar,
+				   enum ath10k_firmware_mode fw_mode)
 {
 	int ret;
 

@@ -72,6 +72,8 @@ extern struct inodes_stat_t inodes_stat;
 extern int leases_enable, lease_break_time;
 extern int sysctl_protected_symlinks;
 extern int sysctl_protected_hardlinks;
+extern int sysctl_protected_fifos;
+extern int sysctl_protected_regular;
 
 typedef __kernel_rwf_t rwf_t;
 
@@ -1312,6 +1314,7 @@ extern int send_sigurg(struct fown_struct *fown);
 #define SB_I_CGROUPWB	0x00000001	/* cgroup-aware writeback enabled */
 #define SB_I_NOEXEC	0x00000002	/* Ignore executables on this fs */
 #define SB_I_NODEV	0x00000004	/* Ignore devices on this fs */
+#define SB_I_MULTIROOT	0x00000008	/* Multiple roots to the dentry tree */
 
 /* sb->s_iflags to limit user namespace mounts */
 #define SB_I_USERNS_VISIBLE		0x00000010 /* fstype already mounted */
@@ -1801,8 +1804,10 @@ extern ssize_t vfs_copy_file_range(struct file *, loff_t , struct file *,
 extern int vfs_clone_file_prep_inodes(struct inode *inode_in, loff_t pos_in,
 				      struct inode *inode_out, loff_t pos_out,
 				      u64 *len, bool is_dedupe);
+extern int do_clone_file_range(struct file *file_in, loff_t pos_in,
+			       struct file *file_out, loff_t pos_out, u64 len);
 extern int vfs_clone_file_range(struct file *file_in, loff_t pos_in,
-		struct file *file_out, loff_t pos_out, u64 len);
+				struct file *file_out, loff_t pos_out, u64 len);
 extern int vfs_dedupe_file_range_compare(struct inode *src, loff_t srcoff,
 					 struct inode *dest, loff_t destoff,
 					 loff_t len, bool *is_same);
@@ -2404,6 +2409,7 @@ extern struct file *filp_open(const char *, int, umode_t);
 extern struct file *file_open_root(struct dentry *, struct vfsmount *,
 				   const char *, int, umode_t);
 extern struct file * dentry_open(const struct path *, int, const struct cred *);
+extern struct file *filp_clone_open(struct file *);
 extern int filp_close(struct file *, fl_owner_t id);
 
 extern struct filename *getname_flags(const char __user *, int, int *);
@@ -2731,19 +2737,6 @@ static inline void file_end_write(struct file *file)
 	if (!S_ISREG(file_inode(file)->i_mode))
 		return;
 	__sb_end_write(file_inode(file)->i_sb, SB_FREEZE_WRITE);
-}
-
-static inline int do_clone_file_range(struct file *file_in, loff_t pos_in,
-				      struct file *file_out, loff_t pos_out,
-				      u64 len)
-{
-	int ret;
-
-	file_start_write(file_out);
-	ret = vfs_clone_file_range(file_in, pos_in, file_out, pos_out, len);
-	file_end_write(file_out);
-
-	return ret;
 }
 
 /*

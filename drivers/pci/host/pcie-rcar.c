@@ -1105,7 +1105,7 @@ static int rcar_pcie_parse_request_of_pci_ranges(struct rcar_pcie *pci)
 		struct resource *res = win->res;
 
 		if (resource_type(res) == IORESOURCE_IO) {
-			err = pci_remap_iospace(res, iobase);
+			err = devm_pci_remap_iospace(dev, res, iobase);
 			if (err) {
 				dev_warn(dev, "error %d: failed to map resource %pR\n",
 					 err, res);
@@ -1141,7 +1141,9 @@ static int rcar_pcie_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&pcie->resources);
 
-	rcar_pcie_parse_request_of_pci_ranges(pcie);
+	err = rcar_pcie_parse_request_of_pci_ranges(pcie);
+	if (err)
+		goto err_free_bridge;
 
 	err = rcar_pcie_get_resources(pcie);
 	if (err < 0) {
@@ -1196,6 +1198,7 @@ err_pm_disable:
 
 err_free_resource_list:
 	pci_free_resource_list(&pcie->resources);
+err_free_bridge:
 	pci_free_host_bridge(bridge);
 
 	return err;

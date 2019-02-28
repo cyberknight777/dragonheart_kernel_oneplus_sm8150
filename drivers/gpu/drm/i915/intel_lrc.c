@@ -424,7 +424,8 @@ static u64 execlists_update_context(struct drm_i915_gem_request *rq)
 
 	reg_state[CTX_RING_TAIL+1] = intel_ring_set_tail(rq->ring, rq->tail);
 
-	/* True 32b PPGTT with dynamic page allocation: update PDP
+	/*
+	 * True 32b PPGTT with dynamic page allocation: update PDP
 	 * registers and point the unallocated PDPs to scratch page.
 	 * PML4 is allocated during ppgtt init, so this is not needed
 	 * in 48-bit mode.
@@ -432,6 +433,22 @@ static u64 execlists_update_context(struct drm_i915_gem_request *rq)
 	if (ppgtt && !i915_vm_is_48bit(&ppgtt->base))
 		execlists_update_context_pdps(ppgtt, reg_state);
 
+	/*
+	 * Make sure the context image is complete before we submit it to HW.
+	 *
+	 * Ostensibly, writes (including the WCB) should be flushed prior to
+	 * an uncached write such as our mmio register access, the empirical
+	 * evidence (esp. on Braswell) suggests that the WC write into memory
+	 * may not be visible to the HW prior to the completion of the UC
+	 * register write and that we may begin execution from the context
+	 * before its image is complete leading to invalid PD chasing.
+	 *
+	 * Furthermore, Braswell, at least, wants a full mb to be sure that
+	 * the writes are coherent in memory (visible to the GPU) prior to
+	 * execution, and not just visible to other CPUs (as is the result of
+	 * wmb).
+	 */
+	mb();
 	return ce->lrc_desc;
 }
 
@@ -1322,11 +1339,21 @@ static u32 *gen9_init_indirectctx_bb(struct intel_engine_cs *engine, u32 *batch)
 	/* WaFlushCoherentL3CacheLinesAtContextSwitch:skl,bxt,glk */
 	batch = gen8_emit_flush_coherentl3_wa(engine, batch);
 
+	*batch++ = MI_LOAD_REGISTER_IMM(3);
+
 	/* WaDisableGatherAtSetShaderCommonSlice:skl,bxt,kbl,glk */
-	*batch++ = MI_LOAD_REGISTER_IMM(1);
 	*batch++ = i915_mmio_reg_offset(COMMON_SLICE_CHICKEN2);
 	*batch++ = _MASKED_BIT_DISABLE(
 			GEN9_DISABLE_GATHER_AT_SET_SHADER_COMMON_SLICE);
+
+	/* BSpec: 11391 */
+	*batch++ = i915_mmio_reg_offset(FF_SLICE_CHICKEN);
+	*batch++ = _MASKED_BIT_ENABLE(FF_SLICE_CHICKEN_CL_PROVOKING_VERTEX_FIX);
+
+	/* BSpec: 11299 */
+	*batch++ = i915_mmio_reg_offset(_3D_CHICKEN3);
+	*batch++ = _MASKED_BIT_ENABLE(_3D_CHICKEN_SF_PROVOKING_VERTEX_FIX);
+
 	*batch++ = MI_NOOP;
 
 	/* WaClearSlmSpaceAtContextSwitch:kbl */

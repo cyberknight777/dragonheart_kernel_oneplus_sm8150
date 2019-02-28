@@ -228,6 +228,7 @@ static int pcpu_alloc_lowcore(struct pcpu *pcpu, int cpu)
 	lc->mcesad = mcesa_origin | mcesa_bits;
 	lc->cpu_nr = cpu;
 	lc->spinlock_lockval = arch_spin_lockval(cpu);
+	lc->br_r1_trampoline = 0x07f1;	/* br %r1 */
 	if (vdso_alloc_per_cpu(lc))
 		goto out;
 	lowcore_ptr[cpu] = lc;
@@ -282,7 +283,9 @@ static void pcpu_prepare_secondary(struct pcpu *pcpu, int cpu)
 	__ctl_store(lc->cregs_save_area, 0, 15);
 	save_access_regs((unsigned int *) lc->access_regs_save_area);
 	memcpy(lc->stfle_fac_list, S390_lowcore.stfle_fac_list,
-	       MAX_FACILITY_BIT/8);
+	       sizeof(lc->stfle_fac_list));
+	memcpy(lc->alt_stfle_fac_list, S390_lowcore.alt_stfle_fac_list,
+	       sizeof(lc->alt_stfle_fac_list));
 }
 
 static void pcpu_attach_task(struct pcpu *pcpu, struct task_struct *tsk)
@@ -332,6 +335,7 @@ static void pcpu_delegate(struct pcpu *pcpu, void (*func)(void *),
 	mem_assign_absolute(lc->restart_fn, (unsigned long) func);
 	mem_assign_absolute(lc->restart_data, (unsigned long) data);
 	mem_assign_absolute(lc->restart_source, source_cpu);
+	__bpon();
 	asm volatile(
 		"0:	sigp	0,%0,%2	# sigp restart to target cpu\n"
 		"	brc	2,0b	# busy, try again\n"
@@ -383,9 +387,13 @@ void smp_call_online_cpu(void (*func)(void *), void *data)
  */
 void smp_call_ipl_cpu(void (*func)(void *), void *data)
 {
+	struct lowcore *lc = pcpu_devices->lowcore;
+
+	if (pcpu_devices[0].address == stap())
+		lc = &S390_lowcore;
+
 	pcpu_delegate(&pcpu_devices[0], func, data,
-		      pcpu_devices->lowcore->panic_stack -
-		      PANIC_FRAME_OFFSET + PAGE_SIZE);
+		      lc->panic_stack - PANIC_FRAME_OFFSET + PAGE_SIZE);
 }
 
 int smp_find_processor_id(u16 address)
@@ -907,6 +915,7 @@ void __cpu_die(unsigned int cpu)
 void __noreturn cpu_die(void)
 {
 	idle_task_exit();
+	__bpon();
 	pcpu_sigp_retry(pcpu_devices + smp_processor_id(), SIGP_STOP, 0);
 	for (;;) ;
 }
@@ -1163,7 +1172,11 @@ static ssize_t __ref rescan_store(struct device *dev,
 {
 	int rc;
 
+	rc = lock_device_hotplug_sysfs();
+	if (rc)
+		return rc;
 	rc = smp_rescan_cpus();
+	unlock_device_hotplug();
 	return rc ? rc : count;
 }
 static DEVICE_ATTR(rescan, 0200, NULL, rescan_store);

@@ -396,7 +396,7 @@ static int snd_compr_mmap(struct file *f, struct vm_area_struct *vma)
 	return -ENXIO;
 }
 
-static inline int snd_compr_get_poll(struct snd_compr_stream *stream)
+static __poll_t snd_compr_get_poll(struct snd_compr_stream *stream)
 {
 	if (stream->direction == SND_COMPRESS_PLAYBACK)
 		return POLLOUT | POLLWRNORM;
@@ -404,12 +404,12 @@ static inline int snd_compr_get_poll(struct snd_compr_stream *stream)
 		return POLLIN | POLLRDNORM;
 }
 
-static unsigned int snd_compr_poll(struct file *f, poll_table *wait)
+static __poll_t snd_compr_poll(struct file *f, poll_table *wait)
 {
 	struct snd_compr_file *data = f->private_data;
 	struct snd_compr_stream *stream;
 	size_t avail;
-	int retval = 0;
+	__poll_t retval = 0;
 
 	if (snd_BUG_ON(!data))
 		return POLLERR;
@@ -1159,18 +1159,6 @@ int snd_compress_deregister(struct snd_compr *device)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_compress_deregister);
-
-static int __init snd_compress_init(void)
-{
-	return 0;
-}
-
-static void __exit snd_compress_exit(void)
-{
-}
-
-module_init(snd_compress_init);
-module_exit(snd_compress_exit);
 
 MODULE_DESCRIPTION("ALSA Compressed offload framework");
 MODULE_AUTHOR("Vinod Koul <vinod.koul@linux.intel.com>");

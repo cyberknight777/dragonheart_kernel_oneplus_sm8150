@@ -46,6 +46,7 @@
 #include <linux/delayacct.h>
 #include <linux/sysctl.h>
 #include <linux/oom.h>
+#include <linux/pagevec.h>
 #include <linux/prefetch.h>
 #include <linux/printk.h>
 #include <linux/dax.h>
@@ -1446,14 +1447,24 @@ int __isolate_lru_page(struct page *page, isolate_mode_t mode)
 
 		if (PageDirty(page)) {
 			struct address_space *mapping;
+			bool migrate_dirty;
 
 			/*
 			 * Only pages without mappings or that have a
 			 * ->migratepage callback are possible to migrate
-			 * without blocking
+			 * without blocking. However, we can be racing with
+			 * truncation so it's necessary to lock the page
+			 * to stabilise the mapping as truncation holds
+			 * the page lock until after the page is removed
+			 * from the page cache.
 			 */
+			if (!trylock_page(page))
+				return ret;
+
 			mapping = page_mapping(page);
-			if (mapping && !mapping->a_ops->migratepage)
+			migrate_dirty = !mapping || mapping->a_ops->migratepage;
+			unlock_page(page);
+			if (!migrate_dirty)
 				return ret;
 		}
 	}
@@ -1857,6 +1868,20 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 		set_bit(PGDAT_WRITEBACK, &pgdat->flags);
 
 	/*
+	 * If dirty pages are scanned that are not queued for IO, it
+	 * implies that flushers are not doing their job. This can
+	 * happen when memory pressure pushes dirty pages to the end of
+	 * the LRU before the dirty limits are breached and the dirty
+	 * data has expired. It can also happen when the proportion of
+	 * dirty pages grows not through writes but through memory
+	 * pressure reclaiming all the clean cache. And in some cases,
+	 * the flushers simply cannot keep up with the allocation
+	 * rate. Nudge the flusher threads in case they are asleep.
+	 */
+	if (stat.nr_unqueued_dirty == nr_taken)
+		wakeup_flusher_threads(0, WB_REASON_VMSCAN);
+
+	/*
 	 * Legacy memcg will stall in page writeback so avoid forcibly
 	 * stalling here.
 	 */
@@ -1868,22 +1893,9 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 		if (stat.nr_dirty && stat.nr_dirty == stat.nr_congested)
 			set_bit(PGDAT_CONGESTED, &pgdat->flags);
 
-		/*
-		 * If dirty pages are scanned that are not queued for IO, it
-		 * implies that flushers are not doing their job. This can
-		 * happen when memory pressure pushes dirty pages to the end of
-		 * the LRU before the dirty limits are breached and the dirty
-		 * data has expired. It can also happen when the proportion of
-		 * dirty pages grows not through writes but through memory
-		 * pressure reclaiming all the clean cache. And in some cases,
-		 * the flushers simply cannot keep up with the allocation
-		 * rate. Nudge the flusher threads in case they are asleep, but
-		 * also allow kswapd to start writing pages during reclaim.
-		 */
-		if (stat.nr_unqueued_dirty == nr_taken) {
-			wakeup_flusher_threads(0, WB_REASON_VMSCAN);
+		/* Allow kswapd to start writing pages during reclaim. */
+		if (stat.nr_unqueued_dirty == nr_taken)
 			set_bit(PGDAT_DIRTY, &pgdat->flags);
-		}
 
 		/*
 		 * If kswapd scans pages marked marked for immediate
@@ -2224,8 +2236,11 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	unsigned long ap, fp;
 	enum lru_list lru;
 
-	/* do not scan file pages when file page count is low */
-	if (file_is_low(lruvec, sc)) {
+	/*
+	 * Do not scan file pages when swap is allowed by __GFP_IO and
+	 * file page count is low.
+	 */
+	if ((sc->gfp_mask & __GFP_IO) && file_is_low(lruvec, sc)) {
 		scan_balance = SCAN_ANON;
 		goto out;
 	}
@@ -2391,9 +2406,11 @@ out:
 			/*
 			 * Scan types proportional to swappiness and
 			 * their relative recent reclaim efficiency.
+			 * Make sure we don't miss the last page
+			 * because of a round-off error.
 			 */
-			scan = div64_u64(scan * fraction[file],
-					 denominator);
+			scan = DIV64_U64_ROUND_UP(scan * fraction[file],
+						  denominator);
 			break;
 		case SCAN_FILE:
 		case SCAN_ANON:
@@ -3985,20 +4002,25 @@ int node_reclaim(struct pglist_data *pgdat, gfp_t gfp_mask, unsigned int order)
  */
 int page_evictable(struct page *page)
 {
-	return !mapping_unevictable(page_mapping(page)) && !PageMlocked(page);
+	int ret;
+
+	/* Prevent address_space of inode and swap cache from being freed */
+	rcu_read_lock();
+	ret = !mapping_unevictable(page_mapping(page)) && !PageMlocked(page);
+	rcu_read_unlock();
+	return ret;
 }
 
-#ifdef CONFIG_SHMEM
 /**
- * check_move_unevictable_pages - check pages for evictability and move to appropriate zone lru list
- * @pages:	array of pages to check
- * @nr_pages:	number of pages to check
+ * check_move_unevictable_pages - check pages for evictability and move to
+ * appropriate zone lru list
+ * @pvec: pagevec with lru pages to check
  *
- * Checks pages for evictability and moves them to the appropriate lru list.
- *
- * This function is only used for SysV IPC SHM_UNLOCK.
+ * Checks pages for evictability, if an evictable page is in the unevictable
+ * lru list, moves it to the appropriate evictable lru list. This function
+ * should be only used for lru pages.
  */
-void check_move_unevictable_pages(struct page **pages, int nr_pages)
+void check_move_unevictable_pages(struct pagevec *pvec)
 {
 	struct lruvec *lruvec;
 	struct pglist_data *pgdat = NULL;
@@ -4006,8 +4028,8 @@ void check_move_unevictable_pages(struct page **pages, int nr_pages)
 	int pgrescued = 0;
 	int i;
 
-	for (i = 0; i < nr_pages; i++) {
-		struct page *page = pages[i];
+	for (i = 0; i < pvec->nr; i++) {
+		struct page *page = pvec->pages[i];
 		struct pglist_data *pagepgdat = page_pgdat(page);
 
 		pgscanned++;
@@ -4039,4 +4061,4 @@ void check_move_unevictable_pages(struct page **pages, int nr_pages)
 		spin_unlock_irq(&pgdat->lru_lock);
 	}
 }
-#endif /* CONFIG_SHMEM */
+EXPORT_SYMBOL_GPL(check_move_unevictable_pages);

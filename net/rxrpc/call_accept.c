@@ -115,9 +115,9 @@ static int rxrpc_service_prealloc_one(struct rxrpc_sock *rx,
 		while (*pp) {
 			parent = *pp;
 			xcall = rb_entry(parent, struct rxrpc_call, sock_node);
-			if (user_call_ID < call->user_call_ID)
+			if (user_call_ID < xcall->user_call_ID)
 				pp = &(*pp)->rb_left;
-			else if (user_call_ID > call->user_call_ID)
+			else if (user_call_ID > xcall->user_call_ID)
 				pp = &(*pp)->rb_right;
 			else
 				goto id_in_use;
@@ -418,11 +418,11 @@ found_service:
 
 	case RXRPC_CONN_REMOTELY_ABORTED:
 		rxrpc_set_call_completion(call, RXRPC_CALL_REMOTELY_ABORTED,
-					  conn->remote_abort, -ECONNABORTED);
+					  conn->abort_code, conn->error);
 		break;
 	case RXRPC_CONN_LOCALLY_ABORTED:
 		rxrpc_abort_call("CON", call, sp->hdr.seq,
-				 conn->local_abort, -ECONNABORTED);
+				 conn->abort_code, conn->error);
 		break;
 	default:
 		BUG();

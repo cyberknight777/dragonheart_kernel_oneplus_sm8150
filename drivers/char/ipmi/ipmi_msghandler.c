@@ -2265,7 +2265,7 @@ static ssize_t device_id_show(struct device *dev,
 
 	return snprintf(buf, 10, "%u\n", bmc->id.device_id);
 }
-static DEVICE_ATTR(device_id, S_IRUGO, device_id_show, NULL);
+static DEVICE_ATTR_RO(device_id);
 
 static ssize_t provides_device_sdrs_show(struct device *dev,
 					 struct device_attribute *attr,
@@ -2276,8 +2276,7 @@ static ssize_t provides_device_sdrs_show(struct device *dev,
 	return snprintf(buf, 10, "%u\n",
 			(bmc->id.device_revision & 0x80) >> 7);
 }
-static DEVICE_ATTR(provides_device_sdrs, S_IRUGO, provides_device_sdrs_show,
-		   NULL);
+static DEVICE_ATTR_RO(provides_device_sdrs);
 
 static ssize_t revision_show(struct device *dev, struct device_attribute *attr,
 			     char *buf)
@@ -2287,7 +2286,7 @@ static ssize_t revision_show(struct device *dev, struct device_attribute *attr,
 	return snprintf(buf, 20, "%u\n",
 			bmc->id.device_revision & 0x0F);
 }
-static DEVICE_ATTR(revision, S_IRUGO, revision_show, NULL);
+static DEVICE_ATTR_RO(revision);
 
 static ssize_t firmware_revision_show(struct device *dev,
 				      struct device_attribute *attr,
@@ -2298,7 +2297,7 @@ static ssize_t firmware_revision_show(struct device *dev,
 	return snprintf(buf, 20, "%u.%x\n", bmc->id.firmware_revision_1,
 			bmc->id.firmware_revision_2);
 }
-static DEVICE_ATTR(firmware_revision, S_IRUGO, firmware_revision_show, NULL);
+static DEVICE_ATTR_RO(firmware_revision);
 
 static ssize_t ipmi_version_show(struct device *dev,
 				 struct device_attribute *attr,
@@ -2310,7 +2309,7 @@ static ssize_t ipmi_version_show(struct device *dev,
 			ipmi_version_major(&bmc->id),
 			ipmi_version_minor(&bmc->id));
 }
-static DEVICE_ATTR(ipmi_version, S_IRUGO, ipmi_version_show, NULL);
+static DEVICE_ATTR_RO(ipmi_version);
 
 static ssize_t add_dev_support_show(struct device *dev,
 				    struct device_attribute *attr,
@@ -2332,7 +2331,7 @@ static ssize_t manufacturer_id_show(struct device *dev,
 
 	return snprintf(buf, 20, "0x%6.6x\n", bmc->id.manufacturer_id);
 }
-static DEVICE_ATTR(manufacturer_id, S_IRUGO, manufacturer_id_show, NULL);
+static DEVICE_ATTR_RO(manufacturer_id);
 
 static ssize_t product_id_show(struct device *dev,
 			       struct device_attribute *attr,
@@ -2342,7 +2341,7 @@ static ssize_t product_id_show(struct device *dev,
 
 	return snprintf(buf, 10, "0x%4.4x\n", bmc->id.product_id);
 }
-static DEVICE_ATTR(product_id, S_IRUGO, product_id_show, NULL);
+static DEVICE_ATTR_RO(product_id);
 
 static ssize_t aux_firmware_rev_show(struct device *dev,
 				     struct device_attribute *attr,
@@ -2367,7 +2366,7 @@ static ssize_t guid_show(struct device *dev, struct device_attribute *attr,
 			(long long) bmc->guid[0],
 			(long long) bmc->guid[8]);
 }
-static DEVICE_ATTR(guid, S_IRUGO, guid_show, NULL);
+static DEVICE_ATTR_RO(guid);
 
 static struct attribute *bmc_dev_attrs[] = {
 	&dev_attr_device_id.attr,

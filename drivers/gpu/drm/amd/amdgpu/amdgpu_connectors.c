@@ -69,25 +69,18 @@ void amdgpu_connector_hotplug(struct drm_connector *connector)
 		/* don't do anything if sink is not display port, i.e.,
 		 * passive dp->(dvi|hdmi) adaptor
 		 */
-		if (dig_connector->dp_sink_type == CONNECTOR_OBJECT_ID_DISPLAYPORT) {
-			int saved_dpms = connector->dpms;
-			/* Only turn off the display if it's physically disconnected */
-			if (!amdgpu_display_hpd_sense(adev, amdgpu_connector->hpd.hpd)) {
-				drm_helper_connector_dpms(connector, DRM_MODE_DPMS_OFF);
-			} else if (amdgpu_atombios_dp_needs_link_train(amdgpu_connector)) {
-				/* Don't try to start link training before we
-				 * have the dpcd */
-				if (amdgpu_atombios_dp_get_dpcd(amdgpu_connector))
-					return;
+		if (dig_connector->dp_sink_type == CONNECTOR_OBJECT_ID_DISPLAYPORT &&
+		    amdgpu_display_hpd_sense(adev, amdgpu_connector->hpd.hpd) &&
+		    amdgpu_atombios_dp_needs_link_train(amdgpu_connector)) {
+			/* Don't start link training before we have the DPCD */
+			if (amdgpu_atombios_dp_get_dpcd(amdgpu_connector))
+				return;
 
-				/* set it to OFF so that drm_helper_connector_dpms()
-				 * won't return immediately since the current state
-				 * is ON at this point.
-				 */
-				connector->dpms = DRM_MODE_DPMS_OFF;
-				drm_helper_connector_dpms(connector, DRM_MODE_DPMS_ON);
-			}
-			connector->dpms = saved_dpms;
+			/* Turn the connector off and back on immediately, which
+			 * will trigger link training
+			 */
+			drm_helper_connector_dpms(connector, DRM_MODE_DPMS_OFF);
+			drm_helper_connector_dpms(connector, DRM_MODE_DPMS_ON);
 		}
 	}
 }
@@ -358,7 +351,6 @@ static int amdgpu_connector_ddc_get_modes(struct drm_connector *connector)
 	if (amdgpu_connector->edid) {
 		drm_mode_connector_update_edid_property(connector, amdgpu_connector->edid);
 		ret = drm_add_edid_modes(connector, amdgpu_connector->edid);
-		drm_edid_to_eld(connector, amdgpu_connector->edid);
 		return ret;
 	}
 	drm_mode_connector_update_edid_property(connector, NULL);
@@ -699,7 +691,7 @@ static int amdgpu_connector_lvds_get_modes(struct drm_connector *connector)
 	return ret;
 }
 
-static int amdgpu_connector_lvds_mode_valid(struct drm_connector *connector,
+static enum drm_mode_status amdgpu_connector_lvds_mode_valid(struct drm_connector *connector,
 					     struct drm_display_mode *mode)
 {
 	struct drm_encoder *encoder = amdgpu_connector_best_single_encoder(connector);
@@ -851,7 +843,7 @@ static int amdgpu_connector_vga_get_modes(struct drm_connector *connector)
 	return ret;
 }
 
-static int amdgpu_connector_vga_mode_valid(struct drm_connector *connector,
+static enum drm_mode_status amdgpu_connector_vga_mode_valid(struct drm_connector *connector,
 					    struct drm_display_mode *mode)
 {
 	struct drm_device *dev = connector->dev;
@@ -886,7 +878,7 @@ amdgpu_connector_vga_detect(struct drm_connector *connector, bool force)
 		ret = connector_status_disconnected;
 
 	if (amdgpu_connector->ddc_bus)
-		dret = amdgpu_ddc_probe(amdgpu_connector, false);
+		dret = amdgpu_display_ddc_probe(amdgpu_connector, false);
 	if (dret) {
 		amdgpu_connector->detected_by_load = false;
 		amdgpu_connector_free_edid(connector);
@@ -1011,7 +1003,7 @@ amdgpu_connector_dvi_detect(struct drm_connector *connector, bool force)
 	}
 
 	if (amdgpu_connector->ddc_bus)
-		dret = amdgpu_ddc_probe(amdgpu_connector, false);
+		dret = amdgpu_display_ddc_probe(amdgpu_connector, false);
 	if (dret) {
 		amdgpu_connector->detected_by_load = false;
 		amdgpu_connector_free_edid(connector);
@@ -1180,7 +1172,7 @@ static void amdgpu_connector_dvi_force(struct drm_connector *connector)
 		amdgpu_connector->use_digital = true;
 }
 
-static int amdgpu_connector_dvi_mode_valid(struct drm_connector *connector,
+static enum drm_mode_status amdgpu_connector_dvi_mode_valid(struct drm_connector *connector,
 					    struct drm_display_mode *mode)
 {
 	struct drm_device *dev = connector->dev;
@@ -1418,7 +1410,8 @@ amdgpu_connector_dp_detect(struct drm_connector *connector, bool force)
 			/* setup ddc on the bridge */
 			amdgpu_atombios_encoder_setup_ext_encoder_ddc(encoder);
 			/* bridge chips are always aux */
-			if (amdgpu_ddc_probe(amdgpu_connector, true)) /* try DDC */
+			/* try DDC */
+			if (amdgpu_display_ddc_probe(amdgpu_connector, true))
 				ret = connector_status_connected;
 			else if (amdgpu_connector->dac_load_detect) { /* try load detection */
 				const struct drm_encoder_helper_funcs *encoder_funcs = encoder->helper_private;
@@ -1438,7 +1431,8 @@ amdgpu_connector_dp_detect(struct drm_connector *connector, bool force)
 					ret = connector_status_connected;
 			} else {
 				/* try non-aux ddc (DP to DVI/HDMI/etc. adapter) */
-				if (amdgpu_ddc_probe(amdgpu_connector, false))
+				if (amdgpu_display_ddc_probe(amdgpu_connector,
+							     false))
 					ret = connector_status_connected;
 			}
 		}
@@ -1454,7 +1448,7 @@ out:
 	return ret;
 }
 
-static int amdgpu_connector_dp_mode_valid(struct drm_connector *connector,
+static enum drm_mode_status amdgpu_connector_dp_mode_valid(struct drm_connector *connector,
 					   struct drm_display_mode *mode)
 {
 	struct amdgpu_connector *amdgpu_connector = to_amdgpu_connector(connector);

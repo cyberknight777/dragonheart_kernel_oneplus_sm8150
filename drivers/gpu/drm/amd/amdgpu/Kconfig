@@ -23,6 +23,13 @@ config DRM_AMDGPU_CIK
 
 	  radeon.cik_support=0 amdgpu.cik_support=1
 
+config DRM_AMDGPU_IP_BLOCK_MASK
+	hex "AMDGPU IP Block Mask"
+	depends on DRM_AMDGPU
+	default "0xffffffff"
+	help
+	  Modify this option to disable any IP block of amdgpu.
+
 config DRM_AMDGPU_USERPTR
 	bool "Always enable userptr write support"
 	depends on DRM_AMDGPU

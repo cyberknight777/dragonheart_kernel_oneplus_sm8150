@@ -42,6 +42,8 @@
 #define KV_MINIMUM_ENGINE_CLOCK         800
 #define SMC_RAM_END                     0x40000
 
+static const struct amd_pm_funcs kv_dpm_funcs;
+
 static void kv_dpm_set_irq_funcs(struct amdgpu_device *adev);
 static int kv_enable_nb_dpm(struct amdgpu_device *adev,
 			    bool enable);
@@ -1352,8 +1354,6 @@ static int kv_dpm_enable(struct amdgpu_device *adev)
 		return ret;
 	}
 
-	kv_update_current_ps(adev, adev->pm.dpm.boot_ps);
-
 	if (adev->irq.installed &&
 	    amdgpu_is_internal_thermal_sensor(adev->pm.int_thermal_type)) {
 		ret = kv_set_thermal_temperature_range(adev, KV_TEMP_RANGE_MIN, KV_TEMP_RANGE_MAX);
@@ -1682,8 +1682,8 @@ static void kv_dpm_powergate_uvd(void *handle, bool gate)
 
 	if (gate) {
 		/* stop the UVD block */
-		ret = amdgpu_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
-							AMD_PG_STATE_GATE);
+		ret = amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
+							     AMD_PG_STATE_GATE);
 		kv_update_uvd_dpm(adev, gate);
 		if (pi->caps_uvd_pg)
 			/* power off the UVD block */
@@ -1695,8 +1695,8 @@ static void kv_dpm_powergate_uvd(void *handle, bool gate)
 			/* re-init the UVD block */
 		kv_update_uvd_dpm(adev, gate);
 
-		ret = amdgpu_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
-							AMD_PG_STATE_UNGATE);
+		ret = amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_UVD,
+							     AMD_PG_STATE_UNGATE);
 	}
 }
 
@@ -2815,7 +2815,7 @@ static int kv_dpm_init(struct amdgpu_device *adev)
 		pi->caps_tcp_ramping = true;
 	}
 
-	if (amdgpu_pp_feature_mask & SCLK_DEEP_SLEEP_MASK)
+	if (adev->powerplay.pp_feature & PP_SCLK_DEEP_SLEEP_MASK)
 		pi->caps_sclk_ds = true;
 	else
 		pi->caps_sclk_ds = false;
@@ -2960,6 +2960,8 @@ static int kv_dpm_early_init(void *handle)
 {
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
+	adev->powerplay.pp_funcs = &kv_dpm_funcs;
+	adev->powerplay.pp_handle = adev;
 	kv_dpm_set_irq_funcs(adev);
 
 	return 0;
@@ -2970,7 +2972,7 @@ static int kv_dpm_late_init(void *handle)
 	/* powerdown unused blocks for now */
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
-	if (!amdgpu_dpm)
+	if (!adev->pm.dpm_enabled)
 		return 0;
 
 	kv_dpm_powergate_acp(adev, true);
@@ -3056,7 +3058,7 @@ static int kv_dpm_hw_init(void *handle)
 	else
 		adev->pm.dpm_enabled = true;
 	mutex_unlock(&adev->pm.mutex);
-
+	amdgpu_pm_compute_clocks(adev);
 	return ret;
 }
 
@@ -3301,7 +3303,20 @@ static int kv_dpm_read_sensor(void *handle, int idx,
 	}
 }
 
-const struct amd_ip_funcs kv_dpm_ip_funcs = {
+static int kv_set_powergating_by_smu(void *handle,
+				uint32_t block_type, bool gate)
+{
+	switch (block_type) {
+	case AMD_IP_BLOCK_TYPE_UVD:
+		kv_dpm_powergate_uvd(handle, gate);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static const struct amd_ip_funcs kv_dpm_ip_funcs = {
 	.name = "kv_dpm",
 	.early_init = kv_dpm_early_init,
 	.late_init = kv_dpm_late_init,
@@ -3318,8 +3333,16 @@ const struct amd_ip_funcs kv_dpm_ip_funcs = {
 	.set_powergating_state = kv_dpm_set_powergating_state,
 };
 
-const struct amd_pm_funcs kv_dpm_funcs = {
-	.get_temperature = &kv_dpm_get_temp,
+const struct amdgpu_ip_block_version kv_smu_ip_block =
+{
+	.type = AMD_IP_BLOCK_TYPE_SMC,
+	.major = 1,
+	.minor = 0,
+	.rev = 0,
+	.funcs = &kv_dpm_ip_funcs,
+};
+
+static const struct amd_pm_funcs kv_dpm_funcs = {
 	.pre_set_power_state = &kv_dpm_pre_set_power_state,
 	.set_power_state = &kv_dpm_set_power_state,
 	.post_set_power_state = &kv_dpm_post_set_power_state,
@@ -3329,7 +3352,7 @@ const struct amd_pm_funcs kv_dpm_funcs = {
 	.print_power_state = &kv_dpm_print_power_state,
 	.debugfs_print_current_performance_level = &kv_dpm_debugfs_print_current_performance_level,
 	.force_performance_level = &kv_dpm_force_performance_level,
-	.powergate_uvd = &kv_dpm_powergate_uvd,
+	.set_powergating_by_smu = kv_set_powergating_by_smu,
 	.enable_bapm = &kv_dpm_enable_bapm,
 	.get_vce_clock_state = amdgpu_get_vce_clock_state,
 	.check_state_equal = kv_check_state_equal,

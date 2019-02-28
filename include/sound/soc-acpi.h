@@ -1,15 +1,6 @@
-/*
+/* SPDX-License-Identifier: GPL-2.0
+ *
  * Copyright (C) 2013-15, Intel Corporation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License version
- * 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 
 #ifndef __LINUX_SND_SOC_ACPI_H
@@ -17,6 +8,7 @@
 
 #include <linux/stddef.h>
 #include <linux/acpi.h>
+#include <linux/mod_devicetable.h>
 
 struct snd_soc_acpi_package_context {
 	char *name;           /* package name */
@@ -26,17 +18,13 @@ struct snd_soc_acpi_package_context {
 	bool data_valid;
 };
 
+/* codec name is used in DAIs is i2c-<HID>:00 with HID being 8 chars */
+#define SND_ACPI_I2C_ID_LEN (4 + ACPI_ID_LEN + 3 + 1)
+
 #if IS_ENABLED(CONFIG_ACPI)
-/* translation fron HID to I2C name, needed for DAI codec_name */
-const char *snd_soc_acpi_find_name_from_hid(const u8 hid[ACPI_ID_LEN]);
 bool snd_soc_acpi_find_package_from_hid(const u8 hid[ACPI_ID_LEN],
 				    struct snd_soc_acpi_package_context *ctx);
 #else
-static inline const char *
-snd_soc_acpi_find_name_from_hid(const u8 hid[ACPI_ID_LEN])
-{
-	return NULL;
-}
 static inline bool
 snd_soc_acpi_find_package_from_hid(const u8 hid[ACPI_ID_LEN],
 				   struct snd_soc_acpi_package_context *ctx)
@@ -49,8 +37,18 @@ snd_soc_acpi_find_package_from_hid(const u8 hid[ACPI_ID_LEN],
 struct snd_soc_acpi_mach *
 snd_soc_acpi_find_machine(struct snd_soc_acpi_mach *machines);
 
-/* acpi check hid */
-bool snd_soc_acpi_check_hid(const u8 hid[ACPI_ID_LEN]);
+/**
+ * snd_soc_acpi_mach_params: interface for machine driver configuration
+ *
+ * @acpi_ipc_irq_index: used for BYT-CR detection
+ * @platform: string used for HDaudio codec support
+ * @codec_mask: used for HDAudio support
+ */
+struct snd_soc_acpi_mach_params {
+	u32 acpi_ipc_irq_index;
+	const char *platform;
+	u32 codec_mask;
+};
 
 /**
  * snd_soc_acpi_mach: ACPI-based machine descriptor. Most of the fields are
@@ -83,6 +81,7 @@ struct snd_soc_acpi_mach {
 	struct snd_soc_acpi_mach * (*machine_quirk)(void *arg);
 	const void *quirk_data;
 	void *pdata;
+	struct snd_soc_acpi_mach_params mach_params;
 	const char *sof_fw_filename;
 	const char *sof_tplg_filename;
 	const char *asoc_plat_name;

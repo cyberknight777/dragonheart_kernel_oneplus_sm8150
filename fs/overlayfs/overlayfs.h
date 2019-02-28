@@ -28,7 +28,10 @@ enum ovl_path_type {
 #define OVL_XATTR_NLINK OVL_XATTR_PREFIX "nlink"
 
 enum ovl_flag {
+	/* Pure upper dir that may contain non pure upper entries */
 	OVL_IMPURE,
+	/* Non-merge dir that may contain whiteout entries */
+	OVL_WHITEOUTS,
 	OVL_INDEX,
 };
 
@@ -136,8 +139,8 @@ static inline int ovl_do_setxattr(struct dentry *dentry, const char *name,
 				  const void *value, size_t size, int flags)
 {
 	int err = vfs_setxattr(dentry, name, value, size, flags);
-	pr_debug("setxattr(%pd2, \"%s\", \"%*s\", 0x%x) = %i\n",
-		 dentry, name, (int) size, (char *) value, flags, err);
+	pr_debug("setxattr(%pd2, \"%s\", \"%*pE\", %zu, 0x%x) = %i\n",
+		 dentry, name, min((int)size, 48), value, size, flags, err);
 	return err;
 }
 
@@ -223,6 +226,7 @@ bool ovl_is_whiteout(struct dentry *dentry);
 struct file *ovl_path_open(struct path *path, int flags);
 int ovl_copy_up_start(struct dentry *dentry);
 void ovl_copy_up_end(struct dentry *dentry);
+bool ovl_check_origin_xattr(struct dentry *dentry);
 bool ovl_check_dir_xattr(struct dentry *dentry, const char *name);
 int ovl_check_setxattr(struct dentry *dentry, struct dentry *upperdentry,
 		       const char *name, const void *value, size_t size,

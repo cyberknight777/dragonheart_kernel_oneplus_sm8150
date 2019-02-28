@@ -138,6 +138,14 @@ static int ip6_finish_output(struct net *net, struct sock *sk, struct sk_buff *s
 		return ret;
 	}
 
+#if defined(CONFIG_NETFILTER) && defined(CONFIG_XFRM)
+	/* Policy lookup after SNAT yielded a new policy */
+	if (skb_dst(skb)->xfrm) {
+		IPCB(skb)->flags |= IPSKB_REROUTED;
+		return dst_output(net, sk, skb);
+	}
+#endif
+
 	if ((skb->len > ip6_skb_dst_mtu(skb) && !skb_is_gso(skb)) ||
 	    dst_allfrag(skb_dst(skb)) ||
 	    (IP6CB(skb)->frag_max_size && skb->len > IP6CB(skb)->frag_max_size))
@@ -187,39 +195,37 @@ int ip6_xmit(const struct sock *sk, struct sk_buff *skb, struct flowi6 *fl6,
 	const struct ipv6_pinfo *np = inet6_sk(sk);
 	struct in6_addr *first_hop = &fl6->daddr;
 	struct dst_entry *dst = skb_dst(skb);
+	unsigned int head_room;
 	struct ipv6hdr *hdr;
 	u8  proto = fl6->flowi6_proto;
 	int seg_len = skb->len;
 	int hlimit = -1;
 	u32 mtu;
 
-	if (opt) {
-		unsigned int head_room;
+	head_room = sizeof(struct ipv6hdr) + LL_RESERVED_SPACE(dst->dev);
+	if (opt)
+		head_room += opt->opt_nflen + opt->opt_flen;
 
-		/* First: exthdrs may take lots of space (~8K for now)
-		   MAX_HEADER is not enough.
-		 */
-		head_room = opt->opt_nflen + opt->opt_flen;
-		seg_len += head_room;
-		head_room += sizeof(struct ipv6hdr) + LL_RESERVED_SPACE(dst->dev);
-
-		if (skb_headroom(skb) < head_room) {
-			struct sk_buff *skb2 = skb_realloc_headroom(skb, head_room);
-			if (!skb2) {
-				IP6_INC_STATS(net, ip6_dst_idev(skb_dst(skb)),
-					      IPSTATS_MIB_OUTDISCARDS);
-				kfree_skb(skb);
-				return -ENOBUFS;
-			}
-			consume_skb(skb);
-			skb = skb2;
-			/* skb_set_owner_w() changes sk->sk_wmem_alloc atomically,
-			 * it is safe to call in our context (socket lock not held)
-			 */
-			skb_set_owner_w(skb, (struct sock *)sk);
+	if (unlikely(skb_headroom(skb) < head_room)) {
+		struct sk_buff *skb2 = skb_realloc_headroom(skb, head_room);
+		if (!skb2) {
+			IP6_INC_STATS(net, ip6_dst_idev(skb_dst(skb)),
+				      IPSTATS_MIB_OUTDISCARDS);
+			kfree_skb(skb);
+			return -ENOBUFS;
 		}
+		if (skb->sk)
+			skb_set_owner_w(skb2, skb->sk);
+		consume_skb(skb);
+		skb = skb2;
+	}
+
+	if (opt) {
+		seg_len += opt->opt_nflen + opt->opt_flen;
+
 		if (opt->opt_flen)
 			ipv6_push_frag_opts(skb, opt, &proto);
+
 		if (opt->opt_nflen)
 			ipv6_push_nfrag_opts(skb, opt, &proto, &first_hop,
 					     &fl6->saddr);
@@ -367,6 +373,11 @@ static int ip6_forward_proxy_check(struct sk_buff *skb)
 static inline int ip6_forward_finish(struct net *net, struct sock *sk,
 				     struct sk_buff *skb)
 {
+	struct dst_entry *dst = skb_dst(skb);
+
+	__IP6_INC_STATS(net, ip6_dst_idev(dst), IPSTATS_MIB_OUTFORWDATAGRAMS);
+	__IP6_ADD_STATS(net, ip6_dst_idev(dst), IPSTATS_MIB_OUTOCTETS, skb->len);
+
 	return dst_output(net, sk, skb);
 }
 
@@ -493,7 +504,8 @@ int ip6_forward(struct sk_buff *skb)
 	   send redirects to source routed frames.
 	   We don't send redirects to frames decapsulated from IPsec.
 	 */
-	if (skb->dev == dst->dev && opt->srcrt == 0 && !skb_sec_path(skb)) {
+	if (IP6CB(skb)->iif == dst->dev->ifindex &&
+	    opt->srcrt == 0 && !skb_sec_path(skb)) {
 		struct in6_addr *target = NULL;
 		struct inet_peer *peer;
 		struct rt6_info *rt;
@@ -560,8 +572,6 @@ int ip6_forward(struct sk_buff *skb)
 
 	hdr->hop_limit--;
 
-	__IP6_INC_STATS(net, ip6_dst_idev(dst), IPSTATS_MIB_OUTFORWDATAGRAMS);
-	__IP6_ADD_STATS(net, ip6_dst_idev(dst), IPSTATS_MIB_OUTOCTETS, skb->len);
 	return NF_HOOK(NFPROTO_IPV6, NF_INET_FORWARD,
 		       net, NULL, skb, skb->dev, dst->dev,
 		       ip6_forward_finish);
@@ -582,6 +592,8 @@ static void ip6_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 	skb_dst_set(to, dst_clone(skb_dst(from)));
 	to->dev = from->dev;
 	to->mark = from->mark;
+
+	skb_copy_hash(to, from);
 
 #ifdef CONFIG_NET_SCHED
 	to->tc_index = from->tc_index;
@@ -1237,7 +1249,7 @@ static int __ip6_append_data(struct sock *sk,
 			     const struct sockcm_cookie *sockc)
 {
 	struct sk_buff *skb, *skb_prev = NULL;
-	unsigned int maxfraglen, fragheaderlen, mtu, orig_mtu;
+	unsigned int maxfraglen, fragheaderlen, mtu, orig_mtu, pmtu;
 	int exthdrlen = 0;
 	int dst_exthdrlen = 0;
 	int hh_len;
@@ -1273,6 +1285,12 @@ static int __ip6_append_data(struct sock *sk,
 		      sizeof(struct frag_hdr) : 0) +
 		     rt->rt6i_nfheader_len;
 
+	/* as per RFC 7112 section 5, the entire IPv6 Header Chain must fit
+	 * the first fragment
+	 */
+	if (headersize + transhdrlen > mtu)
+		goto emsgsize;
+
 	if (cork->length + length > mtu - headersize && ipc6->dontfrag &&
 	    (sk->sk_protocol == IPPROTO_UDP ||
 	     sk->sk_protocol == IPPROTO_RAW)) {
@@ -1288,9 +1306,8 @@ static int __ip6_append_data(struct sock *sk,
 
 	if (cork->length + length > maxnonfragsize - headersize) {
 emsgsize:
-		ipv6_local_error(sk, EMSGSIZE, fl6,
-				 mtu - headersize +
-				 sizeof(struct ipv6hdr));
+		pmtu = max_t(int, mtu - headersize + sizeof(struct ipv6hdr), 0);
+		ipv6_local_error(sk, EMSGSIZE, fl6, pmtu);
 		return -EMSGSIZE;
 	}
 
@@ -1472,7 +1489,8 @@ alloc_new_skb:
 		if (copy > length)
 			copy = length;
 
-		if (!(rt->dst.dev->features&NETIF_F_SG)) {
+		if (!(rt->dst.dev->features&NETIF_F_SG) &&
+		    skb_tailroom(skb) >= copy) {
 			unsigned int off;
 
 			off = skb->len;

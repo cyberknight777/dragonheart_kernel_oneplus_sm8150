@@ -20,7 +20,7 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/initval.h>
-#include "hda_codec.h"
+#include <sound/hda_codec.h>
 #include <sound/hda_register.h>
 
 #define AZX_MAX_CODECS		HDA_MAX_CODECS
@@ -160,6 +160,7 @@ struct azx {
 	unsigned int msi:1;
 	unsigned int probing:1; /* codec probing phase */
 	unsigned int snoop:1;
+	unsigned int uc_buffer:1; /* non-cached pages for stream buffers */
 	unsigned int align_buffer_size:1;
 	unsigned int region_requested:1;
 	unsigned int disabled:1; /* disabled by vga_switcheroo */

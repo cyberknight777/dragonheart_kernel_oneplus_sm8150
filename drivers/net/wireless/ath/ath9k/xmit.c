@@ -86,7 +86,8 @@ static void ath_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	struct ieee80211_sta *sta = info->status.status_driver_data[0];
 
-	if (info->flags & IEEE80211_TX_CTL_REQ_TX_STATUS) {
+	if (info->flags & (IEEE80211_TX_CTL_REQ_TX_STATUS |
+			   IEEE80211_TX_STATUS_EOSP)) {
 		ieee80211_tx_status(hw, skb);
 		return;
 	}
@@ -252,7 +253,7 @@ ath_tid_pull(struct ath_atx_tid *tid)
 	}
 
 	return skb;
- }
+}
 
 
 static bool ath_tid_has_buffered(struct ath_atx_tid *tid)
@@ -620,7 +621,7 @@ static void ath_tx_complete_aggr(struct ath_softc *sc, struct ath_txq *txq,
 				if (bf == bf->bf_lastbf)
 					ath_dynack_sample_tx_ts(sc->sc_ah,
 								bf->bf_mpdu,
-								ts);
+								ts, sta);
 			}
 
 			ath_tx_complete_buf(sc, bf, txq, &bf_head, sta, ts,
@@ -764,7 +765,8 @@ static void ath_tx_process_buffer(struct ath_softc *sc, struct ath_txq *txq,
 			memcpy(info->control.rates, bf->rates,
 			       sizeof(info->control.rates));
 			ath_tx_rc_status(sc, bf, ts, 1, txok ? 0 : 1, txok);
-			ath_dynack_sample_tx_ts(sc->sc_ah, bf->bf_mpdu, ts);
+			ath_dynack_sample_tx_ts(sc->sc_ah, bf->bf_mpdu, ts,
+						sta);
 		}
 		ath_tx_complete_buf(sc, bf, txq, bf_head, sta, ts, txok);
 	} else
@@ -2892,6 +2894,8 @@ void ath_tx_node_cleanup(struct ath_softc *sc, struct ath_node *an)
 	struct ath_txq *txq;
 	int tidno;
 
+	rcu_read_lock();
+
 	for (tidno = 0; tidno < IEEE80211_NUM_TIDS; tidno++) {
 		tid = ath_node_to_tid(an, tidno);
 		txq = tid->txq;
@@ -2909,6 +2913,8 @@ void ath_tx_node_cleanup(struct ath_softc *sc, struct ath_node *an)
 		if (!an->sta)
 			break; /* just one multicast ath_atx_tid */
 	}
+
+	rcu_read_unlock();
 }
 
 #ifdef CONFIG_ATH9K_TX99

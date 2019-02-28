@@ -183,6 +183,15 @@ enum {
 	 * during the hdev->setup vendor callback.
 	 */
 	HCI_QUIRK_NON_PERSISTENT_DIAG,
+
+	/* When this quirk is set, setup() would be run after every
+	 * open() and not just after the first open().
+	 *
+	 * This quirk can be set before hci_register_dev is called or
+	 * during the hdev->setup vendor callback.
+	 *
+	 */
+	HCI_QUIRK_NON_PERSISTENT_SETUP,
 };
 
 /* HCI device flags */
@@ -274,7 +283,7 @@ enum {
 #define HCI_AUTO_OFF_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
 #define HCI_POWER_OFF_TIMEOUT	msecs_to_jiffies(5000)	/* 5 seconds */
 #define HCI_LE_CONN_TIMEOUT	msecs_to_jiffies(20000)	/* 20 seconds */
-#define HCI_LE_AUTOCONN_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
+#define HCI_LE_AUTOCONN_TIMEOUT	msecs_to_jiffies(5000)	/* 5 seconds */
 
 /* HCI data types */
 #define HCI_COMMAND_PKT		0x01
@@ -875,6 +884,7 @@ struct hci_cp_sniff_subrate {
 } __packed;
 
 #define HCI_OP_SET_EVENT_MASK		0x0c01
+#define HCI_SET_EVENT_MASK_SIZE         8
 
 #define HCI_OP_RESET			0x0c03
 

@@ -220,24 +220,26 @@ static inline bool userfaultfd_huge_must_wait(struct userfaultfd_ctx *ctx,
 					 unsigned long reason)
 {
 	struct mm_struct *mm = ctx->mm;
-	pte_t *pte;
+	pte_t *ptep, pte;
 	bool ret = true;
 
 	VM_BUG_ON(!rwsem_is_locked(&mm->mmap_sem));
 
-	pte = huge_pte_offset(mm, address, vma_mmu_pagesize(vma));
-	if (!pte)
+	ptep = huge_pte_offset(mm, address, vma_mmu_pagesize(vma));
+
+	if (!ptep)
 		goto out;
 
 	ret = false;
+	pte = huge_ptep_get(ptep);
 
 	/*
 	 * Lockless access: we're in a wait_event so it's ok if it
 	 * changes under us.
 	 */
-	if (huge_pte_none(*pte))
+	if (huge_pte_none(pte))
 		ret = true;
-	if (!huge_pte_write(*pte) && (reason & VM_UFFD_WP))
+	if (!huge_pte_write(pte) && (reason & VM_UFFD_WP))
 		ret = true;
 out:
 	return ret;
@@ -626,8 +628,10 @@ static void userfaultfd_event_wait_completion(struct userfaultfd_ctx *ctx,
 		/* the various vma->vm_userfaultfd_ctx still points to it */
 		down_write(&mm->mmap_sem);
 		for (vma = mm->mmap; vma; vma = vma->vm_next)
-			if (vma->vm_userfaultfd_ctx.ctx == release_new_ctx)
+			if (vma->vm_userfaultfd_ctx.ctx == release_new_ctx) {
 				vma->vm_userfaultfd_ctx = NULL_VM_UFFD_CTX;
+				vma->vm_flags &= ~(VM_UFFD_WP | VM_UFFD_MISSING);
+			}
 		up_write(&mm->mmap_sem);
 
 		userfaultfd_ctx_put(release_new_ctx);
@@ -1359,6 +1363,19 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 		ret = -EINVAL;
 		if (!vma_can_userfault(cur))
 			goto out_unlock;
+
+		/*
+		 * UFFDIO_COPY will fill file holes even without
+		 * PROT_WRITE. This check enforces that if this is a
+		 * MAP_SHARED, the process has write permission to the backing
+		 * file. If VM_MAYWRITE is set it also enforces that on a
+		 * MAP_SHARED vma: there is no F_WRITE_SEAL and no further
+		 * F_WRITE_SEAL can be taken until the vma is destroyed.
+		 */
+		ret = -EPERM;
+		if (unlikely(!(cur->vm_flags & VM_MAYWRITE)))
+			goto out_unlock;
+
 		/*
 		 * If this vma contains ending address, and huge pages
 		 * check alignment.
@@ -1404,6 +1421,7 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 		BUG_ON(!vma_can_userfault(vma));
 		BUG_ON(vma->vm_userfaultfd_ctx.ctx &&
 		       vma->vm_userfaultfd_ctx.ctx != ctx);
+		WARN_ON(!(vma->vm_flags & VM_MAYWRITE));
 
 		/*
 		 * Nothing to do: this vma is already registered into this
@@ -1558,6 +1576,8 @@ static int userfaultfd_unregister(struct userfaultfd_ctx *ctx,
 		 */
 		if (!vma->vm_userfaultfd_ctx.ctx)
 			goto skip;
+
+		WARN_ON(!(vma->vm_flags & VM_MAYWRITE));
 
 		if (vma->vm_start > start)
 			start = vma->vm_start;

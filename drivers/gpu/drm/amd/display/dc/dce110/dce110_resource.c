@@ -1,5 +1,5 @@
 /*
-* Copyright 2012-15 Advanced Micro Devices, Inc.
+ * Copyright 2012-15 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -52,6 +52,8 @@
 #include "dce/dce_abm.h"
 #include "dce/dce_dmcu.h"
 
+#define DC_LOGGER \
+		dc->ctx->logger
 #if defined(CONFIG_DRM_AMD_DC_FBC)
 #include "dce110/dce110_compressor.h"
 #endif
@@ -81,6 +83,7 @@
 
 #ifndef mmBIOS_SCRATCH_2
 	#define mmBIOS_SCRATCH_2 0x05CB
+	#define mmBIOS_SCRATCH_3 0x05CC
 	#define mmBIOS_SCRATCH_6 0x05CF
 #endif
 
@@ -351,6 +354,7 @@ static const struct dce110_clk_src_mask cs_mask = {
 };
 
 static const struct bios_registers bios_regs = {
+	.BIOS_SCRATCH_3 = mmBIOS_SCRATCH_3,
 	.BIOS_SCRATCH_6 = mmBIOS_SCRATCH_6
 };
 
@@ -548,7 +552,7 @@ static struct input_pixel_processor *dce110_ipp_create(
 
 static const struct encoder_feature_support link_enc_feature = {
 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
-		.max_hdmi_pixel_clock = 594000,
+		.max_hdmi_pixel_clock = 300000,
 		.flags.bits.IS_HBR2_CAPABLE = true,
 		.flags.bits.IS_TPS3_CAPABLE = true,
 		.flags.bits.IS_YCBCR_CAPABLE = true
@@ -700,7 +704,7 @@ static void get_pixel_clock_parameters(
 	pixel_clk_params->requested_pix_clk = stream->timing.pix_clk_khz;
 	pixel_clk_params->encoder_object_id = stream->sink->link->link_enc->id;
 	pixel_clk_params->signal_type = pipe_ctx->stream->signal;
-	pixel_clk_params->controller_id = pipe_ctx->pipe_idx + 1;
+	pixel_clk_params->controller_id = pipe_ctx->stream_res.tg->inst + 1;
 	/* TODO: un-hardcode*/
 	pixel_clk_params->requested_sym_clk = LINK_RATE_LOW *
 						LINK_RATE_REF_FREQ_IN_KHZ;
@@ -771,8 +775,7 @@ static bool dce110_validate_bandwidth(
 {
 	bool result = false;
 
-	dm_logger_write(
-		dc->ctx->logger, LOG_BANDWIDTH_CALCS,
+	DC_LOG_BANDWIDTH_CALCS(
 		"%s: start",
 		__func__);
 
@@ -786,8 +789,7 @@ static bool dce110_validate_bandwidth(
 		result =  true;
 
 	if (!result)
-		dm_logger_write(dc->ctx->logger, LOG_BANDWIDTH_VALIDATION,
-			"%s: %dx%d@%d Bandwidth validation failed!\n",
+		DC_LOG_BANDWIDTH_VALIDATION("%s: %dx%d@%d Bandwidth validation failed!\n",
 			__func__,
 			context->streams[0]->timing.h_addressable,
 			context->streams[0]->timing.v_addressable,
@@ -844,6 +846,16 @@ static bool dce110_validate_bandwidth(
 		dm_logger_close(&log_entry);
 	}
 	return result;
+}
+
+enum dc_status dce110_validate_plane(const struct dc_plane_state *plane_state,
+				     struct dc_caps *caps)
+{
+	if (((plane_state->dst_rect.width * 2) < plane_state->src_rect.width) ||
+	    ((plane_state->dst_rect.height * 2) < plane_state->src_rect.height))
+		return DC_FAIL_SURFACE_VALIDATE;
+
+	return DC_OK;
 }
 
 static bool dce110_validate_surface_sets(
@@ -920,38 +932,6 @@ static enum dc_status dce110_add_stream_to_ctx(
 	return result;
 }
 
-static enum dc_status dce110_validate_guaranteed(
-		struct dc *dc,
-		struct dc_stream_state *dc_stream,
-		struct dc_state *context)
-{
-	enum dc_status result = DC_ERROR_UNEXPECTED;
-
-	context->streams[0] = dc_stream;
-	dc_stream_retain(context->streams[0]);
-	context->stream_count++;
-
-	result = resource_map_pool_resources(dc, context, dc_stream);
-
-	if (result == DC_OK)
-		result = resource_map_clock_resources(dc, context, dc_stream);
-
-	if (result == DC_OK)
-		result = build_mapped_resource(dc, context, dc_stream);
-
-	if (result == DC_OK) {
-		validate_guaranteed_copy_streams(
-				context, dc->caps.max_streams);
-		result = resource_build_scaling_params_for_context(dc, context);
-	}
-
-	if (result == DC_OK)
-		if (!dce110_validate_bandwidth(dc, context))
-			result = DC_FAIL_BANDWIDTH_VALIDATE;
-
-	return result;
-}
-
 static struct pipe_ctx *dce110_acquire_underlay(
 		struct dc_state *context,
 		const struct resource_pool *pool,
@@ -980,7 +960,7 @@ static struct pipe_ctx *dce110_acquire_underlay(
 
 		dc->hwss.enable_display_power_gating(
 				dc,
-				pipe_ctx->pipe_idx,
+				pipe_ctx->stream_res.tg->inst,
 				dcb, PIPE_GATING_CONTROL_DISABLE);
 
 		/*
@@ -1026,8 +1006,8 @@ static void dce110_destroy_resource_pool(struct resource_pool **pool)
 static const struct resource_funcs dce110_res_pool_funcs = {
 	.destroy = dce110_destroy_resource_pool,
 	.link_enc_create = dce110_link_encoder_create,
-	.validate_guaranteed = dce110_validate_guaranteed,
 	.validate_bandwidth = dce110_validate_bandwidth,
+	.validate_plane = dce110_validate_plane,
 	.acquire_idle_pipe_for_layer = dce110_acquire_underlay,
 	.add_stream_to_ctx = dce110_add_stream_to_ctx,
 	.validate_global = dce110_validate_global
@@ -1044,11 +1024,13 @@ static bool underlay_create(struct dc_context *ctx, struct resource_pool *pool)
 	struct dce110_opp *dce110_oppv = kzalloc(sizeof(*dce110_oppv),
 						 GFP_KERNEL);
 
-	if ((dce110_tgv == NULL) ||
-		(dce110_xfmv == NULL) ||
-		(dce110_miv == NULL) ||
-		(dce110_oppv == NULL))
-			return false;
+	if (!dce110_tgv || !dce110_xfmv || !dce110_miv || !dce110_oppv) {
+		kfree(dce110_tgv);
+		kfree(dce110_xfmv);
+		kfree(dce110_miv);
+		kfree(dce110_oppv);
+		return false;
+	}
 
 	dce110_opp_v_construct(dce110_oppv, ctx);
 
@@ -1157,10 +1139,11 @@ static bool construct(
 
 	pool->base.pipe_count = pool->base.res_cap->num_timing_generator;
 	pool->base.underlay_pipe_index = pool->base.pipe_count;
-
+	pool->base.timing_generator_count = pool->base.res_cap->num_timing_generator;
 	dc->caps.max_downscale_ratio = 150;
 	dc->caps.i2c_speed_in_khz = 100;
 	dc->caps.max_cursor_size = 128;
+	dc->caps.is_apu = true;
 
 	/*************************************************
 	 *  Create resources                             *

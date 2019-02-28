@@ -801,9 +801,6 @@ struct drm_connector_helper_funcs {
 	 * resolution can call drm_add_modes_noedid(), and mark the preferred
 	 * one using drm_set_preferred_mode().
 	 *
-	 * Finally drivers that support audio probably want to update the ELD
-	 * data, too, using drm_edid_to_eld().
-	 *
 	 * This function is only called after the @detect hook has indicated
 	 * that a sink is connected and when the EDID isn't overridden through
 	 * sysfs or the kernel commandline.
@@ -1007,10 +1004,13 @@ struct drm_plane_helper_funcs {
 	 * This function must not block for outstanding rendering, since it is
 	 * called in the context of the atomic IOCTL even for async commits to
 	 * be able to return any errors to userspace. Instead the recommended
-	 * way is to fill out the fence member of the passed-in
+	 * way is to fill out the &drm_plane_state.fence of the passed-in
 	 * &drm_plane_state. If the driver doesn't support native fences then
 	 * equivalent functionality should be implemented through private
 	 * members in the plane structure.
+	 *
+	 * Drivers which always have their buffers pinned should use
+	 * drm_gem_fb_prepare_fb() for this hook.
 	 *
 	 * The helpers will call @cleanup_fb with matching arguments for every
 	 * successful call to this hook.

@@ -1434,7 +1434,8 @@ static bool vma_is_valid(struct vm_area_struct *vma, bool write_fault)
 
 static int hva_to_pfn_remapped(struct vm_area_struct *vma,
 			       unsigned long addr, bool *async,
-			       bool write_fault, kvm_pfn_t *p_pfn)
+			       bool write_fault, bool *writable,
+			       kvm_pfn_t *p_pfn)
 {
 	unsigned long pfn;
 	int r;
@@ -1460,6 +1461,8 @@ static int hva_to_pfn_remapped(struct vm_area_struct *vma,
 
 	}
 
+	if (writable)
+		*writable = true;
 
 	/*
 	 * Get a reference here because callers of *hva_to_pfn* and
@@ -1525,7 +1528,7 @@ retry:
 	if (vma == NULL)
 		pfn = KVM_PFN_ERR_FAULT;
 	else if (vma->vm_flags & (VM_IO | VM_PFNMAP)) {
-		r = hva_to_pfn_remapped(vma, addr, async, write_fault, &pfn);
+		r = hva_to_pfn_remapped(vma, addr, async, write_fault, writable, &pfn);
 		if (r == -EAGAIN)
 			goto retry;
 		if (r < 0)
@@ -1959,7 +1962,8 @@ int kvm_gfn_to_hva_cache_init(struct kvm *kvm, struct gfn_to_hva_cache *ghc,
 EXPORT_SYMBOL_GPL(kvm_gfn_to_hva_cache_init);
 
 int kvm_write_guest_offset_cached(struct kvm *kvm, struct gfn_to_hva_cache *ghc,
-			   void *data, int offset, unsigned long len)
+				  void *data, unsigned int offset,
+				  unsigned long len)
 {
 	struct kvm_memslots *slots = kvm_memslots(kvm);
 	int r;
@@ -2908,8 +2912,10 @@ static int kvm_ioctl_create_device(struct kvm *kvm,
 	if (ops->init)
 		ops->init(dev);
 
+	kvm_get_kvm(kvm);
 	ret = anon_inode_getfd(ops->name, &kvm_device_fops, dev, O_RDWR | O_CLOEXEC);
 	if (ret < 0) {
+		kvm_put_kvm(kvm);
 		mutex_lock(&kvm->lock);
 		list_del(&dev->vm_node);
 		mutex_unlock(&kvm->lock);
@@ -2917,7 +2923,6 @@ static int kvm_ioctl_create_device(struct kvm *kvm,
 		return ret;
 	}
 
-	kvm_get_kvm(kvm);
 	cd->fd = ret;
 	return 0;
 }

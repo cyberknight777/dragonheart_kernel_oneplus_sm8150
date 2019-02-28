@@ -176,10 +176,8 @@ static struct ttm_backend_func bochs_tt_backend_func = {
 	.destroy = &bochs_ttm_backend_destroy,
 };
 
-static struct ttm_tt *bochs_ttm_tt_create(struct ttm_bo_device *bdev,
-					  unsigned long size,
-					  uint32_t page_flags,
-					  struct page *dummy_read_page)
+static struct ttm_tt *bochs_ttm_tt_create(struct ttm_buffer_object *bo,
+					  uint32_t page_flags)
 {
 	struct ttm_tt *tt;
 
@@ -187,7 +185,7 @@ static struct ttm_tt *bochs_ttm_tt_create(struct ttm_bo_device *bdev,
 	if (tt == NULL)
 		return NULL;
 	tt->func = &bochs_tt_backend_func;
-	if (ttm_tt_init(tt, bdev, size, page_flags, dummy_read_page)) {
+	if (ttm_tt_init(tt, bo, page_flags)) {
 		kfree(tt);
 		return NULL;
 	}
@@ -205,7 +203,6 @@ struct ttm_bo_driver bochs_bo_driver = {
 	.verify_access = bochs_bo_verify_access,
 	.io_mem_reserve = &bochs_ttm_io_mem_reserve,
 	.io_mem_free = &bochs_ttm_io_mem_free,
-	.io_mem_pfn = ttm_bo_default_io_mem_pfn,
 };
 
 int bochs_mm_init(struct bochs_device *bochs)
@@ -283,6 +280,7 @@ static inline u64 bochs_bo_gpu_offset(struct bochs_bo *bo)
 
 int bochs_bo_pin(struct bochs_bo *bo, u32 pl_flag, u64 *gpu_addr)
 {
+	struct ttm_operation_ctx ctx = { false, false };
 	int i, ret;
 
 	if (bo->pin_count) {
@@ -295,7 +293,7 @@ int bochs_bo_pin(struct bochs_bo *bo, u32 pl_flag, u64 *gpu_addr)
 	bochs_ttm_placement(bo, pl_flag);
 	for (i = 0; i < bo->placement.num_placement; i++)
 		bo->placements[i].flags |= TTM_PL_FLAG_NO_EVICT;
-	ret = ttm_bo_validate(&bo->bo, &bo->placement, false, false);
+	ret = ttm_bo_validate(&bo->bo, &bo->placement, &ctx);
 	if (ret)
 		return ret;
 
@@ -307,6 +305,7 @@ int bochs_bo_pin(struct bochs_bo *bo, u32 pl_flag, u64 *gpu_addr)
 
 int bochs_bo_unpin(struct bochs_bo *bo)
 {
+	struct ttm_operation_ctx ctx = { false, false };
 	int i, ret;
 
 	if (!bo->pin_count) {
@@ -320,7 +319,7 @@ int bochs_bo_unpin(struct bochs_bo *bo)
 
 	for (i = 0; i < bo->placement.num_placement; i++)
 		bo->placements[i].flags &= ~TTM_PL_FLAG_NO_EVICT;
-	ret = ttm_bo_validate(&bo->bo, &bo->placement, false, false);
+	ret = ttm_bo_validate(&bo->bo, &bo->placement, &ctx);
 	if (ret)
 		return ret;
 
@@ -370,7 +369,7 @@ static int bochs_bo_create(struct drm_device *dev, int size, int align,
 
 	ret = ttm_bo_init(&bochs->ttm.bdev, &bochsbo->bo, size,
 			  ttm_bo_type_device, &bochsbo->placement,
-			  align >> PAGE_SHIFT, false, NULL, acc_size,
+			  align >> PAGE_SHIFT, false, acc_size,
 			  NULL, NULL, bochs_bo_ttm_destroy);
 	if (ret)
 		return ret;

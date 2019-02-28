@@ -31,7 +31,6 @@
 #include <linux/usb.h>
 #include <linux/usb/quirks.h>
 #include <linux/usb/hcd.h>
-#include <linux/pm_dark_resume.h>
 
 #include "usb.h"
 
@@ -513,7 +512,6 @@ int usb_driver_claim_interface(struct usb_driver *driver,
 	struct device *dev;
 	struct usb_device *udev;
 	int retval = 0;
-	int lpm_disable_error = -ENODEV;
 
 	if (!iface)
 		return -ENODEV;
@@ -534,16 +532,6 @@ int usb_driver_claim_interface(struct usb_driver *driver,
 
 	iface->condition = USB_INTERFACE_BOUND;
 
-	/* See the comment about disabling LPM in usb_probe_interface(). */
-	if (driver->disable_hub_initiated_lpm) {
-		lpm_disable_error = usb_unlocked_disable_lpm(udev);
-		if (lpm_disable_error) {
-			dev_err(&iface->dev, "%s Failed to disable LPM for driver %s\n.",
-					__func__, driver->name);
-			return -ENOMEM;
-		}
-	}
-
 	/* Claimed interfaces are initially inactive (suspended) and
 	 * runtime-PM-enabled, but only if the driver has autosuspend
 	 * support.  Otherwise they are marked active, to prevent the
@@ -562,9 +550,20 @@ int usb_driver_claim_interface(struct usb_driver *driver,
 	if (device_is_registered(dev))
 		retval = device_bind_driver(dev);
 
-	/* Attempt to re-enable USB3 LPM, if the disable was successful. */
-	if (!lpm_disable_error)
-		usb_unlocked_enable_lpm(udev);
+	if (retval) {
+		dev->driver = NULL;
+		usb_set_intfdata(iface, NULL);
+		iface->needs_remote_wakeup = 0;
+		iface->condition = USB_INTERFACE_UNBOUND;
+
+		/*
+		 * Unbound interfaces are always runtime-PM-disabled
+		 * and runtime-PM-suspended
+		 */
+		if (driver->supports_autosuspend)
+			pm_runtime_disable(dev);
+		pm_runtime_set_suspended(dev);
+	}
 
 	return retval;
 }
@@ -1415,8 +1414,7 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 		status = usb_resume_device(udev, msg);
 
 	/* Resume the interfaces */
-	if (status == 0 && udev->actconfig &&
-			!dev_dark_resume_active(&udev->dev)) {
+	if (status == 0 && udev->actconfig) {
 		for (i = 0; i < udev->actconfig->desc.bNumInterfaces; i++) {
 			intf = udev->actconfig->interface[i];
 			usb_resume_interface(udev, intf, msg,
@@ -1463,6 +1461,7 @@ static void choose_wakeup(struct usb_device *udev, pm_message_t msg)
 int usb_suspend(struct device *dev, pm_message_t msg)
 {
 	struct usb_device	*udev = to_usb_device(dev);
+	int r;
 
 	unbind_no_pm_drivers_interfaces(udev);
 
@@ -1471,7 +1470,14 @@ int usb_suspend(struct device *dev, pm_message_t msg)
 	 * so we may still need to unbind and rebind upon resume
 	 */
 	choose_wakeup(udev, msg);
-	return usb_suspend_both(udev, msg);
+	r = usb_suspend_both(udev, msg);
+	if (r)
+		return r;
+
+	if (udev->quirks & USB_QUIRK_DISCONNECT_SUSPEND)
+		usb_port_disable(udev);
+
+	return 0;
 }
 
 /* The device lock is held by the PM core */
@@ -1501,7 +1507,7 @@ int usb_resume(struct device *dev, pm_message_t msg)
 	 * above because it doesn't own the right set of locks.)
 	 */
 	status = usb_resume_both(udev, msg);
-	if (status == 0 && !dev_dark_resume_active(dev)) {
+	if (status == 0) {
 		pm_runtime_disable(dev);
 		pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);

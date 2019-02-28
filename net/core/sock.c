@@ -120,6 +120,7 @@
 #include <linux/prefetch.h>
 #include <linux/cred.h>
 #include <linux/uidgid.h>
+#include <linux/android_aid.h>
 
 #include <linux/uaccess.h>
 
@@ -212,6 +213,22 @@ bool inet_sk_allowed(struct net *net, gid_t gid)
 	return in_android_group(net->user_ns, gid);
 }
 EXPORT_SYMBOL(inet_sk_allowed);
+
+bool android_ns_capable(struct net *net, int cap)
+{
+	if (ns_capable(net->user_ns, cap))
+		return true;
+	if (!net->core.sysctl_android_paranoid)
+		return false;
+	if (cap == CAP_NET_RAW &&
+	    in_android_group(net->user_ns, AID_NET_RAW))
+		return true;
+	if (cap == CAP_NET_ADMIN &&
+	    in_android_group(net->user_ns, AID_NET_ADMIN))
+		return true;
+	return false;
+}
+EXPORT_SYMBOL(android_ns_capable);
 
 /*
  * Each address family might have different locking rules, so we have
@@ -589,7 +606,7 @@ static int sock_setbindtodevice(struct sock *sk, char __user *optval,
 
 	/* Sorry... */
 	ret = -EPERM;
-	if (!ns_capable(net->user_ns, CAP_NET_RAW))
+	if (!android_ns_capable(net, CAP_NET_RAW))
 		goto out;
 
 	ret = -EINVAL;
@@ -755,6 +772,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 		break;
 	case SO_DONTROUTE:
 		sock_valbool_flag(sk, SOCK_LOCALROUTE, valbool);
+		sk_dst_reset(sk);
 		break;
 	case SO_BROADCAST:
 		sock_valbool_flag(sk, SOCK_BROADCAST, valbool);
@@ -1615,7 +1633,7 @@ void sk_destruct(struct sock *sk)
 
 static void __sk_free(struct sock *sk)
 {
-	if (unlikely(sock_diag_has_destroy_listeners(sk) && sk->sk_net_refcnt))
+	if (unlikely(sk->sk_net_refcnt && sock_diag_has_destroy_listeners(sk)))
 		sock_diag_broadcast_destroy(sk);
 	else
 		sk_destruct(sk);
@@ -2262,7 +2280,7 @@ static void __lock_sock(struct sock *sk)
 	finish_wait(&sk->sk_lock.wq, &wait);
 }
 
-static void __release_sock(struct sock *sk)
+void __release_sock(struct sock *sk)
 	__releases(&sk->sk_lock.slock)
 	__acquires(&sk->sk_lock.slock)
 {
@@ -2752,6 +2770,9 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 	sk->sk_sndtimeo		=	MAX_SCHEDULE_TIMEOUT;
 
 	sk->sk_stamp = SK_DEFAULT_STAMP;
+#if BITS_PER_LONG==32
+	seqlock_init(&sk->sk_stamp_seq);
+#endif
 	atomic_set(&sk->sk_zckey, 0);
 
 #ifdef CONFIG_NET_RX_BUSY_POLL

@@ -2485,12 +2485,17 @@ enum i915_power_well_id {
 #define _3D_CHICKEN	_MMIO(0x2084)
 #define  _3D_CHICKEN_HIZ_PLANE_DISABLE_MSAA_4X_SNB	(1 << 10)
 #define _3D_CHICKEN2	_MMIO(0x208c)
+
+#define FF_SLICE_CHICKEN	_MMIO(0x2088)
+#define  FF_SLICE_CHICKEN_CL_PROVOKING_VERTEX_FIX	(1 << 1)
+
 /* Disables pipelining of read flushes past the SF-WIZ interface.
  * Required on all Ironlake steppings according to the B-Spec, but the
  * particular danger of not doing so is not specified.
  */
 # define _3D_CHICKEN2_WM_READ_PIPELINED			(1 << 14)
 #define _3D_CHICKEN3	_MMIO(0x2090)
+#define  _3D_CHICKEN_SF_PROVOKING_VERTEX_FIX		(1 << 12)
 #define  _3D_CHICKEN_SF_DISABLE_OBJEND_CULL		(1 << 10)
 #define  _3D_CHICKEN3_AA_LINE_QUALITY_FIX_ENABLE	(1 << 5)
 #define  _3D_CHICKEN3_SF_DISABLE_FASTCLIP_CULL		(1 << 5)
@@ -3820,6 +3825,9 @@ enum {
 #define _CLKGATE_DIS_PSL_A		0x46520
 #define _CLKGATE_DIS_PSL_B		0x46524
 #define _CLKGATE_DIS_PSL_C		0x46528
+#define   DUPS1_GATING_DIS		(1 << 15)
+#define   DUPS2_GATING_DIS		(1 << 19)
+#define   DUPS3_GATING_DIS		(1 << 23)
 #define   DPF_GATING_DIS		(1 << 10)
 #define   DPF_RAM_GATING_DIS		(1 << 9)
 #define   DPFR_GATING_DIS		(1 << 8)
@@ -6190,6 +6198,12 @@ enum {
 #define _SPATILEOFF		(VLV_DISPLAY_BASE + 0x721a4)
 #define _SPACONSTALPHA		(VLV_DISPLAY_BASE + 0x721a8)
 #define   SP_CONST_ALPHA_ENABLE		(1<<31)
+#define _SPACLRC0		(VLV_DISPLAY_BASE + 0x721d0)
+#define   SP_CONTRAST(x)		((x) << 18) /* u3.6 */
+#define   SP_BRIGHTNESS(x)		((x) & 0xff) /* s8 */
+#define _SPACLRC1		(VLV_DISPLAY_BASE + 0x721d4)
+#define   SP_SH_SIN(x)			(((x) & 0x7ff) << 16) /* s4.7 */
+#define   SP_SH_COS(x)			(x) /* u3.7 */
 #define _SPAGAMC		(VLV_DISPLAY_BASE + 0x721f4)
 
 #define _SPBCNTR		(VLV_DISPLAY_BASE + 0x72280)
@@ -6203,6 +6217,8 @@ enum {
 #define _SPBKEYMAXVAL		(VLV_DISPLAY_BASE + 0x722a0)
 #define _SPBTILEOFF		(VLV_DISPLAY_BASE + 0x722a4)
 #define _SPBCONSTALPHA		(VLV_DISPLAY_BASE + 0x722a8)
+#define _SPBCLRC0		(VLV_DISPLAY_BASE + 0x722d0)
+#define _SPBCLRC1		(VLV_DISPLAY_BASE + 0x722d4)
 #define _SPBGAMC		(VLV_DISPLAY_BASE + 0x722f4)
 
 #define _MMIO_VLV_SPR(pipe, plane_id, reg_a, reg_b) \
@@ -6219,6 +6235,8 @@ enum {
 #define SPKEYMAXVAL(pipe, plane_id)	_MMIO_VLV_SPR((pipe), (plane_id), _SPAKEYMAXVAL, _SPBKEYMAXVAL)
 #define SPTILEOFF(pipe, plane_id)	_MMIO_VLV_SPR((pipe), (plane_id), _SPATILEOFF, _SPBTILEOFF)
 #define SPCONSTALPHA(pipe, plane_id)	_MMIO_VLV_SPR((pipe), (plane_id), _SPACONSTALPHA, _SPBCONSTALPHA)
+#define SPCLRC0(pipe, plane_id)		_MMIO_VLV_SPR((pipe), (plane_id), _SPACLRC0, _SPBCLRC0)
+#define SPCLRC1(pipe, plane_id)		_MMIO_VLV_SPR((pipe), (plane_id), _SPACLRC1, _SPBCLRC1)
 #define SPGAMC(pipe, plane_id)		_MMIO_VLV_SPR((pipe), (plane_id), _SPAGAMC, _SPBGAMC)
 
 /*
@@ -6332,6 +6350,11 @@ enum {
 #define _PLANE_COLOR_CTL_3_A			0x703CC /* GLK+ */
 #define   PLANE_COLOR_PIPE_GAMMA_ENABLE		(1 << 30)
 #define   PLANE_COLOR_PIPE_CSC_ENABLE		(1 << 23)
+#define   PLANE_COLOR_CSC_MODE_BYPASS			(0 << 17)
+#define   PLANE_COLOR_CSC_MODE_YUV601_TO_RGB709		(1 << 17)
+#define   PLANE_COLOR_CSC_MODE_YUV709_TO_RGB709		(2 << 17)
+#define   PLANE_COLOR_CSC_MODE_YUV2020_TO_RGB2020	(3 << 17)
+#define   PLANE_COLOR_CSC_MODE_RGB709_TO_RGB2020	(4 << 17)
 #define   PLANE_COLOR_PLANE_GAMMA_DISABLE	(1 << 13)
 #define   PLANE_COLOR_ALPHA_MASK		(0x3 << 4)
 #define   PLANE_COLOR_ALPHA_DISABLE		(0 << 4)
@@ -6611,6 +6634,8 @@ enum {
 #define PS_SCALER_MODE_MASK (3 << 28)
 #define PS_SCALER_MODE_DYN  (0 << 28)
 #define PS_SCALER_MODE_HQ  (1 << 28)
+#define SKL_PS_SCALER_MODE_NV12 (2 << 28)
+#define PS_SCALER_MODE_PLANAR (1 << 29)
 #define PS_PLANE_SEL_MASK  (7 << 25)
 #define PS_PLANE_SEL(plane) (((plane) + 1) << 25)
 #define PS_FILTER_MASK         (3 << 23)
@@ -7080,6 +7105,9 @@ enum {
 /* GEN9 chicken */
 #define SLICE_ECO_CHICKEN0			_MMIO(0x7308)
 #define   PIXEL_MASK_CAMMING_DISABLE		(1 << 14)
+
+#define GEN9_WM_CHICKEN3			_MMIO(0x5588)
+#define   GEN9_FACTOR_IN_CLR_VAL_HIZ		(1 << 9)
 
 /* WaCatErrorRejectionIssue */
 #define GEN7_SQ_CHICKEN_MBCUNIT_CONFIG		_MMIO(0x9030)
@@ -8521,6 +8549,7 @@ enum skl_power_gate {
 #define  TRANS_MSA_10_BPC		(2<<5)
 #define  TRANS_MSA_12_BPC		(3<<5)
 #define  TRANS_MSA_16_BPC		(4<<5)
+#define  TRANS_MSA_CEA_RANGE		(1<<3)
 
 /* LCPLL Control */
 #define LCPLL_CTL			_MMIO(0x130040)

@@ -20,6 +20,7 @@
 #include <linux/sched/task_stack.h>
 #include <linux/sched/cputime.h>
 #include <linux/sched/init.h>
+#include <linux/sched/smt.h>
 
 #include <linux/u64_stats_sync.h>
 #include <linux/kernel_stat.h>
@@ -280,14 +281,17 @@ struct cfs_bandwidth {
 	u64 quota, runtime;
 	s64 hierarchical_quota;
 	u64 runtime_expires;
+	int expires_seq;
 
-	int idle, period_active;
+	short idle, period_active;
 	struct hrtimer period_timer, slack_timer;
 	struct list_head throttled_cfs_rq;
 
 	/* statistics */
 	int nr_periods, nr_throttled;
 	u64 throttled_time;
+
+	bool distribute_running;
 #endif
 };
 
@@ -485,6 +489,7 @@ struct cfs_rq {
 
 #ifdef CONFIG_CFS_BANDWIDTH
 	int runtime_enabled;
+	int expires_seq;
 	u64 runtime_expires;
 	s64 runtime_remaining;
 
@@ -492,6 +497,9 @@ struct cfs_rq {
 	u64 throttled_clock_task_time;
 	int throttled, throttle_count;
 	struct list_head throttled_list;
+#ifdef CONFIG_SCHED_WALT
+	u64 cumulative_runnable_avg;
+#endif /* CONFIG_SCHED_WALT */
 #endif /* CONFIG_CFS_BANDWIDTH */
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 };
@@ -524,6 +532,9 @@ struct rt_rq {
 	unsigned long rt_nr_total;
 	int overloaded;
 	struct plist_head pushable_tasks;
+
+	struct sched_avg avg;
+
 #endif /* CONFIG_SMP */
 	int rt_queued;
 
@@ -605,6 +616,12 @@ static inline bool sched_asym_prefer(int a, int b)
 	return arch_asym_cpu_priority(a) > arch_asym_cpu_priority(b);
 }
 
+struct max_cpu_capacity {
+	raw_spinlock_t lock;
+	unsigned long val;
+	int cpu;
+};
+
 /*
  * We add the notion of a root-domain which will be used to define per-domain
  * variables. Each exclusive cpuset essentially defines an island domain by
@@ -620,8 +637,12 @@ struct root_domain {
 	cpumask_var_t span;
 	cpumask_var_t online;
 
-	/* Indicate more than one runnable task for any CPU */
-	bool overload;
+	/*
+	 * Indicate pullable load on at least one CPU, e.g:
+	 * - More than one runnable task
+	 * - Running task is misfit
+	 */
+	int overload;
 
 	/*
 	 * The bit corresponding to a CPU gets set here if such CPU has more
@@ -652,13 +673,18 @@ struct root_domain {
 	cpumask_var_t rto_mask;
 	struct cpupri cpupri;
 
-	unsigned long max_cpu_capacity;
+	/* Maximum cpu capacity in the system. */
+	struct max_cpu_capacity max_cpu_capacity;
+
+	/* First cpu with maximum and minimum original capacity */
+	int max_cap_orig_cpu, min_cap_orig_cpu;
 };
 
 extern struct root_domain def_root_domain;
 extern struct mutex sched_domains_mutex;
 
 extern void init_defrootdomain(void);
+extern void init_max_cpu_capacity(struct max_cpu_capacity *mcc);
 extern int sched_init_domains(const struct cpumask *cpu_map);
 extern void rq_attach_root(struct rq *rq, struct root_domain *rd);
 extern void sched_get_rd(struct root_domain *rd);
@@ -694,6 +720,7 @@ struct rq {
 #ifdef CONFIG_NO_HZ_COMMON
 #ifdef CONFIG_SMP
 	unsigned long last_load_update_tick;
+	unsigned long last_blocked_load_update_tick;
 #endif /* CONFIG_SMP */
 	unsigned long nohz_flags;
 #endif /* CONFIG_NO_HZ_COMMON */
@@ -743,6 +770,9 @@ struct rq {
 	struct callback_head *balance_callback;
 
 	unsigned char idle_balance;
+
+	unsigned long misfit_task_load;
+
 	/* For active balancing */
 	int active_balance;
 	int push_cpu;
@@ -761,6 +791,20 @@ struct rq {
 	/* This is used to determine avg_idle's max value */
 	u64 max_idle_balance_cost;
 #endif
+
+#ifdef CONFIG_SCHED_WALT
+	u64 cumulative_runnable_avg;
+	u64 window_start;
+	u64 curr_runnable_sum;
+	u64 prev_runnable_sum;
+	u64 nt_curr_runnable_sum;
+	u64 nt_prev_runnable_sum;
+	u64 cur_irqload;
+	u64 avg_irqload;
+	u64 irqload_ts;
+	u64 cum_window_demand;
+#endif /* CONFIG_SCHED_WALT */
+
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 	u64 prev_irq_time;
@@ -809,6 +853,7 @@ struct rq {
 #ifdef CONFIG_CPU_IDLE
 	/* Must be inspected within a rcu lock section */
 	struct cpuidle_state *idle_state;
+	int idle_state_idx;
 #endif
 };
 
@@ -823,9 +868,6 @@ static inline int cpu_of(struct rq *rq)
 
 
 #ifdef CONFIG_SCHED_SMT
-
-extern struct static_key_false sched_smt_present;
-
 extern void __update_idle_core(struct rq *rq);
 
 static inline void update_idle_core(struct rq *rq)
@@ -1067,6 +1109,9 @@ DECLARE_PER_CPU(int, sd_llc_id);
 DECLARE_PER_CPU(struct sched_domain_shared *, sd_llc_shared);
 DECLARE_PER_CPU(struct sched_domain *, sd_numa);
 DECLARE_PER_CPU(struct sched_domain *, sd_asym);
+DECLARE_PER_CPU(struct sched_domain *, sd_ea);
+DECLARE_PER_CPU(struct sched_domain *, sd_scs);
+extern struct static_key_false sched_asym_cpucapacity;
 
 struct sched_group_capacity {
 	atomic_t ref;
@@ -1076,6 +1121,7 @@ struct sched_group_capacity {
 	 */
 	unsigned long capacity;
 	unsigned long min_capacity; /* Min per-CPU capacity in group */
+	unsigned long max_capacity; /* Max per-CPU capacity in group */
 	unsigned long next_update;
 	int imbalance; /* XXX unrelated to capacity but shared group state */
 
@@ -1093,6 +1139,7 @@ struct sched_group {
 	unsigned int group_weight;
 	struct sched_group_capacity *sgc;
 	int asym_prefer_cpu;		/* cpu of highest priority in group */
+	const struct sched_group_energy *sge;
 
 	/*
 	 * The CPUs this group covers.
@@ -1257,7 +1304,7 @@ static __always_inline bool static_branch_##name(struct static_key *key) \
 extern struct static_key sched_feat_keys[__SCHED_FEAT_NR];
 #define sched_feat(x) (static_branch_##x(&sched_feat_keys[__SCHED_FEAT_##x]))
 #else /* !(SCHED_DEBUG && HAVE_JUMP_LABEL) */
-#define sched_feat(x) (sysctl_sched_features & (1UL << __SCHED_FEAT_##x))
+#define sched_feat(x) !!(sysctl_sched_features & (1UL << __SCHED_FEAT_##x))
 #endif /* SCHED_DEBUG && HAVE_JUMP_LABEL */
 
 extern struct static_key_false sched_numa_balancing;
@@ -1433,7 +1480,8 @@ struct sched_class {
 	void (*put_prev_task) (struct rq *rq, struct task_struct *p);
 
 #ifdef CONFIG_SMP
-	int  (*select_task_rq)(struct task_struct *p, int task_cpu, int sd_flag, int flags);
+	int  (*select_task_rq)(struct task_struct *p, int task_cpu, int sd_flag, int flags,
+			       int subling_count_hint);
 	void (*migrate_task_rq)(struct task_struct *p);
 
 	void (*task_woken) (struct rq *this_rq, struct task_struct *task);
@@ -1520,6 +1568,17 @@ static inline struct cpuidle_state *idle_get_state(struct rq *rq)
 	SCHED_WARN_ON(!rcu_read_lock_held());
 	return rq->idle_state;
 }
+
+static inline void idle_set_state_idx(struct rq *rq, int idle_state_idx)
+{
+	rq->idle_state_idx = idle_state_idx;
+}
+
+static inline int idle_get_state_idx(struct rq *rq)
+{
+	WARN_ON(!rcu_read_lock_held());
+	return rq->idle_state_idx;
+}
 #else
 static inline void idle_set_state(struct rq *rq,
 				  struct cpuidle_state *idle_state)
@@ -1529,6 +1588,15 @@ static inline void idle_set_state(struct rq *rq,
 static inline struct cpuidle_state *idle_get_state(struct rq *rq)
 {
 	return NULL;
+}
+
+static inline void idle_set_state_idx(struct rq *rq, int idle_state_idx)
+{
+}
+
+static inline int idle_get_state_idx(struct rq *rq)
+{
+	return -1;
 }
 #endif
 
@@ -1599,8 +1667,8 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
 #ifdef CONFIG_SMP
-		if (!rq->rd->overload)
-			rq->rd->overload = true;
+		if (!READ_ONCE(rq->rd->overload))
+			WRITE_ONCE(rq->rd->overload, 1);
 #endif
 	}
 
@@ -1666,10 +1734,19 @@ static inline int hrtick_enabled(struct rq *rq)
 
 #ifdef CONFIG_SMP
 extern void sched_avg_update(struct rq *rq);
+extern unsigned long sched_get_rt_rq_util(int cpu);
 
 #ifndef arch_scale_freq_capacity
 static __always_inline
 unsigned long arch_scale_freq_capacity(struct sched_domain *sd, int cpu)
+{
+	return SCHED_CAPACITY_SCALE;
+}
+#endif
+
+#ifndef arch_scale_max_freq_capacity
+static __always_inline
+unsigned long arch_scale_max_freq_capacity(struct sched_domain *sd, int cpu)
 {
 	return SCHED_CAPACITY_SCALE;
 }
@@ -1685,6 +1762,23 @@ unsigned long arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
 	return SCHED_CAPACITY_SCALE;
 }
 #endif
+
+#ifdef CONFIG_SMP
+static inline unsigned long capacity_of(int cpu)
+{
+	return cpu_rq(cpu)->cpu_capacity;
+}
+
+static inline unsigned long capacity_orig_of(int cpu)
+{
+	return cpu_rq(cpu)->cpu_capacity_orig;
+}
+
+extern unsigned int sysctl_sched_use_walt_cpu_util;
+extern unsigned int walt_ravg_window;
+extern bool walt_disabled;
+
+#endif /* CONFIG_SMP */
 
 static inline void sched_rt_avg_update(struct rq *rq, u64 rt_delta)
 {
@@ -1969,8 +2063,9 @@ extern bool sched_debug_enabled;
 extern void print_cfs_stats(struct seq_file *m, int cpu);
 extern void print_rt_stats(struct seq_file *m, int cpu);
 extern void print_dl_stats(struct seq_file *m, int cpu);
-extern void
-print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq);
+extern void print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq);
+extern void print_rt_rq(struct seq_file *m, int cpu, struct rt_rq *rt_rq);
+extern void print_dl_rq(struct seq_file *m, int cpu, struct dl_rq *dl_rq);
 #ifdef CONFIG_NUMA_BALANCING
 extern void
 show_numa_stats(struct task_struct *p, struct seq_file *m);
@@ -1991,6 +2086,7 @@ extern void cfs_bandwidth_usage_dec(void);
 enum rq_nohz_flag_bits {
 	NOHZ_TICK_STOPPED,
 	NOHZ_BALANCE_KICK,
+	NOHZ_STATS_KICK
 };
 
 #define nohz_flags(cpu)	(&cpu_rq(cpu)->nohz_flags)
@@ -2002,6 +2098,9 @@ static inline void nohz_balance_exit_idle(unsigned int cpu) { }
 
 
 #ifdef CONFIG_SMP
+
+extern void init_energy_aware_data(int cpu);
+
 static inline
 void __dl_update(struct dl_bw *dl_b, s64 bw)
 {
@@ -2094,6 +2193,17 @@ static inline void cpufreq_update_util(struct rq *rq, unsigned int flags)
 #else
 static inline void cpufreq_update_util(struct rq *rq, unsigned int flags) {}
 #endif /* CONFIG_CPU_FREQ */
+
+#ifdef CONFIG_SCHED_WALT
+
+static inline bool
+walt_task_in_cum_window_demand(struct rq *rq, struct task_struct *p)
+{
+	return cpu_of(rq) == task_cpu(p) &&
+	       (p->on_rq || p->last_sleep_ts >= rq->window_start);
+}
+
+#endif /* CONFIG_SCHED_WALT */
 
 #ifdef arch_scale_freq_capacity
 #ifndef arch_scale_freq_invariant

@@ -332,6 +332,19 @@ i915_gem_request_completed(const struct drm_i915_gem_request *req)
 	return __i915_gem_request_completed(req, seqno);
 }
 
+static inline bool
+i915_gem_request_started(const struct drm_i915_gem_request *req)
+{
+	u32 seqno;
+
+	seqno = i915_gem_request_global_seqno(req);
+	if (!seqno)
+		return false;
+
+	return i915_seqno_passed(intel_engine_get_seqno(req->engine),
+				 seqno - 1);
+}
+
 /* We treat requests as fences. This is not be to confused with our
  * "fence registers" but pipeline synchronisation objects ala GL_ARB_sync.
  * We use the fences to synchronize access from the CPU with activity on the

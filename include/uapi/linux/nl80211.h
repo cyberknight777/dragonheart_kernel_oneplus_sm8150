@@ -2604,6 +2604,8 @@ enum nl80211_attrs {
 #define NL80211_ATTR_KEYS NL80211_ATTR_KEYS
 #define NL80211_ATTR_FEATURE_FLAGS NL80211_ATTR_FEATURE_FLAGS
 
+#define NL80211_WIPHY_NAME_MAXLEN		64
+
 #define NL80211_MAX_SUPP_RATES			32
 #define NL80211_MAX_SUPP_HT_RATES		77
 #define NL80211_MAX_SUPP_REG_RULES		64
@@ -2988,8 +2990,10 @@ enum nl80211_mpath_flags {
  * 	&enum nl80211_mpath_flags;
  * @NL80211_MPATH_INFO_DISCOVERY_TIMEOUT: total path discovery timeout, in msec
  * @NL80211_MPATH_INFO_DISCOVERY_RETRIES: mesh path discovery retries
+ * @NL80211_MPATH_INFO_HOP_COUNT: hop count to destination
+ * @NL80211_MPATH_INFO_PATH_CHANGE: total number of path changes to destination
  * @NL80211_MPATH_INFO_MAX: highest mesh path information attribute number
- *	currently defind
+ *	currently defined
  * @__NL80211_MPATH_INFO_AFTER_LAST: internal use
  */
 enum nl80211_mpath_info {
@@ -3001,6 +3005,8 @@ enum nl80211_mpath_info {
 	NL80211_MPATH_INFO_FLAGS,
 	NL80211_MPATH_INFO_DISCOVERY_TIMEOUT,
 	NL80211_MPATH_INFO_DISCOVERY_RETRIES,
+	NL80211_MPATH_INFO_HOP_COUNT,
+	NL80211_MPATH_INFO_PATH_CHANGE,
 
 	/* keep last */
 	__NL80211_MPATH_INFO_AFTER_LAST,

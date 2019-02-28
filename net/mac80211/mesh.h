@@ -94,6 +94,7 @@ enum mesh_deferred_task_flags {
  * @last_preq_to_root: Timestamp of last PREQ sent to root
  * @is_root: the destination station of this path is a root node
  * @is_gate: the destination station of this path is a mesh gate
+ * @path_change_count: the number of path changes to destination
  *
  *
  * The dst address is unique in the mesh path table. Since the mesh_path is
@@ -124,6 +125,7 @@ struct mesh_path {
 	unsigned long last_preq_to_root;
 	bool is_root;
 	bool is_gate;
+	u32 path_change_count;
 };
 
 /**
@@ -217,7 +219,8 @@ void mesh_rmc_free(struct ieee80211_sub_if_data *sdata);
 int mesh_rmc_init(struct ieee80211_sub_if_data *sdata);
 void ieee80211s_init(void);
 void ieee80211s_update_metric(struct ieee80211_local *local,
-			      struct sta_info *sta, struct sk_buff *skb);
+			      struct sta_info *sta,
+			      struct ieee80211_tx_status *st);
 void ieee80211_mesh_init_sdata(struct ieee80211_sub_if_data *sdata);
 void ieee80211_mesh_teardown_sdata(struct ieee80211_sub_if_data *sdata);
 int ieee80211_start_mesh(struct ieee80211_sub_if_data *sdata);

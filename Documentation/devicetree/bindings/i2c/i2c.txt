@@ -80,6 +80,11 @@ wants to support one of the below features, it should adapt the bindings below.
 	Names of map programmable addresses.
 	It can contain any map needing another address than default one.
 
+- linux,probed
+	If this property is present, then the I2C device will be
+	probed before being added using i2c_new_probed_device, else
+	linux will instantiate the I2C device normally.
+
 Binding may contain optional "interrupts" property, describing interrupts
 used by the device. I2C core will assign "irq" interrupt (or the very first
 interrupt if not using interrupt names) as primary interrupt for the slave.

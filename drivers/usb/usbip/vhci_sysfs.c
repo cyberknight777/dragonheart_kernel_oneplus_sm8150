@@ -24,6 +24,9 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
+/* Hardening for Spectre-v1 */
+#include <linux/nospec.h>
+
 #include "usbip_common.h"
 #include "vhci.h"
 
@@ -31,10 +34,10 @@
 
 /*
  * output example:
- * hub port sta spd dev       sockfd    local_busid
- * hs  0000 004 000 00000000  3         1-2.3
+ * hub port sta spd dev       sockfd local_busid
+ * hs  0000 004 000 00000000  000003 1-2.3
  * ................................................
- * ss  0008 004 000 00000000  4         2-3.4
+ * ss  0008 004 000 00000000  000004 2-3.4
  * ................................................
  *
  * Output includes socket fd instead of socket pointer address to avoid
@@ -58,13 +61,13 @@ static void port_show_vhci(char **out, int hub, int port, struct vhci_device *vd
 	if (vdev->ud.status == VDEV_ST_USED) {
 		*out += sprintf(*out, "%03u %08x ",
 				      vdev->speed, vdev->devid);
-		*out += sprintf(*out, "%u %s",
+		*out += sprintf(*out, "%06u %s",
 				      vdev->ud.sockfd,
 				      dev_name(&vdev->udev->dev));
 
 	} else {
 		*out += sprintf(*out, "000 00000000 ");
-		*out += sprintf(*out, "0000000000000000 0-0");
+		*out += sprintf(*out, "000000 0-0");
 	}
 
 	*out += sprintf(*out, "\n");
@@ -162,7 +165,7 @@ static ssize_t status_show(struct device *dev,
 	int pdev_nr;
 
 	out += sprintf(out,
-		       "hub port sta spd dev      socket           local_busid\n");
+		       "hub port sta spd dev      sockfd local_busid\n");
 
 	pdev_nr = status_name_to_id(attr->attr.name);
 	if (pdev_nr < 0)
@@ -219,16 +222,20 @@ static int vhci_port_disconnect(struct vhci_hcd *vhci_hcd, __u32 rhport)
 	return 0;
 }
 
-static int valid_port(__u32 pdev_nr, __u32 rhport)
+static int valid_port(__u32 *pdev_nr, __u32 *rhport)
 {
-	if (pdev_nr >= vhci_num_controllers) {
-		pr_err("pdev %u\n", pdev_nr);
+	if (*pdev_nr >= vhci_num_controllers) {
+		pr_err("pdev %u\n", *pdev_nr);
 		return 0;
 	}
-	if (rhport >= VHCI_HC_PORTS) {
-		pr_err("rhport %u\n", rhport);
+	*pdev_nr = array_index_nospec(*pdev_nr, vhci_num_controllers);
+
+	if (*rhport >= VHCI_HC_PORTS) {
+		pr_err("rhport %u\n", *rhport);
 		return 0;
 	}
+	*rhport = array_index_nospec(*rhport, VHCI_HC_PORTS);
+
 	return 1;
 }
 
@@ -246,7 +253,7 @@ static ssize_t store_detach(struct device *dev, struct device_attribute *attr,
 	pdev_nr = port_to_pdev_nr(port);
 	rhport = port_to_rhport(port);
 
-	if (!valid_port(pdev_nr, rhport))
+	if (!valid_port(&pdev_nr, &rhport))
 		return -EINVAL;
 
 	hcd = platform_get_drvdata(vhcis[pdev_nr].pdev);
@@ -272,7 +279,8 @@ static ssize_t store_detach(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR(detach, S_IWUSR, NULL, store_detach);
 
-static int valid_args(__u32 pdev_nr, __u32 rhport, enum usb_device_speed speed)
+static int valid_args(__u32 *pdev_nr, __u32 *rhport,
+		      enum usb_device_speed speed)
 {
 	if (!valid_port(pdev_nr, rhport)) {
 		return 0;
@@ -336,7 +344,7 @@ static ssize_t store_attach(struct device *dev, struct device_attribute *attr,
 			     sockfd, devid, speed);
 
 	/* check received parameters */
-	if (!valid_args(pdev_nr, rhport, speed))
+	if (!valid_args(&pdev_nr, &rhport, speed))
 		return -EINVAL;
 
 	hcd = platform_get_drvdata(vhcis[pdev_nr].pdev);

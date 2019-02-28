@@ -153,11 +153,12 @@ void idr_nowait_test(void)
 	idr_destroy(&idr);
 }
 
-void idr_get_next_test(void)
+void idr_get_next_test(int base)
 {
 	unsigned long i;
 	int nextid;
 	DEFINE_IDR(idr);
+	idr_init_base(&idr, base);
 
 	int indices[] = {4, 7, 9, 15, 65, 128, 1000, 99999, 0};
 
@@ -202,6 +203,13 @@ void idr_checks(void)
 	idr_remove(&idr, 3);
 	idr_remove(&idr, 0);
 
+	assert(idr_alloc(&idr, DUMMY_PTR, 0, 0, GFP_KERNEL) == 0);
+	idr_remove(&idr, 1);
+	for (i = 1; i < RADIX_TREE_MAP_SIZE; i++)
+		assert(idr_alloc(&idr, DUMMY_PTR, 0, 0, GFP_KERNEL) == i);
+	idr_remove(&idr, 1 << 30);
+	idr_destroy(&idr);
+
 	for (i = INT_MAX - 3UL; i < INT_MAX + 1UL; i++) {
 		struct item *item = item_create(i, 0);
 		assert(idr_alloc(&idr, item, i, i + 10, GFP_KERNEL) == i);
@@ -212,6 +220,23 @@ void idr_checks(void)
 	idr_destroy(&idr);
 	idr_destroy(&idr);
 
+	assert(idr_is_empty(&idr));
+
+	idr_set_cursor(&idr, INT_MAX - 3UL);
+	for (i = INT_MAX - 3UL; i < INT_MAX + 3UL; i++) {
+		struct item *item;
+		unsigned int id;
+		if (i <= INT_MAX)
+			item = item_create(i, 0);
+		else
+			item = item_create(i - INT_MAX - 1, 0);
+
+		id = idr_alloc_cyclic(&idr, item, 0, 0, GFP_KERNEL);
+		assert(id == item->index);
+	}
+
+	idr_for_each(&idr, item_idr_free, &idr);
+	idr_destroy(&idr);
 	assert(idr_is_empty(&idr));
 
 	for (i = 1; i < 10000; i++) {
@@ -226,7 +251,9 @@ void idr_checks(void)
 	idr_alloc_test();
 	idr_null_test();
 	idr_nowait_test();
-	idr_get_next_test();
+	idr_get_next_test(0);
+	idr_get_next_test(1);
+	idr_get_next_test(4);
 }
 
 /*

@@ -75,7 +75,7 @@ static int mt8173_max98090_init(struct snd_soc_pcm_runtime *runtime)
 {
 	int ret;
 	struct snd_soc_card *card = runtime->card;
-	struct snd_soc_codec *codec = runtime->codec;
+	struct snd_soc_component *component = runtime->codec_dai->component;
 
 	/* enable jack detection */
 	ret = snd_soc_card_jack_new(card, "Headphone", SND_JACK_HEADPHONE,
@@ -87,7 +87,7 @@ static int mt8173_max98090_init(struct snd_soc_pcm_runtime *runtime)
 		return ret;
 	}
 
-	return max98090_mic_detect(codec, &mt8173_max98090_jack);
+	return max98090_mic_detect(component, &mt8173_max98090_jack);
 }
 
 /* Digital audio interface glue - connects codec <---> CPU */
@@ -145,6 +145,7 @@ static int mt8173_max98090_dev_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt8173_max98090_card;
 	struct device_node *codec_node, *platform_node;
+	struct snd_soc_dai_link *dai_link;
 	int ret, i;
 
 	platform_node = of_parse_phandle(pdev->dev.of_node,
@@ -153,10 +154,10 @@ static int mt8173_max98090_dev_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Property 'platform' missing or invalid\n");
 		return -EINVAL;
 	}
-	for (i = 0; i < card->num_links; i++) {
-		if (mt8173_max98090_dais[i].platform_name)
+	for_each_card_prelinks(card, i, dai_link) {
+		if (dai_link->platform_name)
 			continue;
-		mt8173_max98090_dais[i].platform_of_node = platform_node;
+		dai_link->platform_of_node = platform_node;
 	}
 
 	codec_node = of_parse_phandle(pdev->dev.of_node,
@@ -166,10 +167,10 @@ static int mt8173_max98090_dev_probe(struct platform_device *pdev)
 			"Property 'audio-codec' missing or invalid\n");
 		return -EINVAL;
 	}
-	for (i = 0; i < card->num_links; i++) {
-		if (mt8173_max98090_dais[i].codec_name)
+	for_each_card_prelinks(card, i, dai_link) {
+		if (dai_link->codec_name)
 			continue;
-		mt8173_max98090_dais[i].codec_of_node = codec_node;
+		dai_link->codec_of_node = codec_node;
 	}
 	card->dev = &pdev->dev;
 
