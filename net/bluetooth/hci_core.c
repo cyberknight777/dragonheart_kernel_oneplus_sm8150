@@ -1439,6 +1439,13 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 
 	clear_bit(HCI_INIT, &hdev->flags);
 
+	/* Don't allow usage of Bluetooth if the chip doesn't support */
+	/* Read Encryption Key Size command (byte 20 bit 4). */
+	if (!ret && !(hdev->commands[20] & 0x10)) {
+		WARN(1, "Disabling Bluetooth due to unsupported HCI Read Encryption Key Size command");
+		ret = -EIO;
+	}
+
 	if (!ret) {
 		hci_dev_hold(hdev);
 		hci_dev_set_flag(hdev, HCI_RPA_EXPIRED);
