@@ -148,12 +148,12 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 	case DEBUG_LOG_MSG:
 		iwl_dnt_dispatch_collect_ucode_message(xvt->trans, rxb);
 		break;
-	case WIDE_ID(TOF_GROUP, TOF_MCSI_DEBUG_NOTIF):
+	case WIDE_ID(LOCATION_GROUP, TOF_MCSI_DEBUG_NOTIF):
 		iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_LOC_MCSI,
 					data, size, GFP_ATOMIC);
 		break;
-	case WIDE_ID(TOF_GROUP, TOF_RANGE_RESPONSE_NOTIF):
+	case WIDE_ID(LOCATION_GROUP, TOF_RANGE_RESPONSE_NOTIF):
 		iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_LOC_RANGE,
 					data, size, GFP_ATOMIC);
@@ -2096,12 +2096,14 @@ int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 	default:
 		*supported_cmd = false;
 		ret = -EOPNOTSUPP;
+		IWL_DEBUG_INFO(xvt, "%s (cmd=0x%X) Not supported by xVT\n",
+			       __func__, cmd);
 		break;
 	}
 
 	mutex_unlock(&xvt->mutex);
 
-	if (ret)
+	if (ret && *supported_cmd)
 		IWL_ERR(xvt, "%s (cmd=0x%X) ret=%d\n", __func__, cmd, ret);
 	else
 		IWL_DEBUG_INFO(xvt, "%s (cmd=0x%X) ended Ok\n", __func__, cmd);

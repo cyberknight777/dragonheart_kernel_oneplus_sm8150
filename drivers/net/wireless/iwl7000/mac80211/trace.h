@@ -1893,6 +1893,18 @@ TRACE_EVENT(drv_del_nan_func,
 	)
 );
 
+DEFINE_EVENT(local_sdata_evt, drv_start_pmsr,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata),
+	TP_ARGS(local, sdata)
+);
+
+DEFINE_EVENT(local_sdata_evt, drv_abort_pmsr,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata),
+	TP_ARGS(local, sdata)
+);
+
 /*
  * Tracing for API calls that drivers call.
  */
@@ -2451,6 +2463,12 @@ DEFINE_EVENT(local_sdata_evt, drv_post_channel_switch,
 	     TP_ARGS(local, sdata)
 );
 
+DEFINE_EVENT(local_sdata_evt, drv_abort_channel_switch,
+	     TP_PROTO(struct ieee80211_local *local,
+		      struct ieee80211_sub_if_data *sdata),
+	     TP_ARGS(local, sdata)
+);
+
 TRACE_EVENT(drv_get_txpower,
 	TP_PROTO(struct ieee80211_local *local,
 		 struct ieee80211_sub_if_data *sdata,
@@ -2609,12 +2627,6 @@ TRACE_EVENT(drv_wake_tx_queue,
 		LOCAL_PR_FMT  VIF_PR_FMT  STA_PR_FMT " ac:%d tid:%d",
 		LOCAL_PR_ARG, VIF_PR_ARG, STA_PR_ARG, __entry->ac, __entry->tid
 	)
-);
-
-DEFINE_EVENT(local_sdata_evt, drv_start_ftm_responder,
-	TP_PROTO(struct ieee80211_local *local,
-		 struct ieee80211_sub_if_data *sdata),
-	TP_ARGS(local, sdata)
 );
 
 TRACE_EVENT(drv_get_ftm_responder_stats,

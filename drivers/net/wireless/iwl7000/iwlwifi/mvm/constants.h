@@ -8,7 +8,7 @@
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015        Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2015        Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -65,6 +65,7 @@
 #define __MVM_CONSTANTS_H
 
 #include <linux/ieee80211.h>
+#include "fw-api.h"
 
 #define IWL_MVM_UAPSD_NOAGG_BSSIDS_NUM		20
 
@@ -148,6 +149,9 @@
 #define IWL_MVM_RS_TPC_SR_NO_INCREASE		85	/* percent */
 #define IWL_MVM_RS_TPC_TX_POWER_STEP		3
 #define IWL_MVM_ENABLE_EBS			1
+#define IWL_MVM_FTM_INITIATOR_ALGO		IWL_TOF_ALGO_TYPE_MAX_LIKE
+#define IWL_MVM_FTM_INITIATOR_DYNACK		true
+#define IWL_MVM_D3_DEBUG			false
 #else /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
 #define IWL_MVM_DEFAULT_PS_TX_DATA_TIMEOUT	(mvm->trans->dbg_cfg.MVM_DEFAULT_PS_TX_DATA_TIMEOUT)
 #define IWL_MVM_DEFAULT_PS_RX_DATA_TIMEOUT	(mvm->trans->dbg_cfg.MVM_DEFAULT_PS_RX_DATA_TIMEOUT)
@@ -225,14 +229,15 @@
 #define IWL_MVM_RS_TPC_SR_NO_INCREASE		(mvm->trans->dbg_cfg.MVM_RS_TPC_SR_NO_INCREASE)
 #define IWL_MVM_RS_TPC_TX_POWER_STEP		(mvm->trans->dbg_cfg.MVM_RS_TPC_TX_POWER_STEP)
 #define IWL_MVM_ENABLE_EBS			(mvm->trans->dbg_cfg.MVM_ENABLE_EBS)
+#define IWL_MVM_FTM_RESP_TOA_OFFSET		(mvm->trans->dbg_cfg.MVM_FTM_RESP_TOA_OFFSET)
+#define IWL_MVM_FTM_RESP_VALID			(mvm->trans->dbg_cfg.MVM_FTM_RESP_VALID)
+#define IWL_MVM_FTM_RESP_FLAGS			(mvm->trans->dbg_cfg.MVM_FTM_RESP_FLAGS)
+#define IWL_MVM_FTM_INITIATOR_ALGO		(mvm->trans->dbg_cfg.MVM_FTM_INITIATOR_ALGO)
+#define IWL_MVM_FTM_INITIATOR_DYNACK		(mvm->trans->dbg_cfg.MVM_FTM_INITIATOR_DYNACK)
+#define IWL_MVM_FTM_INITIATOR_MCSI_ENABLED	(mvm->trans->dbg_cfg.MVM_FTM_INITIATOR_MCSI_ENABLED)
+#define IWL_MVM_FTM_INITIATOR_COMMON_CALIB	(mvm->trans->dbg_cfg.MVM_FTM_INITIATOR_COMMON_CALIB)
+#define IWL_MVM_D3_DEBUG			(mvm->trans->dbg_cfg.MVM_D3_DEBUG)
 
 #endif /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
-
-/* Default values for the FTM range_request_ext command: */
-#define IWL_MVM_FTM_REQ_EXT_TSF_TIMER_OFFSET_MSEC_DFLT 5
-#define IWL_MVM_FTM_REQ_EXT_MIN_DELTA_FTM_DFLT 0
-#define IWL_MVM_FTM_REQ_EXT_FORMAT_AND_BW20M_DFLT IEEE80211_FTM_FORMAT_BW_HT_20
-#define IWL_MVM_FTM_REQ_EXT_FORMAT_AND_BW40M_DFLT IEEE80211_FTM_FORMAT_BW_HT_40
-#define IWL_MVM_FTM_REQ_EXT_FORMAT_AND_BW80M_DFLT IEEE80211_FTM_FORMAT_BW_VHT_80
 
 #endif /* __MVM_CONSTANTS_H */

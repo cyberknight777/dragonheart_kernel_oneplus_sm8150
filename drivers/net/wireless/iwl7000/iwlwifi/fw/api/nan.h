@@ -88,7 +88,8 @@ enum iwl_nan_subcmd_ids {
 
 	/**
 	 * @NAN_DISCOVERY_EVENT_NOTIF:
-	 * &struct iwl_nan_disc_evt_notify
+	 * &struct iwl_nan_disc_evt_notify_v1 or
+	 * &struct iwl_nan_disc_evt_notify_v2
 	 */
 	NAN_DISCOVERY_EVENT_NOTIF = 0xFD,
 
@@ -237,6 +238,26 @@ enum iwl_fw_nan_func_flags {
 };
 
 /**
+ * struct iwl_nan_add_func_common_tail - tail of iwl_nan_add_func_common for
+ *	alignment with various channel info sizes
+ *
+ * @faw_attrtype: further availability bitmap
+ * @serv_info_len: length of service specific information
+ * @srf_len: length of the srf
+ * @rx_filter_len: length of rx filter
+ * @tx_filter_len: length of tx filter
+ * @dw_interval: awake dw interval
+ */
+struct iwl_nan_add_func_common_tail {
+	u8 faw_attrtype;
+	u8 serv_info_len;
+	u8 srf_len;
+	u8 rx_filter_len;
+	u8 tx_filter_len;
+	u8 dw_interval;
+} __packed;
+
+/**
  * struct iwl_nan_add_func_common - NAN add/remove function, common part
  *
  * @action: one of the FW_CTXT_ACTION_ADD/REMOVE
@@ -250,12 +271,7 @@ enum iwl_fw_nan_func_flags {
  * @reserved1: reserved
  * @ttl: ttl in DW's or 0 for infinite
  * @faw_ci: &struct iwl_fw_channel_info for further availability
- * @faw_attrtype: further availability bitmap
- * @serv_info_len: length of service specific information
- * @srf_len: length of the srf
- * @rx_filter_len: length of rx filter
- * @tx_filter_len: length of tx filter
- * @dw_interval: awake dw interval
+ * @tail: command tail
  */
 struct iwl_nan_add_func_common {
 	__le32 action;
@@ -269,12 +285,8 @@ struct iwl_nan_add_func_common {
 	__le16 reserved1;
 	__le32 ttl;
 	struct iwl_fw_channel_info faw_ci;
-	u8 faw_attrtype;
-	u8 serv_info_len;
-	u8 srf_len;
-	u8 rx_filter_len;
-	u8 tx_filter_len;
-	u8 dw_interval;
+	struct iwl_nan_add_func_common_tail tail;
+
 } __packed; /* NAN_DISCO_FUNC_FIXED_CMD_API_S_VER_1 */
 
 /**
@@ -485,22 +497,32 @@ enum iwl_fw_config_flags {
 };
 
 /**
- * struct iwl_nan_faw_config - NAN further availability configuration command
+ * struct iwl_nan_faw_config_tail - tail fo iwl_nan_faw_config for various
+ *	channel info structs
  *
- * @id_n_color: id and color of the mac used for further availability
- * @faw_ci: channel to be available on
  * @type: type of post NAN availability (enum %iwl_fw_post_nan_type)
  * @slots: number of 16TU slots to be available on (should be < 32)
  * @flags: NAN_FAW_FLAG_*
  * @op_class: operating class which corresponds to faw_ci
  */
-struct iwl_nan_faw_config {
-	__le32 id_n_color;
-	struct iwl_fw_channel_info faw_ci;
+struct iwl_nan_faw_config_tail {
 	u8 type;
 	u8 slots;
 	u8 flags;
 	u8 op_class;
+} __packed;
+
+/**
+ * struct iwl_nan_faw_config - NAN further availability configuration command
+ *
+ * @id_n_color: id and color of the mac used for further availability
+ * @faw_ci: channel to be available on
+ * @tail: command tail
+ */
+struct iwl_nan_faw_config {
+	__le32 id_n_color;
+	struct iwl_fw_channel_info faw_ci;
+	struct iwl_nan_faw_config_tail tail;
 } __packed; /* _NAN_DISCO_FAW_CMD_API_S_VER_1 */
 
 #endif /* __iwl_fw_api_nan_h__ */

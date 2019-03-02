@@ -31,21 +31,7 @@ int __alloc_bucket_spinlocks(spinlock_t **locks, unsigned int *locks_mask,
 	}
 
 	if (sizeof(spinlock_t) != 0) {
-#if LINUX_VERSION_IS_LESS(4,12,0)
-#ifdef CONFIG_NUMA
-		if (size * sizeof(spinlock_t) > PAGE_SIZE &&
-		    gfp == GFP_KERNEL)
-			tlocks = vmalloc(size * sizeof(spinlock_t));
-#endif
-		if (gfp != GFP_KERNEL)
-			gfp |= __GFP_NOWARN | __GFP_NORETRY;
-
-		if (!tlocks)
-			tlocks = kmalloc_array(size, sizeof(spinlock_t),
-						   gfp);
-#else
 		tlocks = kvmalloc_array(size, sizeof(spinlock_t), gfp);
-#endif
 		if (!tlocks)
 			return -ENOMEM;
 		for (i = 0; i < size; i++) {

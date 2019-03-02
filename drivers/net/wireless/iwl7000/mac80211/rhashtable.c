@@ -173,8 +173,7 @@ static struct bucket_table *bucket_table_alloc(struct rhashtable *ht,
 	int i;
 
 	size = sizeof(*tbl) + nbuckets * sizeof(tbl->buckets[0]);
-	if (gfp == GFP_KERNEL)
-		tbl = vzalloc(size);
+	tbl = kvzalloc(size, gfp);
 
 	size = nbuckets;
 

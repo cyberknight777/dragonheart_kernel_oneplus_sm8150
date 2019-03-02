@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -149,6 +149,8 @@
  *	no attributes.
  * @IWL_MVM_VENDOR_CMD_FMAC_CONFIG: set one of the fmac configuration options.
  *	&IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR specifies the configuration string.
+ * @IWL_MVM_VENDOR_CMD_CSI_EVENT: CSI event, use as a command to enable unicast
+ *	reporting to the calling socket
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -188,6 +190,7 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_TEST_FIPS				= 0x21,
 	IWL_MVM_VENDOR_CMD_FMAC_CONNECT_PARAMS			= 0x22,
 	IWL_MVM_VENDOR_CMD_FMAC_CONFIG				= 0x23,
+	IWL_MVM_VENDOR_CMD_CSI_EVENT				= 0x24,
 };
 
 /**
@@ -798,6 +801,8 @@ enum iwl_vendor_fips_test_vector_hw {
  *	before notifying connection failure.
  * @IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR: a key=value string where key is an
  *	fmac configuration option.
+ * @IWL_MVM_VENDOR_ATTR_CSI_HDR: CSI header
+ * @IWL_MVM_VENDOR_ATTR_CSI_DATA: CSI data
  */
 enum iwl_mvm_vendor_attr {
 	__IWL_MVM_VENDOR_ATTR_INVALID				= 0x00,
@@ -877,6 +882,8 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST	= 0x4a,
 	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES	= 0x4b,
 	IWL_MVM_VENDOR_ATTR_FMAC_CONFIG_STR			= 0x4c,
+	IWL_MVM_VENDOR_ATTR_CSI_HDR				= 0x4d,
+	IWL_MVM_VENDOR_ATTR_CSI_DATA				= 0x4e,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,

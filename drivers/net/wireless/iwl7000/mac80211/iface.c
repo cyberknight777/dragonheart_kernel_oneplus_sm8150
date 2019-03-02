@@ -7,6 +7,7 @@
  * Copyright 2008, Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (c) 2016        Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1153,7 +1154,8 @@ static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 struct net_device *sb_dev,
 					 select_queue_fallback_t fallback)
 #elif LINUX_VERSION_IS_GEQ(3,14,0) || \
-    (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30)
+    (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30) || \
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 struct sk_buff *skb,
 					 void *accel_priv,
@@ -1196,7 +1198,8 @@ ieee80211_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 		stats->tx_bytes   += tx_bytes;
 	}
 }
-#if LINUX_VERSION_IS_LESS(4,11,0)
+#if LINUX_VERSION_IS_LESS(4,11,0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 /* Just declare it here to keep sparse happy */
 struct rtnl_link_stats64 *bp_ieee80211_get_stats64(struct net_device *dev,
 						   struct rtnl_link_stats64 *stats);
@@ -1208,7 +1211,8 @@ bp_ieee80211_get_stats64(struct net_device *dev,
 }
 #endif
 
-#if LINUX_VERSION_IS_LESS(4,10,0)
+#if LINUX_VERSION_IS_LESS(4,10,0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 static int __change_mtu(struct net_device *ndev, int new_mtu){
 	if (new_mtu < 256 || new_mtu > IEEE80211_MAX_DATA_LEN)
 		return -EINVAL;
@@ -1218,7 +1222,8 @@ static int __change_mtu(struct net_device *ndev, int new_mtu){
 #endif
 
 static const struct net_device_ops ieee80211_dataif_ops = {
-#if LINUX_VERSION_IS_LESS(4,10,0)
+#if LINUX_VERSION_IS_LESS(4,10,0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 	.ndo_change_mtu = __change_mtu,
 #endif
 
@@ -1229,7 +1234,8 @@ static const struct net_device_ops ieee80211_dataif_ops = {
 	.ndo_set_rx_mode	= ieee80211_set_multicast_list,
 	.ndo_set_mac_address 	= ieee80211_change_mac,
 	.ndo_select_queue	= ieee80211_netdev_select_queue,
-#if LINUX_VERSION_IS_GEQ(4,11,0)
+#if LINUX_VERSION_IS_GEQ(4,11,0) || \
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 	.ndo_get_stats64	= ieee80211_get_stats64,
 #else
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
@@ -1243,7 +1249,8 @@ static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  struct net_device *sb_dev,
 					  select_queue_fallback_t fallback)
 #elif LINUX_VERSION_IS_GEQ(3,14,0) || \
-    (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30)
+    (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30) || \
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  struct sk_buff *skb,
 					  void *accel_priv,
@@ -1275,7 +1282,8 @@ static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 }
 
 static const struct net_device_ops ieee80211_monitorif_ops = {
-#if LINUX_VERSION_IS_LESS(4,10,0)
+#if LINUX_VERSION_IS_LESS(4,10,0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 	.ndo_change_mtu = __change_mtu,
 #endif
 
@@ -1286,7 +1294,8 @@ static const struct net_device_ops ieee80211_monitorif_ops = {
 	.ndo_set_rx_mode	= ieee80211_set_multicast_list,
 	.ndo_set_mac_address 	= ieee80211_change_mac,
 	.ndo_select_queue	= ieee80211_monitor_select_queue,
-#if LINUX_VERSION_IS_GEQ(4,11,0)
+#if LINUX_VERSION_IS_GEQ(4,11,0) || \
+	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 	.ndo_get_stats64	= ieee80211_get_stats64,
 #else
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
@@ -1841,7 +1850,10 @@ static void ieee80211_assign_perm_addr(struct ieee80211_local *local,
 int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 		     unsigned char name_assign_type,
 		     struct wireless_dev **new_wdev, enum nl80211_iftype type,
-		     struct vif_params *params)
+#if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
+		     u32 flags,
+#endif
+struct vif_params *params)
 {
 	struct net_device *ndev = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
@@ -1872,7 +1884,8 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 
 		if (local->ops->wake_tx_queue &&
 		    type != NL80211_IFTYPE_AP_VLAN &&
-		    type != NL80211_IFTYPE_MONITOR)
+		    (type != NL80211_IFTYPE_MONITOR ||
+		     (mon_opts_flags(params) & MONITOR_FLAG_ACTIVE)))
 			txq_size += sizeof(struct txq_info) +
 				    local->hw.txq_data_size;
 
@@ -1915,7 +1928,7 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 		}
 
 		ieee80211_assign_perm_addr(local, ndev->perm_addr, type);
-		if (params && is_valid_ether_addr(params->macaddr))
+		if (is_valid_ether_addr(params->macaddr))
 			memcpy(ndev->dev_addr, params->macaddr, ETH_ALEN);
 		else
 			memcpy(ndev->dev_addr, ndev->perm_addr, ETH_ALEN);
@@ -1984,11 +1997,9 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 	ieee80211_setup_sdata(sdata, type);
 
 	if (ndev) {
-		if (params) {
-			ndev->ieee80211_ptr->use_4addr = params->use_4addr;
-			if (type == NL80211_IFTYPE_STATION)
-				sdata->u.mgd.use_4addr = params->use_4addr;
-		}
+		ndev->ieee80211_ptr->use_4addr = params->use_4addr;
+		if (type == NL80211_IFTYPE_STATION)
+			sdata->u.mgd.use_4addr = params->use_4addr;
 
 		ndev->features |= local->hw.netdev_features;
 
@@ -2071,6 +2082,8 @@ void ieee80211_remove_interfaces(struct ieee80211_local *local)
 
 	WARN(local->open_count, "%s: open count remains %d\n",
 	     wiphy_name(local->hw.wiphy), local->open_count);
+
+	ieee80211_txq_teardown_flows(local);
 
 	mutex_lock(&local->iflist_mtx);
 	list_for_each_entry_safe(sdata, tmp, &local->interfaces, list) {
