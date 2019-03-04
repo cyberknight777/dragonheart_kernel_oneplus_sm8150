@@ -88,9 +88,6 @@ static ssize_t dm_dp_aux_transfer(struct drm_dp_aux *aux,
 	if (WARN_ON(msg->size > 16))
 		return -E2BIG;
 
-	if (WARN_ON(msg->size > 16))
-		return -E2BIG;
-
 	switch (msg->request & ~DP_AUX_I2C_MOT) {
 	case DP_AUX_NATIVE_READ:
 		read_bytes = dal_ddc_service_read_dpcd_data(
