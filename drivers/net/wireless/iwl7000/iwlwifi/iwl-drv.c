@@ -487,8 +487,8 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 	}
 #endif /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
 
-	IWL_DEBUG_INFO(drv, "attempting to load firmware '%s'\n",
-		       drv->firmware_name);
+	IWL_DEBUG_FW_INFO(drv, "attempting to load firmware '%s'\n",
+			  drv->firmware_name);
 
 	return request_firmware_nowait(THIS_MODULE, 1, drv->firmware_name,
 				       drv->trans->dev,
@@ -1605,8 +1605,8 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	if (!ucode_raw)
 		goto try_again;
 
-	IWL_DEBUG_INFO(drv, "Loaded firmware file '%s' (%zd bytes).\n",
-		       drv->firmware_name, ucode_raw->size);
+	IWL_DEBUG_FW_INFO(drv, "Loaded firmware file '%s' (%zd bytes).\n",
+			  drv->firmware_name, ucode_raw->size);
 
 	/* Make sure that we got at least the API version number */
 	if (ucode_raw->size < 4) {
