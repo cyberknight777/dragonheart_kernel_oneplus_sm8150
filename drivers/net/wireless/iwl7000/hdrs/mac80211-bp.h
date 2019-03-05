@@ -2560,6 +2560,32 @@ static inline void cfg80211_pmsr_complete(struct wireless_dev *wdev,
 	kfree(req);
 }
 
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+static inline u64 ether_addr_to_u64(const u8 *addr)
+{
+	u64 u = 0;
+	int i;
+
+	for (i = 0; i < ETH_ALEN; i++)
+		u = u << 8 | addr[i];
+
+	return u;
+}
+
+static inline void u64_to_ether_addr(u64 u, u8 *addr)
+{
+	int i;
+
+	for (i = ETH_ALEN - 1; i >= 0; i--) {
+		addr[i] = u & 0xff;
+		u = u >> 8;
+	}
+}
+#endif /* < 4,11,0 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,0,0)
 static inline void
 ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
 				     u16 n)
@@ -2592,31 +2618,40 @@ ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
 		  "Tried to use unsupported sband iftype data\n");
 	return NULL;
 }
-
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-static inline u64 ether_addr_to_u64(const u8 *addr)
+#else  /* CFG80211_VERSION < KERNEL_VERSION(5,0,0) */
+static inline void
+ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
+				     u16 n)
 {
-	u64 u = 0;
-	int i;
-
-	for (i = 0; i < ETH_ALEN; i++)
-		u = u << 8 | addr[i];
-
-	return u;
+	sband->n_iftype_data = n;
 }
 
-static inline void u64_to_ether_addr(u64 u, u8 *addr)
+static inline u16
+ieee80211_sband_get_num_iftypes_data(struct ieee80211_supported_band *sband)
 {
-	int i;
-
-	for (i = ETH_ALEN - 1; i >= 0; i--) {
-		addr[i] = u & 0xff;
-		u = u >> 8;
-	}
+	return sband->n_iftype_data;
 }
-#endif /* < 4,11,0 */
+
+static inline void
+ieee80211_sband_set_iftypes_data(struct ieee80211_supported_band *sband,
+				 const struct ieee80211_sband_iftype_data *data)
+{
+	sband->iftype_data = data;
+}
+
+static inline const struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return sband->iftype_data;
+}
+
+static inline const struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
+				       u16 i)
+{
+	return &sband->iftype_data[i];
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,0,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,1,0)
 static inline int cfg80211_vendor_cmd_get_sender(struct wiphy *wiphy)
