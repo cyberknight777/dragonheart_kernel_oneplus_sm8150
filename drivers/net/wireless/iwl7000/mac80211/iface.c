@@ -1157,7 +1157,7 @@ static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 select_queue_fallback_t fallback)
 #elif LINUX_VERSION_IS_GEQ(3,14,0) || \
     (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30) || \
-	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
+       RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 struct sk_buff *skb,
 					 void *accel_priv,
@@ -1200,8 +1200,7 @@ ieee80211_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats)
 		stats->tx_bytes   += tx_bytes;
 	}
 }
-#if LINUX_VERSION_IS_LESS(4,11,0) && \
-	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
+#if LINUX_VERSION_IS_LESS(4,11,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 /* Just declare it here to keep sparse happy */
 struct rtnl_link_stats64 *bp_ieee80211_get_stats64(struct net_device *dev,
 						   struct rtnl_link_stats64 *stats);
@@ -1213,8 +1212,7 @@ bp_ieee80211_get_stats64(struct net_device *dev,
 }
 #endif
 
-#if LINUX_VERSION_IS_LESS(4,10,0) && \
-	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
+#if LINUX_VERSION_IS_LESS(4,10,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 static int __change_mtu(struct net_device *ndev, int new_mtu){
 	if (new_mtu < 256 || new_mtu > IEEE80211_MAX_DATA_LEN)
 		return -EINVAL;
@@ -1224,8 +1222,7 @@ static int __change_mtu(struct net_device *ndev, int new_mtu){
 #endif
 
 static const struct net_device_ops ieee80211_dataif_ops = {
-#if LINUX_VERSION_IS_LESS(4,10,0) && \
-	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
+#if LINUX_VERSION_IS_LESS(4,10,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 	.ndo_change_mtu = __change_mtu,
 #endif
 
@@ -1236,8 +1233,7 @@ static const struct net_device_ops ieee80211_dataif_ops = {
 	.ndo_set_rx_mode	= ieee80211_set_multicast_list,
 	.ndo_set_mac_address 	= ieee80211_change_mac,
 	.ndo_select_queue	= ieee80211_netdev_select_queue,
-#if LINUX_VERSION_IS_GEQ(4,11,0) || \
-	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
+#if LINUX_VERSION_IS_GEQ(4,11,0) || RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 	.ndo_get_stats64	= ieee80211_get_stats64,
 #else
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
@@ -1252,7 +1248,7 @@ static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  select_queue_fallback_t fallback)
 #elif LINUX_VERSION_IS_GEQ(3,14,0) || \
     (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30) || \
-	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
+       RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  struct sk_buff *skb,
 					  void *accel_priv,
@@ -1284,8 +1280,7 @@ static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 }
 
 static const struct net_device_ops ieee80211_monitorif_ops = {
-#if LINUX_VERSION_IS_LESS(4,10,0) && \
-	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
+#if LINUX_VERSION_IS_LESS(4,10,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
 	.ndo_change_mtu = __change_mtu,
 #endif
 
@@ -1296,8 +1291,7 @@ static const struct net_device_ops ieee80211_monitorif_ops = {
 	.ndo_set_rx_mode	= ieee80211_set_multicast_list,
 	.ndo_set_mac_address 	= ieee80211_change_mac,
 	.ndo_select_queue	= ieee80211_monitor_select_queue,
-#if LINUX_VERSION_IS_GEQ(4,11,0) || \
-	RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
+#if LINUX_VERSION_IS_GEQ(4,11,0) || RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7,6)
 	.ndo_get_stats64	= ieee80211_get_stats64,
 #else
 	.ndo_get_stats64 = bp_ieee80211_get_stats64,
