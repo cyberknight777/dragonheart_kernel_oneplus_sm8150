@@ -2111,14 +2111,14 @@ int _iwl_fw_dbg_ini_collect(struct iwl_fw_runtime *fwrt,
 	struct iwl_fw_ini_active_triggers *active;
 	u32 occur, delay;
 
-	if (test_and_set_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
-		return -EBUSY;
-
 	if (!iwl_fw_ini_trigger_on(fwrt, id)) {
 		IWL_WARN(fwrt, "WRT: Trigger %d is not active, aborting dump\n",
 			 id);
 		return -EINVAL;
 	}
+
+	if (test_and_set_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
+		return -EBUSY;
 
 	active = &fwrt->dump.active_trigs[id];
 	delay = le32_to_cpu(active->trig->dump_delay);
