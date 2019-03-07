@@ -1293,8 +1293,7 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 				continue;
 			}
 
-			memset(*nontransmitted_profile, 0,
-			       IEEE80211_MAX_DATA_LEN);
+			memset(*nontransmitted_profile, 0, len);
 			profile_len = cfg80211_merge_profile(start, len,
 							     elem,
 							     sub,
