@@ -70,7 +70,7 @@ static bool udl_get_edid(struct udl_device *udl, u8 **result_buff,
 			memcpy(buff_ptr, block_buff, EDID_LENGTH);
 			kfree(block_buff);
 			buff_ptr += EDID_LENGTH;
-			for (i = 1; i < extensions; ++i) {
+			for (i = 1; i <= extensions; ++i) {
 				if (udl_get_edid_block(udl, i, buff_ptr)) {
 					buff_ptr += EDID_LENGTH;
 				} else {
