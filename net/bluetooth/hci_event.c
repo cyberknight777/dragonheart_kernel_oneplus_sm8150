@@ -2588,12 +2588,15 @@ static void read_enc_key_size_complete(struct hci_dev *hdev, u8 status,
 	 * enough.
 	 */
 	if (rp->status) {
-		WARN(1, "Read Encryption Key Size command failed, chip may not support this");
 		bt_dev_err(hdev, "failed to read key size for handle %u",
 			   handle);
+		conn->enc_key_size = HCI_LINK_KEY_SIZE;
+#ifdef CONFIG_BT_ENFORCE_CLASSIC_SECURITY
+		WARN(1, "Read Encryption Key Size command failed, chip may not support this");
 		hci_disconnect(conn, HCI_ERROR_REMOTE_USER_TERM);
 		hci_conn_drop(conn);
 		goto unlock;
+#endif
 	} else {
 		conn->enc_key_size = rp->key_size;
 	}
@@ -2693,22 +2696,37 @@ static void hci_encrypt_change_evt(struct hci_dev *hdev, struct sk_buff *skb)
 		struct hci_cp_read_enc_key_size cp;
 		struct hci_request req;
 
+		/* Only send HCI_Read_Encryption_Key_Size if the
+		 * controller really supports it. If it doesn't, assume
+		 * the default size (16).
+		 */
+		if (!(hdev->commands[20] & 0x10)) {
+			conn->enc_key_size = HCI_LINK_KEY_SIZE;
+			goto notify;
+		}
+
 		hci_req_init(&req, hdev);
 
 		cp.handle = cpu_to_le16(conn->handle);
 		hci_req_add(&req, HCI_OP_READ_ENC_KEY_SIZE, sizeof(cp), &cp);
 
 		if (hci_req_run_skb(&req, read_enc_key_size_complete)) {
-			WARN(1, "Failed sending HCI Read Encryption Key Size, chip may not support this");
 			bt_dev_err(hdev, "sending read key size failed");
+			conn->enc_key_size = HCI_LINK_KEY_SIZE;
+#ifdef CONFIG_BT_ENFORCE_CLASSIC_SECURITY
+			WARN(1, "Failed sending HCI Read Encryption Key Size, chip may not support this");
 			hci_disconnect(conn, HCI_ERROR_REMOTE_USER_TERM);
 			hci_conn_drop(conn);
 			goto unlock;
+#else
+			goto notify;
+#endif
 		}
 
 		goto unlock;
 	}
 
+notify:
 	if (conn->state == BT_CONFIG) {
 		if (!ev->status)
 			conn->state = BT_CONNECTED;
