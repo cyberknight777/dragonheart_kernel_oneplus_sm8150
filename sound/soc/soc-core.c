@@ -1085,6 +1085,7 @@ static void soc_cleanup_platform(struct snd_soc_card *card)
 	 * this function should be removed with snd_soc_init_platform
 	 */
 
+	printk("TEST");
 	for_each_card_prelinks(card, i, link) {
 		if (link->legacy_platform) {
 			link->legacy_platform = 0;
