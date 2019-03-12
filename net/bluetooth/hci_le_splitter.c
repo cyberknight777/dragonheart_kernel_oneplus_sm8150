@@ -94,6 +94,7 @@ static void hci_le_splitter_usr_purge_rx_q(void)
 	usr_msg_q_len = 0;
 }
 
+/* always called with hci_state_lock held */
 static void reset_tracked_le_conns(void)
 {
 	size_t i;
@@ -209,6 +210,7 @@ static ssize_t hci_le_splitter_write(struct file *file,
 	struct hci_acl_hdr acl_hdr;
 	struct sk_buff *skb;
 	u16 cmd_val = 0;
+	ssize_t ret;
 	u8 pkt_typ;
 
 	if (bytes < 1)
@@ -263,12 +265,14 @@ static ssize_t hci_le_splitter_write(struct file *file,
 		kfree_skb(skb);
 		return -EFAULT;
 	}
+	__net_timestamp(skb);
 
 	/* perform appropriate actions-before-sending */
 	if (pkt_typ == HCI_COMMAND_PKT) {
 
 		/* commands require the semaphore */
 		down(&cmd_sem);
+		mutex_lock(&hci_state_lock);
 
 	} else {
 		/* ACL data is not allowed without credits
@@ -277,16 +281,19 @@ static ssize_t hci_le_splitter_write(struct file *file,
 		u16 acl_hndl = hci_handle(__le16_to_cpu(acl_hdr.handle));
 		struct hci_le_splitter_le_conn *conn;
 
+		mutex_lock(&hci_state_lock);
 		if (max_pkts_in_flight == cur_pkts_in_flight) {
 			kfree_skb(skb);
-			return -ENOSPC;
+			ret = -ENOSPC;
+			goto out_unlock;
 		}
 
 		/* find conn & increment its inflight packet counter */
 		conn = cid_find_le_conn(acl_hndl);
 		if (!conn) {
 			kfree_skb(skb);
-			return -ENOENT;
+			ret = -ENOENT;
+			goto out_unlock;
 		}
 
 		conn->tx_in_flight++;
@@ -294,8 +301,6 @@ static ssize_t hci_le_splitter_write(struct file *file,
 	}
 
 	/* perform the actual transmission */
-	__net_timestamp(skb);
-	mutex_lock(&hci_state_lock);
 	if (pkt_typ == HCI_COMMAND_PKT)
 		le_waiting_on_opcode = cmd_val;
 
@@ -307,11 +312,15 @@ static ssize_t hci_le_splitter_write(struct file *file,
 		if (pkt_typ == HCI_COMMAND_PKT)
 			up(&cmd_sem);
 
-		return -EIO;
+		ret = -EIO;
+		goto out_unlock;
 	}
-	mutex_unlock(&hci_state_lock);
 
-	return bytes + sizeof(pkt_typ);
+	ret = bytes + sizeof(pkt_typ);
+
+out_unlock:
+	mutex_unlock(&hci_state_lock);
+	return ret;
 }
 
 static unsigned int hci_le_splitter_poll(struct file *file,
@@ -319,11 +328,11 @@ static unsigned int hci_le_splitter_poll(struct file *file,
 {
 	int ret = 0;
 
-	mutex_lock(&usr_msg_q_lock);
 	poll_wait(file, &usr_msg_wait_q, wait);
+
+	mutex_lock(&usr_msg_q_lock);
 	if (usr_msg_q_len)
 		ret |= (POLLIN | POLLRDNORM);
-	mutex_unlock(&usr_msg_q_lock);
 
 	/* poll for POLLOUT only indicates data TX ability.
 	 * commands can always be sent and will block!
@@ -332,6 +341,7 @@ static unsigned int hci_le_splitter_poll(struct file *file,
 	if (max_pkts_in_flight > cur_pkts_in_flight)
 		ret |= (POLLOUT | POLLWRNORM);
 
+	mutex_unlock(&usr_msg_q_lock);
 	return ret;
 }
 
@@ -487,14 +497,15 @@ void hci_le_splitter_init_fail(struct hci_dev *hdev)
 bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	bool ret = true, skipsem = true;
+	u16 opcode = 0;
 
 	mutex_lock(&hci_state_lock);
 
 	if (hci_le_splitter_is_our_dev(hdev) &&
 	    bt_cb(skb)->pkt_type == HCI_COMMAND_PKT) {
 
-		u16 opcode = hci_skb_opcode(skb);
 		void *cmdParams = ((u8 *)skb->data) + HCI_COMMAND_HDR_SIZE;
+		opcode = hci_skb_opcode(skb);
 
 		skipsem = false;
 
@@ -565,12 +576,15 @@ bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff 
 
 	mutex_unlock(&hci_state_lock);
 
-	if (ret && !skipsem && bt_cb(skb)->pkt_type == HCI_COMMAND_PKT)
-		down(&cmd_sem);
-
+	if (ret && !skipsem && bt_cb(skb)->pkt_type == HCI_COMMAND_PKT) {
+		if (-ETIMEDOUT == down_timeout(&cmd_sem, msecs_to_jiffies(1000)))
+			pr_err("Breaking semaphore for out-of-order bluez command 0x%x"
+				" write due to sem timeout\n", opcode);
+	}
 	return ret;
 }
 
+/* always called with hci_state_lock held */
 static struct hci_le_splitter_le_conn *cid_find_le_conn(u16 cid)
 {
 	size_t i;
@@ -580,6 +594,7 @@ static struct hci_le_splitter_le_conn *cid_find_le_conn(u16 cid)
 	return NULL;
 }
 
+/* always called with hci_state_lock held */
 static bool cid_is_le_conn(u16 cid)
 {
 	return !!cid_find_le_conn(cid);
@@ -629,6 +644,7 @@ static void hci_le_splitter_usr_queue_reset_message(bool allow_commands)
 	hci_le_splitter_enq_packet(skb);
 }
 
+/* always called with hci_state_lock held */
 static bool hci_le_splitter_filter_le_meta(const struct hci_ev_le_meta *meta)
 {
 	const struct hci_ev_le_conn_complete *evt;
@@ -665,6 +681,7 @@ static bool hci_le_splitter_filter_le_meta(const struct hci_ev_le_meta *meta)
 	return true;
 }
 
+/* always called with hci_state_lock held */
 static bool hci_le_splitter_filter_disconn(const struct hci_ev_disconn_complete *evt)
 {
 	u16 cid = __le16_to_cpu(evt->handle);
@@ -682,6 +699,7 @@ static bool hci_le_splitter_filter_disconn(const struct hci_ev_disconn_complete 
 	return true;
 }
 
+/* always called with hci_state_lock held */
 static bool hci_le_splitter_is_our_reply(u16 opcode)
 {
 	if (!le_waiting_on_opcode || le_waiting_on_opcode != opcode)
@@ -703,6 +721,7 @@ static void hci_le_splitter_filter_ftr_page_0(u8 *features)
 	}
 }
 
+/* always called with hci_state_lock held */
 static bool hci_le_splitter_filter_cmd_complete(const struct hci_ev_cmd_complete *evt)
 {
 	u16 opcode = __le16_to_cpu(evt->opcode);
@@ -821,6 +840,7 @@ static bool hci_le_splitter_filter_cmd_complete(const struct hci_ev_cmd_complete
 	return ours;
 }
 
+/* always called with hci_state_lock held */
 static bool hci_le_splitter_filter_cmd_status(const struct hci_ev_cmd_status *evt)
 {
 	u16 opcode = __le16_to_cpu(evt->opcode);
@@ -832,6 +852,7 @@ static bool hci_le_splitter_filter_cmd_status(const struct hci_ev_cmd_status *ev
 	return ours;
 }
 
+/* always called with hci_state_lock held */
 static bool hci_le_splitter_filter_num_comp_pkt(struct hci_ev_num_comp_pkts *evt,
 						int *len_chng)
 {
