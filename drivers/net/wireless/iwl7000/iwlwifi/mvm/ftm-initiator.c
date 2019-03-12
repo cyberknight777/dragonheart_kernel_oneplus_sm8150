@@ -196,11 +196,6 @@ static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	for (i = 0; i < ETH_ALEN; i++)
 		cmd->macaddr_mask[i] = ~req->mac_addr_mask[i];
 
-	if (vif->bss_conf.assoc)
-		memcpy(cmd->range_req_bssid, vif->bss_conf.bssid, ETH_ALEN);
-	else
-		eth_broadcast_addr(cmd->range_req_bssid);
-
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	if (IWL_MVM_FTM_INITIATOR_COMMON_CALIB) {
 		cmd->common_calib =
@@ -209,7 +204,25 @@ static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB);
 	}
 #endif
-	/* TODO: fill in tsf_mac_id if needed */
+
+	if (vif->bss_conf.assoc) {
+		memcpy(cmd->range_req_bssid, vif->bss_conf.bssid, ETH_ALEN);
+
+		/* AP's TSF is only relevant if associated */
+		for (i = 0; i < req->n_peers; i++) {
+			if (req->peers[i].report_ap_tsf) {
+				struct iwl_mvm_vif *mvmvif =
+					iwl_mvm_vif_from_mac80211(vif);
+
+				cmd->tsf_mac_id = cpu_to_le32(mvmvif->id);
+				return;
+			}
+		}
+	} else {
+		eth_broadcast_addr(cmd->range_req_bssid);
+	}
+
+	/* Don't report AP's TSF */
 	cmd->tsf_mac_id = cpu_to_le32(0xff);
 }
 
@@ -552,6 +565,8 @@ void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 				fw_ap = (void *)&fw_resp_v6->ap[i];
 
 			result.final = fw_resp->ap[i].last_burst;
+			result.ap_tsf = le32_to_cpu(fw_ap->start_tsf);
+			result.ap_tsf_valid = 1;
 		} else {
 			/* the first part is the same for old and new APIs */
 			fw_ap = (void *)&fw_resp_v5->ap[i];
