@@ -7,7 +7,7 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -29,7 +29,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,6 +68,7 @@
 #include "iwl-dnt-cfg.h"
 #include "fw/dbg.h"
 #include "fw/testmode.h"
+#include "fw/api/power.h"
 
 #define XVT_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 
@@ -308,6 +309,18 @@ static int iwl_xvt_send_extended_config(struct iwl_xvt *xvt)
 				    sizeof(ext_cfg), &ext_cfg);
 }
 
+static int iwl_xvt_config_ltr(struct iwl_xvt *xvt)
+{
+	struct iwl_ltr_config_cmd cmd = {
+		.flags = cpu_to_le32(LTR_CFG_FLAG_FEATURE_ENABLE),
+	};
+
+	if (!xvt->trans->ltr_enabled)
+		return 0;
+
+	return iwl_xvt_send_cmd_pdu(xvt, LTR_CONFIG, 0, sizeof(cmd), &cmd);
+}
+
 int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 {
 	int ret;
@@ -357,6 +370,8 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 		}
 	}
 	iwl_dnt_start(xvt->trans);
+
+	WARN_ON(iwl_xvt_config_ltr(xvt));
 
 	xvt->fwrt.dump.conf = FW_DBG_INVALID;
 	/* if we have a destination, assume EARLY START */
