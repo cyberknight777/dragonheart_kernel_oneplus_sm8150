@@ -597,7 +597,7 @@ static void cros_ec_ring_spread_add(
 					state->last_batch_timestamp[id];
 				batch_len = state->last_batch_len[id];
 
-				sample_idx = batch_len + 1;
+				sample_idx = batch_len;
 
 				state->last_batch_timestamp[id] =
 					state->penultimate_batch_timestamp[id];
