@@ -8,7 +8,7 @@
  * Copyright(c) 2007 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2005 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -368,26 +368,9 @@ static int iwl_pcie_apm_init(struct iwl_trans *trans)
 	if (trans->cfg->base_params->pll_cfg)
 		iwl_set_bit(trans, CSR_ANA_PLL_CFG, CSR50_ANA_PLL_CFG_VAL);
 
-	/*
-	 * Set "initialization complete" bit to move adapter from
-	 * D0U* --> D0A* (powered-up active) state.
-	 */
-	iwl_set_bit(trans, CSR_GP_CNTRL,
-		    BIT(trans->cfg->csr->flag_init_done));
-
-	/*
-	 * Wait for clock stabilization; once stabilized, access to
-	 * device-internal resources is supported, e.g. iwl_write_prph()
-	 * and accesses to uCode SRAM.
-	 */
-	ret = iwl_poll_bit(trans, CSR_GP_CNTRL,
-			   BIT(trans->cfg->csr->flag_mac_clock_ready),
-			   BIT(trans->cfg->csr->flag_mac_clock_ready),
-			   25000);
-	if (ret < 0) {
-		IWL_ERR(trans, "Failed to init the card\n");
+	ret = iwl_finish_nic_init(trans);
+	if (ret)
 		return ret;
-	}
 
 	if (trans->cfg->host_interrupt_operation_mode) {
 		/*
@@ -457,23 +440,8 @@ static void iwl_pcie_apm_lp_xtal_enable(struct iwl_trans *trans)
 
 	iwl_trans_pcie_sw_reset(trans);
 
-	/*
-	 * Set "initialization complete" bit to move adapter from
-	 * D0U* --> D0A* (powered-up active) state.
-	 */
-	iwl_set_bit(trans, CSR_GP_CNTRL,
-		    BIT(trans->cfg->csr->flag_init_done));
-
-	/*
-	 * Wait for clock stabilization; once stabilized, access to
-	 * device-internal resources is possible.
-	 */
-	ret = iwl_poll_bit(trans, CSR_GP_CNTRL,
-			   BIT(trans->cfg->csr->flag_mac_clock_ready),
-			   BIT(trans->cfg->csr->flag_mac_clock_ready),
-			   25000);
-	if (WARN_ON(ret < 0)) {
-		IWL_ERR(trans, "Access time out - failed to enable LP XTAL\n");
+	ret = iwl_finish_nic_init(trans);
+	if (WARN_ON(ret)) {
 		/* Release XTAL ON request */
 		__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
 					   CSR_GP_CNTRL_REG_FLAG_XTAL_ON);
@@ -965,13 +933,13 @@ void iwl_pcie_apply_destination(struct iwl_trans *trans)
 		if (!trans->num_blocks)
 			return;
 
-		iwl_write_prph(trans, MON_BUFF_BASE_ADDR_VER2,
-			       trans->fw_mon[0].physical >>
-			       MON_BUFF_SHIFT_VER2);
-		iwl_write_prph(trans, MON_BUFF_END_ADDR_VER2,
-			       (trans->fw_mon[0].physical +
-				trans->fw_mon[0].size - 256) >>
-			       MON_BUFF_SHIFT_VER2);
+		iwl_write_umac_prph(trans, MON_BUFF_BASE_ADDR_VER2,
+				    trans->fw_mon[0].physical >>
+				    MON_BUFF_SHIFT_VER2);
+		iwl_write_umac_prph(trans, MON_BUFF_END_ADDR_VER2,
+				    (trans->fw_mon[0].physical +
+				     trans->fw_mon[0].size - 256) >>
+				    MON_BUFF_SHIFT_VER2);
 		return;
 	}
 
@@ -983,7 +951,7 @@ void iwl_pcie_apply_destination(struct iwl_trans *trans)
 	else
 		IWL_WARN(trans, "PCI should have external buffer debug\n");
 
-	for (i = 0; i < trans->dbg_n_dest_reg && dest; i++) {
+	for (i = 0; i < trans->dbg_n_dest_reg; i++) {
 		u32 addr = le32_to_cpu(dest->reg_ops[i].addr);
 		u32 val = le32_to_cpu(dest->reg_ops[i].val);
 
@@ -1175,6 +1143,7 @@ static struct iwl_causes_list causes_list[] = {
 	{MSIX_FH_INT_CAUSES_FH_ERR,		CSR_MSIX_FH_INT_MASK_AD, 0x5},
 	{MSIX_HW_INT_CAUSES_REG_ALIVE,		CSR_MSIX_HW_INT_MASK_AD, 0x10},
 	{MSIX_HW_INT_CAUSES_REG_WAKEUP,		CSR_MSIX_HW_INT_MASK_AD, 0x11},
+	{MSIX_HW_INT_CAUSES_REG_IML,            CSR_MSIX_HW_INT_MASK_AD, 0x12},
 	{MSIX_HW_INT_CAUSES_REG_CT_KILL,	CSR_MSIX_HW_INT_MASK_AD, 0x16},
 	{MSIX_HW_INT_CAUSES_REG_RF_KILL,	CSR_MSIX_HW_INT_MASK_AD, 0x17},
 	{MSIX_HW_INT_CAUSES_REG_PERIODIC,	CSR_MSIX_HW_INT_MASK_AD, 0x18},
@@ -1207,7 +1176,7 @@ static void iwl_pcie_map_non_rx_causes(struct iwl_trans *trans)
 	struct iwl_trans_pcie *trans_pcie =  IWL_TRANS_GET_PCIE_TRANS(trans);
 	int val = trans_pcie->def_irq | MSIX_NON_AUTO_CLEAR_CAUSE;
 	int i, arr_size =
-		(trans->cfg->device_family < IWL_DEVICE_FAMILY_22560) ?
+		(trans->cfg->device_family != IWL_DEVICE_FAMILY_22560) ?
 		ARRAY_SIZE(causes_list) : ARRAY_SIZE(causes_list_v2);
 
 	/*
@@ -1217,7 +1186,7 @@ static void iwl_pcie_map_non_rx_causes(struct iwl_trans *trans)
 	 */
 	for (i = 0; i < arr_size; i++) {
 		struct iwl_causes_list *causes =
-			(trans->cfg->device_family < IWL_DEVICE_FAMILY_22560) ?
+			(trans->cfg->device_family != IWL_DEVICE_FAMILY_22560) ?
 			causes_list : causes_list_v2;
 
 		iwl_write8(trans, CSR_MSIX_IVAR(causes[i].addr), val);
@@ -1263,8 +1232,8 @@ void iwl_pcie_conf_msix_hw(struct iwl_trans_pcie *trans_pcie)
 	if (!trans_pcie->msix_enabled) {
 		if (trans->cfg->mq_rx_supported &&
 		    test_bit(STATUS_DEVICE_ENABLED, &trans->status))
-			iwl_write_prph(trans, UREG_CHICK,
-				       UREG_CHICK_MSI_ENABLE);
+			iwl_write_umac_prph(trans, UREG_CHICK,
+					    UREG_CHICK_MSI_ENABLE);
 		return;
 	}
 	/*
@@ -1273,7 +1242,7 @@ void iwl_pcie_conf_msix_hw(struct iwl_trans_pcie *trans_pcie)
 	 * prph.
 	 */
 	if (test_bit(STATUS_DEVICE_ENABLED, &trans->status))
-		iwl_write_prph(trans, UREG_CHICK, UREG_CHICK_MSIX_ENABLE);
+		iwl_write_umac_prph(trans, UREG_CHICK, UREG_CHICK_MSIX_ENABLE);
 
 	/*
 	 * Each cause from the causes list above and the RX causes is
@@ -1578,8 +1547,6 @@ static void iwl_trans_pcie_d3_suspend(struct iwl_trans *trans, bool test,
 	iwl_clear_bit(trans, CSR_GP_CNTRL,
 		      BIT(trans->cfg->csr->flag_init_done));
 
-	iwl_pcie_enable_rx_wake(trans, false);
-
 	if (reset) {
 		/*
 		 * reset TX queues -- some of their registers reset during S3
@@ -1606,24 +1573,12 @@ static int iwl_trans_pcie_d3_resume(struct iwl_trans *trans,
 		return 0;
 	}
 
-	iwl_pcie_enable_rx_wake(trans, true);
-
 	iwl_set_bit(trans, CSR_GP_CNTRL,
 		    BIT(trans->cfg->csr->flag_mac_access_req));
-	iwl_set_bit(trans, CSR_GP_CNTRL,
-		    BIT(trans->cfg->csr->flag_init_done));
 
-	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_8000)
-		udelay(2);
-
-	ret = iwl_poll_bit(trans, CSR_GP_CNTRL,
-			   BIT(trans->cfg->csr->flag_mac_clock_ready),
-			   BIT(trans->cfg->csr->flag_mac_clock_ready),
-			   25000);
-	if (ret < 0) {
-		IWL_ERR(trans, "Failed to resume the device (mac ready)\n");
+	ret = iwl_finish_nic_init(trans);
+	if (ret)
 		return ret;
-	}
 
 	/*
 	 * Reconfigure IVAR table in case of MSIX or reset ict table in
@@ -1654,7 +1609,7 @@ static int iwl_trans_pcie_d3_resume(struct iwl_trans *trans,
 	}
 
 	IWL_DEBUG_POWER(trans, "WFPM value upon resume = 0x%08X\n",
-			iwl_read_prph(trans, WFPM_GP2));
+			iwl_read_umac_prph(trans, WFPM_GP2));
 
 	val = iwl_read32(trans, CSR_RESET);
 	if (val & CSR_RESET_REG_FLAG_NEVO_RESET)
@@ -1803,15 +1758,18 @@ static int _iwl_trans_pcie_start_hw(struct iwl_trans *trans, bool low_power)
 		return err;
 	}
 
-	hpm = iwl_trans_read_prph(trans, HPM_DEBUG);
+	hpm = iwl_read_umac_prph_no_grab(trans, HPM_DEBUG);
 	if (hpm != 0xa5a5a5a0 && (hpm & PERSISTENCE_BIT)) {
-		if (iwl_trans_read_prph(trans, PREG_PRPH_WPROT_0) &
-		    PREG_WFPM_ACCESS) {
+		int wfpm_val = iwl_read_umac_prph_no_grab(trans,
+							  PREG_PRPH_WPROT_0);
+
+		if (wfpm_val & PREG_WFPM_ACCESS) {
 			IWL_ERR(trans,
 				"Error, can not clear persistence bit\n");
 			return -EPERM;
 		}
-		iwl_trans_write_prph(trans, HPM_DEBUG, hpm & ~PERSISTENCE_BIT);
+		iwl_write_umac_prph_no_grab(trans, HPM_DEBUG,
+					    hpm & ~PERSISTENCE_BIT);
 	}
 
 	iwl_trans_pcie_sw_reset(trans);
@@ -2020,7 +1978,7 @@ static void iwl_trans_pcie_removal_wk(struct work_struct *wk)
 #if LINUX_VERSION_IS_LESS(3,14,0)
 	dev_err(&pdev->dev, "Device gone - can't remove on old kernels.\n");
 #else
-	char *prop[] = {"EVENT=INACCESSIBLE", NULL};
+	static char *prop[] = {"EVENT=INACCESSIBLE", NULL};
 
 	dev_err(&pdev->dev, "Device gone - attempting removal\n");
 	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, prop);
@@ -3070,7 +3028,8 @@ static u32 iwl_trans_pcie_fh_regs_dump(struct iwl_trans *trans,
 		     i += sizeof(u32))
 			*val++ = cpu_to_le32(iwl_trans_pcie_read32(trans, i));
 	else
-		for (i = FH_MEM_LOWER_BOUND_GEN2; i < FH_MEM_UPPER_BOUND_GEN2;
+		for (i = iwl_umac_prph(trans, FH_MEM_LOWER_BOUND_GEN2);
+		     i < iwl_umac_prph(trans, FH_MEM_UPPER_BOUND_GEN2);
 		     i += sizeof(u32))
 			*val++ = cpu_to_le32(iwl_trans_pcie_read_prph(trans,
 								      i));
@@ -3095,11 +3054,11 @@ iwl_trans_pci_dump_marbh_monitor(struct iwl_trans *trans,
 	if (!iwl_trans_grab_nic_access(trans, &flags))
 		return 0;
 
-	iwl_write_prph_no_grab(trans, MON_DMARB_RD_CTL_ADDR, 0x1);
+	iwl_write_umac_prph_no_grab(trans, MON_DMARB_RD_CTL_ADDR, 0x1);
 	for (i = 0; i < buf_size_in_dwords; i++)
-		buffer[i] = iwl_read_prph_no_grab(trans,
-				MON_DMARB_RD_DATA_ADDR);
-	iwl_write_prph_no_grab(trans, MON_DMARB_RD_CTL_ADDR, 0x0);
+		buffer[i] = iwl_read_umac_prph_no_grab(trans,
+						       MON_DMARB_RD_DATA_ADDR);
+	iwl_write_umac_prph_no_grab(trans, MON_DMARB_RD_CTL_ADDR, 0x0);
 
 	iwl_trans_release_nic_access(trans, &flags);
 
@@ -3114,9 +3073,9 @@ iwl_trans_pcie_dump_pointers(struct iwl_trans *trans,
 
 	/* If there was a dest TLV - use the values from there */
 	if (trans->ini_valid) {
-		base = MON_BUFF_BASE_ADDR_VER2;
-		write_ptr = MON_BUFF_WRPTR_VER2;
-		wrap_cnt = MON_BUFF_CYCLE_CNT_VER2;
+		base = iwl_umac_prph(trans, MON_BUFF_BASE_ADDR_VER2);
+		write_ptr = iwl_umac_prph(trans, MON_BUFF_WRPTR_VER2);
+		wrap_cnt = iwl_umac_prph(trans, MON_BUFF_CYCLE_CNT_VER2);
 	} else if (trans->dbg_dest_tlv) {
 		write_ptr = le32_to_cpu(trans->dbg_dest_tlv->write_ptr_reg);
 		wrap_cnt = le32_to_cpu(trans->dbg_dest_tlv->wrap_count);
@@ -3195,7 +3154,7 @@ iwl_trans_pcie_dump_monitor(struct iwl_trans *trans,
 	return len;
 }
 
-static int iwl_trans_get_fw_monitor_len(struct iwl_trans *trans, int *len)
+static int iwl_trans_get_fw_monitor_len(struct iwl_trans *trans, u32 *len)
 {
 	if (trans->num_blocks) {
 		*len += sizeof(struct iwl_fw_error_dump_data) +
@@ -3250,8 +3209,7 @@ static struct iwl_trans_dump_data
 	struct iwl_txq *cmdq = trans_pcie->txq[trans_pcie->cmd_queue];
 	struct iwl_fw_error_dump_txcmd *txcmd;
 	struct iwl_trans_dump_data *dump_data;
-	u32 len, num_rbs = 0;
-	u32 monitor_len;
+	u32 len, num_rbs = 0, monitor_len = 0;
 	int i, ptr;
 	bool dump_rbs = test_bit(STATUS_FW_ERROR, &trans->status) &&
 			!trans->cfg->mq_rx_supported &&
@@ -3268,19 +3226,8 @@ static struct iwl_trans_dump_data
 		cmdq->n_window * (sizeof(*txcmd) + TFD_MAX_PAYLOAD_SIZE);
 
 	/* FW monitor */
-	monitor_len = iwl_trans_get_fw_monitor_len(trans, &len);
-
-	if (dump_mask == BIT(IWL_FW_ERROR_DUMP_FW_MONITOR)) {
-		dump_data = vzalloc(len);
-		if (!dump_data)
-			return NULL;
-
-		data = (void *)dump_data->data;
-		len = iwl_trans_pcie_dump_monitor(trans, &data, monitor_len);
-		dump_data->len = len;
-
-		return dump_data;
-	}
+	if (dump_mask & BIT(IWL_FW_ERROR_DUMP_FW_MONITOR))
+		monitor_len = iwl_trans_get_fw_monitor_len(trans, &len);
 
 	/* CSR registers */
 	if (dump_mask & BIT(IWL_FW_ERROR_DUMP_CSR))
@@ -3290,8 +3237,8 @@ static struct iwl_trans_dump_data
 	if (dump_mask & BIT(IWL_FW_ERROR_DUMP_FH_REGS)) {
 		if (trans->cfg->gen2)
 			len += sizeof(*data) +
-			       (FH_MEM_UPPER_BOUND_GEN2 -
-				FH_MEM_LOWER_BOUND_GEN2);
+			       (iwl_umac_prph(trans, FH_MEM_UPPER_BOUND_GEN2) -
+				iwl_umac_prph(trans, FH_MEM_LOWER_BOUND_GEN2));
 		else
 			len += sizeof(*data) +
 			       (FH_MEM_UPPER_BOUND -
@@ -3313,10 +3260,10 @@ static struct iwl_trans_dump_data
 
 	/* Paged memory for gen2 HW */
 	if (trans->cfg->gen2 && dump_mask & BIT(IWL_FW_ERROR_DUMP_PAGING))
-		for (i = 0; i < trans_pcie->init_dram.paging_cnt; i++)
+		for (i = 0; i < trans->init_dram.paging_cnt; i++)
 			len += sizeof(*data) +
 			       sizeof(struct iwl_fw_error_dump_paging) +
-			       trans_pcie->init_dram.paging[i].size;
+			       trans->init_dram.paging[i].size;
 
 	dump_data = vzalloc(len);
 	if (!dump_data)
@@ -3368,16 +3315,16 @@ static struct iwl_trans_dump_data
 
 	/* Paged memory for gen2 HW */
 	if (trans->cfg->gen2 && dump_mask & BIT(IWL_FW_ERROR_DUMP_PAGING)) {
-		for (i = 0; i < trans_pcie->init_dram.paging_cnt; i++) {
+		for (i = 0; i < trans->init_dram.paging_cnt; i++) {
 			struct iwl_fw_error_dump_paging *paging;
-			u32 page_len = trans_pcie->init_dram.paging[i].size;
+			u32 page_len = trans->init_dram.paging[i].size;
 
 			data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_PAGING);
 			data->len = cpu_to_le32(sizeof(*paging) + page_len);
 			paging = (void *)data->data;
 			paging->index = cpu_to_le32(i);
 			memcpy(paging->data,
-			       trans_pcie->init_dram.paging[i].block, page_len);
+			       trans->init_dram.paging[i].block, page_len);
 			data = iwl_fw_error_next_data(data);
 
 			len += sizeof(*data) + sizeof(*paging) + page_len;
@@ -3615,25 +3562,18 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		 * in-order to recognize C step driver should read chip version
 		 * id located at the AUX bus MISC address space.
 		 */
-		iwl_set_bit(trans, CSR_GP_CNTRL,
-			    BIT(trans->cfg->csr->flag_init_done));
-		udelay(2);
-
-		ret = iwl_poll_bit(trans, CSR_GP_CNTRL,
-				   BIT(trans->cfg->csr->flag_mac_clock_ready),
-				   BIT(trans->cfg->csr->flag_mac_clock_ready),
-				   25000);
-		if (ret < 0) {
-			IWL_DEBUG_INFO(trans, "Failed to wake up the nic\n");
+		ret = iwl_finish_nic_init(trans);
+		if (ret)
 			goto out_no_pci;
-		}
 
 		if (iwl_trans_grab_nic_access(trans, &flags)) {
 			u32 hw_step;
 
-			hw_step = iwl_read_prph_no_grab(trans, WFPM_CTRL_REG);
+			hw_step = iwl_read_umac_prph_no_grab(trans,
+							     WFPM_CTRL_REG);
 			hw_step |= ENABLE_WFPM;
-			iwl_write_prph_no_grab(trans, WFPM_CTRL_REG, hw_step);
+			iwl_write_umac_prph_no_grab(trans, WFPM_CTRL_REG,
+						    hw_step);
 			hw_step = iwl_read_prph_no_grab(trans, AUX_MISC_REG);
 			hw_step = (hw_step >> HW_STEP_LOCATION_BITS) & 0xF;
 			if (hw_step == 0x3)
@@ -3643,24 +3583,29 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		}
 	}
 
-	/*
-	 * 9000-series integrated A-step has a problem with suspend/resume
-	 * and sometimes even causes the whole platform to get stuck. This
-	 * workaround makes the hardware not go into the problematic state.
-	 */
-	if (trans->cfg->integrated &&
-	    trans->cfg->device_family == IWL_DEVICE_FAMILY_9000 &&
-	    CSR_HW_REV_STEP(trans->hw_rev) == SILICON_A_STEP)
-		iwl_set_bit(trans, CSR_HOST_CHICKEN,
-			    CSR_HOST_CHICKEN_PM_IDLE_SRC_DIS_SB_PME);
+	IWL_DEBUG_INFO(trans, "HW REV: 0x%0x\n", trans->hw_rev);
 
 #if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
 	trans->hw_rf_id = iwl_read32(trans, CSR_HW_RF_ID);
 
-	if (cfg == &iwl22560_2ax_cfg_hr) {
+	if (cfg == &iwlax210_2ax_cfg_so_hr_a0) {
+		if (trans->hw_rev == CSR_HW_REV_TYPE_TY) {
+			trans->cfg = &iwlax210_2ax_cfg_ty_gf_a0;
+		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
+			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_JF)) {
+			trans->cfg = &iwlax210_2ax_cfg_so_jf_a0;
+		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
+			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_GF)) {
+			trans->cfg = &iwlax210_2ax_cfg_so_gf_a0;
+		}
+	} else if (cfg == &iwl_ax101_cfg_qu_hr) {
 		if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
-		    CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_HR)) {
-			trans->cfg = &iwl22560_2ax_cfg_hr;
+		    CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_HR) &&
+		    trans->hw_rev == CSR_HW_REV_TYPE_QNJ_B0) {
+			trans->cfg = &iwl22000_2ax_cfg_qnj_hr_b0;
+		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
+			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_HR)) {
+			trans->cfg = &iwl_ax101_cfg_qu_hr;
 		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
 			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_JF)) {
 			trans->cfg = &iwl22000_2ax_cfg_jf;
@@ -3677,7 +3622,8 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		}
 	} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(trans->hw_rf_id) ==
 		   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_HR) &&
-		   trans->cfg != &iwl22260_2ax_cfg) {
+		   (trans->cfg != &iwl22260_2ax_cfg ||
+		    trans->hw_rev == CSR_HW_REV_TYPE_QNJ_B0)) {
 		u32 hw_status;
 
 		hw_status = iwl_read_prph(trans, UMAG_GEN_HW_STATUS);
@@ -3708,9 +3654,9 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		if (iwl_trans_grab_nic_access(trans, &flags)) {
 			u32 val;
 
-			val = iwl_read_prph_no_grab(trans, WFPM_CTRL_REG);
+			val = iwl_read_umac_prph_no_grab(trans, WFPM_CTRL_REG);
 			val |= ENABLE_WFPM;
-			iwl_write_prph_no_grab(trans, WFPM_CTRL_REG, val);
+			iwl_write_umac_prph_no_grab(trans, WFPM_CTRL_REG, val);
 			val = iwl_read_prph_no_grab(trans, SD_REG_VER);
 
 			val &= 0xff00;

@@ -570,8 +570,7 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 			.has_he = true,
 			.he_cap_elem = {
 				.mac_cap_info[0] =
-					IEEE80211_HE_MAC_CAP0_HTC_HE |
-					IEEE80211_HE_MAC_CAP0_TWT_RES,
+					IEEE80211_HE_MAC_CAP0_HTC_HE,
 				.mac_cap_info[1] =
 					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
 					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
@@ -786,6 +785,33 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 		if (trans->dbg_cfg.he_chan_width_dis)
 			iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
 					~(trans->dbg_cfg.he_chan_width_dis << 1);
+
+		if (trans->dbg_cfg.he_mac_cap.len) {
+			if (trans->dbg_cfg.he_mac_cap.len !=
+			    sizeof(iftype_data->he_cap.he_cap_elem.mac_cap_info)) {
+				IWL_ERR(trans,
+					"Wrong he_mac_cap len %u, should be %zu\n",
+					trans->dbg_cfg.he_mac_cap.len,
+					sizeof(iftype_data->he_cap.he_cap_elem.mac_cap_info));
+			} else {
+				memcpy(iftype_data->he_cap.he_cap_elem.mac_cap_info,
+				       trans->dbg_cfg.he_mac_cap.data,
+				       trans->dbg_cfg.he_mac_cap.len);
+			}
+		}
+		if (trans->dbg_cfg.he_phy_cap.len) {
+			if (trans->dbg_cfg.he_phy_cap.len !=
+			    sizeof(iftype_data->he_cap.he_cap_elem.phy_cap_info)) {
+				IWL_ERR(trans,
+					"Wrong he_phy_cap len %u, should be %zu\n",
+					trans->dbg_cfg.he_phy_cap.len,
+					sizeof(iftype_data->he_cap.he_cap_elem.phy_cap_info));
+			} else {
+				memcpy(iftype_data->he_cap.he_cap_elem.phy_cap_info,
+				       trans->dbg_cfg.he_phy_cap.data,
+				       trans->dbg_cfg.he_phy_cap.len);
+			}
+		}
 	}
 }
 #endif
@@ -1246,11 +1272,11 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	int max_num_ch = cfg->nvm_type == IWL_NVM_EXT ?
 			 IWL_NVM_NUM_CHANNELS_EXT : IWL_NVM_NUM_CHANNELS;
 
-	if (WARN_ON_ONCE(num_of_ch > NL80211_MAX_SUPP_REG_RULES))
-		return ERR_PTR(-EINVAL);
-
 	if (WARN_ON(num_of_ch > max_num_ch))
 		num_of_ch = max_num_ch;
+
+	if (WARN_ON_ONCE(num_of_ch > NL80211_MAX_SUPP_REG_RULES))
+		return ERR_PTR(-EINVAL);
 
 	IWL_DEBUG_DEV(dev, IWL_DL_LAR, "building regdom for %d channels\n",
 		      num_of_ch);
@@ -1341,13 +1367,11 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	regd_to_copy = sizeof(struct ieee80211_regdomain) +
 		valid_rules * sizeof(struct ieee80211_reg_rule);
 
-	copy_rd = kzalloc(regd_to_copy, GFP_KERNEL);
+	copy_rd = kmemdup(regd, regd_to_copy, GFP_KERNEL);
 	if (!copy_rd) {
 		copy_rd = ERR_PTR(-ENOMEM);
 		goto out;
 	}
-
-	memcpy(copy_rd, regd, regd_to_copy);
 
 out:
 	kfree(regdb_ptrs);

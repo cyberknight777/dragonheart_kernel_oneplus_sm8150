@@ -376,9 +376,7 @@ struct iwl_xvt {
 
 	struct iwl_notif_wait_data notif_wait;
 
-	u32 error_event_table[2];
 	bool fw_running;
-	u32 umac_error_event_table;
 	bool support_umac_log;
 
 	struct iwl_sw_stack_config sw_stack_cfg;
@@ -460,7 +458,7 @@ void iwl_xvt_destroy_reorder_buffer(struct iwl_xvt *xvt,
 static inline bool iwl_xvt_is_unified_fw(struct iwl_xvt *xvt)
 {
 	/* TODO - replace with TLV once defined */
-	return xvt->trans->cfg->use_tfh;
+	return xvt->trans->cfg->device_family >= IWL_DEVICE_FAMILY_22000;
 }
 
 static inline bool iwl_xvt_is_cdb_supported(struct iwl_xvt *xvt)

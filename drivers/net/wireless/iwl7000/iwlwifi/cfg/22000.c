@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -20,7 +20,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,7 +56,7 @@
 #include "iwl-config.h"
 
 /* Highest firmware API version supported */
-#define IWL_22000_UCODE_API_MAX	43
+#define IWL_22000_UCODE_API_MAX	46
 
 /* Lowest firmware API version supported */
 #define IWL_22000_UCODE_API_MIN	39
@@ -84,6 +84,10 @@
 #define IWL_QU_B_JF_B_FW_PRE		"iwlwifi-Qu-b0-jf-b0-"
 #define IWL_QNJ_B_JF_B_FW_PRE		"iwlwifi-QuQnj-b0-jf-b0-"
 #define IWL_CC_A_FW_PRE			"iwlwifi-cc-a0-"
+#define IWL_22000_SO_A_JF_B_FW_PRE	"iwlwifi-so-a0-jf-b0-"
+#define IWL_22000_SO_A_HR_B_FW_PRE      "iwlwifi-so-a0-hr-b0-"
+#define IWL_22000_SO_A_GF_A_FW_PRE      "iwlwifi-so-a0-gf-a0-"
+#define IWL_22000_TY_A_GF_A_FW_PRE      "iwlwifi-ty-a0-gf-a0-"
 
 #define IWL_22000_HR_MODULE_FIRMWARE(api) \
 	IWL_22000_HR_FW_PRE __stringify(api) ".ucode"
@@ -109,6 +113,14 @@
 	IWL_QNJ_B_JF_B_FW_PRE __stringify(api) ".ucode"
 #define IWL_CC_A_MODULE_FIRMWARE(api)			\
 	IWL_CC_A_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_SO_A_JF_B_MODULE_FIRMWARE(api) \
+	IWL_22000_SO_A_JF_B_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_SO_A_HR_B_MODULE_FIRMWARE(api) \
+	IWL_22000_SO_A_HR_B_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_SO_A_GF_A_MODULE_FIRMWARE(api) \
+	IWL_22000_SO_A_GF_A_FW_PRE __stringify(api) ".ucode"
+#define IWL_22000_TY_A_GF_A_MODULE_FIRMWARE(api) \
+	IWL_22000_TY_A_GF_A_FW_PRE __stringify(api) ".ucode"
 
 static const struct iwl_base_params iwl_22000_base_params = {
 	.eeprom_size = OTP_LOW_IMAGE_SIZE_32K,
@@ -169,6 +181,10 @@ static const struct iwl_ht_params iwl_22000_ht_params = {
 	.d3_debug_data_base_addr = 0x401000,				\
 	.d3_debug_data_length = 60 * 1024
 
+#define IWL_DEVICE_AX200_COMMON						\
+	IWL_DEVICE_22000_COMMON,					\
+	.umac_prph_offset = 0x300000
+
 #define IWL_DEVICE_22500						\
 	IWL_DEVICE_22000_COMMON,					\
 	.device_family = IWL_DEVICE_FAMILY_22000,			\
@@ -180,6 +196,13 @@ static const struct iwl_ht_params iwl_22000_ht_params = {
 	.device_family = IWL_DEVICE_FAMILY_22560,			\
 	.base_params = &iwl_22560_base_params,				\
 	.csr = &iwl_csr_v2
+
+#define IWL_DEVICE_AX210						\
+	IWL_DEVICE_AX200_COMMON,					\
+	.device_family = IWL_DEVICE_FAMILY_AX210,			\
+	.base_params = &iwl_22000_base_params,				\
+	.csr = &iwl_csr_v1,						\
+	.min_txq_size = 128
 
 const struct iwl_cfg iwl22000_2ac_cfg_hr = {
 	.name = "Intel(R) Dual Band Wireless AC 22000",
@@ -200,8 +223,8 @@ const struct iwl_cfg iwl22000_2ac_cfg_jf = {
 	IWL_DEVICE_22500,
 };
 
-const struct iwl_cfg iwl22560_2ax_cfg_hr = {
-	.name = "Intel(R) Wireless-AX 22560",
+const struct iwl_cfg iwl_ax101_cfg_qu_hr = {
+	.name = "Intel(R) Wi-Fi 6 AX101",
 	.fw_name_pre = IWL_22000_QU_B_HR_B_FW_PRE,
 	IWL_DEVICE_22500,
 	/*
@@ -222,10 +245,11 @@ const struct iwl_cfg iwl22260_2ax_cfg = {
 	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
 	 */
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
+	.bisr_workaround = 1,
 };
 
 const struct iwl_cfg killer1650x_2ax_cfg = {
-	.name = "Killer(R) Wireless-AX 1650x Wireless Network Adapter (22260NGW)",
+	.name = "Killer(R) Wireless-AX 1650x Wireless Network Adapter (200NGW)",
 	.fw_name_pre = IWL_CC_A_FW_PRE,
 	IWL_DEVICE_22500,
 	/*
@@ -234,10 +258,11 @@ const struct iwl_cfg killer1650x_2ax_cfg = {
 	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
 	 */
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
+	.bisr_workaround = 1,
 };
 
 const struct iwl_cfg killer1650w_2ax_cfg = {
-	.name = "Killer(R) Wireless-AX 1650w Wireless Network Adapter (22260D2W)",
+	.name = "Killer(R) Wireless-AX 1650w Wireless Network Adapter (200D2W)",
 	.fw_name_pre = IWL_CC_A_FW_PRE,
 	IWL_DEVICE_22500,
 	/*
@@ -246,6 +271,7 @@ const struct iwl_cfg killer1650w_2ax_cfg = {
 	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
 	 */
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
+	.bisr_workaround = 1,
 };
 
 /*
@@ -398,6 +424,30 @@ const struct iwl_cfg iwl22560_2ax_cfg_su_cdb = {
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
 };
 
+const struct iwl_cfg iwlax210_2ax_cfg_so_jf_a0 = {
+	.name = "Intel(R) Wireless-AC 9560 160MHz",
+	.fw_name_pre = IWL_22000_SO_A_JF_B_FW_PRE,
+	IWL_DEVICE_AX210,
+};
+
+const struct iwl_cfg iwlax210_2ax_cfg_so_hr_a0 = {
+	.name = "Intel(R) Wi-Fi 6 AX201 160MHz",
+	.fw_name_pre = IWL_22000_SO_A_HR_B_FW_PRE,
+	IWL_DEVICE_AX210,
+};
+
+const struct iwl_cfg iwlax210_2ax_cfg_so_gf_a0 = {
+	.name = "Intel(R) Wi-Fi 7 AX211 160MHz",
+	.fw_name_pre = IWL_22000_SO_A_GF_A_FW_PRE,
+	IWL_DEVICE_AX210,
+};
+
+const struct iwl_cfg iwlax210_2ax_cfg_ty_gf_a0 = {
+	.name = "Intel(R) Wi-Fi 7 AX210 160MHz",
+	.fw_name_pre = IWL_22000_TY_A_GF_A_FW_PRE,
+	IWL_DEVICE_AX210,
+};
+
 MODULE_FIRMWARE(IWL_22000_HR_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_22000_JF_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_22000_HR_A_F0_QNJ_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
@@ -409,3 +459,7 @@ MODULE_FIRMWARE(IWL_22000_SU_Z0_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_QU_B_JF_B_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_QNJ_B_JF_B_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
 MODULE_FIRMWARE(IWL_CC_A_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_SO_A_JF_B_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_SO_A_HR_B_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_SO_A_GF_A_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));
+MODULE_FIRMWARE(IWL_22000_TY_A_GF_A_MODULE_FIRMWARE(IWL_22000_UCODE_API_MAX));

@@ -54,18 +54,20 @@ mac80211-y += bucket_locks.o
 mac80211-y += rhashtable.o
 
 CFLAGS_trace.o := -I$(src)
+subdir-ccflags-y += $(call cc-option,-Wimplicit-fallthrough)
 
 CFLAGS_tx.o += -include "hdrs/iwl-tx.h"
 CFLAGS_debugfs.o += -include "hdrs/net/fq.h"
 
-rc80211_minstrel-y := rc80211_minstrel.o
-rc80211_minstrel-$(CPTCFG_MAC80211_DEBUGFS) += rc80211_minstrel_debugfs.o
+rc80211_minstrel-y := \
+	rc80211_minstrel.o \
+	rc80211_minstrel_ht.o
 
-rc80211_minstrel_ht-y := rc80211_minstrel_ht.o
-rc80211_minstrel_ht-$(CPTCFG_MAC80211_DEBUGFS) += rc80211_minstrel_ht_debugfs.o
+rc80211_minstrel-$(CPTCFG_MAC80211_DEBUGFS) += \
+	rc80211_minstrel_debugfs.o \
+	rc80211_minstrel_ht_debugfs.o
 
 mac80211-$(CPTCFG_MAC80211_RC_MINSTREL) += $(rc80211_minstrel-y)
-mac80211-$(CPTCFG_MAC80211_RC_MINSTREL_HT) += $(rc80211_minstrel_ht-y)
 
 ccflags-y += -DDEBUG
 

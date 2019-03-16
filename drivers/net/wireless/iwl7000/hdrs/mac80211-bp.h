@@ -20,6 +20,10 @@
 #define BACKPORTS_GIT_TRACKED "chromium:" UTS_RELEASE
 #define BACKPORTS_BUILD_TSTAMP __DATE__ " " __TIME__
 
+/* Dummy RHEL macros */
+#define RHEL_RELEASE_CODE 0
+#define RHEL_RELEASE_VERSION(a,b) 1
+
 #ifndef netdev_alloc_pcpu_stats
 #define netdev_alloc_pcpu_stats(type)				\
 ({								\
@@ -1066,6 +1070,7 @@ size_t ieee80211_ie_split_ric(const u8 *ies, size_t ielen,
 			      size_t offset);
 size_t ieee80211_ie_split(const u8 *ies, size_t ielen,
 			  const u8 *ids, int n_ids, size_t offset);
+#define NL80211_EXT_FEATURE_VHT_IBSS -1
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,3,0)
@@ -1336,197 +1341,6 @@ cfg80211_inform_bss_frame_data(struct wiphy *wiphy,
 					       len, data->signal, gfp);
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,4,0) */
-
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
-/* not really on the way upstream yet */
-#define WIPHY_FLAG_HAS_FTM_RESPONDER 0
-
-struct cfg80211_ftm_target {
-	u64 cookie;
-	struct cfg80211_chan_def chan_def;
-	u8 bssid[ETH_ALEN];
-	bool one_sided;
-	bool asap;
-	bool lci;
-	bool civic;
-	u8 num_of_bursts_exp;
-	u16 burst_period;
-	u8 samples_per_burst;
-	u8 retries;
-	u8 burst_duration;
-	u8 ftm_preamble;
-	u8 ftm_bw;
-};
-
-struct cfg80211_ftm_request {
-	bool report_tsf;
-	u8 timeout;
-	u8 macaddr_template[ETH_ALEN];
-	u8 macaddr_mask[ETH_ALEN];
-	u8 num_of_targets;
-	struct cfg80211_ftm_target *targets;
-};
-
-enum nl80211_ftm_response_status {
-	NL80211_FTM_RESP_SUCCESS,
-	NL80211_FTM_RESP_TARGET_INCAPAB,
-	NL80211_FTM_RESP_TARGET_BUSY,
-	NL80211_FTM_RESP_NOT_MEASURED,
-	NL80211_FTM_RESP_TARGET_UNAVAILABLE,
-	NL80211_FTM_RESP_FAIL,
-};
-
-struct cfg80211_ftm_result {
-	u32 filled;
-	enum nl80211_ftm_response_status status;
-	bool complete;
-	struct cfg80211_ftm_target *target;
-	u64 host_time;
-	u64 tsf;
-	u8 burst_index;
-	u32 measurement_num;
-	u32 success_num;
-	u8 num_per_burst;
-	u8 retry_after_duration;
-	u32 burst_duration;
-	u32 negotiated_burst_num;
-	s8 rssi;
-	u8 rssi_spread;
-	struct rate_info tx_rate_info;
-	struct rate_info rx_rate_info;
-	s64 rtt;
-	u64 rtt_variance;
-	u64 rtt_spread;
-	s64 distance;
-	u64 distance_variance;
-	u64 distance_spread;
-	u32 lci_len;
-	u8 *lci;
-	u32 civic_len;
-	u8 *civic;
-};
-
-struct cfg80211_ftm_results {
-	u8 num_of_entries;
-	struct cfg80211_ftm_result *entries;
-};
-
-enum nl80211_msrment_type {
-	NL80211_MSRMENT_TYPE_FTM,
-};
-
-enum nl80211_msrment_status {
-	NL80211_MSRMENT_STATUS_SUCCESS,
-	NL80211_MSRMENT_STATUS_REFUSED,
-	NL80211_MSRMENT_STATUS_TIMEOUT,
-	NL80211_MSRMENT_STATUS_FAIL,
-};
-
-struct cfg80211_msrment_response {
-	u64 cookie;
-	enum nl80211_msrment_type type;
-	enum nl80211_msrment_status status;
-	u32 nl_portid;
-	union {
-		struct cfg80211_ftm_results ftm;
-	} u;
-};
-
-struct cfg80211_ftm_responder_params {
-	const u8 *lci;
-	const u8 *civic;
-	size_t lci_len;
-	size_t civic_len;
-};
-
-struct cfg80211_ftm_responder_stats {
-	u32 filled;
-	u32 success_num;
-	u32 partial_num;
-	u32 failed_num;
-	u32 asap_num;
-	u32 non_asap_num;
-	u64 total_duration_ms;
-	u32 unknown_triggers_num;
-	u32 reschedule_requests_num;
-	u32 out_of_window_triggers_num;
-};
-
-static inline void
-cfg80211_measurement_response(struct wiphy *wiphy,
-			      struct cfg80211_msrment_response *resp,
-			      gfp_t gfp)
-{
-}
-
-enum nl80211_ftm_preamble {
-	NL80211_FTM_PREAMBLE_LEGACY = 1 << 0,
-	NL80211_FTM_PREAMBLE_HT     = 1 << 1,
-	NL80211_FTM_PREAMBLE_VHT    = 1 << 2
-};
-
-enum nl80211_ftm_bw {
-	NL80211_FTM_BW_5   = 1 << 0,
-	NL80211_FTM_BW_10  = 1 << 1,
-	NL80211_FTM_BW_20  = 1 << 2,
-	NL80211_FTM_BW_40  = 1 << 3,
-	NL80211_FTM_BW_80  = 1 << 4,
-	NL80211_FTM_BW_160 = 1 << 5
-};
-
-enum nl80211_ftm_response_entry {
-	__NL80211_FTM_RESP_ENTRY_ATTR_INVALID,
-	NL80211_FTM_RESP_ENTRY_ATTR_STATUS,
-	NL80211_FTM_RESP_ENTRY_ATTR_COMPLETE,
-	NL80211_FTM_RESP_ENTRY_ATTR_TARGET,
-	NL80211_FTM_RESP_ENTRY_ATTR_HOST_TIME,
-	NL80211_FTM_RESP_ENTRY_ATTR_TSF,
-	NL80211_FTM_RESP_ENTRY_ATTR_BURST_INDEX,
-	NL80211_FTM_RESP_ENTRY_ATTR_MSRMNT_NUM,
-	NL80211_FTM_RESP_ENTRY_ATTR_SUCCESS_NUM,
-	NL80211_FTM_RESP_ENTRY_ATTR_NUM_PER_BURST,
-	NL80211_FTM_RESP_ENTRY_ATTR_RETRY_DUR,
-	NL80211_FTM_RESP_ENTRY_ATTR_BURST_DUR,
-	NL80211_FTM_RESP_ENTRY_ATTR_NEG_BURST_NUM,
-	NL80211_FTM_RESP_ENTRY_ATTR_RSSI,
-	NL80211_FTM_RESP_ENTRY_ATTR_RSSI_SPREAD,
-	NL80211_FTM_RESP_ENTRY_ATTR_TX_RATE_INFO,
-	NL80211_FTM_RESP_ENTRY_ATTR_RX_RATE_INFO,
-	NL80211_FTM_RESP_ENTRY_ATTR_RTT,
-	NL80211_FTM_RESP_ENTRY_ATTR_RTT_VAR,
-	NL80211_FTM_RESP_ENTRY_ATTR_RTT_SPREAD,
-	NL80211_FTM_RESP_ENTRY_ATTR_DISTANCE,
-	NL80211_FTM_RESP_ENTRY_ATTR_DISTANCE_VAR,
-	NL80211_FTM_RESP_ENTRY_ATTR_DISTANCE_SPREAD,
-	NL80211_FTM_RESP_ENTRY_ATTR_LCI,
-	NL80211_FTM_RESP_ENTRY_ATTR_CIVIC,
-
-	/* keep last */
-	__NL80211_FTM_RESP_ENTRY_ATTR_AFTER_LAST,
-	NL80211_FTM_RESP_ENTRY_ATTR_MAX =
-	__NL80211_FTM_RESP_ENTRY_ATTR_AFTER_LAST - 1,
-};
-
-struct wiphy_ftm_initiator_capa {
-	u32 max_two_sided_ftm_targets;
-	u32 max_total_ftm_targets;
-	bool asap;
-	bool non_asap;
-	bool req_tsf;
-	bool req_lci;
-	bool req_civic;
-	u32 preamble;
-	u32 bw;
-};
-
-struct cfg80211_msrment_request {
-	enum nl80211_msrment_type type;
-	u32 nl_portid;
-	union {
-		struct cfg80211_ftm_request ftm;
-	} u;
-};
-#endif /* CFG80211_VERSION < KERNEL_VERSION(99,0,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,12,0)
 #define mon_opts_flags(p)	flags
@@ -2260,6 +2074,13 @@ static inline void skb_put_u8(struct sk_buff *skb, u8 val)
 }
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,20,0)
+static inline struct sk_buff *__skb_peek(const struct sk_buff_head *list_)
+{
+	return list_->next;
+}
+#endif
+
 #if LINUX_VERSION_IS_LESS(3, 10, 0)
 static inline void kfree_skb_list(struct sk_buff *segs)
 {
@@ -2440,6 +2261,10 @@ static inline void sk_pacing_shift_update(struct sock *sk, int val)
 #define NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT	-1
 #endif
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
+#define NL80211_EXT_FEATURE_ENABLE_FTM_RESPONDER	-1
+#endif
+
 #if CFG80211_VERSION < KERNEL_VERSION(4,17,0)
 #define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211	-1
 
@@ -2531,13 +2356,200 @@ backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define NL80211_SCAN_FLAG_RANDOM_SN		0
 #define NL80211_SCAN_FLAG_MIN_PREQ_CONTENT	0
-#endif
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,19,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
+enum nl80211_ftm_responder_stats {
+	__NL80211_FTM_STATS_INVALID,
+	NL80211_FTM_STATS_SUCCESS_NUM,
+	NL80211_FTM_STATS_PARTIAL_NUM,
+	NL80211_FTM_STATS_FAILED_NUM,
+	NL80211_FTM_STATS_ASAP_NUM,
+	NL80211_FTM_STATS_NON_ASAP_NUM,
+	NL80211_FTM_STATS_TOTAL_DURATION_MSEC,
+	NL80211_FTM_STATS_UNKNOWN_TRIGGERS_NUM,
+	NL80211_FTM_STATS_RESCHEDULE_REQUESTS_NUM,
+	NL80211_FTM_STATS_OUT_OF_WINDOW_TRIGGERS_NUM,
+	NL80211_FTM_STATS_PAD,
+
+	/* keep last */
+	__NL80211_FTM_STATS_AFTER_LAST,
+	NL80211_FTM_STATS_MAX = __NL80211_FTM_STATS_AFTER_LAST - 1
+};
+
+struct cfg80211_ftm_responder_stats {
+	u32 filled;
+	u32 success_num;
+	u32 partial_num;
+	u32 failed_num;
+	u32 asap_num;
+	u32 non_asap_num;
+	u64 total_duration_ms;
+	u32 unknown_triggers_num;
+	u32 reschedule_requests_num;
+	u32 out_of_window_triggers_num;
+};
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,20,0) */
 
 #ifndef ETH_P_PREAUTH
 #define ETH_P_PREAUTH  0x88C7	/* 802.11 Preauthentication */
 #endif
 
+/* This was actually added in 4.12, but chromeos backported to 3.18 */
+#if LINUX_VERSION_IS_LESS(3,18,0)
+#include <net/flow_keys.h>
+#include <linux/jhash.h>
+
+static inline u32 skb_get_hash_perturb(struct sk_buff *skb, u32 key)
+{
+	struct flow_keys keys;
+
+	skb_flow_dissect(skb, &keys);
+	return jhash_3words((__force u32)keys.dst,
+			    (__force u32)keys.src ^ keys.ip_proto,
+			    (__force u32)keys.ports, key);
+}
+#endif /* LINUX_VERSION_IS_LESS(4,2,0) */
+
+
 #if CFG80211_VERSION < KERNEL_VERSION(4,21,0)
+enum nl80211_preamble {
+	NL80211_PREAMBLE_LEGACY,
+	NL80211_PREAMBLE_HT,
+	NL80211_PREAMBLE_VHT,
+	NL80211_PREAMBLE_DMG,
+};
+
+enum nl80211_peer_measurement_status {
+	NL80211_PMSR_STATUS_SUCCESS,
+	NL80211_PMSR_STATUS_REFUSED,
+	NL80211_PMSR_STATUS_TIMEOUT,
+	NL80211_PMSR_STATUS_FAILURE,
+};
+
+enum nl80211_peer_measurement_type {
+	NL80211_PMSR_TYPE_INVALID,
+
+	NL80211_PMSR_TYPE_FTM,
+
+	NUM_NL80211_PMSR_TYPES,
+	NL80211_PMSR_TYPE_MAX = NUM_NL80211_PMSR_TYPES - 1
+};
+
+enum nl80211_peer_measurement_ftm_failure_reasons {
+	NL80211_PMSR_FTM_FAILURE_UNSPECIFIED,
+	NL80211_PMSR_FTM_FAILURE_NO_RESPONSE,
+	NL80211_PMSR_FTM_FAILURE_REJECTED,
+	NL80211_PMSR_FTM_FAILURE_WRONG_CHANNEL,
+	NL80211_PMSR_FTM_FAILURE_PEER_NOT_CAPABLE,
+	NL80211_PMSR_FTM_FAILURE_INVALID_TIMESTAMP,
+	NL80211_PMSR_FTM_FAILURE_PEER_BUSY,
+	NL80211_PMSR_FTM_FAILURE_BAD_CHANGED_PARAMS,
+};
+
+struct cfg80211_pmsr_ftm_result {
+	const u8 *lci;
+	const u8 *civicloc;
+	unsigned int lci_len;
+	unsigned int civicloc_len;
+	enum nl80211_peer_measurement_ftm_failure_reasons failure_reason;
+	u32 num_ftmr_attempts, num_ftmr_successes;
+	s16 burst_index;
+	u8 busy_retry_time;
+	u8 num_bursts_exp;
+	u8 burst_duration;
+	u8 ftms_per_burst;
+	s32 rssi_avg;
+	s32 rssi_spread;
+	struct rate_info tx_rate, rx_rate;
+	s64 rtt_avg;
+	s64 rtt_variance;
+	s64 rtt_spread;
+	s64 dist_avg;
+	s64 dist_variance;
+	s64 dist_spread;
+
+	u16 num_ftmr_attempts_valid:1,
+	    num_ftmr_successes_valid:1,
+	    rssi_avg_valid:1,
+	    rssi_spread_valid:1,
+	    tx_rate_valid:1,
+	    rx_rate_valid:1,
+	    rtt_avg_valid:1,
+	    rtt_variance_valid:1,
+	    rtt_spread_valid:1,
+	    dist_avg_valid:1,
+	    dist_variance_valid:1,
+	    dist_spread_valid:1;
+};
+
+struct cfg80211_pmsr_result {
+	u64 host_time, ap_tsf;
+	enum nl80211_peer_measurement_status status;
+
+	u8 addr[ETH_ALEN];
+
+	u8 final:1,
+	   ap_tsf_valid:1;
+
+	enum nl80211_peer_measurement_type type;
+
+	union {
+		struct cfg80211_pmsr_ftm_result ftm;
+	};
+};
+
+struct cfg80211_pmsr_ftm_request_peer {
+	enum nl80211_preamble preamble;
+	u16 burst_period;
+	u8 requested:1,
+	   asap:1,
+	   request_lci:1,
+	   request_civicloc:1;
+	u8 num_bursts_exp;
+	u8 burst_duration;
+	u8 ftms_per_burst;
+	u8 ftmr_retries;
+};
+
+struct cfg80211_pmsr_request_peer {
+	u8 addr[ETH_ALEN];
+	struct cfg80211_chan_def chandef;
+	u8 report_ap_tsf:1;
+	struct cfg80211_pmsr_ftm_request_peer ftm;
+};
+
+struct cfg80211_pmsr_request {
+	u64 cookie;
+	void *drv_data;
+	u32 n_peers;
+	u32 nl_portid;
+
+	u32 timeout;
+
+	u8 mac_addr[ETH_ALEN] __aligned(2);
+	u8 mac_addr_mask[ETH_ALEN] __aligned(2);
+
+	struct list_head list;
+
+	struct cfg80211_pmsr_request_peer peers[];
+};
+
+static inline void cfg80211_pmsr_report(struct wireless_dev *wdev,
+					struct cfg80211_pmsr_request *req,
+					struct cfg80211_pmsr_result *result,
+					gfp_t gfp)
+{
+	/* nothing */
+}
+
+static inline void cfg80211_pmsr_complete(struct wireless_dev *wdev,
+					  struct cfg80211_pmsr_request *req,
+					  gfp_t gfp)
+{
+	kfree(req);
+}
+
 static inline void
 ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
 				     u16 n)
@@ -2573,18 +2585,27 @@ ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
 
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
 
-/* This was actually added in 4.12, but chromeos backported to 3.18 */
-#if LINUX_VERSION_IS_LESS(3,18,0)
-#include <net/flow_keys.h>
-#include <linux/jhash.h>
-
-static inline u32 skb_get_hash_perturb(struct sk_buff *skb, u32 key)
+#if CFG80211_VERSION < KERNEL_VERSION(5,1,0)
+static inline int cfg80211_vendor_cmd_get_sender(struct wiphy *wiphy)
 {
-	struct flow_keys keys;
-
-	skb_flow_dissect(skb, &keys);
-	return jhash_3words((__force u32)keys.dst,
-			    (__force u32)keys.src ^ keys.ip_proto,
-			    (__force u32)keys.ports, key);
+	/* cfg80211 doesn't really let us backport this */
+	return 0;
 }
-#endif /* LINUX_VERSION_IS_LESS(4,2,0) */
+
+static inline struct sk_buff *
+cfg80211_vendor_event_alloc_ucast(struct wiphy *wiphy,
+				  struct wireless_dev *wdev,
+				  unsigned int portid, int approxlen,
+				  int event_idx, gfp_t gfp)
+{
+	/*
+	 * We might be able to fake backporting this, but not the
+	 * associated changes to __cfg80211_send_event_skb(), at
+	 * least not without duplicating all that code.
+	 * And in any case, we cannot backport the get_sender()
+	 * function above properly, so we might as well ignore
+	 * this all.
+	 */
+	return NULL;
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */

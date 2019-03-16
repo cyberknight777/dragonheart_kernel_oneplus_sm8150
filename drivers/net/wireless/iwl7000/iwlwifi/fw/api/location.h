@@ -6,6 +6,8 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -26,6 +28,8 @@
  * BSD LICENSE
  *
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,29 +59,79 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
-#ifndef __iwl_fw_api_tof_h__
-#define __iwl_fw_api_tof_h__
+#ifndef __iwl_fw_api_location_h__
+#define __iwl_fw_api_location_h__
 
-/* TOF commands */
-enum iwl_tof_subcmd_ids {
+/**
+ * enum iwl_location_subcmd_ids - location group command IDs
+ */
+enum iwl_location_subcmd_ids {
+	/**
+	 * @TOF_RANGE_REQ_CMD: TOF ranging request,
+	 *	uses &struct iwl_tof_range_req_cmd
+	 */
 	TOF_RANGE_REQ_CMD = 0x0,
+	/**
+	 * @TOF_CONFIG_CMD: TOF configuration, uses &struct iwl_tof_config_cmd
+	 */
 	TOF_CONFIG_CMD = 0x1,
+	/**
+	 * @TOF_RANGE_ABORT_CMD: abort ongoing ranging, uses
+	 *	&struct iwl_tof_range_abort_cmd
+	 */
 	TOF_RANGE_ABORT_CMD = 0x2,
+	/**
+	 * @TOF_RANGE_REQ_EXT_CMD: TOF extended ranging config,
+	 *	uses &struct iwl_tof_range_request_ext_cmd
+	 */
 	TOF_RANGE_REQ_EXT_CMD = 0x3,
+	/**
+	 * @TOF_RESPONDER_CONFIG_CMD: FTM responder configuration,
+	 *	uses &struct iwl_tof_responder_config_cmd
+	 */
 	TOF_RESPONDER_CONFIG_CMD = 0x4,
+	/**
+	 * @TOF_RESPONDER_DYN_CONFIG_CMD: FTM dynamic configuration,
+	 *	uses &struct iwl_tof_responder_dyn_config_cmd
+	 */
 	TOF_RESPONDER_DYN_CONFIG_CMD = 0x5,
+	/**
+	 * @CSI_HEADER_NOTIFICATION: CSI header
+	 */
+	CSI_HEADER_NOTIFICATION = 0xFA,
+	/**
+	 * @CSI_CHUNKS_NOTIFICATION: CSI chunk,
+	 *	uses &struct iwl_csi_chunk_notification
+	 */
+	CSI_CHUNKS_NOTIFICATION = 0xFB,
+	/**
+	 * @TOF_LC_NOTIF: used for LCI/civic location, contains just
+	 *	the action frame
+	 */
 	TOF_LC_NOTIF = 0xFC,
+	/**
+	 * @TOF_RESPONDER_STATS: FTM responder statistics notification,
+	 *	uses &struct iwl_ftm_responder_stats
+	 */
 	TOF_RESPONDER_STATS = 0xFD,
+	/**
+	 * @TOF_MCSI_DEBUG_NOTIF: MCSI debug notification, uses
+	 *	&struct iwl_tof_mcsi_notif
+	 */
 	TOF_MCSI_DEBUG_NOTIF = 0xFE,
+	/**
+	 * @TOF_RANGE_RESPONSE_NOTIF: ranging response, using
+	 *	&struct iwl_tof_range_rsp_ntfy
+	 */
 	TOF_RANGE_RESPONSE_NOTIF = 0xFF,
 };
 
 /**
  * struct iwl_tof_config_cmd - ToF configuration
- * @tof_disabled: 0 enabled, 1 - disabled
- * @one_sided_disabled: 0 enabled, 1 - disabled
- * @is_debug_mode: 1 debug mode, 0 - otherwise
- * @is_buf_required: 1 channel estimation buffer required, 0 - otherwise
+ * @tof_disabled: indicates if ToF is disabled (or not)
+ * @one_sided_disabled: indicates if one-sided is disabled (or not)
+ * @is_debug_mode: indiciates if debug mode is active
+ * @is_buf_required: indicates if channel estimation buffer is required
  */
 struct iwl_tof_config_cmd {
 	u8 tof_disabled;
@@ -92,13 +146,15 @@ struct iwl_tof_config_cmd {
  * @IWL_TOF_BW_20_HT: 20 MHz HT
  * @IWL_TOF_BW_40: 40 MHz
  * @IWL_TOF_BW_80: 80 MHz
+ * @IWL_TOF_BW_160: 160 MHz
  */
 enum iwl_tof_bandwidth {
 	IWL_TOF_BW_20_LEGACY,
 	IWL_TOF_BW_20_HT,
 	IWL_TOF_BW_40,
 	IWL_TOF_BW_80,
-};
+	IWL_TOF_BW_160,
+}; /* LOCAT_BW_TYPE_E */
 
 /*
  * enum iwl_tof_algo_type - Algorithym type for range measurement request
@@ -115,10 +171,10 @@ enum iwl_tof_algo_type {
 /*
  * enum iwl_tof_mcsi_ntfy - Enable/Disable MCSI notifications
  */
-enum iwl_tof_mcsi_ntfy {
+enum iwl_tof_mcsi_enable {
 	IWL_TOF_MCSI_DISABLED = 0,
 	IWL_TOF_MCSI_ENABLED = 1,
-};
+}; /* MCSI_ENABLE_E */
 
 /**
  * enum iwl_tof_responder_cmd_valid_field - valid fields in the responder cfg
@@ -191,22 +247,12 @@ enum iwl_tof_responder_cfg_flags {
  * @rate: current AP rate
  * @channel_num: current AP Channel
  * @ctrl_ch_position: coding of the control channel position relative to
- *	the center frequency:
- *
- *	40 MHz
- *		0 below center, 1 above center
- *
- *	80 MHz
- *		bits [0..1]
- *		 * 0  the near 20MHz to the center,
- *		 * 1  the far  20MHz to the center
- *		bit[2]
- *		 as above 40MHz
+ *	the center frequency, see iwl_mvm_get_ctrl_pos()
  * @sta_id: index of the AP STA when in AP mode
  * @reserved1: reserved
  * @toa_offset: Artificial addition [pSec] for the ToA - to be used for debug
- *		purposes, simulating station movement by adding various values
- *		to this field
+ *	purposes, simulating station movement by adding various values
+ *	to this field
  * @common_calib: XVT: common calibration value
  * @specific_calib: XVT: specific calibration value
  * @bssid: Current AP BSSID
@@ -226,7 +272,9 @@ struct iwl_tof_responder_config_cmd {
 	__le16 specific_calib;
 	u8 bssid[ETH_ALEN];
 	__le16 reserved2;
-} __packed; /* TOF_RESPONDER_CONFIG_CMD_API_S_VER_5 */
+} __packed; /* TOF_RESPONDER_CONFIG_CMD_API_S_VER_6 */
+
+#define IWL_LCI_CIVIC_IE_MAX_SIZE	400
 
 /**
  * struct iwl_tof_responder_dyn_config_cmd - Dynamic responder settings
@@ -241,7 +289,7 @@ struct iwl_tof_responder_dyn_config_cmd {
 	__le32 lci_len;
 	__le32 civic_len;
 	u8 lci_civic[];
-} __packed;
+} __packed; /* TOF_RESPONDER_DYN_CONFIG_CMD_API_S_VER_2 */
 
 /**
  * struct iwl_tof_range_request_ext_cmd - extended range req for WLS
@@ -276,44 +324,40 @@ enum iwl_tof_location_query {
 };
 
  /**
- * struct iwl_tof_range_req_ap_entry - AP configuration parameters
+ * struct iwl_tof_range_req_ap_entry_v2 - AP configuration parameters
  * @channel_num: Current AP Channel
  * @bandwidth: Current AP Bandwidth. One of iwl_tof_bandwidth.
  * @tsf_delta_direction: TSF relatively to the subject AP
  * @ctrl_ch_position: Coding of the control channel position relative to the
- *	     center frequency.
- *	     40MHz  0 below center, 1 above center
- *	     80MHz  bits [0..1]: 0  the near 20MHz to the center,
- *				 1  the far  20MHz to the center
- *		    bit[2]  as above 40MHz
- * @bssid: AP's bss id
+ *	center frequency, see iwl_mvm_get_ctrl_pos().
+ * @bssid: AP's BSSID
  * @measure_type: Measurement type: 0 - two sided, 1 - One sided
  * @num_of_bursts: Recommended value to be sent to the AP.  2s Exponent of the
- *		   number of measurement iterations (min 2^0 = 1, max 2^14)
+ *	number of measurement iterations (min 2^0 = 1, max 2^14)
  * @burst_period: Recommended value to be sent to the AP. Measurement
- *		  periodicity In units of 100ms. ignored if num_of_bursts = 0
- * @samples_per_burst: 2-sided: the number of FTMs pairs in single Burst (1-31)
- *		       1-sided: how many rts/cts pairs should be used per burst.
+ *	periodicity In units of 100ms. ignored if num_of_bursts = 0
+ * @samples_per_burst: 2-sided: the number of FTMs pairs in single Burst (1-31);
+ *	1-sided: how many rts/cts pairs should be used per burst.
  * @retries_per_sample: Max number of retries that the LMAC should send
- *			in case of no replies by the AP.
+ *	in case of no replies by the AP.
  * @tsf_delta: TSF Delta in units of microseconds.
- *	       The difference between the AP TSF and the device local clock.
- * @location_req: Location Request Bit[0] LCI should be sent in the FTMR
- *			      Bit[1] Civic should be sent in the FTMR
+ *	The difference between the AP TSF and the device local clock.
+ * @location_req: Location Request Bit[0] LCI should be sent in the FTMR;
+ *	Bit[1] Civic should be sent in the FTMR
  * @asap_mode: 0 - non asap mode, 1 - asap mode (not relevant for one sided)
  * @enable_dyn_ack: Enable Dynamic ACK BW.
- *	    0  Initiator interact with regular AP
- *	    1  Initiator interact with Responder machine: need to send the
- *	    Initiator Acks with HT 40MHz / 80MHz, since the Responder should
- *	    use it for its ch est measurement (this flag will be set when we
- *	    configure the opposite machine to be Responder).
+ *	0: Initiator interact with regular AP;
+ *	1: Initiator interact with Responder machine: need to send the
+ *	Initiator Acks with HT 40MHz / 80MHz, since the Responder should
+ *	use it for its ch est measurement (this flag will be set when we
+ *	configure the opposite machine to be Responder).
  * @rssi: Last received value
- *	  leagal values: -128-0 (0x7f). above 0x0 indicating an invalid value.
+ *	legal values: -128-0 (0x7f). above 0x0 indicating an invalid value.
  * @algo_type: &enum iwl_tof_algo_type
  * @notify_mcsi: &enum iwl_tof_mcsi_ntfy.
  * @reserved: For alignment and future use
  */
-struct iwl_tof_range_req_ap_entry {
+struct iwl_tof_range_req_ap_entry_v2 {
 	u8 channel_num;
 	u8 bandwidth;
 	u8 tsf_delta_direction;
@@ -332,6 +376,62 @@ struct iwl_tof_range_req_ap_entry {
 	u8 algo_type;
 	u8 notify_mcsi;
 	__le16 reserved;
+} __packed; /* LOCATION_RANGE_REQ_AP_ENTRY_CMD_API_S_VER_2 */
+
+/**
+ * enum iwl_initiator_ap_flags - per responder FTM configuration flags
+ * @IWL_INITIATOR_AP_FLAGS_ASAP: Request for ASAP measurement.
+ * @IWL_INITIATOR_AP_FLAGS_LCI_REQUEST: Request for LCI information
+ * @IWL_INITIATOR_AP_FLAGS_CIVIC_REQUEST: Request for CIVIC information
+ * @IWL_INITIATOR_AP_FLAGS_DYN_ACK: Send HT/VHT ack for FTM frames. If not set,
+ *	20Mhz dup acks will be sent.
+ * @IWL_INITIATOR_AP_FLAGS_ALGO_LR: Use LR algo type for rtt calculation.
+ *	Default algo type is ML.
+ * @IWL_INITIATOR_AP_FLAGS_ALGO_FFT: Use FFT algo type for rtt calculation.
+ *	Default algo type is ML.
+ * @IWL_INITIATOR_AP_FLAGS_MCSI_REPORT: Send the MCSI for each FTM frame to the
+ *	driver.
+ */
+enum iwl_initiator_ap_flags {
+	IWL_INITIATOR_AP_FLAGS_ASAP = BIT(1),
+	IWL_INITIATOR_AP_FLAGS_LCI_REQUEST = BIT(2),
+	IWL_INITIATOR_AP_FLAGS_CIVIC_REQUEST = BIT(3),
+	IWL_INITIATOR_AP_FLAGS_DYN_ACK = BIT(4),
+	IWL_INITIATOR_AP_FLAGS_ALGO_LR = BIT(5),
+	IWL_INITIATOR_AP_FLAGS_ALGO_FFT = BIT(6),
+	IWL_INITIATOR_AP_FLAGS_MCSI_REPORT = BIT(8),
+};
+
+/**
+ * struct iwl_tof_range_req_ap_entry - AP configuration parameters
+ * @initiator_ap_flags: see &enum iwl_initiator_ap_flags.
+ * @channel_num: AP Channel number
+ * @bandwidth: AP bandwidth. One of iwl_tof_bandwidth.
+ * @ctrl_ch_position: Coding of the control channel position relative to the
+ *	center frequency, see iwl_mvm_get_ctrl_pos().
+ * @ftmr_max_retries: Max number of retries to send the FTMR in case of no
+ *	reply from the AP.
+ * @bssid: AP's BSSID
+ * @burst_period: Recommended value to be sent to the AP. Measurement
+ *	periodicity In units of 100ms. ignored if num_of_bursts_exp = 0
+ * @samples_per_burst: the number of FTMs pairs in single Burst (1-31);
+ * @num_of_bursts: Recommended value to be sent to the AP. 2s Exponent of
+ *	the number of measurement iterations (min 2^0 = 1, max 2^14)
+ * @reserved: For alignment and future use
+ * @tsf_delta: not in use
+ */
+struct iwl_tof_range_req_ap_entry {
+	__le32 initiator_ap_flags;
+	u8 channel_num;
+	u8 bandwidth;
+	u8 ctrl_ch_position;
+	u8 ftmr_max_retries;
+	u8 bssid[ETH_ALEN];
+	__le16 burst_period;
+	u8 samples_per_burst;
+	u8 num_of_bursts;
+	__le16 reserved;
+	__le32 tsf_delta;
 } __packed; /* LOCATION_RANGE_REQ_AP_ENTRY_CMD_API_S_VER_3 */
 
 /**
@@ -361,7 +461,12 @@ enum iwl_tof_response_mode {
  * @IWL_TOF_INITIATOR_FLAGS_TX_CHAIN_SEL_A: use antenna A fo TX ACKs during FTM
  * @IWL_TOF_INITIATOR_FLAGS_TX_CHAIN_SEL_B: use antenna B fo TX ACKs during FTM
  * @IWL_TOF_INITIATOR_FLAGS_TX_CHAIN_SEL_C: use antenna C fo TX ACKs during FTM
- * @IWL_TOF_INITIATOR_FLAGS_MINDELTA_NO_PREF: no preference for minDeltaFTM
+ * @IWL_TOF_INITIATOR_FLAGS_MACADDR_RANDOM: use random mac address for FTM
+ * @IWL_TOF_INITIATOR_FLAGS_SPECIFIC_CALIB: use the specific calib value from
+ *	the range request command
+ * @IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB: use the common calib value from the
+ *	ragne request command
+ * @IWL_TOF_INITIATOR_FLAGS_NON_ASAP_SUPPORT: support non-asap measurements
  */
 enum iwl_tof_initiator_flags {
 	IWL_TOF_INITIATOR_FLAGS_FAST_ALGO_DISABLED = BIT(0),
@@ -371,14 +476,17 @@ enum iwl_tof_initiator_flags {
 	IWL_TOF_INITIATOR_FLAGS_TX_CHAIN_SEL_A = BIT(4),
 	IWL_TOF_INITIATOR_FLAGS_TX_CHAIN_SEL_B = BIT(5),
 	IWL_TOF_INITIATOR_FLAGS_TX_CHAIN_SEL_C = BIT(6),
-	IWL_TOF_INITIATOR_FLAGS_MINDELTA_NO_PREF = BIT(7),
+	IWL_TOF_INITIATOR_FLAGS_MACADDR_RANDOM = BIT(7),
+	IWL_TOF_INITIATOR_FLAGS_SPECIFIC_CALIB = BIT(15),
+	IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB   = BIT(16),
+	IWL_TOF_INITIATOR_FLAGS_NON_ASAP_SUPPORT = BIT(20),
 }; /* LOCATION_RANGE_REQ_CMD_API_S_VER_5 */
 
 #define IWL_MVM_TOF_MAX_APS 5
 #define IWL_MVM_TOF_MAX_TWO_SIDED_APS 5
 
 /**
- * struct iwl_tof_range_req_cmd - start measurement cmd
+ * struct iwl_tof_range_req_cmd_v5 - start measurement cmd
  * @initiator_flags: see flags @ iwl_tof_initiator_flags
  * @request_id: A Token incremented per request. The same Token will be
  *		sent back in the range response
@@ -406,7 +514,7 @@ enum iwl_tof_initiator_flags {
  * @specific_calib: The specific calib value to inject to this measurement calc
  * @ap: per-AP request data
  */
-struct iwl_tof_range_req_cmd {
+struct iwl_tof_range_req_cmd_v5 {
 	__le32 initiator_flags;
 	u8 request_id;
 	u8 initiator;
@@ -423,9 +531,41 @@ struct iwl_tof_range_req_cmd {
 	u8 ftm_tx_chains;
 	__le16 common_calib;
 	__le16 specific_calib;
-	struct iwl_tof_range_req_ap_entry ap[IWL_MVM_TOF_MAX_APS];
+	struct iwl_tof_range_req_ap_entry_v2 ap[IWL_MVM_TOF_MAX_APS];
 } __packed;
 /* LOCATION_RANGE_REQ_CMD_API_S_VER_5 */
+
+/**
+ * struct iwl_tof_range_req_cmd - start measurement cmd
+ * @initiator_flags: see flags @ iwl_tof_initiator_flags
+ * @request_id: A Token incremented per request. The same Token will be
+ *		sent back in the range response
+ * @num_of_ap: Number of APs to measure (error if > IWL_MVM_TOF_MAX_APS)
+ * @range_req_bssid: ranging request BSSID
+ * @macaddr_mask: Bits set to 0 shall be copied from the MAC address template.
+ *		  Bits set to 1 shall be randomized by the UMAC
+ * @macaddr_template: MAC address template to use for non-randomized bits
+ * @req_timeout_ms: Requested timeout of the response in units of milliseconds.
+ *	This is the session time for completing the measurement.
+ * @tsf_mac_id: report the measurement start time for each ap in terms of the
+ *	TSF of this mac id. 0xff to disable TSF reporting.
+ * @common_calib: The common calib value to inject to this measurement calc
+ * @specific_calib: The specific calib value to inject to this measurement calc
+ * @ap: per-AP request data, see &struct iwl_tof_range_req_ap_entry_v2.
+ */
+struct iwl_tof_range_req_cmd {
+	__le32 initiator_flags;
+	u8 request_id;
+	u8 num_of_ap;
+	u8 range_req_bssid[ETH_ALEN];
+	u8 macaddr_mask[ETH_ALEN];
+	u8 macaddr_template[ETH_ALEN];
+	__le32 req_timeout_ms;
+	__le32 tsf_mac_id;
+	__le16 common_calib;
+	__le16 specific_calib;
+	struct iwl_tof_range_req_ap_entry ap[IWL_MVM_TOF_MAX_APS];
+} __packed; /* LOCATION_RANGE_REQ_CMD_API_S_VER_7 */
 
 /*
  * enum iwl_tof_range_request_status - status of the sent request
@@ -486,34 +626,34 @@ enum iwl_tof_entry_status {
 }; /* LOCATION_RANGE_RSP_AP_ENTRY_NTFY_API_S_VER_2 */
 
 /**
- * struct iwl_tof_range_rsp_ap_entry_ntfy - AP parameters (response)
+ * struct iwl_tof_range_rsp_ap_entry_ntfy_v3 - AP parameters (response)
  * @bssid: BSSID of the AP
  * @measure_status: current APs measurement status, one of
  *	&enum iwl_tof_entry_status.
  * @measure_bw: Current AP Bandwidth: 0  20MHz, 1  40MHz, 2  80MHz
  * @rtt: The Round Trip Time that took for the last measurement for
- *	 current AP [pSec]
+ *	current AP [pSec]
  * @rtt_variance: The Variance of the RTT values measured for current AP
  * @rtt_spread: The Difference between the maximum and the minimum RTT
- *	       values measured for current AP in the current session [pSec]
+ *	values measured for current AP in the current session [pSec]
  * @rssi: RSSI as uploaded in the Channel Estimation notification
  * @rssi_spread: The Difference between the maximum and the minimum RSSI values
- *	        measured for current AP in the current session
+ *	measured for current AP in the current session
  * @reserved: reserved
  * @refusal_period: refusal period in case of
  *	@IWL_TOF_ENTRY_RESPONDER_CANNOT_COLABORATE [sec]
  * @range: Measured range [cm]
  * @range_variance: Measured range variance [cm]
  * @timestamp: The GP2 Clock [usec] where Channel Estimation notification was
- *	       uploaded by the LMAC
+ *	uploaded by the LMAC
  * @t2t3_initiator: as calculated from the algo in the initiator
  * @t1t4_responder: as calculated from the algo in the responder
  * @common_calib: Calib val that was used in for this AP measurement
  * @specific_calib: val that was used in for this AP measurement
  * @papd_calib_output: The result of the tof papd calibration that was injected
- *                     into the algorithm.
+ *	into the algorithm.
  */
-struct iwl_tof_range_rsp_ap_entry_ntfy {
+struct iwl_tof_range_rsp_ap_entry_ntfy_v3 {
 	u8 bssid[ETH_ALEN];
 	u8 measure_status;
 	u8 measure_bw;
@@ -535,6 +675,59 @@ struct iwl_tof_range_rsp_ap_entry_ntfy {
 } __packed; /* LOCATION_RANGE_RSP_AP_ETRY_NTFY_API_S_VER_3 */
 
 /**
+ * struct iwl_tof_range_rsp_ap_entry_ntfy - AP parameters (response)
+ * @bssid: BSSID of the AP
+ * @measure_status: current APs measurement status, one of
+ *	&enum iwl_tof_entry_status.
+ * @measure_bw: Current AP Bandwidth: 0  20MHz, 1  40MHz, 2  80MHz
+ * @rtt: The Round Trip Time that took for the last measurement for
+ *	current AP [pSec]
+ * @rtt_variance: The Variance of the RTT values measured for current AP
+ * @rtt_spread: The Difference between the maximum and the minimum RTT
+ *	values measured for current AP in the current session [pSec]
+ * @rssi: RSSI as uploaded in the Channel Estimation notification
+ * @rssi_spread: The Difference between the maximum and the minimum RSSI values
+ *	measured for current AP in the current session
+ * @last_burst: 1 if no more FTM sessions are scheduled for this responder
+ * @refusal_period: refusal period in case of
+ *	@IWL_TOF_ENTRY_RESPONDER_CANNOT_COLABORATE [sec]
+ * @timestamp: The GP2 Clock [usec] where Channel Estimation notification was
+ *	uploaded by the LMAC
+ * @start_tsf: measurement start time in TSF of the mac specified in the range
+ *	request
+ * @rx_rate_n_flags: rate and flags of the last FTM frame received from this
+ *	responder
+ * @tx_rate_n_flags: rate and flags of the last ack sent to this responder
+ * @t2t3_initiator: as calculated from the algo in the initiator
+ * @t1t4_responder: as calculated from the algo in the responder
+ * @common_calib: Calib val that was used in for this AP measurement
+ * @specific_calib: val that was used in for this AP measurement
+ * @papd_calib_output: The result of the tof papd calibration that was injected
+ *	into the algorithm.
+ */
+struct iwl_tof_range_rsp_ap_entry_ntfy {
+	u8 bssid[ETH_ALEN];
+	u8 measure_status;
+	u8 measure_bw;
+	__le32 rtt;
+	__le32 rtt_variance;
+	__le32 rtt_spread;
+	s8 rssi;
+	u8 rssi_spread;
+	u8 last_burst;
+	u8 refusal_period;
+	__le32 timestamp;
+	__le32 start_tsf;
+	__le32 rx_rate_n_flags;
+	__le32 tx_rate_n_flags;
+	__le32 t2t3_initiator;
+	__le32 t1t4_responder;
+	__le16 common_calib;
+	__le16 specific_calib;
+	__le32 papd_calib_output;
+} __packed; /* LOCATION_RANGE_RSP_AP_ETRY_NTFY_API_S_VER_4 */
+
+/**
  * enum iwl_tof_response_status - tof response status
  *
  * @IWL_TOF_RESPONSE_SUCCESS: successful range.
@@ -551,21 +744,37 @@ enum iwl_tof_response_status {
 }; /* LOCATION_RNG_RSP_STATUS */
 
 /**
- * struct iwl_tof_range_rsp_ntfy -
+ * struct iwl_tof_range_rsp_ntfy_v5 - ranging response notification
  * @request_id: A Token ID of the corresponding Range request
  * @request_status: status of current measurement session, one of
- *	@enum iwl_tof_response_status.
+ *	&enum iwl_tof_response_status.
  * @last_in_batch: reprot policy (when not all responses are uploaded at once)
  * @num_of_aps: Number of APs to measure (error if > IWL_MVM_TOF_MAX_APS)
  * @ap: per-AP data
  */
-struct iwl_tof_range_rsp_ntfy {
+struct iwl_tof_range_rsp_ntfy_v5 {
 	u8 request_id;
 	u8 request_status;
 	u8 last_in_batch;
 	u8 num_of_aps;
+	struct iwl_tof_range_rsp_ap_entry_ntfy_v3 ap[IWL_MVM_TOF_MAX_APS];
+} __packed; /* LOCATION_RANGE_RSP_NTFY_API_S_VER_5 */
+
+/**
+ * struct iwl_tof_range_rsp_ntfy - ranging response notification
+ * @request_id: A Token ID of the corresponding Range request
+ * @num_of_aps: Number of APs results
+ * @last_report: 1 if no more FTM sessions are scheduled, 0 otherwise.
+ * @reserved: reserved
+ * @ap: per-AP data
+ */
+struct iwl_tof_range_rsp_ntfy {
+	u8 request_id;
+	u8 num_of_aps;
+	u8 last_report;
+	u8 reserved;
 	struct iwl_tof_range_rsp_ap_entry_ntfy ap[IWL_MVM_TOF_MAX_APS];
-} __packed;
+} __packed; /* LOCATION_RANGE_RSP_NTFY_API_S_VER_6 */
 
 #define IWL_MVM_TOF_MCSI_BUF_SIZE  (245)
 /**
@@ -632,7 +841,7 @@ enum ftm_responder_stats_flags {
 }; /* RESP_IND_E */
 
 /**
- * struct iwl_tof_responder_stats - FTM responder statistics
+ * struct iwl_ftm_responder_stats - FTM responder statistics
  * @addr: initiator address
  * @success_ftm: number of successful ftm frames
  * @ftm_per_burst: num of FTM frames that were received
@@ -643,7 +852,7 @@ enum ftm_responder_stats_flags {
  * @rate: FTM request rate
  * @reserved: for alingment and future use
  */
-struct iwl_tof_responder_stats {
+struct iwl_ftm_responder_stats {
 	u8 addr[ETH_ALEN];
 	u8 success_ftm;
 	u8 ftm_per_burst;
@@ -653,6 +862,17 @@ struct iwl_tof_responder_stats {
 	u8 bw;
 	u8 rate;
 	__le16 reserved;
-} __packed; /* TOF_RESPONDER_STATISTICS_NTFY_S_VER_1 */
+} __packed; /* TOF_RESPONDER_STATISTICS_NTFY_S_VER_2 */
 
-#endif /* __iwl_fw_api_tof_h__ */
+#define IWL_CSI_CHUNK_CTL_NUM_MASK	0x3
+#define IWL_CSI_CHUNK_CTL_IDX_MASK	0xc
+
+struct iwl_csi_chunk_notification {
+	__le32 token;
+	__le16 seq;
+	__le16 ctl;
+	__le32 size;
+	u8 data[];
+} __packed; /* CSI_CHUNKS_HDR_NTFY_API_S_VER_1 */
+
+#endif /* __iwl_fw_api_location_h__ */

@@ -1923,7 +1923,7 @@ static bool ieee80211_tx(struct ieee80211_sub_if_data *sdata,
 			sdata->vif.hw_queue[skb_get_queue_mapping(skb)];
 
 	if (invoke_tx_handlers_early(&tx))
-		return false;
+		return true;
 
 	if (ieee80211_queue_skb(local, sdata, tx.sta, tx.skb))
 		return true;
@@ -3228,6 +3228,9 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 	if (!ieee80211_hw_check(&local->hw, TX_AMSDU))
 		return false;
 
+	if (skb_is_gso(skb))
+		return false;
+
 	if (!txq)
 		return false;
 
@@ -3252,7 +3255,7 @@ static bool ieee80211_amsdu_aggregate(struct ieee80211_sub_if_data *sdata,
 	tin = &txqi->tin;
 	flow = fq_flow_classify(fq, tin, skb, fq_flow_get_default_func);
 	head = skb_peek_tail(&flow->queue);
-	if (!head)
+	if (!head || skb_is_gso(head))
 		goto out;
 
 	orig_len = head->len;
