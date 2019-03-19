@@ -2125,9 +2125,6 @@ int _iwl_fw_dbg_ini_collect(struct iwl_fw_runtime *fwrt,
 		return -EINVAL;
 	}
 
-	if (test_and_set_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
-		return -EBUSY;
-
 	active = &fwrt->dump.active_trigs[id];
 	delay = le32_to_cpu(active->trig->dump_delay);
 	occur = le32_to_cpu(active->trig->occurrences);
@@ -2141,6 +2138,9 @@ int _iwl_fw_dbg_ini_collect(struct iwl_fw_runtime *fwrt,
 		iwl_force_nmi(fwrt->trans);
 		return 0;
 	}
+
+	if (test_and_set_bit(IWL_FWRT_STATUS_DUMPING, &fwrt->status))
+		return -EBUSY;
 
 	fwrt->dump.ini_trig_id = id;
 
