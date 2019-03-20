@@ -22,6 +22,12 @@ DECLARE_RWSEM(csm_rwsem_config);
 /* protects csm_host_port and csm_vsocket. */
 DECLARE_RWSEM(csm_rwsem_vsocket);
 
+/* queue used for poll wait on config changes. */
+static DECLARE_WAIT_QUEUE_HEAD(config_wait);
+
+/* increase each time a new configuration is applied. */
+static unsigned long config_version;
+
 /*
  * Is monitoring enabled? Defaults to disabled.
  * These variables might be used without locking csm_rwsem_config to check if an
@@ -38,6 +44,7 @@ bool csm_execute_enabled;
 static struct dentry *csm_dir;
 static struct dentry *csm_enabled_file;
 static struct dentry *csm_container_file;
+static struct dentry *csm_config_vers_file;
 
 /* Option to disable the CSM LSM at boot. */
 static bool cmdline_boot_disabled;
@@ -74,6 +81,9 @@ static void csm_update_config(schema_ConfigurationRequest *req)
 		csm_execute_config.envp_allowlist = econf->envp_allowlist.arg;
 		econf->envp_allowlist.arg = NULL;
 	}
+
+	config_version++;
+	wake_up(&config_wait);
 }
 
 int csm_update_config_from_buffer(void *data, size_t size)
@@ -194,6 +204,39 @@ static ssize_t csm_enabled_write(struct file *file, const char __user *buf,
 static const struct file_operations csm_enabled_fops = {
 	.read = csm_enabled_read,
 	.write = csm_enabled_write,
+};
+
+static int csm_config_version_open(struct inode *inode, struct file *file)
+{
+	/* private_data is used to keep the latest config version read. */
+	file->private_data = (void*)-1;
+	return 0;
+}
+
+static ssize_t csm_config_version_read(struct file *file, char __user *buf,
+				       size_t count, loff_t *ppos)
+{
+	unsigned long version = config_version;
+	file->private_data = (void*)version;
+	return simple_read_from_buffer(buf, count, ppos, &version,
+				       sizeof(version));
+}
+
+static __poll_t csm_config_version_poll(struct file *file,
+					struct poll_table_struct *poll_tab)
+{
+	if ((unsigned long)file->private_data != config_version)
+		return EPOLLIN;
+	poll_wait(file, &config_wait, poll_tab);
+	if ((unsigned long)file->private_data != config_version)
+		return EPOLLIN;
+	return 0;
+}
+
+static const struct file_operations csm_config_version_fops = {
+	.open = csm_config_version_open,
+	.read = csm_config_version_read,
+	.poll = csm_config_version_poll,
 };
 
 static void set_container_decode_callbacks(schema_Container *container)
@@ -378,13 +421,21 @@ static int __init csm_init(void)
 		goto error_rm_enabled;
 	}
 
+	csm_config_vers_file = securityfs_create_file("config_version", 0200,
+						      csm_dir, NULL,
+						      &csm_config_version_fops);
+	if (IS_ERR(csm_config_vers_file)) {
+		err = PTR_ERR(csm_config_vers_file);
+		goto error_rm_container;
+	}
+
 #ifdef CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG
 	csm_config_file = securityfs_create_file("config", 0200, csm_dir,
 						  NULL, &csm_config_fops);
 	if (IS_ERR(csm_config_file)) {
 		err = PTR_ERR(csm_config_file);
-		securityfs_remove(csm_container_file);
-		goto error_rm_enabled;
+		securityfs_remove(csm_config_vers_file);
+		goto error_rm_container;
 	}
 #endif /* CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG */
 
@@ -394,6 +445,8 @@ static int __init csm_init(void)
 	pr_debug("registered hooks\n");
 	return 0;
 
+error_rm_container:
+	securityfs_remove(csm_container_file);
 error_rm_enabled:
 	securityfs_remove(csm_enabled_file);
 error_rmdir:
