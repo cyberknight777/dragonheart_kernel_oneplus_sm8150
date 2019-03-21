@@ -371,7 +371,8 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 	}
 	iwl_dnt_start(xvt->trans);
 
-	WARN_ON(iwl_xvt_config_ltr(xvt));
+	if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR)
+		WARN_ON(iwl_xvt_config_ltr(xvt));
 
 	xvt->fwrt.dump.conf = FW_DBG_INVALID;
 	/* if we have a destination, assume EARLY START */
