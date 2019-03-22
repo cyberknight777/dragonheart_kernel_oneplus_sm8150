@@ -258,7 +258,7 @@ static void cz_dmic_shutdown(struct snd_pcm_substream *substream)
 	da7219_clk_disable();
 }
 
-static int cz_da7219_hw_params(struct snd_pcm_substream *substream,
+static static int cz_da7219_hw_params(struct snd_pcm_substream *substream,
 				    struct snd_pcm_hw_params *params)
 {
 	/* da7219 Codec is clock master so setup as per the needs */
