@@ -984,6 +984,12 @@ static inline bool iwl_is_rfkill_set(struct iwl_trans *trans)
 	if (trans_pcie->debug_rfkill == 1)
 		return true;
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (trans_pcie->debug_rfkill == -1 &&
+	    trans->dbg_cfg.STARTUP_RFKILL)
+		return true;
+#endif
+
 	return !(iwl_read32(trans, CSR_GP_CNTRL) &
 		CSR_GP_CNTRL_REG_FLAG_HW_RF_KILL_SW);
 }
