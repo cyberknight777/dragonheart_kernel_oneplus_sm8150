@@ -85,56 +85,6 @@ error:
 	return ret;
 }
 
-static int cl_cleanup(struct snd_sof_dev *sdev, struct snd_dma_buffer *dmab,
-		      struct hdac_ext_stream *stream)
-{
-	struct hdac_stream *hstream = &stream->hstream;
-	int sd_offset = SOF_STREAM_SD_OFFSET(hstream);
-	int ret;
-
-	if (!stream) {
-		dev_err(sdev->dev, "error: no valid stream for cleanup\n");
-		return -ENODEV;
-	}
-
-	ret = hda_dsp_stream_spib_config(sdev, stream, HDA_DSP_SPIB_DISABLE, 0);
-
-	/* TODO: spin lock ?*/
-	hstream->opened = 0;
-	hstream->running = 0;
-	hstream->substream = NULL;
-
-	/* reset BDL address */
-	snd_sof_dsp_write(sdev, HDA_DSP_HDA_BAR,
-			  sd_offset + SOF_HDA_ADSP_REG_CL_SD_BDLPL, 0);
-	snd_sof_dsp_write(sdev, HDA_DSP_HDA_BAR,
-			  sd_offset + SOF_HDA_ADSP_REG_CL_SD_BDLPU, 0);
-
-	snd_sof_dsp_write(sdev, HDA_DSP_HDA_BAR, sd_offset, 0);
-	snd_dma_free_pages(dmab);
-	dmab->area = NULL;
-	hstream->bufsize = 0;
-	hstream->format_val = 0;
-
-	return ret;
-}
-
-static struct hdac_ext_stream *get_stream_with_tag(struct hdac_bus *bus,
-							  int tag)
-{
-	struct hdac_stream *s;
-
-	/* get stream with tag */
-	list_for_each_entry(s, &bus->stream_list, list) {
-		if (s->direction == SNDRV_PCM_STREAM_PLAYBACK
-			&& s->stream_tag == tag) {
-			return stream_to_hdac_ext_stream(s);
-		}
-	}
-
-	return NULL;
-}
-
 /*
  * first boot sequence has some extra steps. core 0 waits for power
  * status on core 1, so power up core 1 also momentarily, keep it in
@@ -188,6 +138,7 @@ static int cl_dsp_init(struct snd_sof_dev *sdev, const void *fwdata,
 					chip->ipc_ack,
 					chip->ipc_ack_mask, chip->ipc_ack_mask,
 					HDA_DSP_INIT_TIMEOUT);
+
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: waiting for HIPCIE done, reg: 0x%x\n",
 			hipcie);
@@ -228,10 +179,9 @@ static int cl_dsp_init(struct snd_sof_dev *sdev, const void *fwdata,
 
 err:
 	hda_dsp_dump(sdev, SOF_DBG_REGS | SOF_DBG_PCI | SOF_DBG_MBOX);
-	cl_cleanup(sdev, &sdev->dmab, get_stream_with_tag(sof_to_bus(sdev),
-							  tag));
-	hda_dsp_core_power_down(sdev, HDA_DSP_CORE_MASK(1));
-	hda_dsp_core_reset_power_down(sdev, HDA_DSP_CORE_MASK(0));
+	//sdev->dsp_ops.cleanup(sdev->dev, &sdev->dmab, tag);
+	hda_dsp_core_reset_power_down(sdev, HDA_DSP_CORE_MASK(0) |
+				      HDA_DSP_CORE_MASK(1));
 	return ret;
 
 out:
@@ -266,6 +216,35 @@ static int cl_trigger(struct snd_sof_dev *sdev,
 	default:
 		return hda_dsp_stream_trigger(sdev, stream, cmd);
 	}
+}
+
+static int cl_cleanup(struct snd_sof_dev *sdev, struct snd_dma_buffer *dmab,
+		      struct hdac_ext_stream *stream)
+{
+	struct hdac_stream *hstream = &stream->hstream;
+	int sd_offset = SOF_STREAM_SD_OFFSET(hstream);
+	int ret;
+
+	ret = hda_dsp_stream_spib_config(sdev, stream, HDA_DSP_SPIB_DISABLE, 0);
+
+	/* TODO: spin lock ?*/
+	hstream->opened = 0;
+	hstream->running = 0;
+	hstream->substream = NULL;
+
+	/* reset BDL address */
+	snd_sof_dsp_write(sdev, HDA_DSP_HDA_BAR,
+			  sd_offset + SOF_HDA_ADSP_REG_CL_SD_BDLPL, 0);
+	snd_sof_dsp_write(sdev, HDA_DSP_HDA_BAR,
+			  sd_offset + SOF_HDA_ADSP_REG_CL_SD_BDLPU, 0);
+
+	snd_sof_dsp_write(sdev, HDA_DSP_HDA_BAR, sd_offset, 0);
+	snd_dma_free_pages(dmab);
+	dmab->area = NULL;
+	hstream->bufsize = 0;
+	hstream->format_val = 0;
+
+	return ret;
 }
 
 static int cl_copy_fw(struct snd_sof_dev *sdev, int tag)
@@ -361,13 +340,8 @@ int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev)
 		break;
 	}
 
-	if (tag <= 0) {
-		dev_err(sdev->dev,
-			"error: dsp init failed after 3 attempts with err: %d\n",
-			tag);
-		ret = tag;
-		goto err;
-	}
+	if (tag <= 0)
+		return tag;
 
 	/*
 	 * at this point DSP ROM has been initialized and
@@ -375,18 +349,15 @@ int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev)
 	 */
 	ret = cl_copy_fw(sdev, tag);
 	if (ret < 0) {
-		dev_err(sdev->dev, "error: fw boot failed with err: %d\n", ret);
-		goto err;
+		hda_dsp_dump(sdev, SOF_DBG_REGS | SOF_DBG_PCI | SOF_DBG_MBOX);
+
+		/* disable DSP */
+		snd_sof_dsp_update_bits(sdev, HDA_DSP_PP_BAR, SOF_HDA_REG_PP_PPCTL,
+				SOF_HDA_PPCTL_GPROCEN, 0);
+		dev_err(sdev->dev, "error: load fw failed after with err: %d\n", ret);
+		return ret;
 	}
 
 	dev_dbg(sdev->dev, "Firmware download successful, booting...\n");
-	return ret;
-
-err:
-	hda_dsp_dump(sdev, SOF_DBG_REGS | SOF_DBG_PCI | SOF_DBG_MBOX);
-
-	/* disable DSP */
-	snd_sof_dsp_update_bits(sdev, HDA_DSP_PP_BAR, SOF_HDA_REG_PP_PPCTL,
-			SOF_HDA_PPCTL_GPROCEN, 0);
 	return ret;
 }
