@@ -725,13 +725,8 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.name = "dmic01",
 		.id = 2,
 		.cpu_dai_name = "DMIC01 Pin",
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_APOLLOLAKE)
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
-#else
-		.codec_name = "dmic-codec",
-		.codec_dai_name = "dmic-hifi",
-#endif
 		.platform_name = "0000:00:0e.0",
 		.ignore_suspend = 1,
 		.be_hw_params_fixup = broxton_dmic_fixup,
