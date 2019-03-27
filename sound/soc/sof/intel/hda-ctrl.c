@@ -38,31 +38,49 @@
  * HDA Operations.
  */
 
-int hda_dsp_ctrl_link_reset(struct snd_sof_dev *sdev, bool reset)
+int hda_dsp_ctrl_link_reset(struct snd_sof_dev *sdev)
 {
 	unsigned long timeout;
 	u32 gctl = 0;
-	u32 val;
 
-	/* 0 to enter reset and 1 to exit reset */
-	val = reset ? 0 : SOF_HDA_GCTL_RESET;
-
-	/* enter/exit HDA controller reset */
+	/* reset the HDA controller */
 	snd_sof_dsp_update_bits(sdev, HDA_DSP_HDA_BAR, SOF_HDA_GCTL,
-				SOF_HDA_GCTL_RESET, val);
+				SOF_HDA_GCTL_RESET, 0);
 
-	/* wait to enter/exit reset */
+	/* wait for reset */
+	timeout = jiffies + msecs_to_jiffies(HDA_DSP_CTRL_RESET_TIMEOUT);
+	while (time_before(jiffies, timeout)) {
+		usleep_range(500, 1000);
+		gctl = snd_sof_dsp_read(sdev, HDA_DSP_HDA_BAR, SOF_HDA_GCTL);
+		if ((gctl & SOF_HDA_GCTL_RESET) == 0)
+			goto clear;
+	}
+
+	/* reset failed */
+	dev_err(sdev->dev, "error: failed to reset HDA controller gctl 0x%x\n",
+		gctl);
+	return -EIO;
+
+clear:
+	/* wait for codec */
+	usleep_range(500, 1000);
+
+	/* now take controller out of reset */
+	snd_sof_dsp_update_bits(sdev, HDA_DSP_HDA_BAR, SOF_HDA_GCTL,
+				SOF_HDA_GCTL_RESET, SOF_HDA_GCTL_RESET);
+
+	/* wait for controller to be ready */
 	timeout = jiffies + msecs_to_jiffies(HDA_DSP_CTRL_RESET_TIMEOUT);
 	while (time_before(jiffies, timeout)) {
 		gctl = snd_sof_dsp_read(sdev, HDA_DSP_HDA_BAR, SOF_HDA_GCTL);
-		if ((gctl & SOF_HDA_GCTL_RESET) == val)
+		if ((gctl & SOF_HDA_GCTL_RESET) == 1)
 			return 0;
 		usleep_range(500, 1000);
 	}
 
-	/* enter/exit reset failed */
-	dev_err(sdev->dev, "error: failed to %s HDA controller gctl 0x%x\n",
-		reset ? "reset" : "ready", gctl);
+	/* reset failed */
+	dev_err(sdev->dev, "error: failed to ready HDA controller gctl 0x%x\n",
+		gctl);
 	return -EIO;
 }
 

@@ -269,14 +269,6 @@ static int hda_suspend(struct snd_sof_dev *sdev, int state)
 	snd_sof_pci_update_bits(sdev, PCI_TCSEL,
 				PCI_CGCTL_LSRMD_MASK, PCI_CGCTL_LSRMD_MASK);
 
-	/* reset controller */
-	ret = hda_dsp_ctrl_link_reset(sdev, true);
-	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: failed to reset controller during suspend\n");
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -312,22 +304,6 @@ static int hda_resume(struct snd_sof_dev *sdev)
 	/* enable ppcap interrupt */
 	snd_hdac_ext_bus_ppcap_enable(bus, true);
 	snd_hdac_ext_bus_ppcap_int_enable(bus, true);
-
-	/* reset controller */
-	ret = hda_dsp_ctrl_link_reset(sdev, true);
-	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: failed to reset controller during resume\n");
-		return ret;
-	}
-
-	/* take controller out of reset */
-	ret = hda_dsp_ctrl_link_reset(sdev, false);
-	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: failed to ready controller during resume\n");
-		return ret;
-	}
 
 	/* power up the DSP */
 	ret = hda_dsp_core_power_up(sdev, chip->cores_mask);
