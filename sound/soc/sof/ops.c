@@ -151,41 +151,41 @@ void snd_sof_dsp_update_bits_forced(struct snd_sof_dev *sdev, u32 bar,
 EXPORT_SYMBOL(snd_sof_dsp_update_bits_forced);
 
 int snd_sof_dsp_register_poll(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			      u32 mask, u32 target, u32 time)
+			      u32 mask, u32 target, u32 timeout)
 {
-u32 reg;
-	unsigned long timeout;
-	int k = 0, s = 500;
+	int time, ret;
+	bool done = false;
 
 	/*
-	 * split the loop into sleeps of varying resolution. more accurately,
-	 * the range of wakeups are:
-	 * Phase 1(first 5ms): min sleep 0.5ms; max sleep 1ms.
-	 * Phase 2:( 5ms to 10ms) : min sleep 0.5ms; max sleep 10ms
-	 * (usleep_range (500, 1000) and usleep_range(5000, 10000) are
-	 * both possible in this phase depending on whether k > 10 or not).
-	 * Phase 3: (beyond 10 ms) min sleep 5ms; max sleep 10ms.
+	 * we will poll for couple of ms using mdelay, if not successful
+	 * then go to longer sleep using usleep_range
 	 */
 
-	timeout = jiffies + msecs_to_jiffies(time);
-	while ((((reg = snd_sof_dsp_read(sdev, bar, offset)) & mask) != target)
-		&& time_before(jiffies, timeout)) {
-		k++;
-		if (k > 10)
-			s = 5000;
-
-		usleep_range(s, 2*s);
+	/* check if set state successful */
+	for (time = 0; time < 5; time++) {
+		if ((snd_sof_dsp_read(sdev, bar, offset) & mask) == target) {
+			done = true;
+			break;
+		}
+		msleep(20);
 	}
 
-	if ((reg & mask) == target) {
-		dev_dbg(sdev->dev, "FW Poll Status: reg=%#x successful\n", reg);
+	if (!done) {
+		/* sleeping in 10ms steps so adjust timeout value */
+		timeout /= 10;
 
-		return 0;
+		for (time = 0; time < timeout; time++) {
+			if ((snd_sof_dsp_read(sdev, bar, offset) & mask) ==
+				target)
+				break;
+
+			usleep_range(5000, 10000);
+		}
 	}
 
-	dev_dbg(sdev->dev, "FW Poll Status: reg=%#x timedout\n", reg);
-	return -ETIME;
+	ret = time < timeout ? 0 : -ETIME;
 
+	return ret;
 }
 EXPORT_SYMBOL(snd_sof_dsp_register_poll);
 
