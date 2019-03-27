@@ -29,17 +29,13 @@
 #include "sof-priv.h"
 #include "ops.h"
 
-#define DRV_NAME	"sof-audio"
-
 /* Create DMA buffer page table for DSP */
 static int create_page_table(struct snd_pcm_substream *substream,
 			     unsigned char *dma_area, size_t size)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 	struct snd_dma_buffer *dmab = snd_pcm_get_dma_buf(substream);
 	int stream = substream->stream;
@@ -54,10 +50,8 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 	struct sof_ipc_pcm_params pcm;
 	struct sof_ipc_pcm_params_reply ipc_params_reply;
@@ -174,10 +168,8 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 static int sof_pcm_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 	struct sof_ipc_stream stream;
 	struct sof_ipc_reply reply;
@@ -232,10 +224,8 @@ static int sof_restore_hw_params(struct snd_pcm_substream *substream,
 static int sof_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 	struct sof_ipc_stream stream;
 	struct sof_ipc_reply reply;
@@ -332,10 +322,8 @@ static int sof_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 static snd_pcm_uframes_t sof_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 	snd_pcm_uframes_t host = 0, dai = 0;
 
@@ -363,10 +351,8 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 	struct snd_soc_tplg_stream_caps *caps =
 		&spcm->pcm.caps[substream->stream];
@@ -429,10 +415,8 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 static int sof_pcm_close(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm = rtd->sof;
 
 	/* nothing todo for BE */
@@ -464,10 +448,8 @@ static struct snd_pcm_ops sof_pcm_ops = {
 
 static int sof_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_pcm *spcm;
 	struct snd_pcm *pcm = rtd->pcm;
 	struct snd_soc_tplg_stream_caps *caps;
@@ -558,10 +540,8 @@ static void sof_pcm_free(struct snd_pcm *pcm)
 {
 	struct snd_sof_pcm *spcm;
 	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 
 	spcm = snd_sof_find_spcm_dai(sdev, rtd);
 	if (!spcm) {
@@ -588,10 +568,8 @@ static int sof_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *channels = hw_param_interval(params,
 						SNDRV_PCM_HW_PARAM_CHANNELS);
 	struct snd_mask *fmt = hw_param_mask(params, SNDRV_PCM_HW_PARAM_FORMAT);
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
+		snd_soc_platform_get_drvdata(rtd->platform);
 	struct snd_sof_dai *dai =
 		snd_sof_find_dai(sdev, (char *)rtd->dai_link->name);
 
@@ -668,15 +646,15 @@ static int sof_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
-static int sof_pcm_probe(struct snd_soc_component *component)
+static int sof_pcm_probe(struct snd_soc_platform *platform)
 {
 	struct snd_sof_dev *sdev =
-		snd_soc_component_get_drvdata(component);
-	struct snd_sof_pdata *plat_data = dev_get_platdata(component->dev);
+		snd_soc_platform_get_drvdata(platform);
+	struct snd_sof_pdata *plat_data = dev_get_platdata(platform->dev);
 	int ret;
 
 	/* load the default topology */
-	sdev->component = component;
+	sdev->component = &platform->component;
 	ret = snd_sof_load_topology(sdev,
 				    plat_data->machine->sof_tplg_filename);
 	if (ret < 0) {
@@ -686,32 +664,30 @@ static int sof_pcm_probe(struct snd_soc_component *component)
 	}
 
 	/* enable runtime PM with auto suspend */
-	pm_runtime_set_autosuspend_delay(component->dev,
+	pm_runtime_set_autosuspend_delay(platform->dev,
 					 SND_SOF_SUSPEND_DELAY);
-	pm_runtime_use_autosuspend(component->dev);
-	pm_runtime_enable(component->dev);
-	pm_runtime_idle(component->dev);
+	pm_runtime_use_autosuspend(platform->dev);
+	pm_runtime_enable(platform->dev);
+	pm_runtime_idle(platform->dev);
 err:
 	return ret;
 }
 
-static void sof_pcm_remove(struct snd_soc_component *component)
+static int sof_pcm_remove(struct snd_soc_platform *platform)
 {
-	pm_runtime_disable(component->dev);
+	pm_runtime_disable(platform->dev);
+
+	return 0;
 }
 
 void snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
 {
-	struct snd_soc_component_driver *pd = &sdev->plat_drv;
+	struct snd_soc_platform_driver *pd = &sdev->plat_drv;
 	struct snd_sof_pdata *plat_data = sdev->pdata;
-	const char *plat_name, *drv_name;
 
-	plat_name = plat_data->machine->asoc_plat_name;
-	drv_name = plat_data->machine->drv_name;
+	dev_dbg(sdev->dev, "using platform alias %s\n",
+		plat_data->machine->asoc_plat_name);
 
-	dev_dbg(sdev->dev, "using platform alias %s\n", plat_name);
-
-	pd->name = DRV_NAME;
 	pd->probe = sof_pcm_probe;
 	pd->remove = sof_pcm_remove;
 	pd->ops	= &sof_pcm_ops;
@@ -724,3 +700,13 @@ void snd_sof_new_platform_drv(struct snd_sof_dev *sdev)
 	pd->use_dai_pcm_id = true;
 	pd->topology_name_prefix = "sof";
 }
+
+static const struct snd_soc_component_driver sof_dai_component = {
+	.name           = "sof-dai",
+};
+
+void snd_sof_new_dai_drv(struct snd_sof_dev *sdev)
+{
+	sdev->cmpnt_drv = &sof_dai_component;
+}
+

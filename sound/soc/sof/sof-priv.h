@@ -294,7 +294,8 @@ struct snd_sof_dev {
 	struct pci_dev *pci;
 
 	/* ASoC components */
-	struct snd_soc_component_driver plat_drv;
+	struct snd_soc_platform_driver plat_drv;
+	const struct snd_soc_component_driver *cmpnt_drv;
 
 	/* DSP firmware boot */
 	wait_queue_head_t boot_wait;
