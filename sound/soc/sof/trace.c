@@ -174,23 +174,19 @@ int snd_sof_init_trace_ipc(struct snd_sof_dev *sdev)
 	if (ret < 0) {
 		dev_err(sdev->dev,
 			"error: can't set params for DMA for trace %d\n", ret);
-		goto trace_release;
+		return ret;
 	}
 
 	ret = snd_sof_dma_trace_trigger(sdev, SNDRV_PCM_TRIGGER_START);
 	if (ret < 0) {
 		dev_err(sdev->dev,
 			"error: snd_sof_dma_trace_trigger: start: %d\n", ret);
-		goto trace_release;
+		return ret;
 	}
 
 	sdev->dtrace_is_enabled = true;
 
 	return 0;
-
-trace_release:
-	snd_sof_dma_trace_release(sdev);
-	return ret;
 }
 
 int snd_sof_init_trace(struct snd_sof_dev *sdev)
