@@ -4,7 +4,7 @@
  *
  *  Author : Pawel Osciak <posciak@chromium.org>
  *
- *  Copyright (C) 2015 Google, Inc.
+ *  Copyright 2019 Google LLC.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1213,8 +1213,7 @@ int go2001_schedule_frames(struct go2001_ctx *ctx)
 	if (!src_buf)
 		goto out;
 
-	if (ctx->codec_mode == CODEC_MODE_DECODER &&
-	    src_buf->vb.vb2_buf.index == GO2001_DUMMY_FLUSH_BUF_INDEX) {
+	if (src_buf->vb.vb2_buf.index == GO2001_DUMMY_FLUSH_BUF_INDEX) {
 		/* Flush buffer */
 		int i;
 

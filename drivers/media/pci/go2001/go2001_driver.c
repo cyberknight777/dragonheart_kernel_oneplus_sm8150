@@ -4,7 +4,7 @@
  *
  *  Author : Pawel Osciak <posciak@chromium.org>
  *
- *  Copyright (C) 2015 Google, Inc.
+ *  Copyright 2019 Google LLC.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -2290,6 +2290,83 @@ static int go2001_decoder_cmd(struct file *file, void *priv,
 	return 0;
 }
 
+static int go2001_try_encoder_cmd(struct file *file, void *priv,
+				  struct v4l2_encoder_cmd *cmd)
+{
+	switch (cmd->cmd) {
+	case V4L2_ENC_CMD_STOP:
+	case V4L2_ENC_CMD_START:
+		if (cmd->flags != 0) {
+			struct go2001_ctx *ctx = fh_to_ctx(priv);
+
+			go2001_dbg(ctx->gdev, 1,
+				   "Unsupported ENCODER_CMD flags given: %u",
+				   cmd->flags);
+			return -EINVAL;
+		}
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int go2001_encoder_cmd(struct file *file, void *priv,
+			      struct v4l2_encoder_cmd *cmd)
+{
+	struct go2001_ctx *ctx = fh_to_ctx(priv);
+	struct vb2_queue *src_vq, *dst_vq;
+	unsigned long flags;
+	int ret;
+
+	ret = go2001_try_encoder_cmd(file, priv, cmd);
+	if (ret)
+		return ret;
+
+	dst_vq = go2001_get_vq(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	switch (cmd->cmd) {
+	case V4L2_ENC_CMD_STOP:
+		src_vq = go2001_get_vq(ctx, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+		if (!vb2_is_streaming(src_vq)) {
+			go2001_dbg(ctx->gdev, 1,
+				   "Output stream is off. No need to flush.\n");
+			return 0;
+		}
+		if (!vb2_is_streaming(dst_vq)) {
+			go2001_dbg(ctx->gdev, 1,
+				   "Capture stream is off. No need to flush.\n");
+			return 0;
+		}
+		spin_lock_irqsave(&ctx->qlock, flags);
+		if (!list_empty(&ctx->dummy_flush_buf.list)) {
+			spin_unlock_irqrestore(&ctx->qlock, flags);
+			go2001_dbg(ctx->gdev, 1,
+				   "The previous flush is not done yet.\n");
+			return -EBUSY;
+		}
+		spin_unlock_irqrestore(&ctx->qlock, flags);
+		go2001_buf_queue(&ctx->dummy_flush_buf.vb.vb2_buf);
+		break;
+
+	case V4L2_ENC_CMD_START:
+		spin_lock_irqsave(&ctx->qlock, flags);
+		if (!list_empty(&ctx->dummy_flush_buf.list)) {
+			spin_unlock_irqrestore(&ctx->qlock, flags);
+			go2001_dbg(ctx->gdev, 1,
+				   "Flush still in progress.\n");
+			return -EBUSY;
+		}
+		spin_unlock_irqrestore(&ctx->qlock, flags);
+		vb2_clear_last_buffer_dequeued(dst_vq);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static const struct v4l2_ioctl_ops go2001_ioctl_dec_ops = {
 	.vidioc_querycap = go2001_querycap,
 
@@ -2353,6 +2430,9 @@ static const struct v4l2_ioctl_ops go2001_ioctl_enc_ops = {
 	.vidioc_expbuf = go2001_expbuf,
 
 	.vidioc_enum_framesizes = go2001_enum_framesizes,
+
+	.vidioc_encoder_cmd = go2001_encoder_cmd,
+	.vidioc_try_encoder_cmd = go2001_try_encoder_cmd,
 };
 
 
