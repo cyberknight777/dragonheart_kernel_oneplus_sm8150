@@ -495,4 +495,6 @@ static inline void iwl_fwrt_update_fw_versions(struct iwl_fw_runtime *fwrt,
 		fwrt->dump.fw_ver.umac_minor = le32_to_cpu(umac->umac_minor);
 	}
 }
+
+void iwl_fw_error_print_fseq_regs(struct iwl_fw_runtime *fwrt);
 #endif  /* __iwl_fw_dbg_h__ */
