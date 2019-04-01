@@ -1433,7 +1433,7 @@ static void iwl_pcie_rx_handle(struct iwl_trans *trans, int queue)
 	u32 r, i, count = 0;
 	bool emergency = false;
 
-	if (WARN_ON_ONCE(!trans_pcie->rxq || !&trans_pcie->rxq[queue].bd))
+	if (WARN_ON_ONCE(!trans_pcie->rxq || !trans_pcie->rxq[queue].bd))
 		return;
 
 	rxq = &trans_pcie->rxq[queue];
