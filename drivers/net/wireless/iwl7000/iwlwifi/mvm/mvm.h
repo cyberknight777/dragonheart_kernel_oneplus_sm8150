@@ -1224,12 +1224,17 @@ struct iwl_mvm {
 		u8 num_filter_addrs;
 	} csi_cfg;
 
-	/* we can have up to four chunks, plus the first notification */
-	struct iwl_csi_data_buffer csi_data_entries[5];
+	/* we store up to some number of chunks, plus the first notification */
+	struct iwl_csi_data_buffer csi_data_entries[IWL_CSI_MAX_EXPECTED_CHUNKS + 1];
 
 	unsigned int csi_portid;
 
 	struct list_head list;
+
+	/* move this out from vendor commands once there are other users */
+	struct {
+		u8 csi_notif;
+	} cmd_ver;
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 
 	struct ieee80211_vif *nan_vif;

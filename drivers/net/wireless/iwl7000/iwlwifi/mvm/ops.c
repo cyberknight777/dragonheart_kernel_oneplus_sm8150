@@ -722,6 +722,29 @@ static void iwl_mvm_tm_cmd_exec_end(struct iwl_testmode *testmode)
 }
 #endif
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+static u8 iwl_mvm_lookup_notif_ver(struct iwl_mvm *mvm, u8 grp, u8 cmd, u8 def)
+{
+	const struct iwl_fw_cmd_version *entry;
+	unsigned int i;
+
+	if (!mvm->fw->ucode_capa.cmd_versions ||
+	    !mvm->fw->ucode_capa.n_cmd_versions)
+		return def;
+
+	entry = mvm->fw->ucode_capa.cmd_versions;
+	for (i = 0; i < mvm->fw->ucode_capa.n_cmd_versions; i++, entry++) {
+		if (entry->group == grp && entry->cmd == cmd) {
+			if (entry->notif_ver == IWL_FW_CMD_VER_UNKNOWN)
+				return def;
+			return entry->notif_ver;
+		}
+	}
+
+	return def;
+}
+#endif
+
 static struct iwl_op_mode *
 iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		      const struct iwl_fw *fw, struct dentry *dbgfs_dir)
@@ -859,6 +882,16 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 #endif
 
 	INIT_DELAYED_WORK(&mvm->cs_tx_unblock_dwork, iwl_mvm_tx_unblock_dwork);
+
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+	/* set command/notification versions we care about */
+	mvm->cmd_ver.csi_notif =
+		iwl_mvm_lookup_notif_ver(mvm, LOCATION_GROUP,
+					 CSI_CHUNKS_NOTIFICATION, 1);
+	/* we only support versions 1 and 2 */
+	if (WARN_ON_ONCE(mvm->cmd_ver.csi_notif > 2))
+		goto out_free;
+#endif
 
 	/*
 	 * Populate the state variables that the transport layer needs

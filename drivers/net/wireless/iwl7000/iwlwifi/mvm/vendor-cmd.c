@@ -1519,8 +1519,8 @@ static void iwl_mvm_csi_complete(struct iwl_mvm *mvm)
 {
 	struct iwl_rx_packet *hdr_pkt;
 	struct iwl_csi_data_buffer *hdr_buf = &mvm->csi_data_entries[0];
-	void *data[5] = {};
-	unsigned int len[5] = {};
+	void *data[IWL_CSI_MAX_EXPECTED_CHUNKS + 1] = {};
+	unsigned int len[IWL_CSI_MAX_EXPECTED_CHUNKS + 1] = {};
 	unsigned int csi_hdr_len;
 	void *csi_hdr;
 	int i;
@@ -1575,18 +1575,30 @@ void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_csi_chunk_notification *chunk = (void *)pkt->data;
-	int num = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_NUM_MASK_VER_1);
-	int idx = le16_get_bits(chunk->ctl,
-				IWL_CSI_CHUNK_CTL_IDX_MASK_VER_1) + 1;
+	int num;
+	int idx;
 
-	/*
-	 * +1 to get from mask to number
-	 * -1 to account for the header we also store there
-	 */
-	BUILD_BUG_ON(IWL_CSI_CHUNK_CTL_NUM_MASK_VER_1 + 1 >
-		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
-	BUILD_BUG_ON((IWL_CSI_CHUNK_CTL_IDX_MASK_VER_1 >> 2) + 1 >
-		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
+	switch (mvm->cmd_ver.csi_notif) {
+	case 1:
+		num = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_NUM_MASK_VER_1);
+		idx = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_IDX_MASK_VER_1) + 1;
+		break;
+	case 2:
+		num = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_NUM_MASK_VER_2);
+		idx = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_IDX_MASK_VER_2) + 1;
+		break;
+	default:
+		WARN_ON(1);
+		return;
+	}
+
+	/* -1 to account for the header we also store there */
+	if (WARN_ON_ONCE(idx >= ARRAY_SIZE(mvm->csi_data_entries) - 1))
+		return;
 
 	iwl_mvm_csi_steal(mvm, idx, rxb);
 
