@@ -378,8 +378,7 @@ static int hci_le_splitter_release(struct inode *inode, struct file *file)
 	mutex_unlock(&usr_msg_q_lock);
 
 	if (dev_id >= 0) {
-		int ret;
-		ret = hci_dev_reset(dev_id);
+		hci_dev_reset(dev_id);
 		/* none of this matters - we must restart bluetoothd to regain ability to run */
 	}
 
@@ -545,10 +544,11 @@ bool hci_le_splitter_should_allow_bluez_tx(struct hci_dev *hdev, struct sk_buff 
 
 			struct hci_cp_le_set_event_mask *params =
 				cmdParams;
-			uint64_t *mask_loc, mask, oldmask;
+			__le64 *mask_loc;
+			uint64_t mask, oldmask;
 
-			mask_loc = (uint64_t *)params->mask;
-			oldmask = mask = __le64_to_cpu(*mask_loc);
+			mask_loc = (__le64 *)params->mask;
+			oldmask = mask = __le64_to_cpup(mask_loc);
 
 			if ((mask & evtsNeeded) != evtsNeeded) {
 				pr_warn("EDR stack blocked some vital events - BAD - fixing\n");
@@ -639,7 +639,7 @@ static void hci_le_splitter_usr_queue_reset_message(bool allow_commands)
 	ev->plen = sizeof(struct hci_ev_cmd_complete);
 
 	cc->ncmd = allow_commands ? 1 : 0;
-	cc->opcode = HCI_OP_RESET;
+	cc->opcode = cpu_to_le16(HCI_OP_RESET);
 
 	hci_le_splitter_enq_packet(skb);
 }
@@ -828,7 +828,7 @@ static bool hci_le_splitter_filter_cmd_complete(const struct hci_ev_cmd_complete
 		reported_pkts = ours ? le_pkts : edr_pkts;
 		pr_info("Chip has %hu bufs, telling %s: '%hu bufs'.\n", pkts,
 		     ours ? "LE" : "EDR", reported_pkts);
-		repl->acl_max_pkt = __cpu_to_le64(reported_pkts);
+		repl->acl_max_pkt = __cpu_to_le16(reported_pkts);
 
 		if (!max_pkts_in_flight)
 			max_pkts_in_flight = le_pkts;
@@ -1019,7 +1019,7 @@ static bool hci_le_splitter_should_allow_bluez_rx_evt(struct sk_buff *skb)
 /* return true to let bluez have the packet. if we return false, WE must free packet */
 bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, struct sk_buff *skb)
 {
-	u16 acl_handle, acl_flags;
+	u16 acl_handle;
 	bool ret = true;
 
 	mutex_lock(&hci_state_lock);
@@ -1050,7 +1050,6 @@ bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, struct sk_buff 
 				break;
 
 			acl_handle = __le16_to_cpu(((struct hci_acl_hdr *)skb->data)->handle);
-			acl_flags  = hci_flags(acl_handle);
 			acl_handle = hci_handle(acl_handle);
 
 			if (cid_is_le_conn(acl_handle)) {
