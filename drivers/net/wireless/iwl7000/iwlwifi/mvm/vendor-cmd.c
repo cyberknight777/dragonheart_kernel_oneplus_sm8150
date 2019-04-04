@@ -1575,16 +1575,17 @@ void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_csi_chunk_notification *chunk = (void *)pkt->data;
-	int num = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_NUM_MASK);
-	int idx = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_IDX_MASK) + 1;
+	int num = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_NUM_MASK_VER_1);
+	int idx = le16_get_bits(chunk->ctl,
+				IWL_CSI_CHUNK_CTL_IDX_MASK_VER_1) + 1;
 
 	/*
 	 * +1 to get from mask to number
 	 * -1 to account for the header we also store there
 	 */
-	BUILD_BUG_ON(IWL_CSI_CHUNK_CTL_NUM_MASK + 1 >
+	BUILD_BUG_ON(IWL_CSI_CHUNK_CTL_NUM_MASK_VER_1 + 1 >
 		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
-	BUILD_BUG_ON((IWL_CSI_CHUNK_CTL_IDX_MASK >> 2) + 1 >
+	BUILD_BUG_ON((IWL_CSI_CHUNK_CTL_IDX_MASK_VER_1 >> 2) + 1 >
 		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
 
 	iwl_mvm_csi_steal(mvm, idx, rxb);
