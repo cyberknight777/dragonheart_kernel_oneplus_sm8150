@@ -2362,8 +2362,8 @@ iwl_fw_dbg_buffer_allocation(struct iwl_fw_runtime *fwrt, u32 size)
 		IWL_ERR(fwrt, "Failed to allocate debug memory\n");
 
 	IWL_DEBUG_FW(trans,
-		     "Allocated DRAM buffer[%d], address=0x%llx, size=0x%x\n",
-		     trans->num_blocks, phys_addr, size);
+		     "Allocated DRAM buffer[%d], size=0x%x\n",
+		     trans->num_blocks, size);
 
 	trans->fw_mon[trans->num_blocks].block = virtual_addr;
 	trans->fw_mon[trans->num_blocks].physical = phys_addr;
