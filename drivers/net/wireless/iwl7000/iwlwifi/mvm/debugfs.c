@@ -2240,7 +2240,7 @@ static ssize_t iwl_dbgfs_csi_addresses_write(struct iwl_mvm *mvm, char *buf,
 		u8 addr[ETH_ALEN];
 		int n;
 
-		if (!addrstr)
+		if (!addrstr || !*addrstr)
 			break;
 
 		n = sscanf(addrstr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
