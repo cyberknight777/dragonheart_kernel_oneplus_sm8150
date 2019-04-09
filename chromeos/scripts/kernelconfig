@@ -99,7 +99,8 @@ build_one() {
 			;;
 		esac
 
-		cat "${O}/.config" > "${archconfdir}/${config}"
+		make -j O="${O}" ARCH=${kernarch} savedefconfig
+		mv "${O}/defconfig" "${archconfdir}/${config}"
 		if [[ "${keep}" == "1" ]]; then
 			# oldconfig is probably redundant because .config is
 		        # likely formatted already at this point, however
