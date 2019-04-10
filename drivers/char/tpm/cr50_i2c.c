@@ -552,7 +552,7 @@ static int cr50_i2c_tis_send(struct tpm_chip *chip, u8 *buf, size_t len)
 		dev_err(&chip->dev, "Start command failed\n");
 		goto out_err;
 	}
-	return sent;
+	return 0;
 
 out_err:
 	/* Abort current transaction if still pending */
