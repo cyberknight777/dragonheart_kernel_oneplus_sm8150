@@ -3463,7 +3463,10 @@ static void iwl_mvm_limit_wmm_ac(struct iwl_mvm *mvm,
 		return;
 
 	mutex_lock(&mvm->mutex);
-	rd = iwl_mvm_get_current_regdomain(mvm, NULL);
+	if (iwl_mvm_is_lar_supported(mvm))
+		rd = iwl_mvm_get_current_regdomain(mvm, NULL);
+	else
+		rd = NULL;
 	mutex_unlock(&mvm->mutex);
 
 	if (IS_ERR_OR_NULL(rd))
