@@ -1434,6 +1434,8 @@ fw_dbg_conf:
 				tlv_len /= sizeof(struct iwl_fw_cmd_version);
 				tlv_len *= sizeof(struct iwl_fw_cmd_version);
 			}
+			if (WARN_ON(capa->cmd_versions))
+				return -EINVAL;
 			capa->cmd_versions = kmemdup(tlv_data, tlv_len,
 						     GFP_KERNEL);
 			if (!capa->cmd_versions)
