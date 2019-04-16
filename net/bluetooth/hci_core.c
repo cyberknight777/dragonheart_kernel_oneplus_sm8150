@@ -1627,6 +1627,14 @@ int hci_dev_do_close(struct hci_dev *hdev)
 
 	hci_dev_lock(hdev);
 
+	/* This will clear the HCI_LE_SCAN_CHANGE_IN_PROGRESS flag in case its
+	 * already set and exception occurred to sync host and controller state.
+	 */
+	if (hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
+		hci_dev_clear_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS);
+		hdev->count_scan_change_in_progress = 0;
+	}
+
 	hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
 
 	auto_off = hci_dev_test_and_clear_flag(hdev, HCI_AUTO_OFF);
