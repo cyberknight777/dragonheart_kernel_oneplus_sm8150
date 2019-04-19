@@ -48,6 +48,9 @@ struct execute_config {
 
 extern struct execute_config csm_execute_config;
 
+/* pipe to forward vsock packets to user-mode. */
+extern struct file *csm_user_write_pipe;
+
 /* Streams file numbers are unknown from the kernel */
 #define STDIN_FILENO	0
 #define STDOUT_FILENO	1

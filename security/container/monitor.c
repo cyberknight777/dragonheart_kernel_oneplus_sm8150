@@ -15,6 +15,7 @@
 #include <linux/socket.h>
 #include <net/sock.h>
 #include <linux/vm_sockets.h>
+#include <linux/file.h>
 
 /* protects csm_*_enabled and configurations. */
 DECLARE_RWSEM(csm_rwsem_config);
@@ -45,15 +46,29 @@ static struct dentry *csm_dir;
 static struct dentry *csm_enabled_file;
 static struct dentry *csm_container_file;
 static struct dentry *csm_config_vers_file;
+static struct dentry *csm_pipe_file;
 
-/* Option to disable the CSM LSM at boot. */
+/* Pipes to forward data to user-mode. */
+static struct file *csm_user_read_pipe;
+struct file *csm_user_write_pipe;
+
+/* Option to disable the CSM features at boot. */
 static bool cmdline_boot_disabled;
+
+/* Options disabled by default. */
+static bool cmdline_boot_pipe_enabled;
 
 static int csm_boot_disabled_setup(char *str)
 {
 	return kstrtobool(str, &cmdline_boot_disabled);
 }
 early_param("csm.disabled", csm_boot_disabled_setup);
+
+static int csm_boot_pipe_enabled_setup(char *str)
+{
+	return kstrtobool(str, &cmdline_boot_pipe_enabled);
+}
+early_param("csm.pipe.enabled", csm_boot_pipe_enabled_setup);
 
 static void csm_update_config(schema_ConfigurationRequest *req)
 {
@@ -239,6 +254,53 @@ static const struct file_operations csm_config_version_fops = {
 	.poll = csm_config_version_poll,
 };
 
+static int csm_pipe_open(struct inode *inode, struct file *file)
+{
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+	if (!csm_enabled)
+		return -EAGAIN;
+	return 0;
+}
+
+static ssize_t csm_pipe_read(struct file *file, char __user *buf,
+				       size_t count, loff_t *ppos)
+{
+	int fd;
+	ssize_t err;
+
+	/* No partial reads. */
+	if (*ppos != 0)
+		return -EINVAL;
+
+	fd = get_unused_fd_flags(0);
+	if (fd < 0)
+		return fd;
+
+	fd_install(fd, get_file(csm_user_read_pipe));
+
+	err = simple_read_from_buffer(buf, count, ppos, &fd, sizeof(fd));
+	if (err < 0)
+		goto error;
+
+	if (err < sizeof(fd)) {
+		err = -EINVAL;
+		goto error;
+	}
+
+	return err;
+
+error:
+	put_unused_fd(fd);
+	return err;
+}
+
+
+static const struct file_operations csm_pipe_fops = {
+	.open = csm_pipe_open,
+	.read = csm_pipe_read,
+};
+
 static void set_container_decode_callbacks(schema_Container *container)
 {
 	container->pod_namespace.funcs.decode = pb_decode_string_field;
@@ -393,6 +455,7 @@ static struct security_hook_list csm_hooks[] __lsm_ro_after_init = {
 static int __init csm_init(void)
 {
 	int err;
+	struct file *pipes[2] = {NULL, NULL};
 
 	if (cmdline_boot_disabled)
 		return 0;
@@ -401,10 +464,19 @@ static int __init csm_init(void)
 	if (err)
 		return err;
 
+	if (cmdline_boot_pipe_enabled) {
+		err = create_pipe_files(pipes, 0);
+		if (err)
+			goto error;
+
+		csm_user_read_pipe = pipes[0];
+		csm_user_write_pipe = pipes[1];
+	}
+
 	csm_dir = securityfs_create_dir("container_monitor", NULL);
 	if (IS_ERR(csm_dir)) {
 		err = PTR_ERR(csm_dir);
-		goto error;
+		goto error_pipe;
 	}
 
 	csm_enabled_file = securityfs_create_file("enabled", 0644, csm_dir,
@@ -439,6 +511,19 @@ static int __init csm_init(void)
 	}
 #endif /* CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG */
 
+	if (csm_user_write_pipe) {
+		csm_pipe_file = securityfs_create_file("pipe", 0200, csm_dir,
+						       NULL, &csm_pipe_fops);
+		if (IS_ERR(csm_pipe_file)) {
+			err = PTR_ERR(csm_pipe_file);
+			securityfs_remove(csm_config_vers_file);
+#ifdef CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG
+			securityfs_remove(csm_config_file);
+#endif
+			goto error_rm_container;
+		}
+	}
+
 	pr_debug("created securityfs control files\n");
 
 	security_add_hooks(csm_hooks, ARRAY_SIZE(csm_hooks), "csm");
@@ -451,6 +536,11 @@ error_rm_enabled:
 	securityfs_remove(csm_enabled_file);
 error_rmdir:
 	securityfs_remove(csm_dir);
+error_pipe:
+	if (cmdline_boot_pipe_enabled) {
+		fput(pipes[0]);
+		fput(pipes[1]);
+	}
 error:
 	vsock_destroy();
 	pr_warn("fs initialization error: %d", err);
