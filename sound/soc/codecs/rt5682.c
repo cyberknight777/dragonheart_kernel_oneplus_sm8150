@@ -2585,6 +2585,7 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 
 	rt5682_reset(rt5682->regmap);
 
+	mutex_init(&rt5682->calibrate_mutex);
 	rt5682_calibrate(rt5682);
 
 	ret = regmap_multi_reg_write(rt5682->regmap, patch_list,
@@ -2651,7 +2652,6 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 	INIT_DELAYED_WORK(&rt5682->jd_check_work,
 				rt5682_jd_check_handler);
 
-	mutex_init(&rt5682->calibrate_mutex);
 
 	if (i2c->irq) {
 		ret = devm_request_threaded_irq(&i2c->dev, i2c->irq, NULL,
