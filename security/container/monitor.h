@@ -51,6 +51,9 @@ extern struct execute_config csm_execute_config;
 /* pipe to forward vsock packets to user-mode. */
 extern struct file *csm_user_write_pipe;
 
+/* Was vsock disabled at boot time? */
+extern bool cmdline_boot_vsock_disabled;
+
 /* Streams file numbers are unknown from the kernel */
 #define STDIN_FILENO	0
 #define STDOUT_FILENO	1

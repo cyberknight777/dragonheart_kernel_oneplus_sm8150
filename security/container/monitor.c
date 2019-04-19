@@ -45,6 +45,7 @@ bool csm_execute_enabled;
 static struct dentry *csm_dir;
 static struct dentry *csm_enabled_file;
 static struct dentry *csm_container_file;
+static struct dentry *csm_config_file;
 static struct dentry *csm_config_vers_file;
 static struct dentry *csm_pipe_file;
 
@@ -54,9 +55,11 @@ struct file *csm_user_write_pipe;
 
 /* Option to disable the CSM features at boot. */
 static bool cmdline_boot_disabled;
+bool cmdline_boot_vsock_disabled;
 
 /* Options disabled by default. */
 static bool cmdline_boot_pipe_enabled;
+static bool cmdline_boot_config_enabled;
 
 static int csm_boot_disabled_setup(char *str)
 {
@@ -64,11 +67,24 @@ static int csm_boot_disabled_setup(char *str)
 }
 early_param("csm.disabled", csm_boot_disabled_setup);
 
+static int csm_boot_vsock_disabled_setup(char *str)
+{
+	return kstrtobool(str, &cmdline_boot_vsock_disabled);
+}
+early_param("csm.vsock.disabled", csm_boot_vsock_disabled_setup);
+
+
 static int csm_boot_pipe_enabled_setup(char *str)
 {
 	return kstrtobool(str, &cmdline_boot_pipe_enabled);
 }
 early_param("csm.pipe.enabled", csm_boot_pipe_enabled_setup);
+
+static int csm_boot_config_enabled_setup(char *str)
+{
+	return kstrtobool(str, &cmdline_boot_config_enabled);
+}
+early_param("csm.config.enabled", csm_boot_config_enabled_setup);
 
 static void csm_update_config(schema_ConfigurationRequest *req)
 {
@@ -119,9 +135,6 @@ int csm_update_config_from_buffer(void *data, size_t size)
 	return 0;
 }
 
-#ifdef CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG
-static struct dentry *csm_config_file;
-
 static ssize_t csm_config_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *ppos)
 {
@@ -151,7 +164,6 @@ static ssize_t csm_config_write(struct file *file, const char __user *buf,
 static const struct file_operations csm_config_fops = {
 	.write = csm_config_write,
 };
-#endif /* CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG */
 
 static void csm_enable(void)
 {
@@ -460,6 +472,10 @@ static int __init csm_init(void)
 	if (cmdline_boot_disabled)
 		return 0;
 
+	/*
+	 * If cmdline_boot_vsock_disabled is true, only the event pool will be
+	 * allocated. The destroy function will clean-up only what was reserved.
+	 */
 	err = vsock_initialize();
 	if (err)
 		return err;
@@ -501,26 +517,22 @@ static int __init csm_init(void)
 		goto error_rm_container;
 	}
 
-#ifdef CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG
-	csm_config_file = securityfs_create_file("config", 0200, csm_dir,
-						  NULL, &csm_config_fops);
-	if (IS_ERR(csm_config_file)) {
-		err = PTR_ERR(csm_config_file);
-		securityfs_remove(csm_config_vers_file);
-		goto error_rm_container;
+	if (cmdline_boot_config_enabled) {
+		csm_config_file = securityfs_create_file("config", 0200,
+							 csm_dir, NULL,
+							 &csm_config_fops);
+		if (IS_ERR(csm_config_file)) {
+			err = PTR_ERR(csm_config_file);
+			goto error_rm_config_vers;
+		}
 	}
-#endif /* CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG */
 
 	if (csm_user_write_pipe) {
 		csm_pipe_file = securityfs_create_file("pipe", 0200, csm_dir,
 						       NULL, &csm_pipe_fops);
 		if (IS_ERR(csm_pipe_file)) {
 			err = PTR_ERR(csm_pipe_file);
-			securityfs_remove(csm_config_vers_file);
-#ifdef CONFIG_SECURITY_CONTAINER_MONITOR_DEBUG_CONFIG
-			securityfs_remove(csm_config_file);
-#endif
-			goto error_rm_container;
+			goto error_rm_config;
 		}
 	}
 
@@ -530,6 +542,11 @@ static int __init csm_init(void)
 	pr_debug("registered hooks\n");
 	return 0;
 
+error_rm_config:
+	if (cmdline_boot_config_enabled)
+		securityfs_remove(csm_config_file);
+error_rm_config_vers:
+	securityfs_remove(csm_config_vers_file);
 error_rm_container:
 	securityfs_remove(csm_container_file);
 error_rm_enabled:

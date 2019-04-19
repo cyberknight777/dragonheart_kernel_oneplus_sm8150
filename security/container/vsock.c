@@ -105,6 +105,9 @@ static int csm_vsock_sendmsg(struct kvec *vecs, size_t vecs_size,
 	struct msghdr msg = { };
 	int res = -EPIPE;
 
+	if (cmdline_boot_vsock_disabled)
+		return 0;
+
 	down_read(&csm_rwsem_vsocket);
 	if (csm_vsocket) {
 		res = kernel_sendmsg(csm_vsocket, &msg, vecs, vecs_size,
@@ -482,13 +485,15 @@ int __init vsock_initialize(void)
 		return -ENOMEM;
 	}
 
-	task = kthread_run(socket_thread_fn, NULL, "csm-vsock-thread");
-	if (IS_ERR(task)) {
-		pr_err("failed to create socket thread: %ld\n", PTR_ERR(task));
-		vsock_destroy();
-		return PTR_ERR(task);
-	}
+	if (!cmdline_boot_vsock_disabled) {
+		task = kthread_run(socket_thread_fn, NULL, "csm-vsock-thread");
+		if (IS_ERR(task)) {
+			pr_err("failed to create socket thread: %ld\n", PTR_ERR(task));
+			vsock_destroy();
+			return PTR_ERR(task);
+		}
 
-	socket_thread = task;
+		socket_thread = task;
+	}
 	return 0;
 }
