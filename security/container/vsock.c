@@ -9,6 +9,7 @@
 
 #include <net/net_namespace.h>
 #include <net/vsock_addr.h>
+#include <net/sock.h>
 #include <linux/mempool.h>
 #include <linux/socket.h>
 #include <linux/workqueue.h>
@@ -304,7 +305,13 @@ static int csm_recvmsg(void *buf, size_t len, bool expected)
 		}
 		up_read(&csm_rwsem_vsocket);
 
-		if (err == 0 || err == -EAGAIN) {
+		if (err == 0) {
+			err = -ENOTCONN;
+			pr_warn_ratelimited("vsock connection was reset\n");
+			break;
+		}
+
+		if (err == -EAGAIN) {
 			/*
 			 * If nothing is received and nothing was expected
 			 * just bail.
