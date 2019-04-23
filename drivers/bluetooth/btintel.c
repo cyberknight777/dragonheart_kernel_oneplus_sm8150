@@ -312,7 +312,15 @@ EXPORT_SYMBOL_GPL(btintel_load_ddc_config);
 
 int btintel_set_event_mask(struct hci_dev *hdev, bool debug)
 {
-	u8 mask[8] = { 0x87, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	/* Three events are enabled by default in the event mask as they are
+	 * used during the startup sequence of the device and debugging purpose.
+	 * The remaining events are thereby disabled by default but can be
+	 * enabled as desired. Enabled events are
+	 * 0000000000000001H HCI_Intel_Bootup ,
+	 * 0000000000000400H HCI_Intel_Fatal_Exception Event and
+	 * 0000000000000800H HCI_Intel_System_Exception Event
+	 */
+	u8 mask[8] = { 0x01, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	struct sk_buff *skb;
 	int err;
 
