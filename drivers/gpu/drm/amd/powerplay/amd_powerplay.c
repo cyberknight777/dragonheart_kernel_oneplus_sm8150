@@ -1214,19 +1214,18 @@ static void pp_dpm_powergate_acp(void *handle, bool gate)
 static int pp_set_powergating_by_smu(void *handle,
 				uint32_t block_type, bool gate)
 {
-	struct pp_hwmgr *hwmgr = handle;
 	int ret = 0;
 
 	switch (block_type) {
 	case AMD_IP_BLOCK_TYPE_UVD:
 	case AMD_IP_BLOCK_TYPE_VCN:
-		pp_dpm_powergate_uvd(hwmgr, gate);
+		pp_dpm_powergate_uvd(handle, gate);
 		break;
 	case AMD_IP_BLOCK_TYPE_VCE:
-		pp_dpm_powergate_vce(hwmgr, gate);
+		pp_dpm_powergate_vce(handle, gate);
 		break;
 	case AMD_IP_BLOCK_TYPE_GMC:
-		pp_dpm_powergate_mmhub(hwmgr);
+		pp_dpm_powergate_mmhub(handle);
 		break;
 	case AMD_IP_BLOCK_TYPE_GFX:
 		ret = pp_dpm_powergate_gfx(handle, gate);
@@ -1266,12 +1265,12 @@ static const struct amd_pm_funcs pp_dpm_funcs = {
 	.get_vce_clock_state = pp_dpm_get_vce_clock_state,
 	.switch_power_profile = pp_dpm_switch_power_profile,
 	.set_clockgating_by_smu = pp_set_clockgating_by_smu,
+	.set_powergating_by_smu = pp_set_powergating_by_smu,
 	.get_power_profile_mode = pp_get_power_profile_mode,
 	.set_power_profile_mode = pp_set_power_profile_mode,
 	.odn_edit_dpm_table = pp_odn_edit_dpm_table,
 	.set_power_limit = pp_set_power_limit,
 	.get_power_limit = pp_get_power_limit,
-	.set_powergating_by_smu = pp_set_powergating_by_smu,
 /* export to DC */
 	.get_sclk = pp_dpm_get_sclk,
 	.get_mclk = pp_dpm_get_mclk,
