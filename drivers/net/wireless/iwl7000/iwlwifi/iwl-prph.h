@@ -410,7 +410,12 @@ enum aux_misc_master1_en {
 #define AUX_MISC_MASTER1_SMPHR_STATUS	0xA20800
 #define RSA_ENABLE			0xA24B08
 #define PREG_AUX_BUS_WPROT_0		0xA04CC0
-#define PREG_PRPH_WPROT_0		0xA04CE0
+
+/* device family 9000 WPROT register */
+#define PREG_PRPH_WPROT_9000		0xA04CE0
+/* device family 22000 WPROT register */
+#define PREG_PRPH_WPROT_22000		0xA04D00
+
 #define SB_CFG_OVERRIDE_ADDR		0xA26C78
 #define SB_CFG_OVERRIDE_ENABLE		0x8000
 #define SB_CFG_BASE_OVERRIDE		0xA20000
