@@ -1416,6 +1416,7 @@ static bool iwl_mvm_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 {
 	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
 	bool calibrating = READ_ONCE(mvm->calibrating);
+	bool unified = iwl_mvm_has_unified_ucode(mvm);
 
 	if (state)
 		set_bit(IWL_MVM_STATUS_HW_RFKILL, &mvm->status);
@@ -1424,9 +1425,20 @@ static bool iwl_mvm_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 
 	iwl_mvm_set_rfkill_state(mvm);
 
-	/* iwl_run_init_mvm_ucode is waiting for results, abort it */
-	if (calibrating)
+	/*
+	 * iwl_run_init_mvm_ucode is waiting for results, abort it.
+	 * If we run the unified image, we may be waiting for the INIT
+	 * flow to complete, abort it as well.
+	 */
+	if (calibrating || unified)
 		iwl_abort_notification_waits(&mvm->notif_wait);
+
+	/*
+	 * Don't ask the transport to stop the firmware. We'll do it
+	 * after cfg80211 takes us down.
+	 */
+	if (unified)
+		return false;
 
 	/*
 	 * Stop the device if we run OPERATIONAL firmware or if we are in the
