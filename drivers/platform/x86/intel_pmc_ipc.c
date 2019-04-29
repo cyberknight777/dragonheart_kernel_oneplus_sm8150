@@ -330,7 +330,7 @@ static int get_xtal_clock_freq(void)
 {
 	switch (boot_cpu_data.x86_model) {
 	case INTEL_FAM6_ATOM_GOLDMONT:
-	case INTEL_FAM6_ATOM_GEMINI_LAKE:
+	case INTEL_FAM6_ATOM_GOLDMONT_PLUS:
 		ipcdev.xtal_khz = 19200;
 		break;
 	default:

@@ -979,7 +979,7 @@ static int get_slpS0_count(u64* slp_s0_count)
 {
 	switch (boot_cpu_data.x86_model) {
 
-	case INTEL_FAM6_ATOM_GEMINI_LAKE:
+	case INTEL_FAM6_ATOM_GOLDMONT_PLUS:
 		return intel_pmc_s0ix_counter_read(slp_s0_count);
 	default:
 		return intel_pmc_slp_s0_counter_read((u32*)slp_s0_count);
@@ -997,7 +997,7 @@ static int check_slp_s0(u64 slp_s0_saved_count)
 
 	if (slp_s0_saved_count == slp_s0_new_count) {
 		WARN(1, "CPU did not enter SLP S0 for suspend-to-idle.\n");
-		boot_cpu_data.x86_model == INTEL_FAM6_ATOM_GEMINI_LAKE ?
+		boot_cpu_data.x86_model == INTEL_FAM6_ATOM_GOLDMONT_PLUS ?
 				telem_soc_states_display() : pmc_core_ppfear_display();
 		return -EIO;
 	}
