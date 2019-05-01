@@ -1187,7 +1187,27 @@ static int mmc_sd_runtime_resume(struct mmc_host *host)
 
 static int mmc_sd_reset(struct mmc_host *host)
 {
+	int present;
 	mmc_power_cycle(host, host->card->ocr);
+
+	present = host->ops->get_cd(host);
+
+	/* The card status could have changed while resetting. */
+	if ((mmc_card_removed(host->card) && present) ||
+	    (!mmc_card_removed(host->card) && !present)) {
+		pr_info("%s: card status changed during reset\n",
+		       mmc_hostname(host));
+		host->ops->card_event(host);
+		mmc_detect_change(host, 0);
+	}
+
+	/* Don't perform unnecessary transactions if the card is missing. */
+	if (!present) {
+		pr_info("%s: card was removed during reset\n",
+			mmc_hostname(host));
+		return -ENOMEDIUM;
+	}
+
 	return mmc_sd_init_card(host, host->card->ocr, host->card);
 }
 
