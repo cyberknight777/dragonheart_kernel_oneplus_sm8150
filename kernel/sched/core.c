@@ -6264,7 +6264,6 @@ int sched_cpu_activate(unsigned int cpu)
 	rq_unlock_irqrestore(rq, &rf);
 
 	update_max_interval();
-	walt_update_min_max_capacity();
 
 	return 0;
 }
@@ -6304,7 +6303,6 @@ int sched_cpu_deactivate(unsigned int cpu)
 		return ret;
 	}
 	sched_domains_numa_masks_clear(cpu);
-	walt_update_min_max_capacity();
 	return 0;
 }
 
