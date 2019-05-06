@@ -168,7 +168,7 @@ static int csm_sendmsg(int type, const void *buf, size_t len)
 	perr = csm_user_pipe_write(vecs, ARRAY_SIZE(vecs),
 				   le32_to_cpu(hdr.msg_length));
 	if (perr < 0) {
-		pr_warn_ratelimited("vfs_iter_write error (msg_type=%d, msg_length=%u): %ld\n",
+		pr_warn_ratelimited("vfs_iter_write error (msg_type=%d, msg_length=%u): %zd\n",
 				    type, le32_to_cpu(hdr.msg_length), perr);
 	}
 
