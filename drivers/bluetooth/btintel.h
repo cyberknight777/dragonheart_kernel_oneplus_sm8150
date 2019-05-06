@@ -86,6 +86,7 @@ int btintel_load_ddc_config(struct hci_dev *hdev, const char *ddc_name);
 int btintel_set_event_mask(struct hci_dev *hdev, bool debug);
 int btintel_set_event_mask_mfg(struct hci_dev *hdev, bool debug);
 int btintel_read_version(struct hci_dev *hdev, struct intel_version *ver);
+void btintel_retry_fw_download(struct hci_dev *hdev);
 
 struct regmap *btintel_regmap_init(struct hci_dev *hdev, u16 opcode_read,
 				   u16 opcode_write);
@@ -155,6 +156,11 @@ static inline int btintel_set_event_mask_mfg(struct hci_dev *hdev, bool debug)
 
 static inline int btintel_read_version(struct hci_dev *hdev,
 				       struct intel_version *ver)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline void btintel_retry_fw_download(struct hci_dev *hdev)
 {
 	return -EOPNOTSUPP;
 }

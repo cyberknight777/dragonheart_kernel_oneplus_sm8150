@@ -2374,6 +2374,10 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 			if (err < 0) {
 				BT_ERR("%s: Failed to send firmware data (%d)",
 				       hdev->name, err);
+				/* When FW download fails during FW data stage,
+				 * send Intel Reset to retry FW download.
+				 */
+				btintel_retry_fw_download(hdev);
 				goto done;
 			}
 
