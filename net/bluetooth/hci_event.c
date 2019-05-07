@@ -5073,6 +5073,9 @@ static void hci_le_ltk_request_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	if (!ltk)
 		goto not_found;
 
+	if (is_ltk_blocked(ltk, hdev))
+		goto not_found;
+
 	if (smp_ltk_is_sc(ltk)) {
 		/* With SC both EDiv and Rand are set to zero */
 		if (ev->ediv || ev->rand)

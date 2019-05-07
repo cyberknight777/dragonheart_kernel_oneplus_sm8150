@@ -4356,3 +4356,15 @@ static void hci_cmd_work(struct work_struct *work)
 		}
 	}
 }
+
+bool is_ltk_blocked(struct smp_ltk *ltk, struct hci_dev *hdev)
+{
+	int i;
+
+	for (i = 0; i < MAX_BLOCKED_LTKS; i++) {
+		if (!memcmp(ltk->val, hdev->blocked_ltks[i], LTK_LENGTH))
+			return true;
+	}
+
+	return false;
+}

@@ -2229,6 +2229,14 @@ static bool smp_ltk_encrypt(struct l2cap_conn *conn, u8 sec_level)
 	if (test_and_set_bit(HCI_CONN_ENCRYPT_PEND, &hcon->flags))
 		return true;
 
+	if (is_ltk_blocked(key, hcon->hdev)) {
+		// The peer device provided a blocked LTK. We don't want to use
+		// this LTK to start encryption, so return here but don't
+		// return false as it would be interpreted as "device not yet
+		// paired" and trigger re-pairing.
+		return true;
+	}
+
 	hci_le_start_enc(hcon, key->ediv, key->rand, key->val, key->enc_size);
 	hcon->enc_key_size = key->enc_size;
 
