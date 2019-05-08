@@ -483,7 +483,6 @@ static bool detect_dp(
 	struct audio_support *audio_support,
 	enum dc_detect_reason reason)
 {
-	bool boot = false;
 	sink_caps->signal = link_detect_sink(link, reason);
 	sink_caps->transaction_type =
 		get_ddc_transaction_type(sink_caps->signal);
@@ -494,47 +493,7 @@ static bool detect_dp(
 			return false;
 
 		if (is_mst_supported(link)) {
-			sink_caps->signal = SIGNAL_TYPE_DISPLAY_PORT_MST;
-			link->type = dc_connection_mst_branch;
-
-			dal_ddc_service_set_transaction_type(
-							link->ddc,
-							sink_caps->transaction_type);
-
-			/*
-			 * This call will initiate MST topology discovery. Which
-			 * will detect MST ports and add new DRM connector DRM
-			 * framework. Then read EDID via remote i2c over aux. In
-			 * the end, will notify DRM detect result and save EDID
-			 * into DRM framework.
-			 *
-			 * .detect is called by .fill_modes.
-			 * .fill_modes is called by user mode ioctl
-			 * DRM_IOCTL_MODE_GETCONNECTOR.
-			 *
-			 * .get_modes is called by .fill_modes.
-			 *
-			 * call .get_modes, AMDGPU DM implementation will create
-			 * new dc_sink and add to dc_link. For long HPD plug
-			 * in/out, MST has its own handle.
-			 *
-			 * Therefore, just after dc_create, link->sink is not
-			 * created for MST until user mode app calls
-			 * DRM_IOCTL_MODE_GETCONNECTOR.
-			 *
-			 * Need check ->sink usages in case ->sink = NULL
-			 * TODO: s3 resume check
-			 */
-			if (reason == DETECT_REASON_BOOT)
-				boot = true;
-
-			if (!dm_helpers_dp_mst_start_top_mgr(
-				link->ctx,
-				link, boot)) {
-				/* MST not supported */
-				link->type = dc_connection_single;
-				sink_caps->signal = SIGNAL_TYPE_DISPLAY_PORT;
-			}
+			link->dpcd_caps.dongle_type = DISPLAY_DONGLE_DP_HDMI_CONVERTER;
 		}
 
 		if (link->type != dc_connection_mst_branch &&
