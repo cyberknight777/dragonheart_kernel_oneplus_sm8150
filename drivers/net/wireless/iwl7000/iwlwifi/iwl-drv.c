@@ -2087,7 +2087,7 @@ IWL_EXPORT_SYMBOL(iwl_opmode_deregister);
 
 static int __init iwl_drv_init(void)
 {
-	int i;
+	int i, err;
 
 	mutex_init(&iwlwifi_opmode_table_mtx);
 
@@ -2101,8 +2101,10 @@ static int __init iwl_drv_init(void)
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	iwl_kobj = kobject_create_and_add("devices", &THIS_MODULE->mkobj.kobj);
-	if (!iwl_kobj)
-		return -ENOMEM;
+	if (!iwl_kobj) {
+		err = -ENOMEM;
+		goto cleanup_tm_gnl;
+	}
 #endif
 
 	pr_info(DRV_DESCRIPTION "\n");
@@ -2113,7 +2115,24 @@ static int __init iwl_drv_init(void)
 	iwl_dbgfs_root = debugfs_create_dir(DRV_NAME, NULL);
 #endif
 
-	return iwl_pci_register_driver();
+	err = iwl_pci_register_driver();
+	if (err)
+		goto cleanup_debugfs;
+
+	return 0;
+
+cleanup_debugfs:
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	kobject_put(iwl_kobj);
+cleanup_tm_gnl:
+#endif
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	iwl_tm_gnl_exit();
+#endif
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	debugfs_remove_recursive(iwl_dbgfs_root);
+#endif
+	return err;
 }
 module_init(iwl_drv_init);
 
