@@ -1252,7 +1252,7 @@ struct sst_dsp *sst_dsp_new(struct device *dev,
 
 	err = sst_dma_new(sst);
 	if (err)  {
-		dev_warn(dev, "sst_dma_new failed %d\n", err);
+		dev_err(dev, "sst_dma_new failed %d\n", err);
 		goto dma_err;
 	}
 
