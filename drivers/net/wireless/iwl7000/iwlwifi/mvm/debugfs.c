@@ -549,8 +549,8 @@ static ssize_t iwl_dbgfs_amsdu_len_write(struct ieee80211_sta *sta,
 	int i;
 	u16 amsdu_len;
 
-	if (!kstrtou16(buf, 0, &amsdu_len))
-		return count;
+	if (kstrtou16(buf, 0, &amsdu_len))
+		return -EINVAL;
 
 	if (amsdu_len) {
 		mvmsta->orig_amsdu_len = sta->max_amsdu_len;
@@ -575,7 +575,7 @@ static ssize_t iwl_dbgfs_amsdu_len_read(struct file *file,
 	int pos;
 
 	pos = scnprintf(buf, sizeof(buf), "current %d ", sta->max_amsdu_len);
-	pos += scnprintf(buf, sizeof(buf) - pos, "stored %d\n",
+	pos += scnprintf(buf + pos, sizeof(buf) - pos, "stored %d\n",
 			 mvmsta->orig_amsdu_len);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
