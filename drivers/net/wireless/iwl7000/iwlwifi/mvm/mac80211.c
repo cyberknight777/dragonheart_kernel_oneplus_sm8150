@@ -2373,13 +2373,6 @@ static u8 iwl_mvm_he_get_ppe_val(u8 *ppe, u8 ppe_pos_bit)
 	return res;
 }
 
-static const u8 mac80211_ac_to_ucode_ac[] = {
-	AC_VO,
-	AC_VI,
-	AC_BE,
-	AC_BK
-};
-
 static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			       struct ieee80211_vif *vif, u8 sta_id)
 {
@@ -2548,7 +2541,7 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
 		struct ieee80211_he_mu_edca_param_ac_rec *mu_edca =
 			&mvmvif->queue_params[i].mu_edca_param_rec;
-		u8 ac = mac80211_ac_to_ucode_ac[i];
+		u8 ac = iwl_mvm_mac80211_ac_to_ucode_ac(i);
 
 		if (!mvmvif->queue_params[i].mu_edca) {
 			flags &= ~STA_CTXT_HE_MU_EDCA_CW;
