@@ -157,7 +157,7 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 			lmac2 = &palive4->lmac_data[1];
 			umac = &palive4->umac_data;
 			lmac2_err_ptr = lmac2->dbg_ptrs.error_event_table_ptr;
-			xvt->trans->lmac_error_event_table[1] =
+			xvt->trans->dbg.lmac_error_event_table[1] =
 				le32_to_cpu(lmac2_err_ptr);
 
 			IWL_DEBUG_FW(xvt, "Alive VER4 CDB\n");
