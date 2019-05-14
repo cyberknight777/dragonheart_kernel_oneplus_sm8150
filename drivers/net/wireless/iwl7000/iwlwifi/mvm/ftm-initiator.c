@@ -203,6 +203,10 @@ static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		cmd->initiator_flags |=
 			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB);
 	}
+
+	if (IWL_MVM_FTM_INITIATOR_FAST_ALGO_DISABLE)
+		cmd->initiator_flags |=
+			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_FAST_ALGO_DISABLED);
 #endif
 
 	if (vif->bss_conf.assoc) {
