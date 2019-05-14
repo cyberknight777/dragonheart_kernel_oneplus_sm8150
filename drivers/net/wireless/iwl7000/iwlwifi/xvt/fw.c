@@ -261,7 +261,8 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	if (ret)
 		return ret;
 
-	if (ucode_type == IWL_UCODE_REGULAR) {
+	if (ucode_type == IWL_UCODE_REGULAR &&
+	    fw_has_capa(&xvt->fw->ucode_capa, IWL_UCODE_TLV_CAPA_DQA_SUPPORT)) {
 		ret = iwl_xvt_send_dqa_cmd(xvt);
 		if (ret)
 			return ret;
