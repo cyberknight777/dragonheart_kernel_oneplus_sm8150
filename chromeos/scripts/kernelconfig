@@ -102,14 +102,9 @@ build_one() {
 		make -j O="${O}" ARCH=${kernarch} savedefconfig
 		mv "${O}/defconfig" "${archconfdir}/${config}"
 		if [[ "${keep}" == "1" ]]; then
-			# oldconfig is probably redundant because .config is
-		        # likely formatted already at this point, however
-		        # this only take a split-second and could flag some
-		        # issues.
-			make -j O="${O}" ARCH=${kernarch} oldconfig
-			make -j O="${O}" ARCH=${kernarch} savedefconfig
 			mv "${O}"/.config "CONFIGS/${arch}-${config}"
-			mv "${O}"/defconfig "CONFIGS/${arch}-${config}.def"
+			cp "${archconfdir}/${config}" \
+				"CONFIGS/${arch}-${config}.def"
 		fi
 	done
 
@@ -184,7 +179,7 @@ main() {
 	local keep=0
 	if [[ "${mode}" == "genconfig" ]]; then
 		keep=1
-		mode="oldconfig"
+		mode="olddefconfig"
 		mkdir -p CONFIGS
 	fi
 
