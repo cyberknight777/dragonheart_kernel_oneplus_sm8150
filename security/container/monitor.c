@@ -509,7 +509,7 @@ static int __init csm_init(void)
 		goto error_rm_enabled;
 	}
 
-	csm_config_vers_file = securityfs_create_file("config_version", 0200,
+	csm_config_vers_file = securityfs_create_file("config_version", 0400,
 						      csm_dir, NULL,
 						      &csm_config_version_fops);
 	if (IS_ERR(csm_config_vers_file)) {
@@ -528,7 +528,7 @@ static int __init csm_init(void)
 	}
 
 	if (csm_user_write_pipe) {
-		csm_pipe_file = securityfs_create_file("pipe", 0200, csm_dir,
+		csm_pipe_file = securityfs_create_file("pipe", 0400, csm_dir,
 						       NULL, &csm_pipe_fops);
 		if (IS_ERR(csm_pipe_file)) {
 			err = PTR_ERR(csm_pipe_file);
