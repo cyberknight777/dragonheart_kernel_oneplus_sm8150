@@ -1019,6 +1019,8 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	if (error)
 		goto out;
 
+	pm_wakeup_event(dev, 0);
+
 	if (report[ETP_REPORT_ID_OFFSET] != ETP_REPORT_ID)
 		dev_err(dev, "invalid report id data (%x)\n",
 			report[ETP_REPORT_ID_OFFSET]);
