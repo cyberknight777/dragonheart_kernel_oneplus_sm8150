@@ -1080,21 +1080,16 @@ static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 					i, j, value[1], value[2], value[0]);
 		}
 	}
-	if (fw_has_api(&mvm->fw->ucode_capa,
+
+	cmd.table_revision = cpu_to_le32(mvm->geo_rev);
+
+	if (!fw_has_api(&mvm->fw->ucode_capa,
 		       IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
-		cmd.table_revision = cpu_to_le32(mvm->geo_rev);
-	} else {
-		struct iwl_geo_tx_power_profiles_cmd_v1 cmd_v1 = {
-			.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES),
-		};
-
-		memcpy(&cmd_v1.table, cmd.table,
-		       sizeof(struct iwl_per_chain_offset_group) *
-		       IWL_NUM_GEO_PROFILES);
-
-		return iwl_mvm_send_cmd_pdu(mvm, cmd_wide_id, 0, sizeof(cmd_v1),
-					    &cmd_v1);
+		return iwl_mvm_send_cmd_pdu(mvm, cmd_wide_id, 0,
+				sizeof(struct iwl_geo_tx_power_profiles_cmd_v1),
+				&cmd);
 	}
+
 	return iwl_mvm_send_cmd_pdu(mvm, cmd_wide_id, 0, sizeof(cmd), &cmd);
 }
 
