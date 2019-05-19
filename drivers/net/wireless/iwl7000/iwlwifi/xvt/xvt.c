@@ -187,6 +187,10 @@ static const struct iwl_hcmd_names iwl_xvt_xvt_names[] = {
 	HCMD_NAME(IQ_CALIB_CONFIG_NOTIF),
 };
 
+static const struct iwl_hcmd_names iwl_xvt_debug_names[] = {
+	HCMD_NAME(DBGC_SUSPEND_RESUME),
+};
+
 static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[LEGACY_GROUP] = HCMD_ARR(iwl_xvt_cmd_names),
 	[LONG_GROUP] = HCMD_ARR(iwl_xvt_long_cmd_names),
@@ -196,6 +200,7 @@ static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
 	[LOCATION_GROUP] = HCMD_ARR(iwl_xvt_location_names),
 	[REGULATORY_AND_NVM_GROUP] = HCMD_ARR(iwl_xvt_regulatory_and_nvm_names),
 	[XVT_GROUP] = HCMD_ARR(iwl_xvt_xvt_names),
+	[DEBUG_GROUP] = HCMD_ARR(iwl_xvt_debug_names),
 };
 
 static int iwl_xvt_tm_send_hcmd(void *op_mode, struct iwl_host_cmd *host_cmd)
