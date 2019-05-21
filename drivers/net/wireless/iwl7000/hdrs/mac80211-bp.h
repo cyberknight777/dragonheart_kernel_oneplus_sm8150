@@ -2688,4 +2688,18 @@ cfg80211_find_ext_elem(u8 ext_eid, const u8 *ies, int len)
 {
 	return (void *)cfg80211_find_ext_ie(ext_eid, ies, len);
 }
+
+static inline void cfg80211_bss_iter(struct wiphy *wiphy,
+				     struct cfg80211_chan_def *chandef,
+				     void (*iter)(struct wiphy *wiphy,
+						  struct cfg80211_bss *bss,
+						  void *data),
+				     void *iter_data)
+{
+	/*
+	 * It might be possible to backport this function, but that would
+	 * require duplicating large portions of data structure/code, so
+	 * leave it empty for now.
+	 */
+}
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */
