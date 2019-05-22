@@ -375,7 +375,9 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 	}
 	iwl_dnt_start(xvt->trans);
 
-	if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR)
+	if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR &&
+	    (!fw_has_capa(&xvt->fw->ucode_capa,
+			  IWL_UCODE_TLV_CAPA_SET_LTR_GEN2)))
 		WARN_ON(iwl_xvt_config_ltr(xvt));
 
 	xvt->fwrt.dump.conf = FW_DBG_INVALID;
