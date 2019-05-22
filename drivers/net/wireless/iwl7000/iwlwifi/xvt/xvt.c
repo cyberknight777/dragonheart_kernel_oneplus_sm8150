@@ -351,6 +351,7 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 			iwl_xvt_txq_disable(xvt);
 			xvt->fw_running = false;
 		}
+		iwl_fw_dbg_stop_sync(&xvt->fwrt);
 		iwl_trans_stop_device(xvt->trans);
 	}
 

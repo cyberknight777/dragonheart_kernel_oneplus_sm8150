@@ -393,7 +393,7 @@ static inline void iwl_fw_umac_set_alive_err_table(struct iwl_trans *trans,
 		trans->dbg.umac_error_event_table = umac_error_event_table;
 }
 
-void iwl_fwrt_stop_device(struct iwl_fw_runtime *fwrt);
+void iwl_fw_dbg_stop_sync(struct iwl_fw_runtime *fwrt);
 
 static inline void iwl_fw_error_collect(struct iwl_fw_runtime *fwrt)
 {

@@ -83,6 +83,7 @@
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
 #include "iwl-trans.h"
+#include "fw/dbg.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ)
 #define XVT_SCU_BASE	(0xe6a00000)
@@ -477,6 +478,7 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 	return 0;
 init_error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 	return err;
 }
@@ -511,6 +513,7 @@ static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt, bool cont_run)
 	return 0;
 
 phy_error:
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 
 fw_error:
@@ -558,6 +561,7 @@ static int iwl_xvt_start_op_mode(struct iwl_xvt *xvt)
 		} else {
 			if (xvt->state != IWL_XVT_STATE_UNINITIALIZED) {
 				xvt->fw_running = false;
+				iwl_fw_dbg_stop_sync(&xvt->fwrt);
 				iwl_trans_stop_device(xvt->trans);
 			}
 			err = iwl_trans_start_hw(xvt->trans);
@@ -607,6 +611,7 @@ static void iwl_xvt_stop_op_mode(struct iwl_xvt *xvt)
 		iwl_xvt_txq_disable(xvt);
 		xvt->fw_running = false;
 	}
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 
 	iwl_free_fw_paging(&xvt->fwrt);
@@ -667,6 +672,7 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
 	iwl_xvt_txq_disable(xvt);
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 
 cont_init_end:

@@ -337,6 +337,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 			if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR)
 				iwl_xvt_txq_disable(xvt);
 		}
+		iwl_fw_dbg_stop_sync(&xvt->fwrt);
 		_iwl_trans_stop_device(xvt->trans, !cont_run);
 	}
 
@@ -358,6 +359,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 	ret = iwl_xvt_load_ucode_wait_alive(xvt, ucode_type);
 	if (ret) {
 		IWL_ERR(xvt, "Failed to start ucode: %d\n", ret);
+		iwl_fw_dbg_stop_sync(&xvt->fwrt);
 		iwl_trans_stop_device(xvt->trans);
 	}
 
@@ -366,6 +368,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 		if (ret) {
 			IWL_ERR(xvt, "Failed to send extended_config: %d\n",
 				ret);
+			iwl_fw_dbg_stop_sync(&xvt->fwrt);
 			iwl_trans_stop_device(xvt->trans);
 			return ret;
 		}
