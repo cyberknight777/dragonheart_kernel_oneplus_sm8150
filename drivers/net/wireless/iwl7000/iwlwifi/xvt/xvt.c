@@ -125,6 +125,7 @@ static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
 	HCMD_NAME(BA_NOTIF),
 	HCMD_NAME(DTS_MEASUREMENT_NOTIFICATION),
 	HCMD_NAME(REPLY_DEBUG_XVT_CMD),
+	HCMD_NAME(LDBG_CONFIG_CMD),
 	HCMD_NAME(DEBUG_LOG_MSG),
 };
 
