@@ -910,7 +910,7 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 		u8 elen = elem->datalen;
 		const u8 *pos = elem->data;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
 		if (check_inherit &&
 		    !cfg80211_is_element_inherited(elem,
 						   check_inherit))
