@@ -1262,7 +1262,7 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 					    u8 *bss_bssid,
 					    u8 **nontransmitted_profile)
 {
-#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
 	const struct element *elem, *sub;
 	size_t profile_len = 0;
 	bool found = false;
