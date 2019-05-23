@@ -510,10 +510,42 @@ struct mem_size_stats {
 	unsigned long private_hugetlb;
 	unsigned long first_vma_start;
 	u64 pss;
+	u64 pss_anon;
+	u64 pss_file;
+	u64 pss_shmem;
 	u64 pss_locked;
 	u64 swap_pss;
 	bool check_shmem_swap;
 };
+
+static void smaps_page_accumulate(struct mem_size_stats *mss,
+		struct page *page, unsigned long size, unsigned long pss,
+		bool dirty, bool locked, bool private)
+{
+	mss->pss += pss;
+
+	if (PageAnon(page))
+		mss->pss_anon += pss;
+	else if (PageSwapBacked(page))
+		mss->pss_shmem += pss;
+	else
+		mss->pss_file += pss;
+
+	if (locked)
+		mss->pss_locked += pss;
+
+	if (dirty || PageDirty(page)) {
+		if (private)
+			mss->private_dirty += size;
+		else
+			mss->shared_dirty += size;
+	} else {
+		if (private)
+			mss->private_clean += size;
+		else
+			mss->shared_clean += size;
+	}
+}
 
 static void smaps_account(struct mem_size_stats *mss, struct page *page,
 		bool compound, bool young, bool dirty, bool locked)
@@ -521,6 +553,10 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
 	int i, nr = compound ? 1 << compound_order(page) : 1;
 	unsigned long size = nr * PAGE_SIZE;
 
+	/*
+	 * First accumulate quantities that depend only on |size| and the type
+	 * of the compound page.
+	 */
 	if (PageAnon(page)) {
 		mss->anonymous += size;
 		if (!PageSwapBacked(page) && !dirty && !PageDirty(page))
@@ -533,42 +569,24 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
 		mss->referenced += size;
 
 	/*
+	 * Then accumulate quantities that may depend on sharing, or that may
+	 * differ page-by-page.
+	 *
 	 * page_count(page) == 1 guarantees the page is mapped exactly once.
 	 * If any subpage of the compound page mapped with PTE it would elevate
 	 * page_count().
 	 */
 	if (page_count(page) == 1) {
-		if (dirty || PageDirty(page))
-			mss->private_dirty += size;
-		else
-			mss->private_clean += size;
-		mss->pss += (u64)size << PSS_SHIFT;
-		if (locked)
-			mss->pss_locked += (u64)size << PSS_SHIFT;
+		smaps_page_accumulate(mss, page, size, size << PSS_SHIFT, dirty,
+				      locked, true);
 		return;
 	}
-
 	for (i = 0; i < nr; i++, page++) {
 		int mapcount = page_mapcount(page);
 		unsigned long pss = (PAGE_SIZE << PSS_SHIFT);
 
-		if (mapcount >= 2) {
-			if (dirty || PageDirty(page))
-				mss->shared_dirty += PAGE_SIZE;
-			else
-				mss->shared_clean += PAGE_SIZE;
-			mss->pss += pss / mapcount;
-			if (locked)
-				mss->pss_locked += pss / mapcount;
-		} else {
-			if (dirty || PageDirty(page))
-				mss->private_dirty += PAGE_SIZE;
-			else
-				mss->private_clean += PAGE_SIZE;
-			mss->pss += pss;
-			if (locked)
-				mss->pss_locked += pss;
-		}
+		smaps_page_accumulate(mss, page, PAGE_SIZE, pss / mapcount,
+			dirty, locked, mapcount >= 2);
 	}
 }
 
@@ -890,7 +908,22 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 	if (!rollup_mode || last_vma)
 		seq_printf(m,
 			   "Rss:            %8lu kB\n"
-			   "Pss:            %8lu kB\n"
+			   "Pss:            %8lu kB\n",
+			   mss->resident >> 10,
+			   (unsigned long)(mss->pss >> (10 + PSS_SHIFT)));
+
+	if (rollup_mode && last_vma)
+		// These are meaningful only in rollup mode.
+		seq_printf(m,
+			   "Pss_Anon:       %8lu kB\n"
+			   "Pss_File:       %8lu kB\n"
+			   "Pss_Shmem:      %8lu kB\n",
+			   (unsigned long)(mss->pss_anon >> (10 + PSS_SHIFT)),
+			   (unsigned long)(mss->pss_file >> (10 + PSS_SHIFT)),
+			   (unsigned long)(mss->pss_shmem >> (10 + PSS_SHIFT)));
+
+	if (!rollup_mode || last_vma)
+		seq_printf(m,
 			   "Shared_Clean:   %8lu kB\n"
 			   "Shared_Dirty:   %8lu kB\n"
 			   "Private_Clean:  %8lu kB\n"
@@ -905,8 +938,6 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 			   "Swap:           %8lu kB\n"
 			   "SwapPss:        %8lu kB\n"
 			   "Locked:         %8lu kB\n",
-			   mss->resident >> 10,
-			   (unsigned long)(mss->pss >> (10 + PSS_SHIFT)),
 			   mss->shared_clean  >> 10,
 			   mss->shared_dirty  >> 10,
 			   mss->private_clean >> 10,
@@ -935,6 +966,9 @@ static void add_smaps_sum(struct mem_size_stats *mss,
 {
 	mss_sum->resident += mss->resident;
 	mss_sum->pss += mss->pss;
+	mss_sum->pss_anon += mss->pss_anon;
+	mss_sum->pss_file += mss->pss_file;
+	mss_sum->pss_shmem += mss->pss_shmem;
 	mss_sum->shared_clean += mss->shared_clean;
 	mss_sum->shared_dirty += mss->shared_dirty;
 	mss_sum->private_clean += mss->private_clean;
