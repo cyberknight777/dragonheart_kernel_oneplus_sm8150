@@ -1141,6 +1141,9 @@ void sco_recv_scodata(struct hci_conn *hcon, struct sk_buff *skb)
 	if (!conn)
 		goto drop;
 
+	if (sco_pi(conn->sk)->setting != BT_VOICE_TRANSPARENT)
+		skb_pull(skb, HCI_SCO_HDR_SIZE);
+
 	BT_DBG("conn %p len %d", conn, skb->len);
 
 	if (skb->len) {
