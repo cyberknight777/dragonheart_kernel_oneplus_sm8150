@@ -778,9 +778,20 @@ static int aw8697_haptic_set_bst_peak_cur(struct aw8697 *aw8697, unsigned char p
     return 0;
 }
 
+static unsigned char aw8697_haptic_set_level(struct aw8697 *aw8697, int gain)
+{
+    int val = 80;
+
+    val = aw8697->level * gain / 3;
+    if (val > 255)
+        val = 255;
+
+    return val;
+}
+
 static int aw8697_haptic_set_gain(struct aw8697 *aw8697, unsigned char gain)
 {
-    aw8697_i2c_write(aw8697, AW8697_REG_DATDBG, gain);
+    aw8697_i2c_write(aw8697, AW8697_REG_DATDBG, aw8697_haptic_set_level(aw8697, gain));
     return 0;
 }
 
@@ -1818,9 +1829,6 @@ static int aw8697_haptic_audio_off(struct aw8697 *aw8697)
 	mutex_lock(&aw8697->lock);
 	aw8697_haptic_set_gain(aw8697, 0x80);
 	aw8697_haptic_stop(aw8697);
-	aw8697->gun_type = 0xff;
-	aw8697->bullet_nr =0;
-	aw8697->gun_mode =0;
 	aw8697_haptic_audio_ctr_list_clear(&aw8697->haptic_audio);
 	mutex_unlock(&aw8697->lock);
 
@@ -2275,120 +2283,6 @@ static void aw8697_haptic_audio_work_routine(struct work_struct *work)
 			mutex_unlock(&aw8697->lock);
 		}
 	}
-}
-
-static ssize_t aw8697_gun_type_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-#ifdef TIMED_OUTPUT
-    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
-#else
-    struct led_classdev *cdev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
-#endif
-    return snprintf(buf, PAGE_SIZE, "0x%02x\n", aw8697->gun_type);
-}
-
-static ssize_t aw8697_gun_type_store(struct device *dev,
-        struct device_attribute *attr, const char *buf, size_t count)
-{
-#ifdef TIMED_OUTPUT
-    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
-#else
-    struct led_classdev *cdev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
-#endif
-    unsigned int val = 0;
-    int rc = 0;
-
-    rc = kstrtouint(buf, 0, &val);
-    if (rc < 0)
-        return rc;
-
-    pr_debug("%s: value=%d\n", __FUNCTION__, val);
-
-    mutex_lock(&aw8697->lock);
-    aw8697->gun_type = val;
-    mutex_unlock(&aw8697->lock);
-    return count;
-}
-
-static ssize_t aw8697_bullet_nr_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-#ifdef TIMED_OUTPUT
-    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
-#else
-    struct led_classdev *cdev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
-#endif
-    return snprintf(buf, PAGE_SIZE, "0x%02x\n", aw8697->bullet_nr);
-}
-
-static ssize_t aw8697_bullet_nr_store(struct device *dev,
-        struct device_attribute *attr, const char *buf, size_t count)
-{
-#ifdef TIMED_OUTPUT
-    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
-#else
-    struct led_classdev *cdev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
-#endif
-    unsigned int val = 0;
-    int rc = 0;
-
-    rc = kstrtouint(buf, 0, &val);
-    if (rc < 0)
-        return rc;
-
-    pr_debug("%s: value=%d\n", __FUNCTION__, val);
-
-    mutex_lock(&aw8697->lock);
-    aw8697->bullet_nr = val;
-    mutex_unlock(&aw8697->lock);
-    return count;
-}
-
-static ssize_t aw8697_gun_mode_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-#ifdef TIMED_OUTPUT
-    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
-#else
-    struct led_classdev *cdev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
-#endif
-    return snprintf(buf, PAGE_SIZE, "0x%02x\n", aw8697->gun_mode);
-}
-
-static ssize_t aw8697_gun_mode_store(struct device *dev,
-        struct device_attribute *attr, const char *buf, size_t count)
-{
-#ifdef TIMED_OUTPUT
-    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
-#else
-    struct led_classdev *cdev = dev_get_drvdata(dev);
-    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
-#endif
-    unsigned int val = 0;
-    int rc = 0;
-
-    rc = kstrtouint(buf, 0, &val);
-    if (rc < 0)
-        return rc;
-
-    pr_debug("%s: value=%d\n", __FUNCTION__, val);
-
-    mutex_lock(&aw8697->lock);
-    aw8697->gun_mode = val;
-    mutex_unlock(&aw8697->lock);
-    return count;
 }
 
 /*****************************************************
@@ -2942,9 +2836,6 @@ static int aw8697_haptic_init(struct aw8697 *aw8697)
         tp->id[i].pt_info.status = 0;
     }
 
-    aw8697->gun_type = 0xff;
-    aw8697->bullet_nr = 0x00;
-    aw8697->gun_mode = 0x00;
     INIT_LIST_HEAD(&(aw8697->haptic_audio.list));
 	INIT_LIST_HEAD(&(aw8697->haptic_audio.score_list));
     aw8697->haptic_audio.tp_size.x = 3120;
@@ -2961,6 +2852,7 @@ static int aw8697_haptic_init(struct aw8697 *aw8697)
     aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RAM_MODE;
     aw8697_haptic_set_wav_loop(aw8697, aw8697->loop[0x00], 0xff);
     aw8697_haptic_set_bst_vol(aw8697, 0x11);
+    aw8697->level = 3;
     if (check_factory_mode())
        aw8697_haptic_set_gain(aw8697, 0xcf);
     else
@@ -3421,6 +3313,48 @@ static ssize_t aw8697_gain_store(struct device *dev,
     val_pre = val;
     mutex_lock(&aw8697->lock);
     aw8697->gain = val;
+    aw8697_haptic_set_gain(aw8697, aw8697->gain);
+    mutex_unlock(&aw8697->lock);
+    return count;
+}
+
+static ssize_t aw8697_level_show(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+#ifdef TIMED_OUTPUT
+    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
+#else
+    struct led_classdev *cdev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
+#endif
+
+    return snprintf(buf, PAGE_SIZE, "%d\n", aw8697->level);
+}
+
+static ssize_t aw8697_level_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+#ifdef TIMED_OUTPUT
+    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
+#else
+    struct led_classdev *cdev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
+#endif
+    unsigned int val = 0;
+    int rc = 0;
+
+    rc = kstrtouint(buf, 0, &val);
+    if (rc < 0)
+        return rc;
+
+    if (val < 0 || val > 10)
+        val = 3;
+
+    pr_info("%s: value=%d\n", __FUNCTION__, val);
+    mutex_lock(&aw8697->lock);
+    aw8697->level = val;
     aw8697_haptic_set_gain(aw8697, aw8697->gain);
     mutex_unlock(&aw8697->lock);
     return count;
@@ -5094,6 +5028,7 @@ static DEVICE_ATTR(activate_mode, S_IWUSR | S_IRUGO, aw8697_activate_mode_show, 
 static DEVICE_ATTR(index, S_IWUSR | S_IRUGO, aw8697_index_show, aw8697_index_store);
 static DEVICE_ATTR(vmax, S_IWUSR | S_IRUGO, aw8697_vmax_show, aw8697_vmax_store);
 static DEVICE_ATTR(gain, S_IWUSR | S_IRUGO, aw8697_gain_show, aw8697_gain_store);
+static DEVICE_ATTR(level, S_IWUSR | S_IRUGO, aw8697_level_show, aw8697_level_store);
 static DEVICE_ATTR(seq, S_IWUSR | S_IRUGO, aw8697_seq_show, aw8697_seq_store);
 static DEVICE_ATTR(loop, S_IWUSR | S_IRUGO, aw8697_loop_show, aw8697_loop_store);
 static DEVICE_ATTR(register, S_IWUSR | S_IRUGO, aw8697_reg_show, aw8697_reg_store);
@@ -5124,9 +5059,6 @@ static DEVICE_ATTR(haptic_audio_tz_cnt, S_IWUSR | S_IRUGO, aw8697_haptic_audio_t
 static DEVICE_ATTR(haptic_audio_hap_cnt_max_outside_tz, S_IWUSR | S_IRUGO, aw8697_haptic_audio_hap_cnt_max_outside_tz_show, aw8697_haptic_audio_hap_cnt_max_outside_tz_store);
 static DEVICE_ATTR(haptic_osc_data, S_IWUSR | S_IRUGO, aw8697_haptic_osc_data_show, aw8697_osc_data_store);
 static DEVICE_ATTR(ram_test, S_IWUSR | S_IRUGO, aw8697_haptic_ram_test_show, aw8697_haptic_ram_test_store);
-static DEVICE_ATTR(gun_type, S_IWUSR | S_IRUGO, aw8697_gun_type_show, aw8697_gun_type_store);
-static DEVICE_ATTR(bullet_nr, S_IWUSR | S_IRUGO, aw8697_bullet_nr_show, aw8697_bullet_nr_store);
-static DEVICE_ATTR(gun_mode, S_IWUSR | S_IRUGO, aw8697_gun_mode_show, aw8697_gun_mode_store);
 
 static struct attribute *aw8697_vibrator_attributes[] = {
     &dev_attr_state.attr,
@@ -5136,6 +5068,7 @@ static struct attribute *aw8697_vibrator_attributes[] = {
     &dev_attr_index.attr,
     &dev_attr_vmax.attr,
     &dev_attr_gain.attr,
+    &dev_attr_level.attr,
     &dev_attr_seq.attr,
     &dev_attr_loop.attr,
     &dev_attr_register.attr,
@@ -5166,9 +5099,6 @@ static struct attribute *aw8697_vibrator_attributes[] = {
     &dev_attr_haptic_audio_hap_cnt_max_outside_tz.attr,
     &dev_attr_haptic_osc_data.attr,
     &dev_attr_ram_test.attr,
-    &dev_attr_gun_type.attr,
-    &dev_attr_bullet_nr.attr,
-    &dev_attr_gun_mode.attr,
     NULL
 };
 
