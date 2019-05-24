@@ -5225,6 +5225,29 @@ static void aw8697_vibrator_work_routine(struct work_struct *work)
     mutex_unlock(&aw8697->lock);
 }
 
+void set_vibrate(void)
+{
+    int rtp_is_going_on = 0;
+
+    rtp_is_going_on = aw8697_haptic_juge_RTP_is_going_on(g_aw8697);
+    if (rtp_is_going_on)
+       return;
+    if (!g_aw8697->ram_init)
+       return;
+
+    mutex_lock(&g_aw8697->lock);
+    g_aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RAM_MODE;
+    g_aw8697->index = 10;/*sine 170hz*/
+    aw8697_haptic_set_repeat_wav_seq(g_aw8697, g_aw8697->index);
+
+    hrtimer_cancel(&g_aw8697->timer);
+
+    g_aw8697->state = 1;
+    mutex_unlock(&g_aw8697->lock);
+    schedule_work(&g_aw8697->vibrator_work);
+
+}
+
 static int aw8697_vibrator_init(struct aw8697 *aw8697)
 {
     int ret = 0;
