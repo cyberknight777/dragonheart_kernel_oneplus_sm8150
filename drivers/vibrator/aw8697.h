@@ -466,6 +466,7 @@ struct aw8697 {
     int index;
     int vmax;
     int gain;
+    int level;
 
     unsigned char seq[AW8697_SEQUENCER_SIZE];
     unsigned char loop[AW8697_SEQUENCER_SIZE];
@@ -507,9 +508,6 @@ struct aw8697 {
     unsigned int game_microsecond;
     unsigned int interval_us;
     struct notifier_block fb_notif;/*register to control tp report*/
-    unsigned int gun_type;
-    unsigned int bullet_nr;
-    unsigned int gun_mode;
 };
 
 struct aw8697_container{
