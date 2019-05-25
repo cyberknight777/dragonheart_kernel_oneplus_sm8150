@@ -5238,6 +5238,7 @@ void set_vibrate(void)
     mutex_lock(&g_aw8697->lock);
     g_aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RAM_MODE;
     g_aw8697->index = 10;/*sine 170hz*/
+    g_aw8697->duration = 30;
     aw8697_haptic_set_repeat_wav_seq(g_aw8697, g_aw8697->index);
 
     hrtimer_cancel(&g_aw8697->timer);
