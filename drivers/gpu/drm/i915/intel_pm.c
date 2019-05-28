@@ -6467,7 +6467,6 @@ void gen6_rps_boost(struct drm_i915_gem_request *rq,
 		    struct intel_rps_client *rps_client)
 {
 	struct intel_rps *rps = &rq->i915->gt_pm.rps;
-	unsigned long flags;
 	bool boost;
 
 	/* This is intentionally racy! We peek at the state here, then
@@ -6477,6 +6476,11 @@ void gen6_rps_boost(struct drm_i915_gem_request *rq,
 		return;
 
 	boost = false;
+	/*
+	 * FIXME: This is temporary change to improve power consumption
+	 * in hangouts use case. (See: b/130638275)
+	 */
+	/*
 	spin_lock_irqsave(&rq->lock, flags);
 	if (!rq->waitboost && !i915_gem_request_completed(rq)) {
 		atomic_inc(&rps->num_waiters);
@@ -6484,6 +6488,7 @@ void gen6_rps_boost(struct drm_i915_gem_request *rq,
 		boost = true;
 	}
 	spin_unlock_irqrestore(&rq->lock, flags);
+	*/
 	if (!boost)
 		return;
 
