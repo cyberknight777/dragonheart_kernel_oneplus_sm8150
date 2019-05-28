@@ -433,6 +433,16 @@ void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	iwl_mvm_reset_frame_stats(mvm);
 #endif
 	rs_fw_set_supp_rates(sta, sband, &cfg_cmd);
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	/*
+	 * if AP disables mimo on 160bw (cmd->ht_rates[1][1] == 0
+	 * we disable mimo on 80bw cmd->ht_rates[1][0]
+	 */
+	if (mvm->trans->dbg_cfg.tx_siso_80bw_like_160bw &&
+	    !cfg_cmd.ht_rates[1][1])
+		cfg_cmd.ht_rates[1][0] = 0;
+
+#endif
 
 	/*
 	 * since TLC offload works with one mode we can assume
