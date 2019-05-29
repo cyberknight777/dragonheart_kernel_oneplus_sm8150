@@ -5354,7 +5354,6 @@ static int memory_stat_show(struct seq_file *m, void *v)
 
 	seq_printf(m, "pgfault %lu\n", events[PGFAULT]);
 	seq_printf(m, "pgmajfault %lu\n", events[PGMAJFAULT]);
-	seq_printf(m, "pgmajfault %lu\n", events[PGMAJFAULT]);
 	seq_printf(m, "pgmajfault_s %lu\n", events[PGMAJFAULT_S]);
 	seq_printf(m, "pgmajfault_a %lu\n", events[PGMAJFAULT_A]);
 	seq_printf(m, "pgmajfault_f %lu\n", events[PGMAJFAULT_F]);
