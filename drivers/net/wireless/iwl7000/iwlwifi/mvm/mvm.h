@@ -2107,8 +2107,8 @@ static inline void iwl_mvm_stop_device(struct iwl_mvm *mvm)
 					false, 0);
 
 	iwl_fw_cancel_timestamp(&mvm->fwrt);
-	clear_bit(IWL_MVM_STATUS_FIRMWARE_RUNNING, &mvm->status);
 	iwl_fwrt_stop_device(&mvm->fwrt);
+	clear_bit(IWL_MVM_STATUS_FIRMWARE_RUNNING, &mvm->status);
 	iwl_free_fw_paging(&mvm->fwrt);
 	iwl_fw_dump_conf_clear(&mvm->fwrt);
 }
