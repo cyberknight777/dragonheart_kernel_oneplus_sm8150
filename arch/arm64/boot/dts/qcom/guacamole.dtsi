@@ -1,6 +1,10 @@
 /*this is for different project dtsi*/
 /* OnePlus add thermistor, by rio.zhao*/
 
+&mdss_dsi_phy0 {
+	qcom,panel-allow-phy-poweroff;
+};
+
 &thermal_zones {
 	skin-therm {
 		polling-delay-passive = <2000>;
