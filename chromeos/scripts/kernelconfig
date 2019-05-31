@@ -85,8 +85,8 @@ build_one() {
 
 			case ${REPLY} in
 			s|S)
-				echo "* Skip: running oldconfig"
-				make -j O="${O}" ARCH=${kernarch} oldconfig
+				echo "* Skip: running olddefconfig"
+				make -j O="${O}" ARCH=${kernarch} olddefconfig
 				;;
 			*)
 				echo "* Running menuconfig"
