@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  go2001 - GO2001 codec driver.
  *
@@ -15,10 +16,6 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
  */
 #ifndef _MEDIA_PCI_GO2001_GO2001_PROTO_H_
 #define _MEDIA_PCI_GO2001_GO2001_PROTO_H_
@@ -29,7 +26,7 @@ struct go2001_msg_ring_desc {
 	u32 end_off;
 	u32 wr_off;
 	u32 rd_off;
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_CTRL_SESSION_ID	0
 struct go2001_msg_hdr {
@@ -38,13 +35,13 @@ struct go2001_msg_hdr {
 	u32 sequence_id;
 	u32 type;
 	u32 status;
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_MAX_MSG_PAYLOAD_SIZE	SZ_256
 struct go2001_msg_payload {
 	struct go2001_msg_hdr hdr;
 	u8 param[GO2001_MAX_MSG_PAYLOAD_SIZE - sizeof(struct go2001_msg_hdr)];
-} __attribute__((packed));
+} __packed;
 
 #define go2001_calc_payload_size(param_size) \
 	(sizeof(struct go2001_msg_hdr) + (param_size))
@@ -116,14 +113,14 @@ enum go2001_hw_format_raw {
 struct go2001_init_decoder_param {
 	u32 coded_fmt;
 	u32 concealment;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_init_decoder_reply {
 	u32 session_id;
 	u32 input_address;
 	u32 input_buffer_size;
 	u32 output_address;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_init_encoder_param {
 	u32 session_id;
@@ -135,10 +132,10 @@ struct go2001_init_encoder_param {
 	u32 framerate_num;
 	u32 framerate_denom;
 	u32 raw_fmt;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_init_encoder_reply {
-} __attribute__((packed));
+} __packed;
 
 struct go2001_get_info_reply {
 	u32 vpx_version;
@@ -149,7 +146,7 @@ struct go2001_get_info_reply {
 	u32 coded_height;
 	u32 scaled_width;
 	u32 scaled_height;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_get_version_reply {
 	u32 hw_ver;
@@ -160,7 +157,7 @@ struct go2001_get_version_reply {
 	u32 vp8enc_sw_ver;
 	u32 vp9dec_hw_ver;
 	u32 vp9dec_sw_ver;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_enc_coding_ctrl_area {
 	u32 enabled;
@@ -168,7 +165,7 @@ struct go2001_enc_coding_ctrl_area {
 	u32 left;
 	u32 bottom;
 	u32 right;
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_CODING_CTRL_INTERP_FILTER_BICUBIC	0x0
 #define GO2001_CODING_CTRL_INTERP_FILTER_BILINEAR	0x1
@@ -205,7 +202,7 @@ struct go2001_enc_coding_ctrl {
 	s32 qp_delta[5];
 	s32 adaptive_roi;
 	s32 adaptive_roi_color;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_enc_rate_ctrl {
 	u32 picture_rc;
@@ -225,10 +222,10 @@ struct go2001_enc_rate_ctrl {
 	u32 golden_picture_boost;
 	u32 adaptive_golden_boost;
 	u32 adaptive_golden_update;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_enc_preprocess_ctrl {
-} __attribute__((packed));
+} __packed;
 
 enum go2001_hw_ctrl_type {
 	GO2001_HW_CTRL_TYPE_RATE = 1,
@@ -240,15 +237,15 @@ union go2001_hw_ctrl {
 	struct go2001_enc_rate_ctrl rate_ctrl;
 	struct go2001_enc_coding_ctrl coding_ctrl;
 	struct go2001_enc_preprocess_ctrl prep_ctrl;
-} __attribute__((packed));;
+} __packed;
 
 struct go2001_set_ctrl_param {
 	u32 type;
 	union go2001_hw_ctrl ctrl;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_set_ctrl_reply {
-} __attribute__((packed));
+} __packed;
 
 #define G02001_EMPTY_BUF_DEC_FLAG_RES_CHANGE_DONE	0x1
 struct go2001_empty_buffer_dec_param {
@@ -257,7 +254,7 @@ struct go2001_empty_buffer_dec_param {
 	u64 out_addr[2];
 	u32 flags;
 	u32 raw_fmt;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_empty_buffer_dec_reply {
 	struct go2001_get_info_reply info;
@@ -265,7 +262,7 @@ struct go2001_empty_buffer_dec_reply {
 	u32 golden_frame;
 	u32 num_error_mbs;
 	u32 num_slice_rows;
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_EMPTY_BUF_ENC_FRAME_KEYFRAME	0x0
 #define GO2001_EMPTY_BUF_ENC_FRAME_PRED		0x1
@@ -289,7 +286,7 @@ struct go2001_empty_buffer_enc_param {
 	u32 arf_frame_ctrl;
 	u32 layer_id;
 	u32 bits_per_sec;
-} __attribute__((packed));
+} __packed;
 
 #define VP8_MAX_NUM_PARTITIONS 9
 struct go2001_empty_buffer_enc_reply {
@@ -300,13 +297,13 @@ struct go2001_empty_buffer_enc_reply {
 	u32 ipf_frame_ctrl;
 	u32 grf_frame_ctrl;
 	u32 arf_frame_ctrl;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_mmap_list_desc {
 	u64 first_entry_dma_addr;
 	u32 entry_count;
 	u64 mmap_list_addr;
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_VSM_DIR_IN	(1<<0)
 #define GO2001_VSM_DIR_OUT	(1<<1)
@@ -315,46 +312,46 @@ struct go2001_set_mmap_param {
 	u32 dir;
 	u32 count;
 	struct go2001_mmap_list_desc mmap_list_desc[GO2001_MMAP_MAX_ENTRIES];
-} __attribute__((packed));
+} __packed;
 
 struct go2001_mmap_list_entry {
 	u64 dma_addr;
 	u32 size;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_release_mmap_param {
 	u32 dir;
 	u32 count;
 	u64 addr[GO2001_MMAP_MAX_ENTRIES];
-} __attribute__((packed));
+} __packed;
 
 struct go2001_event_assert_reply {
 	u8 filename[32];
 	u8 funcname[32];
 	u8 expr[32];
 	u32 line_no;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_event_log_reply {
 	u8 data[128];
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_LOG_LEVEL_MAX		5
 #define GO2001_LOG_LEVEL_DISABLED	0xFFFFFFFF
 struct go2001_set_log_level_param {
 	u32 level;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_set_log_level_reply {
 	u32 level;
-} __attribute__((packed));
+} __packed;
 
 struct go2001_boot_hdr {
 	u32 signature;
 	u32 entry_addr;
 	u32 size;
 	u32 checksum;
-} __attribute__((packed));
+} __packed;
 
 #define GO2001_FW_HDR_OFF	0x20afc0
 #define GO2001_FW_STOP		0x212010

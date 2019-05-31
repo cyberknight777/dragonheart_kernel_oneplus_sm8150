@@ -2,6 +2,6 @@ config VIDEO_GO2001
 	tristate "GO2001 codec driver"
 	depends on VIDEO_V4L2 && PCI
 	select VIDEOBUF2_DMA_SG
-	---help---
+	help
 	  Support for GO2001 codec.
 

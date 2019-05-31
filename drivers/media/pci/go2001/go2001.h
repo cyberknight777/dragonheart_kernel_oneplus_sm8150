@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  go2001 - GO2001 codec driver.
  *
@@ -14,10 +15,6 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
 #ifndef _MEDIA_PCI_GO2001_GO2001_H_
@@ -293,8 +290,8 @@ static inline struct go2001_ctx *ctrl_to_ctx(struct v4l2_ctrl *ctrl)
 	return container_of(ctrl->handler, struct go2001_ctx, ctrl_handler);
 }
 
-extern unsigned go2001_debug_level;
-extern unsigned go2001_fw_debug_level;
+extern unsigned int go2001_debug_level;
+extern unsigned int go2001_fw_debug_level;
 
 #define go2001_err(gdev, fmt, args...) \
 	dev_err(&gdev->pdev->dev, "%s:%d " fmt, __func__, __LINE__, ##args)

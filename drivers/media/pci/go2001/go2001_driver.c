@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  go2001 - GO2001 codec driver.
  *
@@ -14,10 +15,6 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
 #include <linux/types.h>
@@ -41,8 +38,8 @@
 
 #define DST_QUEUE_OFF_BASE	(1 << 30)
 
-unsigned go2001_debug_level;
-unsigned go2001_fw_debug_level;
+unsigned int go2001_debug_level;
+unsigned int go2001_fw_debug_level;
 module_param(go2001_debug_level, uint, 0644);
 MODULE_PARM_DESC(go2001_debug_level, " verbosity level for debug messages.");
 module_param(go2001_fw_debug_level, uint, 0644);
@@ -189,6 +186,7 @@ static struct go2001_fmt *go2001_find_fmt(struct go2001_ctx *ctx,
 						__u32 pixelformat)
 {
 	int i;
+
 	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
 		if (formats[i].pixelformat == pixelformat
 				&& (ctx->codec_mode & formats[i].codec_modes))
@@ -713,6 +711,7 @@ static int go2001_init_ctrl_handler(struct go2001_ctx *ctx)
 		ctrl = &ctrls[i];
 		if (V4L2_CTRL_DRIVER_PRIV(ctrl->id)) {
 			struct v4l2_ctrl_config cfg;
+
 			memset(&cfg, 0, sizeof(struct v4l2_ctrl_config));
 			cfg.ops = ops;
 			cfg.id = ctrl->id;
@@ -1373,6 +1372,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 
 	case GO2001_VM_EVENT_ASSERT: {
 		struct go2001_event_assert_reply *a = msg_to_param(reply);
+
 		a->filename[ARRAY_SIZE(a->filename) - 1] = '\0';
 		a->funcname[ARRAY_SIZE(a->funcname) - 1] = '\0';
 		a->expr[ARRAY_SIZE(a->expr) - 1] = '\0';
@@ -1384,6 +1384,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 
 	case GO2001_VM_EVENT_LOG: {
 		struct go2001_event_log_reply *l = msg_to_param(reply);
+
 		l->data[ARRAY_SIZE(l->data) - 1] = '\0';
 		go2001_err(gdev, "VM_EVENT_LOG: %s\n", l->data);
 		break;
@@ -1391,6 +1392,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 
 	case GO2001_VM_SET_LOG_LEVEL: {
 		struct go2001_set_log_level_reply *l = msg_to_param(reply);
+
 		go2001_dbg(gdev, 1, "VM_SET_LOG_LEVEL: %d\n", l->level);
 		ret = go2001_handle_reply_default(gdev, hdr->type, hdr->status);
 		break;
@@ -1643,6 +1645,7 @@ static int go2001_dec_try_fmt_out(struct file *file, void *fh,
 					struct v4l2_format *f)
 {
 	struct go2001_fmt *fmt = __go2001_dec_try_fmt_out(file, fh, f);
+
 	return fmt ? 0 : -EINVAL;
 }
 
@@ -1668,6 +1671,7 @@ static int go2001_dec_try_fmt_cap(struct file *file, void *fh,
 					struct v4l2_format *f)
 {
 	struct go2001_fmt *fmt = __go2001_dec_try_fmt_cap(file, fh, f);
+
 	return fmt ? 0 : -EINVAL;
 }
 
@@ -1694,6 +1698,7 @@ static int go2001_enc_try_fmt_out(struct file *file, void *fh,
 {
 	struct go2001_frame_info finfo;
 	struct go2001_fmt *fmt = __go2001_enc_try_fmt_out(file, fh, f, &finfo);
+
 	return fmt ? 0 : -EINVAL;
 }
 
@@ -1717,6 +1722,7 @@ static int go2001_enc_try_fmt_cap(struct file *file, void *fh,
 					struct v4l2_format *f)
 {
 	struct go2001_fmt *fmt = __go2001_enc_try_fmt_cap(file, fh, f);
+
 	return fmt ? 0 : -EINVAL;
 }
 
@@ -1919,7 +1925,8 @@ static int go2001_dec_g_crop(struct file *file, void *fh, struct v4l2_crop *c)
 }
 
 static int go2001_enc_s_parm(struct file *file, void *fh,
-				struct v4l2_streamparm *p) {
+				struct v4l2_streamparm *p)
+{
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
 	struct v4l2_fract *timeperframe;
 	int fps;
@@ -1946,7 +1953,8 @@ static int go2001_enc_s_parm(struct file *file, void *fh,
 }
 
 static int go2001_enc_g_parm(struct file *file, void *fh,
-				struct v4l2_streamparm *p) {
+				struct v4l2_streamparm *p)
+{
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
 	struct v4l2_fract *timeperframe;
 

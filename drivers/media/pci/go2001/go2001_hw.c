@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  go2001 - GO2001 codec driver.
  *
@@ -14,10 +15,6 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
 #include <linux/delay.h>
@@ -425,6 +422,7 @@ static void go2001_drop_pending_for_hw_inst_locked(struct go2001_dev *gdev,
 						struct go2001_hw_inst *hw_inst)
 {
 	struct go2001_msg *msg, *tmp_msg;
+
 	assert_spin_locked(&gdev->irqlock);
 
 	list_for_each_entry_safe(msg, tmp_msg, &hw_inst->pending_list,
@@ -451,6 +449,7 @@ void go2001_cancel_hw_inst_locked(struct go2001_dev *gdev,
 void go2001_cancel_all_hw_inst_locked(struct go2001_dev *gdev)
 {
 	struct go2001_hw_inst *hw_inst;
+
 	assert_spin_locked(&gdev->irqlock);
 
 	list_for_each_entry(hw_inst, &gdev->inst_list, inst_entry)
@@ -468,6 +467,7 @@ static void go2001_print_msg(struct go2001_dev *gdev, struct go2001_msg *msg,
 			const char *prefix)
 {
 	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
+
 	go2001_dbg(gdev, 4,
 			"%s: MSG: [%d/%d], type=0x%x, size=%d, status=0x%x\n",
 			prefix, hdr->session_id, hdr->sequence_id, hdr->type,
@@ -1044,7 +1044,8 @@ static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 }
 
 static void go2001_update_enc_params(struct go2001_ctx *ctx,
-			struct go2001_runtime_enc_params *rt_enc_params) {
+			struct go2001_runtime_enc_params *rt_enc_params)
+{
 	unsigned long *changed_mask = rt_enc_params->changed_mask;
 	struct go2001_enc_params *new_params = &rt_enc_params->enc_params;
 
