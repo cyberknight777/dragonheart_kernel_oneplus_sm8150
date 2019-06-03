@@ -30,6 +30,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
+#include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-core.h>
 
 #include "go2001_proto.h"
@@ -71,7 +72,6 @@ struct go2001_dev {
 	struct video_device dec_vdev;
 	struct video_device enc_vdev;
 
-	void *alloc_ctx;
 	struct mutex lock;
 
 	void __iomem *iomem;
@@ -208,7 +208,7 @@ struct go2001_runtime_enc_params {
 };
 
 struct go2001_buffer {
-	struct vb2_buffer vb;
+	struct vb2_v4l2_buffer vb;
 	struct list_head list;
 	struct go2001_dma_desc dma_desc[VIDEO_MAX_PLANES];
 	bool mapped;
@@ -263,7 +263,7 @@ struct go2001_ctx {
 	bool need_resume;
 };
 
-static inline struct go2001_buffer *vb_to_go2001_buf(struct vb2_buffer *vb)
+static inline struct go2001_buffer *to_go2001_buf(struct vb2_v4l2_buffer *vb)
 {
 	return container_of(vb, struct go2001_buffer, vb);
 }

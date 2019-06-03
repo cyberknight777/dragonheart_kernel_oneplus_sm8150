@@ -898,7 +898,7 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	struct go2001_dev *gdev = ctx->gdev;
 	struct device *dev = &gdev->pdev->dev;
 	struct go2001_set_mmap_param *param;
-	struct vb2_buffer *vb = &buf->vb;
+	struct vb2_buffer *vb = &buf->vb.vb2_buf;
 	struct go2001_dma_desc *dma_desc;
 	struct go2001_msg *msg;
 	struct go2001_mmap_list_desc *list_desc;
@@ -949,7 +949,7 @@ void go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 {
 	struct go2001_release_mmap_param *param;
 	struct go2001_dev *gdev = ctx->gdev;
-	struct vb2_buffer *vb = &buf->vb;
+	struct vb2_buffer *vb = &buf->vb.vb2_buf;
 	struct go2001_msg *msg;
 	unsigned int i;
 
@@ -1018,13 +1018,13 @@ static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 	param = msg_to_param(msg);
 
 	param->in_addr = src_buf->dma_desc[0].map_addr;
-	param->payload_size = vb2_get_plane_payload(&src_buf->vb, 0);
+	param->payload_size = vb2_get_plane_payload(&src_buf->vb.vb2_buf, 0);
 	if (dst_buf) {
-		if (WARN_ON(dst_buf->vb.num_planes >
+		if (WARN_ON(dst_buf->vb.vb2_buf.num_planes >
 					ARRAY_SIZE(param->out_addr)))
 			return -EINVAL;
 
-		for (i = 0; i < dst_buf->vb.num_planes; ++i) {
+		for (i = 0; i < dst_buf->vb.vb2_buf.num_planes; ++i) {
 			param->out_addr[i] = dst_buf->dma_desc[i].map_addr;
 			WARN_ON(!IS_ALIGNED(param->out_addr[i], 16));
 		}
@@ -1085,15 +1085,16 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 
 	param = msg_to_param(msg);
 
-	if (WARN_ON(src_buf->vb.num_planes > ARRAY_SIZE(param->in_addr)))
+	if (WARN_ON(src_buf->vb.vb2_buf.num_planes >
+				ARRAY_SIZE(param->in_addr)))
 		return -EINVAL;
 
-	for (i = 0; i < src_buf->vb.num_planes; ++i) {
+	for (i = 0; i < src_buf->vb.vb2_buf.num_planes; ++i) {
 		param->in_addr[i] = src_buf->dma_desc[i].map_addr;
 		WARN_ON(!IS_ALIGNED(param->in_addr[i], 16));
 	}
 	param->out_addr = dst_buf->dma_desc[0].map_addr;
-	param->out_size = vb2_plane_size(&dst_buf->vb, 0);
+	param->out_size = vb2_plane_size(&dst_buf->vb.vb2_buf, 0);
 
 	go2001_update_enc_params(ctx, &src_buf->rt_enc_params);
 	if (ctx->enc_params.request_keyframe) {
@@ -1213,17 +1214,16 @@ int go2001_schedule_frames(struct go2001_ctx *ctx)
 		goto out;
 
 	if (ctx->codec_mode == CODEC_MODE_DECODER &&
-	    src_buf->vb.v4l2_buf.index == GO2001_DUMMY_FLUSH_BUF_INDEX) {
+	    src_buf->vb.vb2_buf.index == GO2001_DUMMY_FLUSH_BUF_INDEX) {
 		/* Flush buffer */
 		int i;
 
 		list_del_init(&src_buf->list);
 		list_del(&dst_buf->list);
-		for (i = 0; i < dst_buf->vb.num_planes; ++i)
-			vb2_set_plane_payload(&dst_buf->vb, i, 0);
-		dst_buf->vb.v4l2_buf.flags |= V4L2_BUF_FLAG_LAST;
-		dst_buf->vb.v4l2_buf.bytesused = 0;
-		vb2_buffer_done(&dst_buf->vb, VB2_BUF_STATE_DONE);
+		for (i = 0; i < dst_buf->vb.vb2_buf.num_planes; ++i)
+			vb2_set_plane_payload(&dst_buf->vb.vb2_buf, i, 0);
+		dst_buf->vb.flags |= V4L2_BUF_FLAG_LAST;
+		vb2_buffer_done(&dst_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		goto out;
 	}
 

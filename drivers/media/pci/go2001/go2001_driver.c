@@ -56,9 +56,9 @@ static void go2001_cleanup_queue(struct go2001_ctx *ctx,
 
 	list_for_each_entry_safe(buf, buf_tmp, buf_list, list) {
 		list_del(&buf->list);
-		for (i = 0; i < buf->vb.num_planes; ++i)
-			vb2_set_plane_payload(&buf->vb, i, 0);
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		for (i = 0; i < buf->vb.vb2_buf.num_planes; ++i)
+			vb2_set_plane_payload(&buf->vb.vb2_buf, i, 0);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 }
 
@@ -220,20 +220,14 @@ static int go2001_querycap(struct file *file, void *priv,
 }
 
 static int go2001_queue_setup(struct vb2_queue *q,
-			const struct v4l2_format *fmt,
 			unsigned int *num_buffers, unsigned int *num_planes,
-			unsigned int sizes[], void *alloc_ctxs[])
+			unsigned int sizes[], struct device *alloc_devs[])
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(q);
 	struct go2001_fmt *f;
 	int i;
 
 	go2001_trace(ctx->gdev);
-
-	if (fmt) {
-		go2001_err(ctx->gdev, "VIDIOC_CREATE_BUFS not supported\n");
-		return -EINVAL;
-	}
 
 	f = V4L2_TYPE_IS_OUTPUT(q->type) ? ctx->src_fmt : ctx->dst_fmt;
 	if (!f) {
@@ -257,9 +251,6 @@ static int go2001_queue_setup(struct vb2_queue *q,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < *num_planes; ++i)
-		alloc_ctxs[i] = ctx->gdev->alloc_ctx;
-
 	go2001_dbg(ctx->gdev, 2, "Num buffers: %d, planes: %d\n",
 			*num_buffers, *num_planes);
 	for (i = 0; i < f->num_planes; ++i)
@@ -273,7 +264,8 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
 	struct go2001_dev *gdev = ctx->gdev;
 	struct device *dev = &gdev->pdev->dev;
-	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct go2001_buffer *gbuf = to_go2001_buf(vbuf);
 	struct go2001_dma_desc *dma_desc;
 	struct go2001_mmap_list_entry *mmap_list;
 	enum dma_data_direction dir;
@@ -351,7 +343,8 @@ err:
 static int go2001_buf_prepare(struct vb2_buffer *vb)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
-	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct go2001_buffer *gbuf = to_go2001_buf(vbuf);
 
 	return go2001_prepare_gbuf(ctx, gbuf,
 				V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type));
@@ -360,7 +353,8 @@ static int go2001_buf_prepare(struct vb2_buffer *vb)
 static void go2001_buf_finish(struct vb2_buffer *vb)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
-	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct go2001_buffer *gbuf = to_go2001_buf(vbuf);
 	size_t plane_size;
 	void *vaddr, *ptr;
 	int i;
@@ -412,7 +406,8 @@ static void go2001_buf_finish(struct vb2_buffer *vb)
 
 static void go2001_buf_cleanup(struct vb2_buffer *vb)
 {
-	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct go2001_buffer *gbuf = to_go2001_buf(vbuf);
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
 	struct go2001_dev *gdev = ctx->gdev;
 	struct device *dev = &gdev->pdev->dev;
@@ -572,9 +567,10 @@ static void go2001_stop_streaming(struct vb2_queue *q)
 
 static void go2001_buf_queue(struct vb2_buffer *vb)
 {
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vq);
-	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
+	struct go2001_buffer *gbuf = to_go2001_buf(vbuf);
 	unsigned long flags;
 
 	if (ctx->codec_mode == CODEC_MODE_ENCODER
@@ -615,13 +611,14 @@ static int go2001_init_vb2_queue(struct vb2_queue *q, struct go2001_ctx *ctx,
 					enum v4l2_buf_type type)
 {
 	q->type = type;
+	q->dev = &ctx->gdev->pdev->dev;
 	q->io_modes = VB2_MMAP | VB2_DMABUF | VB2_USERPTR;
 	q->lock = &ctx->lock;
 	q->ops = &go2001_qops;
 	q->mem_ops = &vb2_dma_sg_memops;
 	q->drv_priv = ctx;
 	q->buf_struct_size = sizeof(struct go2001_buffer);
-	q->timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	if (ctx->codec_mode == CODEC_MODE_DECODER && V4L2_TYPE_IS_OUTPUT(type))
 		q->allow_zero_bytesused = 1;
 
@@ -791,9 +788,9 @@ static int go2001_init_ctx(struct go2001_dev *gdev, struct go2001_ctx *ctx,
 	file->private_data = &ctx->v4l2_fh;
 	v4l2_fh_add(&ctx->v4l2_fh);
 
-	ctx->dummy_flush_buf.vb.vb2_queue =
+	ctx->dummy_flush_buf.vb.vb2_buf.vb2_queue =
 	    go2001_get_vq(ctx, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
-	ctx->dummy_flush_buf.vb.v4l2_buf.index = GO2001_DUMMY_FLUSH_BUF_INDEX;
+	ctx->dummy_flush_buf.vb.vb2_buf.index = GO2001_DUMMY_FLUSH_BUF_INDEX;
 	INIT_LIST_HEAD(&ctx->dummy_flush_buf.list);
 
 	return 0;
@@ -1079,8 +1076,10 @@ static int go2001_handle_get_info_reply(struct go2001_ctx *ctx,
 static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 		struct go2001_job *job, struct go2001_msg *reply, bool error)
 {
-	struct vb2_buffer *src_vb = &job->src_buf->vb;
-	struct vb2_buffer *dst_vb = &job->dst_buf->vb;
+	struct vb2_v4l2_buffer *src_v4l2_vb = &job->src_buf->vb;
+	struct vb2_v4l2_buffer *dst_v4l2_vb = &job->dst_buf->vb;
+	struct vb2_buffer *src_vb = &src_v4l2_vb->vb2_buf;
+	struct vb2_buffer *dst_vb = &dst_v4l2_vb->vb2_buf;
 	int i;
 
 	switch (ctx->codec_mode) {
@@ -1094,7 +1093,7 @@ static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 	case CODEC_MODE_ENCODER: {
 		struct go2001_empty_buffer_enc_reply *enc_reply =
 			msg_to_param(reply);
-		struct go2001_buffer *gbuf = vb_to_go2001_buf(dst_vb);
+		struct go2001_buffer *gbuf = to_go2001_buf(dst_v4l2_vb);
 
 		memset(gbuf->partition_off, 0, sizeof(gbuf->partition_off));
 		memset(gbuf->partition_size, 0, sizeof(gbuf->partition_size));
@@ -1119,10 +1118,10 @@ static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 			gbuf->partition_size[i] = enc_reply->partition_size[i];
 		}
 
-		dst_vb->v4l2_buf.flags = 0;
+		dst_v4l2_vb->flags = 0;
 		if (enc_reply->frame_type
 				== GO2001_EMPTY_BUF_ENC_FRAME_KEYFRAME)
-			dst_vb->v4l2_buf.flags = V4L2_BUF_FLAG_KEYFRAME;
+			dst_v4l2_vb->flags = V4L2_BUF_FLAG_KEYFRAME;
 		break;
 	}
 	default:
@@ -1130,12 +1129,10 @@ static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 		break;
 	}
 
-	dst_vb->v4l2_buf.timecode = src_vb->v4l2_buf.timecode;
-	dst_vb->v4l2_buf.timestamp = src_vb->v4l2_buf.timestamp;
+	dst_v4l2_vb->timecode = src_v4l2_vb->timecode;
+	dst_vb->timestamp = src_vb->timestamp;
 
-	go2001_dbg(ctx->gdev, 5, "Returning frame ts=%ld.%06ld\n",
-			dst_vb->v4l2_buf.timestamp.tv_sec,
-			dst_vb->v4l2_buf.timestamp.tv_usec);
+	go2001_dbg(ctx->gdev, 5, "Returning frame ts=%ld\n", dst_vb->timestamp);
 	return 0;
 }
 
@@ -1194,18 +1191,18 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 		src_state = VB2_BUF_STATE_ERROR;
 		/* Fallthrough */
 	case GO2001_STATUS_OK:
-		vb2_buffer_done(&src_buf->vb, src_state);
+		vb2_buffer_done(&src_buf->vb.vb2_buf, src_state);
 		if (dst_buf) {
 			if (go2001_fill_dst_buf_info(ctx, job, msg,
 					dst_state == VB2_BUF_STATE_ERROR))
 				dst_state = VB2_BUF_STATE_ERROR;
 			list_del(&dst_buf->list);
-			vb2_buffer_done(&dst_buf->vb, dst_state);
+			vb2_buffer_done(&dst_buf->vb.vb2_buf, dst_state);
 		}
 		break;
 
 	case GO2001_STATUS_NO_OUTPUT:
-		vb2_buffer_done(&src_buf->vb, src_state);
+		vb2_buffer_done(&src_buf->vb.vb2_buf, src_state);
 		/*
 		 * No output produced, reuse dst_buf for next job
 		 * without returning the buffer to userspace.
@@ -2286,7 +2283,7 @@ static int go2001_decoder_cmd(struct file *file, void *priv,
 			return 0;
 		}
 		spin_unlock_irqrestore(&ctx->qlock, flags);
-		go2001_buf_queue(&ctx->dummy_flush_buf.vb);
+		go2001_buf_queue(&ctx->dummy_flush_buf.vb.vb2_buf);
 		break;
 
 	case V4L2_DEC_CMD_START:
@@ -2419,14 +2416,10 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto release_regions;
 	}
 
-	gdev->alloc_ctx = vb2_dma_sg_init_ctx(&pdev->dev);
-	if (IS_ERR(gdev->alloc_ctx))
-		goto release_cache;
-
 	ret = go2001_map_iomem(gdev);
 	if (ret) {
 		go2001_err(gdev, "Failed mapping IO memory\n");
-		goto free_alloc_ctx;
+		goto release_cache;
 	}
 
 	ret = pci_enable_msi(pdev);
@@ -2486,8 +2479,6 @@ disable_msi:
 	pci_disable_msi(pdev);
 unmap:
 	go2001_unmap_iomem(gdev);
-free_alloc_ctx:
-	vb2_dma_sg_cleanup_ctx(gdev->alloc_ctx);
 release_cache:
 	kmem_cache_destroy(gdev->msg_cache);
 release_regions:
