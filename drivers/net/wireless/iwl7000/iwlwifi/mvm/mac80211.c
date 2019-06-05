@@ -3135,7 +3135,6 @@ iwl_mvm_tdls_check_trigger(struct iwl_mvm *mvm,
 }
 
 struct iwl_mvm_he_obss_narrow_bw_ru_data {
-	u32 n_bss;
 	bool tolerated;
 };
 
@@ -3145,8 +3144,6 @@ static void iwl_mvm_check_he_obss_narrow_bw_ru_iter(struct wiphy *wiphy,
 {
 	struct iwl_mvm_he_obss_narrow_bw_ru_data *data = _data;
 	const struct element *elem;
-
-	data->n_bss++;
 
 	elem = cfg80211_find_elem(WLAN_EID_EXT_CAPABILITY, bss->ies->data,
 				  bss->ies->len);
@@ -3163,20 +3160,23 @@ static void iwl_mvm_check_he_obss_narrow_bw_ru(struct ieee80211_hw *hw,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_he_obss_narrow_bw_ru_data iter_data = {
-		.n_bss = 0,
 		.tolerated = true,
 	};
+
+	if (!(vif->bss_conf.chandef.chan->flags & IEEE80211_CHAN_RADAR)) {
+		mvmvif->he_ru_2mhz_block = false;
+		return;
+	}
 
 	cfg80211_bss_iter(hw->wiphy, &vif->bss_conf.chandef,
 			  iwl_mvm_check_he_obss_narrow_bw_ru_iter,
 			  &iter_data);
 
 	/*
-	 * Block if there is no information on the neighboring BSSs, or there is
-	 * at least one AP that cannot tolerate 26-tone RU UL OFDMA
-	 * transmissions using HE TB PPDU.
+	 * If there is at least one AP on radar channel that cannot
+	 * tolerate 26-tone RU UL OFDMA transmissions using HE TB PPDU.
 	 */
-	mvmvif->he_ru_2mhz_block = !iter_data.n_bss || !iter_data.tolerated;
+	mvmvif->he_ru_2mhz_block = !iter_data.tolerated;
 }
 
 static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
