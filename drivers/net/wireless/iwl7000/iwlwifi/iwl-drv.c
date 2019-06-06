@@ -2033,7 +2033,7 @@ struct iwl_mod_params iwlwifi_mod_params = {
 	.fw_restart = true,
 	.bt_coex_active = true,
 	.power_level = IWL_POWER_INDEX_1,
-	.d0i3_disable = IS_ENABLED(CPTCFG_IWLWIFI_D0I3_DEFAULT_DISABLE),
+	.d0i3_disable = true,
 	.d0i3_timeout = 1000,
 	.uapsd_disable = IWL_DISABLE_UAPSD_BSS | IWL_DISABLE_UAPSD_P2P_CLIENT,
 	/* the rest are 0 by default */
@@ -2172,11 +2172,7 @@ module_param_named(nvm_file, iwlwifi_mod_params.nvm_file, charp, 0444);
 MODULE_PARM_DESC(nvm_file, "NVM file name");
 
 module_param_named(d0i3_disable, iwlwifi_mod_params.d0i3_disable, bool, 0444);
-#ifdef CPTCFG_IWLWIFI_D0I3_DEFAULT_DISABLE
-MODULE_PARM_DESC(d0i3_disable, "disable d0i3 functionality (default: Y)");
-#else
 MODULE_PARM_DESC(d0i3_disable, "disable d0i3 functionality (default: N)");
-#endif
 
 module_param_named(lar_disable, iwlwifi_mod_params.lar_disable, bool, 0444);
 MODULE_PARM_DESC(lar_disable, "disable LAR functionality (default: N)");
