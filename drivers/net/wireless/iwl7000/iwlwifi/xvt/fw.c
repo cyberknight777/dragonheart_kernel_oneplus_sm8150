@@ -322,7 +322,7 @@ static int iwl_xvt_config_ltr(struct iwl_xvt *xvt)
 	return iwl_xvt_send_cmd_pdu(xvt, LTR_CONFIG, 0, sizeof(cmd), &cmd);
 }
 
-int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
+int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 {
 	int ret;
 
@@ -338,13 +338,10 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 				iwl_xvt_txq_disable(xvt);
 		}
 		iwl_fw_dbg_stop_sync(&xvt->fwrt);
-		_iwl_trans_stop_device(xvt->trans, !cont_run);
+		iwl_trans_stop_device(xvt->trans);
 	}
 
-	if (cont_run)
-		ret = _iwl_trans_start_hw(xvt->trans, false);
-	else
-		ret = iwl_trans_start_hw(xvt->trans);
+	ret = iwl_trans_start_hw(xvt->trans);
 	if (ret) {
 		IWL_ERR(xvt, "Failed to start HW\n");
 		return ret;

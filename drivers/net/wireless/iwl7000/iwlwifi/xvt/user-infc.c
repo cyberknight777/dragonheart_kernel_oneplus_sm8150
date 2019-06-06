@@ -482,11 +482,12 @@ init_error:
 	iwl_trans_stop_device(xvt->trans);
 	return err;
 }
-static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt, bool cont_run)
+
+static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt)
 {
 	int err;
 
-	err = iwl_xvt_run_fw(xvt, IWL_UCODE_REGULAR, cont_run);
+	err = iwl_xvt_run_fw(xvt, IWL_UCODE_REGULAR);
 	if (err)
 		goto fw_error;
 
@@ -557,7 +558,7 @@ static int iwl_xvt_start_op_mode(struct iwl_xvt *xvt)
 	 */
 	if (!(xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_INIT)) {
 		if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME) {
-			err = iwl_xvt_run_runtime_fw(xvt, false);
+			err = iwl_xvt_run_runtime_fw(xvt);
 		} else {
 			if (xvt->state != IWL_XVT_STATE_UNINITIALIZED) {
 				xvt->fw_running = false;
@@ -579,7 +580,7 @@ static int iwl_xvt_start_op_mode(struct iwl_xvt *xvt)
 	/* when fw image is unified, only regular ucode is loaded. */
 	if (iwl_xvt_is_unified_fw(xvt))
 		ucode_type = IWL_UCODE_REGULAR;
-	err = iwl_xvt_run_fw(xvt, ucode_type, false);
+	err = iwl_xvt_run_fw(xvt, ucode_type);
 	if (err)
 		return err;
 
@@ -665,7 +666,7 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 
 	if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME)
 		/* Run runtime FW stops the device by itself if error occurs */
-		err = iwl_xvt_run_runtime_fw(xvt, true);
+		err = iwl_xvt_run_runtime_fw(xvt);
 
 	goto cont_init_end;
 
