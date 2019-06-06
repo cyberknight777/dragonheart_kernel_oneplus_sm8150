@@ -858,7 +858,6 @@ struct iwl_trans {
 
 	enum iwl_plat_pm_mode system_pm_mode;
 	enum iwl_plat_pm_mode runtime_pm_mode;
-	bool suspending;
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	struct iwl_testmode testmode;
