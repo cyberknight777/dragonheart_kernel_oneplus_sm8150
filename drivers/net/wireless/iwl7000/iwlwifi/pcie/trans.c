@@ -81,7 +81,6 @@
 #include "iwl-agn-hw.h"
 #include "fw/error-dump.h"
 #include "fw/dbg.h"
-#include "iwl-constants.h"
 #include "internal.h"
 #include "iwl-fh.h"
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE

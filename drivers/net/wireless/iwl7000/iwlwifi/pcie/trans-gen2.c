@@ -55,7 +55,6 @@
 #include "iwl-context-info.h"
 #include "iwl-context-info-gen3.h"
 #include "internal.h"
-#include "iwl-constants.h"
 #include "fw/dbg.h"
 
 /*
