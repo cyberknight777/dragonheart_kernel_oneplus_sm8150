@@ -2413,41 +2413,6 @@ static void iwl_trans_pcie_set_bits_mask(struct iwl_trans *trans, u32 reg,
 	spin_unlock_irqrestore(&trans_pcie->reg_lock, flags);
 }
 
-static void iwl_trans_pcie_ref(struct iwl_trans *trans)
-{
-	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
-
-	if (iwlwifi_mod_params.d0i3_disable)
-		return;
-
-	pm_runtime_get(&trans_pcie->pci_dev->dev);
-
-#ifdef CONFIG_PM
-#if (defined(CONFIG_PM_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0))
-	IWL_DEBUG_RPM(trans, "runtime usage count: %d\n",
-		      atomic_read(&trans_pcie->pci_dev->dev.power.usage_count));
-#endif
-#endif /* CONFIG_PM */
-}
-
-static void iwl_trans_pcie_unref(struct iwl_trans *trans)
-{
-	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
-
-	if (iwlwifi_mod_params.d0i3_disable)
-		return;
-
-	pm_runtime_mark_last_busy(&trans_pcie->pci_dev->dev);
-	pm_runtime_put_autosuspend(&trans_pcie->pci_dev->dev);
-
-#ifdef CONFIG_PM
-#if (defined(CONFIG_PM_RUNTIME) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0))
-	IWL_DEBUG_RPM(trans, "runtime usage count: %d\n",
-		      atomic_read(&trans_pcie->pci_dev->dev.power.usage_count));
-#endif
-#endif /* CONFIG_PM */
-}
-
 static const char *get_csr_string(int cmd)
 {
 #define IWL_CMD(x) case x: return #x
@@ -3392,8 +3357,6 @@ static void iwl_trans_pcie_resume(struct iwl_trans *trans)
 	.grab_nic_access = iwl_trans_pcie_grab_nic_access,		\
 	.release_nic_access = iwl_trans_pcie_release_nic_access,	\
 	.set_bits_mask = iwl_trans_pcie_set_bits_mask,			\
-	.ref = iwl_trans_pcie_ref,					\
-	.unref = iwl_trans_pcie_unref,					\
 	.dump_data = iwl_trans_pcie_dump_data,				\
 	.d3_suspend = iwl_trans_pcie_d3_suspend,			\
 	.d3_resume = iwl_trans_pcie_d3_resume,				\
