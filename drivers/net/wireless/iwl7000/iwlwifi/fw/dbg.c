@@ -2782,10 +2782,13 @@ static void _iwl_fw_dbg_apply_point(struct iwl_fw_runtime *fwrt,
 				    enum iwl_fw_ini_apply_point pnt,
 				    bool ext)
 {
-	void *iter = data->data;
+	struct iwl_apply_point_data *iter;
 
-	while (iter && iter < data->data + data->size) {
-		struct iwl_ucode_tlv *tlv = iter;
+	if (!data->list.next)
+		return;
+
+	list_for_each_entry(iter, &data->list, list) {
+		struct iwl_ucode_tlv *tlv = &iter->tlv;
 		void *ini_tlv = (void *)tlv->data;
 		u32 type = le32_to_cpu(tlv->type);
 		const char invalid_ap_str[] =
@@ -2799,7 +2802,7 @@ static void _iwl_fw_dbg_apply_point(struct iwl_fw_runtime *fwrt,
 			if (pnt != IWL_FW_INI_APPLY_EARLY) {
 				IWL_ERR(fwrt, invalid_ap_str, ext, pnt,
 					"buffer allocation");
-				goto next;
+				break;
 			}
 			iwl_fw_dbg_buffer_apply(fwrt, ini_tlv, pnt);
 			break;
@@ -2807,7 +2810,7 @@ static void _iwl_fw_dbg_apply_point(struct iwl_fw_runtime *fwrt,
 			if (pnt < IWL_FW_INI_APPLY_AFTER_ALIVE) {
 				IWL_ERR(fwrt, invalid_ap_str, ext, pnt,
 					"host command");
-				goto next;
+				break;
 			}
 			iwl_fw_dbg_send_hcmd(fwrt, tlv, ext);
 			break;
@@ -2825,8 +2828,6 @@ static void _iwl_fw_dbg_apply_point(struct iwl_fw_runtime *fwrt,
 				  ext, type);
 			break;
 		}
-next:
-		iter += sizeof(*tlv) + le32_to_cpu(tlv->length);
 	}
 }
 
