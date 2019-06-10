@@ -1,11 +1,9 @@
-/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note)) OR BSD-3-Clause) */
+/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
 /*
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
  *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+ * Copyright(c) 2018 Intel Corporation. All rights reserved.
  */
 
 /*
@@ -25,21 +23,32 @@
  * DSP/host memory space.
  */
 enum snd_sof_fw_blk_type {
-	SOF_BLK_IMAGE	= 0,	/* whole image - parsed by ROMs */
-	SOF_BLK_TEXT	= 1,
-	SOF_BLK_DATA	= 2,
-	SOF_BLK_CACHE	= 3,
-	SOF_BLK_REGS	= 4,
-	SOF_BLK_SIG	= 5,
-	SOF_BLK_ROM	= 6,
-	/* add new block types here */
+	SOF_FW_BLK_TYPE_INVALID	= -1,
+	SOF_FW_BLK_TYPE_START	= 0,
+	SOF_FW_BLK_TYPE_RSRVD0	= SOF_FW_BLK_TYPE_START,
+	SOF_FW_BLK_TYPE_IRAM	= 1,	/* local instruction RAM */
+	SOF_FW_BLK_TYPE_DRAM	= 2,	/* local data RAM */
+	SOF_FW_BLK_TYPE_SRAM	= 3,	/* system RAM */
+	SOF_FW_BLK_TYPE_ROM	= 4,
+	SOF_FW_BLK_TYPE_IMR	= 5,
+	SOF_FW_BLK_TYPE_RSRVD6	= 6,
+	SOF_FW_BLK_TYPE_RSRVD7	= 7,
+	SOF_FW_BLK_TYPE_RSRVD8	= 8,
+	SOF_FW_BLK_TYPE_RSRVD9	= 9,
+	SOF_FW_BLK_TYPE_RSRVD10	= 10,
+	SOF_FW_BLK_TYPE_RSRVD11	= 11,
+	SOF_FW_BLK_TYPE_RSRVD12	= 12,
+	SOF_FW_BLK_TYPE_RSRVD13	= 13,
+	SOF_FW_BLK_TYPE_RSRVD14	= 14,
+	/* use SOF_FW_BLK_TYPE_RSVRDX for new block types */
+	SOF_FW_BLK_TYPE_NUM
 };
 
 struct snd_sof_blk_hdr {
 	enum snd_sof_fw_blk_type type;
 	uint32_t size;		/* bytes minus this header */
 	uint32_t offset;	/* offset from base */
-} __attribute__((packed));
+} __packed;
 
 /*
  * Firmware file is made up of 1 .. N different modules types. The module
@@ -54,7 +63,7 @@ struct snd_sof_mod_hdr {
 	enum snd_sof_fw_mod_type type;
 	uint32_t size;		/* bytes minus this header */
 	uint32_t num_blocks;	/* number of blocks */
-} __attribute__((packed));
+} __packed;
 
 /*
  * Firmware file header.
@@ -64,6 +73,6 @@ struct snd_sof_fw_header {
 	uint32_t file_size;	/* size of file minus this header */
 	uint32_t num_modules;	/* number of modules */
 	uint32_t abi;		/* version of header format */
-} __attribute__((packed));
+} __packed;
 
 #endif

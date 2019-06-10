@@ -5,31 +5,21 @@
 //
 // Copyright(c) 2018 Intel Corporation. All rights reserved.
 //
-// Authors: Jeeja KP <jeeja.kp@intel.com>
-//	Rakesh Ughreja <rakesh.a.ughreja@intel.com>
-//	Keyon Jie <yang.jie@linux.intel.com>
+// Authors: Keyon Jie <yang.jie@linux.intel.com>
 //
 
-#include <linux/delay.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/device.h>
-#include <linux/interrupt.h>
 #include <linux/module.h>
-#include <linux/pci.h>
 #include <sound/hdaudio_ext.h>
-#include <sound/sof.h>
-#include <sound/hdaudio.h>
-#include <sound/hda_i915.h>
-#include <sound/hda_register.h>
 #include <sound/hda_codec.h>
-
-#include "../../codecs/hdac_hda.h"
-
-#include "../sof-priv.h"
+#include <sound/hda_i915.h>
+#include <sound/sof.h>
 #include "../ops.h"
 #include "hda.h"
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC)
+#include "../../codecs/hdac_hda.h"
+#endif /* CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC */
 
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC)
 #define IDISP_VID_INTEL	0x80860000
 
 /* load the legacy HDA codec driver */
@@ -47,12 +37,16 @@ static void hda_codec_load_module(struct hda_codec *codec)
 static void hda_codec_load_module(struct hda_codec *codec) {}
 #endif
 
+#endif /* CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC */
+
 /* probe individual codec */
 static int hda_codec_probe(struct snd_sof_dev *sdev, int address)
 {
 	struct hda_bus *hbus = sof_to_hbus(sdev);
 	struct hdac_device *hdev;
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC)
 	struct hdac_hda_priv *hda_priv;
+#endif
 	u32 hda_cmd = (address << 28) | (AC_NODE_ROOT << 20) |
 		(AC_VERB_PARAMETERS << 8) | AC_PAR_VENDOR_ID;
 	u32 resp = -1;
@@ -67,8 +61,9 @@ static int hda_codec_probe(struct snd_sof_dev *sdev, int address)
 	dev_dbg(sdev->dev, "HDA codec #%d probed OK: response: %x\n",
 		address, resp);
 
-	hda_priv = devm_kzalloc(&hbus->pci->dev, sizeof(*hda_priv),
-				 GFP_KERNEL);
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA_AUDIO_CODEC)
+	/* snd_hdac_ext_bus_device_exit will use kfree to free hdev */
+	hda_priv = kzalloc(sizeof(*hda_priv), GFP_KERNEL);
 	if (!hda_priv)
 		return -ENOMEM;
 
@@ -86,6 +81,16 @@ static int hda_codec_probe(struct snd_sof_dev *sdev, int address)
 	}
 
 	return 0;
+#else
+	/* snd_hdac_ext_bus_device_exit will use kfree to free hdev */
+	hdev = kzalloc(sizeof(*hdev), GFP_KERNEL);
+	if (!hdev)
+		return -ENOMEM;
+
+	ret = snd_hdac_ext_bus_device_init(&hbus->core, address, hdev);
+
+	return ret;
+#endif
 }
 
 /* Codec initialization */
@@ -102,7 +107,7 @@ int hda_codec_probe_bus(struct snd_sof_dev *sdev)
 
 		ret = hda_codec_probe(sdev, i);
 		if (ret < 0) {
-			dev_err(bus->dev, "codec #%d probe error, ret: %d\n",
+			dev_err(bus->dev, "error: codec #%d probe error, ret: %d\n",
 				i, ret);
 			return ret;
 		}
@@ -111,6 +116,26 @@ int hda_codec_probe_bus(struct snd_sof_dev *sdev)
 	return 0;
 }
 EXPORT_SYMBOL(hda_codec_probe_bus);
+
+#if IS_ENABLED(CONFIG_SND_SOC_HDAC_HDMI)
+
+void hda_codec_i915_get(struct snd_sof_dev *sdev)
+{
+	struct hdac_bus *bus = sof_to_bus(sdev);
+
+	dev_dbg(bus->dev, "Turning i915 HDAC power on\n");
+	snd_hdac_display_power(bus, HDA_CODEC_IDX_CONTROLLER, true);
+}
+EXPORT_SYMBOL(hda_codec_i915_get);
+
+void hda_codec_i915_put(struct snd_sof_dev *sdev)
+{
+	struct hdac_bus *bus = sof_to_bus(sdev);
+
+	dev_dbg(bus->dev, "Turning i915 HDAC power off\n");
+	snd_hdac_display_power(bus, HDA_CODEC_IDX_CONTROLLER, false);
+}
+EXPORT_SYMBOL(hda_codec_i915_put);
 
 int hda_codec_i915_init(struct snd_sof_dev *sdev)
 {
@@ -122,12 +147,25 @@ int hda_codec_i915_init(struct snd_sof_dev *sdev)
 	if (ret < 0)
 		return ret;
 
-	ret = snd_hdac_display_power(bus, true);
-	if (ret < 0)
-		dev_err(bus->dev, "i915 HDAC power on failed %d\n", ret);
+	hda_codec_i915_get(sdev);
+
+	return 0;
+}
+EXPORT_SYMBOL(hda_codec_i915_init);
+
+int hda_codec_i915_exit(struct snd_sof_dev *sdev)
+{
+	struct hdac_bus *bus = sof_to_bus(sdev);
+	int ret;
+
+	hda_codec_i915_put(sdev);
+
+	ret = snd_hdac_i915_exit(bus);
 
 	return ret;
 }
-EXPORT_SYMBOL(hda_codec_i915_init);
+EXPORT_SYMBOL(hda_codec_i915_exit);
+
+#endif /* CONFIG_SND_SOC_HDAC_HDMI */
 
 MODULE_LICENSE("Dual BSD/GPL");

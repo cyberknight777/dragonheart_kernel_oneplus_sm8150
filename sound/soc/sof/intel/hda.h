@@ -12,14 +12,20 @@
 #define __SOF_INTEL_HDA_H
 
 #include <sound/hda_codec.h>
+#include "shim.h"
 
 /* PCI registers */
 #define PCI_TCSEL			0x44
+#define PCI_PGCTL			PCI_TCSEL
 #define PCI_CGCTL			0x48
+
+/* PCI_PGCTL bits */
+#define PCI_PGCTL_ADSPPGD               BIT(2)
+#define PCI_PGCTL_LSRMD_MASK		BIT(4)
 
 /* PCI_CGCTL bits */
 #define PCI_CGCTL_MISCBDCGE_MASK	BIT(6)
-#define PCI_CGCTL_LSRMD_MASK		BIT(4)
+#define PCI_CGCTL_ADSPDCGE              BIT(1)
 
 /* Legacy HDA registers and bits used - widths are variable */
 #define SOF_HDA_GCAP			0x0
@@ -32,6 +38,7 @@
 #define SOF_HDA_WAKESTS			0x0E
 #define SOF_HDA_WAKESTS_INT_MASK	((1 << 8) - 1)
 #define SOF_HDA_RIRBSTS			0x5d
+#define SOF_HDA_VS_EM2_L1SEN            BIT(13)
 
 /* SOF_HDA_GCTL register bist */
 #define SOF_HDA_GCTL_RESET		BIT(0)
@@ -43,7 +50,8 @@
 
 #define SOF_HDA_MAX_CAPS		10
 #define SOF_HDA_CAP_ID_OFF		16
-#define SOF_HDA_CAP_ID_MASK		(0xFFF << SOF_HDA_CAP_ID_OFF)
+#define SOF_HDA_CAP_ID_MASK		GENMASK(SOF_HDA_CAP_ID_OFF + 11,\
+						SOF_HDA_CAP_ID_OFF)
 #define SOF_HDA_CAP_NEXT_MASK		0xFFFF
 
 #define SOF_HDA_GTS_CAP_ID			0x1
@@ -122,7 +130,8 @@
 /* Stream Number */
 #define SOF_HDA_CL_SD_CTL_STREAM_TAG_SHIFT	20
 #define SOF_HDA_CL_SD_CTL_STREAM_TAG_MASK \
-	(0xf << SOF_HDA_CL_SD_CTL_STREAM_TAG_SHIFT)
+	GENMASK(SOF_HDA_CL_SD_CTL_STREAM_TAG_SHIFT + 3,\
+		SOF_HDA_CL_SD_CTL_STREAM_TAG_SHIFT)
 
 #define HDA_DSP_HDA_BAR				0
 #define HDA_DSP_PP_BAR				1
@@ -188,9 +197,9 @@
 #define HDA_DSP_RESET_TIMEOUT		50
 #define HDA_DSP_BASEFW_TIMEOUT		3000
 #define HDA_DSP_INIT_TIMEOUT		500
-#define HDA_ROM_INIT_TIMEOUT		70
 #define HDA_DSP_CTRL_RESET_TIMEOUT		100
 #define HDA_DSP_WAIT_TIMEOUT		500	/* 500 msec */
+#define HDA_DSP_REG_POLL_INTERVAL_US		500	/* 0.5 msec */
 
 #define HDA_DSP_ADSPIC_IPC			1
 #define HDA_DSP_ADSPIS_IPC			1
@@ -268,9 +277,6 @@
 #define HDA_DSP_ADSPCS_CPA_SHIFT	24
 #define HDA_DSP_ADSPCS_CPA_MASK(cm)	((cm) << HDA_DSP_ADSPCS_CPA_SHIFT)
 
-#define HDA_DSP_ADSPIC_CL_DMA		0x2
-#define HDA_DSP_ADSPIS_CL_DMA		0x2
-
 /* Mask for a given core index, c = 0.. number of supported cores - 1 */
 #define HDA_DSP_CORE_MASK(c)		BIT(c)
 
@@ -324,25 +330,21 @@
 #define SOF_SKL_NUM_DAIS		8
 #endif
 
-struct sof_intel_dsp_bdl {
-	u32 addr_l;
-	u32 addr_h;
-	u32 size;
-	u32 ioc;
-} __attribute((packed));
+/* Intel HD Audio SRAM Window 0*/
+#define HDA_ADSP_SRAM0_BASE_SKL		0x8000
 
-/* DSP hardware descriptor */
-struct sof_intel_dsp_desc {
-	int id;
-	int cores_num;
-	int cores_mask;
-	int ipc_req;
-	int ipc_req_mask;
-	int ipc_ack;
-	int ipc_ack_mask;
-	int ipc_ctl;
-	struct snd_sof_dsp_ops *ops;
-};
+/* Firmware status window */
+#define HDA_ADSP_FW_STATUS_SKL		HDA_ADSP_SRAM0_BASE_SKL
+#define HDA_ADSP_ERROR_CODE_SKL		(HDA_ADSP_FW_STATUS_SKL + 0x4)
+
+#define HDA_IDISP_CODEC(x) ((x) & BIT(2))
+
+struct sof_intel_dsp_bdl {
+	__le32 addr_l;
+	__le32 addr_h;
+	__le32 size;
+	__le32 ioc;
+} __attribute((packed));
 
 #define SOF_HDA_PLAYBACK_STREAMS	16
 #define SOF_HDA_CAPTURE_STREAMS		16
@@ -361,10 +363,27 @@ struct sof_intel_hda_dev {
 	struct hdac_ext_stream *dtrace_stream;
 
 	/* if position update IPC needed */
-	bool no_ipc_position;
+	u32 no_ipc_position;
 
 	int irq;
+
+	/* DMIC device */
+	struct platform_device *dmic_dev;
 };
+
+static inline struct hdac_bus *sof_to_bus(struct snd_sof_dev *s)
+{
+	struct sof_intel_hda_dev *hda =
+		(struct sof_intel_hda_dev *)s->pdata->hw_pdata;
+	return &hda->hbus.core;
+}
+
+static inline struct hda_bus *sof_to_hbus(struct snd_sof_dev *s)
+{
+	struct sof_intel_hda_dev *hda =
+		(struct sof_intel_hda_dev *)s->pdata->hw_pdata;
+	return &hda->hbus;
+}
 
 #define bus_to_sof_hda(bus) \
 	container_of(bus, struct sof_intel_hda_dev, hbus.core)
@@ -385,32 +404,21 @@ int hda_dsp_core_reset_leave(struct snd_sof_dev *sdev,
 int hda_dsp_core_stall_reset(struct snd_sof_dev *sdev, unsigned int core_mask);
 int hda_dsp_core_run(struct snd_sof_dev *sdev, unsigned int core_mask);
 int hda_dsp_core_power_up(struct snd_sof_dev *sdev, unsigned int core_mask);
+int hda_dsp_enable_core(struct snd_sof_dev *sdev, unsigned int core_mask);
 int hda_dsp_core_power_down(struct snd_sof_dev *sdev, unsigned int core_mask);
 bool hda_dsp_core_is_enabled(struct snd_sof_dev *sdev,
 			     unsigned int core_mask);
 int hda_dsp_core_reset_power_down(struct snd_sof_dev *sdev,
 				  unsigned int core_mask);
+void hda_dsp_ipc_int_enable(struct snd_sof_dev *sdev);
+void hda_dsp_ipc_int_disable(struct snd_sof_dev *sdev);
+
 int hda_dsp_suspend(struct snd_sof_dev *sdev, int state);
 int hda_dsp_resume(struct snd_sof_dev *sdev);
 int hda_dsp_runtime_suspend(struct snd_sof_dev *sdev, int state);
 int hda_dsp_runtime_resume(struct snd_sof_dev *sdev);
+void hda_dsp_dump_skl(struct snd_sof_dev *sdev, u32 flags);
 void hda_dsp_dump(struct snd_sof_dev *sdev, u32 flags);
-
-/*
- * DSP IO
- */
-void hda_dsp_write(struct snd_sof_dev *sdev, void __iomem *addr, u32 value);
-u32 hda_dsp_read(struct snd_sof_dev *sdev, void __iomem *addr);
-void hda_dsp_write64(struct snd_sof_dev *sdev, void __iomem *addr, u64 value);
-u64 hda_dsp_read64(struct snd_sof_dev *sdev, void __iomem *addr);
-void hda_dsp_block_write(struct snd_sof_dev *sdev, u32 offset, void *src,
-			 size_t size);
-void hda_dsp_block_read(struct snd_sof_dev *sdev, u32 offset, void *dest,
-			size_t size);
-void hda_dsp_mailbox_write(struct snd_sof_dev *sdev, u32 offset,
-			   void *message, size_t bytes);
-void hda_dsp_mailbox_read(struct snd_sof_dev *sdev, u32 offset,
-			  void *message, size_t bytes);
 
 /*
  * DSP PCM Operations.
@@ -448,13 +456,7 @@ int hda_dsp_stream_setup_bdl(struct snd_sof_dev *sdev,
 
 struct hdac_ext_stream *
 	hda_dsp_stream_get(struct snd_sof_dev *sdev, int direction);
-struct hdac_ext_stream *
-	hda_dsp_stream_get_cstream(struct snd_sof_dev *sdev);
-struct hdac_ext_stream *
-	hda_dsp_stream_get_pstream(struct snd_sof_dev *sdev);
 int hda_dsp_stream_put(struct snd_sof_dev *sdev, int direction, int stream_tag);
-int hda_dsp_stream_put_pstream(struct snd_sof_dev *sdev, int stream_tag);
-int hda_dsp_stream_put_cstream(struct snd_sof_dev *sdev, int stream_tag);
 int hda_dsp_stream_spib_config(struct snd_sof_dev *sdev,
 			       struct hdac_ext_stream *stream,
 			       int enable, u32 size);
@@ -462,7 +464,6 @@ int hda_dsp_stream_spib_config(struct snd_sof_dev *sdev,
 /*
  * DSP IPC Operations.
  */
-int hda_dsp_ipc_is_ready(struct snd_sof_dev *sdev);
 int hda_dsp_ipc_send_msg(struct snd_sof_dev *sdev,
 			 struct snd_sof_ipc_msg *msg);
 int hda_dsp_ipc_get_reply(struct snd_sof_dev *sdev,
@@ -475,8 +476,12 @@ int hda_dsp_ipc_cmd_done(struct snd_sof_dev *sdev, int dir);
 /*
  * DSP Code loader.
  */
-int hda_dsp_cl_load_fw(struct snd_sof_dev *sdev, bool first_boot);
 int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev);
+int hda_dsp_cl_boot_firmware_skl(struct snd_sof_dev *sdev);
+
+/* pre and post fw run ops */
+int hda_dsp_pre_fw_run(struct snd_sof_dev *sdev);
+int hda_dsp_post_fw_run(struct snd_sof_dev *sdev);
 
 /*
  * HDA Controller Operations.
@@ -484,21 +489,38 @@ int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev);
 int hda_dsp_ctrl_get_caps(struct snd_sof_dev *sdev);
 int hda_dsp_ctrl_link_reset(struct snd_sof_dev *sdev, bool reset);
 void hda_dsp_ctrl_misc_clock_gating(struct snd_sof_dev *sdev, bool enable);
+int hda_dsp_ctrl_clock_power_gating(struct snd_sof_dev *sdev, bool enable);
 int hda_dsp_ctrl_init_chip(struct snd_sof_dev *sdev, bool full_reset);
 
 /*
  * HDA bus operations.
  */
-int sof_hda_bus_init(struct hdac_bus *bus, struct device *dev,
-			const struct hdac_ext_bus_ops *ext_ops);
+void sof_hda_bus_init(struct hdac_bus *bus, struct device *dev,
+		      const struct hdac_ext_bus_ops *ext_ops);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
 /*
  * HDA Codec operations.
  */
 int hda_codec_probe_bus(struct snd_sof_dev *sdev);
+
+#endif /* CONFIG_SND_SOC_SOF_HDA */
+
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA) && IS_ENABLED(CONFIG_SND_SOC_HDAC_HDMI)
+
+void hda_codec_i915_get(struct snd_sof_dev *sdev);
+void hda_codec_i915_put(struct snd_sof_dev *sdev);
 int hda_codec_i915_init(struct snd_sof_dev *sdev);
-#endif
+int hda_codec_i915_exit(struct snd_sof_dev *sdev);
+
+#else
+
+static inline void hda_codec_i915_get(struct snd_sof_dev *sdev)  { }
+static inline void hda_codec_i915_put(struct snd_sof_dev *sdev)  { }
+static inline int hda_codec_i915_init(struct snd_sof_dev *sdev) { return 0; }
+static inline int hda_codec_i915_exit(struct snd_sof_dev *sdev) { return 0; }
+
+#endif /* CONFIG_SND_SOC_SOF_HDA && CONFIG_SND_SOC_HDAC_HDMI */
 
 /*
  * Trace Control.
@@ -513,8 +535,12 @@ extern struct snd_soc_dai_driver skl_dai[];
 /*
  * Platform Specific HW abstraction Ops.
  */
-extern struct snd_sof_dsp_ops sof_apl_ops;
-extern struct snd_sof_dsp_ops sof_cnl_ops;
-extern struct snd_sof_dsp_ops sof_skl_ops;
+extern const struct snd_sof_dsp_ops sof_apl_ops;
+extern const struct snd_sof_dsp_ops sof_cnl_ops;
+extern const struct snd_sof_dsp_ops sof_skl_ops;
+
+extern const struct sof_intel_dsp_desc apl_chip_info;
+extern const struct sof_intel_dsp_desc cnl_chip_info;
+extern const struct sof_intel_dsp_desc skl_chip_info;
 
 #endif

@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2018 Intel Corporation. All rights reserved.
- *
- * Author: Pan Xiuli <xiuli.pan@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Author: Pan Xiuli <xiuli.pan@linux.intel.com>
+//
 
 #include <linux/module.h>
-#include <linux/slab.h>
-#include <linux/delay.h>
-#include <asm/page.h>
-#include <asm/pgtable.h>
-#include <sound/core.h>
-#include <sound/soc.h>
 #include <sound/sof.h>
+#include <sound/sof/xtensa.h>
 #include "../sof-priv.h"
-#include "../ops.h"
 
 struct xtensa_exception_cause {
 	u32 id;
@@ -25,8 +19,9 @@ struct xtensa_exception_cause {
 	const char *description;
 };
 
-/* From 4.4.1.5 table 4-64 Exception Causes of
- * Xtensa Instruction Set Architecture (ISA) Reference Manual
+/*
+ * From 4.4.1.5 table 4-64 Exception Causes of Xtensa
+ * Instruction Set Architecture (ISA) Reference Manual
  */
 static const struct xtensa_exception_cause xtensa_exception_causes[] = {
 	{0, "IllegalInstructionCause", "Illegal instruction"},
@@ -116,36 +111,20 @@ static void xtensa_stack(struct snd_sof_dev *sdev, void *oops, u32 *stack,
 {
 	struct sof_ipc_dsp_oops_xtensa *xoops = oops;
 	u32 stack_ptr = xoops->stack;
+	/* 4 * 8chars + 3 ws + 1 terminating NUL */
+	unsigned char buf[4 * 8 + 3 + 1];
 	int i;
 
 	dev_err(sdev->dev, "stack dump from 0x%8.8x\n", stack_ptr);
 
-	for (i = 0; i <= stack_words - 4; i += 4) {
-		dev_err(sdev->dev, "0x%8.8x: 0x%8.8x 0x%8.8x 0x%8.8x 0x%8.8x\n",
-			stack_ptr + i, stack[i], stack[i + 1], stack[i + 2],
-			stack[i + 3]);
-	}
-
-	/* deal with any remaining words */
-	switch (stack_words - i) {
-	case 0:
-		break;
-	case 1:
-		dev_err(sdev->dev, "0x%8.8x: 0x%8.8x\n",
-			stack_ptr + stack_words - 1, stack[stack_words - 1]);
-		break;
-	case 2:
-		dev_err(sdev->dev, "0x%8.8x: 0x%8.8x 0x%8.8x\n",
-			stack_ptr + stack_words - 2, stack[stack_words - 2],
-			stack[stack_words - 1]);
-		break;
-	case 3:
-		dev_err(sdev->dev, "0x%8.8x: 0x%8.8x 0x%8.8x 0x%8.8x\n",
-			stack_ptr + stack_words - 3, stack[stack_words - 3],
-			stack[stack_words - 2], stack[stack_words - 1]);
-		break;
-	default:
-		break;
+	/*
+	 * example output:
+	 * 0x0049fbb0: 8000f2d0 0049fc00 6f6c6c61 00632e63
+	 */
+	for (i = 0; i < stack_words; i += 4) {
+		hex_dump_to_buffer(stack + i * 4, 16, 16, 4,
+				   buf, sizeof(buf), false);
+		dev_err(sdev->dev, "0x%08x: %s\n", stack_ptr + i, buf);
 	}
 }
 

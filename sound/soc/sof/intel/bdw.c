@@ -1,30 +1,20 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+//
 
 /*
- * Hardwre interface for audio DSP on Haswell and Broadwell
+ * Hardware interface for audio DSP on Broadwell
  */
 
-#include <linux/delay.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/device.h>
-#include <linux/interrupt.h>
 #include <linux/module.h>
-#include <linux/dma-mapping.h>
-#include <linux/platform_device.h>
-#include <linux/firmware.h>
-
-#include <trace/events/hswadsp.h>
 #include <sound/sof.h>
-#include "../sof-priv.h"
+#include <sound/sof/xtensa.h>
 #include "../ops.h"
 #include "shim.h"
 
@@ -61,93 +51,23 @@
 #define BDW_PANIC_OFFSET(x)	((x) & 0xFFFF)
 
 static const struct snd_sof_debugfs_map bdw_debugfs[] = {
-	{"dmac0", BDW_DSP_BAR, DMAC0_OFFSET, DMAC_SIZE},
-	{"dmac1", BDW_DSP_BAR, DMAC1_OFFSET, DMAC_SIZE},
-	{"ssp0", BDW_DSP_BAR, SSP0_OFFSET, SSP_SIZE},
-	{"ssp1", BDW_DSP_BAR, SSP1_OFFSET, SSP_SIZE},
-	{"iram", BDW_DSP_BAR, IRAM_OFFSET, BDW_IRAM_SIZE},
-	{"dram", BDW_DSP_BAR, DRAM_OFFSET, BDW_DRAM_SIZE},
-	{"shim", BDW_DSP_BAR, SHIM_OFFSET, SHIM_SIZE},
+	{"dmac0", BDW_DSP_BAR, DMAC0_OFFSET, DMAC_SIZE,
+	 SOF_DEBUGFS_ACCESS_ALWAYS},
+	{"dmac1", BDW_DSP_BAR, DMAC1_OFFSET, DMAC_SIZE,
+	 SOF_DEBUGFS_ACCESS_ALWAYS},
+	{"ssp0", BDW_DSP_BAR, SSP0_OFFSET, SSP_SIZE,
+	 SOF_DEBUGFS_ACCESS_ALWAYS},
+	{"ssp1", BDW_DSP_BAR, SSP1_OFFSET, SSP_SIZE,
+	 SOF_DEBUGFS_ACCESS_ALWAYS},
+	{"iram", BDW_DSP_BAR, IRAM_OFFSET, BDW_IRAM_SIZE,
+	 SOF_DEBUGFS_ACCESS_D0_ONLY},
+	{"dram", BDW_DSP_BAR, DRAM_OFFSET, BDW_DRAM_SIZE,
+	 SOF_DEBUGFS_ACCESS_D0_ONLY},
+	{"shim", BDW_DSP_BAR, SHIM_OFFSET, SHIM_SIZE,
+	 SOF_DEBUGFS_ACCESS_ALWAYS},
 };
 
-/*
- * Memory copy.
- */
-
-/* write has to deal with copying non 32 bit sized data */
-static void bdw_block_write(struct snd_sof_dev *sdev, u32 offset, void *src,
-			    size_t size)
-{
-	void __iomem *dest = sdev->bar[sdev->mmio_bar] + offset;
-	u32 tmp = 0;
-	int i, m, n;
-	const u8 *src_byte = src;
-
-	m = size / 4;
-	n = size % 4;
-
-	/* __iowrite32_copy use 32bit size values so divide by 4 */
-	__iowrite32_copy(dest, src, m);
-
-	if (n) {
-		for (i = 0; i < n; i++)
-			tmp |= (u32)*(src_byte + m * 4 + i) << (i * 8);
-		__iowrite32_copy(dest + m * 4, &tmp, 1);
-	}
-}
-
-static void bdw_block_read(struct snd_sof_dev *sdev, u32 offset, void *dest,
-			   size_t size)
-{
-	void __iomem *src = sdev->bar[sdev->mmio_bar] + offset;
-
-	memcpy_fromio(dest, src, size);
-}
-
-static void bdw_mailbox_write(struct snd_sof_dev *sdev, u32 offset,
-			      void *message, size_t bytes)
-{
-	void __iomem *dest = sdev->bar[sdev->mailbox_bar] + offset;
-
-	memcpy_toio(dest, message, bytes);
-}
-
-static void bdw_mailbox_read(struct snd_sof_dev *sdev, u32 offset,
-			     void *message, size_t bytes)
-{
-	void __iomem *src = sdev->bar[sdev->mailbox_bar] + offset;
-
-	memcpy_fromio(message, src, bytes);
-}
-
-/*
- * Register IO
- */
-
-static void bdw_write(struct snd_sof_dev *sdev, void __iomem *addr,
-		      u32 value)
-{
-	writel(value, addr);
-}
-
-static u32 bdw_read(struct snd_sof_dev *sdev, void __iomem *addr)
-{
-	return readl(addr);
-}
-
-static void bdw_write64(struct snd_sof_dev *sdev, void __iomem *addr,
-			u64 value)
-{
-	memcpy_toio(addr, &value, sizeof(value));
-}
-
-static u64 bdw_read64(struct snd_sof_dev *sdev, void __iomem *addr)
-{
-	u64 val;
-
-	memcpy_fromio(&val, addr, sizeof(val));
-	return val;
-}
+static int bdw_cmd_done(struct snd_sof_dev *sdev, int dir);
 
 /*
  * DSP Control.
@@ -155,7 +75,7 @@ static u64 bdw_read64(struct snd_sof_dev *sdev, void __iomem *addr)
 
 static int bdw_run(struct snd_sof_dev *sdev)
 {
-	/* set oportunistic mode on engine 0,1 for all channels */
+	/* set opportunistic mode on engine 0,1 for all channels */
 	snd_sof_dsp_update_bits(sdev, BDW_DSP_BAR, SHIM_HMDC,
 				SHIM_HMDC_HDDA_E0_ALLCH |
 				SHIM_HMDC_HDDA_E1_ALLCH, 0);
@@ -164,7 +84,8 @@ static int bdw_run(struct snd_sof_dev *sdev)
 	snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_CSR,
 					 SHIM_CSR_STALL, 0x0);
 
-	return 0;
+	/* return init core mask */
+	return 1;
 }
 
 static int bdw_reset(struct snd_sof_dev *sdev)
@@ -294,27 +215,35 @@ finish:
 
 static void bdw_get_registers(struct snd_sof_dev *sdev,
 			      struct sof_ipc_dsp_oops_xtensa *xoops,
+			      struct sof_ipc_panic_info *panic_info,
 			      u32 *stack, size_t stack_words)
 {
 	/* first read regsisters */
-	bdw_mailbox_read(sdev, sdev->dsp_oops_offset, xoops, sizeof(*xoops));
+	sof_mailbox_read(sdev, sdev->dsp_oops_offset, xoops, sizeof(*xoops));
 
-	/* the get the stack */
-	bdw_mailbox_read(sdev, sdev->dsp_oops_offset + sizeof(*xoops), stack,
-			 stack_words * sizeof(u32));
+	/* then get panic info */
+	sof_mailbox_read(sdev, sdev->dsp_oops_offset + sizeof(*xoops),
+			 panic_info, sizeof(*panic_info));
+
+	/* then get the stack */
+	sof_mailbox_read(sdev, sdev->dsp_oops_offset + sizeof(*xoops) +
+			   sizeof(*panic_info), stack,
+			   stack_words * sizeof(u32));
 }
 
 static void bdw_dump(struct snd_sof_dev *sdev, u32 flags)
 {
 	struct sof_ipc_dsp_oops_xtensa xoops;
+	struct sof_ipc_panic_info panic_info;
 	u32 stack[BDW_STACK_DUMP_SIZE];
 	u32 status, panic;
 
 	/* now try generic SOF status messages */
 	status = snd_sof_dsp_read(sdev, BDW_DSP_BAR, SHIM_IPCD);
 	panic = snd_sof_dsp_read(sdev, BDW_DSP_BAR, SHIM_IPCX);
-	bdw_get_registers(sdev, &xoops, stack, BDW_STACK_DUMP_SIZE);
-	snd_sof_get_status(sdev, status, panic, &xoops, stack,
+	bdw_get_registers(sdev, &xoops, &panic_info, stack,
+			  BDW_STACK_DUMP_SIZE);
+	snd_sof_get_status(sdev, status, panic, &xoops, &panic_info, stack,
 			   BDW_STACK_DUMP_SIZE);
 }
 
@@ -330,21 +259,8 @@ static irqreturn_t bdw_irq_handler(int irq, void *context)
 
 	/* Interrupt arrived, check src */
 	isr = snd_sof_dsp_read(sdev, BDW_DSP_BAR, SHIM_ISRX);
-	if (isr & SHIM_ISRX_DONE) {
-		/* Mask Done interrupt before return */
-		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR,
-						 SHIM_IMRX, SHIM_IMRX_DONE,
-						 SHIM_IMRX_DONE);
+	if (isr & (SHIM_ISRX_DONE | SHIM_ISRX_BUSY))
 		ret = IRQ_WAKE_THREAD;
-	}
-
-	if (isr & SHIM_ISRX_BUSY) {
-		/* Mask Busy interrupt before return */
-		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR,
-						 SHIM_IMRX, SHIM_IMRX_BUSY,
-						 SHIM_IMRX_BUSY);
-		ret = IRQ_WAKE_THREAD;
-	}
 
 	return ret;
 }
@@ -352,30 +268,40 @@ static irqreturn_t bdw_irq_handler(int irq, void *context)
 static irqreturn_t bdw_irq_thread(int irq, void *context)
 {
 	struct snd_sof_dev *sdev = (struct snd_sof_dev *)context;
-	u32 ipcx, ipcd, hdr;
+	u32 ipcx, ipcd, imrx;
 
+	imrx = snd_sof_dsp_read64(sdev, BDW_DSP_BAR, SHIM_IMRX);
 	ipcx = snd_sof_dsp_read(sdev, BDW_DSP_BAR, SHIM_IPCX);
 
 	/* reply message from DSP */
-	if (ipcx & SHIM_IPCX_DONE) {
-		/* Handle Immediate reply from DSP Core */
-		bdw_mailbox_read(sdev, sdev->host_box.offset, &hdr,
-				 sizeof(hdr));
-		snd_sof_ipc_reply(sdev, hdr);
+	if (ipcx & SHIM_IPCX_DONE &&
+	    !(imrx & SHIM_IMRX_DONE)) {
+		/* Mask Done interrupt before return */
+		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR,
+						 SHIM_IMRX, SHIM_IMRX_DONE,
+						 SHIM_IMRX_DONE);
 
-		/* clear DONE bit - tell DSP we have completed */
-		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IPCX,
-						 SHIM_IPCX_DONE, 0);
-
-		/* unmask Done interrupt */
-		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IMRX,
-						 SHIM_IMRX_DONE, 0);
+		/*
+		 * handle immediate reply from DSP core. If the msg is
+		 * found, set done bit in cmd_done which is called at the
+		 * end of message processing function, else set it here
+		 * because the done bit can't be set in cmd_done function
+		 * which is triggered by msg
+		 */
+		if (snd_sof_ipc_reply(sdev, ipcx))
+			bdw_cmd_done(sdev, SOF_IPC_DSP_REPLY);
 	}
 
 	ipcd = snd_sof_dsp_read(sdev, BDW_DSP_BAR, SHIM_IPCD);
 
 	/* new message from DSP */
-	if (ipcd & SHIM_IPCD_BUSY) {
+	if (ipcd & SHIM_IPCD_BUSY &&
+	    !(imrx & SHIM_IMRX_BUSY)) {
+		/* Mask Busy interrupt before return */
+		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR,
+						 SHIM_IMRX, SHIM_IMRX_BUSY,
+						 SHIM_IMRX_BUSY);
+
 		/* Handle messages from DSP Core */
 		if ((ipcd & SOF_IPC_PANIC_MAGIC_MASK) == SOF_IPC_PANIC_MAGIC) {
 			snd_sof_dsp_panic(sdev, BDW_PANIC_OFFSET(ipcx) +
@@ -414,51 +340,62 @@ static void bdw_get_windows(struct snd_sof_dev *sdev)
 		case SOF_IPC_REGION_UPBOX:
 			inbox_offset = elem->offset + MBOX_OFFSET;
 			inbox_size = elem->size;
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    inbox_offset,
-						    elem->size, "inbox");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						inbox_offset,
+						elem->size, "inbox",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		case SOF_IPC_REGION_DOWNBOX:
 			outbox_offset = elem->offset + MBOX_OFFSET;
 			outbox_size = elem->size;
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    outbox_offset,
-						    elem->size, "outbox");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						outbox_offset,
+						elem->size, "outbox",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		case SOF_IPC_REGION_TRACE:
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    elem->offset + MBOX_OFFSET,
-						    elem->size, "etrace");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						elem->offset +
+						MBOX_OFFSET,
+						elem->size, "etrace",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		case SOF_IPC_REGION_DEBUG:
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    elem->offset + MBOX_OFFSET,
-						    elem->size, "debug");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						elem->offset +
+						MBOX_OFFSET,
+						elem->size, "debug",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		case SOF_IPC_REGION_STREAM:
 			stream_offset = elem->offset + MBOX_OFFSET;
 			stream_size = elem->size;
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    stream_offset,
-						    elem->size, "stream");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						stream_offset,
+						elem->size, "stream",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		case SOF_IPC_REGION_REGS:
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    elem->offset + MBOX_OFFSET,
-						    elem->size, "regs");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						elem->offset +
+						MBOX_OFFSET,
+						elem->size, "regs",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		case SOF_IPC_REGION_EXCEPTION:
 			sdev->dsp_oops_offset = elem->offset + MBOX_OFFSET;
-			snd_sof_debugfs_create_item(sdev,
-						    sdev->bar[BDW_DSP_BAR] +
-						    elem->offset + MBOX_OFFSET,
-						    elem->size, "exception");
+			snd_sof_debugfs_io_item(sdev,
+						sdev->bar[BDW_DSP_BAR] +
+						elem->offset +
+						MBOX_OFFSET,
+						elem->size, "exception",
+						SOF_DEBUGFS_ACCESS_D0_ONLY);
 			break;
 		default:
 			dev_err(sdev->dev, "error: get illegal window info\n");
@@ -484,11 +421,12 @@ static void bdw_get_windows(struct snd_sof_dev *sdev)
 		stream_offset, stream_size);
 }
 
+/* check for ABI compatibility and create memory windows on first boot */
 static int bdw_fw_ready(struct snd_sof_dev *sdev, u32 msg_id)
 {
 	struct sof_ipc_fw_ready *fw_ready = &sdev->fw_ready;
-	struct sof_ipc_fw_version *v = &fw_ready->version;
 	u32 offset;
+	int ret;
 
 	/* mailbox must be on 4k boundary */
 	offset = MBOX_OFFSET;
@@ -496,20 +434,26 @@ static int bdw_fw_ready(struct snd_sof_dev *sdev, u32 msg_id)
 	dev_dbg(sdev->dev, "ipc: DSP is ready 0x%8.8x offset %d\n",
 		msg_id, offset);
 
+	/* no need to re-check version/ABI for subsequent boots */
+	if (!sdev->first_boot)
+		return 0;
+
 	/* copy data from the DSP FW ready offset */
-	bdw_block_read(sdev, offset, fw_ready, sizeof(*fw_ready));
+	sof_block_read(sdev, sdev->mmio_bar, offset, fw_ready,
+		       sizeof(*fw_ready));
 
 	snd_sof_dsp_mailbox_init(sdev, fw_ready->dspbox_offset,
 				 fw_ready->dspbox_size,
 				 fw_ready->hostbox_offset,
 				 fw_ready->hostbox_size);
 
-	dev_info(sdev->dev,
-		 " Firmware info: version %d:%d-%s build %d on %s:%s\n",
-		 v->major, v->minor, v->tag, v->build, v->date, v->time);
+	/* make sure ABI version is compatible */
+	ret = snd_sof_ipc_valid(sdev);
+	if (ret < 0)
+		return ret;
 
 	/* now check for extended data */
-	snd_sof_fw_parse_ext_data(sdev, MBOX_OFFSET +
+	snd_sof_fw_parse_ext_data(sdev, sdev->mmio_bar, MBOX_OFFSET +
 				  sizeof(struct sof_ipc_fw_ready));
 
 	bdw_get_windows(sdev);
@@ -521,21 +465,10 @@ static int bdw_fw_ready(struct snd_sof_dev *sdev, u32 msg_id)
  * IPC Mailbox IO
  */
 
-static int bdw_is_ready(struct snd_sof_dev *sdev)
-{
-	u32 val;
-
-	val = snd_sof_dsp_read(sdev, BDW_DSP_BAR, SHIM_IPCX);
-	if (val & SHIM_IPCX_BUSY)
-		return 0;
-
-	return 1;
-}
-
 static int bdw_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 {
 	/* send the message */
-	bdw_mailbox_write(sdev, sdev->host_box.offset, msg->msg_data,
+	sof_mailbox_write(sdev, sdev->host_box.offset, msg->msg_data,
 			  msg->msg_size);
 	snd_sof_dsp_write(sdev, BDW_DSP_BAR, SHIM_IPCX, SHIM_IPCX_BUSY);
 
@@ -549,7 +482,7 @@ static int bdw_get_reply(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 	u32 size;
 
 	/* get reply */
-	bdw_mailbox_read(sdev, sdev->host_box.offset, &reply, sizeof(reply));
+	sof_mailbox_read(sdev, sdev->host_box.offset, &reply, sizeof(reply));
 	if (reply.error < 0) {
 		size = sizeof(reply);
 		ret = reply.error;
@@ -567,7 +500,7 @@ static int bdw_get_reply(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 
 	/* read the message */
 	if (msg->msg_data && size > 0)
-		bdw_mailbox_read(sdev, sdev->host_box.offset, msg->reply_data,
+		sof_mailbox_read(sdev, sdev->host_box.offset, msg->reply_data,
 				 size);
 
 	return ret;
@@ -575,14 +508,24 @@ static int bdw_get_reply(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 
 static int bdw_cmd_done(struct snd_sof_dev *sdev, int dir)
 {
-	/* clear BUSY bit and set DONE bit - accept new messages */
-	snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IPCD,
-					 SHIM_IPCD_BUSY | SHIM_IPCD_DONE,
-					 SHIM_IPCD_DONE);
+	if (dir == SOF_IPC_HOST_REPLY) {
+		/* clear BUSY bit and set DONE bit - accept new messages */
+		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IPCD,
+						 SHIM_IPCD_BUSY | SHIM_IPCD_DONE,
+						 SHIM_IPCD_DONE);
 
-	/* unmask busy interrupt */
-	snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IMRX,
-					 SHIM_IMRX_BUSY, 0);
+		/* unmask busy interrupt */
+		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IMRX,
+						 SHIM_IMRX_BUSY, 0);
+	} else {
+		/* clear DONE bit - tell DSP we have completed */
+		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IPCX,
+						 SHIM_IPCX_DONE, 0);
+
+		/* unmask Done interrupt */
+		snd_sof_dsp_update_bits_unlocked(sdev, BDW_DSP_BAR, SHIM_IMRX,
+						 SHIM_IMRX_DONE, 0);
+	}
 
 	return 0;
 }
@@ -595,13 +538,10 @@ static int bdw_probe(struct snd_sof_dev *sdev)
 	struct snd_sof_pdata *pdata = sdev->pdata;
 	const struct sof_dev_desc *desc = pdata->desc;
 	struct platform_device *pdev =
-		container_of(sdev->parent, struct platform_device, dev);
+		container_of(sdev->dev, struct platform_device, dev);
 	struct resource *mmio;
 	u32 base, size;
 	int ret = 0;
-
-	/* set DSP arch ops */
-	sdev->arch_ops = &sof_xtensa_arch_ops;
 
 	/* LPE base */
 	mmio = platform_get_resource(pdev, IORESOURCE_MEM,
@@ -616,7 +556,7 @@ static int bdw_probe(struct snd_sof_dev *sdev)
 	}
 
 	dev_dbg(sdev->dev, "LPE PHY base at 0x%x size 0x%x", base, size);
-	sdev->bar[BDW_DSP_BAR] = ioremap(base, size);
+	sdev->bar[BDW_DSP_BAR] = devm_ioremap(sdev->dev, base, size);
 	if (!sdev->bar[BDW_DSP_BAR]) {
 		dev_err(sdev->dev,
 			"error: failed to ioremap LPE base 0x%x size 0x%x\n",
@@ -638,18 +578,16 @@ static int bdw_probe(struct snd_sof_dev *sdev)
 	} else {
 		dev_err(sdev->dev, "error: failed to get PCI base at idx %d\n",
 			desc->resindex_pcicfg_base);
-		ret = -ENODEV;
-		goto pci_err;
+		return -ENODEV;
 	}
 
 	dev_dbg(sdev->dev, "PCI base at 0x%x size 0x%x", base, size);
-	sdev->bar[BDW_PCI_BAR] = ioremap(base, size);
+	sdev->bar[BDW_PCI_BAR] = devm_ioremap(sdev->dev, base, size);
 	if (!sdev->bar[BDW_PCI_BAR]) {
 		dev_err(sdev->dev,
 			"error: failed to ioremap PCI base 0x%x size 0x%x\n",
 			base, size);
-		ret = -ENODEV;
-		goto pci_err;
+		return -ENODEV;
 	}
 	dev_dbg(sdev->dev, "PCI VADDR %p\n", sdev->bar[BDW_PCI_BAR]);
 
@@ -658,18 +596,17 @@ static int bdw_probe(struct snd_sof_dev *sdev)
 	if (sdev->ipc_irq < 0) {
 		dev_err(sdev->dev, "error: failed to get IRQ at index %d\n",
 			desc->irqindex_host_ipc);
-		ret = sdev->ipc_irq;
-		goto irq_err;
+		return sdev->ipc_irq;
 	}
 
 	dev_dbg(sdev->dev, "using IRQ %d\n", sdev->ipc_irq);
-	ret = request_threaded_irq(sdev->ipc_irq, bdw_irq_handler,
-				   bdw_irq_thread, IRQF_SHARED, "AudioDSP",
-				   sdev);
+	ret = devm_request_threaded_irq(sdev->dev, sdev->ipc_irq,
+					bdw_irq_handler, bdw_irq_thread,
+					IRQF_SHARED, "AudioDSP", sdev);
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: failed to register IRQ %d\n",
 			sdev->ipc_irq);
-		goto irq_err;
+		return ret;
 	}
 
 	/* enable the DSP SHIM */
@@ -686,79 +623,49 @@ static int bdw_probe(struct snd_sof_dev *sdev)
 		return ret;
 	}
 
-	/* set BARS */
-	sdev->cl_bar = BDW_DSP_BAR;
-
 	/* set default mailbox */
 	snd_sof_dsp_mailbox_init(sdev, MBOX_OFFSET, MBOX_SIZE, 0, 0);
 
 	return ret;
-
-irq_err:
-	iounmap(sdev->bar[BDW_DSP_BAR]);
-pci_err:
-	iounmap(sdev->bar[BDW_PCI_BAR]);
-	return ret;
 }
-
-static int bdw_remove(struct snd_sof_dev *sdev)
-{
-	iounmap(sdev->bar[BDW_DSP_BAR]);
-	iounmap(sdev->bar[BDW_PCI_BAR]);
-	free_irq(sdev->ipc_irq, sdev);
-	return 0;
-}
-
-#define BDW_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE | \
-	SNDRV_PCM_FMTBIT_S32_LE)
 
 /* Broadwell DAIs */
 static struct snd_soc_dai_driver bdw_dai[] = {
 {
 	.name = "ssp0-port",
-	.playback = SOF_DAI_STREAM("ssp0 Tx", 1, 8,
-				   SNDRV_PCM_RATE_8000_192000, BDW_FORMATS),
-	.capture = SOF_DAI_STREAM("ssp0 Rx", 1, 8,
-				  SNDRV_PCM_RATE_8000_192000, BDW_FORMATS),
 },
 {
 	.name = "ssp1-port",
-	.playback = SOF_DAI_STREAM("ssp1 Tx", 1, 8,
-				   SNDRV_PCM_RATE_8000_192000, BDW_FORMATS),
-	.capture = SOF_DAI_STREAM("ssp1 Rx", 1, 8,
-				  SNDRV_PCM_RATE_8000_192000, BDW_FORMATS),
 },
 };
 
 /* broadwell ops */
-struct snd_sof_dsp_ops sof_bdw_ops = {
+const struct snd_sof_dsp_ops sof_bdw_ops = {
 	/*Device init */
 	.probe          = bdw_probe,
-	.remove         = bdw_remove,
 
 	/* DSP Core Control */
 	.run            = bdw_run,
 	.reset          = bdw_reset,
 
 	/* Register IO */
-	.read           = bdw_read,
-	.write          = bdw_write,
-	.read64         = bdw_read64,
-	.write64        = bdw_write64,
+	.write		= sof_io_write,
+	.read		= sof_io_read,
+	.write64	= sof_io_write64,
+	.read64		= sof_io_read64,
 
 	/* Block IO */
-	.block_read     = bdw_block_read,
-	.block_write    = bdw_block_write,
+	.block_read	= sof_block_read,
+	.block_write	= sof_block_write,
 
 	/* mailbox */
-	.mailbox_read   = bdw_mailbox_read,
-	.mailbox_write  = bdw_mailbox_write,
+	.mailbox_read   = sof_mailbox_read,
+	.mailbox_write  = sof_mailbox_write,
 
 	/* ipc */
 	.send_msg	= bdw_send_msg,
 	.get_reply	= bdw_get_reply,
 	.fw_ready	= bdw_fw_ready,
-	.is_ready	= bdw_is_ready,
 	.cmd_done	= bdw_cmd_done,
 
 	/* debug */
@@ -777,5 +684,11 @@ struct snd_sof_dsp_ops sof_bdw_ops = {
 	.num_drv = ARRAY_SIZE(bdw_dai)
 };
 EXPORT_SYMBOL(sof_bdw_ops);
+
+const struct sof_intel_dsp_desc bdw_chip_info = {
+	.cores_num = 1,
+	.cores_mask = 1,
+};
+EXPORT_SYMBOL(bdw_chip_info);
 
 MODULE_LICENSE("Dual BSD/GPL");

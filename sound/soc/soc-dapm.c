@@ -319,7 +319,24 @@ EXPORT_SYMBOL_GPL(dapm_mark_endpoints_dirty);
 static inline struct snd_soc_dapm_widget *dapm_cnew_widget(
 	const struct snd_soc_dapm_widget *_widget)
 {
-	return kmemdup(_widget, sizeof(*_widget), GFP_KERNEL);
+	struct snd_soc_dapm_widget *w;
+
+	w = kmemdup(_widget, sizeof(*_widget), GFP_KERNEL);
+	if (!w)
+		return NULL;
+
+	/*
+	 * w->name is duplicated in caller, but w->sname isn't.
+	 * Duplicate it here if defined
+	 */
+	if (_widget->sname) {
+		w->sname = kstrdup_const(_widget->sname, GFP_KERNEL);
+		if (!w->sname) {
+			kfree(w);
+			return NULL;
+		}
+	}
+	return w;
 }
 
 struct dapm_kcontrol_data {
@@ -2436,6 +2453,7 @@ void snd_soc_dapm_free_widget(struct snd_soc_dapm_widget *w)
 
 	kfree(w->kcontrols);
 	kfree_const(w->name);
+	kfree_const(w->sname);
 	kfree(w);
 }
 
@@ -3493,6 +3511,7 @@ snd_soc_dapm_new_control_unlocked(struct snd_soc_dapm_context *dapm,
 	else
 		w->name = kstrdup_const(widget->name, GFP_KERNEL);
 	if (w->name == NULL) {
+		kfree_const(w->sname);
 		kfree(w);
 		return ERR_PTR(-ENOMEM);
 	}
@@ -3538,6 +3557,12 @@ snd_soc_dapm_new_control_unlocked(struct snd_soc_dapm_context *dapm,
 	case snd_soc_dapm_aif_in:
 	case snd_soc_dapm_pga:
 	case snd_soc_dapm_buffer:
+	case snd_soc_dapm_scheduler:
+	case snd_soc_dapm_effect:
+	case snd_soc_dapm_src:
+	case snd_soc_dapm_asrc:
+	case snd_soc_dapm_encoder:
+	case snd_soc_dapm_decoder:
 	case snd_soc_dapm_out_drv:
 	case snd_soc_dapm_micbias:
 	case snd_soc_dapm_line:

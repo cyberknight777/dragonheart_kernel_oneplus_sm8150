@@ -28,7 +28,7 @@ struct graph_priv {
 		struct asoc_simple_dai *cpu_dai;
 		struct asoc_simple_dai *codec_dai;
 		struct snd_soc_dai_link_component codecs; /* single codec */
-		struct snd_soc_dai_link_component platform;
+		struct snd_soc_dai_link_component platforms;
 		struct asoc_simple_card_data adata;
 		struct snd_soc_codec_conf *codec_conf;
 		unsigned int mclk_fs;
@@ -309,12 +309,10 @@ static int graph_dai_link_of_dpcm(struct graph_priv *priv,
 					     "prefix");
 	}
 
+	asoc_simple_card_canonicalize_platform(dai_link);
+
 	ret = asoc_simple_card_of_parse_tdm(ep, dai);
 	if (ret)
-		return ret;
-
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
 		return ret;
 
 	ret = asoc_simple_card_parse_daifmt(dev, cpu_ep, codec_ep,
@@ -407,10 +405,6 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	if (ret < 0)
 		return ret;
 
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
-		return ret;
-
 	ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 						"%s-%s",
 						dai_link->cpu_dai_name,
@@ -421,6 +415,7 @@ static int graph_dai_link_of(struct graph_priv *priv,
 	dai_link->ops = &graph_ops;
 	dai_link->init = graph_dai_init;
 
+	asoc_simple_card_canonicalize_platform(dai_link);
 	asoc_simple_card_canonicalize_cpu(dai_link,
 		of_graph_get_endpoint_count(dai_link->cpu_of_node) == 1);
 
@@ -691,7 +686,8 @@ static int graph_probe(struct platform_device *pdev)
 	for (i = 0; i < li.link; i++) {
 		dai_link[i].codecs	= &dai_props[i].codecs;
 		dai_link[i].num_codecs	= 1;
-		dai_link[i].platform	= &dai_props[i].platform;
+		dai_link[i].platforms	= &dai_props[i].platforms;
+		dai_link[i].num_platforms = 1;
 	}
 
 	priv->pa_gpio = devm_gpiod_get_optional(dev, "pa", GPIOD_OUT_LOW);

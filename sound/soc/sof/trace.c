@@ -1,28 +1,15 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
- *         Yan Wang <yan.wan@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+//
 
-#include <linux/delay.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/sched/signal.h>
-#include <linux/time.h>
-#include <linux/device.h>
-#include <linux/interrupt.h>
-#include <linux/module.h>
-#include <linux/dma-mapping.h>
-#include <linux/platform_device.h>
-#include <linux/firmware.h>
 #include <linux/debugfs.h>
-#include <uapi/sound/sof-ipc.h>
-#include <uapi/sound/sof-fw.h>
+#include <linux/sched/signal.h>
 #include "sof-priv.h"
 #include "ops.h"
 
@@ -48,31 +35,28 @@ static size_t sof_wait_trace_avail(struct snd_sof_dev *sdev,
 	set_current_state(TASK_INTERRUPTIBLE);
 	add_wait_queue(&sdev->trace_sleep, &wait);
 
-	if (signal_pending(current)) {
-		remove_wait_queue(&sdev->trace_sleep, &wait);
-		goto out;
+	if (!signal_pending(current)) {
+		/* set timeout to max value, no error code */
+		schedule_timeout(MAX_SCHEDULE_TIMEOUT);
 	}
-
-	/* set timeout to max value, no error code */
-	schedule_timeout(MAX_SCHEDULE_TIMEOUT);
 	remove_wait_queue(&sdev->trace_sleep, &wait);
 
-out:
 	/* return bytes available for copy */
 	if (sdev->host_offset < pos)
 		return buffer_size - pos;
-	else
-		return sdev->host_offset - pos;
+
+	return sdev->host_offset - pos;
 }
 
 static ssize_t sof_dfsentry_trace_read(struct file *file, char __user *buffer,
 				       size_t count, loff_t *ppos)
 {
-	struct snd_sof_dfsentry_buf *dfse = file->private_data;
+	struct snd_sof_dfsentry *dfse = file->private_data;
 	struct snd_sof_dev *sdev = dfse->sdev;
 	unsigned long rem;
 	loff_t lpos = *ppos;
 	size_t avail, buffer_size = dfse->size;
+	u64 lpos_64;
 
 	/* make sure we know about any failures on the DSP side */
 	sdev->dtrace_error = false;
@@ -84,8 +68,10 @@ static ssize_t sof_dfsentry_trace_read(struct file *file, char __user *buffer,
 		return 0;
 
 	/* check for buffer wrap and count overflow */
-	div64_u64_rem(lpos, buffer_size, &lpos);
-	if (count > buffer_size - lpos)
+	lpos_64 = lpos;
+	lpos = do_div(lpos_64, buffer_size);
+
+	if (count > buffer_size - lpos) /* min() not used to avoid sparse warnings */
 		count = buffer_size - lpos;
 
 	/* get available count based on current host offset */
@@ -99,8 +85,8 @@ static ssize_t sof_dfsentry_trace_read(struct file *file, char __user *buffer,
 	count = avail > count ? count : avail;
 
 	/* copy available trace data to debugfs */
-	rem = copy_to_user(buffer, dfse->buf + lpos, count);
-	if (rem == count)
+	rem = copy_to_user(buffer, (void *)((u8 *)(dfse->buf) + lpos), count);
+	if (rem)
 		return -EFAULT;
 
 	*ppos += count;
@@ -117,15 +103,16 @@ static const struct file_operations sof_dfs_trace_fops = {
 
 static int trace_debugfs_create(struct snd_sof_dev *sdev)
 {
-	struct snd_sof_dfsentry_buf *dfse;
+	struct snd_sof_dfsentry *dfse;
 
 	if (!sdev)
 		return -EINVAL;
 
-	dfse = kzalloc(sizeof(*dfse), GFP_KERNEL);
+	dfse = devm_kzalloc(sdev->dev, sizeof(*dfse), GFP_KERNEL);
 	if (!dfse)
 		return -ENOMEM;
 
+	dfse->type = SOF_DFSENTRY_TYPE_BUF;
 	dfse->buf = sdev->dmatb.area;
 	dfse->size = sdev->dmatb.bytes;
 	dfse->sdev = sdev;
@@ -133,10 +120,9 @@ static int trace_debugfs_create(struct snd_sof_dev *sdev)
 	dfse->dfsentry = debugfs_create_file("trace", 0444, sdev->debugfs_root,
 					     dfse, &sof_dfs_trace_fops);
 	if (!dfse->dfsentry) {
+		/* can't rely on debugfs, only log error and keep going */
 		dev_err(sdev->dev,
 			"error: cannot create debugfs entry for trace\n");
-		kfree(dfse);
-		return -ENODEV;
 	}
 
 	return 0;
@@ -148,15 +134,17 @@ int snd_sof_init_trace_ipc(struct snd_sof_dev *sdev)
 	struct sof_ipc_reply ipc_reply;
 	int ret;
 
+	if (sdev->dtrace_is_enabled || !sdev->dma_trace_pages)
+		return -EINVAL;
+
 	/* set IPC parameters */
 	params.hdr.size = sizeof(params);
 	params.hdr.cmd = SOF_IPC_GLB_TRACE_MSG | SOF_IPC_TRACE_DMA_PARAMS;
 	params.buffer.phy_addr = sdev->dmatp.addr;
 	params.buffer.size = sdev->dmatb.bytes;
-	params.buffer.offset = 0;
 	params.buffer.pages = sdev->dma_trace_pages;
+	params.stream_tag = 0;
 
-	init_waitqueue_head(&sdev->trace_sleep);
 	sdev->host_offset = 0;
 
 	ret = snd_sof_dma_trace_init(sdev, &params.stream_tag);
@@ -201,7 +189,7 @@ int snd_sof_init_trace(struct snd_sof_dev *sdev)
 	sdev->dtrace_is_enabled = false;
 
 	/* allocate trace page table buffer */
-	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, sdev->parent,
+	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, sdev->dev,
 				  PAGE_SIZE, &sdev->dmatp);
 	if (ret < 0) {
 		dev_err(sdev->dev,
@@ -210,7 +198,7 @@ int snd_sof_init_trace(struct snd_sof_dev *sdev)
 	}
 
 	/* allocate trace data buffer */
-	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV_SG, sdev->parent,
+	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV_SG, sdev->dev,
 				  DMA_BUF_SIZE_FOR_TRACE, &sdev->dmatb);
 	if (ret < 0) {
 		dev_err(sdev->dev,
@@ -218,7 +206,7 @@ int snd_sof_init_trace(struct snd_sof_dev *sdev)
 		goto page_err;
 	}
 
-	/* craete compressed page table for audio firmware */
+	/* create compressed page table for audio firmware */
 	ret = snd_sof_create_page_table(sdev, &sdev->dmatb, sdev->dmatp.area,
 					sdev->dmatb.bytes);
 	if (ret < 0)
@@ -227,11 +215,13 @@ int snd_sof_init_trace(struct snd_sof_dev *sdev)
 	sdev->dma_trace_pages = ret;
 	dev_dbg(sdev->dev, "dma_trace_pages: %d\n", sdev->dma_trace_pages);
 
-	if(sdev->first_boot) {
+	if (sdev->first_boot) {
 		ret = trace_debugfs_create(sdev);
 		if (ret < 0)
 			goto table_err;
 	}
+
+	init_waitqueue_head(&sdev->trace_sleep);
 
 	ret = snd_sof_init_trace_ipc(sdev);
 	if (ret < 0)
@@ -239,6 +229,7 @@ int snd_sof_init_trace(struct snd_sof_dev *sdev)
 
 	return 0;
 table_err:
+	sdev->dma_trace_pages = 0;
 	snd_dma_free_pages(&sdev->dmatb);
 page_err:
 	snd_dma_free_pages(&sdev->dmatp);
@@ -290,7 +281,15 @@ void snd_sof_release_trace(struct snd_sof_dev *sdev)
 		dev_err(sdev->dev,
 			"error: fail in snd_sof_dma_trace_release %d\n", ret);
 
+	sdev->dtrace_is_enabled = false;
+}
+EXPORT_SYMBOL(snd_sof_release_trace);
+
+void snd_sof_free_trace(struct snd_sof_dev *sdev)
+{
+	snd_sof_release_trace(sdev);
+
 	snd_dma_free_pages(&sdev->dmatb);
 	snd_dma_free_pages(&sdev->dmatp);
 }
-EXPORT_SYMBOL(snd_sof_release_trace);
+EXPORT_SYMBOL(snd_sof_free_trace);

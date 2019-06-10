@@ -1,37 +1,23 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Authors: Liam Girdwood <liam.r.girdwood@linux.intel.com>
- *	    Ranjani Sridharan <ranjani.sridharan@linux.intel.com>
- *	    Jeeja KP <jeeja.kp@intel.com>
- *	    Rander Wang <rander.wang@intel.com>
- *          Keyon Jie <yang.jie@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Authors: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+//	    Ranjani Sridharan <ranjani.sridharan@linux.intel.com>
+//	    Rander Wang <rander.wang@intel.com>
+//          Keyon Jie <yang.jie@linux.intel.com>
+//
 
 /*
  * Hardware interface for generic Intel audio DSP HDA IP
  */
 
-#include <linux/delay.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/device.h>
-#include <linux/interrupt.h>
-#include <linux/module.h>
-#include <linux/dma-mapping.h>
-#include <linux/firmware.h>
-#include <linux/pci.h>
 #include <sound/hdaudio_ext.h>
 #include <sound/hda_register.h>
-#include <sound/sof.h>
 #include <sound/pcm_params.h>
-#include <linux/pm_runtime.h>
-
-#include "../sof-priv.h"
 #include "../ops.h"
 #include "hda.h"
 
@@ -102,6 +88,8 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 {
 	struct hdac_stream *hstream = substream->runtime->private_data;
 	struct hdac_ext_stream *stream = stream_to_hdac_ext_stream(hstream);
+	struct sof_intel_hda_dev *hda =
+		(struct sof_intel_hda_dev *)sdev->pdata->hw_pdata;
 	struct snd_dma_buffer *dmab;
 	int ret;
 	u32 size, rate, bits;
@@ -131,7 +119,7 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 	hda_dsp_stream_spib_config(sdev, stream, HDA_DSP_SPIB_DISABLE, 0);
 
 	/* set host_period_bytes to 0 if no IPC position */
-	if (sdev->hda && sdev->hda->no_ipc_position)
+	if (hda && hda->no_ipc_position)
 		ipc_params->host_period_bytes = 0;
 
 	ipc_params->stream_tag = hstream->stream_tag;
@@ -151,12 +139,21 @@ int hda_dsp_pcm_trigger(struct snd_sof_dev *sdev,
 snd_pcm_uframes_t hda_dsp_pcm_pointer(struct snd_sof_dev *sdev,
 				      struct snd_pcm_substream *substream)
 {
-	struct hdac_stream *hstream = substream->runtime->private_data;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_sof_pcm *spcm = rtd->sof;
+	struct hdac_stream *hstream = substream->runtime->private_data;
+	struct sof_intel_hda_dev *hda =
+		(struct sof_intel_hda_dev *)sdev->pdata->hw_pdata;
+	struct snd_sof_pcm *spcm;
 	snd_pcm_uframes_t pos = 0;
 
-	if (!sdev->hda->no_ipc_position) {
+	spcm = snd_sof_find_spcm_dai(sdev, rtd);
+	if (!spcm) {
+		dev_warn_ratelimited(sdev->dev, "warn: can't find PCM with DAI ID %d\n",
+				     rtd->dai_link->id);
+		return 0;
+	}
+
+	if (hda && !hda->no_ipc_position) {
 		/* read position from IPC position */
 		pos = spcm->stream[substream->stream].posn.host_posn;
 		goto found;
@@ -210,20 +207,18 @@ found:
 int hda_dsp_pcm_open(struct snd_sof_dev *sdev,
 		     struct snd_pcm_substream *substream)
 {
-	struct hdac_ext_stream *stream;
+	struct hdac_ext_stream *dsp_stream;
+	int direction = substream->stream;
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		stream = hda_dsp_stream_get_pstream(sdev);
-	else
-		stream = hda_dsp_stream_get_cstream(sdev);
+	dsp_stream = hda_dsp_stream_get(sdev, direction);
 
-	if (!stream) {
+	if (!dsp_stream) {
 		dev_err(sdev->dev, "error: no stream available\n");
 		return -ENODEV;
 	}
 
 	/* binding pcm substream to hda stream */
-	substream->runtime->private_data = &stream->hstream;
+	substream->runtime->private_data = &dsp_stream->hstream;
 	return 0;
 }
 
@@ -231,12 +226,10 @@ int hda_dsp_pcm_close(struct snd_sof_dev *sdev,
 		      struct snd_pcm_substream *substream)
 {
 	struct hdac_stream *hstream = substream->runtime->private_data;
+	int direction = substream->stream;
 	int ret;
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		ret = hda_dsp_stream_put_pstream(sdev, hstream->stream_tag);
-	else
-		ret = hda_dsp_stream_put_cstream(sdev, hstream->stream_tag);
+	ret = hda_dsp_stream_put(sdev, direction, hstream->stream_tag);
 
 	if (ret) {
 		dev_dbg(sdev->dev, "stream %s not opened!\n", substream->name);
@@ -247,4 +240,3 @@ int hda_dsp_pcm_close(struct snd_sof_dev *sdev,
 	substream->runtime->private_data = NULL;
 	return 0;
 }
-

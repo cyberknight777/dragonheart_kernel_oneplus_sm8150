@@ -56,7 +56,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"MIC1", NULL, "Headset Mic"},
 	{"MIC2", NULL, "Mic"},
 
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	/* SOC-codec link */
 	{"ssp2 Tx", NULL, "codec_out0"},
 	{"ssp2 Tx", NULL, "codec_out1"},
@@ -65,7 +64,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 	{"Playback", NULL, "ssp2 Tx"},
 	{"ssp2 Rx", NULL, "Capture"},
-#endif
 };
 
 static int codec_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -227,6 +225,7 @@ static int bytcht_da7213_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card;
 	struct snd_soc_acpi_mach *mach;
+	const char *platform_name;
 	const char *i2c_name = NULL;
 	int dai_index = 0;
 	int ret_val = 0;
@@ -251,6 +250,13 @@ static int bytcht_da7213_probe(struct platform_device *pdev)
 			"%s%s", "i2c-", i2c_name);
 		dailink[dai_index].codec_name = codec_name;
 	}
+
+	/* override plaform name, if required */
+	platform_name = mach->mach_params.platform;
+
+	ret_val = snd_soc_fixup_dai_links_platform_name(card, platform_name);
+	if (ret_val)
+		return ret_val;
 
 	ret_val = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret_val) {

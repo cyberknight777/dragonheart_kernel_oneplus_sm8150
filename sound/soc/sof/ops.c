@@ -1,50 +1,42 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+//
 
-#include <linux/kernel.h>
-#include <linux/types.h>
-#include <linux/interrupt.h>
-#include <linux/device.h>
 #include <linux/pci.h>
-#include <linux/delay.h>
-#include <uapi/sound/sof-ipc.h>
 #include "ops.h"
-#include "sof-priv.h"
 
-int snd_sof_pci_update_bits_unlocked(struct snd_sof_dev *sdev, u32 offset,
-				     u32 mask, u32 value)
+static
+bool snd_sof_pci_update_bits_unlocked(struct snd_sof_dev *sdev, u32 offset,
+				      u32 mask, u32 value)
 {
-	bool change;
+	struct pci_dev *pci = to_pci_dev(sdev->dev);
 	unsigned int old, new;
-	u32 ret = ~0; /* explicit init to remove uninitialized use warnings */
+	u32 ret;
 
-	pci_read_config_dword(sdev->pci, offset, &ret);
-	dev_dbg(sdev->dev, "Debug PCIR: %8.8x at  %8.8x\n",
-		pci_read_config_dword(sdev->pci, offset, &ret), offset);
-
+	pci_read_config_dword(pci, offset, &ret);
 	old = ret;
-	new = (old & (~mask)) | (value & mask);
+	dev_dbg(sdev->dev, "Debug PCIR: %8.8x at  %8.8x\n", old & mask, offset);
 
-	change = (old != new);
-	if (change) {
-		pci_write_config_dword(sdev->pci, offset, new);
-		dev_dbg(sdev->dev, "Debug PCIW: %8.8x at  %8.8x\n", value,
-			offset);
-	}
+	new = (old & ~mask) | (value & mask);
 
-	return change;
+	if (old == new)
+		return false;
+
+	pci_write_config_dword(pci, offset, new);
+	dev_dbg(sdev->dev, "Debug PCIW: %8.8x at  %8.8x\n", value,
+		offset);
+
+	return true;
 }
-EXPORT_SYMBOL(snd_sof_pci_update_bits_unlocked);
 
-int snd_sof_pci_update_bits(struct snd_sof_dev *sdev, u32 offset,
-			    u32 mask, u32 value)
+bool snd_sof_pci_update_bits(struct snd_sof_dev *sdev, u32 offset,
+			     u32 mask, u32 value)
 {
 	unsigned long flags;
 	bool change;
@@ -56,62 +48,47 @@ int snd_sof_pci_update_bits(struct snd_sof_dev *sdev, u32 offset,
 }
 EXPORT_SYMBOL(snd_sof_pci_update_bits);
 
-int snd_sof_dsp_update_bits_unlocked(struct snd_sof_dev *sdev, u32 bar,
-				     u32 offset, u32 mask, u32 value)
+bool snd_sof_dsp_update_bits_unlocked(struct snd_sof_dev *sdev, u32 bar,
+				      u32 offset, u32 mask, u32 value)
 {
-	bool change;
 	unsigned int old, new;
 	u32 ret;
 
 	ret = snd_sof_dsp_read(sdev, bar, offset);
 
 	old = ret;
-	new = (old & (~mask)) | (value & mask);
+	new = (old & ~mask) | (value & mask);
 
-	change = (old != new);
-	if (change)
-		snd_sof_dsp_write(sdev, bar, offset, new);
+	if (old == new)
+		return false;
 
-	return change;
+	snd_sof_dsp_write(sdev, bar, offset, new);
+
+	return true;
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits_unlocked);
 
-int snd_sof_dsp_update_bits64_unlocked(struct snd_sof_dev *sdev, u32 bar,
-				       u32 offset, u64 mask, u64 value)
+bool snd_sof_dsp_update_bits64_unlocked(struct snd_sof_dev *sdev, u32 bar,
+					u32 offset, u64 mask, u64 value)
 {
-	bool change;
 	u64 old, new;
 
 	old = snd_sof_dsp_read64(sdev, bar, offset);
 
-	new = (old & (~mask)) | (value & mask);
+	new = (old & ~mask) | (value & mask);
 
-	change = (old != new);
-	if (change)
-		snd_sof_dsp_write64(sdev, bar, offset, new);
+	if (old == new)
+		return false;
 
-	return change;
+	snd_sof_dsp_write64(sdev, bar, offset, new);
+
+	return true;
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits64_unlocked);
 
 /* This is for registers bits with attribute RWC */
-void snd_sof_dsp_update_bits_forced_unlocked(struct snd_sof_dev *sdev, u32 bar,
-					     u32 offset, u32 mask, u32 value)
-{
-	unsigned int old, new;
-	u32 ret;
-
-	ret = snd_sof_dsp_read(sdev, bar, offset);
-
-	old = ret;
-	new = (old & (~mask)) | (value & mask);
-
-	snd_sof_dsp_write(sdev, bar, offset, new);
-}
-EXPORT_SYMBOL(snd_sof_dsp_update_bits_forced_unlocked);
-
-int snd_sof_dsp_update_bits(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			    u32 mask, u32 value)
+bool snd_sof_dsp_update_bits(struct snd_sof_dev *sdev, u32 bar, u32 offset,
+			     u32 mask, u32 value)
 {
 	unsigned long flags;
 	bool change;
@@ -124,8 +101,8 @@ int snd_sof_dsp_update_bits(struct snd_sof_dev *sdev, u32 bar, u32 offset,
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits);
 
-int snd_sof_dsp_update_bits64(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			      u64 mask, u64 value)
+bool snd_sof_dsp_update_bits64(struct snd_sof_dev *sdev, u32 bar, u32 offset,
+			       u64 mask, u64 value)
 {
 	unsigned long flags;
 	bool change;
@@ -137,6 +114,21 @@ int snd_sof_dsp_update_bits64(struct snd_sof_dev *sdev, u32 bar, u32 offset,
 	return change;
 }
 EXPORT_SYMBOL(snd_sof_dsp_update_bits64);
+
+static
+void snd_sof_dsp_update_bits_forced_unlocked(struct snd_sof_dev *sdev, u32 bar,
+					     u32 offset, u32 mask, u32 value)
+{
+	unsigned int old, new;
+	u32 ret;
+
+	ret = snd_sof_dsp_read(sdev, bar, offset);
+
+	old = ret;
+	new = (old & ~mask) | (value & mask);
+
+	snd_sof_dsp_write(sdev, bar, offset, new);
+}
 
 /* This is for registers bits with attribute RWC */
 void snd_sof_dsp_update_bits_forced(struct snd_sof_dev *sdev, u32 bar,
@@ -151,31 +143,33 @@ void snd_sof_dsp_update_bits_forced(struct snd_sof_dev *sdev, u32 bar,
 EXPORT_SYMBOL(snd_sof_dsp_update_bits_forced);
 
 int snd_sof_dsp_register_poll(struct snd_sof_dev *sdev, u32 bar, u32 offset,
-			      u32 mask, u32 target, u32 time)
+			      u32 mask, u32 target, u32 timeout_ms,
+			      u32 interval_us)
 {
-u32 reg;
-	unsigned long timeout;
-	int k = 0, s = 500;
+	u32 reg;
+	unsigned long tout_jiff;
+	int k = 0, s = interval_us;
 
 	/*
-	 * split the loop into sleeps of varying resolution. more accurately,
-	 * the range of wakeups are:
+	 * Split the loop into 2 sleep stages with varying resolution.
+	 * To do it more accurately, the range of wakeups are:
+	 * In case of interval_us = 500,
 	 * Phase 1(first 5ms): min sleep 0.5ms; max sleep 1ms.
-	 * Phase 2:( 5ms to 10ms) : min sleep 0.5ms; max sleep 10ms
-	 * (usleep_range (500, 1000) and usleep_range(5000, 10000) are
-	 * both possible in this phase depending on whether k > 10 or not).
-	 * Phase 3: (beyond 10 ms) min sleep 5ms; max sleep 10ms.
+	 * Phase 2(beyond 5ms): min sleep 5ms; max sleep 10ms.
 	 */
 
-	timeout = jiffies + msecs_to_jiffies(time);
-	while ((((reg = snd_sof_dsp_read(sdev, bar, offset)) & mask) != target)
-		&& time_before(jiffies, timeout)) {
-		k++;
-		if (k > 10)
-			s = 5000;
+	tout_jiff = jiffies + msecs_to_jiffies(timeout_ms);
+	do {
+		reg = snd_sof_dsp_read(sdev, bar, offset);
+		if ((reg & mask) == target)
+			break;
 
-		usleep_range(s, 2*s);
-	}
+		/* Phase 2 after 5ms(500us * 10) */
+		if (++k > 10)
+			s = interval_us * 10;
+
+		usleep_range(s, 2 * s);
+	} while (time_before(jiffies, tout_jiff));
 
 	if ((reg & mask) == target) {
 		dev_dbg(sdev->dev, "FW Poll Status: reg=%#x successful\n", reg);
@@ -185,7 +179,6 @@ u32 reg;
 
 	dev_dbg(sdev->dev, "FW Poll Status: reg=%#x timedout\n", reg);
 	return -ETIME;
-
 }
 EXPORT_SYMBOL(snd_sof_dsp_register_poll);
 
@@ -193,7 +186,8 @@ void snd_sof_dsp_panic(struct snd_sof_dev *sdev, u32 offset)
 {
 	dev_err(sdev->dev, "error : DSP panic!\n");
 
-	/* check if DSP is not ready and did not set the dsp_oops_offset.
+	/*
+	 * check if DSP is not ready and did not set the dsp_oops_offset.
 	 * if the dsp_oops_offset is not set, set it from the panic message.
 	 * Also add a check to memory window setting with panic message.
 	 */
