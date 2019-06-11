@@ -555,7 +555,7 @@ static void iwl_mvm_mac_ctxt_cmd_common(struct iwl_mvm *mvm,
 		cpu_to_le32(vif->bss_conf.use_short_slot ?
 			    MAC_FLG_SHORT_SLOT : 0);
 
-	cmd->filter_flags = cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
+	cmd->filter_flags = 0;
 
 	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
 		u8 txf = iwl_mvm_mac_ac_to_tx_fifo(mvm, i);
@@ -668,6 +668,7 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 			       dtim_offs);
 
 		ctxt_sta->is_assoc = cpu_to_le32(1);
+		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
 	} else {
 		ctxt_sta->is_assoc = cpu_to_le32(0);
 
@@ -713,7 +714,8 @@ static int iwl_mvm_mac_ctxt_cmd_listener(struct iwl_mvm *mvm,
 				       MAC_FILTER_IN_CONTROL_AND_MGMT |
 				       MAC_FILTER_IN_BEACON |
 				       MAC_FILTER_IN_PROBE_REQUEST |
-				       MAC_FILTER_IN_CRC32);
+				       MAC_FILTER_IN_CRC32 |
+				       MAC_FILTER_ACCEPT_GRP);
 	ieee80211_hw_set(mvm->hw, RX_INCLUDES_FCS);
 
 	/* Allocate sniffer station */
@@ -737,7 +739,8 @@ static int iwl_mvm_mac_ctxt_cmd_ibss(struct iwl_mvm *mvm,
 	iwl_mvm_mac_ctxt_cmd_common(mvm, vif, &cmd, NULL, action);
 
 	cmd.filter_flags = cpu_to_le32(MAC_FILTER_IN_BEACON |
-				       MAC_FILTER_IN_PROBE_REQUEST);
+				       MAC_FILTER_IN_PROBE_REQUEST |
+				       MAC_FILTER_ACCEPT_GRP);
 
 	/* cmd.ibss.beacon_time/cmd.ibss.beacon_tsf are curently ignored */
 	cmd.ibss.bi = cpu_to_le32(vif->bss_conf.beacon_int);
