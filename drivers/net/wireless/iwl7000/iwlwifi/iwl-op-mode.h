@@ -8,7 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015        Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015        Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -111,24 +111,18 @@ struct iwl_tm_data;
  * struct iwl_test_ops: callback to the op mode
  * @send_hcmd: Handler that sends host cmd in the specific op_mode. If this
  *	handler is not registered then sending host cmd will not be supported.
- * @cmd_exec_start: Handler that is used for user preparations before
- *	executing a command. It is optional.
  * @cmd_exec: Handler that is used to execute user's test-mode commands.
  *	It is optional. If this handler is not given, the default handler will
  *	execute.
- * @cmd_exec_end: Handler that is used for user to cleanup after a command
- *	was executed. It is optional.
  *
  * The structure defines the callbacks that the op_mode should handle,
  * inorder to handle logic that is out of the scope of iwl_test.
  */
 struct iwl_test_ops {
 	int (*send_hcmd)(void *op_mode, struct iwl_host_cmd *host_cmd);
-	int (*cmd_exec_start)(struct iwl_testmode *testmode);
 	int (*cmd_exec)(struct iwl_testmode *testmode, u32 cmd,
 			struct iwl_tm_data *data_in,
 			struct iwl_tm_data *data_out, bool *cmd_supported);
-	void (*cmd_exec_end)(struct iwl_testmode *testmode);
 };
 #endif
 
