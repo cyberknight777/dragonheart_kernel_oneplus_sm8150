@@ -40,7 +40,7 @@
 #define S2S_DEFAULT		0
 #define WG_PWRKEY_DUR           60
 
-/* Bonito */
+/* 7 PRO */
 #define SWEEP_Y_MAX             3120
 #define SWEEP_X_MAX             1440
 #define SWEEP_EDGE		130
@@ -55,6 +55,18 @@
 #define DT2W_FEATHER		200
 #define DT2W_TIME 		500
 
+/* 7 */
+#define SWEEP_Y_MAX_OP7	2340
+#define SWEEP_X_MAX_OP7	1080
+#define SWEEP_EDGE_OP7	90
+#define SWEEP_Y_LIMIT_OP7	SWEEP_Y_MAX_OP7-SWEEP_EDGE_OP7
+#define SWEEP_X_LIMIT_OP7	SWEEP_X_MAX_OP7-SWEEP_EDGE_OP7
+#define SWEEP_X_B1_OP7	350
+#define SWEEP_X_B2_OP7	600
+#define SWEEP_Y_START_OP7	800
+#define SWEEP_X_START_OP7	530
+#define SWEEP_X_FINAL_OP7	260
+#define SWEEP_Y_NEXT_OP7	150
 
 /* Wake Gestures */
 #define SWEEP_TIMEOUT		300
@@ -68,6 +80,8 @@
 #define WAKE_GESTURES_ENABLED	1
 
 #define LOGTAG			"WG"
+#define OP7PRO		1
+#define OP7		2
 
 #if (WAKE_GESTURES_ENABLED)
 int gestures_switch = WG_DEFAULT;
@@ -111,6 +125,27 @@ static struct workqueue_struct *s2w_input_wq;
 static struct workqueue_struct *dt2w_input_wq;
 static struct work_struct s2w_input_work;
 static struct work_struct dt2w_input_work;
+
+//get hardware type
+static int hw_version = OP7PRO;
+static int __init get_model(char *cmdline_model)
+{
+	if (strstr(cmdline_model, "18857")) {
+		sweep_y_limit = SWEEP_Y_LIMIT_OP7;
+		sweep_x_limit = SWEEP_X_LIMIT_OP7;
+		sweep_x_b1 = SWEEP_X_B1_OP7;
+		sweep_x_b2 = SWEEP_X_B2_OP7;
+		sweep_y_start = SWEEP_Y_START_OP7;
+		sweep_x_start = SWEEP_X_START_OP7;
+		sweep_x_final = SWEEP_X_FINAL_OP7;
+		sweep_y_next = SWEEP_Y_NEXT_OP7;
+		sweep_x_max = SWEEP_X_MAX_OP7;
+		sweep_edge = SWEEP_EDGE_OP7;
+		hw_version = OP7;
+	}
+	return 0;
+}
+__setup("androidboot.project_name=", get_model);
 
 static bool is_suspended(void)
 {
