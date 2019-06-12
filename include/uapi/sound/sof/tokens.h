@@ -1,10 +1,9 @@
-/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note)) OR BSD-3-Clause) */
+/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
 /*
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
  *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
+ * Copyright(c) 2018 Intel Corporation. All rights reserved.
  * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
  *         Keyon Jie <yang.jie@linux.intel.com>
  */
@@ -24,6 +23,7 @@
 #define SOF_TPLG_KCTL_VOL_ID	256
 #define SOF_TPLG_KCTL_ENUM_ID	257
 #define SOF_TPLG_KCTL_BYTES_ID	258
+#define SOF_TPLG_KCTL_SWITCH_ID	259
 
 /*
  * Tokens - must match values in topology configurations
@@ -34,9 +34,12 @@
 #define SOF_TKN_BUF_CAPS			101
 
 /* DAI */
-#define	SOF_TKN_DAI_DMAC_CONFIG			153
+/* Token retired with ABI 3.2, do not use for new capabilities
+ * #define	SOF_TKN_DAI_DMAC_CONFIG			153
+ */
 #define SOF_TKN_DAI_TYPE			154
 #define SOF_TKN_DAI_INDEX			155
+#define SOF_TKN_DAI_DIRECTION			156
 
 /* scheduling */
 #define SOF_TKN_SCHED_DEADLINE			200
@@ -61,7 +64,9 @@
 #define SOF_TKN_COMP_PERIOD_SINK_COUNT		400
 #define SOF_TKN_COMP_PERIOD_SOURCE_COUNT	401
 #define SOF_TKN_COMP_FORMAT			402
-#define SOF_TKN_COMP_PRELOAD_COUNT		403
+/* Token retired with ABI 3.2, do not use for new capabilities
+ * #define SOF_TKN_COMP_PRELOAD_COUNT		403
+ */
 
 /* SSP */
 #define SOF_TKN_INTEL_SSP_CLKS_CONTROL		500
@@ -89,5 +94,10 @@
 #define SOF_TKN_INTEL_DMIC_PDM_POLARITY_B	704
 #define SOF_TKN_INTEL_DMIC_PDM_CLK_EDGE		705
 #define SOF_TKN_INTEL_DMIC_PDM_SKEW		706
+
+/* Tone */
+#define SOF_TKN_TONE_SAMPLE_RATE		800
+
+#define SOF_TKN_EFFECT_TYPE                     900
 
 #endif

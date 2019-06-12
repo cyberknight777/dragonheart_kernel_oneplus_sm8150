@@ -16,6 +16,7 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <sound/soc-acpi.h>
 #include "../skylake/skl.h"
 #include "../../codecs/rt5682.h"
 #include "../../codecs/hdac_hdmi.h"
@@ -504,13 +505,8 @@ static struct snd_soc_dai_link geminilake_dais[] = {
 		.name = "dmic01",
 		.id = 2,
 		.cpu_dai_name = "DMIC01 Pin",
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_APOLLOLAKE)
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
-#else
-		.codec_name = "dmic-codec",
-		.codec_dai_name = "dmic-hifi",
-#endif
 		.platform_name = "0000:00:0e.0",
 		.ignore_suspend = 1,
 		.be_hw_params_fixup = geminilake_dmic_fixup,
@@ -605,6 +601,10 @@ static struct snd_soc_card glk_audio_card_rt5682_m98357a = {
 static int geminilake_audio_probe(struct platform_device *pdev)
 {
 	struct glk_card_private *ctx;
+	struct snd_soc_acpi_mach *mach;
+	const char *platform_name;
+	struct snd_soc_card *card;
+	int ret;
 
 	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
@@ -612,11 +612,19 @@ static int geminilake_audio_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&ctx->hdmi_pcm_list);
 
-	glk_audio_card_rt5682_m98357a.dev = &pdev->dev;
-	snd_soc_card_set_drvdata(&glk_audio_card_rt5682_m98357a, ctx);
+	card = &glk_audio_card_rt5682_m98357a;
+	card->dev = &pdev->dev;
+	snd_soc_card_set_drvdata(card, ctx);
 
-	return devm_snd_soc_register_card(&pdev->dev,
-					&glk_audio_card_rt5682_m98357a);
+	/* override plaform name, if required */
+	mach = (&pdev->dev)->platform_data;
+	platform_name = mach->mach_params.platform;
+
+	ret = snd_soc_fixup_dai_links_platform_name(card, platform_name);
+	if (ret)
+		return ret;
+
+	return devm_snd_soc_register_card(&pdev->dev, card);
 }
 
 static const struct platform_device_id glk_board_ids[] = {

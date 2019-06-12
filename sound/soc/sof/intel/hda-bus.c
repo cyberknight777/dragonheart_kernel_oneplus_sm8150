@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2018 Intel Corporation. All rights reserved.
- *
- * Authors: Jeeja KP <jeeja.kp@intel.com>
- *	Keyon Jie <yang.jie@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Authors: Keyon Jie <yang.jie@linux.intel.com>
 
 #include <linux/io.h>
 #include <sound/hdaudio.h>
+#include "../sof-priv.h"
+#include "hda.h"
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
 
@@ -52,13 +52,13 @@ static u8 sof_hda_readb(u8 __iomem *addr)
 }
 
 static int sof_hda_dma_alloc_pages(struct hdac_bus *bus, int type,
-			   size_t size, struct snd_dma_buffer *buf)
+				   size_t size, struct snd_dma_buffer *buf)
 {
 	return snd_dma_alloc_pages(type, bus->dev, size, buf);
 }
 
 static void sof_hda_dma_free_pages(struct hdac_bus *bus,
-				    struct snd_dma_buffer *buf)
+				   struct snd_dma_buffer *buf)
 {
 	snd_dma_free_pages(buf);
 }
@@ -76,10 +76,9 @@ static const struct hdac_io_ops io_ops = {
 
 /*
  * This can be used for both with/without hda link support.
- * Returns 0 if successful, or a negative error code.
  */
-int sof_hda_bus_init(struct hdac_bus *bus, struct device *dev,
-			const struct hdac_ext_bus_ops *ext_ops)
+void sof_hda_bus_init(struct hdac_bus *bus, struct device *dev,
+		      const struct hdac_ext_bus_ops *ext_ops)
 {
 	static int idx;
 
@@ -88,22 +87,22 @@ int sof_hda_bus_init(struct hdac_bus *bus, struct device *dev,
 
 	bus->io_ops = &io_ops;
 	INIT_LIST_HEAD(&bus->stream_list);
-	INIT_LIST_HEAD(&bus->codec_list);
 
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
-	bus->ops = &bus_ops;
-	INIT_WORK(&bus->unsol_work, snd_hdac_bus_process_unsol_events);
-#endif
-	spin_lock_init(&bus->reg_lock);
-	mutex_init(&bus->cmd_mutex);
 	bus->irq = -1;
-
 	bus->ext_ops = ext_ops;
-	INIT_LIST_HEAD(&bus->hlink_list);
 	bus->idx = idx++;
 
-	mutex_init(&bus->lock);
-	bus->cmd_dma_state = true;
+	spin_lock_init(&bus->reg_lock);
 
-	return 0;
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_HDA)
+	INIT_LIST_HEAD(&bus->codec_list);
+	INIT_LIST_HEAD(&bus->hlink_list);
+
+	mutex_init(&bus->cmd_mutex);
+	mutex_init(&bus->lock);
+	bus->ops = &bus_ops;
+	INIT_WORK(&bus->unsol_work, snd_hdac_bus_process_unsol_events);
+	bus->cmd_dma_state = true;
+#endif
+
 }

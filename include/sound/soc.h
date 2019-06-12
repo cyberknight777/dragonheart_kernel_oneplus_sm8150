@@ -802,6 +802,14 @@ struct snd_soc_component_driver {
 	int probe_order;
 	int remove_order;
 
+	/*
+	 * signal if the module handling the component should not be removed
+	 * if a pcm is open. Setting this would prevent the module
+	 * refcount being incremented in probe() but allow it be incremented
+	 * when a pcm is opened and decremented when it is closed.
+	 */
+	unsigned int module_get_upon_open:1;
+
 	/* bits */
 	unsigned int idle_bias_on:1;
 	unsigned int suspend_bias_off:1;
@@ -961,7 +969,8 @@ struct snd_soc_dai_link {
 	 */
 	const char *platform_name;
 	struct device_node *platform_of_node;
-	struct snd_soc_dai_link_component *platform;
+	struct snd_soc_dai_link_component *platforms;
+	unsigned int num_platforms;
 
 	int id;	/* optional ID for machine driver link identification */
 
@@ -1210,7 +1219,8 @@ struct snd_soc_pcm_runtime {
 	/* runtime devices */
 	struct snd_pcm *pcm;
 	struct snd_compr *compr;
-	struct snd_sof_pcm *sof;
+	struct snd_soc_codec *codec;
+	struct snd_soc_platform *platform; /* will be removed */
 	struct snd_soc_dai *codec_dai;
 	struct snd_soc_dai *cpu_dai;
 
@@ -1572,6 +1582,37 @@ struct snd_soc_dai *snd_soc_card_get_codec_dai(struct snd_soc_card *card,
 	}
 
 	return NULL;
+}
+
+static inline
+int snd_soc_fixup_dai_links_platform_name(struct snd_soc_card *card,
+					  const char *platform_name)
+{
+	struct snd_soc_dai_link *dai_link;
+	const char *name;
+	int i;
+
+	if (!platform_name) /* nothing to do */
+		return 0;
+
+	/* set platform name for each dailink */
+	for_each_card_prelinks(card, i, dai_link) {
+		name = devm_kstrdup(card->dev, platform_name, GFP_KERNEL);
+		if (!name)
+			return -ENOMEM;
+
+		if (dai_link->platforms)
+			/* only single platform is supported for now */
+			dai_link->platforms->name = name;
+		else
+			/*
+			 * legacy mode, this case will be removed when all
+			 * derivers are switched to modern style dai_link.
+			 */
+			dai_link->platform_name = name;
+	}
+
+	return 0;
 }
 
 #ifdef CONFIG_DEBUG_FS

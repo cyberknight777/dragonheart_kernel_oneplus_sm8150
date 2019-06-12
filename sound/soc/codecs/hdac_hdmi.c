@@ -1890,51 +1890,31 @@ static void hdmi_codec_remove(struct snd_soc_component *component)
 	pm_runtime_disable(&hdev->dev);
 }
 
-#ifdef CONFIG_PM
-static int hdmi_codec_prepare(struct device *dev)
-{
-	struct hdac_device *hdev = dev_to_hdac_dev(dev);
-
-	pm_runtime_get_sync(&hdev->dev);
-
-	/*
-	 * Power down afg.
-	 * codec_read is preferred over codec_write to set the power state.
-	 * This way verb is send to set the power state and response
-	 * is received. So setting power state is ensured without using loop
-	 * to read the state.
-	 */
-	snd_hdac_codec_read(hdev, hdev->afg, 0,	AC_VERB_SET_POWER_STATE,
-							AC_PWRST_D3);
-
-	return 0;
-}
-
-static void hdmi_codec_complete(struct device *dev)
+#ifdef CONFIG_PM_SLEEP
+static int hdmi_codec_resume(struct device *dev)
 {
 	struct hdac_device *hdev = dev_to_hdac_dev(dev);
 	struct hdac_hdmi_priv *hdmi = hdev_to_hdmi_priv(hdev);
+	int ret;
 
-	/* Power up afg */
-	snd_hdac_codec_read(hdev, hdev->afg, 0,	AC_VERB_SET_POWER_STATE,
-							AC_PWRST_D0);
-
-	hdac_hdmi_skl_enable_all_pins(hdev);
-	hdac_hdmi_skl_enable_dp12(hdev);
-
+	ret = pm_runtime_force_resume(dev);
+	if (ret < 0)
+		return ret;
 	/*
 	 * As the ELD notify callback request is not entertained while the
 	 * device is in suspend state. Need to manually check detection of
 	 * all pins here. pin capablity change is not support, so use the
 	 * already set pin caps.
+	 *
+	 * NOTE: this is safe to call even if the codec doesn't actually resume.
+	 * The pin check involves only with DRM audio component hooks, so it
+	 * works even if the HD-audio side is still dreaming peacefully.
 	 */
 	hdac_hdmi_present_sense_all_pins(hdev, hdmi, false);
-
-	pm_runtime_put_sync(&hdev->dev);
+	return 0;
 }
 #else
-#define hdmi_codec_prepare NULL
-#define hdmi_codec_complete NULL
+#define hdmi_codec_resume NULL
 #endif
 
 static const struct snd_soc_component_driver hdmi_hda_codec = {
@@ -2074,13 +2054,7 @@ static int hdac_hdmi_dev_probe(struct hdac_device *hdev)
 	 * Turned off in the runtime_suspend during the first explicit
 	 * pm_runtime_suspend call.
 	 */
-	ret = snd_hdac_display_power(hdev->bus, true);
-	if (ret < 0) {
-		dev_err(&hdev->dev,
-			"Cannot turn on display power on i915 err: %d\n",
-			ret);
-		return ret;
-	}
+	snd_hdac_display_power(hdev->bus, hdev->addr, true);
 
 	ret = hdac_hdmi_parse_and_map_nid(hdev, &hdmi_dais, &num_dais);
 	if (ret < 0) {
@@ -2107,6 +2081,8 @@ static int hdac_hdmi_dev_remove(struct hdac_device *hdev)
 	struct hdac_hdmi_pcm *pcm, *pcm_next;
 	struct hdac_hdmi_port *port, *port_next;
 	int i;
+
+	snd_hdac_display_power(hdev->bus, hdev->addr, false);
 
 	list_for_each_entry_safe(pcm, pcm_next, &hdmi->pcm_list, head) {
 		pcm->cvt = NULL;
@@ -2139,81 +2115,11 @@ static int hdac_hdmi_dev_remove(struct hdac_device *hdev)
 }
 
 #ifdef CONFIG_PM
-/*
- * Power management sequences
- * ==========================
- *
- * The following explains the PM handling of HDAC HDMI with its parent
- * device SKL and display power usage
- *
- * Probe
- * -----
- * In SKL probe,
- * 1. skl_probe_work() powers up the display (refcount++ -> 1)
- * 2. enumerates the codecs on the link
- * 3. powers down the display  (refcount-- -> 0)
- *
- * In HDAC HDMI probe,
- * 1. hdac_hdmi_dev_probe() powers up the display (refcount++ -> 1)
- * 2. probe the codec
- * 3. put the HDAC HDMI device to runtime suspend
- * 4. hdac_hdmi_runtime_suspend() powers down the display (refcount-- -> 0)
- *
- * Once children are runtime suspended, SKL device also goes to runtime
- * suspend
- *
- * HDMI Playback
- * -------------
- * Open HDMI device,
- * 1. skl_runtime_resume() invoked
- * 2. hdac_hdmi_runtime_resume() powers up the display (refcount++ -> 1)
- *
- * Close HDMI device,
- * 1. hdac_hdmi_runtime_suspend() powers down the display (refcount-- -> 0)
- * 2. skl_runtime_suspend() invoked
- *
- * S0/S3 Cycle with playback in progress
- * -------------------------------------
- * When the device is opened for playback, the device is runtime active
- * already and the display refcount is 1 as explained above.
- *
- * Entering to S3,
- * 1. hdmi_codec_prepare() invoke the runtime resume of codec which just
- *    increments the PM runtime usage count of the codec since the device
- *    is in use already
- * 2. skl_suspend() powers down the display (refcount-- -> 0)
- *
- * Wakeup from S3,
- * 1. skl_resume() powers up the display (refcount++ -> 1)
- * 2. hdmi_codec_complete() invokes the runtime suspend of codec which just
- *    decrements the PM runtime usage count of the codec since the device
- *    is in use already
- *
- * Once playback is stopped, the display refcount is set to 0 as explained
- * above in the HDMI playback sequence. The PM handlings are designed in
- * such way that to balance the refcount of display power when the codec
- * device put to S3 while playback is going on.
- *
- * S0/S3 Cycle without playback in progress
- * ----------------------------------------
- * Entering to S3,
- * 1. hdmi_codec_prepare() invoke the runtime resume of codec
- * 2. skl_runtime_resume() invoked
- * 3. hdac_hdmi_runtime_resume() powers up the display (refcount++ -> 1)
- * 4. skl_suspend() powers down the display (refcount-- -> 0)
- *
- * Wakeup from S3,
- * 1. skl_resume() powers up the display (refcount++ -> 1)
- * 2. hdmi_codec_complete() invokes the runtime suspend of codec
- * 3. hdac_hdmi_runtime_suspend() powers down the display (refcount-- -> 0)
- * 4. skl_runtime_suspend() invoked
- */
 static int hdac_hdmi_runtime_suspend(struct device *dev)
 {
 	struct hdac_device *hdev = dev_to_hdac_dev(dev);
 	struct hdac_bus *bus = hdev->bus;
 	struct hdac_ext_link *hlink = NULL;
-	int err;
 
 	dev_dbg(dev, "Enter: %s\n", __func__);
 
@@ -2239,11 +2145,9 @@ static int hdac_hdmi_runtime_suspend(struct device *dev)
 
 	snd_hdac_ext_bus_link_put(bus, hlink);
 
-	err = snd_hdac_display_power(bus, false);
-	if (err < 0)
-		dev_err(dev, "Cannot turn off display power on i915\n");
+	snd_hdac_display_power(bus, hdev->addr, false);
 
-	return err;
+	return 0;
 }
 
 static int hdac_hdmi_runtime_resume(struct device *dev)
@@ -2251,7 +2155,6 @@ static int hdac_hdmi_runtime_resume(struct device *dev)
 	struct hdac_device *hdev = dev_to_hdac_dev(dev);
 	struct hdac_bus *bus = hdev->bus;
 	struct hdac_ext_link *hlink = NULL;
-	int err;
 
 	dev_dbg(dev, "Enter: %s\n", __func__);
 
@@ -2267,11 +2170,7 @@ static int hdac_hdmi_runtime_resume(struct device *dev)
 
 	snd_hdac_ext_bus_link_get(bus, hlink);
 
-	err = snd_hdac_display_power(bus, true);
-	if (err < 0) {
-		dev_err(dev, "Cannot turn on display power on i915\n");
-		return err;
-	}
+	snd_hdac_display_power(bus, hdev->addr, true);
 
 	hdac_hdmi_skl_enable_all_pins(hdev);
 	hdac_hdmi_skl_enable_dp12(hdev);
@@ -2289,8 +2188,7 @@ static int hdac_hdmi_runtime_resume(struct device *dev)
 
 static const struct dev_pm_ops hdac_hdmi_pm = {
 	SET_RUNTIME_PM_OPS(hdac_hdmi_runtime_suspend, hdac_hdmi_runtime_resume, NULL)
-	.prepare = hdmi_codec_prepare,
-	.complete = hdmi_codec_complete,
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, hdmi_codec_resume)
 };
 
 static const struct hda_device_id hdmi_list[] = {

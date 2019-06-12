@@ -19,6 +19,7 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
+#include <sound/soc-acpi.h>
 #include <sound/pcm_params.h>
 
 #include "../common/sst-dsp.h"
@@ -85,7 +86,7 @@ static const struct snd_soc_ops haswell_rt5640_ops = {
 	.hw_params = haswell_rt5640_hw_params,
 };
 
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_HASWELL)
 static int haswell_rtd_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
@@ -116,7 +117,7 @@ static struct snd_soc_dai_link haswell_rt5640_dais[] = {
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_HASWELL)
 		.init = haswell_rtd_init,
 #endif
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST},
@@ -193,7 +194,21 @@ static struct snd_soc_card haswell_rt5640 = {
 
 static int haswell_audio_probe(struct platform_device *pdev)
 {
+	struct snd_soc_acpi_mach *mach;
+	const char *platform_name = NULL;
+	int ret;
+
 	haswell_rt5640.dev = &pdev->dev;
+
+	/* override plaform name, if required */
+	mach = (&pdev->dev)->platform_data;
+	if (mach) /* extra check since legacy does not pass parameters */
+		platform_name = mach->mach_params.platform;
+
+	ret = snd_soc_fixup_dai_links_platform_name(&haswell_rt5640,
+						    platform_name);
+	if (ret)
+		return ret;
 
 	return devm_snd_soc_register_card(&pdev->dev, &haswell_rt5640);
 }

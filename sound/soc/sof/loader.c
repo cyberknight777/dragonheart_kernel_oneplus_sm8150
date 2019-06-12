@@ -1,35 +1,23 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
- *
- * Generic firmware loader.
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+//
+// Generic firmware loader.
+//
 
-#include <linux/delay.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/device.h>
-#include <linux/interrupt.h>
-#include <linux/module.h>
-#include <linux/dma-mapping.h>
-#include <linux/platform_device.h>
 #include <linux/firmware.h>
 #include <sound/sof.h>
-#include <uapi/sound/sof-fw.h>
-#include "sof-priv.h"
 #include "ops.h"
 
 static int get_ext_windows(struct snd_sof_dev *sdev,
 			   struct sof_ipc_ext_data_hdr *ext_hdr)
 {
 	struct sof_ipc_window *w = (struct sof_ipc_window *)ext_hdr;
-
-	int ret = 0;
 	size_t size;
 
 	if (w->num_windows == 0 || w->num_windows > SOF_IPC_MAX_ELEMS)
@@ -42,11 +30,11 @@ static int get_ext_windows(struct snd_sof_dev *sdev,
 	if (!sdev->info_window)
 		return -ENOMEM;
 
-	return ret;
+	return 0;
 }
 
 /* parse the extended FW boot data structures from FW boot message */
-int snd_sof_fw_parse_ext_data(struct snd_sof_dev *sdev, u32 offset)
+int snd_sof_fw_parse_ext_data(struct snd_sof_dev *sdev, u32 bar, u32 offset)
 {
 	struct sof_ipc_ext_data_hdr *ext_hdr;
 	void *ext_data;
@@ -57,15 +45,16 @@ int snd_sof_fw_parse_ext_data(struct snd_sof_dev *sdev, u32 offset)
 		return -ENOMEM;
 
 	/* get first header */
-	snd_sof_dsp_block_read(sdev, offset, ext_data, sizeof(*ext_hdr));
+	snd_sof_dsp_block_read(sdev, bar, offset, ext_data,
+			       sizeof(*ext_hdr));
 	ext_hdr = (struct sof_ipc_ext_data_hdr *)ext_data;
 
 	while (ext_hdr->hdr.cmd == SOF_IPC_FW_READY) {
 		/* read in ext structure */
 		offset += sizeof(*ext_hdr);
-		snd_sof_dsp_block_read(sdev, offset,
-				       ext_data + sizeof(*ext_hdr),
-				       ext_hdr->hdr.size - sizeof(*ext_hdr));
+		snd_sof_dsp_block_read(sdev, bar, offset,
+				   (void *)((u8 *)ext_data + sizeof(*ext_hdr)),
+				   ext_hdr->hdr.size - sizeof(*ext_hdr));
 
 		dev_dbg(sdev->dev, "found ext header type %d size 0x%x\n",
 			ext_hdr->type, ext_hdr->hdr.size);
@@ -84,11 +73,12 @@ int snd_sof_fw_parse_ext_data(struct snd_sof_dev *sdev, u32 offset)
 		if (ret < 0) {
 			dev_err(sdev->dev, "error: failed to parse ext data type %d\n",
 				ext_hdr->type);
+			break;
 		}
 
 		/* move to next header */
 		offset += ext_hdr->hdr.size;
-		snd_sof_dsp_block_read(sdev, offset, ext_data,
+		snd_sof_dsp_block_read(sdev, bar, offset, ext_data,
 				       sizeof(*ext_hdr));
 		ext_hdr = (struct sof_ipc_ext_data_hdr *)ext_data;
 	}
@@ -105,13 +95,25 @@ int snd_sof_parse_module_memcpy(struct snd_sof_dev *sdev,
 	struct snd_sof_blk_hdr *block;
 	int count;
 	u32 offset;
+	size_t remaining;
 
 	dev_dbg(sdev->dev, "new module size 0x%x blocks 0x%x type 0x%x\n",
 		module->size, module->num_blocks, module->type);
 
-	block = (void *)module + sizeof(*module);
+	block = (struct snd_sof_blk_hdr *)((u8 *)module + sizeof(*module));
 
+	/* module->size doesn't include header size */
+	remaining = module->size;
 	for (count = 0; count < module->num_blocks; count++) {
+		/* check for wrap */
+		if (remaining < sizeof(*block)) {
+			dev_err(sdev->dev, "error: not enough data remaining\n");
+			return -EINVAL;
+		}
+
+		/* minus header size of block */
+		remaining -= sizeof(*block);
+
 		if (block->size == 0) {
 			dev_warn(sdev->dev,
 				 "warning: block %d size zero\n", count);
@@ -121,14 +123,11 @@ int snd_sof_parse_module_memcpy(struct snd_sof_dev *sdev,
 		}
 
 		switch (block->type) {
-		case SOF_BLK_IMAGE:
-		case SOF_BLK_CACHE:
-		case SOF_BLK_REGS:
-		case SOF_BLK_SIG:
-		case SOF_BLK_ROM:
+		case SOF_FW_BLK_TYPE_RSRVD0:
+		case SOF_FW_BLK_TYPE_SRAM...SOF_FW_BLK_TYPE_RSRVD14:
 			continue;	/* not handled atm */
-		case SOF_BLK_TEXT:
-		case SOF_BLK_DATA:
+		case SOF_FW_BLK_TYPE_IRAM:
+		case SOF_FW_BLK_TYPE_DRAM:
 			offset = block->offset;
 			break;
 		default:
@@ -141,12 +140,26 @@ int snd_sof_parse_module_memcpy(struct snd_sof_dev *sdev,
 			"block %d type 0x%x size 0x%x ==>  offset 0x%x\n",
 			count, block->type, block->size, offset);
 
-		snd_sof_dsp_block_write(sdev, offset,
-					(void *)block + sizeof(*block),
+		/* checking block->size to avoid unaligned access */
+		if (block->size % sizeof(u32)) {
+			dev_err(sdev->dev, "error: invalid block size 0x%x\n",
+				block->size);
+			return -EINVAL;
+		}
+		snd_sof_dsp_block_write(sdev, sdev->mmio_bar, offset,
+					(void *)((u8 *)block + sizeof(*block)),
 					block->size);
 
+		if (remaining < block->size) {
+			dev_err(sdev->dev, "error: not enough data remaining\n");
+			return -EINVAL;
+		}
+
+		/* minus body size of block */
+		remaining -= block->size;
 		/* next block */
-		block = (void *)block + sizeof(*block) + block->size;
+		block = (struct snd_sof_blk_hdr *)((u8 *)block + sizeof(*block)
+			+ block->size);
 	}
 
 	return 0;
@@ -187,44 +200,91 @@ static int load_modules(struct snd_sof_dev *sdev, const struct firmware *fw)
 	int (*load_module)(struct snd_sof_dev *sof_dev,
 			   struct snd_sof_mod_hdr *hdr);
 	int ret, count;
+	size_t remaining;
 
 	header = (struct snd_sof_fw_header *)fw->data;
-	load_module = sdev->ops->load_module;
+	load_module = sof_ops(sdev)->load_module;
 	if (!load_module)
 		return -EINVAL;
 
 	/* parse each module */
-	module = (void *)fw->data + sizeof(*header);
+	module = (struct snd_sof_mod_hdr *)((u8 *)(fw->data) + sizeof(*header));
+	remaining = fw->size - sizeof(*header);
+	/* check for wrap */
+	if (remaining > fw->size) {
+		dev_err(sdev->dev, "error: fw size smaller than header size\n");
+		return -EINVAL;
+	}
+
 	for (count = 0; count < header->num_modules; count++) {
+		/* check for wrap */
+		if (remaining < sizeof(*module)) {
+			dev_err(sdev->dev, "error: not enough data remaining\n");
+			return -EINVAL;
+		}
+
+		/* minus header size of module */
+		remaining -= sizeof(*module);
+
 		/* module */
 		ret = load_module(sdev, module);
 		if (ret < 0) {
 			dev_err(sdev->dev, "error: invalid module %d\n", count);
 			return ret;
 		}
-		module = (void *)module + sizeof(*module) + module->size;
+
+		if (remaining < module->size) {
+			dev_err(sdev->dev, "error: not enough data remaining\n");
+			return -EINVAL;
+		}
+
+		/* minus body size of module */
+		remaining -=  module->size;
+		module = (struct snd_sof_mod_hdr *)((u8 *)module
+			+ sizeof(*module) + module->size);
 	}
 
 	return 0;
 }
 
-int snd_sof_load_firmware_memcpy(struct snd_sof_dev *sdev,
-				 bool first_boot)
+int snd_sof_load_firmware_raw(struct snd_sof_dev *sdev)
 {
-	struct snd_sof_pdata *plat_data = dev_get_platdata(sdev->dev);
+	struct snd_sof_pdata *plat_data = sdev->pdata;
+	const char *fw_filename;
 	int ret;
 
 	/* set code loading condition to true */
 	sdev->code_loading = 1;
 
-	ret = request_firmware(&plat_data->fw,
-			       plat_data->machine->sof_fw_filename, sdev->dev);
+	/* Don't request firmware again if firmware is already requested */
+	if (plat_data->fw)
+		return 0;
+
+	fw_filename = devm_kasprintf(sdev->dev, GFP_KERNEL,
+				     "%s/%s",
+				     plat_data->fw_filename_prefix,
+				     plat_data->fw_filename);
+	if (!fw_filename)
+		return -ENOMEM;
+
+	ret = request_firmware(&plat_data->fw, fw_filename, sdev->dev);
 
 	if (ret < 0) {
-		dev_err(sdev->dev, "error: request firmware failed err: %d\n",
-			ret);
-		return ret;
+		dev_err(sdev->dev, "error: request firmware %s failed err: %d\n",
+			fw_filename, ret);
 	}
+	return ret;
+}
+EXPORT_SYMBOL(snd_sof_load_firmware_raw);
+
+int snd_sof_load_firmware_memcpy(struct snd_sof_dev *sdev)
+{
+	struct snd_sof_pdata *plat_data = sdev->pdata;
+	int ret;
+
+	ret = snd_sof_load_firmware_raw(sdev);
+	if (ret < 0)
+		return ret;
 
 	/* make sure the FW header and file is valid */
 	ret = check_header(sdev, plat_data->fw);
@@ -251,20 +311,18 @@ int snd_sof_load_firmware_memcpy(struct snd_sof_dev *sdev,
 
 error:
 	release_firmware(plat_data->fw);
+	plat_data->fw = NULL;
 	return ret;
 
 }
 EXPORT_SYMBOL(snd_sof_load_firmware_memcpy);
 
-int snd_sof_load_firmware(struct snd_sof_dev *sdev,
-			  bool first_boot)
+int snd_sof_load_firmware(struct snd_sof_dev *sdev)
 {
 	dev_dbg(sdev->dev, "loading firmware\n");
 
-	sdev->first_boot = first_boot;
-
-	if (sdev->ops->load_firmware)
-		return sdev->ops->load_firmware(sdev, first_boot);
+	if (sof_ops(sdev)->load_firmware)
+		return sof_ops(sdev)->load_firmware(sdev);
 	return 0;
 }
 EXPORT_SYMBOL(snd_sof_load_firmware);
@@ -272,9 +330,29 @@ EXPORT_SYMBOL(snd_sof_load_firmware);
 int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 {
 	int ret;
+	int init_core_mask;
 
 	init_waitqueue_head(&sdev->boot_wait);
 	sdev->boot_complete = false;
+
+	/* create fw_version debugfs to store boot version info */
+	if (sdev->first_boot) {
+		ret = snd_sof_debugfs_buf_item(sdev, &sdev->fw_version,
+					       sizeof(sdev->fw_version),
+					       "fw_version");
+		/* errors are only due to memory allocation, not debugfs */
+		if (ret < 0) {
+			dev_err(sdev->dev, "error: snd_sof_debugfs_buf_item failed\n");
+			return ret;
+		}
+	}
+
+	/* perform pre fw run operations */
+	ret = snd_sof_dsp_pre_fw_run(sdev);
+	if (ret < 0) {
+		dev_err(sdev->dev, "error: failed pre fw run op\n");
+		return ret;
+	}
 
 	dev_dbg(sdev->dev, "booting DSP firmware\n");
 
@@ -285,17 +363,29 @@ int snd_sof_run_firmware(struct snd_sof_dev *sdev)
 		return ret;
 	}
 
+	init_core_mask = ret;
+
 	/* now wait for the DSP to boot */
 	ret = wait_event_timeout(sdev->boot_wait, sdev->boot_complete,
 				 msecs_to_jiffies(sdev->boot_timeout));
 	if (ret == 0) {
-		dev_err(sdev->dev, "error: firmware boot timeout\n");
+		dev_err(sdev->dev, "error: firmware boot failure\n");
 		snd_sof_dsp_dbg_dump(sdev, SOF_DBG_REGS | SOF_DBG_MBOX |
 			SOF_DBG_TEXT | SOF_DBG_PCI);
 		return -EIO;
 	}
 
 	dev_info(sdev->dev, "firmware boot complete\n");
+
+	/* perform post fw run operations */
+	ret = snd_sof_dsp_post_fw_run(sdev);
+	if (ret < 0) {
+		dev_err(sdev->dev, "error: failed post fw run op\n");
+		return ret;
+	}
+
+	/* fw boot is complete. Update the active cores mask */
+	sdev->enabled_cores_mask = init_core_mask;
 
 	return 0;
 }

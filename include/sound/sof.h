@@ -3,7 +3,7 @@
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
  *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
+ * Copyright(c) 2018 Intel Corporation. All rights reserved.
  *
  * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
  */
@@ -11,44 +11,46 @@
 #ifndef __INCLUDE_SOUND_SOF_H
 #define __INCLUDE_SOUND_SOF_H
 
-#include <linux/kernel.h>
-#include <linux/types.h>
-#include <linux/interrupt.h>
-#include <linux/device.h>
-#include <linux/platform_device.h>
 #include <linux/pci.h>
 #include <sound/soc.h>
 #include <sound/soc-acpi.h>
-#include <uapi/sound/sof-ipc.h>
 
 struct snd_sof_dsp_ops;
-
-/* SOF probe type */
-enum sof_device_type {
-	SOF_DEVICE_PCI = 0,
-	SOF_DEVICE_APCI,
-	SOF_DEVICE_SPI
-};
 
 /*
  * SOF Platform data.
  */
 struct snd_sof_pdata {
-	u32 id;		/* PCI/ACPI ID */
 	const struct firmware *fw;
 	const char *drv_name;
 	const char *name;
+	const char *platform;
 
-	/* parent device */
 	struct device *dev;
-	enum sof_device_type type;
+
+	/*
+	 * notification callback used if the hardware initialization
+	 * can take time or is handled in a workqueue. This callback
+	 * can be used by the caller to e.g. enable runtime_pm
+	 * or limit functionality until all low-level inits are
+	 * complete.
+	 */
+	void (*sof_probe_complete)(struct device *dev);
 
 	/* descriptor */
 	const struct sof_dev_desc *desc;
 
+	/* firmware and topology filenames */
+	const char *fw_filename_prefix;
+	const char *fw_filename;
+	const char *tplg_filename_prefix;
+	const char *tplg_filename;
+
 	/* machine */
 	struct platform_device *pdev_mach;
 	const struct snd_soc_acpi_mach *machine;
+
+	void *hw_pdata;
 };
 
 /*
@@ -75,18 +77,24 @@ struct sof_dev_desc {
 	int ipc_timeout;
 	int boot_timeout;
 
+	/* chip information for dsp */
+	const void *chip_info;
+
 	/* defaults for no codec mode */
 	const char *nocodec_fw_filename;
 	const char *nocodec_tplg_filename;
+
+	/* defaults paths for firmware and topology files */
+	const char *default_fw_path;
+	const char *default_tplg_path;
+
+	const struct snd_sof_dsp_ops *ops;
+	const struct sof_arch_ops *arch_ops;
 };
 
 int sof_nocodec_setup(struct device *dev,
 		      struct snd_sof_pdata *sof_pdata,
 		      struct snd_soc_acpi_mach *mach,
 		      const struct sof_dev_desc *desc,
-		      struct snd_sof_dsp_ops *ops);
-
-int sof_bes_setup(struct device *dev, struct snd_sof_dsp_ops *ops,
-		  struct snd_soc_dai_link *links, int link_num,
-		  struct snd_soc_card *card);
+		      const struct snd_sof_dsp_ops *ops);
 #endif

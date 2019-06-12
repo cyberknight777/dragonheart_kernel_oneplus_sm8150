@@ -1,39 +1,62 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause)
-/*
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * Copyright(c) 2017 Intel Corporation. All rights reserved.
- *
- * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
- */
+//
+// This file is provided under a dual BSD/GPLv2 license.  When using or
+// redistributing this file, you may do so under either license.
+//
+// Copyright(c) 2018 Intel Corporation. All rights reserved.
+//
+// Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
+//
 
-#include <linux/init.h>
 #include <linux/module.h>
-#include <linux/platform_device.h>
-#include <linux/acpi.h>
-#include <linux/device.h>
-#include <linux/dmi.h>
-#include <linux/slab.h>
-#include <sound/pcm.h>
-#include <sound/pcm_params.h>
-#include <sound/soc.h>
-#include <sound/jack.h>
 #include <sound/sof.h>
 #include "sof-priv.h"
 
 static struct snd_soc_card sof_nocodec_card = {
-	.name = "sof-nocodec",
+	.name = "nocodec", /* the sof- prefix is added by the core */
 };
+
+static int sof_nocodec_bes_setup(struct device *dev,
+				 const struct snd_sof_dsp_ops *ops,
+				 struct snd_soc_dai_link *links,
+				 int link_num, struct snd_soc_card *card)
+{
+	int i;
+
+	if (!ops || !links || !card)
+		return -EINVAL;
+
+	/* set up BE dai_links */
+	for (i = 0; i < link_num; i++) {
+		links[i].name = devm_kasprintf(dev, GFP_KERNEL,
+					       "NoCodec-%d", i);
+		if (!links[i].name)
+			return -ENOMEM;
+
+		links[i].id = i;
+		links[i].no_pcm = 1;
+		links[i].cpu_dai_name = ops->drv[i].name;
+		links[i].platform_name = dev_name(dev);
+		links[i].codec_dai_name = "snd-soc-dummy-dai";
+		links[i].codec_name = "snd-soc-dummy";
+		links[i].dpcm_playback = 1;
+		links[i].dpcm_capture = 1;
+	}
+
+	card->dai_link = links;
+	card->num_links = link_num;
+
+	return 0;
+}
 
 int sof_nocodec_setup(struct device *dev,
 		      struct snd_sof_pdata *sof_pdata,
 		      struct snd_soc_acpi_mach *mach,
 		      const struct sof_dev_desc *desc,
-		      struct snd_sof_dsp_ops *ops)
+		      const struct snd_sof_dsp_ops *ops)
 {
 	struct snd_soc_dai_link *links;
-	int ret;
+	int ret = 0;
 
 	if (!mach)
 		return -EINVAL;
@@ -41,8 +64,8 @@ int sof_nocodec_setup(struct device *dev,
 	sof_pdata->drv_name = "sof-nocodec";
 
 	mach->drv_name = "sof-nocodec";
-	mach->sof_fw_filename = desc->nocodec_fw_filename;
-	mach->sof_tplg_filename = desc->nocodec_tplg_filename;
+	sof_pdata->fw_filename = desc->nocodec_fw_filename;
+	sof_pdata->tplg_filename = desc->nocodec_tplg_filename;
 
 	/* create dummy BE dai_links */
 	links = devm_kzalloc(dev, sizeof(struct snd_soc_dai_link) *
@@ -50,14 +73,9 @@ int sof_nocodec_setup(struct device *dev,
 	if (!links)
 		return -ENOMEM;
 
-	ret = sof_bes_setup(dev, ops, links, ops->num_drv,
-			    &sof_nocodec_card);
-	if (ret) {
-		kfree(links);
-		return ret;
-	}
-
-	return 0;
+	ret = sof_nocodec_bes_setup(dev, ops, links, ops->num_drv,
+				    &sof_nocodec_card);
+	return ret;
 }
 EXPORT_SYMBOL(sof_nocodec_setup);
 

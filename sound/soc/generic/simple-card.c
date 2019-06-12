@@ -21,7 +21,7 @@ struct simple_priv {
 		struct asoc_simple_dai *cpu_dai;
 		struct asoc_simple_dai *codec_dai;
 		struct snd_soc_dai_link_component codecs; /* single codec */
-		struct snd_soc_dai_link_component platform;
+		struct snd_soc_dai_link_component platforms;
 		struct asoc_simple_card_data adata;
 		struct snd_soc_codec_conf *codec_conf;
 		unsigned int mclk_fs;
@@ -297,12 +297,10 @@ static int simple_dai_link_of_dpcm(struct simple_priv *priv,
 
 	simple_get_conversion(dev, np, &dai_props->adata);
 
+	asoc_simple_card_canonicalize_platform(dai_link);
+
 	ret = asoc_simple_card_of_parse_tdm(np, dai);
 	if (ret)
-		return ret;
-
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
 		return ret;
 
 	snprintf(prop, sizeof(prop), "%smclk-fs", prefix);
@@ -409,10 +407,6 @@ static int simple_dai_link_of(struct simple_priv *priv,
 	if (ret < 0)
 		goto dai_link_of_err;
 
-	ret = asoc_simple_card_canonicalize_dailink(dai_link);
-	if (ret < 0)
-		goto dai_link_of_err;
-
 	ret = asoc_simple_card_set_dailink_name(dev, dai_link,
 						"%s-%s",
 						dai_link->cpu_dai_name,
@@ -424,6 +418,7 @@ static int simple_dai_link_of(struct simple_priv *priv,
 	dai_link->init = simple_dai_init;
 
 	asoc_simple_card_canonicalize_cpu(dai_link, single_cpu);
+	asoc_simple_card_canonicalize_platform(dai_link);
 
 dai_link_of_err:
 	of_node_put(node);
@@ -732,7 +727,8 @@ static int simple_probe(struct platform_device *pdev)
 	for (i = 0; i < li.link; i++) {
 		dai_link[i].codecs	= &dai_props[i].codecs;
 		dai_link[i].num_codecs	= 1;
-		dai_link[i].platform	= &dai_props[i].platform;
+		dai_link[i].platforms	= &dai_props[i].platforms;
+		dai_link[i].num_platforms = 1;
 	}
 
 	priv->dai_props		= dai_props;
@@ -782,7 +778,7 @@ static int simple_probe(struct platform_device *pdev)
 		codecs->name		= cinfo->codec;
 		codecs->dai_name	= cinfo->codec_dai.name;
 
-		platform		= dai_link->platform;
+		platform		= dai_link->platforms;
 		platform->name		= cinfo->platform;
 
 		card->name		= (cinfo->card) ? cinfo->card : cinfo->name;
