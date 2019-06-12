@@ -481,7 +481,7 @@ static int __init csm_init(void)
 		return err;
 
 	if (cmdline_boot_pipe_enabled) {
-		err = create_pipe_files(pipes, 0);
+		err = create_pipe_files(pipes, O_NONBLOCK);
 		if (err)
 			goto error;
 
