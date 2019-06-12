@@ -4387,12 +4387,12 @@ static int set_event_mask(struct sock *sk, struct hci_dev *hdev,
 	}
 
 	cmd = mgmt_pending_add(sk, MGMT_OP_SET_EVENT_MASK, hdev, data, len);
-	cmd->cmd_complete = generic_cmd_complete;
-
 	if (!cmd) {
 		err = -ENOMEM;
 		goto failed;
 	}
+
+	cmd->cmd_complete = generic_cmd_complete;
 
 	hci_req_init(&req, hdev);
 	for (i = 0 ; i < HCI_SET_EVENT_MASK_SIZE; i++) {
