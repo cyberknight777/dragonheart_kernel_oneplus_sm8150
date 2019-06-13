@@ -898,7 +898,7 @@ fw_dbg_conf:
 #endif
 
 	if (iwlwifi_mod_params.enable_ini)
-		iwl_alloc_dbg_tlv(drv->trans, len, data, false);
+		iwl_dbg_tlv_alloc(drv->trans, len, data, false);
 
 	while (len >= sizeof(*tlv)) {
 		len -= sizeof(*tlv);
@@ -1437,7 +1437,7 @@ fw_dbg_conf:
 		case IWL_UCODE_TLV_TYPE_TRIGGERS:
 		case IWL_UCODE_TLV_TYPE_DEBUG_FLOW:
 			if (iwlwifi_mod_params.enable_ini)
-				iwl_fw_dbg_copy_tlv(drv->trans, tlv, false);
+				iwl_dbg_tlv_copy(drv->trans, tlv, false);
 			break;
 		case IWL_UCODE_TLV_CMD_VERSIONS:
 			if (tlv_len % sizeof(struct iwl_fw_cmd_version)) {
@@ -1953,7 +1953,7 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans)
 	trans->dbg_cfg = current_dbg_config;
 	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
 
-	iwl_load_fw_dbg_tlv(drv->trans->dev, drv->trans);
+	iwl_dbg_tlv_load_bin(drv->trans->dev, drv->trans);
 #endif
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
@@ -1991,7 +1991,7 @@ err_fw:
 #endif
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	debugfs_remove_recursive(drv->dbgfs_drv);
-	iwl_fw_dbg_free(drv->trans);
+	iwl_dbg_tlv_free(drv->trans);
 #endif
 	kfree(drv);
 err:
@@ -2025,7 +2025,7 @@ void iwl_drv_stop(struct iwl_drv *drv)
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	iwl_dbg_cfg_free(&drv->trans->dbg_cfg);
 #endif
-	iwl_fw_dbg_free(drv->trans);
+	iwl_dbg_tlv_free(drv->trans);
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	iwl_remove_sysfs_file(drv);
