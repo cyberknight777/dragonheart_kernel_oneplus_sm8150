@@ -1952,9 +1952,8 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans)
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	trans->dbg_cfg = current_dbg_config;
 	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
-
-	iwl_dbg_tlv_load_bin(drv->trans->dev, drv->trans);
 #endif
+	iwl_dbg_tlv_load_bin(drv->trans->dev, drv->trans);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	/* Create the device debugfs entries. */
