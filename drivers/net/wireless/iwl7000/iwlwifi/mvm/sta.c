@@ -1678,6 +1678,9 @@ int iwl_mvm_add_sta(struct iwl_mvm *mvm,
 	 */
 	if (iwl_mvm_has_tlc_offload(mvm))
 		iwl_mvm_rs_add_sta(mvm, mvm_sta);
+	else
+		mutex_init(&mvm_sta->lq_sta.rs_drv.mutex);
+
 
 	iwl_mvm_toggle_tx_ant(mvm, &mvm_sta->tx_ant);
 
