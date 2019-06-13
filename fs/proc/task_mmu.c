@@ -586,7 +586,7 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
 		unsigned long pss = (PAGE_SIZE << PSS_SHIFT);
 
 		smaps_page_accumulate(mss, page, PAGE_SIZE, pss / mapcount,
-			dirty, locked, mapcount >= 2);
+			dirty, locked, mapcount < 2);
 	}
 }
 
