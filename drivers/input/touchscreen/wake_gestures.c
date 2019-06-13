@@ -38,38 +38,38 @@
 #define DT2W_DEFAULT		0
 #define S2W_DEFAULT		0
 #define S2S_DEFAULT		0
-#define WG_PWRKEY_DUR           60
+#define WG_PWRKEY_DUR		60
 
 /* 7 PRO */
-#define SWEEP_Y_MAX             3120
-#define SWEEP_X_MAX             1440
+#define SWEEP_Y_MAX		3120
+#define SWEEP_X_MAX		1440
 #define SWEEP_EDGE		130
-#define SWEEP_Y_LIMIT           SWEEP_Y_MAX-SWEEP_EDGE
-#define SWEEP_X_LIMIT           SWEEP_X_MAX-SWEEP_EDGE
-#define SWEEP_X_B1              480
-#define SWEEP_X_B2              940
+#define SWEEP_Y_LIMIT		SWEEP_Y_MAX-SWEEP_EDGE
+#define SWEEP_X_LIMIT		SWEEP_X_MAX-SWEEP_EDGE
+#define SWEEP_X_B1		480
+#define SWEEP_X_B2		940
 #define SWEEP_X_START		720
-#define SWEEP_X_FINAL           360
-#define SWEEP_Y_START		1066
-#define SWEEP_Y_NEXT            300
+#define SWEEP_X_FINAL		360
+#define SWEEP_Y_START		1000
+#define SWEEP_Y_NEXT		260
 #define DT2W_FEATHER		200
-#define DT2W_TIME 		500
+#define DT2W_TIME		500
 
 /* 7 */
-#define SWEEP_Y_MAX_OP7	2340
-#define SWEEP_X_MAX_OP7	1080
-#define SWEEP_EDGE_OP7	90
+#define SWEEP_Y_MAX_OP7		2340
+#define SWEEP_X_MAX_OP7		1080
+#define SWEEP_EDGE_OP7		90
 #define SWEEP_Y_LIMIT_OP7	SWEEP_Y_MAX_OP7-SWEEP_EDGE_OP7
 #define SWEEP_X_LIMIT_OP7	SWEEP_X_MAX_OP7-SWEEP_EDGE_OP7
-#define SWEEP_X_B1_OP7	350
-#define SWEEP_X_B2_OP7	600
+#define SWEEP_X_B1_OP7		350
+#define SWEEP_X_B2_OP7		600
 #define SWEEP_Y_START_OP7	800
 #define SWEEP_X_START_OP7	530
 #define SWEEP_X_FINAL_OP7	260
 #define SWEEP_Y_NEXT_OP7	150
 
 /* Wake Gestures */
-#define SWEEP_TIMEOUT		300
+#define SWEEP_TIMEOUT		320
 #define TRIGGER_TIMEOUT		500
 #define WAKE_GESTURE		0x0b
 #define SWEEP_RIGHT		0x01
@@ -80,8 +80,8 @@
 #define WAKE_GESTURES_ENABLED	1
 
 #define LOGTAG			"WG"
-#define OP7PRO		1
-#define OP7		2
+#define OP7PRO			1
+#define OP7			2
 
 #if (WAKE_GESTURES_ENABLED)
 int gestures_switch = WG_DEFAULT;
