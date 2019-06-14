@@ -1318,6 +1318,40 @@ done:
 	return err;
 }
 
+static int hci_set_err_data_report_req(struct hci_request *req,
+				       unsigned long opt)
+{
+	struct hci_dev *hdev = req->hdev;
+	struct hci_cp_write_err_data_report cp;
+
+	if (!hdev->wide_band_speech)
+		return -EOPNOTSUPP;
+
+	/* Write Default Erroneous Data Reporting */
+	cp.enable = true;
+	hci_req_add(req, HCI_OP_WRITE_ERR_DATA_REPORT, sizeof(cp), &cp);
+	return 0;
+}
+
+static void hci_set_err_data_report(struct hci_dev *hdev)
+{
+	int err;
+
+	if (!hdev->wide_band_speech) {
+		BT_DBG("wide_band_speech is not supported.");
+		return;
+	}
+
+	/* Enable Erroneous Data Reporting */
+	err = __hci_req_sync(hdev, hci_set_err_data_report_req, 0,
+			     HCI_CMD_TIMEOUT, NULL);
+	if (err) {
+		BT_ERR("HCI_OP_WRITE_ERR_DATA_REPORT failed");
+		hdev->wide_band_speech = false;
+	}
+	BT_DBG("wide_band_speech: %d", hdev->wide_band_speech);
+}
+
 /* TODO(crbug.com/977059): create a blacklist of controllers from other
  * vendors in addition to Intel that do not support wide-band speech.
  */
@@ -1350,6 +1384,7 @@ static void check_wide_band_speech_capability(struct hci_dev *hdev)
 	}
 
 	hdev->wide_band_speech = true;
+	hci_set_err_data_report(hdev);
 	return;
 
 not_supported:
