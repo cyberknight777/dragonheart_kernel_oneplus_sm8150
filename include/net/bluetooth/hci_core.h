@@ -221,6 +221,15 @@ struct amp_assoc {
 
 #define HCI_MAX_PAGES	3
 
+#define CONTROLLER_ID(vendor, product) \
+	.idVendor = (vendor), \
+	.idProduct = (product)
+
+struct controller_id_t {
+	__u16	idVendor;
+	__u16	idProduct;
+};
+
 struct hci_dev {
 	struct list_head list;
 	struct mutex	lock;
@@ -288,6 +297,8 @@ struct hci_dev {
 	__u8		ssp_debug_mode;
 	__u8		hw_error_code;
 	__u32		clock;
+	struct controller_id_t controller_id;
+	__u8		wide_band_speech;
 
 	__u16		devid_source;
 	__u16		devid_vendor;

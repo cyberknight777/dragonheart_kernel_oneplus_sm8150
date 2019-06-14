@@ -1318,6 +1318,44 @@ done:
 	return err;
 }
 
+/* TODO(crbug.com/977059): create a blacklist of controllers from other
+ * vendors in addition to Intel that do not support wide-band speech.
+ */
+static const struct controller_id_t blacklist_wide_band_speech[] = {
+	/* Intel Stone Peak 2 (AC7265) */
+	{ CONTROLLER_ID(0x8087, 0x0a2a) },
+
+	/* Intel Wilkins Peak 2 (AC7260) */
+	{ CONTROLLER_ID(0x8087, 0x07dc) },
+
+	/* Terminating entry -- add entries above this line -- */
+	{ }
+};
+
+static void check_wide_band_speech_capability(struct hci_dev *hdev)
+{
+	const struct controller_id_t *id = blacklist_wide_band_speech;
+
+	if (hdev->controller_id.idVendor != 0x8087)
+		goto not_supported;
+
+	for (; id->idVendor || id->idProduct; id++) {
+		if (hdev->controller_id.idVendor == id->idVendor &&
+		    hdev->controller_id.idProduct == id->idProduct) {
+			BT_DBG("controller id (0x%4.4xk, 0x%4.4x) in blacklist",
+			       hdev->controller_id.idVendor,
+			       hdev->controller_id.idProduct);
+			goto not_supported;
+		}
+	}
+
+	hdev->wide_band_speech = true;
+	return;
+
+not_supported:
+	hdev->wide_band_speech = false;
+}
+
 static int hci_dev_do_open(struct hci_dev *hdev)
 {
 	int ret = 0;
@@ -1461,6 +1499,10 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 		set_bit(HCI_UP, &hdev->flags);
 		hci_sock_dev_event(hdev, HCI_DEV_UP);
 		hci_leds_update_powered(hdev, true);
+
+		/* Check wide band speech capability before power on. */
+		check_wide_band_speech_capability(hdev);
+
 		if (!hci_dev_test_flag(hdev, HCI_SETUP) &&
 		    !hci_dev_test_flag(hdev, HCI_CONFIG) &&
 		    !hci_dev_test_flag(hdev, HCI_UNCONFIGURED) &&
