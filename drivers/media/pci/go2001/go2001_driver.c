@@ -197,7 +197,8 @@ static struct go2001_fmt *go2001_find_fmt(struct go2001_ctx *ctx,
 	return NULL;
 }
 
-struct vb2_queue *go2001_get_vq(struct go2001_ctx *ctx, enum v4l2_buf_type type)
+static struct vb2_queue *go2001_get_vq(struct go2001_ctx *ctx,
+				       enum v4l2_buf_type type)
 {
 	return V4L2_TYPE_IS_OUTPUT(type) ? &ctx->src_vq : &ctx->dst_vq;
 }
@@ -268,7 +269,6 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 	struct go2001_buffer *gbuf = to_go2001_buf(vbuf);
 	struct go2001_dma_desc *dma_desc;
 	struct go2001_mmap_list_entry *mmap_list;
-	enum dma_data_direction dir;
 	struct scatterlist *sg;
 	struct sg_table *sgt;
 	u64 dma_addr;
@@ -278,9 +278,6 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 
 	go2001_trace(gdev);
 	BUG_ON(gbuf->mapped);
-
-	dir = V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type) ?
-		DMA_TO_DEVICE : DMA_FROM_DEVICE;
 
 	for (plane = 0; plane < vb->num_planes; ++plane) {
 		dma_desc = &gbuf->dma_desc[plane];
@@ -412,11 +409,7 @@ static void go2001_buf_cleanup(struct vb2_buffer *vb)
 	struct go2001_dev *gdev = ctx->gdev;
 	struct device *dev = &gdev->pdev->dev;
 	struct go2001_dma_desc *dma_desc;
-	enum dma_data_direction dir;
 	int plane;
-
-	dir = V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type) ?
-		DMA_TO_DEVICE : DMA_FROM_DEVICE;
 
 	go2001_unmap_buffer(ctx, gbuf);
 
@@ -1132,7 +1125,7 @@ static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 	dst_v4l2_vb->timecode = src_v4l2_vb->timecode;
 	dst_vb->timestamp = src_vb->timestamp;
 
-	go2001_dbg(ctx->gdev, 5, "Returning frame ts=%ld\n", dst_vb->timestamp);
+	go2001_dbg(ctx->gdev, 5, "Returning frame ts=%lld\n", dst_vb->timestamp);
 	return 0;
 }
 
@@ -1174,8 +1167,8 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 		go2001_handle_new_info(ctx, &dec_reply->info);
 		v4l2_event_queue_fh(&ctx->v4l2_fh, &ev_src_ch);
 		go2001_set_ctx_state(ctx, RES_CHANGE);
-		/* Fallthrough */
 	}
+		/* Fallthrough */
 	case GO2001_STATUS_WAITING_PICTURE_SIZE_CHANGED:
 		ctx->need_resume = true;
 		/*
@@ -2373,13 +2366,13 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ret = pci_enable_device(pdev);
 	if (ret) {
-		go2001_err(gdev, "Failed enabling device\n");
+		dev_err(&pdev->dev, "Failed enabling device\n");
 		return ret;
 	}
 
 	ret = pci_request_regions(pdev, DRIVER_NAME);
 	if (ret) {
-		go2001_err(gdev, "Failed requesting regions\n");
+		dev_err(&pdev->dev, "Failed requesting regions\n");
 		goto disable_device;
 	}
 
@@ -2388,7 +2381,7 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!ret)
 		ret = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
 	if (ret) {
-		go2001_err(gdev, "No suitable DMA available\n");
+		dev_err(&pdev->dev, "No suitable DMA available\n");
 		goto release_regions;
 	}
 
