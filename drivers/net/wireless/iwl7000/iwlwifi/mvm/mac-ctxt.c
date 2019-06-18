@@ -633,6 +633,8 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 	/* We need the dtim_period to set the MAC as associated */
 	if (vif->bss_conf.assoc && vif->bss_conf.dtim_period &&
 	    !force_assoc_off) {
+		struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+		u8 ap_sta_id = mvmvif->ap_sta_id;
 		u32 dtim_offs;
 
 		/*
@@ -668,7 +670,29 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 			       dtim_offs);
 
 		ctxt_sta->is_assoc = cpu_to_le32(1);
-		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
+
+		/*
+		 * allow multicast data frames only as long as the station is
+		 * authorized, i.e., GTK keys are already installed (if needed)
+		 */
+		if (ap_sta_id < IWL_MVM_STATION_COUNT) {
+			struct ieee80211_sta *sta;
+
+			rcu_read_lock();
+
+			sta = rcu_dereference(mvm->fw_id_to_mac_id[ap_sta_id]);
+			if (!IS_ERR_OR_NULL(sta)) {
+				struct iwl_mvm_sta *mvmsta =
+					iwl_mvm_sta_from_mac80211(sta);
+
+				if (mvmsta->sta_state ==
+				    IEEE80211_STA_AUTHORIZED)
+					cmd.filter_flags |=
+						cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
+			}
+
+			rcu_read_unlock();
+		}
 	} else {
 		ctxt_sta->is_assoc = cpu_to_le32(0);
 
