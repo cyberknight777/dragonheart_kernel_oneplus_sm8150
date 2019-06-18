@@ -448,7 +448,7 @@ int csm_bprm_check_security(struct linux_binprm *bprm)
 	if (err)
 		goto out_free_buf;
 
-	proc->uuid.funcs.encode = pb_encode_string_field;
+	proc->uuid.funcs.encode = pb_encode_uuid_field;
 	proc->uuid.arg = uuid;
 
 	if (proc->parent_pid) {
@@ -456,7 +456,7 @@ int csm_bprm_check_security(struct linux_binprm *bprm)
 					      sizeof(parent_uuid));
 		/* Report the parent process if available. */
 		if (!err) {
-			proc->parent_uuid.funcs.encode = pb_encode_string_field;
+			proc->parent_uuid.funcs.encode = pb_encode_uuid_field;
 			proc->parent_uuid.arg = parent_uuid;
 		} else if (err != -ENOENT) {
 			goto out_free_buf;
@@ -547,7 +547,7 @@ void csm_task_exit(struct task_struct *task)
 		return;
 	}
 
-	exit->process_uuid.funcs.encode = pb_encode_string_field;
+	exit->process_uuid.funcs.encode = pb_encode_uuid_field;
 	exit->process_uuid.arg = uuid;
 
 	event.which_event = schema_Event_exit_tag;

@@ -86,3 +86,5 @@ bool pb_encode_string_array(pb_ostream_t *stream, const pb_field_t *field,
 			    void * const *arg);
 bool pb_decode_string_array(pb_istream_t *stream, const pb_field_t *field,
 			    void **arg);
+bool pb_encode_uuid_field(pb_ostream_t *stream, const pb_field_t *field,
+			  void * const *arg);

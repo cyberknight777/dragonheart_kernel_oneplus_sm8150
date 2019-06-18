@@ -408,7 +408,7 @@ static ssize_t csm_container_write(struct file *file, const char __user *buf,
 
 	/* Correct the container-id and feed the event to vsock */
 	report.container.container_id = cid;
-	report.container.init_uuid.funcs.encode = pb_encode_string_field;
+	report.container.init_uuid.funcs.encode = pb_encode_uuid_field;
 	report.container.init_uuid.arg = uuid;
 	container = &event.event.container.container;
 	*container = report.container;

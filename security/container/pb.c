@@ -135,3 +135,18 @@ bool pb_decode_string_array(pb_istream_t *stream, const pb_field_t *field,
 
 	return true;
 }
+
+bool pb_encode_uuid_field(pb_ostream_t *stream, const pb_field_t *field,
+			  void * const *arg)
+{
+	const uint8_t *uuid = (const uint8_t *)*arg;
+
+	/* If the uuid is not set, skip this string. */
+	if (!uuid)
+		return true;
+
+	if (!pb_encode_tag_for_field(stream, field))
+		return false;
+
+	return pb_encode_string(stream, uuid, PROCESS_UUID_SIZE);
+}
