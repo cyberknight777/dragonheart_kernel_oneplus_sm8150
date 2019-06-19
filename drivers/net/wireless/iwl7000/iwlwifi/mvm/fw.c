@@ -63,6 +63,9 @@
  *****************************************************************************/
 #include <net/mac80211.h>
 #include <linux/netdevice.h>
+#ifdef CPTCFG_IWLWIFI_ATLAS_PLATFORM_WORKAROUND
+#include <linux/dmi.h>
+#endif
 
 #include "iwl-trans.h"
 #include "iwl-op-mode.h"
@@ -548,6 +551,25 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 
 	/* set flags extra PHY configuration flags from the device's cfg */
 	phy_cfg_cmd.phy_cfg |= cpu_to_le32(mvm->cfg->extra_phy_cfg_flags);
+
+#ifdef CPTCFG_IWLWIFI_ATLAS_PLATFORM_WORKAROUND
+	if (dmi_match(DMI_BOARD_NAME, "Atlas")) {
+		IWL_DEBUG_INFO(mvm,
+			       "Enabling platform workaround on board '%s'\n",
+			       dmi_get_system_info(DMI_BOARD_NAME));
+		/*
+		 * We're using this bit to indicate the platform workaround;
+		 * it's usually always clear because we cannot have 4 antennas,
+		 * and prior to the platform workaround firmware completely
+		 * ignored it.
+		 */
+		phy_cfg_cmd.phy_cfg |= cpu_to_le32(BIT(19));
+	} else {
+		IWL_DEBUG_INFO(mvm,
+			       "Not enabling platform workaround on board '%s'\n",
+			       dmi_get_system_info(DMI_BOARD_NAME));
+	}
+#endif
 
 	phy_cfg_cmd.calib_control.event_trigger =
 		mvm->fw->default_calib[ucode_type].event_trigger;
