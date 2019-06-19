@@ -286,7 +286,7 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 		if (!IS_ALIGNED(sgt->sgl->offset, 8) ||
 				!IS_ALIGNED(vb2_plane_size(vb, plane), 8)) {
 			go2001_err(gdev, "Plane address/size not aligned "
-					"%d/%zu\n", sgt->sgl->offset,
+					"%d/%lu\n", sgt->sgl->offset,
 					vb2_plane_size(vb, plane));
 			ret = -EINVAL;
 			goto err;
