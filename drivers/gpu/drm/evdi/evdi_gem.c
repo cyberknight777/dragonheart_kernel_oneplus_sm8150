@@ -291,7 +291,6 @@ struct evdi_drm_dmabuf_attachment {
 };
 
 static int evdi_attach_dma_buf(__always_unused struct dma_buf *dmabuf,
-			       __always_unused struct device *dev,
 			       struct dma_buf_attachment *attach)
 {
 	struct evdi_drm_dmabuf_attachment *evdi_attach;
@@ -410,20 +409,7 @@ static void *evdi_dmabuf_kmap(__always_unused struct dma_buf *dma_buf,
 	return NULL;
 }
 
-static void *evdi_dmabuf_kmap_atomic(__always_unused struct dma_buf *dma_buf,
-				     __always_unused unsigned long page_num)
-{
-	return NULL;
-}
-
 static void evdi_dmabuf_kunmap(
-			__always_unused struct dma_buf *dma_buf,
-			__always_unused unsigned long page_num,
-			__always_unused void *addr)
-{
-}
-
-static void evdi_dmabuf_kunmap_atomic(
 			__always_unused struct dma_buf *dma_buf,
 			__always_unused unsigned long page_num,
 			__always_unused void *addr)
@@ -443,9 +429,7 @@ static struct dma_buf_ops evdi_dmabuf_ops = {
 	.map_dma_buf = evdi_map_dma_buf,
 	.unmap_dma_buf = evdi_unmap_dma_buf,
 	.map = evdi_dmabuf_kmap,
-	.map_atomic = evdi_dmabuf_kmap_atomic,
 	.unmap = evdi_dmabuf_kunmap,
-	.unmap_atomic = evdi_dmabuf_kunmap_atomic,
 	.mmap = evdi_dmabuf_mmap,
 	.release = drm_gem_dmabuf_release,
 };

@@ -29,7 +29,7 @@
 #include "core_types.h"
 
 #define DAL_STATS_ENABLE_REGKEY			"DalStatsEnable"
-#define DAL_STATS_ENABLE_REGKEY_DEFAULT		0x00000001
+#define DAL_STATS_ENABLE_REGKEY_DEFAULT		0x00000000
 #define DAL_STATS_ENABLE_REGKEY_ENABLED		0x00000001
 
 #define DAL_STATS_ENTRIES_REGKEY		"DalStatsEntries"
@@ -141,19 +141,17 @@ struct mod_stats *mod_stats_create(struct dc *dc)
 			else
 				core_stats->entries = reg_data;
 		}
-		core_stats->time = kzalloc(
-			sizeof(struct stats_time_cache) *
-				core_stats->entries,
+		core_stats->time = kcalloc(core_stats->entries,
+						sizeof(struct stats_time_cache),
 						GFP_KERNEL);
 
 		if (core_stats->time == NULL)
 			goto fail_construct_time;
 
 		core_stats->event_entries = DAL_STATS_EVENT_ENTRIES_DEFAULT;
-		core_stats->events = kzalloc(
-			sizeof(struct stats_event_cache) *
-				core_stats->event_entries,
-						GFP_KERNEL);
+		core_stats->events = kcalloc(core_stats->event_entries,
+					     sizeof(struct stats_event_cache),
+					     GFP_KERNEL);
 
 		if (core_stats->events == NULL)
 			goto fail_construct_events;
@@ -240,7 +238,7 @@ void mod_stats_dump(struct mod_stats *mod_stats)
 	for (int i = 0; i < core_stats->entry_id; i++) {
 		if (event_index < core_stats->event_index &&
 				i == events[event_index].entry_id) {
-			DISPLAY_STATS("%s\n", events[event_index].event_string);
+			DISPLAY_STATS("==Event==%s\n", events[event_index].event_string);
 			event_index++;
 		} else if (time_index < core_stats->index &&
 				i == time[time_index].entry_id) {

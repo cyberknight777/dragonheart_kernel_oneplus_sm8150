@@ -55,7 +55,7 @@ int intel_connector_update_modes(struct drm_connector *connector,
 {
 	int ret;
 
-	drm_mode_connector_update_edid_property(connector, edid);
+	drm_connector_update_edid_property(connector, edid);
 	ret = drm_add_edid_modes(connector, edid);
 
 	intel_connector_update_eld_conn_type(connector);

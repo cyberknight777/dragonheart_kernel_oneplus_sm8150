@@ -65,8 +65,6 @@ static int kv_set_thermal_temperature_range(struct amdgpu_device *adev,
 					    int min_temp, int max_temp);
 static int kv_init_fps_limits(struct amdgpu_device *adev);
 
-static void kv_dpm_powergate_uvd(void *handle, bool gate);
-static void kv_dpm_powergate_vce(struct amdgpu_device *adev, bool gate);
 static void kv_dpm_powergate_samu(struct amdgpu_device *adev, bool gate);
 static void kv_dpm_powergate_acp(struct amdgpu_device *adev, bool gate);
 
@@ -1372,6 +1370,8 @@ static int kv_dpm_enable(struct amdgpu_device *adev)
 
 static void kv_dpm_disable(struct amdgpu_device *adev)
 {
+	struct kv_power_info *pi = kv_get_pi(adev);
+
 	amdgpu_irq_put(adev, &adev->pm.dpm.thermal.irq,
 		       AMDGPU_THERMAL_IRQ_LOW_TO_HIGH);
 	amdgpu_irq_put(adev, &adev->pm.dpm.thermal.irq,
@@ -1385,8 +1385,10 @@ static void kv_dpm_disable(struct amdgpu_device *adev)
 	/* powerup blocks */
 	kv_dpm_powergate_acp(adev, false);
 	kv_dpm_powergate_samu(adev, false);
-	kv_dpm_powergate_vce(adev, false);
-	kv_dpm_powergate_uvd(adev, false);
+	if (pi->caps_vce_pg) /* power on the VCE block */
+		amdgpu_kv_notify_message_to_smu(adev, PPSMC_MSG_VCEPowerON);
+	if (pi->caps_uvd_pg) /* power on the UVD block */
+		amdgpu_kv_notify_message_to_smu(adev, PPSMC_MSG_UVDPowerON);
 
 	kv_enable_smc_cac(adev, false);
 	kv_enable_didt(adev, false);
@@ -1549,7 +1551,6 @@ static int kv_update_vce_dpm(struct amdgpu_device *adev,
 	int ret;
 
 	if (amdgpu_new_state->evclk > 0 && amdgpu_current_state->evclk == 0) {
-		kv_dpm_powergate_vce(adev, false);
 		if (pi->caps_stable_p_state)
 			pi->vce_boot_level = table->count - 1;
 		else
@@ -1571,7 +1572,6 @@ static int kv_update_vce_dpm(struct amdgpu_device *adev,
 		kv_enable_vce_dpm(adev, true);
 	} else if (amdgpu_new_state->evclk == 0 && amdgpu_current_state->evclk > 0) {
 		kv_enable_vce_dpm(adev, false);
-		kv_dpm_powergate_vce(adev, true);
 	}
 
 	return 0;
@@ -1700,23 +1700,31 @@ static void kv_dpm_powergate_uvd(void *handle, bool gate)
 	}
 }
 
-static void kv_dpm_powergate_vce(struct amdgpu_device *adev, bool gate)
+static void kv_dpm_powergate_vce(void *handle, bool gate)
 {
+	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 	struct kv_power_info *pi = kv_get_pi(adev);
-
-	if (pi->vce_power_gated == gate)
-		return;
+	int ret;
 
 	pi->vce_power_gated = gate;
 
-	if (!pi->caps_vce_pg)
-		return;
-
-	if (gate)
-		amdgpu_kv_notify_message_to_smu(adev, PPSMC_MSG_VCEPowerOFF);
-	else
-		amdgpu_kv_notify_message_to_smu(adev, PPSMC_MSG_VCEPowerON);
+	if (gate) {
+		/* stop the VCE block */
+		ret = amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+							     AMD_PG_STATE_GATE);
+		kv_enable_vce_dpm(adev, false);
+		if (pi->caps_vce_pg) /* power off the VCE block */
+			amdgpu_kv_notify_message_to_smu(adev, PPSMC_MSG_VCEPowerOFF);
+	} else {
+		if (pi->caps_vce_pg) /* power on the VCE block */
+			amdgpu_kv_notify_message_to_smu(adev, PPSMC_MSG_VCEPowerON);
+		kv_enable_vce_dpm(adev, true);
+		/* re-init the VCE block */
+		ret = amdgpu_device_ip_set_powergating_state(adev, AMD_IP_BLOCK_TYPE_VCE,
+							     AMD_PG_STATE_UNGATE);
+	}
 }
+
 
 static void kv_dpm_powergate_samu(struct amdgpu_device *adev, bool gate)
 {
@@ -1919,7 +1927,7 @@ static int kv_dpm_set_power_state(void *handle)
 	int ret;
 
 	if (pi->bapm_enable) {
-		ret = amdgpu_kv_smc_bapm_enable(adev, adev->pm.dpm.ac_power);
+		ret = amdgpu_kv_smc_bapm_enable(adev, adev->pm.ac_power);
 		if (ret) {
 			DRM_ERROR("amdgpu_kv_smc_bapm_enable failed\n");
 			return ret;
@@ -2725,8 +2733,9 @@ static int kv_parse_power_table(struct amdgpu_device *adev)
 		(mode_info->atom_context->bios + data_offset +
 		 le16_to_cpu(power_info->pplib.usNonClockInfoArrayOffset));
 
-	adev->pm.dpm.ps = kzalloc(sizeof(struct amdgpu_ps) *
-				  state_array->ucNumEntries, GFP_KERNEL);
+	adev->pm.dpm.ps = kcalloc(state_array->ucNumEntries,
+				  sizeof(struct amdgpu_ps),
+				  GFP_KERNEL);
 	if (!adev->pm.dpm.ps)
 		return -ENOMEM;
 	power_state_offset = (u8 *)state_array->states;
@@ -3309,6 +3318,9 @@ static int kv_set_powergating_by_smu(void *handle,
 	switch (block_type) {
 	case AMD_IP_BLOCK_TYPE_UVD:
 		kv_dpm_powergate_uvd(handle, gate);
+		break;
+	case AMD_IP_BLOCK_TYPE_VCE:
+		kv_dpm_powergate_vce(handle, gate);
 		break;
 	default:
 		break;

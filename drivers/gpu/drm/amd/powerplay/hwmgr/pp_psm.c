@@ -50,7 +50,7 @@ int psm_init_power_state_table(struct pp_hwmgr *hwmgr)
 		return 0;
 	}
 
-	hwmgr->ps = kzalloc(size * table_entries, GFP_KERNEL);
+	hwmgr->ps = kcalloc(table_entries, size, GFP_KERNEL);
 	if (hwmgr->ps == NULL)
 		return -ENOMEM;
 
@@ -264,8 +264,6 @@ int psm_adjust_power_state_dynamic(struct pp_hwmgr *hwmgr, bool skip,
 
 	if (skip)
 		return 0;
-
-	phm_pre_display_configuration_changed(hwmgr);
 
 	phm_display_configuration_changed(hwmgr);
 

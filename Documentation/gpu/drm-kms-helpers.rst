@@ -282,6 +282,15 @@ Auxiliary Modeset Helpers
 .. kernel-doc:: drivers/gpu/drm/drm_modeset_helper.c
    :export:
 
+OF/DT Helpers
+=============
+
+.. kernel-doc:: drivers/gpu/drm/drm_of.c
+   :doc: overview
+
+.. kernel-doc:: drivers/gpu/drm/drm_of.c
+   :export:
+
 Framebuffer GEM Helper Reference
 ================================
 

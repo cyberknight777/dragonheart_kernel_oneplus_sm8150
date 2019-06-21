@@ -169,6 +169,11 @@ static void get_payload_table(
 	mutex_unlock(&mst_mgr->payload_lock);
 }
 
+void dm_helpers_dp_update_branch_info(
+	struct dc_context *ctx,
+	const struct dc_link *link)
+{}
+
 /*
  * Writes payload allocation table in immediate downstream device.
  */
@@ -435,7 +440,7 @@ bool dm_helpers_submit_i2c(
 		return false;
 	}
 
-	msgs = kzalloc(num * sizeof(struct i2c_msg), GFP_KERNEL);
+	msgs = kcalloc(num, sizeof(struct i2c_msg), GFP_KERNEL);
 
 	if (!msgs)
 		return false;
@@ -452,6 +457,22 @@ bool dm_helpers_submit_i2c(
 	kfree(msgs);
 
 	return result;
+}
+
+bool dm_helpers_is_dp_sink_present(struct dc_link *link)
+{
+	bool dp_sink_present;
+	struct amdgpu_dm_connector *aconnector = link->priv;
+
+	if (!aconnector) {
+		BUG_ON("Failed to found connector for link!");
+		return true;
+	}
+
+	mutex_lock(&aconnector->dm_dp_aux.aux.hw_mutex);
+	dp_sink_present = dc_link_is_dp_sink_present(link);
+	mutex_unlock(&aconnector->dm_dp_aux.aux.hw_mutex);
+	return dp_sink_present;
 }
 
 enum dc_edid_status dm_helpers_read_local_edid(
