@@ -1681,6 +1681,7 @@ int iwl_mvm_add_sta(struct iwl_mvm *mvm,
 	else
 		mutex_init(&mvm_sta->lq_sta.rs_drv.mutex);
 
+	INIT_WORK(&mvm_sta->rs_init_wk, iwl_mvm_rs_init_wk);
 
 	iwl_mvm_toggle_tx_ant(mvm, &mvm_sta->tx_ant);
 
@@ -1842,6 +1843,8 @@ int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
 	ret = iwl_mvm_drain_sta(mvm, mvm_sta, true);
 	if (ret)
 		return ret;
+
+	cancel_work_sync(&mvm_sta->rs_init_wk);
 
 	/* flush its queues here since we are freeing mvm_sta */
 	ret = iwl_mvm_flush_sta(mvm, mvm_sta, false, 0);
