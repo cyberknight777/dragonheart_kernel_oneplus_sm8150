@@ -1484,18 +1484,19 @@ void iwl_mvm_nic_restart(struct iwl_mvm *mvm, bool fw_error)
 		IWL_ERR(mvm, "HW restart already requested, but not started\n");
 	} else if (mvm->fwrt.cur_fw_img == IWL_UCODE_REGULAR &&
 		   mvm->hw_registered &&
-		   !test_bit(STATUS_TRANS_DEAD, &mvm->trans->status) &&
-		   mvm->fw->ucode_capa.error_log_size) {
-		u32 src_size = mvm->fw->ucode_capa.error_log_size;
-		u32 src_addr = mvm->fw->ucode_capa.error_log_addr;
-		u8 *recover_buf = kzalloc(src_size, GFP_ATOMIC);
+		   !test_bit(STATUS_TRANS_DEAD, &mvm->trans->status)) {
+		if (mvm->fw->ucode_capa.error_log_size) {
+			u32 src_size = mvm->fw->ucode_capa.error_log_size;
+			u32 src_addr = mvm->fw->ucode_capa.error_log_addr;
+			u8 *recover_buf = kzalloc(src_size, GFP_ATOMIC);
 
-		if (recover_buf) {
-			mvm->error_recovery_buf = recover_buf;
-			iwl_trans_read_mem_bytes(mvm->trans,
-						 src_addr,
-						 recover_buf,
-						 src_size);
+			if (recover_buf) {
+				mvm->error_recovery_buf = recover_buf;
+				iwl_trans_read_mem_bytes(mvm->trans,
+							 src_addr,
+							 recover_buf,
+							 src_size);
+			}
 		}
 
 		iwl_fw_error_collect(&mvm->fwrt);
