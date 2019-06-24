@@ -312,7 +312,7 @@ static void hvs_close_connection(struct vmbus_channel *chan)
 
 	lock_sock(sk);
 
-	sk->sk_state = TCP_CLOSE;
+	sk->sk_state = SS_UNCONNECTED;
 	sock_set_flag(sk, SOCK_DONE);
 	vsk->peer_shutdown |= SEND_SHUTDOWN | RCV_SHUTDOWN;
 
@@ -350,8 +350,8 @@ static void hvs_open_connection(struct vmbus_channel *chan)
 
 	lock_sock(sk);
 
-	if ((conn_from_host && sk->sk_state != TCP_LISTEN) ||
-	    (!conn_from_host && sk->sk_state != TCP_SYN_SENT))
+	if ((conn_from_host && sk->sk_state != VSOCK_SS_LISTEN) ||
+	    (!conn_from_host && sk->sk_state != SS_CONNECTING))
 		goto out;
 
 	if (conn_from_host) {
@@ -363,7 +363,7 @@ static void hvs_open_connection(struct vmbus_channel *chan)
 		if (!new)
 			goto out;
 
-		new->sk_state = TCP_SYN_SENT;
+		new->sk_state = SS_CONNECTING;
 		vnew = vsock_sk(new);
 		hvs_new = vnew->trans;
 		hvs_new->chan = chan;
@@ -390,7 +390,7 @@ static void hvs_open_connection(struct vmbus_channel *chan)
 	vmbus_set_chn_rescind_callback(chan, hvs_close_connection);
 
 	if (conn_from_host) {
-		new->sk_state = TCP_ESTABLISHED;
+		new->sk_state = SS_CONNECTED;
 		sk->sk_ack_backlog++;
 
 		hvs_addr_init(&vnew->local_addr, if_type);
@@ -403,7 +403,7 @@ static void hvs_open_connection(struct vmbus_channel *chan)
 
 		vsock_enqueue_accept(sk, new);
 	} else {
-		sk->sk_state = TCP_ESTABLISHED;
+		sk->sk_state = SS_CONNECTED;
 		sk->sk_socket->state = SS_CONNECTED;
 
 		vsock_insert_connected(vsock_sk(sk));
