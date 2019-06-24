@@ -221,7 +221,7 @@ struct ion_dma_buf_attachment {
 	struct list_head list;
 };
 
-static int ion_dma_buf_attach(struct dma_buf *dmabuf, struct device *dev,
+static int ion_dma_buf_attach(struct dma_buf *dmabuf,
 			      struct dma_buf_attachment *attachment)
 {
 	struct ion_dma_buf_attachment *a;
@@ -239,7 +239,6 @@ static int ion_dma_buf_attach(struct dma_buf *dmabuf, struct device *dev,
 	}
 
 	a->table = table;
-	a->dev = dev;
 	INIT_LIST_HEAD(&a->list);
 
 	attachment->priv = a;
@@ -389,8 +388,6 @@ static const struct dma_buf_ops dma_buf_ops = {
 	.detach = ion_dma_buf_detatch,
 	.begin_cpu_access = ion_dma_buf_begin_cpu_access,
 	.end_cpu_access = ion_dma_buf_end_cpu_access,
-	.map_atomic = ion_dma_buf_kmap,
-	.unmap_atomic = ion_dma_buf_kunmap,
 	.map = ion_dma_buf_kmap,
 	.unmap = ion_dma_buf_kunmap,
 };

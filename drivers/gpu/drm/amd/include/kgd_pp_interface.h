@@ -192,7 +192,6 @@ struct amd_pp_simple_clock_info;
 struct amd_pp_display_configuration;
 struct amd_pp_clock_info;
 struct pp_display_clock_request;
-struct pp_wm_sets_with_clock_ranges_soc15;
 struct pp_clock_levels_with_voltage;
 struct pp_clock_levels_with_latency;
 struct amd_pp_clocks;
@@ -242,6 +241,9 @@ struct amd_pm_funcs {
 	int (*set_clockgating_by_smu)(void *handle, uint32_t msg_id);
 	int (*set_power_limit)(void *handle, uint32_t n);
 	int (*get_power_limit)(void *handle, uint32_t *limit, bool default_limit);
+	int (*get_power_profile_mode)(void *handle, char *buf);
+	int (*set_power_profile_mode)(void *handle, long *input, uint32_t size);
+	int (*odn_edit_dpm_table)(void *handle, uint32_t type, long *input, uint32_t size);
 /* export to DC */
 	u32 (*get_sclk)(void *handle, bool low);
 	u32 (*get_mclk)(void *handle, bool low);
@@ -261,14 +263,12 @@ struct amd_pm_funcs {
 		enum amd_pp_clock_type type,
 		struct pp_clock_levels_with_voltage *clocks);
 	int (*set_watermarks_for_clocks_ranges)(void *handle,
-		struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges);
+						void *clock_ranges);
 	int (*display_clock_voltage_request)(void *handle,
 				struct pp_display_clock_request *clock);
 	int (*get_display_mode_validation_clocks)(void *handle,
 		struct amd_pp_simple_clock_info *clocks);
-	int (*get_power_profile_mode)(void *handle, char *buf);
-	int (*set_power_profile_mode)(void *handle, long *input, uint32_t size);
-	int (*odn_edit_dpm_table)(void *handle, uint32_t type, long *input, uint32_t size);
+	int (*notify_smu_enable_pwe)(void *handle);
 };
 
 #endif

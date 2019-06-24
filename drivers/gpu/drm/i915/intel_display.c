@@ -1024,7 +1024,7 @@ bool intel_crtc_active(struct intel_crtc *crtc)
 	 * We can ditch the adjusted_mode.crtc_clock check as soon
 	 * as Haswell has gained clock readout/fastboot support.
 	 *
-	 * We can ditch the crtc->primary->fb check as soon as we can
+	 * We can ditch the crtc->primary->state->fb check as soon as we can
 	 * properly reconstruct framebuffers.
 	 *
 	 * FIXME: The intel_crtc->active here should be switched to
@@ -2875,7 +2875,7 @@ intel_find_initial_plane_obj(struct intel_crtc *intel_crtc,
 			continue;
 
 		if (intel_plane_ggtt_offset(state) == plane_config->base) {
-			fb = c->primary->fb;
+			fb = state->base.fb;
 			drm_framebuffer_reference(fb);
 			goto valid_fb;
 		}
@@ -2923,9 +2923,8 @@ valid_fb:
 	if (i915_gem_object_is_tiled(obj))
 		dev_priv->preserve_bios_swizzle = true;
 
-	drm_framebuffer_reference(fb);
-	primary->fb = primary->state->fb = fb;
-	primary->crtc = primary->state->crtc = &intel_crtc->base;
+	plane_state->fb = fb;
+	plane_state->crtc = &intel_crtc->base;
 
 	intel_set_plane_visible(to_intel_crtc_state(crtc_state),
 				to_intel_plane_state(plane_state),
@@ -11104,31 +11103,6 @@ fail:
 	return ret;
 }
 
-static void
-intel_modeset_update_crtc_state(struct drm_atomic_state *state)
-{
-	struct drm_crtc *crtc;
-	struct drm_crtc_state *new_crtc_state;
-	int i;
-
-	/* Double check state. */
-	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
-		to_intel_crtc(crtc)->config = to_intel_crtc_state(new_crtc_state);
-
-		/*
-		 * Update legacy state to satisfy fbc code. This can
-		 * be removed when fbc uses the atomic state.
-		 */
-		if (drm_atomic_get_existing_plane_state(state, crtc->primary)) {
-			struct drm_plane_state *plane_state = crtc->primary->state;
-
-			crtc->primary->fb = plane_state->fb;
-			crtc->x = plane_state->src_x >> 16;
-			crtc->y = plane_state->src_y >> 16;
-		}
-	}
-}
-
 static bool intel_fuzzy_clock_check(int clock1, int clock2)
 {
 	int diff;
@@ -12443,9 +12417,9 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 		}
 	}
 
-	/* Only after disabling all output pipelines that will be changed can we
-	 * update the the output configuration. */
-	intel_modeset_update_crtc_state(state);
+	/* FIXME: Eventually get rid of our intel_crtc->config pointer */
+	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i)
+		to_intel_crtc(crtc)->config = to_intel_crtc_state(new_crtc_state);
 
 	if (intel_state->modeset) {
 		drm_atomic_helper_update_legacy_modeset_state(state->dev, state);
@@ -15529,8 +15503,7 @@ void intel_connector_attach_encoder(struct intel_connector *connector,
 				    struct intel_encoder *encoder)
 {
 	connector->encoder = encoder;
-	drm_mode_connector_attach_encoder(&connector->base,
-					  &encoder->base);
+	drm_connector_attach_encoder(&connector->base, &encoder->base);
 }
 
 /*

@@ -236,14 +236,7 @@ static int pp_set_powergating_state(void *handle,
 			pr_err("gfx off control failed!\n");
 	}
 
-	if (hwmgr->hwmgr_func->enable_per_cu_power_gating == NULL) {
-		pr_info("%s was not implemented.\n", __func__);
-		return 0;
-	}
-
-	/* Enable/disable GFX per cu powergating through SMU */
-	return hwmgr->hwmgr_func->enable_per_cu_power_gating(hwmgr,
-			state == AMD_PG_STATE_GATE);
+	return 0;
 }
 
 static int pp_suspend(void *handle)
@@ -1121,17 +1114,17 @@ static int pp_get_clock_by_type_with_voltage(void *handle,
 }
 
 static int pp_set_watermarks_for_clocks_ranges(void *handle,
-		struct pp_wm_sets_with_clock_ranges_soc15 *wm_with_clock_ranges)
+		void *clock_ranges)
 {
 	struct pp_hwmgr *hwmgr = handle;
 	int ret = 0;
 
-	if (!hwmgr || !hwmgr->pm_en ||!wm_with_clock_ranges)
+	if (!hwmgr || !hwmgr->pm_en || !clock_ranges)
 		return -EINVAL;
 
 	mutex_lock(&hwmgr->smu_lock);
 	ret = phm_set_watermarks_for_clocks_ranges(hwmgr,
-			wm_with_clock_ranges);
+			clock_ranges);
 	mutex_unlock(&hwmgr->smu_lock);
 
 	return ret;
@@ -1188,6 +1181,21 @@ static int pp_dpm_powergate_mmhub(void *handle)
 	return hwmgr->hwmgr_func->powergate_mmhub(hwmgr);
 }
 
+static int pp_dpm_powergate_gfx(void *handle, bool gate)
+{
+	struct pp_hwmgr *hwmgr = handle;
+
+	if (!hwmgr || !hwmgr->pm_en)
+		return 0;
+
+	if (hwmgr->hwmgr_func->powergate_gfx == NULL) {
+		pr_info("%s was not implemented.\n", __func__);
+		return 0;
+	}
+
+	return hwmgr->hwmgr_func->powergate_gfx(hwmgr, gate);
+}
+
 static void pp_dpm_powergate_acp(void *handle, bool gate)
 {
 	struct pp_hwmgr *hwmgr = handle;
@@ -1206,21 +1214,21 @@ static void pp_dpm_powergate_acp(void *handle, bool gate)
 static int pp_set_powergating_by_smu(void *handle,
 				uint32_t block_type, bool gate)
 {
-	struct pp_hwmgr *hwmgr = handle;
 	int ret = 0;
 
 	switch (block_type) {
 	case AMD_IP_BLOCK_TYPE_UVD:
 	case AMD_IP_BLOCK_TYPE_VCN:
-		pp_dpm_powergate_uvd(hwmgr, gate);
+		pp_dpm_powergate_uvd(handle, gate);
 		break;
 	case AMD_IP_BLOCK_TYPE_VCE:
-		pp_dpm_powergate_vce(hwmgr, gate);
+		pp_dpm_powergate_vce(handle, gate);
 		break;
 	case AMD_IP_BLOCK_TYPE_GMC:
-		pp_dpm_powergate_mmhub(hwmgr);
+		pp_dpm_powergate_mmhub(handle);
 		break;
 	case AMD_IP_BLOCK_TYPE_GFX:
+		ret = pp_dpm_powergate_gfx(handle, gate);
 		break;
 	case AMD_IP_BLOCK_TYPE_ACP:
 		pp_dpm_powergate_acp(handle, gate);
@@ -1231,6 +1239,24 @@ static int pp_set_powergating_by_smu(void *handle,
 	return ret;
 }
 
+static int pp_notify_smu_enable_pwe(void *handle)
+{
+	struct pp_hwmgr *hwmgr = handle;
+
+	if (!hwmgr || !hwmgr->pm_en)
+		return -EINVAL;
+
+	if (hwmgr->hwmgr_func->smus_notify_pwe == NULL) {
+		pr_info("%s was not implemented.\n", __func__);
+		return -EINVAL;;
+	}
+
+	mutex_lock(&hwmgr->smu_lock);
+	hwmgr->hwmgr_func->smus_notify_pwe(hwmgr);
+	mutex_unlock(&hwmgr->smu_lock);
+
+	return 0;
+}
 
 static const struct amd_pm_funcs pp_dpm_funcs = {
 	.load_firmware = pp_dpm_load_fw,
@@ -1257,12 +1283,12 @@ static const struct amd_pm_funcs pp_dpm_funcs = {
 	.get_vce_clock_state = pp_dpm_get_vce_clock_state,
 	.switch_power_profile = pp_dpm_switch_power_profile,
 	.set_clockgating_by_smu = pp_set_clockgating_by_smu,
+	.set_powergating_by_smu = pp_set_powergating_by_smu,
 	.get_power_profile_mode = pp_get_power_profile_mode,
 	.set_power_profile_mode = pp_set_power_profile_mode,
 	.odn_edit_dpm_table = pp_odn_edit_dpm_table,
 	.set_power_limit = pp_set_power_limit,
 	.get_power_limit = pp_get_power_limit,
-	.set_powergating_by_smu = pp_set_powergating_by_smu,
 /* export to DC */
 	.get_sclk = pp_dpm_get_sclk,
 	.get_mclk = pp_dpm_get_mclk,
@@ -1275,4 +1301,5 @@ static const struct amd_pm_funcs pp_dpm_funcs = {
 	.set_watermarks_for_clocks_ranges = pp_set_watermarks_for_clocks_ranges,
 	.display_clock_voltage_request = pp_display_clock_voltage_request,
 	.get_display_mode_validation_clocks = pp_get_display_mode_validation_clocks,
+	.notify_smu_enable_pwe = pp_notify_smu_enable_pwe,
 };
