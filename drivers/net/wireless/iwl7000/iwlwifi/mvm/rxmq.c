@@ -894,8 +894,8 @@ static bool iwl_mvm_reorder(struct iwl_mvm *mvm,
 			 * head_sn somewhat updated across all the queues:
 			 * when it crosses 0 and 2048.
 			 */
-			if (nssn == 2048 || nssn == 0)
-				iwl_mvm_sync_nssn(mvm, baid, nssn);
+			if (sn == 2048 || sn == 0)
+				iwl_mvm_sync_nssn(mvm, baid, sn);
 			buffer->head_sn = nssn;
 		}
 		/* No need to update AMSDU last SN - we are moving the head */
@@ -912,8 +912,11 @@ static bool iwl_mvm_reorder(struct iwl_mvm *mvm,
 	 * while technically there is no hole and we can move forward.
 	 */
 	if (!buffer->num_stored && sn == buffer->head_sn) {
-		if (!amsdu || last_subframe)
+		if (!amsdu || last_subframe) {
+			if (sn == 2048 || sn == 0)
+				iwl_mvm_sync_nssn(mvm, baid, sn);
 			buffer->head_sn = ieee80211_sn_inc(buffer->head_sn);
+		}
 		/* No need to update AMSDU last SN - we are moving the head */
 		spin_unlock_bh(&buffer->lock);
 		return false;
