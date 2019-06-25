@@ -162,6 +162,10 @@ static __le16 ieee80211_duration(struct ieee80211_tx_data *tx,
 			break;
 		}
 		case NL80211_BAND_5GHZ:
+#if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
+		case NL80211_BAND_6GHZ:
+			/* keep code in case of fall-through (spatch generated) */
+#endif
 			if (r->flags & IEEE80211_RATE_MANDATORY_A)
 				mrate = r->bitrate;
 			break;
