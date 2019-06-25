@@ -583,10 +583,12 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
 	}
 	for (i = 0; i < nr; i++, page++) {
 		int mapcount = page_mapcount(page);
-		unsigned long pss = (PAGE_SIZE << PSS_SHIFT);
+		bool private = mapcount < 2;
+		unsigned long pss = private ? PAGE_SIZE << PSS_SHIFT :
+				    (PAGE_SIZE << PSS_SHIFT) / mapcount;
 
-		smaps_page_accumulate(mss, page, PAGE_SIZE, pss / mapcount,
-			dirty, locked, mapcount < 2);
+		smaps_page_accumulate(mss, page, PAGE_SIZE, pss,
+				      dirty, locked, private);
 	}
 }
 
