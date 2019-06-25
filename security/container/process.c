@@ -65,8 +65,7 @@ static void *kmap_argument_stack(struct linux_binprm *bprm, void **ctx)
 						    FOLL_FORCE, &page, NULL,
 						    NULL);
 			if (err <= 0) {
-				free_pages((unsigned long)argv,
-					   bprm->vma_pages);
+				vfree(argv);
 				return NULL;
 			}
 
