@@ -2623,10 +2623,16 @@ struct rt6_info *rt6_add_dflt_router(const struct in6_addr *gwaddr,
 	return rt6_get_dflt_router(gwaddr, dev);
 }
 
-int rt6_addrconf_purge(struct rt6_info *rt, void *arg) {
+int rt6_addrconf_purge(struct rt6_info *rt, void *arg)
+{
+	struct inet6_dev *idev = rt->rt6i_idev;
+
 	if (rt->rt6i_flags & (RTF_DEFAULT | RTF_ADDRCONF) &&
-	    (!rt->rt6i_idev || rt->rt6i_idev->cnf.accept_ra != 2))
+	    (!idev || idev->cnf.accept_ra != 2)) {
+		/* Delete this route. See fib6_clean_tree() */
 		return -1;
+	}
+	/* Continue walking */
 	return 0;
 }
 
