@@ -5,10 +5,9 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2010 - 2014, 2018 - 2019 Intel Corporation
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -28,10 +27,9 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2010 - 2014, 2018 - 2019 Intel Corporation
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018        Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1081,15 +1079,19 @@ static int iwl_tm_gnl_cmd_subscribe(struct sk_buff *skb, struct genl_info *info)
 static __genl_const struct genl_ops iwl_tm_gnl_ops[] = {
 	{
 	  .cmd = IWL_TM_GNL_CMD_EXECUTE,
-	  .policy = iwl_tm_gnl_msg_policy,
 	  .doit = iwl_tm_gnl_cmd_do,
+#if CFG80211_VERSION < KERNEL_VERSION(5,2,0)
+	  .policy = iwl_tm_gnl_msg_policy,
+#endif
 	  .dumpit = iwl_tm_gnl_dump,
 	  .done = iwl_tm_gnl_done,
 	},
 	{
 		.cmd = IWL_TM_GNL_CMD_SUBSCRIBE_EVENTS,
-		.policy = iwl_tm_gnl_msg_policy,
 		.doit = iwl_tm_gnl_cmd_subscribe,
+#if CFG80211_VERSION < KERNEL_VERSION(5,2,0)
+		.policy	= iwl_tm_gnl_msg_policy,
+#endif
 	},
 };
 
@@ -1098,6 +1100,9 @@ static struct genl_family iwl_tm_gnl_family __genl_ro_after_init = {
 	.name		= IWL_TM_GNL_FAMILY_NAME,
 	.version	= IWL_TM_GNL_VERSION_NR,
 	.maxattr	= IWL_TM_GNL_MSG_ATTR_MAX,
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
+	.policy		= iwl_tm_gnl_msg_policy,
+#endif
 	.module		= THIS_MODULE,
 	.ops		= iwl_tm_gnl_ops,
 	.n_ops		= ARRAY_SIZE(iwl_tm_gnl_ops),
