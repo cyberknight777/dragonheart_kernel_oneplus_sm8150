@@ -1348,19 +1348,19 @@ static void __iwl_mvm_rs_tx_status(struct iwl_mvm *mvm,
 		lq_sta->missed_rate_counter = 0;
 
 	if (!lq_sta->search_better_tbl) {
-		curr_tbl = &(lq_sta->lq_info[lq_sta->active_tbl]);
-		other_tbl = &(lq_sta->lq_info[1 - lq_sta->active_tbl]);
+		curr_tbl = &lq_sta->lq_info[lq_sta->active_tbl];
+		other_tbl = &lq_sta->lq_info[1 - lq_sta->active_tbl];
 	} else {
-		curr_tbl = &(lq_sta->lq_info[1 - lq_sta->active_tbl]);
-		other_tbl = &(lq_sta->lq_info[lq_sta->active_tbl]);
+		curr_tbl = &lq_sta->lq_info[1 - lq_sta->active_tbl];
+		other_tbl = &lq_sta->lq_info[lq_sta->active_tbl];
 	}
 
 	if (WARN_ON_ONCE(!rs_rate_column_match(&lq_rate, &curr_tbl->rate))) {
 		IWL_DEBUG_RATE(mvm,
 			       "Neither active nor search matches tx rate\n");
-		tmp_tbl = &(lq_sta->lq_info[lq_sta->active_tbl]);
+		tmp_tbl = &lq_sta->lq_info[lq_sta->active_tbl];
 		rs_dump_rate(mvm, &tmp_tbl->rate, "ACTIVE");
-		tmp_tbl = &(lq_sta->lq_info[1 - lq_sta->active_tbl]);
+		tmp_tbl = &lq_sta->lq_info[1 - lq_sta->active_tbl];
 		rs_dump_rate(mvm, &tmp_tbl->rate, "SEARCH");
 		rs_dump_rate(mvm, &lq_rate, "ACTUAL");
 
