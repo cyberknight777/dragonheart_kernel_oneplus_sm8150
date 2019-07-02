@@ -4238,7 +4238,7 @@ static void hci_scodata_packet(struct hci_dev *hdev, struct sk_buff *skb)
 
 	skb_pull(skb, HCI_SCO_HDR_SIZE);
 
-	handle = __le16_to_cpu(hdr->handle);
+	handle = __le16_to_cpu(hdr->handle) & 0xfff;
 
 	BT_DBG("%s len %d handle 0x%4.4x", hdev->name, skb->len, handle);
 
