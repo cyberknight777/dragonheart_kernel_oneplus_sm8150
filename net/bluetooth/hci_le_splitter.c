@@ -788,6 +788,20 @@ static bool hci_le_splitter_filter_cmd_complete(const struct hci_ev_cmd_complete
 				     i);
 			repl->commands[i] = 0;
 		}
+
+		/* unsetting support for 5.0 LE commands: byte 33 (partial) and
+		 * byte 34-39 (full)
+		 */
+		if (repl->commands[33] & 0xf0) {
+			pr_debug("supported commands: ~LE in byte 33\n");
+			repl->commands[33] &= ~0xf0;
+		}
+		for (i = 34; i <= 39; i++) {
+			if (repl->commands[i])
+				pr_debug("supported commands: clearing byte %d\n",
+					 i);
+			repl->commands[i] = 0;
+		}
 	} else if (opcode == HCI_OP_READ_LOCAL_FEATURES && !ours) {
 		struct hci_rp_read_local_features *repl =
 			(struct hci_rp_read_local_features *)(evt + 1);
