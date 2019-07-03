@@ -1079,6 +1079,10 @@ static int iwl_tm_gnl_cmd_subscribe(struct sk_buff *skb, struct genl_info *info)
 static __genl_const struct genl_ops iwl_tm_gnl_ops[] = {
 	{
 	  .cmd = IWL_TM_GNL_CMD_EXECUTE,
+#if LINUX_VERSION_IS_GEQ(5,2,0)
+	  .validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+#endif
+
 	  .doit = iwl_tm_gnl_cmd_do,
 #if CFG80211_VERSION < KERNEL_VERSION(5,2,0)
 	  .policy = iwl_tm_gnl_msg_policy,
@@ -1088,6 +1092,10 @@ static __genl_const struct genl_ops iwl_tm_gnl_ops[] = {
 	},
 	{
 		.cmd = IWL_TM_GNL_CMD_SUBSCRIBE_EVENTS,
+#if LINUX_VERSION_IS_GEQ(5,2,0)
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
+#endif
+
 		.doit = iwl_tm_gnl_cmd_subscribe,
 #if CFG80211_VERSION < KERNEL_VERSION(5,2,0)
 		.policy	= iwl_tm_gnl_msg_policy,
