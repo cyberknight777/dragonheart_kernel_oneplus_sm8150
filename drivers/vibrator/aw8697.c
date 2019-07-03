@@ -77,6 +77,15 @@ struct pm_qos_request pm_qos_req_vb;
 /* add haptic audio tp mask */
 extern struct shake_point record_point[10];
 /* add haptic audio tp mask end */
+
+#ifdef CONFIG_HAPTIC_FEEDBACK_DISABLE
+int ignore_next_request = 0;
+void hap_ignore_next_request(void)
+{
+    ignore_next_request = 1;
+}
+#endif
+
 /******************************************************
  *
  * variable
@@ -3421,6 +3430,55 @@ static ssize_t aw8697_gain_store(struct device *dev,
     val_pre = val;
     mutex_lock(&aw8697->lock);
     aw8697->gain = val;
+    aw8697_haptic_set_gain(aw8697, aw8697->gain);
+    mutex_unlock(&aw8697->lock);
+    return count;
+}
+
+static ssize_t aw8697_level_show(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+#ifdef TIMED_OUTPUT
+    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
+#else
+    struct led_classdev *cdev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
+#endif
+
+    return snprintf(buf, PAGE_SIZE, "%d\n", aw8697->level);
+}
+
+static ssize_t aw8697_level_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+#ifdef TIMED_OUTPUT
+    struct timed_output_dev *to_dev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(to_dev, struct aw8697, to_dev);
+#else
+    struct led_classdev *cdev = dev_get_drvdata(dev);
+    struct aw8697 *aw8697 = container_of(cdev, struct aw8697, cdev);
+#endif
+    unsigned int val = 0;
+    int rc = 0;
+
+    rc = kstrtouint(buf, 0, &val);
+    if (rc < 0)
+        return rc;
+
+    if (val < 0 || val > 10)
+        val = 3;
+
+#ifdef CONFIG_HAPTIC_FEEDBACK_DISABLE
+    if ((ignore_next_request) && (val != 0)) {
+       ignore_next_request = 0;
+       return count;
+    }
+#endif
+
+    pr_info("%s: value=%d\n", __FUNCTION__, val);
+    mutex_lock(&aw8697->lock);
+    aw8697->level = val;
     aw8697_haptic_set_gain(aw8697, aw8697->gain);
     mutex_unlock(&aw8697->lock);
     return count;
