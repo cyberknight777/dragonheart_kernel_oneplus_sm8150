@@ -45,7 +45,6 @@ if SND_SOC_SOF_OPTIONS
 
 config SND_SOC_SOF_NOCODEC
 	tristate "SOF nocodec mode Support"
-	depends on SND_SOC_SOF
 	help
           This adds support for a dummy/nocodec machine driver fallback
 	  option if no known codec is detected. This is typically only
