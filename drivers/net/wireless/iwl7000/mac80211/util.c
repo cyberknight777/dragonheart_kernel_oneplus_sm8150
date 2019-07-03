@@ -1877,7 +1877,7 @@ int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
 
 struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 					  const u8 *src, const u8 *dst,
-					  u32 ratemask,
+					  const u8 *bssid, u32 ratemask,
 					  struct ieee80211_channel *chan,
 					  const u8 *ssid, size_t ssid_len,
 					  const u8 *ie, size_t ie_len,
@@ -1914,11 +1914,12 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 					   rate_masks, &chandef, flags);
 	skb_put(skb, ies_len);
 
-	if (dst) {
-		mgmt = (struct ieee80211_mgmt *) skb->data;
+	mgmt = (void *)skb->data;
+	if (dst)
 		memcpy(mgmt->da, dst, ETH_ALEN);
-		memcpy(mgmt->bssid, dst, ETH_ALEN);
-	}
+
+	if (bssid)
+		memcpy(mgmt->bssid, bssid, ETH_ALEN);
 
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
 

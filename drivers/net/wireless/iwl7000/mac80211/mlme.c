@@ -2455,8 +2455,8 @@ void ieee80211_mlme_send_probe_req(struct ieee80211_sub_if_data *sdata,
 {
 	struct sk_buff *skb;
 
-	skb = ieee80211_build_probe_req(sdata, src, dst, (u32)-1, channel,
-					ssid, ssid_len, NULL, 0,
+	skb = ieee80211_build_probe_req(sdata, src, dst, dst, (u32)-1,
+					channel, ssid, ssid_len, NULL, 0,
 					IEEE80211_PROBE_FLAG_DIRECTED);
 	if (skb)
 		ieee80211_tx_skb(sdata, skb);
@@ -2610,7 +2610,7 @@ struct sk_buff *ieee80211_ap_probereq_get(struct ieee80211_hw *hw,
 		ssid_len = ssid[1];
 
 	skb = ieee80211_build_probe_req(sdata, sdata->vif.addr, cbss->bssid,
-					(u32) -1, cbss->channel,
+					cbss->bssid, (u32)-1, cbss->channel,
 					ssid + 2, ssid_len,
 					NULL, 0, IEEE80211_PROBE_FLAG_DIRECTED);
 	rcu_read_unlock();
