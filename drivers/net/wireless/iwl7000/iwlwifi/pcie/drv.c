@@ -691,8 +691,8 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x2720, 0x0030, iwl9560_2ac_cfg_qnj_jf_b0)},
 
 /* 22000 Series */
-	/* TODO: temporary solution to support qnj hr b0 due to HW bug */
-	{IWL_PCI_DEVICE(0x2526, 0x0000, iwl22000_2ax_cfg_qnj_hr_b0)},
+	/* TODO: temporary solution to support qnj gfp test chip with no OTP */
+	{IWL_PCI_DEVICE(0x2526, 0x0000, iwl_ax201_cfg_qnj_b0_gftc_a0)},
 	/* TODO: remove this entry */
 	{IWL_PCI_DEVICE(0x0000, 0x0000, iwl22000_2ac_cfg_hr_cdb)},
 	{IWL_PCI_DEVICE(0x02F0, 0x0070, iwl_ax201_cfg_quz_hr)},

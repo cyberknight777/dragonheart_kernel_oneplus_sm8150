@@ -85,6 +85,7 @@
 #define IWL_QUZ_A_HR_B_FW_PRE		"iwlwifi-QuZ-a0-hr-b0-"
 #define IWL_QUZ_A_JF_B_FW_PRE		"iwlwifi-QuZ-a0-jf-b0-"
 #define IWL_QNJ_B_JF_B_FW_PRE		"iwlwifi-QuQnj-b0-jf-b0-"
+#define IWL_QNJ_B_GFTC_A_FW_PRE		"iwlwifi-QuQnj-b0-gftc-a0-"
 #define IWL_CC_A_FW_PRE			"iwlwifi-cc-a0-"
 #define IWL_22000_SO_A_JF_B_FW_PRE	"iwlwifi-so-a0-jf-b0-"
 #define IWL_22000_SO_A_HR_B_FW_PRE      "iwlwifi-so-a0-hr-b0-"
@@ -608,6 +609,19 @@ const struct iwl_cfg iwl22000_2ax_cfg_qnj_hr_a0 = {
 	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
 	 */
 	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
+};
+
+const struct iwl_cfg iwl_ax201_cfg_qnj_b0_gftc_a0 = {
+	.name = "Intel(R) Wi-fi 6 AX201 GF TC",
+	.fw_name_pre = IWL_QNJ_B_GFTC_A_FW_PRE,
+	IWL_DEVICE_22500,
+	/*
+	 * This device doesn't support receiving BlockAck with a large bitmap
+	 * so we need to restrict the size of transmitted aggregation to the
+	 * HT size; mac80211 would otherwise pick the HE max (256) by default.
+	 */
+	.max_tx_agg_size = IEEE80211_MAX_AMPDU_BUF_HT,
+	.uhb_supported = true
 };
 
 const struct iwl_cfg iwlax210_2ax_cfg_so_jf_a0 = {
