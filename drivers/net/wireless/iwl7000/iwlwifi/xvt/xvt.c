@@ -190,6 +190,7 @@ static const struct iwl_hcmd_names iwl_xvt_xvt_names[] = {
 
 static const struct iwl_hcmd_names iwl_xvt_debug_names[] = {
 	HCMD_NAME(DBGC_SUSPEND_RESUME),
+	HCMD_NAME(BUFFER_ALLOCATION),
 };
 
 static const struct iwl_hcmd_arr iwl_xvt_cmd_groups[] = {
