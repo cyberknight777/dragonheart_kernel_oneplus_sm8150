@@ -163,6 +163,7 @@ static const u16 iwl_uhb_nvm_channels[] = {
 #define IWL_NVM_NUM_CHANNELS_EXT	ARRAY_SIZE(iwl_ext_nvm_channels)
 #define IWL_NVM_NUM_CHANNELS_UHB	ARRAY_SIZE(iwl_uhb_nvm_channels)
 #define NUM_2GHZ_CHANNELS		14
+#define NUM_5GHZ_CHANNELS               37
 #define FIRST_2GHZ_HT_MINUS		5
 #define LAST_2GHZ_HT_PLUS		9
 #define N_HW_ADDR_MASK			0xF
@@ -300,7 +301,7 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 				const void * const nvm_ch_flags,
 				u32 sbands_flags, bool v4)
 {
-	int ch_idx;
+	int ch_idx = 0;
 	int n_channels = 0;
 	struct ieee80211_channel *channel;
 	u32 ch_flags;
@@ -310,6 +311,7 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 	if (cfg->uhb_supported) {
 		num_of_ch = IWL_NVM_NUM_CHANNELS_UHB;
 		nvm_chan = iwl_uhb_nvm_channels;
+		ch_idx = NUM_2GHZ_CHANNELS + NUM_5GHZ_CHANNELS;
 	} else if (cfg->nvm_type == IWL_NVM_EXT) {
 		num_of_ch = IWL_NVM_NUM_CHANNELS_EXT;
 		nvm_chan = iwl_ext_nvm_channels;
@@ -318,7 +320,7 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 		nvm_chan = iwl_nvm_channels;
 	}
 
-	for (ch_idx = 0; ch_idx < num_of_ch; ch_idx++) {
+	for (; ch_idx < num_of_ch; ch_idx++) {
 		bool is_5ghz = (ch_idx >= num_2ghz_channels);
 
 		if (v4)
