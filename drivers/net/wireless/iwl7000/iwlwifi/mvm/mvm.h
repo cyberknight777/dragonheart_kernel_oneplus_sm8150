@@ -793,11 +793,6 @@ struct iwl_mvm_geo_profile {
 	u8 values[ACPI_GEO_TABLE_SIZE];
 };
 
-struct iwl_mvm_ppag_table {
-	u32 enabled;
-	s8 gain[ACPI_PPAG_NUM_CHAINS][ACPI_PPAG_NUM_SUB_BANDS];
-};
-
 struct iwl_mvm_txq {
 	struct list_head list;
 	u16 txq_id;
@@ -1223,7 +1218,7 @@ struct iwl_mvm {
 #endif
 	struct iwl_mvm_geo_profile geo_profiles[ACPI_NUM_GEO_PROFILES];
 	u32 geo_rev;
-	struct iwl_mvm_ppag_table ppag_table;
+	struct iwl_ppag_table_cmd ppag_table;
 	u32 ppag_rev;
 #endif
 

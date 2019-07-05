@@ -1132,18 +1132,18 @@ static int iwl_mvm_get_ppag_table(struct iwl_mvm *mvm)
 	int i, j, ret, tbl_rev;
 	int idx = 2;
 
-	mvm->ppag_table.enabled = false;
+	mvm->ppag_table.enabled = cpu_to_le32(0);
 	data = iwl_acpi_get_object(mvm->dev, ACPI_PPAG_METHOD);
 	if (IS_ERR(data))
 		return PTR_ERR(data);
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
 					 ACPI_PPAG_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev > 1) {
+
+	if (IS_ERR(wifi_pkg) || tbl_rev != 0) {
 		ret = PTR_ERR(wifi_pkg);
 		goto out_free;
 	}
-	mvm->ppag_rev = tbl_rev;
 
 	enabled = &wifi_pkg->package.elements[1];
 	if (enabled->type != ACPI_TYPE_INTEGER ||
@@ -1151,8 +1151,9 @@ static int iwl_mvm_get_ppag_table(struct iwl_mvm *mvm)
 		ret = -EINVAL;
 		goto out_free;
 	}
-	mvm->ppag_table.enabled = enabled->integer.value;
-	if (!enabled) {
+
+	mvm->ppag_table.enabled = cpu_to_le32(enabled->integer.value);
+	if (!mvm->ppag_table.enabled) {
 		ret = 0;
 		goto out_free;
 	}
@@ -1172,7 +1173,7 @@ static int iwl_mvm_get_ppag_table(struct iwl_mvm *mvm)
 			    (j == 0 && ent->integer.value < ACPI_PPAG_MIN_LB) ||
 			    (j != 0 && ent->integer.value > ACPI_PPAG_MAX_HB) ||
 			    (j != 0 && ent->integer.value < ACPI_PPAG_MIN_HB)) {
-				mvm->ppag_table.enabled = false;
+				mvm->ppag_table.enabled = cpu_to_le32(0);
 				ret = -EINVAL;
 				goto out_free;
 			}
@@ -1187,9 +1188,7 @@ out_free:
 
 int iwl_mvm_ppag_send_cmd(struct iwl_mvm *mvm)
 {
-	struct iwl_ppag_table_cmd cmd;
 	int i, j, ret;
-	u16 cmd_wide_id = WIDE_ID(PHY_OPS_GROUP, PER_PLATFORM_ANT_GAIN_CMD);
 
 	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_SET_PPAG)) {
 		IWL_DEBUG_RADIO(mvm,
@@ -1198,20 +1197,21 @@ int iwl_mvm_ppag_send_cmd(struct iwl_mvm *mvm)
 	}
 
 	IWL_DEBUG_RADIO(mvm, "Sending PER_PLATFORM_ANT_GAIN_CMD\n");
-
-	cmd.enabled = mvm->ppag_table.enabled;
 	IWL_DEBUG_RADIO(mvm, "PPAG is %s\n",
-			cmd.enabled ? "enabled" : "disabled");
+			mvm->ppag_table.enabled ? "enabled" : "disabled");
 
 	for (i = 0; i < ACPI_PPAG_NUM_CHAINS; i++) {
 		for (j = 0; j < ACPI_PPAG_NUM_SUB_BANDS; j++) {
-			cmd.gain[i][j] = mvm->ppag_table.gain[i][j];
 			IWL_DEBUG_RADIO(mvm,
 					"PPAG table: chain[%d] band[%d]: gain = %d\n",
 					i, j, mvm->ppag_table.gain[i][j]);
 		}
 	}
-	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_wide_id, 0, sizeof(cmd), &cmd);
+
+	ret = iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(PHY_OPS_GROUP,
+						PER_PLATFORM_ANT_GAIN_CMD),
+				   0, sizeof(mvm->ppag_table),
+				   &mvm->ppag_table);
 	if (ret < 0)
 		IWL_ERR(mvm, "failed to send PER_PLATFORM_ANT_GAIN_CMD (%d)\n",
 			ret);

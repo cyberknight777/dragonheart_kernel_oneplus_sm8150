@@ -456,7 +456,7 @@ struct iwl_geo_tx_power_profiles_resp {
  * @reserved: reserved
  */
 struct iwl_ppag_table_cmd {
-	u32 enabled;
+	__le32 enabled;
 	s8 gain[IWL_NUM_CHAIN_LIMITS][IWL_NUM_SUB_BANDS];
 	s8 reserved[2];
 } __packed; /* PER_PLATFORM_ANT_GAIN_CMD */
