@@ -2965,7 +2965,7 @@ static void rs_drv_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	struct ieee80211_supported_band *sband;
 	unsigned long supp; /* must be unsigned long for for_each_set_bit */
 
-	lockdep_assert_held(&mvmsta->lq_sta.rs_drv.lock);
+	lockdep_assert_held(&mvmsta->lq_sta.rs_drv.pers.lock);
 
 	/* clear all non-persistent lq data */
 	memset(lq_sta, 0, offsetof(typeof(*lq_sta), pers));
@@ -3300,11 +3300,11 @@ void iwl_mvm_rs_tx_status(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	/* If it's locked we are in middle of init flow
 	 * just wait for next tx status to update the lq_sta data
 	 */
-	if (!spin_trylock(&mvmsta->lq_sta.rs_drv.lock))
+	if (!spin_trylock(&mvmsta->lq_sta.rs_drv.pers.lock))
 		return;
 
 	__iwl_mvm_rs_tx_status(mvm, sta, tid, info, ndp);
-	spin_unlock(&mvmsta->lq_sta.rs_drv.lock);
+	spin_unlock(&mvmsta->lq_sta.rs_drv.pers.lock);
 }
 
 #ifdef CPTCFG_MAC80211_DEBUGFS
@@ -4166,9 +4166,9 @@ void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	} else {
 		struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
-		spin_lock(&mvmsta->lq_sta.rs_drv.lock);
+		spin_lock(&mvmsta->lq_sta.rs_drv.pers.lock);
 		rs_drv_rate_init(mvm, sta, band);
-		spin_unlock(&mvmsta->lq_sta.rs_drv.lock);
+		spin_unlock(&mvmsta->lq_sta.rs_drv.pers.lock);
 	}
 }
 
