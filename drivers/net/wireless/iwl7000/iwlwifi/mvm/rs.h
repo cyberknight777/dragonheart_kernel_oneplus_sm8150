@@ -382,8 +382,6 @@ struct iwl_lq_sta {
 	/* tx power reduce for this sta */
 	int tpc_reduce;
 
-	spinlock_t lock; /* avoid races of reinit and update table from rx_tx */
-
 	/* persistent fields - initialized only once - keep last! */
 	struct lq_sta_pers {
 #ifdef CPTCFG_MAC80211_DEBUGFS
@@ -398,6 +396,7 @@ struct iwl_lq_sta {
 		s8 last_rssi;
 		struct rs_rate_stats tx_stats[RS_COLUMN_COUNT][IWL_RATE_COUNT];
 		struct iwl_mvm *drv;
+		spinlock_t lock; /* for races in reinit/update table */
 	} pers;
 };
 
