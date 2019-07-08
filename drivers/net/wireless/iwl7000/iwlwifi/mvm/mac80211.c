@@ -5138,7 +5138,6 @@ void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 	u32 qmask = BIT(mvm->trans->num_rx_queues) - 1;
 	int ret;
 
-	lockdep_assert_held(&mvm->mutex);
 
 	if (!iwl_mvm_has_new_rx_api(mvm))
 		return;
@@ -5157,6 +5156,7 @@ void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 	}
 
 	if (notif->sync) {
+		lockdep_assert_held(&mvm->mutex);
 		ret = wait_event_timeout(mvm->rx_sync_waitq,
 					 atomic_read(&mvm->queue_sync_counter) == 0 ||
 					 iwl_mvm_is_radio_killed(mvm),
