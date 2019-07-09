@@ -44,20 +44,18 @@ const struct snd_sof_dsp_ops sof_apl_ops = {
 	.irq_handler	= hda_dsp_ipc_irq_handler,
 	.irq_thread	= hda_dsp_ipc_irq_thread,
 
-	/* mailbox */
-	.mailbox_read	= sof_mailbox_read,
-	.mailbox_write	= sof_mailbox_write,
-
 	/* ipc */
 	.send_msg	= hda_dsp_ipc_send_msg,
-	.get_reply	= hda_dsp_ipc_get_reply,
 	.fw_ready	= hda_dsp_ipc_fw_ready,
-	.cmd_done	= hda_dsp_ipc_cmd_done,
+
+	.ipc_msg_data	= hda_ipc_msg_data,
+	.ipc_pcm_params	= hda_ipc_pcm_params,
 
 	/* debug */
 	.debug_map	= apl_dsp_debugfs,
 	.debug_map_count	= ARRAY_SIZE(apl_dsp_debugfs),
 	.dbg_dump	= hda_dsp_dump,
+	.ipc_dump	= hda_ipc_dump,
 
 	/* stream callbacks */
 	.pcm_open	= hda_dsp_pcm_open,
@@ -94,6 +92,7 @@ const struct snd_sof_dsp_ops sof_apl_ops = {
 	.resume			= hda_dsp_resume,
 	.runtime_suspend	= hda_dsp_runtime_suspend,
 	.runtime_resume		= hda_dsp_runtime_resume,
+	.set_hw_params_upon_resume = hda_dsp_set_hw_params_upon_resume,
 };
 EXPORT_SYMBOL(sof_apl_ops);
 
@@ -108,5 +107,7 @@ const struct sof_intel_dsp_desc apl_chip_info = {
 	.ipc_ack_mask = HDA_DSP_REG_HIPCIE_DONE,
 	.ipc_ctl = HDA_DSP_REG_HIPCCTL,
 	.rom_init_timeout	= 150,
+	.ssp_count = APL_SSP_COUNT,
+	.ssp_base_offset = APL_SSP_BASE_OFFSET,
 };
 EXPORT_SYMBOL(apl_chip_info);

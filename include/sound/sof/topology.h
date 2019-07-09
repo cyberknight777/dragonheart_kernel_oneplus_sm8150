@@ -32,8 +32,12 @@ enum sof_comp_type {
 	SOF_COMP_BUFFER,
 	SOF_COMP_EQ_IIR,
 	SOF_COMP_EQ_FIR,
-	SOF_COMP_FILEREAD,	/**< host test based file IO */
-	SOF_COMP_FILEWRITE,	/**< host test based file IO */
+	SOF_COMP_KEYWORD_DETECT,
+	SOF_COMP_KPB,			/* A key phrase buffer component */
+	SOF_COMP_SELECTOR,		/**< channel selector component */
+	/* keep FILEREAD/FILEWRITE as the last ones */
+	SOF_COMP_FILEREAD = 10000,	/**< host test based file IO */
+	SOF_COMP_FILEWRITE = 10001,	/**< host test based file IO */
 };
 
 /* XRUN action for component */
@@ -163,39 +167,25 @@ struct sof_ipc_comp_tone {
 	int32_t ramp_step;
 } __packed;
 
-/** \brief Types of EFFECT */
-enum sof_ipc_effect_type {
-	SOF_EFFECT_NONE = 0,		/**< None */
-	SOF_EFFECT_INTEL_EQFIR,		/**< Intel FIR */
-	SOF_EFFECT_INTEL_EQIIR,		/**< Intel IIR */
+/** \brief Types of processing components */
+enum sof_ipc_process_type {
+	SOF_PROCESS_NONE = 0,		/**< None */
+	SOF_PROCESS_EQFIR,		/**< Intel FIR */
+	SOF_PROCESS_EQIIR,		/**< Intel IIR */
+	SOF_PROCESS_KEYWORD_DETECT,	/**< Keyword Detection */
+	SOF_PROCESS_KPB,		/**< KeyPhrase Buffer Manager */
+	SOF_PROCESS_CHAN_SELECTOR,	/**< Channel Selector */
 };
 
-/* general purpose EFFECT configuration */
-struct sof_ipc_comp_effect {
-	struct sof_ipc_hdr hdr;
-	uint32_t type;			/** sof_ipc_effect_type */
-} __packed;
-
-/* FIR equalizer component */
-struct sof_ipc_comp_eq_fir {
+/* generic "effect", "codec" or proprietary processing component */
+struct sof_ipc_comp_process {
 	struct sof_ipc_comp comp;
 	struct sof_ipc_comp_config config;
-	uint32_t size;
+	uint32_t size;	/**< size of bespoke data section in bytes */
+	uint32_t type;	/**< sof_ipc_process_type */
 
 	/* reserved for future use */
-	uint32_t reserved[8];
-
-	unsigned char data[0];
-} __packed;
-
-/* IIR equalizer component */
-struct sof_ipc_comp_eq_iir {
-	struct sof_ipc_comp comp;
-	struct sof_ipc_comp_config config;
-	uint32_t size;
-
-	/* reserved for future use */
-	uint32_t reserved[8];
+	uint32_t reserved[7];
 
 	unsigned char data[0];
 } __packed;
@@ -218,6 +208,12 @@ struct sof_ipc_comp_reply {
  * Pipeline
  */
 
+/** \brief Types of pipeline scheduling time domains */
+enum sof_ipc_pipe_sched_time_domain {
+	SOF_TIME_DOMAIN_DMA = 0,	/**< DMA interrupt */
+	SOF_TIME_DOMAIN_TIMER,		/**< Timer interrupt */
+};
+
 /* new pipeline - SOF_IPC_TPLG_PIPE_NEW */
 struct sof_ipc_pipe_new {
 	struct sof_ipc_cmd_hdr hdr;
@@ -225,14 +221,12 @@ struct sof_ipc_pipe_new {
 	uint32_t pipeline_id;	/**< pipeline id */
 	uint32_t sched_id;	/**< Scheduling component id */
 	uint32_t core;		/**< core we run on */
-	uint32_t deadline;	/**< execution completion deadline in us*/
+	uint32_t period;	/**< execution period in us*/
 	uint32_t priority;	/**< priority level 0 (low) to 10 (max) */
 	uint32_t period_mips;	/**< worst case instruction count per period */
 	uint32_t frames_per_sched;/**< output frames of pipeline, 0 is variable */
 	uint32_t xrun_limit_usecs; /**< report xruns greater than limit */
-
-	/* non zero if timer scheduled, otherwise DAI DMA irq scheduled */
-	uint32_t timer_delay;
+	uint32_t time_domain;	/**< scheduling time domain */
 }  __packed;
 
 /* pipeline construction complete - SOF_IPC_TPLG_PIPE_COMPLETE */
@@ -252,5 +246,11 @@ struct sof_ipc_pipe_comp_connect {
 	uint32_t source_id;
 	uint32_t sink_id;
 }  __packed;
+
+/* external events */
+enum sof_event_types {
+	SOF_EVENT_NONE = 0,
+	SOF_KEYWORD_DETECT_DAPM_EVENT,
+};
 
 #endif

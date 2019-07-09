@@ -12,6 +12,7 @@
 #define __SOF_INTEL_HDA_H
 
 #include <sound/hda_codec.h>
+#include <sound/hdaudio_ext.h>
 #include "shim.h"
 
 /* PCI registers */
@@ -194,9 +195,9 @@
 /* various timeout values */
 #define HDA_DSP_PU_TIMEOUT		50
 #define HDA_DSP_PD_TIMEOUT		50
-#define HDA_DSP_RESET_TIMEOUT		50
-#define HDA_DSP_BASEFW_TIMEOUT		3000
-#define HDA_DSP_INIT_TIMEOUT		500
+#define HDA_DSP_RESET_TIMEOUT_US	50000
+#define HDA_DSP_BASEFW_TIMEOUT_US       3000000
+#define HDA_DSP_INIT_TIMEOUT_US	500000
 #define HDA_DSP_CTRL_RESET_TIMEOUT		100
 #define HDA_DSP_WAIT_TIMEOUT		500	/* 500 msec */
 #define HDA_DSP_REG_POLL_INTERVAL_US		500	/* 0.5 msec */
@@ -337,6 +338,23 @@
 #define HDA_ADSP_FW_STATUS_SKL		HDA_ADSP_SRAM0_BASE_SKL
 #define HDA_ADSP_ERROR_CODE_SKL		(HDA_ADSP_FW_STATUS_SKL + 0x4)
 
+/* Host Device Memory Space */
+#define APL_SSP_BASE_OFFSET	0x2000
+#define CNL_SSP_BASE_OFFSET	0x10000
+
+/* Host Device Memory Size of a Single SSP */
+#define SSP_DEV_MEM_SIZE	0x1000
+
+/* SSP Count of the Platform */
+#define APL_SSP_COUNT		6
+#define CNL_SSP_COUNT		3
+
+/* SSP Registers */
+#define SSP_SSC1_OFFSET		0x4
+#define SSP_SET_SCLK_SLAVE	BIT(25)
+#define SSP_SET_SFRM_SLAVE	BIT(24)
+#define SSP_SET_SLAVE		(SSP_SET_SCLK_SLAVE | SSP_SET_SFRM_SLAVE)
+
 #define HDA_IDISP_CODEC(x) ((x) & BIT(2))
 
 struct sof_intel_dsp_bdl {
@@ -359,11 +377,14 @@ struct sof_intel_hda_dev {
 	/* hw config */
 	const struct sof_intel_dsp_desc *desc;
 
-	/*trace */
+	/* trace */
 	struct hdac_ext_stream *dtrace_stream;
 
 	/* if position update IPC needed */
 	u32 no_ipc_position;
+
+	/* the maximum number of streams (playback + capture) supported */
+	u32 stream_max;
 
 	int irq;
 
@@ -373,17 +394,23 @@ struct sof_intel_hda_dev {
 
 static inline struct hdac_bus *sof_to_bus(struct snd_sof_dev *s)
 {
-	struct sof_intel_hda_dev *hda =
-		(struct sof_intel_hda_dev *)s->pdata->hw_pdata;
+	struct sof_intel_hda_dev *hda = s->pdata->hw_pdata;
+
 	return &hda->hbus.core;
 }
 
 static inline struct hda_bus *sof_to_hbus(struct snd_sof_dev *s)
 {
-	struct sof_intel_hda_dev *hda =
-		(struct sof_intel_hda_dev *)s->pdata->hw_pdata;
+	struct sof_intel_hda_dev *hda = s->pdata->hw_pdata;
+
 	return &hda->hbus;
 }
+
+struct sof_intel_hda_stream {
+	struct hdac_ext_stream hda_stream;
+	struct sof_intel_stream stream;
+	int hw_params_upon_resume; /* set up hw_params upon resume */
+};
 
 #define bus_to_sof_hda(bus) \
 	container_of(bus, struct sof_intel_hda_dev, hbus.core)
@@ -417,8 +444,10 @@ int hda_dsp_suspend(struct snd_sof_dev *sdev, int state);
 int hda_dsp_resume(struct snd_sof_dev *sdev);
 int hda_dsp_runtime_suspend(struct snd_sof_dev *sdev, int state);
 int hda_dsp_runtime_resume(struct snd_sof_dev *sdev);
+void hda_dsp_set_hw_params_upon_resume(struct snd_sof_dev *sdev);
 void hda_dsp_dump_skl(struct snd_sof_dev *sdev, u32 flags);
 void hda_dsp_dump(struct snd_sof_dev *sdev, u32 flags);
+void hda_ipc_dump(struct snd_sof_dev *sdev);
 
 /*
  * DSP PCM Operations.
@@ -461,13 +490,19 @@ int hda_dsp_stream_spib_config(struct snd_sof_dev *sdev,
 			       struct hdac_ext_stream *stream,
 			       int enable, u32 size);
 
+void hda_ipc_msg_data(struct snd_sof_dev *sdev,
+		      struct snd_pcm_substream *substream,
+		      void *p, size_t sz);
+int hda_ipc_pcm_params(struct snd_sof_dev *sdev,
+		       struct snd_pcm_substream *substream,
+		       const struct sof_ipc_pcm_params_reply *reply);
+
 /*
  * DSP IPC Operations.
  */
 int hda_dsp_ipc_send_msg(struct snd_sof_dev *sdev,
 			 struct snd_sof_ipc_msg *msg);
-int hda_dsp_ipc_get_reply(struct snd_sof_dev *sdev,
-			  struct snd_sof_ipc_msg *msg);
+void hda_dsp_ipc_get_reply(struct snd_sof_dev *sdev);
 int hda_dsp_ipc_fw_ready(struct snd_sof_dev *sdev, u32 msg_id);
 irqreturn_t hda_dsp_ipc_irq_handler(int irq, void *context);
 irqreturn_t hda_dsp_ipc_irq_thread(int irq, void *context);
@@ -487,6 +522,8 @@ int hda_dsp_post_fw_run(struct snd_sof_dev *sdev);
  * HDA Controller Operations.
  */
 int hda_dsp_ctrl_get_caps(struct snd_sof_dev *sdev);
+void hda_dsp_ctrl_ppcap_enable(struct snd_sof_dev *sdev, bool enable);
+void hda_dsp_ctrl_ppcap_int_enable(struct snd_sof_dev *sdev, bool enable);
 int hda_dsp_ctrl_link_reset(struct snd_sof_dev *sdev, bool reset);
 void hda_dsp_ctrl_misc_clock_gating(struct snd_sof_dev *sdev, bool enable);
 int hda_dsp_ctrl_clock_power_gating(struct snd_sof_dev *sdev, bool enable);

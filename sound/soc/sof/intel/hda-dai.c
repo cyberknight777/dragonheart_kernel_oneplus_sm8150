@@ -64,7 +64,7 @@ static int hda_link_dma_get_channels(struct snd_soc_dai *dai,
 			return -EBUSY;
 		}
 
-		snd_soc_dai_set_dma_data(dai, &substream, (void *)stream);
+		snd_soc_dai_set_dma_data(dai, &substream, stream);
 		*tx_slot = hdac_stream(stream)->stream_tag - 1;
 
 		dev_dbg(bus->dev, "link dma channel %d for playback", *tx_slot);
@@ -79,7 +79,7 @@ static int hda_link_dma_get_channels(struct snd_soc_dai *dai,
 			return -EBUSY;
 		}
 
-		snd_soc_dai_set_dma_data(dai, &substream, (void *)stream);
+		snd_soc_dai_set_dma_data(dai, &substream, stream);
 		*rx_slot = hdac_stream(stream)->stream_tag - 1;
 
 		dev_dbg(bus->dev, "link dma channel %d for capture", *rx_slot);
@@ -131,11 +131,16 @@ static int hda_link_hw_params(struct snd_pcm_substream *substream,
 	struct hdac_ext_stream *link_dev;
 	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct sof_intel_hda_stream *hda_stream;
 	struct hda_pipe_params p_params = {0};
 	struct hdac_ext_link *link;
 	int stream_tag;
 
 	link_dev = snd_soc_dai_get_dma_data(dai, substream);
+
+	hda_stream = container_of(link_dev, struct sof_intel_hda_stream,
+				  hda_stream);
+	hda_stream->hw_params_upon_resume = 0;
 
 	link = snd_hdac_ext_bus_get_link(bus, codec_dai->component->name);
 	if (!link)
@@ -165,26 +170,58 @@ static int hda_link_hw_params(struct snd_pcm_substream *substream,
 	return hda_link_dma_params(link_dev, &p_params);
 }
 
+static int hda_link_pcm_prepare(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	struct hdac_ext_stream *link_dev =
+				snd_soc_dai_get_dma_data(dai, substream);
+	struct sof_intel_hda_stream *hda_stream;
+	struct snd_sof_dev *sdev =
+				snd_soc_component_get_drvdata(dai->component);
+	struct snd_soc_pcm_runtime *rtd = snd_pcm_substream_chip(substream);
+	int stream = substream->stream;
+
+	hda_stream = container_of(link_dev, struct sof_intel_hda_stream,
+				  hda_stream);
+
+	/* setup hw_params again only if resuming from system suspend */
+	if (!hda_stream->hw_params_upon_resume)
+		return 0;
+
+	dev_dbg(sdev->dev, "hda: prepare stream dir %d\n", substream->stream);
+
+	return hda_link_hw_params(substream, &rtd->dpcm[stream].hw_params,
+				  dai);
+}
+
 static int hda_link_pcm_trigger(struct snd_pcm_substream *substream,
 				int cmd, struct snd_soc_dai *dai)
 {
 	struct hdac_ext_stream *link_dev =
 				snd_soc_dai_get_dma_data(dai, substream);
+	int ret;
 
 	dev_dbg(dai->dev, "In %s cmd=%d\n", __func__, cmd);
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
+		/* set up hw_params */
+		ret = hda_link_pcm_prepare(substream, dai);
+		if (ret < 0) {
+			dev_err(dai->dev,
+				"error: setting up hw_params during resume\n");
+			return ret;
+		}
+
+		/* fallthrough */
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		snd_hdac_ext_link_stream_start(link_dev);
 		break;
-
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
 		snd_hdac_ext_link_stream_clear(link_dev);
 		break;
-
 	default:
 		return -EINVAL;
 	}
@@ -255,6 +292,7 @@ static const struct snd_soc_dai_ops hda_link_dai_ops = {
 	.hw_params = hda_link_hw_params,
 	.hw_free = hda_link_hw_free,
 	.trigger = hda_link_pcm_trigger,
+	.prepare = hda_link_pcm_prepare,
 	.get_channel_map = hda_link_dma_get_channels,
 };
 #endif

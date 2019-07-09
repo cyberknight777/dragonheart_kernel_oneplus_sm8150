@@ -42,6 +42,16 @@ struct snd_sof_ipc {
 	struct snd_sof_ipc_msg msg;
 };
 
+struct sof_ipc_ctrl_data_params {
+	size_t msg_bytes;
+	size_t hdr_bytes;
+	size_t pl_size;
+	size_t elems;
+	u32 num_msg;
+	u8 *src;
+	u8 *dst;
+};
+
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_DEBUG_VERBOSE_IPC)
 static void ipc_log_header(struct device *dev, u8 *text, u32 cmd)
 {
@@ -197,11 +207,12 @@ static int tx_wait_done(struct snd_sof_ipc *ipc, struct snd_sof_ipc_msg *msg,
 		dev_err(sdev->dev, "error: ipc timed out for 0x%x size %d\n",
 			hdr->cmd, hdr->size);
 		snd_sof_dsp_dbg_dump(ipc->sdev, SOF_DBG_REGS | SOF_DBG_MBOX);
+		snd_sof_ipc_dump(ipc->sdev);
 		snd_sof_trace_notify_for_error(ipc->sdev);
 		ret = -ETIMEDOUT;
 	} else {
 		/* copy the data returned from DSP */
-		ret = snd_sof_dsp_get_reply(sdev, msg);
+		ret = msg->reply_error;
 		if (msg->reply_size)
 			memcpy(reply_data, msg->reply_data, msg->reply_size);
 		if (ret < 0)
@@ -211,31 +222,20 @@ static int tx_wait_done(struct snd_sof_ipc *ipc, struct snd_sof_ipc_msg *msg,
 			ipc_log_header(sdev->dev, "ipc tx succeeded", hdr->cmd);
 	}
 
-	snd_sof_dsp_cmd_done(sdev, SOF_IPC_DSP_REPLY);
-
 	return ret;
 }
 
 /* send IPC message from host to DSP */
-int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
-		       void *msg_data, size_t msg_bytes, void *reply_data,
-		       size_t reply_bytes)
+static int sof_ipc_tx_message_unlocked(struct snd_sof_ipc *ipc, u32 header,
+				       void *msg_data, size_t msg_bytes,
+				       void *reply_data, size_t reply_bytes)
 {
 	struct snd_sof_dev *sdev = ipc->sdev;
 	struct snd_sof_ipc_msg *msg;
 	int ret;
 
-	if (msg_bytes > SOF_IPC_MSG_MAX_SIZE ||
-	    reply_bytes > SOF_IPC_MSG_MAX_SIZE)
-		return -ENOBUFS;
-
-	/* Serialise IPC TX */
-	mutex_lock(&ipc->tx_mutex);
-
-	if (ipc->disable_ipc_tx) {
-		ret = -ENODEV;
-		goto unlock;
-	}
+	if (ipc->disable_ipc_tx)
+		return -ENODEV;
 
 	/*
 	 * The spin-lock is also still needed to protect message objects against
@@ -249,10 +249,13 @@ int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
 	msg->header = header;
 	msg->msg_size = msg_bytes;
 	msg->reply_size = reply_bytes;
+	msg->reply_error = 0;
 
 	/* attach any data */
 	if (msg_bytes)
 		memcpy(msg->msg_data, msg_data, msg_bytes);
+
+	sdev->msg = msg;
 
 	ret = snd_sof_dsp_send_msg(sdev, msg);
 	/* Next reply that we receive will be related to this message */
@@ -266,7 +269,7 @@ int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
 		dev_err_ratelimited(sdev->dev,
 				    "error: ipc tx failed with error %d\n",
 				    ret);
-		goto unlock;
+		return ret;
 	}
 
 	ipc_log_header(sdev->dev, "ipc tx", msg->header);
@@ -275,47 +278,46 @@ int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
 	if (!ret)
 		ret = tx_wait_done(ipc, msg, reply_data);
 
-unlock:
+	return ret;
+}
+
+/* send IPC message from host to DSP */
+int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
+		       void *msg_data, size_t msg_bytes, void *reply_data,
+		       size_t reply_bytes)
+{
+	int ret;
+
+	if (msg_bytes > SOF_IPC_MSG_MAX_SIZE ||
+	    reply_bytes > SOF_IPC_MSG_MAX_SIZE)
+		return -ENOBUFS;
+
+	/* Serialise IPC TX */
+	mutex_lock(&ipc->tx_mutex);
+
+	ret = sof_ipc_tx_message_unlocked(ipc, header, msg_data, msg_bytes,
+					  reply_data, reply_bytes);
+
 	mutex_unlock(&ipc->tx_mutex);
 
 	return ret;
 }
 EXPORT_SYMBOL(sof_ipc_tx_message);
 
-/* mark IPC message as complete - locks held by caller */
-static void sof_ipc_tx_msg_reply_complete(struct snd_sof_ipc *ipc,
-					  struct snd_sof_ipc_msg *msg)
-{
-	msg->ipc_complete = true;
-	wake_up(&msg->waitq);
-}
-
 /* handle reply message from DSP */
 int snd_sof_ipc_reply(struct snd_sof_dev *sdev, u32 msg_id)
 {
 	struct snd_sof_ipc_msg *msg = &sdev->ipc->msg;
-	unsigned long flags;
-
-	/*
-	 * Protect against a theoretical race with sof_ipc_tx_message(): if the
-	 * DSP is fast enough to receive an IPC message, reply to it, and the
-	 * host interrupt processing calls this function on a different core
-	 * from the one, where the sending is taking place, the message might
-	 * not yet be marked as expecting a reply.
-	 */
-	spin_lock_irqsave(&sdev->ipc_lock, flags);
 
 	if (msg->ipc_complete) {
-		spin_unlock_irqrestore(&sdev->ipc_lock, flags);
 		dev_err(sdev->dev, "error: no reply expected, received 0x%x",
 			msg_id);
 		return -EINVAL;
 	}
 
 	/* wake up and return the error if we have waiters on this message ? */
-	sof_ipc_tx_msg_reply_complete(sdev->ipc, msg);
-
-	spin_unlock_irqrestore(&sdev->ipc_lock, flags);
+	msg->ipc_complete = true;
+	wake_up(&msg->waitq);
 
 	return 0;
 }
@@ -329,7 +331,7 @@ void snd_sof_ipc_msgs_rx(struct snd_sof_dev *sdev)
 	int err = 0;
 
 	/* read back header */
-	snd_sof_dsp_mailbox_read(sdev, sdev->dsp_box.offset, &hdr, sizeof(hdr));
+	snd_sof_ipc_msg_data(sdev, NULL, &hdr, sizeof(hdr));
 	ipc_log_header(sdev->dev, "ipc rx", hdr.cmd);
 
 	cmd = hdr.cmd & SOF_GLB_TYPE_MASK;
@@ -378,9 +380,6 @@ void snd_sof_ipc_msgs_rx(struct snd_sof_dev *sdev)
 	}
 
 	ipc_log_header(sdev->dev, "ipc rx done", hdr.cmd);
-
-	/* tell DSP we are done */
-	snd_sof_dsp_cmd_done(sdev, SOF_IPC_HOST_REPLY);
 }
 EXPORT_SYMBOL(snd_sof_ipc_msgs_rx);
 
@@ -395,8 +394,7 @@ static void ipc_trace_message(struct snd_sof_dev *sdev, u32 msg_id)
 	switch (msg_id) {
 	case SOF_IPC_TRACE_DMA_POSITION:
 		/* read back full message */
-		snd_sof_dsp_mailbox_read(sdev, sdev->dsp_box.offset, &posn,
-					 sizeof(posn));
+		snd_sof_ipc_msg_data(sdev, NULL, &posn, sizeof(posn));
 		snd_sof_trace_update_pos(sdev, &posn);
 		break;
 	default:
@@ -412,22 +410,12 @@ static void ipc_trace_message(struct snd_sof_dev *sdev, u32 msg_id)
 
 static void ipc_period_elapsed(struct snd_sof_dev *sdev, u32 msg_id)
 {
+	struct snd_sof_pcm_stream *stream;
 	struct sof_ipc_stream_posn posn;
 	struct snd_sof_pcm *spcm;
-	u32 posn_offset;
 	int direction;
 
-	/* check if we have stream box */
-	if (sdev->stream_box.size == 0) {
-		/* read back full message */
-		snd_sof_dsp_mailbox_read(sdev, sdev->dsp_box.offset, &posn,
-					 sizeof(posn));
-
-		spcm = snd_sof_find_spcm_comp(sdev, posn.comp_id, &direction);
-	} else {
-		spcm = snd_sof_find_spcm_comp(sdev, msg_id, &direction);
-	}
-
+	spcm = snd_sof_find_spcm_comp(sdev, msg_id, &direction);
 	if (!spcm) {
 		dev_err(sdev->dev,
 			"error: period elapsed for unknown stream, msg_id %d\n",
@@ -435,68 +423,44 @@ static void ipc_period_elapsed(struct snd_sof_dev *sdev, u32 msg_id)
 		return;
 	}
 
-	/* have stream box read from stream box */
-	if (sdev->stream_box.size != 0) {
-		posn_offset = spcm->posn_offset[direction];
-		snd_sof_dsp_mailbox_read(sdev, posn_offset, &posn,
-					 sizeof(posn));
-
-		dev_dbg(sdev->dev, "posn mailbox: posn offset is 0x%x",
-			posn_offset);
-	}
+	stream = &spcm->stream[direction];
+	snd_sof_ipc_msg_data(sdev, stream->substream, &posn, sizeof(posn));
 
 	dev_dbg(sdev->dev, "posn : host 0x%llx dai 0x%llx wall 0x%llx\n",
 		posn.host_posn, posn.dai_posn, posn.wallclock);
 
-	memcpy(&spcm->stream[direction].posn, &posn, sizeof(posn));
+	memcpy(&stream->posn, &posn, sizeof(posn));
 
 	/* only inform ALSA for period_wakeup mode */
-	if (!spcm->stream[direction].substream->runtime->no_period_wakeup)
-		snd_pcm_period_elapsed(spcm->stream[direction].substream);
+	if (!stream->substream->runtime->no_period_wakeup)
+		snd_sof_pcm_period_elapsed(stream->substream);
 }
 
 /* DSP notifies host of an XRUN within FW */
 static void ipc_xrun(struct snd_sof_dev *sdev, u32 msg_id)
 {
+	struct snd_sof_pcm_stream *stream;
 	struct sof_ipc_stream_posn posn;
 	struct snd_sof_pcm *spcm;
-	u32 posn_offset;
 	int direction;
 
-	/* check if we have stream MMIO on this platform */
-	if (sdev->stream_box.size == 0) {
-		/* read back full message */
-		snd_sof_dsp_mailbox_read(sdev, sdev->dsp_box.offset, &posn,
-					 sizeof(posn));
-
-		spcm = snd_sof_find_spcm_comp(sdev, posn.comp_id, &direction);
-	} else {
-		spcm = snd_sof_find_spcm_comp(sdev, msg_id, &direction);
-	}
-
+	spcm = snd_sof_find_spcm_comp(sdev, msg_id, &direction);
 	if (!spcm) {
 		dev_err(sdev->dev, "error: XRUN for unknown stream, msg_id %d\n",
 			msg_id);
 		return;
 	}
 
-	/* have stream box read from stream box */
-	if (sdev->stream_box.size != 0) {
-		posn_offset = spcm->posn_offset[direction];
-		snd_sof_dsp_mailbox_read(sdev, posn_offset, &posn,
-					 sizeof(posn));
-
-		dev_dbg(sdev->dev, "posn mailbox: posn offset is 0x%x",
-			posn_offset);
-	}
+	stream = &spcm->stream[direction];
+	snd_sof_ipc_msg_data(sdev, stream->substream, &posn, sizeof(posn));
 
 	dev_dbg(sdev->dev,  "posn XRUN: host %llx comp %d size %d\n",
 		posn.host_posn, posn.xrun_comp_id, posn.xrun_size);
 
 #if defined(CONFIG_SND_SOC_SOF_DEBUG_XRUN_STOP)
 	/* stop PCM on XRUN - used for pipeline debug */
-	memcpy(&spcm->stream[direction].posn, &posn, sizeof(posn));
-	snd_pcm_stop_xrun(spcm->stream[direction].substream);
+	memcpy(&stream->posn, &posn, sizeof(posn));
+	snd_pcm_stop_xrun(stream->substream);
 #endif
 }
 
@@ -548,93 +512,211 @@ int snd_sof_ipc_stream_posn(struct snd_sof_dev *sdev,
 }
 EXPORT_SYMBOL(snd_sof_ipc_stream_posn);
 
+static int sof_get_ctrl_copy_params(enum sof_ipc_ctrl_type ctrl_type,
+				    struct sof_ipc_ctrl_data *src,
+				    struct sof_ipc_ctrl_data *dst,
+				    struct sof_ipc_ctrl_data_params *sparams)
+{
+	switch (ctrl_type) {
+	case SOF_CTRL_TYPE_VALUE_CHAN_GET:
+	case SOF_CTRL_TYPE_VALUE_CHAN_SET:
+		sparams->src = (u8 *)src->chanv;
+		sparams->dst = (u8 *)dst->chanv;
+		break;
+	case SOF_CTRL_TYPE_VALUE_COMP_GET:
+	case SOF_CTRL_TYPE_VALUE_COMP_SET:
+		sparams->src = (u8 *)src->compv;
+		sparams->dst = (u8 *)dst->compv;
+		break;
+	case SOF_CTRL_TYPE_DATA_GET:
+	case SOF_CTRL_TYPE_DATA_SET:
+		sparams->src = (u8 *)src->data->data;
+		sparams->dst = (u8 *)dst->data->data;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* calculate payload size and number of messages */
+	sparams->pl_size = SOF_IPC_MSG_MAX_SIZE - sparams->hdr_bytes;
+	sparams->num_msg = DIV_ROUND_UP(sparams->msg_bytes, sparams->pl_size);
+
+	return 0;
+}
+
+static int sof_set_get_large_ctrl_data(struct snd_sof_dev *sdev,
+				       struct sof_ipc_ctrl_data *cdata,
+				       struct sof_ipc_ctrl_data_params *sparams,
+				       bool send)
+{
+	struct sof_ipc_ctrl_data *partdata;
+	size_t send_bytes;
+	size_t offset = 0;
+	size_t msg_bytes;
+	size_t pl_size;
+	int err;
+	int i;
+
+	/* allocate max ipc size because we have at least one */
+	partdata = kzalloc(SOF_IPC_MSG_MAX_SIZE, GFP_KERNEL);
+	if (!partdata)
+		return -ENOMEM;
+
+	if (send)
+		err = sof_get_ctrl_copy_params(cdata->type, cdata, partdata,
+					       sparams);
+	else
+		err = sof_get_ctrl_copy_params(cdata->type, partdata, cdata,
+					       sparams);
+	if (err < 0)
+		return err;
+
+	msg_bytes = sparams->msg_bytes;
+	pl_size = sparams->pl_size;
+
+	/* copy the header data */
+	memcpy(partdata, cdata, sparams->hdr_bytes);
+
+	/* Serialise IPC TX */
+	mutex_lock(&sdev->ipc->tx_mutex);
+
+	/* copy the payload data in a loop */
+	for (i = 0; i < sparams->num_msg; i++) {
+		send_bytes = min(msg_bytes, pl_size);
+		partdata->num_elems = send_bytes;
+		partdata->rhdr.hdr.size = sparams->hdr_bytes + send_bytes;
+		partdata->msg_index = i;
+		msg_bytes -= send_bytes;
+		partdata->elems_remaining = msg_bytes;
+
+		if (send)
+			memcpy(sparams->dst, sparams->src + offset, send_bytes);
+
+		err = sof_ipc_tx_message_unlocked(sdev->ipc,
+						  partdata->rhdr.hdr.cmd,
+						  partdata,
+						  partdata->rhdr.hdr.size,
+						  partdata,
+						  partdata->rhdr.hdr.size);
+		if (err < 0)
+			break;
+
+		if (!send)
+			memcpy(sparams->dst + offset, sparams->src, send_bytes);
+
+		offset += pl_size;
+	}
+
+	mutex_unlock(&sdev->ipc->tx_mutex);
+
+	kfree(partdata);
+	return err;
+}
+
 /*
  * IPC get()/set() for kcontrols.
  */
-
-int snd_sof_ipc_set_comp_data(struct snd_sof_ipc *ipc,
-			      struct snd_sof_control *scontrol, u32 ipc_cmd,
-			      enum sof_ipc_ctrl_type ctrl_type,
-			      enum sof_ipc_ctrl_cmd ctrl_cmd)
+int snd_sof_ipc_set_get_comp_data(struct snd_sof_ipc *ipc,
+				  struct snd_sof_control *scontrol,
+				  u32 ipc_cmd,
+				  enum sof_ipc_ctrl_type ctrl_type,
+				  enum sof_ipc_ctrl_cmd ctrl_cmd,
+				  bool send)
 {
-	struct snd_sof_dev *sdev = ipc->sdev;
 	struct sof_ipc_ctrl_data *cdata = scontrol->control_data;
+	struct snd_sof_dev *sdev = ipc->sdev;
+	struct sof_ipc_fw_ready *ready = &sdev->fw_ready;
+	struct sof_ipc_fw_version *v = &ready->version;
+	struct sof_ipc_ctrl_data_params sparams;
+	size_t send_bytes;
 	int err;
 
-	/* read firmware volume */
+	/* read or write firmware volume */
 	if (scontrol->readback_offset != 0) {
-		/* we can read value header via mmaped region */
-		snd_sof_dsp_block_write(sdev, sdev->mmio_bar,
-					scontrol->readback_offset, cdata->chanv,
-					sizeof(struct sof_ipc_ctrl_value_chan) *
-					cdata->num_elems);
+		/* write/read value header via mmaped region */
+		send_bytes = sizeof(struct sof_ipc_ctrl_value_chan) *
+		cdata->num_elems;
+		if (send)
+			snd_sof_dsp_block_write(sdev, sdev->mmio_bar,
+						scontrol->readback_offset,
+						cdata->chanv, send_bytes);
 
-	} else {
-		/* write value via slower IPC */
-		cdata->rhdr.hdr.cmd = SOF_IPC_GLB_COMP_MSG | ipc_cmd;
-		cdata->cmd = ctrl_cmd;
-		cdata->type = ctrl_type;
-		cdata->rhdr.hdr.size = scontrol->size;
-		cdata->comp_id = scontrol->comp_id;
-		cdata->num_elems = scontrol->num_channels;
-
-		/* send IPC to the DSP */
-		err = sof_ipc_tx_message(sdev->ipc,
-					 cdata->rhdr.hdr.cmd, cdata,
-					 cdata->rhdr.hdr.size,
-					 cdata, cdata->rhdr.hdr.size);
-		if (err < 0) {
-			dev_err(sdev->dev, "error: failed to set control %d values\n",
-				cdata->comp_id);
-			return err;
-		}
+		else
+			snd_sof_dsp_block_read(sdev, sdev->mmio_bar,
+					       scontrol->readback_offset,
+					       cdata->chanv, send_bytes);
+		return 0;
 	}
 
-	return 0;
-}
-EXPORT_SYMBOL(snd_sof_ipc_set_comp_data);
+	cdata->rhdr.hdr.cmd = SOF_IPC_GLB_COMP_MSG | ipc_cmd;
+	cdata->cmd = ctrl_cmd;
+	cdata->type = ctrl_type;
+	cdata->comp_id = scontrol->comp_id;
+	cdata->msg_index = 0;
 
-int snd_sof_ipc_get_comp_data(struct snd_sof_ipc *ipc,
-			      struct snd_sof_control *scontrol, u32 ipc_cmd,
-			      enum sof_ipc_ctrl_type ctrl_type,
-			      enum sof_ipc_ctrl_cmd ctrl_cmd)
-{
-	struct snd_sof_dev *sdev = ipc->sdev;
-	struct sof_ipc_ctrl_data *cdata = scontrol->control_data;
-	int err;
-
-	/* read firmware byte counters */
-	if (scontrol->readback_offset != 0) {
-		/* we can read values via mmaped region */
-		snd_sof_dsp_block_read(sdev, sdev->mmio_bar,
-				       scontrol->readback_offset, cdata->chanv,
-				       sizeof(struct sof_ipc_ctrl_value_chan) *
-				       cdata->num_elems);
-
-	} else {
-		/* read position via slower IPC */
-		cdata->rhdr.hdr.cmd = SOF_IPC_GLB_COMP_MSG | ipc_cmd;
-		cdata->cmd = ctrl_cmd;
-		cdata->type = ctrl_type;
-		cdata->rhdr.hdr.size = scontrol->size;
-		cdata->comp_id = scontrol->comp_id;
-		cdata->num_elems = scontrol->num_channels;
-
-		/* send IPC to the DSP */
-		err = sof_ipc_tx_message(sdev->ipc,
-					 cdata->rhdr.hdr.cmd, cdata,
-					 cdata->rhdr.hdr.size,
-					 cdata, cdata->rhdr.hdr.size);
-		if (err < 0) {
-			dev_err(sdev->dev, "error: failed to get control %d values\n",
-				cdata->comp_id);
-			return err;
-		}
+	/* calculate header and data size */
+	switch (cdata->type) {
+	case SOF_CTRL_TYPE_VALUE_CHAN_GET:
+	case SOF_CTRL_TYPE_VALUE_CHAN_SET:
+		sparams.msg_bytes = scontrol->num_channels *
+			sizeof(struct sof_ipc_ctrl_value_chan);
+		sparams.hdr_bytes = sizeof(struct sof_ipc_ctrl_data);
+		sparams.elems = scontrol->num_channels;
+		break;
+	case SOF_CTRL_TYPE_VALUE_COMP_GET:
+	case SOF_CTRL_TYPE_VALUE_COMP_SET:
+		sparams.msg_bytes = scontrol->num_channels *
+			sizeof(struct sof_ipc_ctrl_value_comp);
+		sparams.hdr_bytes = sizeof(struct sof_ipc_ctrl_data);
+		sparams.elems = scontrol->num_channels;
+		break;
+	case SOF_CTRL_TYPE_DATA_GET:
+	case SOF_CTRL_TYPE_DATA_SET:
+		sparams.msg_bytes = cdata->data->size;
+		sparams.hdr_bytes = sizeof(struct sof_ipc_ctrl_data) +
+			sizeof(struct sof_abi_hdr);
+		sparams.elems = cdata->data->size;
+		break;
+	default:
+		return -EINVAL;
 	}
 
-	return 0;
+	cdata->rhdr.hdr.size = sparams.msg_bytes + sparams.hdr_bytes;
+	cdata->num_elems = sparams.elems;
+	cdata->elems_remaining = 0;
+
+	/* send normal size ipc in one part */
+	if (cdata->rhdr.hdr.size <= SOF_IPC_MSG_MAX_SIZE) {
+		err = sof_ipc_tx_message(sdev->ipc, cdata->rhdr.hdr.cmd, cdata,
+					 cdata->rhdr.hdr.size, cdata,
+					 cdata->rhdr.hdr.size);
+
+		if (err < 0)
+			dev_err(sdev->dev, "error: set/get ctrl ipc comp %d\n",
+				cdata->comp_id);
+
+		return err;
+	}
+
+	/* data is bigger than max ipc size, chop into smaller pieces */
+	dev_dbg(sdev->dev, "large ipc size %u, control size %u\n",
+		cdata->rhdr.hdr.size, scontrol->size);
+
+	/* large messages is only supported from ABI 3.3.0 onwards */
+	if (v->abi_version < SOF_ABI_VER(3, 3, 0)) {
+		dev_err(sdev->dev, "error: incompatible FW ABI version\n");
+		return -EINVAL;
+	}
+
+	err = sof_set_get_large_ctrl_data(sdev, cdata, &sparams, send);
+
+	if (err < 0)
+		dev_err(sdev->dev, "error: set/get large ctrl ipc comp %d\n",
+			cdata->comp_id);
+
+	return err;
 }
-EXPORT_SYMBOL(snd_sof_ipc_get_comp_data);
+EXPORT_SYMBOL(snd_sof_ipc_set_get_comp_data);
 
 /*
  * IPC layer enumeration.
@@ -670,6 +752,15 @@ int snd_sof_ipc_valid(struct snd_sof_dev *sdev)
 	if (SOF_ABI_VERSION_INCOMPATIBLE(SOF_ABI_VERSION, v->abi_version)) {
 		dev_err(sdev->dev, "error: incompatible FW ABI version\n");
 		return -EINVAL;
+	}
+
+	if (v->abi_version > SOF_ABI_VERSION) {
+		if (!IS_ENABLED(CONFIG_SND_SOC_SOF_STRICT_ABI_CHECKS)) {
+			dev_warn(sdev->dev, "warn: FW ABI is more recent than kernel\n");
+		} else {
+			dev_err(sdev->dev, "error: FW ABI is more recent than kernel\n");
+			return -EINVAL;
+		}
 	}
 
 	if (ready->debug.bits.build) {
@@ -710,7 +801,7 @@ struct snd_sof_ipc *snd_sof_ipc_init(struct snd_sof_dev *sdev)
 	ipc->sdev = sdev;
 	msg = &ipc->msg;
 
-	/* Indicate, that we aren't sending a message ATM */
+	/* indicate that we aren't sending a message ATM */
 	msg->ipc_complete = true;
 
 	/* pre-allocate message data */
