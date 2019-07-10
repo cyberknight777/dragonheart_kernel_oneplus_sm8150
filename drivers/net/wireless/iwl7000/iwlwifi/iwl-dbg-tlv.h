@@ -71,6 +71,16 @@ struct iwl_apply_point_data {
 	struct iwl_ucode_tlv tlv;
 };
 
+/**
+ * struct iwl_dbg_tlv_node
+ * @list: list of &struct iwl_dbg_tlv_node
+ * @tlv: debug TLV
+ */
+struct iwl_dbg_tlv_node {
+	struct list_head list;
+	struct iwl_ucode_tlv tlv;
+};
+
 struct iwl_trans;
 struct iwl_fw_runtime;
 
@@ -82,5 +92,6 @@ void iwl_dbg_tlv_alloc(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
 		       bool ext);
 void iwl_dbg_tlv_apply_point(struct iwl_fw_runtime *fwrt,
 			     enum iwl_fw_ini_apply_point apply_point);
+void iwl_dbg_tlv_init(struct iwl_trans *trans);
 
 #endif /* __iwl_dbg_tlv_h__*/
