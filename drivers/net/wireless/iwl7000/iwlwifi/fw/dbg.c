@@ -684,10 +684,10 @@ static void iwl_fw_prph_handler(struct iwl_fw_runtime *fwrt, void *ptr,
 {
 	u32 range_len;
 
-	if (fwrt->trans->cfg->trans.device_family >= IWL_DEVICE_FAMILY_AX210) {
+	if (fwrt->trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
 		range_len = ARRAY_SIZE(iwl_prph_dump_addr_ax210);
 		handler(fwrt, iwl_prph_dump_addr_ax210, range_len, ptr);
-	} else if (fwrt->trans->cfg->trans.device_family >=
+	} else if (fwrt->trans->trans_cfg->device_family >=
 		   IWL_DEVICE_FAMILY_22000) {
 		range_len = ARRAY_SIZE(iwl_prph_dump_addr_22000);
 		handler(fwrt, iwl_prph_dump_addr_22000, range_len, ptr);
@@ -695,7 +695,7 @@ static void iwl_fw_prph_handler(struct iwl_fw_runtime *fwrt, void *ptr,
 		range_len = ARRAY_SIZE(iwl_prph_dump_addr_comm);
 		handler(fwrt, iwl_prph_dump_addr_comm, range_len, ptr);
 
-		if (fwrt->trans->cfg->trans.mq_rx_supported) {
+		if (fwrt->trans->trans_cfg->mq_rx_supported) {
 			range_len = ARRAY_SIZE(iwl_prph_dump_addr_9000);
 			handler(fwrt, iwl_prph_dump_addr_9000, range_len, ptr);
 		}
@@ -857,7 +857,7 @@ iwl_fw_error_dump_file(struct iwl_fw_runtime *fwrt,
 			iwl_fw_prph_handler(fwrt, &prph_len,
 					    iwl_fw_get_prph_len);
 
-		if (fwrt->trans->cfg->trans.device_family ==
+		if (fwrt->trans->trans_cfg->device_family ==
 		    IWL_DEVICE_FAMILY_7000 &&
 		    iwl_fw_dbg_type_on(fwrt, IWL_FW_ERROR_DUMP_RADIO_REG))
 			radio_len = sizeof(*dump_data) + RADIO_REG_MAX_READ;
@@ -1444,7 +1444,7 @@ static void
 	struct iwl_fw_ini_monitor_dump *mon_dump = (void *)data;
 	u32 write_ptr_addr, write_ptr_msk, cycle_cnt_addr, cycle_cnt_msk;
 
-	switch (fwrt->trans->cfg->trans.device_family) {
+	switch (fwrt->trans->trans_cfg->device_family) {
 	case IWL_DEVICE_FAMILY_9000:
 	case IWL_DEVICE_FAMILY_22000:
 		write_ptr_addr = MON_BUFF_WRPTR_VER2;
@@ -1454,7 +1454,7 @@ static void
 		break;
 	default:
 		IWL_ERR(fwrt, "Unsupported device family %d\n",
-			fwrt->trans->cfg->trans.device_family);
+			fwrt->trans->trans_cfg->device_family);
 		return NULL;
 	}
 
@@ -1471,10 +1471,10 @@ static void
 	struct iwl_fw_ini_monitor_dump *mon_dump = (void *)data;
 	const struct iwl_cfg *cfg = fwrt->trans->cfg;
 
-	if (fwrt->trans->cfg->trans.device_family != IWL_DEVICE_FAMILY_9000 &&
-	    fwrt->trans->cfg->trans.device_family != IWL_DEVICE_FAMILY_22000) {
+	if (fwrt->trans->trans_cfg->device_family != IWL_DEVICE_FAMILY_9000 &&
+	    fwrt->trans->trans_cfg->device_family != IWL_DEVICE_FAMILY_22000) {
 		IWL_ERR(fwrt, "Unsupported device family %d\n",
-			fwrt->trans->cfg->trans.device_family);
+			fwrt->trans->trans_cfg->device_family);
 		return NULL;
 	}
 
@@ -2473,7 +2473,7 @@ static int iwl_fw_dbg_suspend_resume_hcmd(struct iwl_trans *trans, bool suspend)
 static void iwl_fw_dbg_stop_recording(struct iwl_trans *trans,
 				      struct iwl_fw_dbg_params *params)
 {
-	if (trans->cfg->trans.device_family == IWL_DEVICE_FAMILY_7000) {
+	if (trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_7000) {
 		iwl_set_bits_prph(trans, MON_BUFF_SAMPLE_CTL, 0x100);
 		return;
 	}
@@ -2497,7 +2497,7 @@ static int iwl_fw_dbg_restart_recording(struct iwl_trans *trans,
 	if (!params)
 		return -EIO;
 
-	if (trans->cfg->trans.device_family == IWL_DEVICE_FAMILY_7000) {
+	if (trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_7000) {
 		iwl_clear_bits_prph(trans, MON_BUFF_SAMPLE_CTL, 0x100);
 		iwl_clear_bits_prph(trans, MON_BUFF_SAMPLE_CTL, 0x1);
 		iwl_set_bits_prph(trans, MON_BUFF_SAMPLE_CTL, 0x1);

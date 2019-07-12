@@ -428,7 +428,7 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 	char fw_name_temp[64];
 #endif
 
-	if (drv->trans->cfg->trans.device_family == IWL_DEVICE_FAMILY_9000 &&
+	if (drv->trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_9000 &&
 	    (CSR_HW_REV_STEP(drv->trans->hw_rev) != SILICON_B_STEP &&
 	     CSR_HW_REV_STEP(drv->trans->hw_rev) != SILICON_C_STEP)) {
 		IWL_ERR(drv,
@@ -1401,7 +1401,7 @@ fw_dbg_conf:
 
 			if (tlv_len != sizeof(*dbg_ptrs))
 				goto invalid_tlv_len;
-			if (drv->trans->cfg->trans.device_family <
+			if (drv->trans->trans_cfg->device_family <
 			    IWL_DEVICE_FAMILY_22000)
 				break;
 			drv->trans->dbg.umac_error_event_table =
@@ -1417,7 +1417,7 @@ fw_dbg_conf:
 
 			if (tlv_len != sizeof(*dbg_ptrs))
 				goto invalid_tlv_len;
-			if (drv->trans->cfg->trans.device_family <
+			if (drv->trans->trans_cfg->device_family <
 			    IWL_DEVICE_FAMILY_22000)
 				break;
 			drv->trans->dbg.lmac_error_event_table[0] =
@@ -1826,14 +1826,14 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 		fw->init_evtlog_size = (pieces->init_evtlog_size - 16)/12;
 	else
 		fw->init_evtlog_size =
-			drv->trans->cfg->trans.base_params->max_event_log_size;
+			drv->trans->trans_cfg->base_params->max_event_log_size;
 	fw->init_errlog_ptr = pieces->init_errlog_ptr;
 	fw->inst_evtlog_ptr = pieces->inst_evtlog_ptr;
 	if (pieces->inst_evtlog_size)
 		fw->inst_evtlog_size = (pieces->inst_evtlog_size - 16)/12;
 	else
 		fw->inst_evtlog_size =
-			drv->trans->cfg->trans.base_params->max_event_log_size;
+			drv->trans->trans_cfg->base_params->max_event_log_size;
 	fw->inst_errlog_ptr = pieces->inst_errlog_ptr;
 
 	/*

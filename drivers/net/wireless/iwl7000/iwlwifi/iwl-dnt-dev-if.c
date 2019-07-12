@@ -74,7 +74,7 @@
 
 static void iwl_dnt_dev_if_configure_mipi(struct iwl_trans *trans)
 {
-	if (trans->cfg->trans.device_family >= IWL_DEVICE_FAMILY_8000) {
+	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_8000) {
 		iwl_trans_set_bits_mask(trans,
 					trans->dbg_cfg.dbg_mipi_conf_reg,
 					trans->dbg_cfg.dbg_mipi_conf_mask,
