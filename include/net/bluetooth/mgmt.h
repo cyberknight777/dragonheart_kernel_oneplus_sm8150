@@ -700,6 +700,12 @@ struct mgmt_rp_read_supported_capabilities {
 	__u8 wide_band_speech;
 } __packed;
 
+#define MGMT_OP_SET_KERNEL_DEBUG			0x0048
+#define MGMT_SET_KERNEL_DEBUG_SIZE			1
+struct mgmt_cp_set_kernel_debug {
+	__u8	enabled;
+} __packed;
+
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
 	__le16	opcode;

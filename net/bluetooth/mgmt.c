@@ -110,6 +110,7 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_SET_EVENT_MASK,
 	MGMT_OP_SET_BLOCKED_LTKS,
 	MGMT_OP_READ_SUPPORTED_CAPABILITIES,
+	MGMT_OP_SET_KERNEL_DEBUG,
 };
 
 static const u16 mgmt_events[] = {
@@ -6659,6 +6660,17 @@ static int read_supported_capabilities(struct sock *sk, struct hci_dev *hdev,
 	return err;
 }
 
+static int set_kernel_debug(struct sock *sk, struct hci_dev *hdev,
+			    void *data, u16 data_len)
+{
+	struct mgmt_cp_set_kernel_debug *cp = data;
+
+	bt_set_debug(cp->enabled);
+
+	return mgmt_cmd_complete(sk, MGMT_INDEX_NONE, MGMT_OP_SET_KERNEL_DEBUG,
+				 MGMT_STATUS_SUCCESS, NULL, 0);
+}
+
 static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, /* 0x0000 (no command) */
 	{ read_version,            MGMT_READ_VERSION_SIZE,
@@ -6755,6 +6767,9 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
 	{ set_blocked_ltks,	   MGMT_SET_BLOCKED_LTKS_CP_SIZE },
 	{ read_supported_capabilities, MGMT_READ_SUPPORTED_CAPABILITIES_SIZE },
+	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
+						HCI_MGMT_NO_HDEV |
+						HCI_MGMT_UNTRUSTED },
 };
 
 void mgmt_index_added(struct hci_dev *hdev)

@@ -129,7 +129,11 @@ void bt_warn(const char *fmt, ...);
 __printf(1, 2)
 void bt_err(const char *fmt, ...);
 __printf(1, 2)
+void bt_dbg(const char *fmt, ...);
+__printf(1, 2)
 void bt_err_ratelimited(const char *fmt, ...);
+
+void bt_set_debug(bool enabled);
 
 static inline const char *basename(const char *path)
 {
@@ -144,7 +148,7 @@ static inline const char *basename(const char *path)
 				basename(__FILE__), __func__, ##__VA_ARGS__)
 #define BT_ERR(fmt, ...)	bt_err("%s:%s() " fmt "\n",		\
 				basename(__FILE__), __func__, ##__VA_ARGS__)
-#define BT_DBG(fmt, ...)	pr_debug("%s:%s() " fmt "\n",		\
+#define BT_DBG(fmt, ...)	bt_dbg("%s:%s() " fmt "\n",		\
 				basename(__FILE__), __func__, ##__VA_ARGS__)
 
 #define BT_ERR_RATELIMITED(fmt, ...) bt_err_ratelimited(fmt "\n", ##__VA_ARGS__)
