@@ -1138,7 +1138,7 @@ static int iwl_dump_ini_paging_iter(struct iwl_fw_runtime *fwrt,
 	struct iwl_fw_ini_error_dump_range *range;
 	u32 page_size;
 
-	if (!fwrt->trans->cfg->gen2)
+	if (!fwrt->trans->trans_cfg->gen2)
 		return _iwl_dump_ini_paging_iter(fwrt, reg, range_ptr, idx);
 
 	range = range_ptr;
@@ -1495,7 +1495,7 @@ static u32 iwl_dump_ini_mem_ranges(struct iwl_fw_runtime *fwrt,
 static u32 iwl_dump_ini_paging_ranges(struct iwl_fw_runtime *fwrt,
 				      struct iwl_fw_ini_region_cfg *reg)
 {
-	if (fwrt->trans->cfg->gen2)
+	if (fwrt->trans->trans_cfg->gen2)
 		return fwrt->trans->init_dram.paging_cnt;
 
 	return fwrt->num_of_paging_blk;
@@ -1543,7 +1543,7 @@ static u32 iwl_dump_ini_paging_get_size(struct iwl_fw_runtime *fwrt,
 	u32 range_header_len = sizeof(struct iwl_fw_ini_error_dump_range);
 	u32 size = sizeof(struct iwl_fw_ini_error_dump);
 
-	if (fwrt->trans->cfg->gen2) {
+	if (fwrt->trans->trans_cfg->gen2) {
 		for (i = 0; i < iwl_dump_ini_paging_ranges(fwrt, reg); i++)
 			size += range_header_len +
 				fwrt->trans->init_dram.paging[i].size;
