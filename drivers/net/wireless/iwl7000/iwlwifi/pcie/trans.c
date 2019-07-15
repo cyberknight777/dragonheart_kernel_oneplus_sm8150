@@ -1567,13 +1567,13 @@ static int iwl_trans_pcie_d3_suspend(struct iwl_trans *trans, bool test,
 	/*
 	 * Family IWL_DEVICE_FAMILY_AX210 and above persist mode is set by FW.
 	 */
-	if (!reset && trans->cfg->device_family < IWL_DEVICE_FAMILY_AX210) {
+	if (!reset && trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210) {
 		/* Enable persistence mode to avoid reset */
 		iwl_set_bit(trans, CSR_HW_IF_CONFIG_REG,
 			    CSR_HW_IF_CONFIG_REG_PERSIST_MODE);
 	}
 
-	if (trans->cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
+	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
 		iwl_write_umac_prph(trans, UREG_DOORBELL_TO_ISR6,
 				    UREG_DOORBELL_TO_ISR6_SUSPEND);
 
@@ -1654,7 +1654,7 @@ static int iwl_trans_pcie_d3_resume(struct iwl_trans *trans,
 
 out:
 	if (*status == IWL_D3_STATUS_ALIVE &&
-	    trans->cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
+	    trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
 		trans_pcie->sx_complete = false;
 		iwl_write_umac_prph(trans, UREG_DOORBELL_TO_ISR6,
 				    UREG_DOORBELL_TO_ISR6_RESUME);
