@@ -3419,6 +3419,7 @@ struct hci_dev *hci_alloc_dev(void)
 	hdev->discov_interleaved_timeout = DISCOV_INTERLEAVED_TIMEOUT;
 	hdev->conn_info_min_age = DEFAULT_CONN_INFO_MIN_AGE;
 	hdev->conn_info_max_age = DEFAULT_CONN_INFO_MAX_AGE;
+	hdev->min_enc_key_size = HCI_MIN_ENC_KEY_SIZE;
 
 	/* default 1.28 sec page scan */
 	hdev->def_page_scan_type = PAGE_SCAN_TYPE_STANDARD;
