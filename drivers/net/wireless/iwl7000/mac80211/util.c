@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright 2002-2005, Instant802 Networks, Inc.
  * Copyright 2005-2006, Devicescape Software, Inc.
@@ -6,10 +7,6 @@
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017	Intel Deutschland GmbH
  * Copyright (C) 2018-2019 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  *
  * utilities for mac80211
  */
@@ -1260,7 +1257,7 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 					    struct ieee802_11_elems *elems,
 					    u8 *transmitter_bssid,
 					    u8 *bss_bssid,
-					    u8 **nontransmitted_profile)
+					    u8 *nontransmitted_profile)
 {
 #if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
 	const struct element *elem, *sub;
@@ -1293,7 +1290,7 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 				continue;
 			}
 
-			memset(*nontransmitted_profile, 0, len);
+			memset(nontransmitted_profile, 0, len);
 			profile_len = cfg80211_merge_profile(start, len,
 							     elem,
 							     sub,
@@ -1302,7 +1299,7 @@ static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
 
 			/* found a Nontransmitted BSSID Profile */
 			index = cfg80211_find_ie(WLAN_EID_MULTI_BSSID_IDX,
-						 *nontransmitted_profile,
+						 nontransmitted_profile,
 						 profile_len);
 			if (!index || index[1] < 1 || index[2] == 0) {
 				/* Invalid MBSSID Index element */
@@ -1347,7 +1344,7 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 			ieee802_11_find_bssid_profile(start, len, elems,
 						      transmitter_bssid,
 						      bss_bssid,
-						      &nontransmitted_profile);
+						      nontransmitted_profile);
 		non_inherit =
 			cfg80211_find_ext_elem(WLAN_EID_EXT_NON_INHERITANCE,
 					       nontransmitted_profile,
@@ -3844,7 +3841,9 @@ int ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
 	}
 
 	/* Always allow software iftypes */
-	if (local->hw.wiphy->software_iftypes & BIT(iftype)) {
+	if (local->hw.wiphy->software_iftypes & BIT(iftype) ||
+	    (iftype == NL80211_IFTYPE_AP_VLAN &&
+	     local->hw.wiphy->flags & WIPHY_FLAG_4ADDR_AP)) {
 		if (radar_detect)
 			return -EINVAL;
 		return 0;

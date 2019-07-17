@@ -18,6 +18,34 @@
 
 #include <hdrs/mac80211-exp.h>
 
+#define LINUX_VERSION_IS_LESS(x1,x2,x3) (LINUX_VERSION_CODE < KERNEL_VERSION(x1,x2,x3))
+#define LINUX_VERSION_IS_GEQ(x1,x2,x3)  (LINUX_VERSION_CODE >= KERNEL_VERSION(x1,x2,x3))
+#define LINUX_VERSION_IN_RANGE(x1,x2,x3, y1,y2,y3) \
+        (LINUX_VERSION_IS_GEQ(x1,x2,x3) && LINUX_VERSION_IS_LESS(y1,y2,y3))
+#define LINUX_BACKPORT(sym) backport_ ## sym
+
+/* this must be before including rhashtable.h */
+#if LINUX_VERSION_IS_LESS(4,15,0)
+#ifndef CONFIG_LOCKDEP
+struct lockdep_map { };
+#endif /* CONFIG_LOCKDEP */
+#endif /* LINUX_VERSION_IS_LESS(4,15,0) */
+
+/* also this... */
+#if LINUX_VERSION_IS_LESS(3,12,0)
+#ifdef CONFIG_PROVE_LOCKING
+ #define lock_acquire_exclusive(l, s, t, n, i)         lock_acquire(l, s, t, 0, 2, n, i)
+ #define lock_acquire_shared(l, s, t, n, i)            lock_acquire(l, s, t, 1, 2, n, i)
+ #define lock_acquire_shared_recursive(l, s, t, n, i)  lock_acquire(l, s, t, 2, 2, n, i)
+#else
+# define spin_acquire(l, s, t, i)              do { } while (0)
+# define spin_release(l, n, i)                 do { } while (0)
+ #define lock_acquire_exclusive(l, s, t, n, i)         lock_acquire(l, s, t, 0, 1, n, i)
+ #define lock_acquire_shared(l, s, t, n, i)            lock_acquire(l, s, t, 1, 1, n, i)
+ #define lock_acquire_shared_recursive(l, s, t, n, i)  lock_acquire(l, s, t, 2, 1, n, i)
+#endif
+#endif
+
 /* include rhashtable this way to get our copy if another exists */
 #include <linux/list_nulls.h>
 #ifndef NULLS_MARKER
@@ -35,12 +63,6 @@
 #include <linux/if_vlan.h>
 #include <linux/overflow.h>
 #include "net/fq.h"
-
-#define LINUX_VERSION_IS_LESS(x1,x2,x3) (LINUX_VERSION_CODE < KERNEL_VERSION(x1,x2,x3))
-#define LINUX_VERSION_IS_GEQ(x1,x2,x3)  (LINUX_VERSION_CODE >= KERNEL_VERSION(x1,x2,x3))
-#define LINUX_VERSION_IN_RANGE(x1,x2,x3, y1,y2,y3) \
-        (LINUX_VERSION_IS_GEQ(x1,x2,x3) && LINUX_VERSION_IS_LESS(y1,y2,y3))
-#define LINUX_BACKPORT(sym) backport_ ## sym
 
 #if LINUX_VERSION_IS_LESS(3,20,0)
 #define get_net_ns_by_fd LINUX_BACKPORT(get_net_ns_by_fd)
@@ -184,6 +206,7 @@ size_t sg_pcopy_to_buffer(struct scatterlist *sgl, unsigned int nents,
 #define PCI_EXP_DEVCTL2_LTR_EN PCI_EXP_LTR_EN
 
 #define PTR_ERR_OR_ZERO(p) PTR_RET(p)
+
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,12,0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
@@ -990,4 +1013,22 @@ static inline int atomic_fetch_add_unless(atomic_t *v, int a, int u)
 }
 #endif
 #endif /* LINUX_VERSION_IS_LESS(4,19,0) */
+
+#if LINUX_VERSION_IS_LESS(4,20,0)
+typedef void (*rcu_callback_t)(struct rcu_head *head);
+
+static inline void rcu_head_init(struct rcu_head *rhp)
+{
+        rhp->func = (rcu_callback_t)~0L;
+}
+
+static inline bool
+rcu_head_after_call_rcu(struct rcu_head *rhp, rcu_callback_t f)
+{
+        if (READ_ONCE(rhp->func) == f)
+                return true;
+        WARN_ON_ONCE(READ_ONCE(rhp->func) != (rcu_callback_t)~0L);
+        return false;
+}
+#endif /* LINUX_VERSION_IS_LESS(4,20,0) */
 #endif /* __IWL_CHROME */

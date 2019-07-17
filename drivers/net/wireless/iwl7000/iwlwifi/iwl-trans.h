@@ -838,6 +838,11 @@ struct iwl_trans {
 	struct iwl_testmode testmode;
 #endif
 
+	u32 lmac_error_event_table[2];
+	u32 umac_error_event_table;
+	unsigned int error_event_table_tlv_status;
+	bool hw_error;
+
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */
 	char trans_specific[0] __aligned(sizeof(void *));

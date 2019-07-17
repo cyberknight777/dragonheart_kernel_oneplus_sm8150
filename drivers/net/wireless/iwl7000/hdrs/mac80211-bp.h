@@ -2688,7 +2688,15 @@ cfg80211_find_ext_elem(u8 ext_eid, const u8 *ies, int len)
 {
 	return (void *)cfg80211_find_ext_ie(ext_eid, ies, len);
 }
+
+#define IEEE80211_DEFAULT_AIRTIME_WEIGHT       256
+
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,2,0)
+#define NL80211_EXT_FEATURE_EXT_KEY_ID -1
+#define NL80211_EXT_FEATURE_AIRTIME_FAIRNESS -1
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,2,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,3,0)
 static inline void cfg80211_bss_iter(struct wiphy *wiphy,
