@@ -327,9 +327,10 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
 	if (physical_device) {
 		state->param.cmd = MOTIONSENSE_CMD_INFO;
 		state->param.info.sensor_num = sensor_platform->sensor_num;
-		if (cros_ec_motion_send_host_cmd(state, 0)) {
+		ret = cros_ec_motion_send_host_cmd(state, 0);
+		if (ret) {
 			dev_warn(dev, "Can not access sensor info\n");
-			return -EIO;
+			return ret;
 		}
 		state->type = state->resp->info.type;
 		state->loc = state->resp->info.location;
@@ -434,7 +435,7 @@ int cros_ec_motion_send_host_cmd(struct cros_ec_sensors_core_state *state,
 
 	ret = cros_ec_cmd_xfer_status(state->ec, state->msg);
 	if (ret < 0)
-		return -EIO;
+		return ret;
 
 	if (ret &&
 	    state->resp != (struct ec_response_motion_sense *)state->msg->data)
@@ -823,8 +824,7 @@ int cros_ec_sensors_core_write(struct cros_ec_sensors_core_state *st,
 		/* Always roundup, so caller gets at least what it asks for. */
 		st->param.sensor_odr.roundup = 1;
 
-		if (cros_ec_motion_send_host_cmd(st, 0))
-			ret = -EIO;
+		ret = cros_ec_motion_send_host_cmd(st, 0);
 		break;
 	default:
 		ret = -EINVAL;
