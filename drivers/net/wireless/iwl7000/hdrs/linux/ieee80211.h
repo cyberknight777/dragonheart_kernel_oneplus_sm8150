@@ -1432,6 +1432,36 @@ struct ieee80211_ht_operation {
 #define IEEE80211_DELBA_PARAM_INITIATOR_MASK 0x0800
 
 /*
+ * reduced neighbor report, based on Draft P802.11ax_D5.0,
+ * section 9.4.2.170
+ */
+#define IEEE80211_AP_INFO_TBTT_HDR_TYPE		0x3
+#define IEEE80211_AP_INFO_TBTT_HDR_FILTERED	0x4
+#define IEEE80211_AP_INFO_TBTT_HDR_COLOC	0x8
+#define IEEE80211_AP_INFO_TBTT_HDR_COUNT	0xF0
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID			7
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID_BSS_PARAM		8
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID			11
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID_BSS_PARAM	12
+
+#define IEEE80211_RNR_TBTT_PARAMS_OCT_RECOMMENDED	0x1
+#define IEEE80211_RNR_TBTT_PARAMS_SAME_SSID		0x2
+#define IEEE80211_RNR_TBTT_PARAMS_MULTI_BSSID		0x4
+#define IEEE80211_RNR_TBTT_PARAMS_TRANSMITTED_BSSID	0x8
+#define IEEE80211_RNR_TBTT_PARAMS_COLOC_ESS		0x10
+#define IEEE80211_RNR_TBTT_PARAMS_PROBE_ACTIVE		0x20
+
+struct cfg80211_neighbor_ap_info {
+	u8 tbtt_info_hdr;
+	u8 tbtt_info_len;
+	u8 op_class;
+	u8 channel;
+} __packed;
+
+#define IEEE80211_MIN_AP_NEIGHBOR_INFO_SIZE \
+	sizeof(struct cfg80211_neighbor_ap_info)
+
+/*
  * A-MPDU buffer sizes
  * According to HT size varies from 8 to 64 frames
  * HE adds the ability to have up to 256 frames.
@@ -2457,6 +2487,8 @@ enum ieee80211_eid {
 	WLAN_EID_AID = 197,
 	WLAN_EID_QUIET_CHANNEL = 198,
 	WLAN_EID_OPMODE_NOTIF = 199,
+
+	WLAN_EID_REDUCED_NEIGHBOR_REPORT = 201,
 
 	WLAN_EID_VENDOR_SPECIFIC = 221,
 	WLAN_EID_QOS_PARAMETER = 222,
