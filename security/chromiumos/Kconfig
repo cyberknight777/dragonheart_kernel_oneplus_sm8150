@@ -28,14 +28,6 @@ config SECURITY_CHROMIUMOS_NO_UNPRIVILEGED_UNSAFE_MOUNTS
 	  or dev flags if the caller does not have the CAP_SYS_ADMIN capability
 	  in the init namespace.
 
-config SECURITY_CHROMIUMOS_DEVICE_JAIL
-	bool "Chromium OS Security: device jail sandbox"
-	depends on USB=y
-	default y
-	help
-	  When enabled, the kernel device_jail interface will be enabled,
-	  allowing further sandboxing of USB devices.
-
 config ALT_SYSCALL_CHROMIUMOS
 	bool "Chromium OS Alt-Syscall Tables"
 	depends on ALT_SYSCALL
