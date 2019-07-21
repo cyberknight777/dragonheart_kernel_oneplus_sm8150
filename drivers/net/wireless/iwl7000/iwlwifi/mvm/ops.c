@@ -1504,22 +1504,6 @@ void iwl_mvm_nic_restart(struct iwl_mvm *mvm, bool fw_error)
 		iwl_dnt_dispatch_handle_nic_err(mvm->trans);
 #endif
 
-		if (mvm->fw->ucode_capa.error_log_size) {
-			u32 src_size = mvm->fw->ucode_capa.error_log_size;
-			u32 src_addr = mvm->fw->ucode_capa.error_log_addr;
-			u8 *recover_buf = kzalloc(src_size, GFP_ATOMIC);
-
-			if (recover_buf) {
-				mvm->error_recovery_buf = recover_buf;
-				iwl_trans_read_mem_bytes(mvm->trans,
-							 src_addr,
-							 recover_buf,
-							 src_size);
-			}
-		}
-
-		iwl_fw_error_collect(&mvm->fwrt);
-
 		if (fw_error && mvm->fw_restart > 0)
 			mvm->fw_restart--;
 		set_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED, &mvm->status);
