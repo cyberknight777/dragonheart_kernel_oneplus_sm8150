@@ -435,27 +435,6 @@ struct iwl_fw_ini_debug_info_tlv_v2 {
 } __packed; /* FW_TLV_DEBUG_INFO_API_S_VER_1 */
 
 /**
- * struct iwl_fw_ini_allocation_tlv_v2
- *
- * Allocates DRAM buffers
- *
- * @hdr: debug header
- * @alloc_id: allocation id. One of &enum iwl_fw_ini_allocation_id
- * @buf_location: buffer location. One of &enum iwl_fw_ini_buffer_location
- * @req_size: requested buffer size
- * @max_frags_num: maximum number of fragments
- * @min_size: minimum buffer size
- */
-struct iwl_fw_ini_allocation_tlv_v2 {
-	struct iwl_fw_ini_header_v2 hdr;
-	__le32 alloc_id;
-	__le32 buf_location;
-	__le32 req_size;
-	__le32 max_frags_num;
-	__le32 min_size;
-} __packed; /* FW_TLV_DEBUG_BUFFER_ALLOCATION_API_S_VER_1 */
-
-/**
  * enum iwl_fw_ini_trigger_id
  *
  * @IWL_FW_TRIGGER_ID_FW_ASSERT: FW assert

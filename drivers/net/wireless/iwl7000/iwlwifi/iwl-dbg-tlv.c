@@ -179,30 +179,6 @@ static int iwl_dbg_tlv_alloc_debug_info(struct iwl_trans *trans,
 	return iwl_dbg_tlv_copy_v2(tlv, &trans->dbg.debug_info_tlv_list);
 }
 
-static int iwl_dbg_tlv_alloc_buf_alloc(struct iwl_trans *trans,
-				       struct iwl_ucode_tlv *tlv)
-{
-	struct iwl_fw_ini_allocation_tlv_v2 *alloc = (void *)tlv->data;
-	struct iwl_fw_ini_allocation_tlv_v2 *fw_mon_cfg;
-	u32 alloc_id = le32_to_cpu(alloc->alloc_id);
-
-	if (le32_to_cpu(tlv->length) != sizeof(*alloc))
-		return -EINVAL;
-
-	if (alloc_id == IWL_FW_INI_ALLOCATION_INVALID ||
-	    alloc_id >= IWL_FW_INI_ALLOCATION_NUM) {
-		IWL_ERR(trans,
-			"WRT: Invalid allocation id %u for allocation TLV\n",
-			alloc_id);
-		return -EINVAL;
-	}
-
-	fw_mon_cfg = &trans->dbg.fw_mon_cfg[alloc_id];
-	memcpy(fw_mon_cfg, alloc, sizeof(*fw_mon_cfg));
-
-	return 0;
-}
-
 static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 				    struct iwl_ucode_tlv *tlv)
 {
@@ -248,7 +224,7 @@ static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 static int (*dbg_tlv_alloc[])(struct iwl_trans *trans,
 			      struct iwl_ucode_tlv *tlv) = {
 	[IWL_DBG_TLV_TYPE_DEBUG_INFO]	= iwl_dbg_tlv_alloc_debug_info,
-	[IWL_DBG_TLV_TYPE_BUF_ALLOC]	= iwl_dbg_tlv_alloc_buf_alloc,
+	[IWL_DBG_TLV_TYPE_BUF_ALLOC]	= NULL,
 	[IWL_DBG_TLV_TYPE_HCMD]		= NULL,
 	[IWL_DBG_TLV_TYPE_REGION]	= iwl_dbg_tlv_alloc_region,
 	[IWL_DBG_TLV_TYPE_TRIGGER]	= NULL,

@@ -719,7 +719,6 @@ struct iwl_self_init_dram {
  *	pointers was recevied via TLV. uses enum &iwl_error_event_table_status
  * @internal_ini_cfg: internal debug cfg state. Uses &enum iwl_ini_cfg_state
  * @external_ini_cfg: external debug cfg state. Uses &enum iwl_ini_cfg_state
- * @fw_mon_cfg: debug buffer allocation configuration
  * @num_blocks: number of blocks in fw_mon
  * @fw_mon: address of the buffers for firmware monitor
  * @is_alloc: bit i is set if buffer i was allocated
@@ -746,8 +745,6 @@ struct iwl_trans_debug {
 	struct iwl_apply_point_data apply_points[IWL_FW_INI_APPLY_NUM];
 	struct iwl_apply_point_data apply_points_ext[IWL_FW_INI_APPLY_NUM];
 
-	struct iwl_fw_ini_allocation_tlv_v2
-		fw_mon_cfg[IWL_FW_INI_ALLOCATION_NUM];
 	int num_blocks;
 	struct iwl_dram_data fw_mon[IWL_FW_INI_ALLOCATION_NUM];
 	u32 is_alloc;
