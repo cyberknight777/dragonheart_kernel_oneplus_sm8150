@@ -76,8 +76,6 @@ struct iwl_fw_runtime;
 
 void iwl_dbg_tlv_load_bin(struct device *dev, struct iwl_trans *trans);
 void iwl_dbg_tlv_free(struct iwl_trans *trans);
-void iwl_dbg_tlv_alloc_v2(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
-			  bool ext);
 void iwl_dbg_tlv_alloc(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
 		       bool ext);
 void iwl_dbg_tlv_apply_point(struct iwl_fw_runtime *fwrt,

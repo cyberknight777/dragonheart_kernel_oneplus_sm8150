@@ -121,20 +121,6 @@ static int iwl_dbg_tlv_copy(struct iwl_ucode_tlv *tlv, struct list_head *list)
 	return 0;
 }
 
-static bool iwl_dbg_tlv_ver_support_v2(struct iwl_ucode_tlv *tlv)
-{
-	struct iwl_fw_ini_header_v2 *hdr = (void *)&tlv->data[0];
-	u32 type = le32_to_cpu(tlv->type);
-	u32 tlv_idx = type - IWL_UCODE_TLV_DEBUG_BASE;
-	u32 ver = le32_to_cpu(hdr->version);
-
-	if (ver < dbg_ver_table[tlv_idx].min_ver ||
-	    ver > dbg_ver_table[tlv_idx].max_ver)
-		return false;
-
-	return true;
-}
-
 static bool iwl_dbg_tlv_ver_support(struct iwl_ucode_tlv *tlv)
 {
 	struct iwl_fw_ini_header *hdr = (void *)&tlv->data[0];
@@ -147,95 +133,6 @@ static bool iwl_dbg_tlv_ver_support(struct iwl_ucode_tlv *tlv)
 		return false;
 
 	return true;
-}
-
-static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
-				    struct iwl_ucode_tlv *tlv)
-{
-	struct iwl_fw_ini_region_tlv_v2 *reg = (void *)tlv->data;
-	struct iwl_ucode_tlv **active_reg;
-	u32 id = le32_to_cpu(reg->id);
-	u32 type = le32_to_cpu(reg->type);
-	u32 tlv_len = sizeof(*tlv) + le32_to_cpu(tlv->length);
-
-	if (le32_to_cpu(tlv->length) < sizeof(*reg))
-		return -EINVAL;
-
-	if (id >= IWL_FW_INI_MAX_REGION_ID) {
-		IWL_ERR(trans, "WRT: Invalid region id %u\n", id);
-		return -EINVAL;
-	}
-
-	if (type <= IWL_FW_INI_REGION_INVALID ||
-	    type >= IWL_FW_INI_REGION_NUM) {
-		IWL_ERR(trans, "WRT: Invalid region type %u\n", type);
-		return -EINVAL;
-	}
-
-	active_reg = &trans->dbg.active_regions[id];
-	if (*active_reg) {
-		IWL_WARN(trans, "WRT: Overriding region id %u\n", id);
-
-		kfree(*active_reg);
-		*active_reg = NULL;
-	}
-
-	*active_reg = kmalloc(tlv_len, GFP_KERNEL);
-	if (!*active_reg)
-		return -ENOMEM;
-
-	IWL_DEBUG_FW(trans, "WRT: Enabling region id %u type %u\n", id, type);
-
-	memcpy(*active_reg, tlv, tlv_len);
-
-	return 0;
-}
-
-static int (*dbg_tlv_alloc[])(struct iwl_trans *trans,
-			      struct iwl_ucode_tlv *tlv) = {
-	[IWL_DBG_TLV_TYPE_DEBUG_INFO]	= NULL,
-	[IWL_DBG_TLV_TYPE_BUF_ALLOC]	= NULL,
-	[IWL_DBG_TLV_TYPE_HCMD]		= NULL,
-	[IWL_DBG_TLV_TYPE_REGION]	= iwl_dbg_tlv_alloc_region,
-	[IWL_DBG_TLV_TYPE_TRIGGER]	= NULL,
-};
-
-void iwl_dbg_tlv_alloc_v2(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
-			  bool ext)
-{
-	struct iwl_fw_ini_header_v2 *hdr = (void *)&tlv->data[0];
-	u32 type = le32_to_cpu(tlv->type);
-	u32 tlv_idx = type - IWL_UCODE_TLV_DEBUG_BASE;
-	enum iwl_ini_cfg_state *cfg_state = ext ?
-		&trans->dbg.external_ini_cfg : &trans->dbg.internal_ini_cfg;
-	int ret;
-
-	if (tlv_idx >= ARRAY_SIZE(dbg_tlv_alloc) || !dbg_tlv_alloc[tlv_idx]) {
-		IWL_ERR(trans, "WRT: Unsupported TLV type 0x%x\n", type);
-		goto out_err;
-	}
-
-	if (!iwl_dbg_tlv_ver_support_v2(tlv)) {
-		IWL_ERR(trans, "WRT: Unsupported TLV 0x%x version %u\n", type,
-			le32_to_cpu(hdr->version));
-		goto out_err;
-	}
-
-	ret = dbg_tlv_alloc[tlv_idx](trans, tlv);
-	if (ret) {
-		IWL_ERR(trans,
-			"WRT: Failed to allocate TLV 0x%x, ret %d, (ext=%d)\n",
-			type, ret, ext);
-		goto out_err;
-	}
-
-	if (*cfg_state == IWL_INI_CFG_STATE_NOT_LOADED)
-		*cfg_state = IWL_INI_CFG_STATE_LOADED;
-
-	return;
-
-out_err:
-	*cfg_state = IWL_INI_CFG_STATE_CORRUPTED;
 }
 
 void iwl_dbg_tlv_alloc(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
@@ -312,14 +209,6 @@ void iwl_dbg_tlv_free(struct iwl_trans *trans)
 
 		data = &trans->dbg.apply_points_ext[i];
 		iwl_dbg_tlv_free_list(&data->list);
-	}
-
-	for (i = 0; i < ARRAY_SIZE(trans->dbg.active_regions); i++) {
-		struct iwl_ucode_tlv **active_reg = active_reg =
-			&trans->dbg.active_regions[i];
-
-		kfree(*active_reg);
-		*active_reg = NULL;
 	}
 }
 

@@ -724,7 +724,6 @@ struct iwl_self_init_dram {
  * @is_alloc: bit i is set if buffer i was allocated
  * @hw_error: equals true if hw error interrupt was received from the FW
  * @ini_dest: debug monitor destination uses &enum iwl_fw_ini_buffer_location
- * @active_regions: active regions
  */
 struct iwl_trans_debug {
 	u8 n_dest_reg;
@@ -750,8 +749,6 @@ struct iwl_trans_debug {
 
 	bool hw_error;
 	enum iwl_fw_ini_buffer_location ini_dest;
-
-	struct iwl_ucode_tlv *active_regions[IWL_FW_INI_MAX_REGION_ID];
 };
 
 /**
