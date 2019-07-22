@@ -420,21 +420,6 @@ struct iwl_fw_ini_region_tlv_v2 {
 } __packed; /* FW_TLV_DEBUG_REGION_API_S_VER_1 */
 
 /**
- * struct iwl_fw_ini_debug_info_tlv_v2
- *
- * debug configuration name for a specific image
- *
- * @hdr: debug header
- * @image_type: image type
- * @debug_cfg_name: debug configuration name
- */
-struct iwl_fw_ini_debug_info_tlv_v2 {
-	struct iwl_fw_ini_header_v2 hdr;
-	__le32 image_type;
-	u8 debug_cfg_name[IWL_FW_INI_MAX_DBG_CFG_NAME_LEN];
-} __packed; /* FW_TLV_DEBUG_INFO_API_S_VER_1 */
-
-/**
  * enum iwl_fw_ini_trigger_id
  *
  * @IWL_FW_TRIGGER_ID_FW_ASSERT: FW assert

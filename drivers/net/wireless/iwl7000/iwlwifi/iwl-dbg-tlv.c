@@ -101,22 +101,6 @@ dbg_ver_table[IWL_DBG_TLV_TYPE_NUM] = {
 	[IWL_DBG_TLV_TYPE_TRIGGER]	= {.min_ver = 1, .max_ver = 1,},
 };
 
-static int iwl_dbg_tlv_copy_v2(struct iwl_ucode_tlv *tlv,
-			       struct list_head *list)
-{
-	u32 len = le32_to_cpu(tlv->length);
-	struct iwl_dbg_tlv_node *node;
-
-	node = kzalloc(sizeof(*node) + len, GFP_KERNEL);
-	if (!node)
-		return -ENOMEM;
-
-	memcpy(&node->tlv, tlv, sizeof(node->tlv) + len);
-	list_add_tail(&node->list, list);
-
-	return 0;
-}
-
 static int iwl_dbg_tlv_copy(struct iwl_ucode_tlv *tlv, struct list_head *list)
 {
 	struct iwl_apply_point_data *tlv_copy;
@@ -165,20 +149,6 @@ static bool iwl_dbg_tlv_ver_support(struct iwl_ucode_tlv *tlv)
 	return true;
 }
 
-static int iwl_dbg_tlv_alloc_debug_info(struct iwl_trans *trans,
-					struct iwl_ucode_tlv *tlv)
-{
-	struct iwl_fw_ini_debug_info_tlv_v2 *debug_info = (void *)tlv->data;
-
-	if (le32_to_cpu(tlv->length) != sizeof(*debug_info))
-		return -EINVAL;
-
-	IWL_DEBUG_FW(trans, "WRT: Loading debug cfg: %s\n",
-		     debug_info->debug_cfg_name);
-
-	return iwl_dbg_tlv_copy_v2(tlv, &trans->dbg.debug_info_tlv_list);
-}
-
 static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 				    struct iwl_ucode_tlv *tlv)
 {
@@ -223,7 +193,7 @@ static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 
 static int (*dbg_tlv_alloc[])(struct iwl_trans *trans,
 			      struct iwl_ucode_tlv *tlv) = {
-	[IWL_DBG_TLV_TYPE_DEBUG_INFO]	= iwl_dbg_tlv_alloc_debug_info,
+	[IWL_DBG_TLV_TYPE_DEBUG_INFO]	= NULL,
 	[IWL_DBG_TLV_TYPE_BUF_ALLOC]	= NULL,
 	[IWL_DBG_TLV_TYPE_HCMD]		= NULL,
 	[IWL_DBG_TLV_TYPE_REGION]	= iwl_dbg_tlv_alloc_region,
@@ -332,7 +302,6 @@ static void iwl_dbg_tlv_free_list(struct list_head *list)
 
 void iwl_dbg_tlv_free(struct iwl_trans *trans)
 {
-	struct iwl_dbg_tlv_node *tlv_node, *tlv_node_tmp;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(trans->dbg.apply_points); i++) {
@@ -351,12 +320,6 @@ void iwl_dbg_tlv_free(struct iwl_trans *trans)
 
 		kfree(*active_reg);
 		*active_reg = NULL;
-	}
-
-	list_for_each_entry_safe(tlv_node, tlv_node_tmp,
-				 &trans->dbg.debug_info_tlv_list, list) {
-		list_del(&tlv_node->list);
-		kfree(tlv_node);
 	}
 }
 
@@ -828,8 +791,3 @@ void iwl_dbg_tlv_apply_point(struct iwl_fw_runtime *fwrt,
 	}
 }
 IWL_EXPORT_SYMBOL(iwl_dbg_tlv_apply_point);
-
-void iwl_dbg_tlv_init(struct iwl_trans *trans)
-{
-	INIT_LIST_HEAD(&trans->dbg.debug_info_tlv_list);
-}
