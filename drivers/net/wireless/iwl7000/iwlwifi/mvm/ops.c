@@ -702,7 +702,6 @@ static int iwl_mvm_tm_send_hcmd(void *op_mode, struct iwl_host_cmd *host_cmd)
 }
 #endif
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 static u8 iwl_mvm_lookup_notif_ver(struct iwl_mvm *mvm, u8 grp, u8 cmd, u8 def)
 {
 	const struct iwl_fw_cmd_version *entry;
@@ -723,7 +722,6 @@ static u8 iwl_mvm_lookup_notif_ver(struct iwl_mvm *mvm, u8 grp, u8 cmd, u8 def)
 
 	return def;
 }
-#endif
 
 static struct iwl_op_mode *
 iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
@@ -870,6 +868,11 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	if (WARN_ON_ONCE(mvm->cmd_ver.csi_notif > 2))
 		goto out_free;
 #endif
+	mvm->cmd_ver.d0i3_resp =
+		iwl_mvm_lookup_notif_ver(mvm, LEGACY_GROUP, D0I3_END_CMD, 0);
+	/* we only support version 1 */
+	if (WARN_ON_ONCE(mvm->cmd_ver.d0i3_resp > 1))
+		goto out_free;
 
 	/*
 	 * Populate the state variables that the transport layer needs

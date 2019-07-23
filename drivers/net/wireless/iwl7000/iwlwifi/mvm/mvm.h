@@ -1194,11 +1194,13 @@ struct iwl_mvm {
 
 	struct list_head list;
 
-	/* move this out from vendor commands once there are other users */
-	struct {
-		u8 csi_notif;
-	} cmd_ver;
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
+	struct {
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
+		u8 csi_notif;
+#endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
+		u8 d0i3_resp;
+	} cmd_ver;
 
 	struct ieee80211_vif *nan_vif;
 #define IWL_MAX_BAID	32
