@@ -288,6 +288,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, mu_edca)
 	IWL_DBG_CFG_BIN(he_mac_cap)
 	IWL_DBG_CFG_BIN(he_phy_cap)
+	IWL_DBG_CFG(u32, FW_DBG_DOMAIN)
 #ifdef CPTCFG_IWLWIFI_DEBUG
 	IWL_MOD_PARAM(u32, debug_level)
 #endif /* CPTCFG_IWLWIFI_DEBUG */
