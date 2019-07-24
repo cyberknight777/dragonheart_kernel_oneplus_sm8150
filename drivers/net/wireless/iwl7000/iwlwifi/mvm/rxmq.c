@@ -2060,7 +2060,7 @@ void iwl_mvm_rx_bar_frame_release(struct iwl_mvm *mvm, struct napi_struct *napi,
 		 tid))
 		goto out;
 
-	iwl_mvm_release_frames_from_notif(mvm, napi, baid, nssn, queue);
+	iwl_mvm_release_frames_from_notif(mvm, napi, baid, nssn, queue, 0);
 out:
 	rcu_read_unlock();
 }
