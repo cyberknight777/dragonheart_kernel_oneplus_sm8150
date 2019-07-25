@@ -548,7 +548,7 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 		&mvm->fw->default_calib[ucode_type];
 #endif
 
-	if (iwl_mvm_has_unified_ucode(mvm) ||
+	if (iwl_mvm_has_unified_ucode(mvm) &&
 	    !mvm->trans->cfg->tx_with_siso_diversity) {
 		return 0;
 	} else if (mvm->trans->cfg->tx_with_siso_diversity) {
