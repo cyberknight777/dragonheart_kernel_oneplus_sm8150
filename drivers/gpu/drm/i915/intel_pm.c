@@ -6023,8 +6023,8 @@ void intel_enable_ipc(struct drm_i915_private *dev_priv)
 {
 	u32 val;
 
-	/* Display WA #0477 WaDisableIPC: skl */
-	if (IS_SKYLAKE(dev_priv)) {
+	/* Display WA #0477 WaDisableIPC: skl,glk */
+	if (IS_SKYLAKE(dev_priv) || IS_GEMINILAKE(dev_priv)) {
 		dev_priv->ipc_enabled = false;
 		return;
 	}
