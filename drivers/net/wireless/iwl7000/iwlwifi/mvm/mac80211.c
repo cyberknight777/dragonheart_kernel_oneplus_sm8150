@@ -414,7 +414,7 @@ int iwl_mvm_init_fw_regd(struct iwl_mvm *mvm)
 }
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,8,0)
-const static u8 he_if_types_ext_capa_sta[] = {
+static const u8 he_if_types_ext_capa_sta[] = {
 	 [0] = WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING,
 	 [2] = WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT,
 	 [7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
@@ -423,7 +423,7 @@ const static u8 he_if_types_ext_capa_sta[] = {
 #endif
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,8,0)
-const static struct wiphy_iftype_ext_capab he_iftypes_ext_capa[] = {
+static const struct wiphy_iftype_ext_capab he_iftypes_ext_capa[] = {
 	{
 		.iftype = NL80211_IFTYPE_STATION,
 		.extended_capabilities = he_if_types_ext_capa_sta,
