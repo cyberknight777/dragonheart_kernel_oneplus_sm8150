@@ -298,17 +298,8 @@ static int sco_send_frame(struct sock *sk, struct msghdr *msg, int len)
 	return len;
 }
 
-static void sco_recv_frame(struct sco_conn *conn, struct sk_buff *skb)
+static void sco_recv_frame(struct sock *sk, struct sk_buff *skb)
 {
-	struct sock *sk;
-
-	sco_conn_lock(conn);
-	sk = conn->sk;
-	sco_conn_unlock(conn);
-
-	if (!sk)
-		goto drop;
-
 	BT_DBG("sk %p len %d", sk, skb->len);
 
 	if (sk->sk_state != BT_CONNECTED)
@@ -1137,17 +1128,25 @@ static void sco_disconn_cfm(struct hci_conn *hcon, __u8 reason)
 void sco_recv_scodata(struct hci_conn *hcon, struct sk_buff *skb)
 {
 	struct sco_conn *conn = hcon->sco_data;
+	struct sock *sk;
 
 	if (!conn)
 		goto drop;
 
-	if (sco_pi(conn->sk)->setting != BT_VOICE_TRANSPARENT)
+	sco_conn_lock(conn);
+	sk = conn->sk;
+	sco_conn_unlock(conn);
+
+	if (!sk)
+		goto drop;
+
+	if (sco_pi(sk)->setting != BT_VOICE_TRANSPARENT)
 		skb_pull(skb, HCI_SCO_HDR_SIZE);
 
 	BT_DBG("conn %p len %d", conn, skb->len);
 
 	if (skb->len) {
-		sco_recv_frame(conn, skb);
+		sco_recv_frame(sk, skb);
 		return;
 	}
 
