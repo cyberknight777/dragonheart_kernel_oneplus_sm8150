@@ -556,7 +556,7 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 		 * TODO: currently we don't set the antenna but letting the NIC
 		 * to decide which antenna to use. This should come from BIOS.
 		 */
-		phy_cfg_cmd.phy_cfg |=
+		phy_cfg_cmd.phy_cfg =
 			cpu_to_le32(FW_PHY_CFG_CHAIN_SAD_ENABLED);
 	}
 
