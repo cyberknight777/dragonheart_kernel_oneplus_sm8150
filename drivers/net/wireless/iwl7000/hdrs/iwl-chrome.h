@@ -4,7 +4,7 @@
  *
  * ChromeOS backport definitions
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
- * Copyright (C) 2018      Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  */
 
 #include <linux/version.h>
@@ -1015,20 +1015,18 @@ static inline int atomic_fetch_add_unless(atomic_t *v, int a, int u)
 #endif /* LINUX_VERSION_IS_LESS(4,19,0) */
 
 #if LINUX_VERSION_IS_LESS(4,20,0)
-typedef void (*rcu_callback_t)(struct rcu_head *head);
-
 static inline void rcu_head_init(struct rcu_head *rhp)
 {
-        rhp->func = (rcu_callback_t)~0L;
+	rhp->func = (void *)~0L;
 }
 
 static inline bool
-rcu_head_after_call_rcu(struct rcu_head *rhp, rcu_callback_t f)
+rcu_head_after_call_rcu(struct rcu_head *rhp, void *f)
 {
-        if (READ_ONCE(rhp->func) == f)
-                return true;
-        WARN_ON_ONCE(READ_ONCE(rhp->func) != (rcu_callback_t)~0L);
-        return false;
+	if (READ_ONCE(rhp->func) == f)
+		return true;
+	WARN_ON_ONCE(READ_ONCE(rhp->func) != (void *)~0L);
+	return false;
 }
 #endif /* LINUX_VERSION_IS_LESS(4,20,0) */
 #endif /* __IWL_CHROME */
