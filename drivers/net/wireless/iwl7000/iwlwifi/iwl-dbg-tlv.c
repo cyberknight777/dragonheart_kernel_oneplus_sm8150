@@ -240,13 +240,11 @@ static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 		kfree(*active_reg);
 	}
 
-	*active_reg = kmalloc(tlv_len, GFP_KERNEL);
+	*active_reg = kmemdup(tlv, tlv_len, GFP_KERNEL);
 	if (!*active_reg)
 		return -ENOMEM;
 
 	IWL_DEBUG_FW(trans, "WRT: Enabling region id %u type %u\n", id, type);
-
-	memcpy(*active_reg, tlv, tlv_len);
 
 	return 0;
 }
