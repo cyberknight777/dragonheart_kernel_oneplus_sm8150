@@ -2379,8 +2379,7 @@ int iwl_fw_dbg_ini_collect(struct iwl_fw_runtime *fwrt,
 	    test_and_set_bit(fwrt->dump.wks[idx].idx, &fwrt->dump.active_wks))
 		return -EBUSY;
 
-	memcpy(&fwrt->dump.wks[idx].dump_data, dump_data,
-	       sizeof(fwrt->dump.wks[idx].dump_data));
+	fwrt->dump.wks[idx].dump_data = *dump_data;
 
 	IWL_WARN(fwrt, "WRT: Collecting data: ini trigger %d fired.\n", tp_id);
 
