@@ -985,9 +985,9 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	    iwl_trans_grab_nic_access(iwl_trans, &flags)) {
 		u32 hw_step;
 
-		hw_step = iwl_read_prph_no_grab(iwl_trans, WFPM_CTRL_REG);
+		hw_step = iwl_read_umac_prph_no_grab(iwl_trans, WFPM_CTRL_REG);
 		hw_step |= ENABLE_WFPM;
-		iwl_write_prph_no_grab(iwl_trans, WFPM_CTRL_REG, hw_step);
+		iwl_write_umac_prph_no_grab(iwl_trans, WFPM_CTRL_REG, hw_step);
 		hw_step = iwl_read_prph_no_grab(iwl_trans, CNVI_AUX_MISC_CHIP);
 		hw_step = (hw_step >> HW_STEP_LOCATION_BITS) & 0xF;
 		if (hw_step == 0x3)
