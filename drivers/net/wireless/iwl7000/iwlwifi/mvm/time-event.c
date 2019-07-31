@@ -773,8 +773,25 @@ void iwl_mvm_rx_session_protect_notif(struct iwl_mvm *mvm,
 	vif = iwl_mvm_rcu_dereference_vif_id(mvm, le32_to_cpu(notif->mac_id),
 					     true);
 
-	if (!vif || vif->type != NL80211_IFTYPE_P2P_DEVICE)
+	if (!vif)
 		goto out_unlock;
+
+	/* The vif is not a P2P_DEVICE, maintain its time_event_data */
+	if (vif->type != NL80211_IFTYPE_P2P_DEVICE) {
+		struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+		struct iwl_mvm_time_event_data *te_data =
+			&mvmvif->time_event_data;
+
+		if (le32_to_cpu(notif->start)) {
+			spin_lock_bh(&mvm->time_event_lock);
+			te_data->running = le32_to_cpu(notif->start);
+			te_data->end_jiffies =
+				TU_TO_EXP_TIME(te_data->duration);
+			spin_unlock_bh(&mvm->time_event_lock);
+		}
+
+		goto out_unlock;
+	}
 
 	if (!le32_to_cpu(notif->status) || !le32_to_cpu(notif->start)) {
 		/* End TE, notify mac80211 */
@@ -1025,43 +1042,12 @@ int iwl_mvm_schedule_csa_period(struct iwl_mvm *mvm,
 	return iwl_mvm_time_event_send_add(mvm, vif, te_data, &time_cmd);
 }
 
-static bool
-iwl_mvm_session_protection_notif(struct iwl_notif_wait_data *notif_wait,
-				 struct iwl_rx_packet *pkt, void *data)
-{
-	struct iwl_mvm *mvm =
-		container_of(notif_wait, struct iwl_mvm, notif_wait);
-	struct iwl_mvm_session_prot_notif *notif;
-	struct iwl_mvm_time_event_data *te_data = data;
-	int resp_len = iwl_rx_packet_payload_len(pkt);
-
-	if (WARN_ON(pkt->hdr.cmd != SESSION_PROTECTION_NOTIF))
-		return true;
-
-	if (WARN_ON_ONCE(resp_len != sizeof(*notif))) {
-		IWL_ERR(mvm, "Invalid SESSION_PROTECTION_NOTIF response\n");
-		return true;
-	}
-
-	notif = (void *)pkt->data;
-
-	if (le32_to_cpu(notif->start)) {
-		te_data->running = true;
-		te_data->end_jiffies = TU_TO_EXP_TIME(te_data->duration);
-	}
-
-	return true;
-}
-
 void iwl_mvm_schedule_session_protection(struct iwl_mvm *mvm,
 					 struct ieee80211_vif *vif,
 					 u32 duration, u32 min_duration)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_time_event_data *te_data = &mvmvif->time_event_data;
-	const u16 notif[] = { iwl_cmd_id(SESSION_PROTECTION_NOTIF,
-					 MAC_CONF_GROUP, 0), };
-	struct iwl_notification_wait wait_session_protection;
 
 	struct iwl_mvm_session_prot_cmd cmd = {
 		.id_and_color =
@@ -1075,23 +1061,22 @@ void iwl_mvm_schedule_session_protection(struct iwl_mvm *mvm,
 
 	lockdep_assert_held(&mvm->mutex);
 
+	spin_lock_bh(&mvm->time_event_lock);
 	if (te_data->running &&
 	    time_after(te_data->end_jiffies, TU_TO_EXP_TIME(min_duration))) {
 		IWL_DEBUG_TE(mvm, "We have enough time in the current TE: %u\n",
 			     jiffies_to_msecs(te_data->end_jiffies - jiffies));
+		spin_unlock_bh(&mvm->time_event_lock);
+
 		return;
 	}
 
 	iwl_mvm_te_clear_data(mvm, te_data);
+	te_data->duration = le32_to_cpu(cmd.duration_tu);
+	spin_unlock_bh(&mvm->time_event_lock);
 
 	IWL_DEBUG_TE(mvm, "Add new session protection, duration %d TU\n",
 		     le32_to_cpu(cmd.duration_tu));
-
-	te_data->duration = le32_to_cpu(cmd.duration_tu);
-
-	iwl_init_notification_wait(&mvm->notif_wait, &wait_session_protection,
-				   notif, ARRAY_SIZE(notif),
-				   iwl_mvm_session_protection_notif, te_data);
 
 	ret = iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(SESSION_PROTECTION_CMD,
 						   MAC_CONF_GROUP, 0),
@@ -1099,15 +1084,6 @@ void iwl_mvm_schedule_session_protection(struct iwl_mvm *mvm,
 	if (ret) {
 		IWL_ERR(mvm,
 			"Couldn't send the SESSION_PROTECTION_CMD: %d\n", ret);
-		iwl_remove_notification(&mvm->notif_wait,
-					&wait_session_protection);
-		goto out_clear_session;
-	}
-
-	ret = iwl_wait_notification(&mvm->notif_wait,
-				    &wait_session_protection, HZ);
-	if (ret) {
- out_clear_session:
 		spin_lock_bh(&mvm->time_event_lock);
 		iwl_mvm_te_clear_data(mvm, te_data);
 		spin_unlock_bh(&mvm->time_event_lock);
