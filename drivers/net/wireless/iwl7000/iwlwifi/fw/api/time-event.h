@@ -467,6 +467,6 @@ struct iwl_mvm_session_prot_notif {
 	__le32 mac_id;
 	__le32 status;
 	__le32 start;
-}; __packed /* SESSION_PROTECTION_NOTIFICATION_API_S_VER_1 */
+} __packed; /* SESSION_PROTECTION_NOTIFICATION_API_S_VER_1 */
 
 #endif /* __iwl_fw_api_time_event_h__ */
