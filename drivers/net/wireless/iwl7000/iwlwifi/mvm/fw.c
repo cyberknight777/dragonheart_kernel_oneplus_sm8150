@@ -549,9 +549,14 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 #endif
 
 	if (iwl_mvm_has_unified_ucode(mvm) &&
-	    !mvm->trans->cfg->tx_with_siso_diversity) {
+	    !mvm->trans->cfg->tx_with_siso_diversity
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	    && !mvm->trans->dbg_cfg.MVM_CALIB_OVERRIDE_CONTROL
+#endif
+	   )
 		return 0;
-	} else if (mvm->trans->cfg->tx_with_siso_diversity) {
+
+	if (mvm->trans->cfg->tx_with_siso_diversity) {
 		/*
 		 * TODO: currently we don't set the antenna but letting the NIC
 		 * to decide which antenna to use. This should come from BIOS.
