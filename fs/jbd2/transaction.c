@@ -2576,7 +2576,6 @@ int jbd2_journal_inode_ranged_write(handle_t *handle,
 			JI_WRITE_DATA | JI_WAIT_DATA, start_byte,
 			start_byte + length - 1);
 }
-EXPORT_SYMBOL(jbd2_journal_inode_ranged_write);
 
 int jbd2_journal_inode_ranged_wait(handle_t *handle, struct jbd2_inode *jinode,
 		loff_t start_byte, loff_t length)
@@ -2584,7 +2583,6 @@ int jbd2_journal_inode_ranged_wait(handle_t *handle, struct jbd2_inode *jinode,
 	return jbd2_journal_file_inode(handle, jinode, JI_WAIT_DATA,
 			start_byte, start_byte + length - 1);
 }
-EXPORT_SYMBOL(jbd2_journal_inode_ranged_wait);
 
 /*
  * File truncate and transaction commit interact with each other in a
