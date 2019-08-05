@@ -318,7 +318,6 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 	if (cfg->uhb_supported) {
 		num_of_ch = IWL_NVM_NUM_CHANNELS_UHB;
 		nvm_chan = iwl_uhb_nvm_channels;
-		ch_idx = NUM_2GHZ_CHANNELS + NUM_5GHZ_CHANNELS;
 	} else if (cfg->nvm_type == IWL_NVM_EXT) {
 		num_of_ch = IWL_NVM_NUM_CHANNELS_EXT;
 		nvm_chan = iwl_ext_nvm_channels;
