@@ -214,7 +214,7 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 	bss = (void *)cbss->priv;
 	ieee80211_update_bss_from_elems(local, bss, &elems, rx_status, beacon);
 
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	list_for_each_entry(non_tx_cbss, &cbss->nontrans_list, nontrans_list) {
 		non_tx_bss = (void *)non_tx_cbss->priv;
 
