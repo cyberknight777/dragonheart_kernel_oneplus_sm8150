@@ -3357,7 +3357,7 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 		/* TODO: OPEN: what happens if BSS color disable is set? */
 	}
 
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	if (cbss->transmitted_bss) {
 		bss_conf->nontransmitted = true;
 		ether_addr_copy(bss_conf->transmitter_bssid,
@@ -3761,7 +3761,7 @@ static bool ieee80211_rx_our_beacon(const u8 *tx_bssid,
 {
 	if (ether_addr_equal(tx_bssid, bss->bssid))
 		return true;
-#if CFG80211_VERSION >= KERNEL_VERSION(9,99,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	if (!bss->transmitted_bss)
 		return false;
 	return ether_addr_equal(tx_bssid, bss->transmitted_bss->bssid);
