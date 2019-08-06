@@ -1127,6 +1127,8 @@ struct backport_sinfo {
 
 	u32 expected_throughput;
 
+	u64 tx_duration;
+	u64 rx_duration;
 	u64 rx_beacon;
 	u8 rx_beacon_signal_avg;
 #if CFG80211_VERSION < KERNEL_VERSION(4,18,0)
@@ -1140,6 +1142,11 @@ struct backport_sinfo {
 #endif
 	s8 ack_signal;
 	s8 avg_ack_signal;
+
+	u16 airtime_weight;
+
+	u32 rx_mpdu_count;
+	u32 fcs_err_count;
 };
 
 /* these are constants in nl80211.h, so it's
@@ -1199,6 +1206,17 @@ static inline void iwl7000_convert_sinfo(struct backport_sinfo *bpsinfo,
 #if CFG80211_VERSION >= KERNEL_VERSION(4,18,0)
 	COPY(ack_signal);
 	COPY(avg_ack_signal);
+#if CFG80211_VERSION >= KERNEL_VERSION(4,10,0)
+	COPY(rx_duration);
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
+	COPY(rx_mpdu_count);
+	COPY(fcs_err_count);
+#endif
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
+	COPY(tx_duration);
+	COPY(airtime_weight);
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,0,0)
 	COPY(rx_beacon);
