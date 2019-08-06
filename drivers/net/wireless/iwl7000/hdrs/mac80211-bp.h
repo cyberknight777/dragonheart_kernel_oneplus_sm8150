@@ -1147,6 +1147,8 @@ struct backport_sinfo {
 
 	u32 rx_mpdu_count;
 	u32 fcs_err_count;
+
+	u32 airtime_link_metric;
 };
 
 /* these are constants in nl80211.h, so it's
@@ -1217,6 +1219,9 @@ static inline void iwl7000_convert_sinfo(struct backport_sinfo *bpsinfo,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	COPY(tx_duration);
 	COPY(airtime_weight);
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
+	COPY(airtime_link_metric);
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(4,0,0)
 	COPY(rx_beacon);
