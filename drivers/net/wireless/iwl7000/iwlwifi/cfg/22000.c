@@ -231,7 +231,7 @@ static const struct iwl_ht_params iwl_22000_ht_params = {
 
 #define IWL_DEVICE_AX210						\
 	IWL_DEVICE_22000_COMMON,					\
-	.umac_prph_offset = 0x300000,					\
+	.trans.umac_prph_offset = 0x300000,				\
 	.trans.device_family = IWL_DEVICE_FAMILY_AX210,			\
 	.trans.base_params = &iwl_22560_base_params,			\
 	.trans.csr = &iwl_csr_v1,					\

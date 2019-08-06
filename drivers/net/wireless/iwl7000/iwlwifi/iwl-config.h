@@ -341,6 +341,7 @@ struct iwl_csr_params {
  * @base_params: pointer to basic parameters
  * @csr: csr flags and addresses that are different across devices
  * @device_family: the device family
+ * @umac_prph_offset: offset to add to UMAC periphery address
  * @rf_id: need to read rf_id to determine the firmware image
  * @use_tfh: use TFH
  * @gen2: 22000 and on transport operation
@@ -350,6 +351,7 @@ struct iwl_cfg_trans_params {
 	const struct iwl_base_params *base_params;
 	const struct iwl_csr_params *csr;
 	enum iwl_device_family device_family;
+	u32 umac_prph_offset;
 	u32 rf_id:1,
 	    use_tfh:1,
 	    gen2:1,
@@ -428,7 +430,6 @@ struct iwl_fw_mon_regs {
  * @d3_debug_data_length: length of the D3 debug data
  * @bisr_workaround: BISR hardware workaround (for 22260 series devices)
  * @min_txq_size: minimum number of slots required in a TX queue
- * @umac_prph_offset: offset to add to UMAC periphery address
  * @uhb_supported: ultra high band channels supported
  * @min_256_ba_txq_size: minimum number of slots required in a TX queue which
  *	supports 256 BA aggregation
@@ -492,7 +493,6 @@ struct iwl_cfg {
 	u32 d3_debug_data_base_addr;
 	u32 d3_debug_data_length;
 	u32 min_txq_size;
-	u32 umac_prph_offset;
 	u32 gp2_reg_addr;
 	u32 min_256_ba_txq_size;
 	const struct iwl_fw_mon_regs mon_dram_regs;
