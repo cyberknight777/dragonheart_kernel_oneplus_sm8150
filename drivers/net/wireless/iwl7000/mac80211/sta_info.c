@@ -2435,7 +2435,9 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo,
 		sinfo->filled |=
 			BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
 	}
+#endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
 	if (ieee80211_vif_is_mesh(&sdata->vif)) {
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_AIRTIME_LINK_METRIC);
 		sinfo->airtime_link_metric =
