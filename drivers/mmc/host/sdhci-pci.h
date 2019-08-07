@@ -169,11 +169,13 @@ static inline void *sdhci_pci_priv(struct sdhci_pci_slot *slot)
 #ifdef CONFIG_PM_SLEEP
 int sdhci_pci_resume_host(struct sdhci_pci_chip *chip);
 #endif
-
+extern const struct sdhci_pci_fixes sdhci_o2;
+int sdhci_pci_enable_dma(struct sdhci_host *host);
 int sdhci_pci_o2_probe_slot(struct sdhci_pci_slot *slot);
 int sdhci_pci_o2_probe(struct sdhci_pci_chip *chip);
 #ifdef CONFIG_PM_SLEEP
 int sdhci_pci_o2_resume(struct sdhci_pci_chip *chip);
 #endif
+void sdhci_pci_o2_set_clock(struct sdhci_host *host, unsigned int clock);
 
 #endif /* __SDHCI_PCI_H */
