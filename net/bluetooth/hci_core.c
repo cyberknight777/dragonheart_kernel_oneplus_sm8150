@@ -4457,7 +4457,7 @@ static bool skip_conditional_cmd(struct work_struct *work, struct sk_buff *skb)
 		 */
 		if ((cur_enabled == desired_enabled && !cur_changing) ||
 		    (cur_enabled != desired_enabled && cur_changing)) {
-			BT_INFO("  COND LE cmd (0x%04x) is already %d (chg %d),"
+			BT_DBG("  COND LE cmd (0x%04x) is already %d (chg %d),"
 				" skip transition to %d", hci_skb_opcode(skb),
 				cur_enabled, cur_changing, desired_enabled);
 
@@ -4467,10 +4467,10 @@ static bool skip_conditional_cmd(struct work_struct *work, struct sk_buff *skb)
 			/* See if there are more commands to do in cmd_q. */
 			atomic_set(&hdev->cmd_cnt, 1);
 			if (!skb_queue_empty(&hdev->cmd_q)) {
-				BT_INFO("  COND call queue_work.");
+				BT_DBG("  COND call queue_work.");
 				queue_work(hdev->workqueue, &hdev->cmd_work);
 			} else {
-				BT_INFO("  COND no more cmd in queue.");
+				BT_DBG("  COND no more cmd in queue.");
 			}
 			ret = true;
 			goto out;
