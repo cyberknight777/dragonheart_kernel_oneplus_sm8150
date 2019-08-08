@@ -243,7 +243,7 @@ static void iwl_fw_dump_rxf(struct iwl_fw_runtime *fwrt,
 		/* Pull RXF2 */
 		iwl_fwrt_dump_rxf(fwrt, dump_data, cfg->rxfifo2_size,
 				  RXF_DIFF_FROM_PREV +
-				  fwrt->trans->cfg->trans.umac_prph_offset, 1);
+				  fwrt->trans->trans_cfg->umac_prph_offset, 1);
 		/* Pull LMAC2 RXF1 */
 		if (fwrt->smem_cfg.num_lmacs > 1)
 			iwl_fwrt_dump_rxf(fwrt, dump_data,
