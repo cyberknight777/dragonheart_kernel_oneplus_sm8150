@@ -1,6 +1,7 @@
 config SECURITY_CONTAINER_MONITOR
 	bool "Monitor containerized processes"
 	depends on SECURITY
+	depends on MMU
 	depends on VSOCKETS=y
 	select SECURITYFS
 	help
