@@ -124,8 +124,8 @@ static void iwl_pcie_gen2_update_byte_tbl(struct iwl_trans_pcie *trans_pcie,
 	} else {
 		/* Until 22560, the HW expects DW */
 		WARN_ON(!trans_pcie->bc_table_dword);
-		WARN_ON(len > 0xFFF);
 		len = DIV_ROUND_UP(len, 4);
+		WARN_ON(len > 0xFFF);
 		bc_ent = cpu_to_le16(len | (num_fetch_chunks << 12));
 		scd_bc_tbl->tfd_offset[idx] = bc_ent;
 	}
