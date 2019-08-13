@@ -843,14 +843,14 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 	chain_a = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE]);
 	chain_b = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE]);
 
-	if (mvm->sar_chain_a_profile == chain_a &&
-	    mvm->sar_chain_b_profile == chain_b) {
+	if (mvm->fwrt.sar_chain_a_profile == chain_a &&
+	    mvm->fwrt.sar_chain_b_profile == chain_b) {
 		err = 0;
 		goto free;
 	}
 
-	mvm->sar_chain_a_profile = chain_a;
-	mvm->sar_chain_b_profile = chain_b;
+	mvm->fwrt.sar_chain_a_profile = chain_a;
+	mvm->fwrt.sar_chain_b_profile = chain_b;
 
 	mutex_lock(&mvm->mutex);
 	err = iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
@@ -872,7 +872,7 @@ static int iwl_mvm_vendor_get_sar_profile_info(struct wiphy *wiphy,
 	u32 n_profiles = 0;
 
 	for (i = 0; i < ACPI_SAR_PROFILE_NUM; i++) {
-		if (mvm->sar_profiles[i].enabled)
+		if (mvm->fwrt.sar_profiles[i].enabled)
 			n_profiles++;
 	}
 
@@ -882,9 +882,9 @@ static int iwl_mvm_vendor_get_sar_profile_info(struct wiphy *wiphy,
 	if (nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_SAR_ENABLED_PROFILE_NUM,
 		       n_profiles) ||
 	    nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE,
-		       mvm->sar_chain_a_profile) ||
+		       mvm->fwrt.sar_chain_a_profile) ||
 	    nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE,
-		       mvm->sar_chain_b_profile)) {
+		       mvm->fwrt.sar_chain_b_profile)) {
 		kfree_skb(skb);
 		return -ENOBUFS;
 	}
@@ -931,7 +931,7 @@ static int iwl_mvm_vendor_get_geo_profile_info(struct wiphy *wiphy,
 			return -ENOBUFS;
 		}
 
-		value =  &mvm->geo_profiles[tbl_idx - 1].values[idx];
+		value =  &mvm->fwrt.geo_profiles[tbl_idx - 1].values[idx];
 
 		nla_put_u8(skb, IWL_VENDOR_SAR_GEO_MAX_TXP, value[0]);
 		nla_put_u8(skb, IWL_VENDOR_SAR_GEO_CHAIN_A_OFFSET, value[1]);
