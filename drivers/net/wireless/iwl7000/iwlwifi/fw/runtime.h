@@ -66,7 +66,9 @@
 #include "fw/api/debug.h"
 #include "fw/api/dbg-tlv.h"
 #include "fw/api/paging.h"
+#include "fw/api/power.h"
 #include "iwl-eeprom-parse.h"
+#include "fw/acpi.h"
 
 struct iwl_fw_runtime_ops {
 	int (*dump_start)(void *ctx);
@@ -167,6 +169,13 @@ struct iwl_fw_runtime {
 	} timestamp;
 	bool tpc_enabled;
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
+#ifdef CONFIG_ACPI
+	struct iwl_sar_profile sar_profiles[ACPI_SAR_PROFILE_NUM];
+	u8 sar_chain_a_profile;
+	u8 sar_chain_b_profile;
+	struct iwl_geo_profile geo_profiles[ACPI_NUM_GEO_PROFILES];
+	u32 geo_rev;
+#endif
 };
 
 void iwl_fw_runtime_init(struct iwl_fw_runtime *fwrt, struct iwl_trans *trans,

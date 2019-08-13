@@ -190,6 +190,11 @@ enum iwl_power_scheme {
 	IWL_POWER_SCHEME_LP
 };
 
+union geo_tx_power_profiles_cmd {
+	struct iwl_geo_tx_power_profiles_cmd geo_cmd;
+	struct iwl_geo_tx_power_profiles_cmd_v1 geo_cmd_v1;
+};
+
 #define IWL_CONN_MAX_LISTEN_INTERVAL	10
 #define IWL_UAPSD_MAX_SP		IEEE80211_WMM_IE_STA_QOSINFO_SP_ALL
 
@@ -784,14 +789,6 @@ enum iwl_mvm_queue_status {
 
 #define IWL_MVM_NUM_CIPHERS             10
 
-struct iwl_mvm_sar_profile {
-	bool enabled;
-	u8 table[ACPI_SAR_TABLE_SIZE];
-};
-
-struct iwl_mvm_geo_profile {
-	u8 values[ACPI_GEO_TABLE_SIZE];
-};
 
 struct iwl_mvm_txq {
 	struct list_head list;
@@ -1209,16 +1206,6 @@ struct iwl_mvm {
 	/* sniffer data to include in radiotap */
 	__le16 cur_aid;
 	u8 cur_bssid[ETH_ALEN];
-
-#ifdef CONFIG_ACPI
-	struct iwl_mvm_sar_profile sar_profiles[ACPI_SAR_PROFILE_NUM];
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	u8 sar_chain_a_profile;
-	u8 sar_chain_b_profile;
-#endif
-	struct iwl_mvm_geo_profile geo_profiles[ACPI_NUM_GEO_PROFILES];
-	u32 geo_rev;
-#endif
 
 };
 
@@ -2185,7 +2172,7 @@ void iwl_mvm_del_nan_func(struct ieee80211_hw *hw,
 int iwl_mvm_nan_config_nan_faw_cmd(struct iwl_mvm *mvm,
 				   struct cfg80211_chan_def *chandef,
 				   u8 slots);
-
+int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm);
 int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b);
 int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm);
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
