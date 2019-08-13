@@ -1511,12 +1511,15 @@ static u16 iwl_mvm_scan_umac_flags(struct iwl_mvm *mvm,
 	return flags;
 }
 
-static void
+static int
 iwl_mvm_fill_scan_sched_params(struct iwl_mvm_scan_params *params,
 			       struct iwl_scan_umac_schedule *schedule,
 			       __le16 *delay)
 {
 	int i;
+	if (WARN_ON(!params->n_scan_plans ||
+		    params->n_scan_plans > IWL_MAX_SCHED_SCAN_PLANS))
+		return -EINVAL;
 
 	for (i = 0; i < params->n_scan_plans; i++) {
 		struct cfg80211_sched_scan_plan *scan_plan =
@@ -1533,10 +1536,12 @@ iwl_mvm_fill_scan_sched_params(struct iwl_mvm_scan_params *params,
 	 * For example, when regular scan is requested the driver sets one scan
 	 * plan with one iteration.
 	 */
-	if (!schedule[i - 1].iter_count)
-		schedule[i - 1].iter_count = 0xff;
+	if (!schedule[params->n_scan_plans - 1].iter_count)
+		schedule[params->n_scan_plans - 1].iter_count = 0xff;
 
 	*delay = cpu_to_le16(params->delay);
+
+	return 0;
 }
 
 static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
@@ -1552,7 +1557,7 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		(struct iwl_scan_req_umac_tail_v2 *)sec_part;
 	struct iwl_scan_req_umac_tail_v1 *tail_v1;
 	struct iwl_ssid_ie *direct_scan;
-	int uid;
+	int uid, ret = 0;
 	u32 ssid_bitmap = 0;
 	u8 channel_flags = 0;
 	u16 gen_flags;
@@ -1561,9 +1566,6 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	chan_param = iwl_mvm_get_scan_req_umac_channel(mvm);
 
 	lockdep_assert_held(&mvm->mutex);
-
-	if (WARN_ON(params->n_scan_plans > IWL_MAX_SCHED_SCAN_PLANS))
-		return -EINVAL;
 
 	uid = iwl_mvm_scan_uid_by_status(mvm, 0);
 	if (uid < 0)
@@ -1613,8 +1615,10 @@ static int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	chan_param->flags = channel_flags;
 	chan_param->count = params->n_channels;
 
-	iwl_mvm_fill_scan_sched_params(params, tail_v2->schedule,
-				       &tail_v2->delay);
+	ret = iwl_mvm_fill_scan_sched_params(params, tail_v2->schedule,
+					     &tail_v2->delay);
+	if (ret)
+		return ret;
 
 	if (iwl_mvm_is_scan_ext_chan_supported(mvm)) {
 		tail_v2->preq = params->preq;
