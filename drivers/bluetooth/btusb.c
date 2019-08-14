@@ -451,6 +451,7 @@ static const struct dmi_system_id btusb_needs_reset_resume_table[] = {
 #define BTUSB_DIAG_RUNNING	10
 #define BTUSB_OOB_WAKE_ENABLED	11
 #define BTUSB_HW_RESET_ACTIVE	12
+#define BTUSB_WAKEUP_DISABLE	14
 
 struct btusb_data {
 	struct hci_dev       *hdev;
@@ -1249,6 +1250,13 @@ static int btusb_open(struct hci_dev *hdev)
 
 	data->intf->needs_remote_wakeup = 1;
 
+	/* Disable device remote wakeup when host is suspended
+	 * For Realtek chips, global suspend without
+	 * SET_FEATURE (DEVICE_REMOTE_WAKEUP) can save more power in device.
+	 */
+	if (test_bit(BTUSB_WAKEUP_DISABLE, &data->flags))
+		device_wakeup_disable(&data->udev->dev);
+
 	if (test_and_set_bit(BTUSB_INTR_RUNNING, &data->flags))
 		goto done;
 
@@ -1312,6 +1320,11 @@ static int btusb_close(struct hci_dev *hdev)
 		goto failed;
 
 	data->intf->needs_remote_wakeup = 0;
+
+	/* Enable remote wake up for auto-suspend */
+	if (test_bit(BTUSB_WAKEUP_DISABLE, &data->flags))
+		data->intf->needs_remote_wakeup = 1;
+
 	usb_autopm_put_interface(data->intf);
 
 failed:
@@ -3467,11 +3480,11 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->shutdown = btrtl_shutdown_realtek;
 		hdev->cmd_timeout = btusb_rtl_cmd_timeout;
 
-		/* Realtek devices lose their updated firmware over suspend,
-		 * but the USB hub doesn't notice any status change.
-		 * Explicitly request a device reset on resume.
+		/* Realtek devices lose their updated firmware over global
+		 * suspend that means host doesn't send SET_FEATURE
+		 * (DEVICE_REMOTE_WAKEUP)
 		 */
-		interface_to_usbdev(intf)->quirks |= USB_QUIRK_RESET_RESUME;
+		set_bit(BTUSB_WAKEUP_DISABLE, &data->flags);
 	}
 
 	if (id->driver_info & BTUSB_AMP) {
@@ -3647,6 +3660,19 @@ static int btusb_suspend(struct usb_interface *intf, pm_message_t message)
 		set_bit(BTUSB_OOB_WAKE_ENABLED, &data->flags);
 		enable_irq_wake(data->oob_wake_irq);
 		enable_irq(data->oob_wake_irq);
+	}
+
+	/* For global suspend, Realtek devices lose the loaded fw
+	 * in them. But for autosuspend, firmware should remain.
+	 * Actually, it depends on whether the usb host sends
+	 * set feature (enable wakeup) or not.
+	 */
+	if (test_bit(BTUSB_WAKEUP_DISABLE, &data->flags)) {
+		if (PMSG_IS_AUTO(message) &&
+		    device_can_wakeup(&data->udev->dev))
+			data->udev->do_remote_wakeup = 1;
+		else if (!PMSG_IS_AUTO(message))
+			data->udev->reset_resume = 1;
 	}
 
 	return 0;
