@@ -54,9 +54,11 @@ int snd_sof_volume_get(struct snd_kcontrol *kcontrol,
 	}
 
 	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_VOLUME);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_VOLUME,
+				      false);
 
 	/* read back each channel */
 	for (i = 0; i < channels; i++)
@@ -102,9 +104,11 @@ int snd_sof_volume_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_VOLUME);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_VOLUME,
+				      true);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -136,9 +140,11 @@ int snd_sof_switch_get(struct snd_kcontrol *kcontrol,
 	}
 
 	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_SWITCH);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_SWITCH,
+				      false);
 
 	/* read back each channel */
 	for (i = 0; i < channels; i++)
@@ -180,9 +186,11 @@ int snd_sof_switch_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_SWITCH);
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_SWITCH,
+				      true);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -213,10 +221,12 @@ int snd_sof_enum_get(struct snd_kcontrol *kcontrol,
 		return ret;
 	}
 
-	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_ENUM);
+	/* get all the enum data from DSP */
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_ENUM,
+				      false);
 
 	/* read back each channel */
 	for (i = 0; i < channels; i++)
@@ -257,10 +267,12 @@ int snd_sof_enum_put(struct snd_kcontrol *kcontrol,
 		cdata->chanv[i].channel = i;
 	}
 
-	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_VALUE,
-				  SOF_CTRL_TYPE_VALUE_CHAN_GET,
-				  SOF_CTRL_CMD_ENUM);
+	/* notify DSP of enum updates */
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_VALUE,
+				      SOF_CTRL_TYPE_VALUE_CHAN_GET,
+				      SOF_CTRL_CMD_ENUM,
+				      true);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -299,9 +311,13 @@ int snd_sof_bytes_get(struct snd_kcontrol *kcontrol,
 		return ret;
 	}
 
-	/* get all the mixer data from DSP */
-	snd_sof_ipc_get_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_GET_DATA,
-				  SOF_CTRL_TYPE_DATA_GET, scontrol->cmd);
+	/* get all the binary data from DSP */
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_GET_DATA,
+				      SOF_CTRL_TYPE_DATA_GET,
+				      scontrol->cmd,
+				      false);
+
 	size = data->size + sizeof(*data);
 	if (size > be->max) {
 		dev_err_ratelimited(sdev->dev,
@@ -333,6 +349,7 @@ int snd_sof_bytes_put(struct snd_kcontrol *kcontrol,
 	struct snd_sof_dev *sdev = scontrol->sdev;
 	struct sof_ipc_ctrl_data *cdata = scontrol->control_data;
 	struct sof_abi_hdr *data = cdata->data;
+	size_t size = data->size + sizeof(*data);
 	int ret, err;
 
 	if (be->max > sizeof(ucontrol->value.bytes.data)) {
@@ -342,10 +359,10 @@ int snd_sof_bytes_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 	}
 
-	if (data->size > be->max) {
+	if (size > be->max) {
 		dev_err_ratelimited(sdev->dev,
-				    "error: size too big %d bytes max is %d\n",
-				    data->size, be->max);
+				    "error: size too big %zu bytes max is %d\n",
+				    size, be->max);
 		return -EINVAL;
 	}
 
@@ -359,11 +376,14 @@ int snd_sof_bytes_put(struct snd_kcontrol *kcontrol,
 	}
 
 	/* copy from kcontrol */
-	memcpy(data, ucontrol->value.bytes.data, data->size);
+	memcpy(data, ucontrol->value.bytes.data, size);
 
-	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_DATA,
-				  SOF_CTRL_TYPE_DATA_SET, scontrol->cmd);
+	/* notify DSP of byte control updates */
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_DATA,
+				      SOF_CTRL_TYPE_DATA_SET,
+				      scontrol->cmd,
+				      true);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -388,8 +408,6 @@ int snd_sof_bytes_ext_put(struct snd_kcontrol *kcontrol,
 		(const struct snd_ctl_tlv __user *)binary_data;
 	int ret;
 	int err;
-	int max_size = SOF_IPC_MSG_MAX_SIZE -
-		sizeof(const struct sof_ipc_ctrl_data);
 
 	/*
 	 * The beginning of bytes data contains a header from where
@@ -399,16 +417,10 @@ int snd_sof_bytes_ext_put(struct snd_kcontrol *kcontrol,
 	if (copy_from_user(&header, tlvd, sizeof(const struct snd_ctl_tlv)))
 		return -EFAULT;
 
-	/*
-	 * The maximum length that can be copied is limited by IPC max
-	 * length and topology defined length for ext bytes control.
-	 */
-	if (be->max < max_size) /* min() not used to avoid sparse warnings */
-		max_size = be->max;
-	if (header.length > max_size) {
-		dev_err_ratelimited(sdev->dev,
-				    "error: Bytes data size %d exceeds max %d.\n",
-				    header.length, max_size);
+	/* be->max is coming from topology */
+	if (header.length > be->max) {
+		dev_err_ratelimited(sdev->dev, "error: Bytes data size %d exceeds max %d.\n",
+				    header.length, be->max);
 		return -EINVAL;
 	}
 
@@ -436,9 +448,8 @@ int snd_sof_bytes_ext_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 	}
 
-	if (cdata->data->size + sizeof(const struct sof_abi_hdr) > max_size) {
-		dev_err_ratelimited(sdev->dev,
-				    "error: Mismatch in ABI data size (truncated?).\n");
+	if (cdata->data->size + sizeof(const struct sof_abi_hdr) > be->max) {
+		dev_err_ratelimited(sdev->dev, "error: Mismatch in ABI data size (truncated?).\n");
 		return -EINVAL;
 	}
 
@@ -451,9 +462,12 @@ int snd_sof_bytes_ext_put(struct snd_kcontrol *kcontrol,
 		return ret;
 	}
 
-	/* notify DSP of mixer updates */
-	snd_sof_ipc_set_comp_data(sdev->ipc, scontrol, SOF_IPC_COMP_SET_DATA,
-				  SOF_CTRL_TYPE_DATA_SET, scontrol->cmd);
+	/* notify DSP of byte control updates */
+	snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+				      SOF_IPC_COMP_SET_DATA,
+				      SOF_CTRL_TYPE_DATA_SET,
+				      scontrol->cmd,
+				      true);
 
 	pm_runtime_mark_last_busy(sdev->dev);
 	err = pm_runtime_put_autosuspend(sdev->dev);
@@ -477,8 +491,6 @@ int snd_sof_bytes_ext_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_tlv header;
 	struct snd_ctl_tlv __user *tlvd =
 		(struct snd_ctl_tlv __user *)binary_data;
-	int max_size = SOF_IPC_MSG_MAX_SIZE -
-		sizeof(const struct sof_ipc_ctrl_data);
 	int data_size;
 	int err;
 	int ret;
@@ -503,22 +515,19 @@ int snd_sof_bytes_ext_get(struct snd_kcontrol *kcontrol,
 	cdata->data->abi = SOF_ABI_VERSION;
 
 	/* get all the component data from DSP */
-	ret = snd_sof_ipc_get_comp_data(sdev->ipc, scontrol,
-					SOF_IPC_COMP_GET_DATA,
-					SOF_CTRL_TYPE_DATA_GET, scontrol->cmd);
+	ret = snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+					    SOF_IPC_COMP_GET_DATA,
+					    SOF_CTRL_TYPE_DATA_GET,
+					    scontrol->cmd,
+					    false);
 
 	/* Prevent read of other kernel data or possibly corrupt response */
 	data_size = cdata->data->size + sizeof(const struct sof_abi_hdr);
 
-	/* check size. min3() is not used to avoid sparse warnings */
-	if (size < max_size)
-		max_size = size;
-	if (be->max < max_size)
-		max_size = be->max;
-	if (data_size > max_size) {
-		dev_err_ratelimited(sdev->dev,
-				    "error: user data size %d exceeds max size %d.\n",
-				    data_size, max_size);
+	/* check data size doesn't exceed max coming from topology */
+	if (data_size > be->max) {
+		dev_err_ratelimited(sdev->dev, "error: user data size %d exceeds max size %d.\n",
+				    data_size, be->max);
 		ret = -EINVAL;
 		goto out;
 	}
@@ -531,7 +540,7 @@ int snd_sof_bytes_ext_get(struct snd_kcontrol *kcontrol,
 	}
 
 	if (copy_to_user(tlvd->tlv, cdata->data, data_size))
-		return -EFAULT;
+		ret = -EFAULT;
 
 out:
 	pm_runtime_mark_last_busy(sdev->dev);

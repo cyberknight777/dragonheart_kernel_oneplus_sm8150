@@ -25,18 +25,23 @@
  */
 
 struct snd_sof_pcm *snd_sof_find_spcm_name(struct snd_sof_dev *sdev,
-					   char *name)
+					   const char *name)
 {
-	struct snd_sof_pcm *spcm = NULL;
+	struct snd_sof_pcm *spcm;
 
 	list_for_each_entry(spcm, &sdev->pcm_list, list) {
+		/* match with PCM dai name */
 		if (strcmp(spcm->pcm.dai_name, name) == 0)
 			return spcm;
 
-		if (strcmp(spcm->pcm.caps[0].name, name) == 0)
+		/* match with playback caps name if set */
+		if (*spcm->pcm.caps[0].name &&
+		    !strcmp(spcm->pcm.caps[0].name, name))
 			return spcm;
 
-		if (strcmp(spcm->pcm.caps[1].name, name) == 0)
+		/* match with capture caps name if set */
+		if (*spcm->pcm.caps[1].name &&
+		    !strcmp(spcm->pcm.caps[1].name, name))
 			return spcm;
 	}
 
@@ -47,7 +52,7 @@ struct snd_sof_pcm *snd_sof_find_spcm_comp(struct snd_sof_dev *sdev,
 					   unsigned int comp_id,
 					   int *direction)
 {
-	struct snd_sof_pcm *spcm = NULL;
+	struct snd_sof_pcm *spcm;
 
 	list_for_each_entry(spcm, &sdev->pcm_list, list) {
 		if (spcm->stream[SNDRV_PCM_STREAM_PLAYBACK].comp_id == comp_id) {
@@ -66,7 +71,7 @@ struct snd_sof_pcm *snd_sof_find_spcm_comp(struct snd_sof_dev *sdev,
 struct snd_sof_pcm *snd_sof_find_spcm_pcm_id(struct snd_sof_dev *sdev,
 					     unsigned int pcm_id)
 {
-	struct snd_sof_pcm *spcm = NULL;
+	struct snd_sof_pcm *spcm;
 
 	list_for_each_entry(spcm, &sdev->pcm_list, list) {
 		if (le32_to_cpu(spcm->pcm.pcm_id) == pcm_id)
@@ -77,9 +82,9 @@ struct snd_sof_pcm *snd_sof_find_spcm_pcm_id(struct snd_sof_dev *sdev,
 }
 
 struct snd_sof_widget *snd_sof_find_swidget(struct snd_sof_dev *sdev,
-					    char *name)
+					    const char *name)
 {
-	struct snd_sof_widget *swidget = NULL;
+	struct snd_sof_widget *swidget;
 
 	list_for_each_entry(swidget, &sdev->widget_list, list) {
 		if (strcmp(name, swidget->widget->name) == 0)
@@ -91,9 +96,9 @@ struct snd_sof_widget *snd_sof_find_swidget(struct snd_sof_dev *sdev,
 
 /* find widget by stream name and direction */
 struct snd_sof_widget *snd_sof_find_swidget_sname(struct snd_sof_dev *sdev,
-						  char *pcm_name, int dir)
+						  const char *pcm_name, int dir)
 {
-	struct snd_sof_widget *swidget = NULL;
+	struct snd_sof_widget *swidget;
 	enum snd_soc_dapm_type type;
 
 	if (dir == SNDRV_PCM_STREAM_PLAYBACK)
@@ -110,9 +115,9 @@ struct snd_sof_widget *snd_sof_find_swidget_sname(struct snd_sof_dev *sdev,
 }
 
 struct snd_sof_dai *snd_sof_find_dai(struct snd_sof_dev *sdev,
-				     char *name)
+				     const char *name)
 {
-	struct snd_sof_dai *dai = NULL;
+	struct snd_sof_dai *dai;
 
 	list_for_each_entry(dai, &sdev->dai_list, list) {
 		if (dai->name && (strcmp(name, dai->name) == 0))
@@ -144,12 +149,18 @@ static const struct sof_panic_msg panic_msg[] = {
 	{SOF_IPC_PANIC_STACK, "stack overflow"},
 	{SOF_IPC_PANIC_IDLE, "can't enter idle"},
 	{SOF_IPC_PANIC_WFI, "invalid wait state"},
+	{SOF_IPC_PANIC_ASSERT, "assertion failed"},
 };
 
-int snd_sof_get_status(struct snd_sof_dev *sdev, u32 panic_code,
-		       u32 tracep_code, void *oops,
-		       struct sof_ipc_panic_info *panic_info,
-		       void *stack, size_t stack_words)
+/*
+ * helper to be called from .dbg_dump callbacks. No error code is
+ * provided, it's left as an exercise for the caller of .dbg_dump
+ * (typically IPC or loader)
+ */
+void snd_sof_get_status(struct snd_sof_dev *sdev, u32 panic_code,
+			u32 tracep_code, void *oops,
+			struct sof_ipc_panic_info *panic_info,
+			void *stack, size_t stack_words)
 {
 	u32 code;
 	int i;
@@ -158,7 +169,7 @@ int snd_sof_get_status(struct snd_sof_dev *sdev, u32 panic_code,
 	if ((panic_code & SOF_IPC_PANIC_MAGIC_MASK) != SOF_IPC_PANIC_MAGIC) {
 		dev_err(sdev->dev, "error: unexpected fault 0x%8.8x trace 0x%8.8x\n",
 			panic_code, tracep_code);
-		return 0; /* no fault ? */
+		return; /* no fault ? */
 	}
 
 	code = panic_code & (SOF_IPC_PANIC_MAGIC_MASK | SOF_IPC_PANIC_CODE_MASK);
@@ -177,18 +188,17 @@ int snd_sof_get_status(struct snd_sof_dev *sdev, u32 panic_code,
 	dev_err(sdev->dev, "error: trace point %8.8x\n", tracep_code);
 
 out:
-	dev_err(sdev->dev, "error: panic happen at %s:%d\n",
+	dev_err(sdev->dev, "error: panic at %s:%d\n",
 		panic_info->filename, panic_info->linenum);
 	sof_oops(sdev, oops);
 	sof_stack(sdev, oops, stack, stack_words);
-	return -EFAULT;
 }
 EXPORT_SYMBOL(snd_sof_get_status);
 
 /*
  * Generic buffer page table creation.
  * Take the each physical page address and drop the least significant unused
- * bites from each (based on PAGE_SIZE). Then pack valid page address bits
+ * bits from each (based on PAGE_SIZE). Then pack valid page address bits
  * into compressed page table.
  */
 
@@ -231,7 +241,7 @@ int snd_sof_create_page_table(struct snd_sof_dev *sdev,
 		 *    x = (pfn[i+1] << 4) | (pfn[i] & 0xf)
 		 * 4. put x at offset (current location + 2) in LE byte order
 		 * 5. increment current location by 5 bytes, increment i by 2
-		 * 6. continue to (1)
+		 * 6. continue to (2)
 		 */
 		if (i & 1)
 			put_unaligned_le32((pg_table[0] & 0xf) | pfn << 4,
@@ -249,17 +259,18 @@ int snd_sof_create_page_table(struct snd_sof_dev *sdev,
 static int sof_machine_check(struct snd_sof_dev *sdev)
 {
 	struct snd_sof_pdata *plat_data = sdev->pdata;
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_NOCODEC)
 	struct snd_soc_acpi_mach *machine;
 	int ret;
+#endif
 
 	if (plat_data->machine)
 		return 0;
 
-	if (!IS_ENABLED(CONFIG_SND_SOC_SOF_NOCODEC)) {
-		dev_err(sdev->dev, "error: no matching ASoC machine driver found - aborting probe\n");
-		return -ENODEV;
-	}
-
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_NOCODEC)
+	dev_err(sdev->dev, "error: no matching ASoC machine driver found - aborting probe\n");
+	return -ENODEV;
+#else
 	/* fallback to nocodec mode */
 	dev_warn(sdev->dev, "No ASoC machine driver found - using nocodec\n");
 	machine = devm_kzalloc(sdev->dev, sizeof(*machine), GFP_KERNEL);
@@ -274,6 +285,7 @@ static int sof_machine_check(struct snd_sof_dev *sdev)
 	plat_data->machine = machine;
 
 	return 0;
+#endif
 }
 
 static int sof_probe_continue(struct snd_sof_dev *sdev)
@@ -350,9 +362,9 @@ static int sof_probe_continue(struct snd_sof_dev *sdev)
 	sdev->first_boot = false;
 
 	/* now register audio DSP platform driver and dai */
-	ret = snd_soc_register_component(sdev->dev, &sdev->plat_drv,
-					 sof_ops(sdev)->drv,
-					 sof_ops(sdev)->num_drv);
+	ret = devm_snd_soc_register_component(sdev->dev, &sdev->plat_drv,
+					      sof_ops(sdev)->drv,
+					      sof_ops(sdev)->num_drv);
 	if (ret < 0) {
 		dev_err(sdev->dev,
 			"error: failed to register DSP DAI driver %d\n", ret);
@@ -370,7 +382,7 @@ static int sof_probe_continue(struct snd_sof_dev *sdev)
 
 	if (IS_ERR(plat_data->pdev_mach)) {
 		ret = PTR_ERR(plat_data->pdev_mach);
-		goto comp_err;
+		goto fw_run_err;
 	}
 
 	dev_dbg(sdev->dev, "created machine %s\n",
@@ -381,8 +393,7 @@ static int sof_probe_continue(struct snd_sof_dev *sdev)
 
 	return 0;
 
-comp_err:
-	snd_soc_unregister_component(sdev->dev);
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_PROBE_WORK_QUEUE)
 fw_run_err:
 	snd_sof_fw_unload(sdev);
 fw_load_err:
@@ -391,6 +402,21 @@ ipc_err:
 	snd_sof_free_debug(sdev);
 dbg_err:
 	snd_sof_remove(sdev);
+#else
+
+	/*
+	 * when the probe_continue is handled in a work queue, the
+	 * probe does not fail so we don't release resources here.
+	 * They will be released with an explicit call to
+	 * snd_sof_device_remove() when the PCI/ACPI device is removed
+	 */
+
+fw_run_err:
+fw_load_err:
+ipc_err:
+dbg_err:
+
+#endif
 
 	return ret;
 }
@@ -422,6 +448,13 @@ int snd_sof_device_probe(struct device *dev, struct snd_sof_pdata *plat_data)
 	sdev->pdata = plat_data;
 	sdev->first_boot = true;
 	dev_set_drvdata(dev, sdev);
+
+	/* check all mandatory ops */
+	if (!sof_ops(sdev) || !sof_ops(sdev)->probe || !sof_ops(sdev)->run ||
+	    !sof_ops(sdev)->block_read || !sof_ops(sdev)->block_write ||
+	    !sof_ops(sdev)->send_msg || !sof_ops(sdev)->load_firmware ||
+	    !sof_ops(sdev)->ipc_msg_data || !sof_ops(sdev)->ipc_pcm_params)
+		return -EINVAL;
 
 	INIT_LIST_HEAD(&sdev->pcm_list);
 	INIT_LIST_HEAD(&sdev->kcontrol_list);
@@ -461,19 +494,26 @@ int snd_sof_device_remove(struct device *dev)
 	if (IS_ENABLED(CONFIG_SND_SOC_SOF_PROBE_WORK_QUEUE))
 		cancel_work_sync(&sdev->probe_work);
 
-	snd_soc_unregister_component(dev);
 	snd_sof_fw_unload(sdev);
 	snd_sof_ipc_free(sdev);
 	snd_sof_free_debug(sdev);
 	snd_sof_free_trace(sdev);
-	snd_sof_remove(sdev);
+
 	/*
-	 * platform_device_unregister() frees the card and its resources.
-	 * So it should be called after unregistering the comp driver
-	 * so that the card is valid while unregistering comp driver.
+	 * Unregister machine driver. This will unbind the snd_card which
+	 * will remove the component driver and unload the topology
+	 * before freeing the snd_card.
 	 */
 	if (!IS_ERR_OR_NULL(pdata->pdev_mach))
 		platform_device_unregister(pdata->pdev_mach);
+
+	/*
+	 * Unregistering the machine driver results in unloading the topology.
+	 * Some widgets, ex: scheduler, attempt to power down the core they are
+	 * scheduled on, when they are unloaded. Therefore, the DSP must be
+	 * removed only after the topology has been unloaded.
+	 */
+	snd_sof_remove(sdev);
 
 	/* release firmware */
 	release_firmware(pdata->fw);

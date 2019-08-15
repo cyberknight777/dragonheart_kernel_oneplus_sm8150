@@ -38,6 +38,62 @@ static int create_page_table(struct snd_pcm_substream *substream,
 		spcm->stream[stream].page_table.area, size);
 }
 
+static int sof_pcm_dsp_params(struct snd_sof_pcm *spcm, struct snd_pcm_substream *substream,
+			      const struct sof_ipc_pcm_params_reply *reply)
+{
+	struct snd_sof_dev *sdev = spcm->sdev;
+	/* validate offset */
+	int ret = snd_sof_ipc_pcm_params(sdev, substream, reply);
+
+	if (ret < 0)
+		dev_err(sdev->dev, "error: got wrong reply for PCM %d\n",
+			spcm->pcm.pcm_id);
+
+	return ret;
+}
+
+/*
+ * sof pcm period elapse work
+ */
+static void sof_pcm_period_elapsed_work(struct work_struct *work)
+{
+	struct snd_sof_pcm_stream *sps =
+		container_of(work, struct snd_sof_pcm_stream,
+			     period_elapsed_work);
+
+	snd_pcm_period_elapsed(sps->substream);
+}
+
+/*
+ * sof pcm period elapse, this could be called at irq thread context.
+ */
+void snd_sof_pcm_period_elapsed(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	struct snd_sof_pcm *spcm;
+
+	spcm = snd_sof_find_spcm_dai(sdev, rtd);
+	if (!spcm) {
+		dev_err(sdev->dev,
+			"error: period elapsed for unknown stream!\n");
+		return;
+	}
+
+	/*
+	 * snd_pcm_period_elapsed() can be called in interrupt context
+	 * before IRQ_HANDLED is returned. Inside snd_pcm_period_elapsed(),
+	 * when the PCM is done draining or xrun happened, a STOP IPC will
+	 * then be sent and this IPC will hit IPC timeout.
+	 * To avoid sending IPC before the previous IPC is handled, we
+	 * schedule delayed work here to call the snd_pcm_period_elapsed().
+	 */
+	schedule_work(&spcm->stream[substream->stream].period_elapsed_work);
+}
+EXPORT_SYMBOL(snd_sof_pcm_period_elapsed);
+
 /* this may get called several times by oss emulation */
 static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
@@ -50,10 +106,9 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct snd_sof_pcm *spcm;
 	struct sof_ipc_pcm_params pcm;
 	struct sof_ipc_pcm_params_reply ipc_params_reply;
-	int posn_offset;
 	int ret;
 
-	/* nothing todo for BE */
+	/* nothing to do for BE */
 	if (rtd->dai_link->no_pcm)
 		return 0;
 
@@ -73,12 +128,18 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 			params_buffer_bytes(params), spcm->pcm.pcm_id);
 		return ret;
 	}
-
-	/* create compressed page table for audio firmware */
-	ret = create_page_table(substream, runtime->dma_area,
-				runtime->dma_bytes);
-	if (ret < 0)
-		return ret;
+	if (ret) {
+		/*
+		 * ret == 1 means the buffer is changed
+		 * create compressed page table for audio firmware
+		 * ret == 0 means the buffer is not changed
+		 * so no need to regenerate the page table
+		 */
+		ret = create_page_table(substream, runtime->dma_area,
+					runtime->dma_bytes);
+		if (ret < 0)
+			return ret;
+	}
 
 	/* number of pages should be rounded up */
 	pcm.params.buffer.pages = PFN_UP(runtime->dma_bytes);
@@ -99,19 +160,10 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 	pcm.params.host_period_bytes = params_period_bytes(params);
 
 	/* container size */
-	switch (params_width(params)) {
-	case 16:
-		pcm.params.sample_container_bytes = 2;
-		break;
-	case 24:
-		pcm.params.sample_container_bytes = 4;
-		break;
-	case 32:
-		pcm.params.sample_container_bytes = 4;
-		break;
-	default:
-		return -EINVAL;
-	}
+	ret = snd_pcm_format_physical_width(params_format(params));
+	if (ret < 0)
+		return ret;
+	pcm.params.sample_container_bytes = ret >> 3;
 
 	/* format */
 	switch (params_format(params)) {
@@ -152,24 +204,15 @@ static int sof_pcm_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	/* validate offset */
-	posn_offset = ipc_params_reply.posn_offset;
-
-	/* check if offset is overflow or it is not aligned */
-	if (posn_offset > sdev->stream_box.size ||
-	    posn_offset % sizeof(struct sof_ipc_stream_posn) != 0) {
-		dev_err(sdev->dev, "error: got wrong posn offset 0x%x for PCM %d\n",
-			posn_offset, spcm->pcm.pcm_id);
-		return -EINVAL;
-	}
-	spcm->posn_offset[substream->stream] =
-		sdev->stream_box.offset + posn_offset;
+	ret = sof_pcm_dsp_params(spcm, substream, &ipc_params_reply);
+	if (ret < 0)
+		return ret;
 
 	/* save pcm hw_params */
 	memcpy(&spcm->params[substream->stream], params, sizeof(*params));
 
-	/* unset restore_stream */
-	spcm->restore_stream[substream->stream] = 0;
+	/* clear hw_params_upon_resume flag */
+	spcm->hw_params_upon_resume[substream->stream] = 0;
 
 	return ret;
 }
@@ -185,7 +228,7 @@ static int sof_pcm_hw_free(struct snd_pcm_substream *substream)
 	struct sof_ipc_reply reply;
 	int ret;
 
-	/* nothing todo for BE */
+	/* nothing to do for BE */
 	if (rtd->dai_link->no_pcm)
 		return 0;
 
@@ -205,30 +248,43 @@ static int sof_pcm_hw_free(struct snd_pcm_substream *substream)
 				 sizeof(stream), &reply, sizeof(reply));
 
 	snd_pcm_lib_free_pages(substream);
+
+	cancel_work_sync(&spcm->stream[substream->stream].period_elapsed_work);
+
 	return ret;
 }
 
-static int sof_restore_hw_params(struct snd_pcm_substream *substream,
-				 struct snd_sof_pcm *spcm,
-				 struct snd_sof_dev *sdev)
+static int sof_pcm_prepare(struct snd_pcm_substream *substream)
 {
-	snd_pcm_uframes_t host;
-	u64 host_posn;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
+	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
+	struct snd_sof_pcm *spcm;
 	int ret;
 
-	/* resume stream */
-	host_posn = spcm->stream[substream->stream].posn.host_posn;
-	host = bytes_to_frames(substream->runtime, host_posn);
-	dev_dbg(sdev->dev,
-		"PCM: resume stream %d dir %d DMA position %lu\n",
-		spcm->pcm.pcm_id, substream->stream, host);
+	/* nothing to do for BE */
+	if (rtd->dai_link->no_pcm)
+		return 0;
+
+	spcm = snd_sof_find_spcm_dai(sdev, rtd);
+	if (!spcm)
+		return -EINVAL;
+
+	/*
+	 * check if hw_params needs to be set-up again.
+	 * This is only needed when resuming from system sleep.
+	 */
+	if (!spcm->hw_params_upon_resume[substream->stream])
+		return 0;
+
+	dev_dbg(sdev->dev, "pcm: prepare stream %d dir %d\n", spcm->pcm.pcm_id,
+		substream->stream);
 
 	/* set hw_params */
-	ret = sof_pcm_hw_params(substream,
-				&spcm->params[substream->stream]);
+	ret = sof_pcm_hw_params(substream, &spcm->params[substream->stream]);
 	if (ret < 0) {
-		dev_err(sdev->dev,
-			"error: set pcm hw_params after resume\n");
+		dev_err(sdev->dev, "error: set pcm hw_params after resume\n");
 		return ret;
 	}
 
@@ -250,7 +306,7 @@ static int sof_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct sof_ipc_reply reply;
 	int ret;
 
-	/* nothing todo for BE */
+	/* nothing to do for BE */
 	if (rtd->dai_link->no_pcm)
 		return 0;
 
@@ -270,60 +326,23 @@ static int sof_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_PAUSE;
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-
-		/* check if the stream hw_params needs to be restored */
-		if (spcm->restore_stream[substream->stream]) {
-
-			/* restore hw_params */
-			ret = sof_restore_hw_params(substream, spcm, sdev);
-			if (ret < 0)
-				return ret;
-
-			/* unset restore_stream */
-			spcm->restore_stream[substream->stream] = 0;
-
-			/* trigger start */
-			stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_START;
-		} else {
-
-			/* trigger pause release */
-			stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_RELEASE;
-		}
+		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_RELEASE;
 		break;
-	case SNDRV_PCM_TRIGGER_START:
-		/* fall through */
 	case SNDRV_PCM_TRIGGER_RESUME:
-
-		/* check if the stream hw_params needs to be restored */
-		if (spcm->restore_stream[substream->stream]) {
-
-			/* restore hw_params */
-			ret = sof_restore_hw_params(substream, spcm, sdev);
-			if (ret < 0)
-				return ret;
-
-			/* unset restore_stream */
-			spcm->restore_stream[substream->stream] = 0;
+		/* set up hw_params */
+		ret = sof_pcm_prepare(substream);
+		if (ret < 0) {
+			dev_err(sdev->dev,
+				"error: failed to set up hw_params upon resume\n");
+			return ret;
 		}
 
-		/* trigger stream */
+		/* fallthrough */
+	case SNDRV_PCM_TRIGGER_START:
 		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_START;
-
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
-		/* fallthrough */
 	case SNDRV_PCM_TRIGGER_STOP:
-
-		/* Check if stream was marked for restore before suspend */
-		if (spcm->restore_stream[substream->stream]) {
-
-			/* unset restore_stream */
-			spcm->restore_stream[substream->stream] = 0;
-
-			/* do not send ipc as the stream hasn't been set up */
-			return 0;
-		}
-
 		stream.hdr.cmd |= SOF_IPC_STREAM_TRIG_STOP;
 		break;
 	default:
@@ -332,6 +351,22 @@ static int sof_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	}
 
 	snd_sof_pcm_platform_trigger(sdev, substream, cmd);
+
+	/* send IPC to the DSP */
+	ret = sof_ipc_tx_message(sdev->ipc, stream.hdr.cmd, &stream,
+				 sizeof(stream), &reply, sizeof(reply));
+
+	if (ret < 0 || cmd != SNDRV_PCM_TRIGGER_SUSPEND)
+		return ret;
+
+	/*
+	 * The hw_free op is usually called when the pcm stream is closed.
+	 * Since the stream is not closed during suspend, the DSP needs to be
+	 * notified explicitly to free pcm to prevent errors upon resume.
+	 */
+	stream.hdr.size = sizeof(stream);
+	stream.hdr.cmd = SOF_IPC_GLB_STREAM_MSG | SOF_IPC_STREAM_PCM_FREE;
+	stream.comp_id = spcm->stream[substream->stream].comp_id;
 
 	/* send IPC to the DSP */
 	return sof_ipc_tx_message(sdev->ipc, stream.hdr.cmd, &stream,
@@ -345,13 +380,13 @@ static snd_pcm_uframes_t sof_pcm_pointer(struct snd_pcm_substream *substream)
 		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(component);
 	struct snd_sof_pcm *spcm;
-	snd_pcm_uframes_t host = 0, dai = 0;
+	snd_pcm_uframes_t host, dai;
 
-	/* nothing todo for BE */
+	/* nothing to do for BE */
 	if (rtd->dai_link->no_pcm)
 		return 0;
 
-	/* if have dsp ops pointer callback, use that directly */
+	/* use dsp ops pointer callback directly if set */
 	if (sof_ops(sdev)->pcm_pointer)
 		return sof_ops(sdev)->pcm_pointer(sdev, substream);
 
@@ -383,7 +418,7 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 	int ret;
 	int err;
 
-	/* nothing todo for BE */
+	/* nothing to do for BE */
 	if (rtd->dai_link->no_pcm)
 		return 0;
 
@@ -393,6 +428,9 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 
 	dev_dbg(sdev->dev, "pcm: open stream %d dir %d\n", spcm->pcm.pcm_id,
 		substream->stream);
+
+	INIT_WORK(&spcm->stream[substream->stream].period_elapsed_work,
+		  sof_pcm_period_elapsed_work);
 
 	caps = &spcm->pcm.caps[substream->stream];
 
@@ -417,7 +455,6 @@ static int sof_pcm_open(struct snd_pcm_substream *substream)
 			  SNDRV_PCM_INFO_MMAP_VALID |
 			  SNDRV_PCM_INFO_INTERLEAVED |
 			  SNDRV_PCM_INFO_PAUSE |
-			  SNDRV_PCM_INFO_RESUME |
 			  SNDRV_PCM_INFO_NO_PERIOD_WAKEUP;
 	runtime->hw.formats = le64_to_cpu(caps->formats);
 	runtime->hw.period_bytes_min = le32_to_cpu(caps->period_size_min);
@@ -472,7 +509,7 @@ static int sof_pcm_close(struct snd_pcm_substream *substream)
 	struct snd_sof_pcm *spcm;
 	int err;
 
-	/* nothing todo for BE */
+	/* nothing to do for BE */
 	if (rtd->dai_link->no_pcm)
 		return 0;
 
@@ -508,6 +545,7 @@ static struct snd_pcm_ops sof_pcm_ops = {
 	.close		= sof_pcm_close,
 	.ioctl		= snd_pcm_lib_ioctl,
 	.hw_params	= sof_pcm_hw_params,
+	.prepare	= sof_pcm_prepare,
 	.hw_free	= sof_pcm_hw_free,
 	.trigger	= sof_pcm_trigger,
 	.pointer	= sof_pcm_pointer,
@@ -527,7 +565,7 @@ static int sof_pcm_new(struct snd_soc_pcm_runtime *rtd)
 	struct snd_sof_pcm *spcm;
 	struct snd_pcm *pcm = rtd->pcm;
 	struct snd_soc_tplg_stream_caps *caps;
-	int ret = 0, stream = SNDRV_PCM_STREAM_PLAYBACK;
+	int stream = SNDRV_PCM_STREAM_PLAYBACK;
 
 	/* find SOF PCM for this RTD */
 	spcm = snd_sof_find_spcm_dai(sdev, rtd);
@@ -558,7 +596,7 @@ capture:
 
 	/* do we need to pre-allocate capture audio buffer pages */
 	if (!spcm->pcm.capture)
-		return ret;
+		return 0;
 
 	caps = &spcm->pcm.caps[stream];
 
@@ -571,7 +609,7 @@ capture:
 				      le32_to_cpu(caps->buffer_size_min),
 				      le32_to_cpu(caps->buffer_size_max));
 
-	return ret;
+	return 0;
 }
 
 /* fixup the BE DAI link to match any values from topology */
@@ -648,7 +686,6 @@ static int sof_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
 				dai->comp_dai.config.frame_fmt,
 				dai->dai_config->type);
 		}
-		/* TODO: add any other DMIC specific fixups */
 		break;
 	case SOF_DAI_INTEL_HDA:
 		/* do nothing for HDA dai_link */
@@ -689,7 +726,7 @@ static int sof_pcm_probe(struct snd_soc_component *component)
 	/*
 	 * Some platforms in SOF, ex: BYT, may not have their platform PM
 	 * callbacks set. Increment the usage count so as to
-	 * prevent the device entering runtime suspend.
+	 * prevent the device from entering runtime suspend.
 	 */
 	if (!sof_ops(sdev)->runtime_suspend || !sof_ops(sdev)->runtime_resume)
 		pm_runtime_get_noresume(sdev->dev);
@@ -699,6 +736,8 @@ static int sof_pcm_probe(struct snd_soc_component *component)
 
 static void sof_pcm_remove(struct snd_soc_component *component)
 {
+	/* remove topology */
+	snd_soc_tplg_component_remove(component, SND_SOC_TPLG_INDEX_ALL);
 }
 
 void snd_sof_new_platform_drv(struct snd_sof_dev *sdev)

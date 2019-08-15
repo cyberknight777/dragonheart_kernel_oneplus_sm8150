@@ -27,17 +27,17 @@ static int cl_stream_prepare(struct snd_sof_dev *sdev, unsigned int format,
 			     unsigned int size, struct snd_dma_buffer *dmab,
 			     int direction)
 {
-	struct hdac_ext_stream *dsp_stream = NULL;
+	struct hdac_ext_stream *dsp_stream;
 	struct hdac_stream *hstream;
 	struct pci_dev *pci = to_pci_dev(sdev->dev);
 	int ret;
 
-	if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
-		dsp_stream = hda_dsp_stream_get(sdev, direction);
-	} else {
+	if (direction != SNDRV_PCM_STREAM_PLAYBACK) {
 		dev_err(sdev->dev, "error: code loading DMA is playback only\n");
 		return -EINVAL;
 	}
+
+	dsp_stream = hda_dsp_stream_get(sdev, direction);
 
 	if (!dsp_stream) {
 		dev_err(sdev->dev, "error: no stream available\n");
@@ -82,13 +82,25 @@ static int cl_dsp_init(struct snd_sof_dev *sdev, const void *fwdata,
 {
 	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	const struct sof_intel_dsp_desc *chip = hda->desc;
+	unsigned int status;
 	int ret;
+	int i;
 
 	/* step 1: power up corex */
 	ret = hda_dsp_core_power_up(sdev, chip->cores_mask);
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: dsp core 0/1 power up failed\n");
 		goto err;
+	}
+
+	/* DSP is powered up, set all SSPs to slave mode */
+	for (i = 0; i < chip->ssp_count; i++) {
+		snd_sof_dsp_update_bits_unlocked(sdev, HDA_DSP_BAR,
+						 chip->ssp_base_offset
+						 + i * SSP_DEV_MEM_SIZE
+						 + SSP_SSC1_OFFSET,
+						 SSP_SET_SLAVE,
+						 SSP_SET_SLAVE);
 	}
 
 	/* step 2: purge FW request */
@@ -105,11 +117,12 @@ static int cl_dsp_init(struct snd_sof_dev *sdev, const void *fwdata,
 	}
 
 	/* step 4: wait for IPC DONE bit from ROM */
-	ret = snd_sof_dsp_register_poll(sdev, HDA_DSP_BAR,
-					chip->ipc_ack,
-					chip->ipc_ack_mask, chip->ipc_ack_mask,
-					HDA_DSP_INIT_TIMEOUT,
-					HDA_DSP_REG_POLL_INTERVAL_US);
+	ret = snd_sof_dsp_read_poll_timeout(sdev, HDA_DSP_BAR,
+					    chip->ipc_ack, status,
+					    ((status & chip->ipc_ack_mask)
+						    == chip->ipc_ack_mask),
+					    HDA_DSP_REG_POLL_INTERVAL_US,
+					    HDA_DSP_INIT_TIMEOUT_US);
 
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: waiting for HIPCIE done\n");
@@ -128,11 +141,13 @@ static int cl_dsp_init(struct snd_sof_dev *sdev, const void *fwdata,
 	hda_dsp_ipc_int_enable(sdev);
 
 	/* step 7: wait for ROM init */
-	ret = snd_sof_dsp_register_poll(sdev, HDA_DSP_BAR,
-					HDA_DSP_SRAM_REG_ROM_STATUS,
-					HDA_DSP_ROM_STS_MASK, HDA_DSP_ROM_INIT,
-					chip->rom_init_timeout,
-					HDA_DSP_REG_POLL_INTERVAL_US);
+	ret = snd_sof_dsp_read_poll_timeout(sdev, HDA_DSP_BAR,
+					HDA_DSP_SRAM_REG_ROM_STATUS, status,
+					((status & HDA_DSP_ROM_STS_MASK)
+						== HDA_DSP_ROM_INIT),
+					HDA_DSP_REG_POLL_INTERVAL_US,
+					chip->rom_init_timeout *
+					USEC_PER_MSEC);
 	if (!ret)
 		return 0;
 
@@ -221,6 +236,7 @@ static int cl_cleanup(struct snd_sof_dev *sdev, struct snd_dma_buffer *dmab,
 
 static int cl_copy_fw(struct snd_sof_dev *sdev, struct hdac_ext_stream *stream)
 {
+	unsigned int reg;
 	int ret, status;
 
 	ret = cl_trigger(sdev, stream, SNDRV_PCM_TRIGGER_START);
@@ -229,12 +245,12 @@ static int cl_copy_fw(struct snd_sof_dev *sdev, struct hdac_ext_stream *stream)
 		return ret;
 	}
 
-	status = snd_sof_dsp_register_poll(sdev, HDA_DSP_BAR,
-					   HDA_DSP_SRAM_REG_ROM_STATUS,
-					   HDA_DSP_ROM_STS_MASK,
-					   HDA_DSP_ROM_FW_ENTERED,
-					   HDA_DSP_BASEFW_TIMEOUT,
-					   HDA_DSP_REG_POLL_INTERVAL_US);
+	status = snd_sof_dsp_read_poll_timeout(sdev, HDA_DSP_BAR,
+					HDA_DSP_SRAM_REG_ROM_STATUS, reg,
+					((reg & HDA_DSP_ROM_STS_MASK)
+						== HDA_DSP_ROM_FW_ENTERED),
+					HDA_DSP_REG_POLL_INTERVAL_US,
+					HDA_DSP_BASEFW_TIMEOUT_US);
 
 	ret = cl_trigger(sdev, stream, SNDRV_PCM_TRIGGER_STOP);
 	if (ret < 0) {
@@ -254,7 +270,7 @@ int hda_dsp_cl_boot_firmware(struct snd_sof_dev *sdev)
 	struct firmware stripped_firmware;
 	int ret, ret1, tag, i;
 
-	chip_info = (struct sof_intel_dsp_desc *)desc->chip_info;
+	chip_info = desc->chip_info;
 
 	stripped_firmware.data = plat_data->fw->data;
 	stripped_firmware.size = plat_data->fw->size;

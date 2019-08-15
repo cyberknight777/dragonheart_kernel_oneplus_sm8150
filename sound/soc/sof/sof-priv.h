@@ -84,15 +84,19 @@ struct snd_sof_dsp_ops {
 	int (*core_power_down)(struct snd_sof_dev *sof_dev,
 			       unsigned int core_mask); /* optional */
 
-	/* Register IO */
+	/*
+	 * Register IO: only used by respective drivers themselves,
+	 * TODO: consider removing these operations and calling respective
+	 * implementations directly
+	 */
 	void (*write)(struct snd_sof_dev *sof_dev, void __iomem *addr,
-		      u32 value); /* mandatory */
+		      u32 value); /* optional */
 	u32 (*read)(struct snd_sof_dev *sof_dev,
-		    void __iomem *addr); /* mandatory */
+		    void __iomem *addr); /* optional */
 	void (*write64)(struct snd_sof_dev *sof_dev, void __iomem *addr,
-			u64 value); /* mandatory */
+			u64 value); /* optional */
 	u64 (*read64)(struct snd_sof_dev *sof_dev,
-		      void __iomem *addr); /* mandatory */
+		      void __iomem *addr); /* optional */
 
 	/* memcpy IO */
 	void (*block_read)(struct snd_sof_dev *sof_dev, u32 bar,
@@ -103,21 +107,12 @@ struct snd_sof_dsp_ops {
 			    size_t size); /* mandatory */
 
 	/* doorbell */
-	irqreturn_t (*irq_handler)(int irq, void *context); /* mandatory */
-	irqreturn_t (*irq_thread)(int irq, void *context); /* mandatory */
-
-	/* mailbox */
-	void (*mailbox_read)(struct snd_sof_dev *sof_dev, u32 offset,
-			     void *addr, size_t bytes); /* mandatory */
-	void (*mailbox_write)(struct snd_sof_dev *sof_dev, u32 offset,
-			      void *addr, size_t bytes); /* mandatory */
+	irqreturn_t (*irq_handler)(int irq, void *context); /* optional */
+	irqreturn_t (*irq_thread)(int irq, void *context); /* optional */
 
 	/* ipc */
 	int (*send_msg)(struct snd_sof_dev *sof_dev,
 			struct snd_sof_ipc_msg *msg); /* mandatory */
-	int (*get_reply)(struct snd_sof_dev *sof_dev,
-			 struct snd_sof_ipc_msg *msg); /* mandatory */
-	int (*cmd_done)(struct snd_sof_dev *sof_dev, int dir); /* mandatory */
 
 	/* FW loading */
 	int (*load_firmware)(struct snd_sof_dev *sof_dev); /* mandatory */
@@ -127,7 +122,7 @@ struct snd_sof_dsp_ops {
 	 * FW ready checks for ABI compatibility and creates
 	 * memory windows at first boot
 	 */
-	int (*fw_ready)(struct snd_sof_dev *sdev, u32 msg_id); /* mandatory */
+	int (*fw_ready)(struct snd_sof_dev *sdev, u32 msg_id); /* optional */
 
 	/* connect pcm substream to a host stream */
 	int (*pcm_open)(struct snd_sof_dev *sdev,
@@ -151,6 +146,16 @@ struct snd_sof_dsp_ops {
 	snd_pcm_uframes_t (*pcm_pointer)(struct snd_sof_dev *sdev,
 					 struct snd_pcm_substream *substream); /* optional */
 
+	/* host read DSP stream data */
+	void (*ipc_msg_data)(struct snd_sof_dev *sdev,
+			     struct snd_pcm_substream *substream,
+			     void *p, size_t sz); /* mandatory */
+
+	/* host configure DSP HW parameters */
+	int (*ipc_pcm_params)(struct snd_sof_dev *sdev,
+			      struct snd_pcm_substream *substream,
+			      const struct sof_ipc_pcm_params_reply *reply); /* mandatory */
+
 	/* pre/post firmware run */
 	int (*pre_fw_run)(struct snd_sof_dev *sof_dev); /* optional */
 	int (*post_fw_run)(struct snd_sof_dev *sof_dev); /* optional */
@@ -161,6 +166,7 @@ struct snd_sof_dsp_ops {
 	int (*runtime_suspend)(struct snd_sof_dev *sof_dev,
 			       int state); /* optional */
 	int (*runtime_resume)(struct snd_sof_dev *sof_dev); /* optional */
+	void (*set_hw_params_upon_resume)(struct snd_sof_dev *sdev); /* optional */
 
 	/* DSP clocking */
 	int (*set_clk)(struct snd_sof_dev *sof_dev, u32 freq); /* optional */
@@ -170,6 +176,7 @@ struct snd_sof_dsp_ops {
 	int debug_map_count; /* optional */
 	void (*dbg_dump)(struct snd_sof_dev *sof_dev,
 			 u32 flags); /* optional */
+	void (*ipc_dump)(struct snd_sof_dev *sof_dev); /* optional */
 
 	/* host DMA trace initialization */
 	int (*trace_init)(struct snd_sof_dev *sdev,
@@ -257,6 +264,7 @@ struct snd_sof_ipc_msg {
 	void *reply_data;
 	size_t msg_size;
 	size_t reply_size;
+	int reply_error;
 
 	wait_queue_head_t waitq;
 	bool ipc_complete;
@@ -268,6 +276,7 @@ struct snd_sof_pcm_stream {
 	struct snd_dma_buffer page_table;
 	struct sof_ipc_stream_posn posn;
 	struct snd_pcm_substream *substream;
+	struct work_struct period_elapsed_work;
 };
 
 /* ALSA SOF PCM device */
@@ -275,10 +284,9 @@ struct snd_sof_pcm {
 	struct snd_sof_dev *sdev;
 	struct snd_soc_tplg_pcm pcm;
 	struct snd_sof_pcm_stream stream[2];
-	u32 posn_offset[2];
 	struct list_head list;	/* list in sdev pcm list */
 	struct snd_pcm_hw_params params[2];
-	int restore_stream[2]; /* restore hw_params for paused stream */
+	int hw_params_upon_resume[2]; /* set up hw_params upon resume */
 };
 
 /* ALSA SOF Kcontrol device */
@@ -359,7 +367,7 @@ struct snd_sof_dev {
 	struct snd_sof_mailbox dsp_box;		/* DSP initiated IPC */
 	struct snd_sof_mailbox host_box;	/* Host initiated IPC */
 	struct snd_sof_mailbox stream_box;	/* Stream position update */
-	u64 irq_status;
+	struct snd_sof_ipc_msg *msg;
 	int ipc_irq;
 	u32 next_comp_id; /* monotonic - reset during S3 */
 
@@ -461,11 +469,12 @@ int sof_ipc_tx_message(struct snd_sof_ipc *ipc, u32 header,
 		       void *msg_data, size_t msg_bytes, void *reply_data,
 		       size_t reply_bytes);
 struct snd_sof_widget *snd_sof_find_swidget(struct snd_sof_dev *sdev,
-					    char *name);
+					    const char *name);
 struct snd_sof_widget *snd_sof_find_swidget_sname(struct snd_sof_dev *sdev,
-						  char *pcm_name, int dir);
+						  const char *pcm_name,
+						  int dir);
 struct snd_sof_dai *snd_sof_find_dai(struct snd_sof_dev *sdev,
-				     char *name);
+				     const char *name);
 
 static inline
 struct snd_sof_pcm *snd_sof_find_spcm_dai(struct snd_sof_dev *sdev,
@@ -482,12 +491,13 @@ struct snd_sof_pcm *snd_sof_find_spcm_dai(struct snd_sof_dev *sdev,
 }
 
 struct snd_sof_pcm *snd_sof_find_spcm_name(struct snd_sof_dev *sdev,
-					   char *name);
+					   const char *name);
 struct snd_sof_pcm *snd_sof_find_spcm_comp(struct snd_sof_dev *sdev,
 					   unsigned int comp_id,
 					   int *direction);
 struct snd_sof_pcm *snd_sof_find_spcm_pcm_id(struct snd_sof_dev *sdev,
 					     unsigned int pcm_id);
+void snd_sof_pcm_period_elapsed(struct snd_pcm_substream *substream);
 
 /*
  * Stream IPC
@@ -499,14 +509,11 @@ int snd_sof_ipc_stream_posn(struct snd_sof_dev *sdev,
 /*
  * Mixer IPC
  */
-int snd_sof_ipc_set_comp_data(struct snd_sof_ipc *ipc,
-			      struct snd_sof_control *scontrol, u32 ipc_cmd,
-			      enum sof_ipc_ctrl_type ctrl_type,
-			      enum sof_ipc_ctrl_cmd ctrl_cmd);
-int snd_sof_ipc_get_comp_data(struct snd_sof_ipc *ipc,
-			      struct snd_sof_control *scontrol, u32 ipc_cmd,
-			      enum sof_ipc_ctrl_type ctrl_type,
-			      enum sof_ipc_ctrl_cmd ctrl_cmd);
+int snd_sof_ipc_set_get_comp_data(struct snd_sof_ipc *ipc,
+				  struct snd_sof_control *scontrol, u32 ipc_cmd,
+				  enum sof_ipc_ctrl_type ctrl_type,
+				  enum sof_ipc_ctrl_cmd ctrl_cmd,
+				  bool send);
 
 /*
  * Topology.
@@ -541,10 +548,10 @@ int snd_sof_debugfs_buf_item(struct snd_sof_dev *sdev,
 int snd_sof_trace_update_pos(struct snd_sof_dev *sdev,
 			     struct sof_ipc_dma_trace_posn *posn);
 void snd_sof_trace_notify_for_error(struct snd_sof_dev *sdev);
-int snd_sof_get_status(struct snd_sof_dev *sdev, u32 panic_code,
-		       u32 tracep_code, void *oops,
-		       struct sof_ipc_panic_info *panic_info,
-		       void *stack, size_t stack_words);
+void snd_sof_get_status(struct snd_sof_dev *sdev, u32 panic_code,
+			u32 tracep_code, void *oops,
+			struct sof_ipc_panic_info *panic_info,
+			void *stack, size_t stack_words);
 int snd_sof_init_trace_ipc(struct snd_sof_dev *sdev);
 
 /*
@@ -612,5 +619,17 @@ void sof_block_write(struct snd_sof_dev *sdev, u32 bar, u32 offset, void *src,
 		     size_t size);
 void sof_block_read(struct snd_sof_dev *sdev, u32 bar, u32 offset, void *dest,
 		    size_t size);
+
+void intel_ipc_msg_data(struct snd_sof_dev *sdev,
+			struct snd_pcm_substream *substream,
+			void *p, size_t sz);
+int intel_ipc_pcm_params(struct snd_sof_dev *sdev,
+			 struct snd_pcm_substream *substream,
+			 const struct sof_ipc_pcm_params_reply *reply);
+
+int intel_pcm_open(struct snd_sof_dev *sdev,
+		   struct snd_pcm_substream *substream);
+int intel_pcm_close(struct snd_sof_dev *sdev,
+		    struct snd_pcm_substream *substream);
 
 #endif

@@ -105,7 +105,9 @@ static const struct snd_sof_debugfs_map cht_debugfs[] = {
 	 SOF_DEBUGFS_ACCESS_ALWAYS},
 };
 
-static int byt_cmd_done(struct snd_sof_dev *sdev, int dir);
+static void byt_host_done(struct snd_sof_dev *sdev);
+static void byt_dsp_done(struct snd_sof_dev *sdev);
+static void byt_get_reply(struct snd_sof_dev *sdev);
 
 /*
  * IPC Firmware ready.
@@ -298,7 +300,7 @@ static void byt_dump(struct snd_sof_dev *sdev, u32 flags)
 
 static irqreturn_t byt_irq_handler(int irq, void *context)
 {
-	struct snd_sof_dev *sdev = (struct snd_sof_dev *)context;
+	struct snd_sof_dev *sdev = context;
 	u64 isr;
 	int ret = IRQ_NONE;
 
@@ -312,7 +314,7 @@ static irqreturn_t byt_irq_handler(int irq, void *context)
 
 static irqreturn_t byt_irq_thread(int irq, void *context)
 {
-	struct snd_sof_dev *sdev = (struct snd_sof_dev *)context;
+	struct snd_sof_dev *sdev = context;
 	u64 ipcx, ipcd;
 	u64 imrx;
 
@@ -327,6 +329,9 @@ static irqreturn_t byt_irq_thread(int irq, void *context)
 						   SHIM_IMRX,
 						   SHIM_IMRX_DONE,
 						   SHIM_IMRX_DONE);
+
+		spin_lock_irq(&sdev->ipc_lock);
+
 		/*
 		 * handle immediate reply from DSP core. If the msg is
 		 * found, set done bit in cmd_done which is called at the
@@ -334,8 +339,12 @@ static irqreturn_t byt_irq_thread(int irq, void *context)
 		 * because the done bit can't be set in cmd_done function
 		 * which is triggered by msg
 		 */
-		if (snd_sof_ipc_reply(sdev, ipcx))
-			byt_cmd_done(sdev, SOF_IPC_DSP_REPLY);
+		byt_get_reply(sdev);
+		snd_sof_ipc_reply(sdev, ipcx);
+
+		byt_dsp_done(sdev);
+
+		spin_unlock_irq(&sdev->ipc_lock);
 	}
 
 	/* new message from DSP */
@@ -355,6 +364,8 @@ static irqreturn_t byt_irq_thread(int irq, void *context)
 		} else {
 			snd_sof_ipc_msgs_rx(sdev);
 		}
+
+		byt_host_done(sdev);
 	}
 
 	return IRQ_HANDLED;
@@ -373,60 +384,67 @@ static int byt_send_msg(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
 	return 0;
 }
 
-static int byt_get_reply(struct snd_sof_dev *sdev, struct snd_sof_ipc_msg *msg)
+static void byt_get_reply(struct snd_sof_dev *sdev)
 {
+	struct snd_sof_ipc_msg *msg = sdev->msg;
 	struct sof_ipc_reply reply;
 	int ret = 0;
-	u32 size;
+
+	/*
+	 * Sometimes, there is unexpected reply ipc arriving. The reply
+	 * ipc belongs to none of the ipcs sent from driver.
+	 * In this case, the driver must ignore the ipc.
+	 */
+	if (!msg) {
+		dev_warn(sdev->dev, "unexpected ipc interrupt raised!\n");
+		return;
+	}
 
 	/* get reply */
 	sof_mailbox_read(sdev, sdev->host_box.offset, &reply, sizeof(reply));
+
 	if (reply.error < 0) {
-		size = sizeof(reply);
+		memcpy(msg->reply_data, &reply, sizeof(reply));
 		ret = reply.error;
 	} else {
 		/* reply correct size ? */
 		if (reply.hdr.size != msg->reply_size) {
-			dev_err(sdev->dev, "error: reply expected 0x%zx got 0x%x bytes\n",
+			dev_err(sdev->dev, "error: reply expected %zu got %u bytes\n",
 				msg->reply_size, reply.hdr.size);
-			size = msg->reply_size;
 			ret = -EINVAL;
-		} else {
-			size = reply.hdr.size;
 		}
+
+		/* read the message */
+		if (msg->reply_size > 0)
+			sof_mailbox_read(sdev, sdev->host_box.offset,
+					 msg->reply_data, msg->reply_size);
 	}
 
-	/* read the message */
-	if (msg->msg_data && size > 0)
-		sof_mailbox_read(sdev, sdev->host_box.offset, msg->reply_data,
-				 size);
-
-	return ret;
+	msg->reply_error = ret;
 }
 
-static int byt_cmd_done(struct snd_sof_dev *sdev, int dir)
+static void byt_host_done(struct snd_sof_dev *sdev)
 {
-	if (dir == SOF_IPC_HOST_REPLY) {
-		/* clear BUSY bit and set DONE bit - accept new messages */
-		snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IPCD,
-						   SHIM_BYT_IPCD_BUSY |
-						   SHIM_BYT_IPCD_DONE,
-						   SHIM_BYT_IPCD_DONE);
+	/* clear BUSY bit and set DONE bit - accept new messages */
+	snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IPCD,
+					   SHIM_BYT_IPCD_BUSY |
+					   SHIM_BYT_IPCD_DONE,
+					   SHIM_BYT_IPCD_DONE);
 
-		/* unmask busy interrupt */
-		snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IMRX,
-						   SHIM_IMRX_BUSY, 0);
-	} else {
-		/* clear DONE bit - tell DSP we have completed */
-		snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IPCX,
-						   SHIM_BYT_IPCX_DONE, 0);
+	/* unmask busy interrupt */
+	snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IMRX,
+					   SHIM_IMRX_BUSY, 0);
+}
 
-		/* unmask Done interrupt */
-		snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IMRX,
-						   SHIM_IMRX_DONE, 0);
-	}
+static void byt_dsp_done(struct snd_sof_dev *sdev)
+{
+	/* clear DONE bit - tell DSP we have completed */
+	snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IPCX,
+					   SHIM_BYT_IPCX_DONE, 0);
 
-	return 0;
+	/* unmask Done interrupt */
+	snd_sof_dsp_update_bits64_unlocked(sdev, BYT_DSP_BAR, SHIM_IMRX,
+					   SHIM_IMRX_DONE, 0);
 }
 
 /*
@@ -500,15 +518,15 @@ static struct snd_soc_dai_driver byt_dai[] = {
  * Probe and remove.
  */
 
-#if IS_ENABLED(CONFIG_SND_SOC_SOF_EDISON)
+#if IS_ENABLED(CONFIG_SND_SOC_SOF_MERRIFIELD)
 
-static int byt_pci_probe(struct snd_sof_dev *sdev)
+static int tangier_pci_probe(struct snd_sof_dev *sdev)
 {
 	struct snd_sof_pdata *pdata = sdev->pdata;
 	const struct sof_dev_desc *desc = pdata->desc;
 	struct pci_dev *pci = to_pci_dev(sdev->dev);
 	u32 base, size;
-	int ret = 0;
+	int ret;
 
 	/* DSP DMA can only access low 31 bits of host memory */
 	ret = dma_coerce_mask_and_coherent(&pci->dev, DMA_BIT_MASK(31));
@@ -577,7 +595,7 @@ irq:
 
 const struct snd_sof_dsp_ops sof_tng_ops = {
 	/* device init */
-	.probe		= byt_pci_probe,
+	.probe		= tangier_pci_probe,
 
 	/* DSP core boot / reset */
 	.run		= byt_run,
@@ -597,20 +615,21 @@ const struct snd_sof_dsp_ops sof_tng_ops = {
 	.irq_handler	= byt_irq_handler,
 	.irq_thread	= byt_irq_thread,
 
-	/* mailbox */
-	.mailbox_read	= sof_mailbox_read,
-	.mailbox_write	= sof_mailbox_write,
-
 	/* ipc */
 	.send_msg	= byt_send_msg,
-	.get_reply	= byt_get_reply,
 	.fw_ready	= byt_fw_ready,
-	.cmd_done	= byt_cmd_done,
+
+	.ipc_msg_data	= intel_ipc_msg_data,
+	.ipc_pcm_params	= intel_ipc_pcm_params,
 
 	/* debug */
 	.debug_map	= byt_debugfs,
 	.debug_map_count	= ARRAY_SIZE(byt_debugfs),
 	.dbg_dump	= byt_dump,
+
+	/* stream callbacks */
+	.pcm_open	= intel_pcm_open,
+	.pcm_close	= intel_pcm_close,
 
 	/* module loading */
 	.load_module	= snd_sof_parse_module_memcpy,
@@ -630,7 +649,7 @@ const struct sof_intel_dsp_desc tng_chip_info = {
 };
 EXPORT_SYMBOL(tng_chip_info);
 
-#endif /* CONFIG_SND_SOC_SOF_EDISON */
+#endif /* CONFIG_SND_SOC_SOF_MERRIFIELD */
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_BAYTRAIL)
 
@@ -642,7 +661,7 @@ static int byt_acpi_probe(struct snd_sof_dev *sdev)
 		container_of(sdev->dev, struct platform_device, dev);
 	struct resource *mmio;
 	u32 base, size;
-	int ret = 0;
+	int ret;
 
 	/* DSP DMA can only access low 31 bits of host memory */
 	ret = dma_coerce_mask_and_coherent(sdev->dev, DMA_BIT_MASK(31));
@@ -758,20 +777,21 @@ const struct snd_sof_dsp_ops sof_byt_ops = {
 	.irq_handler	= byt_irq_handler,
 	.irq_thread	= byt_irq_thread,
 
-	/* mailbox */
-	.mailbox_read	= sof_mailbox_read,
-	.mailbox_write	= sof_mailbox_write,
-
 	/* ipc */
 	.send_msg	= byt_send_msg,
-	.get_reply	= byt_get_reply,
 	.fw_ready	= byt_fw_ready,
-	.cmd_done	= byt_cmd_done,
+
+	.ipc_msg_data	= intel_ipc_msg_data,
+	.ipc_pcm_params	= intel_ipc_pcm_params,
 
 	/* debug */
 	.debug_map	= byt_debugfs,
 	.debug_map_count	= ARRAY_SIZE(byt_debugfs),
 	.dbg_dump	= byt_dump,
+
+	/* stream callbacks */
+	.pcm_open	= intel_pcm_open,
+	.pcm_close	= intel_pcm_close,
 
 	/* module loading */
 	.load_module	= snd_sof_parse_module_memcpy,
@@ -814,20 +834,21 @@ const struct snd_sof_dsp_ops sof_cht_ops = {
 	.irq_handler	= byt_irq_handler,
 	.irq_thread	= byt_irq_thread,
 
-	/* mailbox */
-	.mailbox_read	= sof_mailbox_read,
-	.mailbox_write	= sof_mailbox_write,
-
 	/* ipc */
 	.send_msg	= byt_send_msg,
-	.get_reply	= byt_get_reply,
 	.fw_ready	= byt_fw_ready,
-	.cmd_done	= byt_cmd_done,
+
+	.ipc_msg_data	= intel_ipc_msg_data,
+	.ipc_pcm_params	= intel_ipc_pcm_params,
 
 	/* debug */
 	.debug_map	= cht_debugfs,
 	.debug_map_count	= ARRAY_SIZE(cht_debugfs),
 	.dbg_dump	= byt_dump,
+
+	/* stream callbacks */
+	.pcm_open	= intel_pcm_open,
+	.pcm_close	= intel_pcm_close,
 
 	/* module loading */
 	.load_module	= snd_sof_parse_module_memcpy,

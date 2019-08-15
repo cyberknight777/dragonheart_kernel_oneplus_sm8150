@@ -15,7 +15,6 @@
  * Hardware interface for generic Intel audio DSP HDA IP
  */
 
-#include <sound/hdaudio_ext.h>
 #include <sound/hda_register.h>
 #include <sound/pcm_params.h>
 #include "../ops.h"
@@ -88,8 +87,7 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 {
 	struct hdac_stream *hstream = substream->runtime->private_data;
 	struct hdac_ext_stream *stream = stream_to_hdac_ext_stream(hstream);
-	struct sof_intel_hda_dev *hda =
-		(struct sof_intel_hda_dev *)sdev->pdata->hw_pdata;
+	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	struct snd_dma_buffer *dmab;
 	int ret;
 	u32 size, rate, bits;
@@ -104,7 +102,7 @@ int hda_dsp_pcm_hw_params(struct snd_sof_dev *sdev,
 
 	hstream->format_val = rate | bits | (params_channels(params) - 1);
 	hstream->bufsize = size;
-	hstream->period_bytes = params_period_size(params);
+	hstream->period_bytes = params_period_bytes(params);
 	hstream->no_period_wakeup  =
 			(params->info & SNDRV_PCM_INFO_NO_PERIOD_WAKEUP) &&
 			(params->flags & SNDRV_PCM_HW_PARAMS_NO_PERIOD_WAKEUP);
@@ -141,10 +139,9 @@ snd_pcm_uframes_t hda_dsp_pcm_pointer(struct snd_sof_dev *sdev,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct hdac_stream *hstream = substream->runtime->private_data;
-	struct sof_intel_hda_dev *hda =
-		(struct sof_intel_hda_dev *)sdev->pdata->hw_pdata;
+	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
 	struct snd_sof_pcm *spcm;
-	snd_pcm_uframes_t pos = 0;
+	snd_pcm_uframes_t pos;
 
 	spcm = snd_sof_find_spcm_dai(sdev, rtd);
 	if (!spcm) {

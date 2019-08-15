@@ -13,7 +13,7 @@
 
 static int sof_restore_kcontrols(struct snd_sof_dev *sdev)
 {
-	struct snd_sof_control *scontrol = NULL;
+	struct snd_sof_control *scontrol;
 	int ipc_cmd, ctrl_type;
 	int ret = 0;
 
@@ -25,27 +25,28 @@ static int sof_restore_kcontrols(struct snd_sof_dev *sdev)
 		/* notify DSP of kcontrol values */
 		switch (scontrol->cmd) {
 		case SOF_CTRL_CMD_VOLUME:
-			/* fallthrough */
 		case SOF_CTRL_CMD_ENUM:
-			/* fallthrough */
 		case SOF_CTRL_CMD_SWITCH:
 			ipc_cmd = SOF_IPC_COMP_SET_VALUE;
 			ctrl_type = SOF_CTRL_TYPE_VALUE_CHAN_SET;
-			ret = snd_sof_ipc_set_comp_data(sdev->ipc, scontrol,
-							ipc_cmd, ctrl_type,
-							scontrol->cmd);
+			ret = snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+							    ipc_cmd, ctrl_type,
+							    scontrol->cmd,
+							    true);
 			break;
 		case SOF_CTRL_CMD_BINARY:
 			ipc_cmd = SOF_IPC_COMP_SET_DATA;
 			ctrl_type = SOF_CTRL_TYPE_DATA_SET;
-			ret = snd_sof_ipc_set_comp_data(sdev->ipc, scontrol,
-							ipc_cmd, ctrl_type,
-							scontrol->cmd);
+			ret = snd_sof_ipc_set_get_comp_data(sdev->ipc, scontrol,
+							    ipc_cmd, ctrl_type,
+							    scontrol->cmd,
+							    true);
 			break;
 
 		default:
 			break;
 		}
+
 		if (ret < 0) {
 			dev_err(sdev->dev,
 				"error: failed kcontrol value set for widget: %d\n",
@@ -60,13 +61,13 @@ static int sof_restore_kcontrols(struct snd_sof_dev *sdev)
 
 static int sof_restore_pipelines(struct snd_sof_dev *sdev)
 {
-	struct snd_sof_widget *swidget = NULL;
-	struct snd_sof_route *sroute = NULL;
+	struct snd_sof_widget *swidget;
+	struct snd_sof_route *sroute;
 	struct sof_ipc_pipe_new *pipeline;
 	struct snd_sof_dai *dai;
 	struct sof_ipc_comp_dai *comp_dai;
 	struct sof_ipc_cmd_hdr *hdr;
-	int ret = 0;
+	int ret;
 
 	/* restore pipeline components */
 	list_for_each_entry_reverse(swidget, &sdev->widget_list, list) {
@@ -78,9 +79,8 @@ static int sof_restore_pipelines(struct snd_sof_dev *sdev)
 
 		switch (swidget->id) {
 		case snd_soc_dapm_dai_in:
-			/* fallthrough */
 		case snd_soc_dapm_dai_out:
-			dai = (struct snd_sof_dai *)swidget->private;
+			dai = swidget->private;
 			comp_dai = &dai->comp_dai;
 			ret = sof_ipc_tx_message(sdev->ipc,
 						 comp_dai->comp.hdr.cmd,
@@ -95,11 +95,11 @@ static int sof_restore_pipelines(struct snd_sof_dev *sdev)
 			 * and power up the core that the pipeline is
 			 * scheduled on.
 			 */
-			pipeline = (struct sof_ipc_pipe_new *)swidget->private;
+			pipeline = swidget->private;
 			ret = sof_load_pipeline_ipc(sdev, pipeline, &r);
 			break;
 		default:
-			hdr = (struct sof_ipc_cmd_hdr *)swidget->private;
+			hdr = swidget->private;
 			ret = sof_ipc_tx_message(sdev->ipc, hdr->cmd,
 						 swidget->private, hdr->size,
 						 &r, sizeof(r));
@@ -204,17 +204,32 @@ static int sof_send_pm_ipc(struct snd_sof_dev *sdev, int cmd)
 				 sizeof(pm_ctx), &reply, sizeof(reply));
 }
 
-static void sof_set_restore_stream(struct snd_sof_dev *sdev)
+static void sof_set_hw_params_upon_resume(struct snd_sof_dev *sdev)
 {
+	struct snd_pcm_substream *substream;
 	struct snd_sof_pcm *spcm;
+	snd_pcm_state_t state;
+	int dir;
 
-	/* suspend all running streams */
+	/*
+	 * SOF requires hw_params to be set-up internally upon resume.
+	 * So, set the flag to indicate this for those streams that
+	 * have been suspended.
+	 */
 	list_for_each_entry(spcm, &sdev->pcm_list, list) {
+		for (dir = 0; dir <= SNDRV_PCM_STREAM_CAPTURE; dir++) {
+			substream = spcm->stream[dir].substream;
+			if (!substream || !substream->runtime)
+				continue;
 
-		spcm->restore_stream[0] = 1;
-		spcm->restore_stream[1] = 1;
-
+			state = substream->runtime->status->state;
+			if (state == SNDRV_PCM_STATE_SUSPENDED)
+				spcm->hw_params_upon_resume[dir] = 1;
+		}
 	}
+
+	/* set internal flag for BE */
+	snd_sof_dsp_hw_params_upon_resume(sdev);
 }
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_DEBUG_ENABLE_DEBUGFS_CACHE)
@@ -239,7 +254,7 @@ static void sof_cache_debugfs(struct snd_sof_dev *sdev)
 static int sof_resume(struct device *dev, bool runtime_resume)
 {
 	struct snd_sof_dev *sdev = dev_get_drvdata(dev);
-	int ret = 0;
+	int ret;
 
 	/* do nothing if dsp resume callbacks are not set */
 	if (!sof_ops(sdev)->resume || !sof_ops(sdev)->runtime_resume)
@@ -308,7 +323,7 @@ static int sof_resume(struct device *dev, bool runtime_resume)
 static int sof_suspend(struct device *dev, bool runtime_suspend)
 {
 	struct snd_sof_dev *sdev = dev_get_drvdata(dev);
-	int ret = 0;
+	int ret;
 
 	/* do nothing if dsp suspend callback is not set */
 	if (!sof_ops(sdev)->suspend)
@@ -319,7 +334,7 @@ static int sof_suspend(struct device *dev, bool runtime_suspend)
 
 	/* set restore_stream for all streams during system suspend */
 	if (!runtime_suspend)
-		sof_set_restore_stream(sdev);
+		sof_set_hw_params_upon_resume(sdev);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SOF_DEBUG_ENABLE_DEBUGFS_CACHE)
 	/* cache debugfs contents during runtime suspend */
