@@ -84,6 +84,7 @@
 #include "iwl-dnt-dispatch.h"
 #include "iwl-trans.h"
 #include "fw/dbg.h"
+#include "fw/acpi.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ)
 #define XVT_SCU_BASE	(0xe6a00000)
@@ -447,7 +448,7 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 	struct iwl_nvm_access_complete_cmd nvm_complete = {};
 	struct iwl_notification_wait init_complete_wait;
 	static const u16 init_complete[] = { INIT_COMPLETE_NOTIF };
-	int err;
+	int err, ret;
 
 	err = iwl_xvt_send_cmd_pdu(xvt,
 				   WIDE_ID(REGULATORY_AND_NVM_GROUP,
@@ -475,7 +476,14 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 				    XVT_UCODE_CALIB_TIMEOUT);
 	if (err)
 		goto init_error;
-	return 0;
+
+	ret = iwl_xvt_init_sar_tables(xvt);
+	if (ret < 0) {
+		err = ret;
+		goto init_error;
+	}
+
+	return err;
 init_error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
 	iwl_fw_dbg_stop_sync(&xvt->fwrt);
@@ -632,7 +640,7 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 		INIT_COMPLETE_NOTIF,
 		CALIB_RES_NOTIF_PHY_DB
 	};
-	int err;
+	int err, ret;
 
 	if (xvt->state != IWL_XVT_STATE_INIT_STARTED)
 		return -EINVAL;
@@ -667,6 +675,14 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 	if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME)
 		/* Run runtime FW stops the device by itself if error occurs */
 		err = iwl_xvt_run_runtime_fw(xvt);
+	if (err)
+		goto cont_init_end;
+
+	ret = iwl_xvt_init_sar_tables(xvt);
+	if (ret < 0) {
+		err = ret;
+		goto error;
+	}
 
 	goto cont_init_end;
 
