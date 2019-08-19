@@ -3616,6 +3616,8 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 		     trans->cfg != &iwl_ax201_cfg_qu_hr &&
 		     trans->cfg != &killer1650x_2ax_cfg &&
 		     trans->cfg != &killer1650w_2ax_cfg &&
+		     trans->cfg != &killer1650s_2ax_cfg_qu_c0_hr_b0 &&
+		     trans->cfg != &killer1650i_2ax_cfg_qu_c0_hr_b0 &&
 		     trans->cfg != &iwl_ax201_cfg_quz_hr) ||
 		    trans->hw_rev == CSR_HW_REV_TYPE_QNJ_B0)) {
 		u32 hw_status;
