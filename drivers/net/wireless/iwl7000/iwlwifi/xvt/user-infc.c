@@ -165,6 +165,11 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 					IWL_TM_USER_CMD_NOTIF_IQ_CALIB,
 					data, size, GFP_ATOMIC);
 		break;
+	case WIDE_ID(XVT_GROUP, RUN_TIME_CALIB_DONE_NOTIF):
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_RUN_TIME_CALIB_DONE,
+					data, size, GFP_ATOMIC);
+		break;
 	case WIDE_ID(PHY_OPS_GROUP, CT_KILL_NOTIFICATION):
 		iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_CT_KILL,
