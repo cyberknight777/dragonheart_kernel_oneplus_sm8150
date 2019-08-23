@@ -1552,10 +1552,6 @@ cfg80211_sta_support_p2p_ps(struct station_parameters *params, bool p2p_go)
 int match_string(const char * const *array, size_t n, const char *string);
 #endif /* LINUX_VERSION_IS_LESS(4,4,0) */
 
-#if LINUX_VERSION_IS_LESS(4,5,0)
-void *memdup_user_nul(const void __user *src, size_t len);
-#endif /* LINUX_VERSION_IS_LESS(4,5,0) */
-
 /* this was added in v3.2.79, v3.18.30, v4.1.21, v4.4.6 and 4.5 */
 #if !(LINUX_VERSION_IS_GEQ(4,4,6) || \
       (LINUX_VERSION_IS_GEQ(4,1,21) && \

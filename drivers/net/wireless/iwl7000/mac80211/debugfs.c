@@ -200,121 +200,6 @@ static const struct file_operations force_tx_status_ops = {
 	.llseek = default_llseek,
 };
 
-static ssize_t
-uapsd_black_list_write(struct file *file, const char __user *user_buf,
-		       size_t count, loff_t *ppos)
-{
-	struct uapsd_black_list *uapsd_bl = NULL, *old;
-	struct ieee80211_local *local = file->private_data;
-	unsigned int oui, num_oui, blsz;
-	char *buf, *pos, *buf_ptr;
-	int ret;
-
-	buf = memdup_user_nul(user_buf, count);
-	if (!buf)
-		return -ENOMEM;
-
-	mutex_lock(&local->mtx);
-
-	old = rcu_dereference_protected(local->uapsd_black_list,
-					lockdep_is_held(&local->mtx));
-	if (old)
-		num_oui = old->num_oui + 1;
-	else
-		num_oui = 1;
-
-	for (buf_ptr = buf; *buf_ptr; buf_ptr++) {
-		if (*buf_ptr == '\n')
-			num_oui++;
-	}
-	buf_ptr = buf;
-
-	/* can't use krealloc since it would free old */
-	blsz = sizeof(*uapsd_bl) + sizeof(uapsd_bl->oui[0]) * num_oui;
-	uapsd_bl = kzalloc(blsz, GFP_KERNEL);
-	if (!uapsd_bl) {
-		ret = -ENOMEM;
-		goto out_unlock;
-	}
-
-	if (old) {
-		memcpy(&uapsd_bl->oui[0], &old->oui[0],
-		       sizeof(uapsd_bl->oui[0]) * old->num_oui);
-		uapsd_bl->num_oui = old->num_oui;
-	}
-
-	pos = buf_ptr;
-	while ((buf_ptr = strsep(&pos, "\n"))) {
-		if (!*buf_ptr)
-			continue;
-
-		ret = kstrtouint(buf_ptr, 16, &oui);
-		if (ret)
-			goto out_unlock;
-
-		uapsd_bl->oui[uapsd_bl->num_oui] = oui;
-		uapsd_bl->num_oui++;
-	}
-
-	rcu_assign_pointer(local->uapsd_black_list, uapsd_bl);
-	if (old)
-		kfree_rcu(old, rcu_head);
-	buf = NULL;
-	uapsd_bl = NULL;
-	ret = count;
-
-out_unlock:
-	mutex_unlock(&local->mtx);
-	kfree(buf);
-	kfree(uapsd_bl);
-	return ret;
-}
-
-static ssize_t
-uapsd_black_list_read(struct file *file, char __user *userbuf,
-		      size_t count, loff_t *ppos)
-{
-	struct ieee80211_local *local = file->private_data;
-	const struct uapsd_black_list *uapsd_bl;
-	int i, bufsz, ret = 0, pos = 0;
-	char *buf;
-
-	rcu_read_lock();
-
-	uapsd_bl = rcu_dereference(local->uapsd_black_list);
-	if (!uapsd_bl)
-		goto out;
-
-	bufsz = uapsd_bl->num_oui * 7 + 1;
-	buf = kzalloc(bufsz, GFP_ATOMIC);
-	if (!buf) {
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	for (i = 0; i < uapsd_bl->num_oui; i++) {
-		pos += scnprintf(buf + pos, bufsz - pos, "%06x\n",
-				 uapsd_bl->oui[i]);
-	}
-
-	rcu_read_unlock();
-
-	ret = simple_read_from_buffer(userbuf, count, ppos, buf, pos);
-	kfree(buf);
-	return ret;
-
-out:
-	rcu_read_unlock();
-	return ret;
-}
-
-static const struct file_operations uapsd_black_list_ops = {
-	.write = uapsd_black_list_write,
-	.read = uapsd_black_list_read,
-	.open = simple_open,
-	.llseek = noop_llseek,
-};
-
 #ifdef CONFIG_PM
 static ssize_t reset_write(struct file *file, const char __user *user_buf,
 			   size_t count, loff_t *ppos)
@@ -550,7 +435,6 @@ void debugfs_hw_add(struct ieee80211_local *local)
 	DEBUGFS_ADD(power);
 	DEBUGFS_ADD_MODE(force_tx_status, 0600);
 	DEBUGFS_ADD_MODE(aqm, 0600);
-	DEBUGFS_ADD_MODE(uapsd_black_list, 0600);
 
 	if (local->ops->wake_tx_queue)
 		DEBUGFS_ADD_MODE(aqm, 0600);

@@ -5181,35 +5181,6 @@ int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
 	return err;
 }
 
-static bool
-ieee80211_is_uapsd_blacklisted_by_oui(struct ieee80211_sub_if_data *sdata,
-				      struct cfg80211_assoc_request *req)
-{
-	const struct cfg80211_bss_ies *ies;
-	const struct uapsd_black_list *uapsd_bl;
-	bool result = false;
-	int i;
-
-	rcu_read_lock();
-	ies = rcu_dereference(req->bss->ies);
-	uapsd_bl = rcu_dereference(sdata->local->uapsd_black_list);
-	if (!ies || !uapsd_bl)
-		goto out;
-
-	for (i = 0; i < uapsd_bl->num_oui; i++) {
-		if (cfg80211_find_vendor_ie(uapsd_bl->oui[i], -1,
-					    ies->data, ies->len)) {
-			result = true;
-			break;
-		}
-	}
-
-out:
-	rcu_read_unlock();
-
-	return result;
-}
-
 int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 			struct cfg80211_assoc_request *req)
 {
@@ -5385,7 +5356,6 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		sdata->vif.driver_flags &= ~IEEE80211_VIF_SUPPORTS_UAPSD;
 
 	if (bss->wmm_used && bss->uapsd_supported &&
-	    !ieee80211_is_uapsd_blacklisted_by_oui(sdata, req) &&
 	    (sdata->vif.driver_flags & IEEE80211_VIF_SUPPORTS_UAPSD)) {
 		assoc_data->uapsd = true;
 		ifmgd->flags |= IEEE80211_STA_UAPSD_ENABLED;

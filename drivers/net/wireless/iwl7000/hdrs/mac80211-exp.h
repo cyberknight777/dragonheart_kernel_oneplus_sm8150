@@ -28,9 +28,6 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 #define netdev_rss_key_fill __iwl7000_netdev_rss_key_fill
 #endif /* < 3.19.0 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
-#define memdup_user_nul __iwl7000_memdup_user_nul
-#endif /* < 4.5.0 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 #define devm_kvasprintf __iwl7000_devm_kvasprintf
 #define devm_kasprintf __iwl7000_devm_kasprintf

@@ -1440,8 +1440,6 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
 
 	ieee80211_free_led_names(local);
 
-	kfree(rcu_access_pointer(local->uapsd_black_list));
-
 	for (band = 0; band < NUM_NL80211_BANDS; band++) {
 		if (!(local->sband_allocated & BIT(band)))
 			continue;

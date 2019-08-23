@@ -1427,12 +1427,6 @@ struct ieee80211_local {
 	struct sk_buff_head skb_queue_tdls_chsw;
 
 	u64 msrment_cookie_counter;
-
-	struct uapsd_black_list {
-		struct rcu_head rcu_head;
-		unsigned int num_oui;
-		unsigned int oui[];
-	} __rcu *uapsd_black_list;
 };
 
 static inline struct ieee80211_sub_if_data *
