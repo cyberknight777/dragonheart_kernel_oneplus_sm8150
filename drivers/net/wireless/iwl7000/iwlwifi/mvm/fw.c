@@ -836,12 +836,13 @@ static int iwl_mvm_sar_get_wrds_table(struct iwl_mvm *mvm)
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
 					 ACPI_WRDS_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev != 0) {
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
 		goto out_free;
 	}
 
-	if (wifi_pkg->package.elements[1].type != ACPI_TYPE_INTEGER) {
+	if (wifi_pkg->package.elements[1].type != ACPI_TYPE_INTEGER ||
+	    tbl_rev != 0) {
 		ret = -EINVAL;
 		goto out_free;
 	}
@@ -873,13 +874,14 @@ static int iwl_mvm_sar_get_ewrd_table(struct iwl_mvm *mvm)
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
 					 ACPI_EWRD_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev != 0) {
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
 		goto out_free;
 	}
 
 	if ((wifi_pkg->package.elements[1].type != ACPI_TYPE_INTEGER) ||
-	    (wifi_pkg->package.elements[2].type != ACPI_TYPE_INTEGER)) {
+	    (wifi_pkg->package.elements[2].type != ACPI_TYPE_INTEGER) ||
+	    tbl_rev != 0) {
 		ret = -EINVAL;
 		goto out_free;
 	}
@@ -933,8 +935,13 @@ static int iwl_mvm_sar_get_wgds_table(struct iwl_mvm *mvm)
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
 					 ACPI_WGDS_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev > 1) {
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
+		goto out_free;
+	}
+
+	if (tbl_rev != 0) {
+		ret = -EINVAL;
 		goto out_free;
 	}
 
@@ -1164,8 +1171,13 @@ static int iwl_mvm_get_ppag_table(struct iwl_mvm *mvm)
 	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
 					 ACPI_PPAG_WIFI_DATA_SIZE, &tbl_rev);
 
-	if (IS_ERR(wifi_pkg) || tbl_rev != 0) {
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
+		goto out_free;
+	}
+
+	if (tbl_rev != 0) {
+		ret = -EINVAL;
 		goto out_free;
 	}
 
