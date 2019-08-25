@@ -384,6 +384,7 @@
 			#size-cells = <1>;
 			qcom,pmic-revid = <&pm8150b_revid>;
 			qcom,pmic-pbs = <&pm8150b_pbs1>;
+			qcom,soc-hi-res;
 			status = "okay";
 
 			qcom,fg-batt-soc@4000 {
