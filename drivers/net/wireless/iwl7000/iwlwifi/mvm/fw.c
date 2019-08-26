@@ -533,6 +533,20 @@ static int iwl_run_unified_mvm_ucode(struct iwl_mvm *mvm, bool read_nvm)
 
 	mvm->rfkill_safe_init_done = true;
 
+	/*
+	 * For AX210 devices, dump the device flavor temporarily, during the
+	 * integration phase.  TODO: remove this or make it mode upstreamable
+	 * (meaning no magic numbers and try to be less noisy).
+	 */
+	if (mvm->trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_AX210) {
+		u32 id_buf;
+
+		iwl_write_prph(mvm->trans, WMAL_INDRCT_CMD1, 0x100D04A0);
+		id_buf = iwl_read_prph(mvm->trans, WMAL_MRSPF_1);
+		IWL_INFO(mvm->trans,
+			 "Device AX210 id_buf: 0x%0x\n", id_buf);
+	}
+
 	return 0;
 
 error:
