@@ -1338,7 +1338,26 @@ void iwl_trans_free(struct iwl_trans *trans);
 * driver (transport) register/unregister functions
 ******************************************************/
 /* PCI */
+#ifdef CONFIG_PCI
 int __must_check iwl_pci_register_driver(void);
 void iwl_pci_unregister_driver(void);
+#else
+static inline int __must_check iwl_pci_register_driver(void)
+{
+	return 0;
+}
 
+static inline void iwl_pci_unregister_driver(void)
+{
+}
+#endif /* CONFIG_PCI */
+
+static inline int __must_check iwl_virtio_register_driver(void)
+{
+	return 0;
+}
+
+static inline void iwl_virtio_unregister_driver(void)
+{
+}
 #endif /* __iwl_trans_h__ */
