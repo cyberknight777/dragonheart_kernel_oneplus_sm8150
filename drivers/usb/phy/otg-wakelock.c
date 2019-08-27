@@ -150,7 +150,7 @@ static int __init otg_wakelock_init(void)
 	snprintf(vbus_lock.name, sizeof(vbus_lock.name), "vbus-%s",
 		 dev_name(otgwl_xceiv->dev));
 
-	vbus_lock.wakesrc = wakeup_source_register(vbus_lock.name);
+	vbus_lock.wakesrc = wakeup_source_register(NULL, vbus_lock.name);
 	if (!vbus_lock.wakesrc) {
 		otgwl_xceiv = NULL;
 		return -ENOMEM;
