@@ -1683,24 +1683,6 @@ static int amdgpu_device_set_pg_state(struct amdgpu_device *adev, enum amd_power
 
 	for (j = 0; j < adev->num_ip_blocks; j++) {
 		i = state == AMD_PG_STATE_GATE ? j : adev->num_ip_blocks - j - 1;
-
-		/* try to power off VCE/UVD/VCN/ACP if they were disabled by user */
-		if ((adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_UVD ||
-		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_VCE ||
-		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_VCN ||
-		    adev->ip_blocks[i].version->type == AMD_IP_BLOCK_TYPE_ACP) &&
-		    adev->powerplay.pp_funcs->set_powergating_by_smu) {
-			if (!adev->ip_blocks[i].status.valid) {
-				amdgpu_dpm_set_powergating_by_smu(adev, adev->ip_blocks[i].version->type, state == AMD_PG_STATE_GATE ?
-														true : false);
-				if (r) {
-					DRM_ERROR("set_powergating_state(gate) of IP block <%s> failed %d\n",
-					  adev->ip_blocks[i].version->funcs->name, r);
-					return r;
-				}
-			}
-		}
-
 		if (!adev->ip_blocks[i].status.valid)
 			continue;
 		/* skip CG for VCE/UVD, it's handled specially */
@@ -1718,7 +1700,6 @@ static int amdgpu_device_set_pg_state(struct amdgpu_device *adev, enum amd_power
 			}
 		}
 	}
-
 	return 0;
 }
 
