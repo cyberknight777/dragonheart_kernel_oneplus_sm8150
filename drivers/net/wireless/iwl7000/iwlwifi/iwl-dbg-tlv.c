@@ -885,7 +885,7 @@ iwl_dbg_tlv_add_active_trigger(struct iwl_fw_runtime *fwrt,
 }
 
 static void
-iwl_dbg_tlv_gen_atcive_trig_list(struct iwl_fw_runtime *fwrt,
+iwl_dbg_tlv_gen_active_trig_list(struct iwl_fw_runtime *fwrt,
 				 struct iwl_dbg_tlv_time_point_data *tp)
 {
 	struct iwl_dbg_tlv_node *node, *tmp;
@@ -929,7 +929,7 @@ int iwl_dbg_tlv_gen_active_trigs(struct iwl_fw_runtime *fwrt, u32 new_domain)
 		struct iwl_dbg_tlv_time_point_data *tp =
 			&fwrt->trans->dbg.time_point[i];
 
-		iwl_dbg_tlv_gen_atcive_trig_list(fwrt, tp);
+		iwl_dbg_tlv_gen_active_trig_list(fwrt, tp);
 	}
 
 	clear_bit(STATUS_GEN_ACTIVE_TRIGS, &fwrt->status);
