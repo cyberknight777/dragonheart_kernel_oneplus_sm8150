@@ -1242,7 +1242,8 @@ static void ieee80211_ibss_sta_expire(struct ieee80211_sub_if_data *sdata)
 				sta->sta_state != IEEE80211_STA_AUTHORIZED ?
 				"not authorized " : "", sta->sta.addr);
 
-			ieee80211_send_deauth_disassoc(sdata, ifibss->bssid,
+			ieee80211_send_deauth_disassoc(sdata, sta->sta.addr,
+						       ifibss->bssid,
 						       IEEE80211_STYPE_DEAUTH,
 						       WLAN_REASON_DEAUTH_LEAVING,
 						       true, frame_buf);
