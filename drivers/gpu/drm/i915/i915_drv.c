@@ -1288,7 +1288,8 @@ int i915_driver_load(struct pci_dev *pdev, const struct pci_device_id *ent)
 	int ret;
 
 	/* Enable nuclear pageflip on ILK+ */
-	if (!i915_modparams.nuclear_pageflip && match_info->gen < 5)
+	if ((!i915_modparams.nuclear_pageflip && match_info->gen < 5) ||
+			match_info->platform == INTEL_BROADWELL)
 		driver.driver_features &= ~DRIVER_ATOMIC;
 
 	ret = -ENOMEM;
