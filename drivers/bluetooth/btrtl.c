@@ -643,6 +643,11 @@ int btrtl_setup_realtek(struct hci_dev *hdev)
 
 	btrtl_free(btrtl_dev);
 
+	/* Set the bit to reflect that all Realtek controllers are capable
+	 * of doing simultaneous LE scanning and BR/EDR inquiry.
+	*/
+	set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(btrtl_setup_realtek);
