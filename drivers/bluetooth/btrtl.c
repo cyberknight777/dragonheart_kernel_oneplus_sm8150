@@ -215,7 +215,7 @@ static int rtl_read_rom_version(struct hci_dev *hdev, u8 *version)
 	}
 
 	if (skb->len != sizeof(*rom_version)) {
-		rtl_dev_err(hdev, "RTL version event length mismatch\n");
+		rtl_dev_err(hdev, "version event length mismatch\n");
 		kfree_skb(skb);
 		return -EIO;
 	}
@@ -453,7 +453,7 @@ static int rtl_load_file(struct hci_dev *hdev, const char *name, u8 **buff)
 	const struct firmware *fw;
 	int ret;
 
-	rtl_dev_info(hdev, "rtl: loading %s\n", name);
+	rtl_dev_info(hdev, "loading %s\n", name);
 	ret = request_firmware(&fw, name, &hdev->dev);
 	if (ret < 0)
 		return ret;
@@ -553,7 +553,7 @@ struct btrtl_device_info *btrtl_initialize(struct hci_dev *hdev,
 	}
 
 	resp = (struct hci_rp_read_local_version *)skb->data;
-	rtl_dev_info(hdev, "rtl: examining hci_ver=%02x hci_rev=%04x lmp_ver=%02x lmp_subver=%04x\n",
+	rtl_dev_info(hdev, "examining hci_ver=%02x hci_rev=%04x lmp_ver=%02x lmp_subver=%04x\n",
 		     resp->hci_ver, resp->hci_rev,
 		     resp->lmp_ver, resp->lmp_subver);
 
@@ -566,7 +566,7 @@ struct btrtl_device_info *btrtl_initialize(struct hci_dev *hdev,
 					    hdev->bus);
 
 	if (!btrtl_dev->ic_info) {
-		rtl_dev_info(hdev, "rtl: unknown IC info, lmp subver %04x, hci rev %04x, hci ver %04x",
+		rtl_dev_info(hdev, "unknown IC info, lmp subver %04x, hci rev %04x, hci ver %04x",
 			    lmp_subver, hci_rev, hci_ver);
 		return btrtl_dev;
 	}
@@ -624,7 +624,7 @@ int btrtl_download_firmware(struct hci_dev *hdev,
 	 * to a different value.
 	 */
 	if (!btrtl_dev->ic_info) {
-		rtl_dev_info(hdev, "rtl: assuming no firmware upload needed\n");
+		rtl_dev_info(hdev, "assuming no firmware upload needed\n");
 		return 0;
 	}
 
@@ -638,7 +638,7 @@ int btrtl_download_firmware(struct hci_dev *hdev,
 	case RTL_ROM_LMP_8822B:
 		return btrtl_setup_rtl8723b(hdev, btrtl_dev);
 	default:
-		rtl_dev_info(hdev, "rtl: assuming no firmware upload needed\n");
+		rtl_dev_info(hdev, "assuming no firmware upload needed\n");
 		return 0;
 	}
 }
