@@ -856,12 +856,11 @@ int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 {
 	u16 cmd_wide_id =  WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT);
 	union geo_tx_power_profiles_cmd cmd;
-	u16 len = 0;
-	int ret = 0;
+	u16 len;
 
 	cmd.geo_cmd.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
 
-	ret = iwl_sar_geo_init(&mvm->fwrt, cmd.geo_cmd.table);
+	iwl_sar_geo_init(&mvm->fwrt, cmd.geo_cmd.table);
 
 	cmd.geo_cmd.table_revision = cpu_to_le32(mvm->fwrt.geo_rev);
 
@@ -871,11 +870,6 @@ int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 	} else {
 		len =  sizeof(cmd.geo_cmd);
 	}
-
-	if (!ret)
-		return ret;
-	if (len == 0)
-		return 0;
 
 	return iwl_mvm_send_cmd_pdu(mvm, cmd_wide_id, 0, len, &cmd);
 }
