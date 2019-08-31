@@ -171,8 +171,8 @@ bool iwl_sar_geo_support(struct iwl_fw_runtime *fwrt);
 int iwl_validate_sar_geo_profile(struct iwl_fw_runtime *fwrt,
 				 struct iwl_host_cmd *cmd);
 
-int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
-		     struct iwl_per_chain_offset_group *table);
+void iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
+		      struct iwl_per_chain_offset_group *table);
 #else /* CONFIG_ACPI */
 
 static inline void *iwl_acpi_get_object(struct device *dev, acpi_string method)
@@ -243,10 +243,9 @@ static inline int iwl_validate_sar_geo_profile(struct iwl_fw_runtime *fwrt,
 	return -ENOENT;
 }
 
-static inline int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
-				   struct iwl_per_chain_offset_group *table)
+static inline void iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
+				    struct iwl_per_chain_offset_group *table)
 {
-	return 0;
 }
 
 #endif /* CONFIG_ACPI */

@@ -491,13 +491,13 @@ int iwl_validate_sar_geo_profile(struct iwl_fw_runtime *fwrt,
 }
 IWL_EXPORT_SYMBOL(iwl_validate_sar_geo_profile);
 
-int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
-		     struct iwl_per_chain_offset_group *table)
+void iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
+		      struct iwl_per_chain_offset_group *table)
 {
 	int ret, i, j;
 
 	if (!iwl_sar_geo_support(fwrt))
-		return 0;
+		return;
 
 	ret = iwl_sar_get_wgds_table(fwrt);
 	if (ret < 0) {
@@ -505,7 +505,7 @@ int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
 				"Geo SAR BIOS table invalid or unavailable. (%d)\n",
 				ret);
 		/* we don't fail if the table is not available */
-		return 0;
+		return;
 	}
 
 	IWL_DEBUG_RADIO(fwrt, "Sending GEO_TX_POWER_LIMIT\n");
@@ -532,7 +532,5 @@ int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
 					i, j, value[1], value[2], value[0]);
 		}
 	}
-
-	return 0;
 }
 IWL_EXPORT_SYMBOL(iwl_sar_geo_init);
