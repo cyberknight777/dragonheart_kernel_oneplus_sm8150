@@ -1670,8 +1670,7 @@ static u16 iwl_mvm_scan_umac_flags_v2(struct iwl_mvm *mvm,
 		flags |= IWL_UMAC_SCAN_GEN_FLAGS_V2_NTFY_ITER_COMPLETE;
 #endif
 
-	if (IWL_MVM_ADWELL_ENABLE &&
-	    vif->type != NL80211_IFTYPE_P2P_DEVICE)
+	if (IWL_MVM_ADWELL_ENABLE)
 		flags |= IWL_UMAC_SCAN_GEN_FLAGS_V2_ADAPTIVE_DWELL;
 
 	if (type == IWL_MVM_SCAN_SCHED || type == IWL_MVM_SCAN_NETDETECT)
@@ -1723,8 +1722,7 @@ static u16 iwl_mvm_scan_umac_flags(struct iwl_mvm *mvm,
 	if (mvm->sched_scan_pass_all == SCHED_SCAN_PASS_ALL_ENABLED)
 		flags |= IWL_UMAC_SCAN_GEN_FLAGS_ITER_COMPLETE;
 
-	if (iwl_mvm_is_adaptive_dwell_supported(mvm) && IWL_MVM_ADWELL_ENABLE &&
-	    vif->type != NL80211_IFTYPE_P2P_DEVICE)
+	if (iwl_mvm_is_adaptive_dwell_supported(mvm) && IWL_MVM_ADWELL_ENABLE)
 		flags |= IWL_UMAC_SCAN_GEN_FLAGS_ADAPTIVE_DWELL;
 
 	/*
