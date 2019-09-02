@@ -282,6 +282,7 @@ struct iwl_dbg_cfg {
 	IWL_MOD_PARAM(int, amsdu_size)
 	IWL_MOD_PARAM(int, swcrypto)
 	IWL_MOD_PARAM(uint, disable_11n)
+	IWL_MOD_PARAM(bool, enable_ini)
 	IWL_DBG_CFG_BIN(he_ppe_thres)
 	IWL_DBG_CFG_NODEF(u8, he_chan_width_dis)
 	IWL_DBG_CFG_NODEF(u32, vht_cap_flip)
