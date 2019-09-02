@@ -2091,10 +2091,8 @@ static int bq27541_battery_resume(struct device *dev)
 				di->rtc_resume_time - di->lcd_off_time);
 		__pm_stay_awake(&di->update_soc_wake_lock);
 		get_current_time(&di->lcd_off_time);
-		queue_delayed_work_on(0,
-				update_pre_capacity_data.workqueue,
-				&(update_pre_capacity_data.work),
-				msecs_to_jiffies(1000));
+		queue_delayed_work(update_pre_capacity_data.workqueue,
+				&(update_pre_capacity_data.work), msecs_to_jiffies(1000));
 	}
 	schedule_delayed_work(&bq27541_di->battery_soc_work,
 			msecs_to_jiffies(RESUME_SCHDULE_SOC_UPDATE_WORK_MS));
