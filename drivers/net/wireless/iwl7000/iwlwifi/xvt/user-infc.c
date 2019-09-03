@@ -84,7 +84,6 @@
 #include "iwl-dnt-dispatch.h"
 #include "iwl-trans.h"
 #include "fw/dbg.h"
-#include "fw/acpi.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ)
 #define XVT_SCU_BASE	(0xe6a00000)
@@ -186,27 +185,6 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 		IWL_DEBUG_INFO(xvt, "xVT mode RX command 0x%x not handled\n",
 			       pkt->hdr.cmd);
 	}
-}
-
-static int iwl_xvt_init_sar_tables(struct iwl_xvt *xvt)
-{
-	int ret;
-
-	ret = iwl_xvt_sar_init(xvt);
-
-	if (ret == 0) {
-		ret = iwl_xvt_sar_geo_init(xvt);
-	} else if (ret > 0 && !iwl_sar_get_wgds_table(&xvt->fwrt)) {
-		/*
-		 * If basic SAR is not available, we check for WGDS,
-		 * which should *not* be available either.  If it is
-		 * available, issue an error, because we can't use SAR
-		 * Geo without basic SAR.
-		 */
-		IWL_ERR(xvt, "BIOS contains WGDS but no WRDS\n");
-	}
-
-	return ret;
 }
 
 static void iwl_xvt_led_enable(struct iwl_xvt *xvt)
@@ -497,14 +475,7 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 				    XVT_UCODE_CALIB_TIMEOUT);
 	if (err)
 		goto init_error;
-
-	err = iwl_xvt_init_sar_tables(xvt);
-	if (err < 0) {
-		IWL_ERR(xvt, "xVT iwl_xvt_init_sar_tables\n");
-		goto init_error;
-	}
-
-	return err;
+	return 0;
 init_error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
 	iwl_fw_dbg_stop_sync(&xvt->fwrt);
@@ -661,7 +632,7 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 		INIT_COMPLETE_NOTIF,
 		CALIB_RES_NOTIF_PHY_DB
 	};
-	int err, ret;
+	int err;
 
 	if (xvt->state != IWL_XVT_STATE_INIT_STARTED)
 		return -EINVAL;
@@ -696,16 +667,6 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 	if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME)
 		/* Run runtime FW stops the device by itself if error occurs */
 		err = iwl_xvt_run_runtime_fw(xvt);
-	if (err) {
-		IWL_ERR(xvt, "xVT iwl_xvt_run_runtime_fw\n");
-		goto cont_init_end;
-	}
-
-	ret = iwl_xvt_init_sar_tables(xvt);
-	if (ret < 0) {
-		IWL_ERR(xvt, "xVT iwl_xvt_init_sar_tables\n");
-		goto error;
-	}
 
 	goto cont_init_end;
 
