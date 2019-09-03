@@ -877,6 +877,11 @@ static irqreturn_t rtw_pci_interrupt_handler(int irq, void *dev)
 
 	/* disable RTW PCI interrupt to avoid more interrupts before the end of
 	 * thread function
+	 *
+	 * disable HIMR here to also avoid new HISR flag being raised before
+	 * the HISRs have been Write-1-cleared for MSI. If not all of the HISRs
+	 * are cleared, the edge-triggered interrupt will not be generated when
+	 * a new HISR flag is set.
 	 */
 	rtw_pci_disable_interrupt(rtwdev, rtwpci);
 out:
@@ -1122,18 +1127,16 @@ static struct rtw_hci_ops rtw_pci_ops = {
 
 static int rtw_pci_request_irq(struct rtw_dev *rtwdev, struct pci_dev *pdev)
 {
-	struct rtw_pci *rtwpci = (struct rtw_pci *)rtwdev->priv;
+	unsigned int flags = PCI_IRQ_LEGACY;
 	int ret;
 
-	if (!rtw_disable_msi) {
-		ret = pci_enable_msi(pdev);
-		if (ret) {
-			rtw_warn(rtwdev, "failed to enable msi %d, using legacy irq\n",
-				 ret);
-		} else {
-			rtw_warn(rtwdev, "pci msi enabled\n");
-			rtwpci->msi_enabled = true;
-		}
+	if (!rtw_disable_msi)
+		flags |= PCI_IRQ_MSI;
+
+	ret = pci_alloc_irq_vectors(pdev, 1, 1, flags);
+	if (ret < 0) {
+		rtw_err(rtwdev, "failed to alloc PCI irq vectors\n");
+		return ret;
 	}
 
 	ret = devm_request_threaded_irq(rtwdev->dev, pdev->irq,
@@ -1142,10 +1145,7 @@ static int rtw_pci_request_irq(struct rtw_dev *rtwdev, struct pci_dev *pdev)
 					IRQF_SHARED, KBUILD_MODNAME, rtwdev);
 	if (ret) {
 		rtw_err(rtwdev, "failed to request irq %d\n", ret);
-		if (rtwpci->msi_enabled) {
-			pci_disable_msi(pdev);
-			rtwpci->msi_enabled = false;
-		}
+		pci_free_irq_vectors(pdev);
 	}
 
 	return ret;
@@ -1153,13 +1153,8 @@ static int rtw_pci_request_irq(struct rtw_dev *rtwdev, struct pci_dev *pdev)
 
 static void rtw_pci_free_irq(struct rtw_dev *rtwdev, struct pci_dev *pdev)
 {
-	struct rtw_pci *rtwpci = (struct rtw_pci *)rtwdev->priv;
-
 	devm_free_irq(rtwdev->dev, pdev->irq, rtwdev);
-	if (rtwpci->msi_enabled) {
-		pci_disable_msi(pdev);
-		rtwpci->msi_enabled = false;
-	}
+	pci_free_irq_vectors(pdev);
 }
 
 static int rtw_pci_probe(struct pci_dev *pdev,
