@@ -870,13 +870,29 @@ static irqreturn_t rtw_pci_interrupt_handler(int irq, void *dev)
 {
 	struct rtw_dev *rtwdev = dev;
 	struct rtw_pci *rtwpci = (struct rtw_pci *)rtwdev->priv;
-	u32 irq_status[4];
 
 	spin_lock(&rtwpci->irq_lock);
 	if (!rtwpci->irq_enabled)
 		goto out;
 
+	/* disable RTW PCI interrupt to avoid more interrupts before the end of
+	 * thread function
+	 */
 	rtw_pci_disable_interrupt(rtwdev, rtwpci);
+out:
+	spin_unlock(&rtwpci->irq_lock);
+
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t rtw_pci_interrupt_threadfn(int irq, void *dev)
+{
+	struct rtw_dev *rtwdev = dev;
+	struct rtw_pci *rtwpci = (struct rtw_pci *)rtwdev->priv;
+	unsigned long flags;
+	u32 irq_status[4];
+
+	spin_lock_irqsave(&rtwpci->irq_lock, flags);
 	rtw_pci_irq_recognized(rtwdev, rtwpci, irq_status);
 
 	if (irq_status[0] & IMR_MGNTDOK)
@@ -896,10 +912,9 @@ static irqreturn_t rtw_pci_interrupt_handler(int irq, void *dev)
 	if (irq_status[0] & IMR_ROK)
 		rtw_pci_rx_isr(rtwdev, rtwpci, RTW_RX_QUEUE_MPDU);
 
+	/* all of the jobs for this interrupt have been done */
 	rtw_pci_enable_interrupt(rtwdev, rtwpci);
-
-out:
-	spin_unlock(&rtwpci->irq_lock);
+	spin_unlock_irqrestore(&rtwpci->irq_lock, flags);
 
 	return IRQ_HANDLED;
 }
@@ -1121,8 +1136,10 @@ static int rtw_pci_request_irq(struct rtw_dev *rtwdev, struct pci_dev *pdev)
 		}
 	}
 
-	ret = request_irq(pdev->irq, &rtw_pci_interrupt_handler, IRQF_SHARED,
-			  KBUILD_MODNAME, rtwdev);
+	ret = devm_request_threaded_irq(rtwdev->dev, pdev->irq,
+					rtw_pci_interrupt_handler,
+					rtw_pci_interrupt_threadfn,
+					IRQF_SHARED, KBUILD_MODNAME, rtwdev);
 	if (ret) {
 		rtw_err(rtwdev, "failed to request irq %d\n", ret);
 		if (rtwpci->msi_enabled) {
@@ -1138,7 +1155,7 @@ static void rtw_pci_free_irq(struct rtw_dev *rtwdev, struct pci_dev *pdev)
 {
 	struct rtw_pci *rtwpci = (struct rtw_pci *)rtwdev->priv;
 
-	free_irq(pdev->irq, rtwdev);
+	devm_free_irq(rtwdev->dev, pdev->irq, rtwdev);
 	if (rtwpci->msi_enabled) {
 		pci_disable_msi(pdev);
 		rtwpci->msi_enabled = false;
