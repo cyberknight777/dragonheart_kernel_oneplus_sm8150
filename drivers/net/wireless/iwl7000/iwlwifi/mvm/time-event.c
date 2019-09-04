@@ -782,12 +782,26 @@ void iwl_mvm_rx_session_protect_notif(struct iwl_mvm *mvm,
 		struct iwl_mvm_time_event_data *te_data =
 			&mvmvif->time_event_data;
 
+		if (!le32_to_cpu(notif->status)) {
+			iwl_mvm_te_check_disconnect(mvm, vif,
+						    "Session protection failure");
+			iwl_mvm_te_clear_data(mvm, te_data);
+		}
+
 		if (le32_to_cpu(notif->start)) {
 			spin_lock_bh(&mvm->time_event_lock);
 			te_data->running = le32_to_cpu(notif->start);
 			te_data->end_jiffies =
 				TU_TO_EXP_TIME(te_data->duration);
 			spin_unlock_bh(&mvm->time_event_lock);
+		} else {
+			/*
+			 * By now, we should have finished association
+			 * and know the dtim period.
+			 */
+			iwl_mvm_te_check_disconnect(mvm, vif,
+						    "No beacon heard and the session protection is over already...");
+			iwl_mvm_te_clear_data(mvm, te_data);
 		}
 
 		goto out_unlock;
