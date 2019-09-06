@@ -2059,9 +2059,6 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	enum reclaim_type type;
 	char *type_buf;
 
-	if (!capable(CAP_SYS_NICE))
-		return -EPERM;
-
 	memset(buffer, 0, sizeof(buffer));
 	if (count > sizeof(buffer) - 1)
 		count = sizeof(buffer) - 1;
