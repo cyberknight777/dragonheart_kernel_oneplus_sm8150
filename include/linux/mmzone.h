@@ -18,7 +18,9 @@
 #include <linux/pageblock-flags.h>
 #include <linux/page-flags-layout.h>
 #include <linux/atomic.h>
+#ifdef CONFIG_KSTALED
 #include <linux/kstaled.h>
+#endif
 #include <asm/page.h>
 
 /* Free memory management - zoned buddy allocator.  */
@@ -738,9 +740,11 @@ typedef struct pglist_data {
 	struct per_cpu_nodestat __percpu *per_cpu_nodestats;
 	atomic_long_t		vm_stat[NR_VM_NODE_STAT_ITEMS];
 
+#ifdef CONFIG_KSTALED
 	ZONE_PADDING(_pad3_)
 
 	struct kstaled_struct	kstaled;
+#endif
 } pg_data_t;
 
 #define node_present_pages(nid)	(NODE_DATA(nid)->node_present_pages)

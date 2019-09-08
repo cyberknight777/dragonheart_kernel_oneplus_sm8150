@@ -51,6 +51,7 @@
 #include <linux/prefetch.h>
 #include <linux/printk.h>
 #include <linux/dax.h>
+#include <linux/kstaled.h>
 
 #include <asm/tlbflush.h>
 #include <asm/div64.h>

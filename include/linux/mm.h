@@ -25,7 +25,6 @@
 #include <linux/err.h>
 #include <linux/page_ref.h>
 #include <linux/memremap.h>
-#include <linux/kstaled.h>
 
 struct mempolicy;
 struct anon_vma;
@@ -761,7 +760,6 @@ int finish_mkwrite_fault(struct vm_fault *vmf);
 #define NODES_PGOFF		(SECTIONS_PGOFF - NODES_WIDTH)
 #define ZONES_PGOFF		(NODES_PGOFF - ZONES_WIDTH)
 #define LAST_CPUPID_PGOFF	(ZONES_PGOFF - LAST_CPUPID_WIDTH)
-#define KSTALED_AGE_PGOFF	(LAST_CPUPID_PGOFF - KSTALED_AGE_WIDTH)
 
 /*
  * Define the bit shifts to access each section.  For non-existent

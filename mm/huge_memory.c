@@ -34,6 +34,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/oom.h>
 #include <linux/page_owner.h>
+#include <linux/kstaled.h>
 
 #include <asm/tlb.h>
 #include <asm/pgalloc.h>

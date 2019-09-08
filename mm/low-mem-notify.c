@@ -30,6 +30,7 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/ctype.h>
+#include <linux/kstaled.h>
 
 #define MB (1 << 20)
 
