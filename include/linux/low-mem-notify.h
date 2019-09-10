@@ -79,6 +79,9 @@ static inline unsigned long get_available_mem_adj(void)
 }
 
 #ifdef CONFIG_LOW_MEM_NOTIFY
+
+extern atomic_t in_low_mem_check;
+
 /*
  * Returns TRUE if we are in a low memory state.
  */
@@ -100,6 +103,9 @@ static inline bool low_mem_check(void)
 
 	if (!low_mem_margin_enabled)
 		return false;
+
+	if (atomic_xchg(&in_low_mem_check, 1))
+		return was_low_mem;
 
 	if (unlikely(is_low_mem && !was_low_mem) &&
 	    __ratelimit(&low_mem_logging_ratelimit)) {
@@ -125,6 +131,8 @@ static inline bool low_mem_check(void)
 		low_mem_threshold_notify();
 
 	low_mem_threshold_last = threshold_lowest;
+
+	atomic_set(&in_low_mem_check, 0);
 
 	return is_low_mem;
 }

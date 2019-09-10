@@ -35,6 +35,8 @@
 
 static DECLARE_WAIT_QUEUE_HEAD(low_mem_wait);
 static atomic_t low_mem_state = ATOMIC_INIT(0);
+atomic_t in_low_mem_check = ATOMIC_INIT(0);
+
 /* This is a list of thresholds in pages and should be in ascending order. */
 unsigned long low_mem_thresholds[LOW_MEM_THRESHOLD_MAX] = {
 	50 * MB / PAGE_SIZE };
