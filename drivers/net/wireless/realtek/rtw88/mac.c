@@ -710,7 +710,7 @@ int rtw_download_firmware(struct rtw_dev *rtwdev, struct rtw_fw_state *fw)
 	rtw_fw_send_general_info(rtwdev);
 	rtw_fw_send_phydm_info(rtwdev);
 
-	rtw_flag_set(rtwdev, RTW_FLAG_FW_RUNNING);
+	set_bit(RTW_FLAG_FW_RUNNING, rtwdev->flags);
 
 	return 0;
 
