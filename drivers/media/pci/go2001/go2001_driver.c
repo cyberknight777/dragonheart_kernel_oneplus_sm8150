@@ -1585,7 +1585,7 @@ static int go2001_enc_g_fmt_out(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	return fill_v4l2_format_raw(f, ctx->dst_fmt, &ctx->finfo);
+	return fill_v4l2_format_raw(f, ctx->src_fmt, &ctx->finfo);
 }
 
 static int go2001_dec_g_fmt_out(struct file *file, void *fh,
