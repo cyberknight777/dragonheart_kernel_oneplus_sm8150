@@ -1276,8 +1276,6 @@ static void iwl_mvm_restart_complete(struct iwl_mvm *mvm)
 
 	iwl_mvm_send_recovery_cmd(mvm, ERROR_RECOVERY_END_OF_RECOVERY);
 
-	iwl_mvm_send_recovery_cmd(mvm, ERROR_RECOVERY_END_OF_RECOVERY);
-
 	/*
 	 * If we have TDLS peers, remove them. We don't know the last seqno/PN
 	 * of packets the FW sent out, so we must reconnect.
