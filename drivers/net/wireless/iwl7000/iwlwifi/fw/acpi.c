@@ -464,11 +464,13 @@ bool iwl_sar_geo_support(struct iwl_fw_runtime *fwrt)
 	 * firmware versions.  Unfortunately, we don't have a TLV API
 	 * flag to rely on, so rely on the major version which is in
 	 * the first byte of ucode_ver.  This was implemented
-	 * initially on version 38 and then backported to 36, 29 and
-	 * 17.
+	 * initially on version 38 and then backported to 29 and 17.
+	 * The intention was to have it in 36 as well, but not all
+	 * 8000 family got this feature enabled.  The 8000 family is
+	 * the only one using version 36, so skip this version
+	 * entirely.
 	 */
 	return IWL_UCODE_SERIAL(fwrt->fw->ucode_ver) >= 38 ||
-	       IWL_UCODE_SERIAL(fwrt->fw->ucode_ver) == 36 ||
 	       IWL_UCODE_SERIAL(fwrt->fw->ucode_ver) == 29 ||
 	       IWL_UCODE_SERIAL(fwrt->fw->ucode_ver) == 17;
 }
