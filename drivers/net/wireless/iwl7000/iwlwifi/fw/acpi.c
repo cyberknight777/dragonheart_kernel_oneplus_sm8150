@@ -508,8 +508,6 @@ void iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
 		return;
 	}
 
-	IWL_DEBUG_RADIO(fwrt, "Sending GEO_TX_POWER_LIMIT\n");
-
 	BUILD_BUG_ON(ACPI_NUM_GEO_PROFILES * ACPI_WGDS_NUM_BANDS *
 		     ACPI_WGDS_TABLE_SIZE + 1 !=  ACPI_WGDS_WIFI_DATA_SIZE);
 
