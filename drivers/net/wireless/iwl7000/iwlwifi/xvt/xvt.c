@@ -261,7 +261,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	IWL_DEBUG_INFO(xvt, "dqa supported\n");
 	trans_cfg.cmd_fifo = IWL_MVM_TX_FIFO_CMD;
 	trans_cfg.bc_table_dword =
-		trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_22560;
+		trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210;
 	trans_cfg.scd_set_active = true;
 	trans->wide_cmd_header = true;
 
@@ -286,7 +286,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 		trans_cfg.rx_buf_size = IWL_AMSDU_4K;
 
 	trans->rx_mpdu_cmd_hdr_size =
-		(trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_22560) ?
+		(trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210) ?
 		sizeof(struct iwl_rx_mpdu_desc) : IWL_RX_DESC_SIZE_V1;
 
 	trans_cfg.cb_data_offs = offsetof(struct iwl_xvt_skb_info, trans);
