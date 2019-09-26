@@ -97,6 +97,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(u32, XVT_DEFAULT_DBGM_PRPH_MASK)
 	IWL_MOD_PARAM(bool, xvt_default_mode)
 #endif
+	IWL_DBG_CFG_NODEF(bool, disable_wrt_dump)
 	IWL_DBG_CFG_NODEF(bool, disable_52GHz)
 	IWL_DBG_CFG_NODEF(bool, disable_24GHz)
 #if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)

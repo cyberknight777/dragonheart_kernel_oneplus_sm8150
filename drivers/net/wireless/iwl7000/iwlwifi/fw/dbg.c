@@ -2497,6 +2497,12 @@ static void iwl_fw_dbg_collect_sync(struct iwl_fw_runtime *fwrt, u8 wk_idx)
 		IWL_ERR(fwrt, "Skip fw error dump since bus is dead\n");
 		goto out;
 	}
+#ifdef CPTCFG_SUPPORT_DEBUG_OVERRIDES
+	if (&fwrt->trans->dbg_cfg.disable_wrt_dump) {
+		IWL_DEBUG_FW_INFO(fwrt, "WRT: Data collection disabled\n");
+		goto out;
+	}
+#endif
 
 	if (iwl_fw_dbg_stop_restart_recording(fwrt, &params, true)) {
 		IWL_ERR(fwrt, "Failed to stop DBGC recording, aborting dump\n");
