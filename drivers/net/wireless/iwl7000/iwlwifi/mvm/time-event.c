@@ -979,7 +979,7 @@ void iwl_mvm_stop_roc(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_SESSION_PROT_CMD)) {
-		struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+		mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
 		iwl_mvm_cancel_session_protection(mvm, mvmvif);
 
