@@ -65,7 +65,6 @@ typedef irqreturn_t (*cros_ec_sensors_capture_t)(int irq, void *p);
 struct cros_ec_sensors_core_state {
 	struct cros_ec_device *ec;
 	struct mutex cmd_lock;
-	struct iio_dev *indio_dev;
 
 	struct cros_ec_command *msg;
 	struct ec_params_motion_sense param;
