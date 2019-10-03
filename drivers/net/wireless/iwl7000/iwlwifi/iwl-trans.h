@@ -73,6 +73,7 @@
 #include "iwl-config.h"
 #include "fw/img.h"
 #include "iwl-op-mode.h"
+#include <linux/firmware.h>
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 #include "iwl-dbg-cfg.h"
 #endif
