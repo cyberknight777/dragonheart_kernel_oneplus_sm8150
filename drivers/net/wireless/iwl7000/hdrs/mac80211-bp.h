@@ -2732,3 +2732,11 @@ static inline void cfg80211_bss_iter(struct wiphy *wiphy,
 	 */
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(9,9,9)
+#define ftm_non_trigger_based(peer)	0
+#define ftm_trigger_based(peer)	0
+#else
+#define ftm_non_trigger_based(peer)	((peer)->ftm.non_trigger_based)
+#define ftm_trigger_based(peer)	((peer)->ftm.trigger_based)
+#endif

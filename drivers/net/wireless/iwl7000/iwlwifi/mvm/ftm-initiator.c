@@ -298,6 +298,10 @@ iwl_mvm_ftm_target_chandef_v2(struct iwl_mvm *mvm,
 		return -EINVAL;
 	}
 
+	/* non EDCA based measurement must use HE preamble */
+	if (ftm_trigger_based(peer) || ftm_non_trigger_based(peer))
+		*format_bw |= IWL_LOCATION_FRAME_FORMAT_HE;
+
 	*ctrl_ch_position = (peer->chandef.width > NL80211_CHAN_WIDTH_20) ?
 		iwl_mvm_get_ctrl_pos(&peer->chandef) : 0;
 
@@ -372,6 +376,11 @@ iwl_mvm_ftm_put_target_common(struct iwl_mvm *mvm,
 		FTM_PUT_FLAG(ALGO_LR);
 	else if (IWL_MVM_FTM_INITIATOR_ALGO == IWL_TOF_ALGO_TYPE_FFT)
 		FTM_PUT_FLAG(ALGO_FFT);
+
+	if (ftm_trigger_based(peer))
+		FTM_PUT_FLAG(TB);
+	else if (ftm_non_trigger_based(peer))
+		FTM_PUT_FLAG(NON_TB);
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	if (IWL_MVM_FTM_INITIATOR_MCSI_ENABLED)
