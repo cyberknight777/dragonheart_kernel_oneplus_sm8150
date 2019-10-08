@@ -615,9 +615,9 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 
 #ifdef CPTCFG_IWLWIFI_ATLAS_PLATFORM_WORKAROUND
 	if (dmi_match(DMI_BOARD_NAME, "Atlas")) {
-		IWL_DEBUG_INFO(mvm,
-			       "Enabling platform workaround on board '%s'\n",
-			       dmi_get_system_info(DMI_BOARD_NAME));
+		IWL_INFO(mvm,
+			 "Enabling platform workaround on board '%s'\n",
+			 dmi_get_system_info(DMI_BOARD_NAME));
 		/*
 		 * We're using this bit to indicate the platform workaround;
 		 * it's usually always clear because we cannot have 4 antennas,
