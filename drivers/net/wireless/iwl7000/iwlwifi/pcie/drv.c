@@ -380,14 +380,8 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x06F0, 0x40A4, iwl9462_2ac_cfg_quz_a0_jf_b0_soc)},
 	{IWL_PCI_DEVICE(0x06F0, 0x4234, iwl9560_2ac_cfg_quz_a0_jf_b0_soc)},
 	{IWL_PCI_DEVICE(0x06F0, 0x42A4, iwl9462_2ac_cfg_quz_a0_jf_b0_soc)},
-	{IWL_PCI_DEVICE(0x2526, 0x0010, iwl9260_2ac_160_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x0014, iwl9260_2ac_160_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x0018, iwl9260_2ac_160_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x001C, iwl9260_2ac_160_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x0030, iwl9560_2ac_160_cfg)},
+
 	{IWL_PCI_DEVICE(0x2526, 0x0034, iwl9560_2ac_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x0038, iwl9560_2ac_160_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x003C, iwl9560_2ac_160_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0x0060, iwl9461_2ac_cfg_soc)},
 	{IWL_PCI_DEVICE(0x2526, 0x0064, iwl9461_2ac_cfg_soc)},
 	{IWL_PCI_DEVICE(0x2526, 0x00A0, iwl9462_2ac_cfg_soc)},
@@ -416,7 +410,6 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x2526, 0x4010, iwl9260_2ac_160_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0x4018, iwl9260_2ac_160_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0x401C, iwl9260_2ac_160_cfg)},
-	{IWL_PCI_DEVICE(0x2526, 0x4030, iwl9560_2ac_160_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0x4034, iwl9560_2ac_160_cfg_soc)},
 	{IWL_PCI_DEVICE(0x2526, 0x40A4, iwl9462_2ac_cfg_soc)},
 	{IWL_PCI_DEVICE(0x2526, 0x4234, iwl9560_2ac_cfg_soc)},
@@ -428,6 +421,8 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x2526, 0xA014, iwl9260_2ac_160_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0xE010, iwl9260_2ac_160_cfg)},
 	{IWL_PCI_DEVICE(0x2526, 0xE014, iwl9260_2ac_160_cfg)},
+	{IWL_PCI_DEVICE(0x2526, PCI_ANY_ID, iwl9000_trans_cfg)},
+
 	{IWL_PCI_DEVICE(0x271B, 0x0010, iwl9160_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x271B, 0x0014, iwl9160_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x271B, 0x0210, iwl9160_2ac_cfg)},
@@ -803,6 +798,22 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, iwl_hw_card_ids);
 
+#define IWL_DEV_INFO(_device, _subdevice, _cfg) \
+	{.device = (_device), .subdevice = (_subdevice), .cfg = &(_cfg)}
+
+static const struct iwl_dev_info iwl_dev_info_table[] = {
+#if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
+	IWL_DEV_INFO(0x2526, 0x0010, iwl9260_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x0014, iwl9260_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x0018, iwl9260_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x001C, iwl9260_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x0030, iwl9560_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x0038, iwl9560_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x003C, iwl9560_2ac_160_cfg),
+	IWL_DEV_INFO(0x2526, 0x4030, iwl9560_2ac_160_cfg),
+#endif /* CPTCFG_IWLMVM || CPTCFG_IWLFMAC */
+};
+
 /* PCI registers */
 #define PCI_CFG_RETRY_TIMEOUT	0x041
 
@@ -814,7 +825,7 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct iwl_trans *iwl_trans;
 	struct iwl_trans_pcie *trans_pcie;
 	unsigned long flags;
-	int ret;
+	int i, ret;
 	/*
 	 * This is needed for backwards compatibility with the old
 	 * tables, so we don't need to change all the config structs
@@ -834,6 +845,18 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	/* the trans_cfg should never change, so set it now */
 	iwl_trans->trans_cfg = trans;
+
+	for (i = 0; i < ARRAY_SIZE(iwl_dev_info_table); i++) {
+		const struct iwl_dev_info *dev_info = &iwl_dev_info_table[i];
+
+		if ((dev_info->device == IWL_CFG_ANY ||
+		     dev_info->device == pdev->device) &&
+		    (dev_info->subdevice == IWL_CFG_ANY ||
+		     dev_info->subdevice == pdev->subsystem_device)) {
+			iwl_trans->cfg = dev_info->cfg;
+			goto found;
+		}
+	}
 
 #if IS_ENABLED(CPTCFG_IWLMVM)
 	/*
@@ -994,6 +1017,7 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (!iwl_trans->cfg)
 		iwl_trans->cfg = cfg;
 
+found:
 	if (cfg->trans.mq_rx_supported) {
 		if (WARN_ON(!cfg->num_rbds)) {
 			ret = -EINVAL;
