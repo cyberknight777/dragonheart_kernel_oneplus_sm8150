@@ -1837,6 +1837,7 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 unsigned long node_shrink_list(struct pglist_data *node, struct list_head *list,
 			       unsigned long isolated, bool file, gfp_t gfp_mask)
 {
+	struct blk_plug plug;
 	unsigned long reclaimed;
 	struct lruvec *lruvec = node_lruvec(node);
 	struct scan_control sc = {
@@ -1855,7 +1856,9 @@ unsigned long node_shrink_list(struct pglist_data *node, struct list_head *list,
 		clear_bit(PGDAT_CONGESTED, &node->flags);
 	}
 
+	blk_start_plug(&plug);
 	reclaimed = shrink_page_list(list, node, &sc, 0, NULL, true);
+	blk_finish_plug(&plug);
 
 	spin_lock_irq(&node->lru_lock);
 
