@@ -10,7 +10,8 @@ iwlwifi-objs		+= iwl-dbg-tlv.o
 iwlwifi-objs		+= iwl-trans.o
 
 iwlwifi-objs		+= fw/notif-wait.o
-iwlwifi-$(CPTCFG_IWLMVM)	+= fw/paging.o fw/smem.o fw/init.o fw/dbg.o
+iwlwifi-objs		+= fw/dbg.o
+iwlwifi-$(CPTCFG_IWLMVM)	+= fw/paging.o fw/smem.o fw/init.o
 iwlwifi-$(CPTCFG_IWLXVT)	+= fw/init.o
 iwlwifi-$(CPTCFG_IWLWIFI_DEBUGFS) += fw/debugfs.o
 
