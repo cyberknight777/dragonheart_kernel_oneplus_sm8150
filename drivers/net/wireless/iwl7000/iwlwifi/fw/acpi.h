@@ -107,9 +107,9 @@ struct iwl_geo_profile {
 	u8 values[ACPI_GEO_TABLE_SIZE];
 };
 
-#ifdef CONFIG_ACPI
-
 struct iwl_fw_runtime;
+
+#ifdef CONFIG_ACPI
 
 void *iwl_acpi_get_object(struct device *dev, acpi_string method);
 
