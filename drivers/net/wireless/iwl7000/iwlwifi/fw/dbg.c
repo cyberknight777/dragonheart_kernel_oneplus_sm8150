@@ -2655,7 +2655,7 @@ int iwl_fw_start_dbg_conf(struct iwl_fw_runtime *fwrt, u8 conf_id)
 		return -EINVAL;
 
 	if (fwrt->dump.conf != FW_DBG_INVALID)
-		IWL_WARN(fwrt, "FW already configured (%d) - re-configuring\n",
+		IWL_INFO(fwrt, "FW already configured (%d) - re-configuring\n",
 			 fwrt->dump.conf);
 
 #if IS_ENABLED(CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES) && \
