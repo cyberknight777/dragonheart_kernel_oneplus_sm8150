@@ -200,6 +200,5 @@ static inline int btintel_download_firmware(struct hci_dev *dev,
 
 static inline void btintel_reset_to_bootloader(struct hci_dev *hdev)
 {
-	return -EOPNOTSUPP;
 }
 #endif
