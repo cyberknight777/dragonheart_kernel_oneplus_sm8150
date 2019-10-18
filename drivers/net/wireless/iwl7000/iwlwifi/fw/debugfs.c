@@ -324,17 +324,15 @@ static ssize_t iwl_dbgfs_fw_dbg_domain_write(struct iwl_fw_runtime *fwrt,
 					     char *buf, size_t count)
 {
 	u32 new_domain;
-	long val;
 	int ret;
 
 	if (!iwl_trans_fw_running(fwrt->trans))
 		return -EIO;
 
-	ret = kstrtol(buf, 0, &val);
+	ret = kstrtou32(buf, 0, &new_domain);
 	if (ret)
 		return ret;
 
-	new_domain = (u32)val;
 	if (new_domain != fwrt->trans->dbg.domains_bitmap) {
 		ret = iwl_dbg_tlv_gen_active_trigs(fwrt, new_domain);
 		if (ret)
