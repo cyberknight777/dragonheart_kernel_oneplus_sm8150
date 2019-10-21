@@ -142,6 +142,11 @@ __weak void kvm_arch_mmu_notifier_invalidate_range(struct kvm *kvm,
 {
 }
 
+__weak int kvm_arch_mmu_update_ages(struct kvm *kvm)
+{
+	return 0;
+}
+
 bool kvm_is_reserved_pfn(kvm_pfn_t pfn)
 {
 	if (pfn_valid(pfn))
@@ -477,6 +482,15 @@ static void kvm_mmu_notifier_release(struct mmu_notifier *mn,
 	srcu_read_unlock(&kvm->srcu, idx);
 }
 
+#ifdef CONFIG_KSTALED
+static int kvm_mmu_notifier_update_ages(struct mmu_notifier *mn)
+{
+	struct kvm *kvm = mmu_notifier_to_kvm(mn);
+
+	return kvm_arch_mmu_update_ages(kvm);
+}
+#endif
+
 static const struct mmu_notifier_ops kvm_mmu_notifier_ops = {
 	.invalidate_range_start	= kvm_mmu_notifier_invalidate_range_start,
 	.invalidate_range_end	= kvm_mmu_notifier_invalidate_range_end,
@@ -484,6 +498,9 @@ static const struct mmu_notifier_ops kvm_mmu_notifier_ops = {
 	.clear_young		= kvm_mmu_notifier_clear_young,
 	.test_young		= kvm_mmu_notifier_test_young,
 	.change_pte		= kvm_mmu_notifier_change_pte,
+#ifdef CONFIG_KSTALED
+	.update_ages		= kvm_mmu_notifier_update_ages,
+#endif
 	.release		= kvm_mmu_notifier_release,
 };
 

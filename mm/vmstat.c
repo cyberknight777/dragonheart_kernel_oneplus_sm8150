@@ -1097,6 +1097,7 @@ const char * const vmstat_text[] = {
 	"kstaled_reclaim_stalls",
 	"kstaled_background_aging",
 	"kstaled_background_hot",
+	"kstaled_vm_background_hot",
 	"kstaled_direct_aging",
 	"kstaled_direct_hot",
 	"kstaled_shared_aging",
