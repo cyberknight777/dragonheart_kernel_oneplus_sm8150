@@ -838,7 +838,8 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 
 	memset(&enable_cp, 0, sizeof(enable_cp));
 	enable_cp.enable = LE_SCAN_ENABLE;
-	enable_cp.filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+	enable_cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
+			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(enable_cp),
 		    &enable_cp);
 }
@@ -1935,7 +1936,6 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 	struct hci_dev *hdev = req->hdev;
 	struct hci_cp_le_set_scan_enable cp;
 
-
 	/* If controller is not scanning or about to scan we are done. */
 	if (!hci_dev_test_flag(hdev, HCI_LE_SCAN) && !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS))
 		return 0;
@@ -1945,7 +1945,8 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 
 	memset(&cp, 0, sizeof(cp));
 	cp.enable = LE_SCAN_ENABLE;
-	cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+	cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
+			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
 
 	return 0;
@@ -2039,7 +2040,8 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 
 	memset(&enable_cp, 0, sizeof(enable_cp));
 	enable_cp.enable = LE_SCAN_ENABLE;
-	enable_cp.filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+	enable_cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
+			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
 
 	BT_DBG("BT_DBG_DG: set scan enable tx: active_scan (ena=%d)\n", enable_cp.enable);
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(enable_cp),
