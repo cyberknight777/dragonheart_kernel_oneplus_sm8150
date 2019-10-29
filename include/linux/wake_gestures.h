@@ -21,11 +21,19 @@
 #ifndef _LINUX_WAKE_GESTURES_H
 #define _LINUX_WAKE_GESTURES_H
 
+#define SWEEP_RIGHT		0x01
+#define SWEEP_LEFT		0x02
+#define SWEEP_UP		0x04
+#define SWEEP_DOWN		0x08
+
 #include <linux/input.h>
 
 extern bool wg_switch;
 extern bool wg_switch_temp;
 extern bool wg_changed;
+extern int s2w_switch;
+extern int dt2w_switch;
+extern int wake_vibrate;
 
 bool scr_suspended(void);
 void set_vibrate(void);

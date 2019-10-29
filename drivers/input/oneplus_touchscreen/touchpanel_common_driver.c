@@ -83,16 +83,41 @@ static uint8_t LeftVee_enable = 1; 			// >
 static uint8_t RightVee_enable = 1;			// <
 static uint8_t Circle_enable = 1;		    // O
 static uint8_t DouSwip_enable = 1; 			// ||
-static uint8_t Left2RightSwip_enable = 0;	// -->
-static uint8_t Right2LeftSwip_enable = 0;	// <--
-static uint8_t Up2DownSwip_enable = 0;	    // |v
-static uint8_t Down2UpSwip_enable = 0;	    // |^
+static uint8_t Left2RightSwip_enable = 1;	// -->
+static uint8_t Right2LeftSwip_enable = 1;	// <--
+static uint8_t Up2DownSwip_enable = 1;	    // |v
+static uint8_t Down2UpSwip_enable = 1;	    // |^
 static uint8_t Mgestrue_enable = 1;			// M
 static uint8_t Wgestrue_enable = 1;			// W
 static uint8_t Sgestrue_enable = 1;			// S
-static uint8_t SingleTap_enable = 1;	    // single tap
+static uint8_t SingleTap_enable = 1;// single tap
+static uint8_t Enable_gesture = 1;
 
 /*******Part2:declear Area********************************/
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
+bool use_internal = false;
+
+bool scr_suspended(void)
+{
+	return g_tp->is_suspended;
+}
+
+static int __init get_model(char *cmdline_model)
+{
+	if (strstr(cmdline_model, "18857") || strstr(cmdline_model, "18865")) {
+		wg_switch = false;
+		use_internal= true;
+	}
+
+	return 0;
+}
+__setup("androidboot.project_name=", get_model);
+
+#elif
+bool wg_switch = false;
+#endif
+
 static void speedup_resume(struct work_struct *work);
 void esd_handle_switch(struct esd_information *esd_info, bool flag);
 
@@ -254,6 +279,11 @@ static void tp_touch_down(struct touchpanel_data *ts, struct point_info points, 
         }
     }
 
+#ifdef CONFIG_WAKE_GESTURES
+    if (g_tp->is_suspended && wg_switch)
+        points.x += 5000;
+#endif
+
     input_report_abs(ts->input_dev, ABS_MT_POSITION_X, points.x);
     input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, points.y);
 
@@ -372,7 +402,7 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
     memset(&gesture_info_temp, 0, sizeof(struct gesture_info));
     ts->ts_ops->get_gesture_info(ts->chip_data, &gesture_info_temp);
     tp_geture_info_transform(&gesture_info_temp, &ts->resolution_info);
-	if (DouTap_enable) {
+	if (DouTap_enable || dt2w_switch) {
 		if(gesture_info_temp.gesture_type == SingleTap) {
 			if (sec_double_tap(&gesture_info_temp) == 1)
 			{
@@ -396,76 +426,42 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
             gesture_info_temp.gesture_type == SingleTap ? "(single tap)" :
             gesture_info_temp.gesture_type == Wgestrue ? "(W)" : "unknown");
 
-	switch (gesture_info_temp.gesture_type) {
-		case DouTap:
-			enabled = DouTap_enable;
-			key = KEY_DOUBLE_TAP;
-			break;
-		case UpVee:
-			enabled = UpVee_enable;
-			key = KEY_GESTURE_UP_ARROW;
-			break;
-		case DownVee:
-			enabled = DownVee_enable;
-			key = KEY_GESTURE_DOWN_ARROW;
-			break;
-		case LeftVee:
-			enabled = LeftVee_enable;
-			key = KEY_GESTURE_LEFT_ARROW;
-			break;
-		case RightVee:
-			enabled = RightVee_enable;
-			key = KEY_GESTURE_RIGHT_ARROW;
-			break;
-		case Circle:
-			enabled = Circle_enable;
-			key = KEY_GESTURE_CIRCLE;
-			break;
-		case DouSwip:
-			enabled = DouSwip_enable;
-			key = KEY_GESTURE_TWO_SWIPE;
-			break;
-		case Left2RightSwip:
-			enabled = Left2RightSwip_enable;
-			key = KEY_GESTURE_SWIPE_LEFT;
-			break;
-		case Right2LeftSwip:
-			enabled = Right2LeftSwip_enable;
-			key = KEY_GESTURE_SWIPE_RIGHT;
-			break;
-		case Up2DownSwip:
-			enabled = Up2DownSwip_enable;
-			key = KEY_GESTURE_SWIPE_UP;
-			break;
-		case Down2UpSwip:
-			enabled = Down2UpSwip_enable;
-			key = KEY_GESTURE_SWIPE_DOWN;
-			break;
-		case Mgestrue:
-			enabled = Mgestrue_enable;
-			key = KEY_GESTURE_M;
-			break;
-		case Sgestrue:
-			enabled = Sgestrue_enable;
-			key = KEY_GESTURE_S;
-			break;
-		case SingleTap:
-			enabled = SingleTap_enable;
-			key = KEY_GESTURE_SINGLE_TAP;
-			break;
-		case Wgestrue:
-			enabled = Wgestrue_enable;
-			key = KEY_GESTURE_W;
-			break;
-	}
 
-    if (enabled) {
-		memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
-		input_report_key(ts->input_dev, key, 1);
+	if ((gesture_info_temp.gesture_type == Down2UpSwip && s2w_switch & SWEEP_UP) ||
+		(gesture_info_temp.gesture_type == Up2DownSwip && s2w_switch & SWEEP_DOWN) ||
+		(gesture_info_temp.gesture_type == Right2LeftSwip && s2w_switch & SWEEP_LEFT) ||
+		(gesture_info_temp.gesture_type == Left2RightSwip && s2w_switch & SWEEP_RIGHT) ||
+		(gesture_info_temp.gesture_type == DouTap && dt2w_switch)) {
+
+		if (wake_vibrate)
+			set_vibrate();
+
+		input_report_key(ts->input_dev, KEY_POWER, 1);
 		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, key, 0);
+		input_report_key(ts->input_dev, KEY_POWER, 0);
 		input_sync(ts->input_dev);
-	}
+	} else
+
+	if ((gesture_info_temp.gesture_type == DouTap && DouTap_enable) ||
+		(gesture_info_temp.gesture_type == UpVee && UpVee_enable) ||
+		(gesture_info_temp.gesture_type ==  LeftVee&& LeftVee_enable) ||
+		(gesture_info_temp.gesture_type == RightVee && RightVee_enable) ||
+		(gesture_info_temp.gesture_type == Circle && Circle_enable) ||
+		(gesture_info_temp.gesture_type == DouSwip && DouSwip_enable) ||
+		(gesture_info_temp.gesture_type == Mgestrue && Mgestrue_enable) ||
+		(gesture_info_temp.gesture_type == Sgestrue && Sgestrue_enable) ||
+		(gesture_info_temp.gesture_type == SingleTap && SingleTap_enable) ||
+		(gesture_info_temp.gesture_type == Wgestrue && Wgestrue_enable)) {
+        memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
+
+	if (!dt2w_switch && s2w_switch && gesture_info_temp.gesture_type == DouTap)
+			return;
+
+        input_report_key(ts->input_dev, KEY_F4, 1);
+        input_sync(ts->input_dev);
+        input_report_key(ts->input_dev, KEY_F4, 0);
+        input_sync(ts->input_dev);
+    }
 }
 
 void tp_touch_btnkey_release(void)
@@ -1138,6 +1134,87 @@ void switch_usb_state(int usb_state)
     }
 }
 EXPORT_SYMBOL(switch_usb_state);
+
+static void gestures_enable(void)
+{
+    g_tp->gesture_enable = (s2w_switch || dt2w_switch) ? 1 : 0;
+}
+
+/*
+ *    gesture_enable = 0 : disable gesture
+ *    gesture_enable = 1 : enable gesture when ps is far away
+ *    gesture_enable = 2 : disable gesture when ps is near
+ */
+static ssize_t proc_gesture_control_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+    int value = 0;
+    char buf[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (count > 2)
+        return count;
+    if (!ts)
+        return count;
+
+    if (copy_from_user(buf, buffer, count)) {
+        TPD_INFO("%s: read proc input error.\n", __func__);
+        return count;
+    }
+	TPD_DEBUG("%s write argc1[0x%x],argc2[0x%x]\n",__func__,buf[0],buf[1]);
+	UpVee_enable = (buf[0] & BIT0)?1:0;
+	DouSwip_enable = (buf[0] & BIT1)?1:0;
+	LeftVee_enable = (buf[0] & BIT3)?1:0;
+	RightVee_enable = (buf[0] & BIT4)?1:0;
+	Circle_enable = (buf[0] & BIT6)?1:0;
+	DouTap_enable = (buf[0] & BIT7)?1:0;
+	Sgestrue_enable = (buf[1] & BIT0)?1:0;
+	Mgestrue_enable	= (buf[1] & BIT1)?1:0;
+	Wgestrue_enable = (buf[1] & BIT2)?1:0;
+	SingleTap_enable = (buf[1] & BIT3)?1:0;
+	Enable_gesture = (buf[1] & BIT7)?1:0;
+
+	if (UpVee_enable || DouSwip_enable || LeftVee_enable || RightVee_enable
+		|| Circle_enable || DouTap_enable || Sgestrue_enable || Mgestrue_enable
+		|| Wgestrue_enable || SingleTap_enable || Enable_gesture || Down2UpSwip_enable
+		|| Up2DownSwip_enable || Right2LeftSwip_enable || Left2RightSwip_enable
+		|| s2w_switch || dt2w_switch) {
+		value = 1;
+	} else {
+		value = 0;
+	}
+
+    mutex_lock(&ts->mutex);
+    if (ts->gesture_enable != value) {
+        ts->gesture_enable = value;
+		tp_1v8_power = ts->gesture_enable;
+        TPD_INFO("%s: gesture_enable = %d, is_suspended = %d\n", __func__, ts->gesture_enable, ts->is_suspended);
+        if (ts->is_incell_panel && (ts->suspend_state == TP_RESUME_EARLY_EVENT) && (ts->tp_resume_order == LCD_TP_RESUME)) {
+            TPD_INFO("tp will resume, no need mode_switch in incell panel\n"); /*avoid i2c error or tp rst pulled down in lcd resume*/
+        } else if (ts->is_suspended)
+            operate_mode_switch(ts);
+    }else {
+        TPD_INFO("%s: do not do same operator :%d\n", __func__, value);
+    }
+    mutex_unlock(&ts->mutex);
+
+    return count;
+}
+
+static ssize_t proc_gesture_control_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+    int ret = 0;
+    char page[4] = {0};
+    struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+    if (!ts)
+        return count;
+
+    TPD_DEBUG("gesture_enable is: %d\n", ts->gesture_enable);
+    ret = sprintf(page, "%d\n", ts->gesture_enable);
+    ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+
+    return ret;
+}
 
 static ssize_t proc_coordinate_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
 {
@@ -3693,6 +3770,8 @@ static int init_input_device(struct touchpanel_data *ts)
 		set_bit(KEY_GESTURE_SWIPE_UP, ts->input_dev->keybit);
 		set_bit(KEY_GESTURE_SINGLE_TAP, ts->input_dev->keybit);
     }
+    set_bit(KEY_POWER, ts->input_dev->keybit);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_POWER);
 
     ts->kpd_input_dev->name = TPD_DEVICE"_kpd";
     set_bit(EV_KEY, ts->kpd_input_dev->evbit);
@@ -4802,7 +4881,9 @@ static int tp_suspend(struct device *dev)
 
     //step6:gesture mode status process
     if (ts->black_gesture_support) {
-        if (ts->gesture_enable == 1) {
+	if (wg_switch)
+	    goto EXIT;
+	else if (ts->gesture_enable == 1) {
             ts->ts_ops->mode_switch(ts->chip_data, MODE_GESTURE, true);
             goto EXIT;
         }
@@ -4991,11 +5072,15 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
                 if (ts->tp_suspend_order == TP_LCD_SUSPEND) {
                     tp_suspend(ts->dev);
                 } else if (ts->tp_suspend_order == LCD_TP_SUSPEND) {
-					if (!ts->gesture_enable) {
-						disable_irq_nosync(ts->irq);	//avoid iic error
-					}
-					tp_suspend(ts->dev);
+			if (!ts->gesture_enable && !wg_switch) {
+				disable_irq_nosync(ts->irq);	//avoid iic error
+			}
+			tp_suspend(ts->dev);
                 }
+		if (use_internal && (s2w_switch || dt2w_switch)) {
+			ts->ts_ops->mode_switch(ts->chip_data, MODE_GESTURE, true);
+			operate_mode_switch(ts);
+		}
             } else if (event == MSM_DRM_EVENT_BLANK) {   //event
 
                 if (ts->tp_suspend_order == TP_LCD_SUSPEND) {
@@ -5088,7 +5173,7 @@ void tp_i2c_suspend(struct touchpanel_data *ts)
 {
     ts->i2c_ready = false;
     if (ts->black_gesture_support) {
-        if (ts->gesture_enable == 1) {
+        if (ts->gesture_enable == 1 || wg_switch) {
             /*enable gpio wake system through interrupt*/
             enable_irq_wake(ts->irq);
         }
@@ -5099,9 +5184,18 @@ void tp_i2c_suspend(struct touchpanel_data *ts)
 void tp_i2c_resume(struct touchpanel_data *ts)
 {
     if (ts->black_gesture_support) {
-        if (ts->gesture_enable == 1) {
+        if (ts->gesture_enable == 1 || wg_switch) {
             /*disable gpio wake system through intterrupt*/
             disable_irq_wake(ts->irq);
+        }
+	if (wg_changed) {
+	    if (!use_internal)
+	            wg_switch = wg_switch_temp;
+	    else {
+		wg_switch = false;
+		gestures_enable();
+	    }
+            wg_changed = false;
         }
     }
     enable_irq(ts->irq);
