@@ -21,6 +21,8 @@
 #endif
 #include "synaptics_s3706.h"
 
+#include <linux/wake_gestures.h>
+
 static struct chip_data_s3706 *g_chip_info = NULL;
 extern int tp_register_times;
 static int synaptics_get_chip_info(void *chip_data);
