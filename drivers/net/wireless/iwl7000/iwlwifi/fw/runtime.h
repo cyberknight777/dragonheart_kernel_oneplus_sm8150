@@ -69,11 +69,7 @@
 #include "iwl-eeprom-parse.h"
 #include "fw/acpi.h"
 
-#ifndef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-#define IWL_FW_DBG_DOMAIN		IWL_FW_INI_DOMAIN_ALWAYS_ON
-#else
-#define IWL_FW_DBG_DOMAIN		(fwrt->trans->dbg_cfg.FW_DBG_DOMAIN)
-#endif
+#define IWL_FW_DBG_DOMAIN		IWL_TRANS_FW_DBG_DOMAIN(fwrt->trans)
 
 struct iwl_fw_runtime_ops {
 	int (*dump_start)(void *ctx);

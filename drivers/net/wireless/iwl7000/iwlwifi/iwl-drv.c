@@ -1965,6 +1965,8 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans)
 	iwl_tm_gnl_add(drv->trans);
 #endif
 
+	drv->trans->dbg.domains_bitmap = IWL_TRANS_FW_DBG_DOMAIN(drv->trans);
+
 	ret = iwl_request_firmware(drv, true);
 	if (ret) {
 		IWL_ERR(trans, "Couldn't request the fw\n");
