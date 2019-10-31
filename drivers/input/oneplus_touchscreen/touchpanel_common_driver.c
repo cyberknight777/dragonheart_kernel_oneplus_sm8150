@@ -5078,8 +5078,9 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
 			tp_suspend(ts->dev);
                 }
 		if (use_internal && (s2w_switch || dt2w_switch)) {
+			mutex_lock(&ts->mutex);
 			ts->ts_ops->mode_switch(ts->chip_data, MODE_GESTURE, true);
-			operate_mode_switch(ts);
+			mutex_unlock(&ts->mutex);
 		}
             } else if (event == MSM_DRM_EVENT_BLANK) {   //event
 
