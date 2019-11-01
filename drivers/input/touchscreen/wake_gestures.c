@@ -78,6 +78,7 @@
 #define LOGTAG			"WG"
 #define OP7PRO			1
 #define OP7			2
+#define OP7T			3
 
 #if (WAKE_GESTURES_ENABLED)
 int gestures_switch = WG_DEFAULT;
@@ -149,7 +150,7 @@ static int __init get_model(char *cmdline_model)
 		sweep_y_next = SWEEP_Y_NEXT_OP7;
 		sweep_x_max = SWEEP_X_MAX_OP7;
 		sweep_edge = SWEEP_EDGE_OP7;
-		hw_version = OP7;
+		hw_version = OP7T;
 	}
 
 	return 0;
@@ -781,6 +782,18 @@ static struct attribute_group attr_group = {
 	.attrs = attrs,
 };
 
+static struct attribute *op7_attrs[] = {
+	&sweep2sleep_attribute.attr,
+	&sweep2wake_attribute.attr,
+	&doubletap2wake_attribute.attr,
+	&wake_gestures_attribute.attr,
+	NULL,
+};
+
+static struct attribute_group op7_attr_group = {
+	.attrs = op7_attrs,
+};
+
 static struct kobject *android_touch_kobj;
 
 /*
@@ -850,7 +863,12 @@ static int __init wake_gestures_init(void)
 		pr_info("fail!!!!\n");
 		return -ENOMEM;
 	}
-	rc = sysfs_create_group(android_touch_kobj, &attr_group);
+	if (hw_version == OP7) {
+		wake_vibrate = 0;
+		rc = sysfs_create_group(android_touch_kobj, &op7_attr_group);
+	} else {
+		rc = sysfs_create_group(android_touch_kobj, &attr_group);
+	}
 	if (rc)
 		pr_warn("%s: sysfs_create_group failed\n", __func__);
 
