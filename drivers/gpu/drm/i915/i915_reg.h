@@ -2485,12 +2485,17 @@ enum i915_power_well_id {
 #define _3D_CHICKEN	_MMIO(0x2084)
 #define  _3D_CHICKEN_HIZ_PLANE_DISABLE_MSAA_4X_SNB	(1 << 10)
 #define _3D_CHICKEN2	_MMIO(0x208c)
+
+#define FF_SLICE_CHICKEN	_MMIO(0x2088)
+#define  FF_SLICE_CHICKEN_CL_PROVOKING_VERTEX_FIX	(1 << 1)
+
 /* Disables pipelining of read flushes past the SF-WIZ interface.
  * Required on all Ironlake steppings according to the B-Spec, but the
  * particular danger of not doing so is not specified.
  */
 # define _3D_CHICKEN2_WM_READ_PIPELINED			(1 << 14)
 #define _3D_CHICKEN3	_MMIO(0x2090)
+#define  _3D_CHICKEN_SF_PROVOKING_VERTEX_FIX		(1 << 12)
 #define  _3D_CHICKEN_SF_DISABLE_OBJEND_CULL		(1 << 10)
 #define  _3D_CHICKEN3_AA_LINE_QUALITY_FIX_ENABLE	(1 << 5)
 #define  _3D_CHICKEN3_SF_DISABLE_FASTCLIP_CULL		(1 << 5)
@@ -3003,6 +3008,7 @@ enum i915_power_well_id {
 # define GPIO_DATA_PULLUP_DISABLE	(1 << 13)
 
 #define GMBUS0			_MMIO(dev_priv->gpio_mmio_base + 0x5100) /* clock/port select */
+#define   GMBUS_AKSV_SELECT	(1<<11)
 #define   GMBUS_RATE_100KHZ	(0<<8)
 #define   GMBUS_RATE_50KHZ	(1<<8)
 #define   GMBUS_RATE_400KHZ	(2<<8) /* reserved on Pineview */
@@ -3820,6 +3826,9 @@ enum {
 #define _CLKGATE_DIS_PSL_A		0x46520
 #define _CLKGATE_DIS_PSL_B		0x46524
 #define _CLKGATE_DIS_PSL_C		0x46528
+#define   DUPS1_GATING_DIS		(1 << 15)
+#define   DUPS2_GATING_DIS		(1 << 19)
+#define   DUPS3_GATING_DIS		(1 << 23)
 #define   DPF_GATING_DIS		(1 << 10)
 #define   DPF_RAM_GATING_DIS		(1 << 9)
 #define   DPFR_GATING_DIS		(1 << 8)
@@ -4021,6 +4030,7 @@ enum {
 
 #define EDP_PSR_STATUS_CTL			_MMIO(dev_priv->psr_mmio_base + 0x40)
 #define   EDP_PSR_STATUS_STATE_MASK		(7<<29)
+#define   EDP_PSR_STATUS_STATE_SHIFT		29
 #define   EDP_PSR_STATUS_STATE_IDLE		(0<<29)
 #define   EDP_PSR_STATUS_STATE_SRDONACK		(1<<29)
 #define   EDP_PSR_STATUS_STATE_SRDENT		(2<<29)
@@ -6190,6 +6200,12 @@ enum {
 #define _SPATILEOFF		(VLV_DISPLAY_BASE + 0x721a4)
 #define _SPACONSTALPHA		(VLV_DISPLAY_BASE + 0x721a8)
 #define   SP_CONST_ALPHA_ENABLE		(1<<31)
+#define _SPACLRC0		(VLV_DISPLAY_BASE + 0x721d0)
+#define   SP_CONTRAST(x)		((x) << 18) /* u3.6 */
+#define   SP_BRIGHTNESS(x)		((x) & 0xff) /* s8 */
+#define _SPACLRC1		(VLV_DISPLAY_BASE + 0x721d4)
+#define   SP_SH_SIN(x)			(((x) & 0x7ff) << 16) /* s4.7 */
+#define   SP_SH_COS(x)			(x) /* u3.7 */
 #define _SPAGAMC		(VLV_DISPLAY_BASE + 0x721f4)
 
 #define _SPBCNTR		(VLV_DISPLAY_BASE + 0x72280)
@@ -6203,6 +6219,8 @@ enum {
 #define _SPBKEYMAXVAL		(VLV_DISPLAY_BASE + 0x722a0)
 #define _SPBTILEOFF		(VLV_DISPLAY_BASE + 0x722a4)
 #define _SPBCONSTALPHA		(VLV_DISPLAY_BASE + 0x722a8)
+#define _SPBCLRC0		(VLV_DISPLAY_BASE + 0x722d0)
+#define _SPBCLRC1		(VLV_DISPLAY_BASE + 0x722d4)
 #define _SPBGAMC		(VLV_DISPLAY_BASE + 0x722f4)
 
 #define _MMIO_VLV_SPR(pipe, plane_id, reg_a, reg_b) \
@@ -6219,6 +6237,8 @@ enum {
 #define SPKEYMAXVAL(pipe, plane_id)	_MMIO_VLV_SPR((pipe), (plane_id), _SPAKEYMAXVAL, _SPBKEYMAXVAL)
 #define SPTILEOFF(pipe, plane_id)	_MMIO_VLV_SPR((pipe), (plane_id), _SPATILEOFF, _SPBTILEOFF)
 #define SPCONSTALPHA(pipe, plane_id)	_MMIO_VLV_SPR((pipe), (plane_id), _SPACONSTALPHA, _SPBCONSTALPHA)
+#define SPCLRC0(pipe, plane_id)		_MMIO_VLV_SPR((pipe), (plane_id), _SPACLRC0, _SPBCLRC0)
+#define SPCLRC1(pipe, plane_id)		_MMIO_VLV_SPR((pipe), (plane_id), _SPACLRC1, _SPBCLRC1)
 #define SPGAMC(pipe, plane_id)		_MMIO_VLV_SPR((pipe), (plane_id), _SPAGAMC, _SPBGAMC)
 
 /*
@@ -6332,6 +6352,11 @@ enum {
 #define _PLANE_COLOR_CTL_3_A			0x703CC /* GLK+ */
 #define   PLANE_COLOR_PIPE_GAMMA_ENABLE		(1 << 30)
 #define   PLANE_COLOR_PIPE_CSC_ENABLE		(1 << 23)
+#define   PLANE_COLOR_CSC_MODE_BYPASS			(0 << 17)
+#define   PLANE_COLOR_CSC_MODE_YUV601_TO_RGB709		(1 << 17)
+#define   PLANE_COLOR_CSC_MODE_YUV709_TO_RGB709		(2 << 17)
+#define   PLANE_COLOR_CSC_MODE_YUV2020_TO_RGB2020	(3 << 17)
+#define   PLANE_COLOR_CSC_MODE_RGB709_TO_RGB2020	(4 << 17)
 #define   PLANE_COLOR_PLANE_GAMMA_DISABLE	(1 << 13)
 #define   PLANE_COLOR_ALPHA_MASK		(0x3 << 4)
 #define   PLANE_COLOR_ALPHA_DISABLE		(0 << 4)
@@ -6611,6 +6636,8 @@ enum {
 #define PS_SCALER_MODE_MASK (3 << 28)
 #define PS_SCALER_MODE_DYN  (0 << 28)
 #define PS_SCALER_MODE_HQ  (1 << 28)
+#define SKL_PS_SCALER_MODE_NV12 (2 << 28)
+#define PS_SCALER_MODE_PLANAR (1 << 29)
 #define PS_PLANE_SEL_MASK  (7 << 25)
 #define PS_PLANE_SEL(plane) (((plane) + 1) << 25)
 #define PS_FILTER_MASK         (3 << 23)
@@ -7080,6 +7107,9 @@ enum {
 /* GEN9 chicken */
 #define SLICE_ECO_CHICKEN0			_MMIO(0x7308)
 #define   PIXEL_MASK_CAMMING_DISABLE		(1 << 14)
+
+#define GEN9_WM_CHICKEN3			_MMIO(0x5588)
+#define   GEN9_FACTOR_IN_CLR_VAL_HIZ		(1 << 9)
 
 /* WaCatErrorRejectionIssue */
 #define GEN7_SQ_CHICKEN_MBCUNIT_CONFIG		_MMIO(0x9030)
@@ -8002,6 +8032,7 @@ enum {
 #define     GEN9_MEM_LATENCY_LEVEL_1_5_SHIFT	8
 #define     GEN9_MEM_LATENCY_LEVEL_2_6_SHIFT	16
 #define     GEN9_MEM_LATENCY_LEVEL_3_7_SHIFT	24
+#define   SKL_PCODE_LOAD_HDCP_KEYS		0x5
 #define   SKL_PCODE_CDCLK_CONTROL		0x7
 #define     SKL_CDCLK_PREPARE_FOR_CHANGE	0x3
 #define     SKL_CDCLK_READY_FOR_CHANGE		0x1
@@ -8315,6 +8346,89 @@ enum skl_power_gate {
 #define   CNL_AUX_ANAOVRD1_ENABLE	(1<<16)
 #define   CNL_AUX_ANAOVRD1_LDO_BYPASS	(1<<23)
 
+
+/* HDCP Key Registers */
+#define HDCP_KEY_CONF		_MMIO(0x66c00)
+#define  HDCP_AKSV_SEND_TRIGGER		BIT(31)
+#define  HDCP_CLEAR_KEYS_TRIGGER	BIT(30)
+#define  HDCP_KEY_LOAD_TRIGGER		BIT(8)
+#define HDCP_KEY_STATUS		_MMIO(0x66c04)
+#define  HDCP_FUSE_IN_PROGRESS	BIT(7)
+#define  HDCP_FUSE_ERROR		BIT(6)
+#define  HDCP_FUSE_DONE		BIT(5)
+#define  HDCP_KEY_LOAD_STATUS	BIT(1)
+#define  HDCP_KEY_LOAD_DONE		BIT(0)
+#define HDCP_AKSV_LO		_MMIO(0x66c10)
+#define HDCP_AKSV_HI		_MMIO(0x66c14)
+
+/* HDCP Repeater Registers */
+#define HDCP_REP_CTL		_MMIO(0x66d00)
+#define  HDCP_DDIB_REP_PRESENT	BIT(30)
+#define  HDCP_DDIA_REP_PRESENT	BIT(29)
+#define  HDCP_DDIC_REP_PRESENT	BIT(28)
+#define  HDCP_DDID_REP_PRESENT	BIT(27)
+#define  HDCP_DDIF_REP_PRESENT	BIT(26)
+#define  HDCP_DDIE_REP_PRESENT	BIT(25)
+#define  HDCP_DDIB_SHA1_M0		(1 << 20)
+#define  HDCP_DDIA_SHA1_M0		(2 << 20)
+#define  HDCP_DDIC_SHA1_M0		(3 << 20)
+#define  HDCP_DDID_SHA1_M0		(4 << 20)
+#define  HDCP_DDIF_SHA1_M0		(5 << 20)
+#define  HDCP_DDIE_SHA1_M0		(6 << 20) /* Bspec says 5? */
+#define  HDCP_SHA1_BUSY		BIT(16)
+#define  HDCP_SHA1_READY		BIT(17)
+#define  HDCP_SHA1_COMPLETE		BIT(18)
+#define  HDCP_SHA1_V_MATCH		BIT(19)
+#define  HDCP_SHA1_TEXT_32		(1 << 1)
+#define  HDCP_SHA1_COMPLETE_HASH	(2 << 1)
+#define  HDCP_SHA1_TEXT_24		(4 << 1)
+#define  HDCP_SHA1_TEXT_16		(5 << 1)
+#define  HDCP_SHA1_TEXT_8		(6 << 1)
+#define  HDCP_SHA1_TEXT_0		(7 << 1)
+#define HDCP_SHA_V_PRIME_H0		_MMIO(0x66d04)
+#define HDCP_SHA_V_PRIME_H1		_MMIO(0x66d08)
+#define HDCP_SHA_V_PRIME_H2		_MMIO(0x66d0C)
+#define HDCP_SHA_V_PRIME_H3		_MMIO(0x66d10)
+#define HDCP_SHA_V_PRIME_H4		_MMIO(0x66d14)
+#define HDCP_SHA_V_PRIME(h)		_MMIO((0x66d04 + h * 4))
+#define HDCP_SHA_TEXT		_MMIO(0x66d18)
+
+/* HDCP Auth Registers */
+#define _PORTA_HDCP_AUTHENC		0x66800
+#define _PORTB_HDCP_AUTHENC		0x66500
+#define _PORTC_HDCP_AUTHENC		0x66600
+#define _PORTD_HDCP_AUTHENC		0x66700
+#define _PORTE_HDCP_AUTHENC		0x66A00
+#define _PORTF_HDCP_AUTHENC		0x66900
+#define _PORT_HDCP_AUTHENC(port, x)	_MMIO(_PICK(port, \
+					  _PORTA_HDCP_AUTHENC, \
+					  _PORTB_HDCP_AUTHENC, \
+					  _PORTC_HDCP_AUTHENC, \
+					  _PORTD_HDCP_AUTHENC, \
+					  _PORTE_HDCP_AUTHENC, \
+					  _PORTF_HDCP_AUTHENC) + x)
+#define PORT_HDCP_CONF(port)	_PORT_HDCP_AUTHENC(port, 0x0)
+#define  HDCP_CONF_CAPTURE_AN	BIT(0)
+#define  HDCP_CONF_AUTH_AND_ENC	(BIT(1) | BIT(0))
+#define PORT_HDCP_ANINIT(port)	_PORT_HDCP_AUTHENC(port, 0x4)
+#define PORT_HDCP_ANLO(port)	_PORT_HDCP_AUTHENC(port, 0x8)
+#define PORT_HDCP_ANHI(port)	_PORT_HDCP_AUTHENC(port, 0xC)
+#define PORT_HDCP_BKSVLO(port)	_PORT_HDCP_AUTHENC(port, 0x10)
+#define PORT_HDCP_BKSVHI(port)	_PORT_HDCP_AUTHENC(port, 0x14)
+#define PORT_HDCP_RPRIME(port)	_PORT_HDCP_AUTHENC(port, 0x18)
+#define PORT_HDCP_STATUS(port)	_PORT_HDCP_AUTHENC(port, 0x1C)
+#define  HDCP_STATUS_STREAM_A_ENC	BIT(31)
+#define  HDCP_STATUS_STREAM_B_ENC	BIT(30)
+#define  HDCP_STATUS_STREAM_C_ENC	BIT(29)
+#define  HDCP_STATUS_STREAM_D_ENC	BIT(28)
+#define  HDCP_STATUS_AUTH		BIT(21)
+#define  HDCP_STATUS_ENC		BIT(20)
+#define  HDCP_STATUS_RI_MATCH	BIT(19)
+#define  HDCP_STATUS_R0_READY	BIT(18)
+#define  HDCP_STATUS_AN_READY	BIT(17)
+#define  HDCP_STATUS_CIPHER		BIT(16)
+#define  HDCP_STATUS_FRAME_CNT(x)	((x >> 8) & 0xff)
+
 /* Per-pipe DDI Function Control */
 #define _TRANS_DDI_FUNC_CTL_A		0x60400
 #define _TRANS_DDI_FUNC_CTL_B		0x61400
@@ -8346,6 +8460,7 @@ enum skl_power_gate {
 #define  TRANS_DDI_EDP_INPUT_A_ONOFF	(4<<12)
 #define  TRANS_DDI_EDP_INPUT_B_ONOFF	(5<<12)
 #define  TRANS_DDI_EDP_INPUT_C_ONOFF	(6<<12)
+#define  TRANS_DDI_HDCP_SIGNALLING	(1<<9)
 #define  TRANS_DDI_DP_VC_PAYLOAD_ALLOC	(1<<8)
 #define  TRANS_DDI_HDMI_SCRAMBLER_CTS_ENABLE (1<<7)
 #define  TRANS_DDI_HDMI_SCRAMBLER_RESET_FREQ (1<<6)
@@ -8521,6 +8636,7 @@ enum skl_power_gate {
 #define  TRANS_MSA_10_BPC		(2<<5)
 #define  TRANS_MSA_12_BPC		(3<<5)
 #define  TRANS_MSA_16_BPC		(4<<5)
+#define  TRANS_MSA_CEA_RANGE		(1<<3)
 
 /* LCPLL Control */
 #define LCPLL_CTL			_MMIO(0x130040)

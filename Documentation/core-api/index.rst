@@ -15,6 +15,7 @@ Core utilities
    assoc_array
    atomic_ops
    cpu_hotplug
+   idr
    local_ops
    workqueue
    genericirq

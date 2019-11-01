@@ -2946,6 +2946,7 @@ int ocfs2_duplicate_clusters_by_page(handle_t *handle,
 		if (map_end & (PAGE_SIZE - 1))
 			to = map_end & (PAGE_SIZE - 1);
 
+retry:
 		page = find_or_create_page(mapping, page_index, GFP_NOFS);
 		if (!page) {
 			ret = -ENOMEM;
@@ -2954,11 +2955,18 @@ int ocfs2_duplicate_clusters_by_page(handle_t *handle,
 		}
 
 		/*
-		 * In case PAGE_SIZE <= CLUSTER_SIZE, This page
-		 * can't be dirtied before we CoW it out.
+		 * In case PAGE_SIZE <= CLUSTER_SIZE, we do not expect a dirty
+		 * page, so write it back.
 		 */
-		if (PAGE_SIZE <= OCFS2_SB(sb)->s_clustersize)
-			BUG_ON(PageDirty(page));
+		if (PAGE_SIZE <= OCFS2_SB(sb)->s_clustersize) {
+			if (PageDirty(page)) {
+				/*
+				 * write_on_page will unlock the page on return
+				 */
+				ret = write_one_page(page);
+				goto retry;
+			}
+		}
 
 		if (!PageUptodate(page)) {
 			ret = block_read_full_page(page, ocfs2_get_block);
@@ -4250,10 +4258,11 @@ out:
 static int ocfs2_reflink(struct dentry *old_dentry, struct inode *dir,
 			 struct dentry *new_dentry, bool preserve)
 {
-	int error;
+	int error, had_lock;
 	struct inode *inode = d_inode(old_dentry);
 	struct buffer_head *old_bh = NULL;
 	struct inode *new_orphan_inode = NULL;
+	struct ocfs2_lock_holder oh;
 
 	if (!ocfs2_refcount_tree(OCFS2_SB(inode->i_sb)))
 		return -EOPNOTSUPP;
@@ -4295,6 +4304,14 @@ static int ocfs2_reflink(struct dentry *old_dentry, struct inode *dir,
 		goto out;
 	}
 
+	had_lock = ocfs2_inode_lock_tracker(new_orphan_inode, NULL, 1,
+					    &oh);
+	if (had_lock < 0) {
+		error = had_lock;
+		mlog_errno(error);
+		goto out;
+	}
+
 	/* If the security isn't preserved, we need to re-initialize them. */
 	if (!preserve) {
 		error = ocfs2_init_security_and_acl(dir, new_orphan_inode,
@@ -4302,14 +4319,15 @@ static int ocfs2_reflink(struct dentry *old_dentry, struct inode *dir,
 		if (error)
 			mlog_errno(error);
 	}
-out:
 	if (!error) {
 		error = ocfs2_mv_orphaned_inode_to_new(dir, new_orphan_inode,
 						       new_dentry);
 		if (error)
 			mlog_errno(error);
 	}
+	ocfs2_inode_unlock_tracker(new_orphan_inode, 1, &oh, had_lock);
 
+out:
 	if (new_orphan_inode) {
 		/*
 		 * We need to open_unlock the inode no matter whether we
@@ -4698,22 +4716,23 @@ out:
 
 /* Lock an inode and grab a bh pointing to the inode. */
 static int ocfs2_reflink_inodes_lock(struct inode *s_inode,
-				     struct buffer_head **bh1,
+				     struct buffer_head **bh_s,
 				     struct inode *t_inode,
-				     struct buffer_head **bh2)
+				     struct buffer_head **bh_t)
 {
-	struct inode *inode1;
-	struct inode *inode2;
+	struct inode *inode1 = s_inode;
+	struct inode *inode2 = t_inode;
 	struct ocfs2_inode_info *oi1;
 	struct ocfs2_inode_info *oi2;
+	struct buffer_head *bh1 = NULL;
+	struct buffer_head *bh2 = NULL;
 	bool same_inode = (s_inode == t_inode);
+	bool need_swap = (inode1->i_ino > inode2->i_ino);
 	int status;
 
 	/* First grab the VFS and rw locks. */
 	lock_two_nondirectories(s_inode, t_inode);
-	inode1 = s_inode;
-	inode2 = t_inode;
-	if (inode1->i_ino > inode2->i_ino)
+	if (need_swap)
 		swap(inode1, inode2);
 
 	status = ocfs2_rw_lock(inode1, 1);
@@ -4736,17 +4755,13 @@ static int ocfs2_reflink_inodes_lock(struct inode *s_inode,
 	trace_ocfs2_double_lock((unsigned long long)oi1->ip_blkno,
 				(unsigned long long)oi2->ip_blkno);
 
-	if (*bh1)
-		*bh1 = NULL;
-	if (*bh2)
-		*bh2 = NULL;
-
 	/* We always want to lock the one with the lower lockid first. */
 	if (oi1->ip_blkno > oi2->ip_blkno)
 		mlog_errno(-ENOLCK);
 
 	/* lock id1 */
-	status = ocfs2_inode_lock_nested(inode1, bh1, 1, OI_LS_REFLINK_TARGET);
+	status = ocfs2_inode_lock_nested(inode1, &bh1, 1,
+					 OI_LS_REFLINK_TARGET);
 	if (status < 0) {
 		if (status != -ENOENT)
 			mlog_errno(status);
@@ -4755,15 +4770,25 @@ static int ocfs2_reflink_inodes_lock(struct inode *s_inode,
 
 	/* lock id2 */
 	if (!same_inode) {
-		status = ocfs2_inode_lock_nested(inode2, bh2, 1,
+		status = ocfs2_inode_lock_nested(inode2, &bh2, 1,
 						 OI_LS_REFLINK_TARGET);
 		if (status < 0) {
 			if (status != -ENOENT)
 				mlog_errno(status);
 			goto out_cl1;
 		}
-	} else
-		*bh2 = *bh1;
+	} else {
+		bh2 = bh1;
+	}
+
+	/*
+	 * If we swapped inode order above, we have to swap the buffer heads
+	 * before passing them back to the caller.
+	 */
+	if (need_swap)
+		swap(bh1, bh2);
+	*bh_s = bh1;
+	*bh_t = bh2;
 
 	trace_ocfs2_double_lock_end(
 			(unsigned long long)OCFS2_I(inode1)->ip_blkno,
@@ -4773,8 +4798,7 @@ static int ocfs2_reflink_inodes_lock(struct inode *s_inode,
 
 out_cl1:
 	ocfs2_inode_unlock(inode1, 1);
-	brelse(*bh1);
-	*bh1 = NULL;
+	brelse(bh1);
 out_rw2:
 	ocfs2_rw_unlock(inode2, 1);
 out_i2:

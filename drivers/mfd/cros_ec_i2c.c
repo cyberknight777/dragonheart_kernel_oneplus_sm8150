@@ -342,7 +342,7 @@ static int cros_ec_i2c_resume(struct device *dev)
 }
 #endif
 
-const struct dev_pm_ops cros_ec_i2c_pm_ops = {
+static const struct dev_pm_ops cros_ec_i2c_pm_ops = {
 	SET_LATE_SYSTEM_SLEEP_PM_OPS(cros_ec_i2c_suspend, cros_ec_i2c_resume)
 };
 
@@ -363,7 +363,7 @@ MODULE_DEVICE_TABLE(i2c, cros_ec_i2c_id);
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id cros_ec_i2c_acpi_id[] = {
 	{ "GOOG0008", 0 },
-	{ },
+	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(acpi, cros_ec_i2c_acpi_id);
 #endif

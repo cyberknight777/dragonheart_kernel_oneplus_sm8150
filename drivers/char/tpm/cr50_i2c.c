@@ -17,7 +17,7 @@
  */
 
 /*
- * cr50 is a TPM 2.0 capable device that requries special
+ * cr50 is a firmware for H1 secure modules that requires special
  * handling for the I2C interface.
  *
  * - Use an interrupt for transaction status instead of hardcoded delays
@@ -48,6 +48,11 @@
 #define CR50_I2C_RETRY_DELAY_LO	55	/* Min usecs between retries on I2C */
 #define CR50_I2C_RETRY_DELAY_HI	65	/* Max usecs between retries on I2C */
 
+static unsigned short rng_quality = 1022;
+
+module_param(rng_quality, ushort, 0644);
+MODULE_PARM_DESC(rng_quality,
+		 "Estimation of true entropy, in bits per 1024 bits.");
 
 struct priv_data {
 	int irq;
@@ -93,8 +98,7 @@ static int cr50_i2c_wait_tpm_ready(struct tpm_chip *chip)
 		msecs_to_jiffies(chip->timeout_a));
 
 	if (rc == 0) {
-		dev_err(&chip->dev, "Timeout waiting for TPM ready\n");
-		return -ETIMEDOUT;
+		dev_warn(&chip->dev, "Timeout waiting for TPM ready\n");
 	}
 	return (int)rc;
 }
@@ -248,8 +252,8 @@ static int cr50_i2c_write(struct tpm_chip *chip, u8 addr, u8 *buffer,
 	if (rc <= 0)
 		goto out;
 
-	/* Wait for TPM to be ready */
-	rc = cr50_i2c_wait_tpm_ready(chip);
+	/* Wait for TPM to be ready, ignore timeout */
+	cr50_i2c_wait_tpm_ready(chip);
 
 out:
 	cr50_i2c_disable_tpm_irq(chip);
@@ -418,6 +422,14 @@ static int cr50_i2c_tis_recv(struct tpm_chip *chip, u8 *buf, size_t buf_len)
 	if (rc < 0)
 		goto out_err;
 
+	if (burstcnt > buf_len || burstcnt < TPM_HEADER_SIZE) {
+		dev_err(&chip->dev,
+			"Unexpected burstcnt: %zu (max=%zu, min=%d)\n",
+			burstcnt, buf_len, TPM_HEADER_SIZE);
+		rc = -EIO;
+		goto out_err;
+	}
+
 	/* Read first chunk of burstcnt bytes */
 	rc = cr50_i2c_read(chip, addr, buf, burstcnt);
 	if (rc < 0) {
@@ -540,7 +552,7 @@ static int cr50_i2c_tis_send(struct tpm_chip *chip, u8 *buf, size_t len)
 		dev_err(&chip->dev, "Start command failed\n");
 		goto out_err;
 	}
-	return sent;
+	return 0;
 
 out_err:
 	/* Abort current transaction if still pending */
@@ -557,6 +569,7 @@ static bool cr50_i2c_req_canceled(struct tpm_chip *chip, u8 status)
 }
 
 static const struct tpm_class_ops cr50_i2c = {
+	.flags = TPM_OPS_AUTO_STARTUP,
 	.status = &cr50_i2c_tis_status,
 	.recv = &cr50_i2c_tis_recv,
 	.send = &cr50_i2c_tis_send,
@@ -634,6 +647,8 @@ static int cr50_i2c_init(struct i2c_client *client)
 
 	dev_info(dev, "cr50 TPM 2.0 (i2c 0x%02x irq %d id 0x%x)\n",
 		 client->addr, client->irq, vendor >> 16);
+
+	chip->hwrng.quality = rng_quality;
 
 	rc = tpm_chip_register(chip);
 	if (rc)

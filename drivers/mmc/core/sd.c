@@ -216,6 +216,14 @@ static int mmc_decode_scr(struct mmc_card *card)
 
 	if (scr->sda_spec3)
 		scr->cmds = UNSTUFF_BITS(resp, 32, 2);
+
+	/* SD Spec says: any SD Card shall set at least bits 0 and 2 */
+	if (!(scr->bus_widths & SD_SCR_BUS_WIDTH_1) ||
+	    !(scr->bus_widths & SD_SCR_BUS_WIDTH_4)) {
+		pr_err("%s: invalid bus width\n", mmc_hostname(card->host));
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -1179,7 +1187,27 @@ static int mmc_sd_runtime_resume(struct mmc_host *host)
 
 static int mmc_sd_reset(struct mmc_host *host)
 {
+	int present;
 	mmc_power_cycle(host, host->card->ocr);
+
+	present = host->ops->get_cd(host);
+
+	/* The card status could have changed while resetting. */
+	if ((mmc_card_removed(host->card) && present) ||
+	    (!mmc_card_removed(host->card) && !present)) {
+		pr_info("%s: card status changed during reset\n",
+		       mmc_hostname(host));
+		host->ops->card_event(host);
+		mmc_detect_change(host, 0);
+	}
+
+	/* Don't perform unnecessary transactions if the card is missing. */
+	if (!present) {
+		pr_info("%s: card was removed during reset\n",
+			mmc_hostname(host));
+		return -ENOMEDIUM;
+	}
+
 	return mmc_sd_init_card(host, host->card->ocr, host->card);
 }
 
@@ -1223,6 +1251,12 @@ int mmc_attach_sd(struct mmc_host *host)
 		if (err)
 			goto err;
 	}
+
+	/*
+	 * Some SD cards claims an out of spec VDD voltage range. Let's treat
+	 * these bits as being in-valid and especially also bit7.
+	 */
+	ocr &= ~0x7FFF;
 
 	rocr = mmc_select_voltage(host, ocr);
 

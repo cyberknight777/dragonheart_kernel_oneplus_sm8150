@@ -349,10 +349,10 @@ struct dcn_bw_internal_vars {
 	float dst_x_after_scaler;
 	float dst_y_after_scaler;
 	float time_calc;
-	float v_update_offset[number_of_planes_minus_one + 1];
+	float v_update_offset[number_of_planes_minus_one + 1][2];
 	float total_repeater_delay;
-	float v_update_width[number_of_planes_minus_one + 1];
-	float v_ready_offset[number_of_planes_minus_one + 1];
+	float v_update_width[number_of_planes_minus_one + 1][2];
+	float v_ready_offset[number_of_planes_minus_one + 1][2];
 	float time_setup;
 	float extra_latency;
 	float maximum_vstartup;
@@ -625,7 +625,7 @@ bool dcn_validate_bandwidth(
 
 unsigned int dcn_find_dcfclk_suits_all(
 	const struct dc *dc,
-	struct clocks_value *clocks);
+	struct dc_clocks *clocks);
 
 void dcn_bw_update_from_pplib(struct dc *dc);
 void dcn_bw_notify_pplib_of_wm_ranges(struct dc *dc);

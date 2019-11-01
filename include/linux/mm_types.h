@@ -22,6 +22,8 @@
 #endif
 #define AT_VECTOR_SIZE (2*(AT_VECTOR_SIZE_ARCH + AT_VECTOR_SIZE_BASE + 1))
 
+typedef int vm_fault_t;
+
 struct address_space;
 struct mem_cgroup;
 struct hmm;
@@ -44,26 +46,39 @@ struct page {
 	unsigned long flags;		/* Atomic flags, some possibly
 					 * updated asynchronously */
 	union {
-		struct address_space *mapping;	/* If low bit clear, points to
-						 * inode address_space, or NULL.
-						 * If page mapped as anonymous
-						 * memory, low bit is set, and
-						 * it points to anon_vma object:
-						 * see PAGE_MAPPING_ANON below.
-						 */
-		void *s_mem;			/* slab first object */
-		atomic_t compound_mapcount;	/* first tail page */
-		/* page_deferred_list().next	 -- second tail page */
+		struct {
+			union {
+				struct address_space *mapping;	/* If low bit clear, points to
+								 * inode address_space, or NULL.
+								 * If page mapped as anonymous
+								 * memory, low bit is set, and
+								 * it points to anon_vma object:
+								 * see PAGE_MAPPING_ANON below.
+								 */
+				void *s_mem;			/* slab first object */
+				atomic_t compound_mapcount;	/* first tail page */
+				/* page_deferred_list().next	 -- second tail page */
+			};
+
+			/* Second double word */
+			union {
+				pgoff_t index;		/* Our offset within mapping. */
+				void *freelist;		/* sl[aou]b first free object */
+				/* page_deferred_list().prev	-- second tail page */
+			};
+		};
+		struct list_head pmdp_list;	/* kstaled pmd page list */
 	};
 
-	/* Second double word */
 	union {
-		pgoff_t index;		/* Our offset within mapping. */
-		void *freelist;		/* sl[aou]b first free object */
-		/* page_deferred_list().prev	-- second tail page */
-	};
+		/*
+		 * If the page is neither PageSlab nor mappable to userspace,
+		 * the value stored here may help determine what this page
+		 * is used for.  See page-flags.h for a list of page types
+		 * which are currently stored here.
+		 */
+		unsigned int page_type;
 
-	union {
 #if defined(CONFIG_HAVE_CMPXCHG_DOUBLE) && \
 	defined(CONFIG_HAVE_ALIGNED_STRUCT_PAGE)
 		/* Used for cmpxchg_double in slub */
@@ -82,11 +97,6 @@ struct page {
 				/*
 				 * Count of ptes mapped in mms, to show when
 				 * page is mapped & limit reverse map searches.
-				 *
-				 * Extra information about page type may be
-				 * stored here for pages that are never mapped,
-				 * in which case the value MUST BE <= -2.
-				 * See page-flags.h for more details.
 				 */
 				atomic_t _mapcount;
 
@@ -361,7 +371,7 @@ struct kioctx_table;
 struct mm_struct {
 	struct vm_area_struct *mmap;		/* list of VMAs */
 	struct rb_root mm_rb;
-	u32 vmacache_seqnum;                   /* per-thread vmacache */
+	u64 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
 	unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
@@ -511,6 +521,9 @@ struct mm_struct {
 #if IS_ENABLED(CONFIG_HMM)
 	/* HMM needs to track a few things per mm */
 	struct hmm *hmm;
+#endif
+#ifdef CONFIG_KSTALED
+	atomic_t throttle_disabled;
 #endif
 } __randomize_layout;
 

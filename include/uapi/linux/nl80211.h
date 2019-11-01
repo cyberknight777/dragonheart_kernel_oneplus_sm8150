@@ -2604,6 +2604,8 @@ enum nl80211_attrs {
 #define NL80211_ATTR_KEYS NL80211_ATTR_KEYS
 #define NL80211_ATTR_FEATURE_FLAGS NL80211_ATTR_FEATURE_FLAGS
 
+#define NL80211_WIPHY_NAME_MAXLEN		64
+
 #define NL80211_MAX_SUPP_RATES			32
 #define NL80211_MAX_SUPP_HT_RATES		77
 #define NL80211_MAX_SUPP_REG_RULES		64
@@ -2988,8 +2990,10 @@ enum nl80211_mpath_flags {
  * 	&enum nl80211_mpath_flags;
  * @NL80211_MPATH_INFO_DISCOVERY_TIMEOUT: total path discovery timeout, in msec
  * @NL80211_MPATH_INFO_DISCOVERY_RETRIES: mesh path discovery retries
+ * @NL80211_MPATH_INFO_HOP_COUNT: hop count to destination
+ * @NL80211_MPATH_INFO_PATH_CHANGE: total number of path changes to destination
  * @NL80211_MPATH_INFO_MAX: highest mesh path information attribute number
- *	currently defind
+ *	currently defined
  * @__NL80211_MPATH_INFO_AFTER_LAST: internal use
  */
 enum nl80211_mpath_info {
@@ -3001,6 +3005,8 @@ enum nl80211_mpath_info {
 	NL80211_MPATH_INFO_FLAGS,
 	NL80211_MPATH_INFO_DISCOVERY_TIMEOUT,
 	NL80211_MPATH_INFO_DISCOVERY_RETRIES,
+	NL80211_MPATH_INFO_HOP_COUNT,
+	NL80211_MPATH_INFO_PATH_CHANGE,
 
 	/* keep last */
 	__NL80211_MPATH_INFO_AFTER_LAST,
@@ -4915,6 +4921,11 @@ enum nl80211_feature_flags {
  *	and accept the set_pmk/del_pmk commands), doing it in the host might not
  *	be supported.
  *
+ * @NL80211_EXT_FEATURE_CAN_REPLACE_PTK0: Driver/device confirm that they are
+ *      able to rekey an in-use key correctly. Userspace must not rekey PTK keys
+ *      if this flag is not set. Ignoring this can leak clear text packets and/or
+ *      freeze the connection.
+ *
  * @NUM_NL80211_EXT_FEATURES: number of extended features.
  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.
  */
@@ -4936,6 +4947,7 @@ enum nl80211_ext_feature_index {
 	NL80211_EXT_FEATURE_FILS_SK_OFFLOAD,
 	NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_PSK,
 	NL80211_EXT_FEATURE_4WAY_HANDSHAKE_STA_1X,
+	NL80211_EXT_FEATURE_CAN_REPLACE_PTK0,
 
 	/* add new features before the definition below */
 	NUM_NL80211_EXT_FEATURES,

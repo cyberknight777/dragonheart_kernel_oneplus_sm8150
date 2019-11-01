@@ -37,7 +37,7 @@
 	param(int, vbt_sdvo_panel_type, -1) \
 	param(int, enable_rc6, -1) \
 	param(int, enable_dc, -1) \
-	param(int, enable_fbc, -1) \
+	param(int, enable_fbc, 0) \
 	param(int, enable_ppgtt, -1) \
 	param(int, enable_execlists, -1) \
 	param(int, enable_psr, -1) \

@@ -155,8 +155,7 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 
 		order = __ffs(tegra->domain->pgsize_bitmap);
 		init_iova_domain(&tegra->carveout.domain, 1UL << order,
-				 carveout_start >> order,
-				 carveout_end >> order);
+				 carveout_start >> order);
 
 		tegra->carveout.shift = iova_shift(&tegra->carveout.domain);
 		tegra->carveout.limit = carveout_end >> tegra->carveout.shift;
@@ -250,6 +249,7 @@ static void tegra_drm_unload(struct drm_device *drm)
 
 	drm_kms_helper_poll_fini(drm);
 	tegra_drm_fb_exit(drm);
+	drm_atomic_helper_shutdown(drm);
 	drm_mode_config_cleanup(drm);
 
 	err = host1x_device_exit(device);
@@ -469,7 +469,7 @@ int tegra_drm_submit(struct tegra_drm_context *context,
 		 * unaligned offset is malformed and cause commands stream
 		 * corruption on the buffer address relocation.
 		 */
-		if (offset & 3 || offset >= obj->gem.size) {
+		if (offset & 3 || offset > obj->gem.size) {
 			err = -EINVAL;
 			goto fail;
 		}

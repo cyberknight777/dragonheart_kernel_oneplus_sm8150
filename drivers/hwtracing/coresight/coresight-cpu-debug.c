@@ -315,7 +315,7 @@ static void debug_dump_regs(struct debug_drvdata *drvdata)
 	}
 
 	pc = debug_adjust_pc(drvdata);
-	dev_emerg(dev, " EDPCSR:  [<%p>] %pS\n", (void *)pc, (void *)pc);
+	dev_emerg(dev, " EDPCSR:  [<%px>] %pS\n", (void *)pc, (void *)pc);
 
 	if (drvdata->edcidsr_present)
 		dev_emerg(dev, " EDCIDSR: %08x\n", drvdata->edcidsr);
@@ -678,6 +678,10 @@ static const struct amba_id debug_ids[] = {
 	},
 	{       /* Debug for Cortex-A72 */
 		.id	= 0x000bbd08,
+		.mask	= 0x000fffff,
+	},
+	{       /* Debug for Cortex-A73 */
+		.id	= 0x000bbd09,
 		.mask	= 0x000fffff,
 	},
 	{ 0, 0 },

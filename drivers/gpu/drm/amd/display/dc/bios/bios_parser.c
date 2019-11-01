@@ -42,12 +42,15 @@
 #include "bios_parser_interface.h"
 
 #include "bios_parser_common.h"
-/* TODO remove - only needed for default i2c speed */
+
 #include "dc.h"
 
 #define THREE_PERCENT_OF_10000 300
 
 #define LAST_RECORD_TYPE 0xff
+
+#define DC_LOGGER \
+	bp->base.ctx->logger
 
 /* GUID to validate external display connection info table (aka OPM module) */
 static const uint8_t ext_display_connection_guid[NUMBER_OF_UCHAR_FOR_GUID] = {
@@ -190,6 +193,7 @@ static struct graphics_object_id bios_parser_get_connector_id(
 	struct bios_parser *bp = BP_FROM_DCB(dcb);
 	struct graphics_object_id object_id = dal_graphics_object_id_init(
 		0, ENUM_ID_UNKNOWN, OBJECT_TYPE_UNKNOWN);
+	uint16_t id;
 
 	uint32_t connector_table_offset = bp->object_info_tbl_offset
 		+ le16_to_cpu(bp->object_info_tbl.v1_1->usConnectorObjectTableOffset);
@@ -197,12 +201,19 @@ static struct graphics_object_id bios_parser_get_connector_id(
 	ATOM_OBJECT_TABLE *tbl =
 		GET_IMAGE(ATOM_OBJECT_TABLE, connector_table_offset);
 
-	if (tbl && tbl->ucNumberOfObjects > i) {
-		const uint16_t id = le16_to_cpu(tbl->asObjects[i].usObjectID);
-
-		object_id = object_id_from_bios_object_id(id);
+	if (!tbl) {
+		dm_error("Can't get connector table from atom bios.\n");
+		return object_id;
 	}
 
+	if (tbl->ucNumberOfObjects <= i) {
+		dm_error("Can't find connector id %d in connector table of size %d.\n",
+			 i, tbl->ucNumberOfObjects);
+		return object_id;
+	}
+
+	id = le16_to_cpu(tbl->asObjects[i].usObjectID);
+	object_id = object_id_from_bios_object_id(id);
 	return object_id;
 }
 
@@ -249,7 +260,7 @@ static enum bp_result bios_parser_get_dst_obj(struct dc_bios *dcb,
 	struct graphics_object_id *dest_object_id)
 {
 	uint32_t number;
-	uint16_t *id;
+	uint16_t *id = NULL;
 	ATOM_OBJECT *object;
 	struct bios_parser *bp = BP_FROM_DCB(dcb);
 
@@ -260,7 +271,7 @@ static enum bp_result bios_parser_get_dst_obj(struct dc_bios *dcb,
 
 	number = get_dest_obj_list(bp, object, &id);
 
-	if (number <= index)
+	if (number <= index || !id)
 		return BP_RESULT_BADINPUT;
 
 	*dest_object_id = object_id_from_bios_object_id(id[index]);
@@ -2254,6 +2265,52 @@ static enum bp_result get_gpio_i2c_info(struct bios_parser *bp,
 	return BP_RESULT_OK;
 }
 
+static bool dal_graphics_object_id_is_valid(struct graphics_object_id id)
+{
+	bool rc = true;
+
+	switch (id.type) {
+	case OBJECT_TYPE_UNKNOWN:
+		rc = false;
+		break;
+	case OBJECT_TYPE_GPU:
+	case OBJECT_TYPE_ENGINE:
+		/* do NOT check for id.id == 0 */
+		if (id.enum_id == ENUM_ID_UNKNOWN)
+			rc = false;
+		break;
+	default:
+		if (id.id == 0 || id.enum_id == ENUM_ID_UNKNOWN)
+			rc = false;
+		break;
+	}
+
+	return rc;
+}
+
+static bool dal_graphics_object_id_is_equal(
+	struct graphics_object_id id1,
+	struct graphics_object_id id2)
+{
+	if (false == dal_graphics_object_id_is_valid(id1)) {
+		dm_output_to_console(
+		"%s: Warning: comparing invalid object 'id1'!\n", __func__);
+		return false;
+	}
+
+	if (false == dal_graphics_object_id_is_valid(id2)) {
+		dm_output_to_console(
+		"%s: Warning: comparing invalid object 'id2'!\n", __func__);
+		return false;
+	}
+
+	if (id1.id == id2.id && id1.enum_id == id2.enum_id
+		&& id1.type == id2.type)
+		return true;
+
+	return false;
+}
+
 static ATOM_OBJECT *get_bios_object(struct bios_parser *bp,
 	struct graphics_object_id id)
 {
@@ -2614,11 +2671,9 @@ static bool i2c_read(
 
 		cmd.payloads = payloads;
 		cmd.number_of_payloads = ARRAY_SIZE(payloads);
-
-		/* TODO route this through drm i2c_adapter */
-		result = dal_i2caux_submit_i2c_command(
-				ddc->ctx->i2caux,
-				ddc,
+		result = dc_submit_i2c(
+				ddc->ctx->dc,
+				ddc->hw_info.ddc_channel,
 				&cmd);
 	}
 
@@ -3025,8 +3080,7 @@ static enum bp_result patch_bios_image_from_ext_display_connection_info(
 					    opm_object,
 					    &ext_display_connection_info_tbl) != BP_RESULT_OK) {
 
-		dm_logger_write(bp->base.ctx->logger, LOG_WARNING,
-				"%s: Failed to read Connection Info Table", __func__);
+		DC_LOG_WARNING("%s: Failed to read Connection Info Table", __func__);
 		return BP_RESULT_UNSUPPORTED;
 	}
 
@@ -3706,6 +3760,200 @@ static struct integrated_info *bios_parser_create_integrated_info(
 	return NULL;
 }
 
+enum bp_result update_slot_layout_info(
+	struct dc_bios *dcb,
+	unsigned int i,
+	struct slot_layout_info *slot_layout_info,
+	unsigned int record_offset)
+{
+	unsigned int j;
+	struct bios_parser *bp;
+	ATOM_BRACKET_LAYOUT_RECORD *record;
+	ATOM_COMMON_RECORD_HEADER *record_header;
+	enum bp_result result = BP_RESULT_NORECORD;
+
+	bp = BP_FROM_DCB(dcb);
+	record = NULL;
+	record_header = NULL;
+
+	for (;;) {
+
+		record_header = (ATOM_COMMON_RECORD_HEADER *)
+			GET_IMAGE(ATOM_COMMON_RECORD_HEADER, record_offset);
+		if (record_header == NULL) {
+			result = BP_RESULT_BADBIOSTABLE;
+			break;
+		}
+
+		/* the end of the list */
+		if (record_header->ucRecordType == 0xff ||
+			record_header->ucRecordSize == 0)	{
+			break;
+		}
+
+		if (record_header->ucRecordType ==
+			ATOM_BRACKET_LAYOUT_RECORD_TYPE &&
+			sizeof(ATOM_BRACKET_LAYOUT_RECORD)
+			<= record_header->ucRecordSize) {
+			record = (ATOM_BRACKET_LAYOUT_RECORD *)
+				(record_header);
+			result = BP_RESULT_OK;
+			break;
+		}
+
+		record_offset += record_header->ucRecordSize;
+	}
+
+	/* return if the record not found */
+	if (result != BP_RESULT_OK)
+		return result;
+
+	/* get slot sizes */
+	slot_layout_info->length = record->ucLength;
+	slot_layout_info->width = record->ucWidth;
+
+	/* get info for each connector in the slot */
+	slot_layout_info->num_of_connectors = record->ucConnNum;
+	for (j = 0; j < slot_layout_info->num_of_connectors; ++j) {
+		slot_layout_info->connectors[j].connector_type =
+			(enum connector_layout_type)
+			(record->asConnInfo[j].ucConnectorType);
+		switch (record->asConnInfo[j].ucConnectorType) {
+		case CONNECTOR_TYPE_DVI_D:
+			slot_layout_info->connectors[j].connector_type =
+				CONNECTOR_LAYOUT_TYPE_DVI_D;
+			slot_layout_info->connectors[j].length =
+				CONNECTOR_SIZE_DVI;
+			break;
+
+		case CONNECTOR_TYPE_HDMI:
+			slot_layout_info->connectors[j].connector_type =
+				CONNECTOR_LAYOUT_TYPE_HDMI;
+			slot_layout_info->connectors[j].length =
+				CONNECTOR_SIZE_HDMI;
+			break;
+
+		case CONNECTOR_TYPE_DISPLAY_PORT:
+			slot_layout_info->connectors[j].connector_type =
+				CONNECTOR_LAYOUT_TYPE_DP;
+			slot_layout_info->connectors[j].length =
+				CONNECTOR_SIZE_DP;
+			break;
+
+		case CONNECTOR_TYPE_MINI_DISPLAY_PORT:
+			slot_layout_info->connectors[j].connector_type =
+				CONNECTOR_LAYOUT_TYPE_MINI_DP;
+			slot_layout_info->connectors[j].length =
+				CONNECTOR_SIZE_MINI_DP;
+			break;
+
+		default:
+			slot_layout_info->connectors[j].connector_type =
+				CONNECTOR_LAYOUT_TYPE_UNKNOWN;
+			slot_layout_info->connectors[j].length =
+				CONNECTOR_SIZE_UNKNOWN;
+		}
+
+		slot_layout_info->connectors[j].position =
+			record->asConnInfo[j].ucPosition;
+		slot_layout_info->connectors[j].connector_id =
+			object_id_from_bios_object_id(
+				record->asConnInfo[j].usConnectorObjectId);
+	}
+	return result;
+}
+
+
+enum bp_result get_bracket_layout_record(
+	struct dc_bios *dcb,
+	unsigned int bracket_layout_id,
+	struct slot_layout_info *slot_layout_info)
+{
+	unsigned int i;
+	unsigned int record_offset;
+	struct bios_parser *bp;
+	enum bp_result result;
+	ATOM_OBJECT *object;
+	ATOM_OBJECT_TABLE *object_table;
+	unsigned int genericTableOffset;
+
+	bp = BP_FROM_DCB(dcb);
+	object = NULL;
+	if (slot_layout_info == NULL) {
+		DC_LOG_DETECTION_EDID_PARSER("Invalid slot_layout_info\n");
+		return BP_RESULT_BADINPUT;
+	}
+
+
+	genericTableOffset = bp->object_info_tbl_offset +
+		bp->object_info_tbl.v1_3->usMiscObjectTableOffset;
+	object_table = (ATOM_OBJECT_TABLE *)
+		GET_IMAGE(ATOM_OBJECT_TABLE, genericTableOffset);
+	if (!object_table)
+		return BP_RESULT_FAILURE;
+
+	result = BP_RESULT_NORECORD;
+	for (i = 0; i < object_table->ucNumberOfObjects; ++i) {
+
+		if (bracket_layout_id ==
+			object_table->asObjects[i].usObjectID) {
+
+			object = &object_table->asObjects[i];
+			record_offset = object->usRecordOffset +
+				bp->object_info_tbl_offset;
+
+			result = update_slot_layout_info(dcb, i,
+				slot_layout_info, record_offset);
+			break;
+		}
+	}
+	return result;
+}
+
+static enum bp_result bios_get_board_layout_info(
+	struct dc_bios *dcb,
+	struct board_layout_info *board_layout_info)
+{
+	unsigned int i;
+	struct bios_parser *bp;
+	enum bp_result record_result;
+
+	const unsigned int slot_index_to_vbios_id[MAX_BOARD_SLOTS] = {
+		GENERICOBJECT_BRACKET_LAYOUT_ENUM_ID1,
+		GENERICOBJECT_BRACKET_LAYOUT_ENUM_ID2,
+		0, 0
+	};
+
+	bp = BP_FROM_DCB(dcb);
+	if (board_layout_info == NULL) {
+		DC_LOG_DETECTION_EDID_PARSER("Invalid board_layout_info\n");
+		return BP_RESULT_BADINPUT;
+	}
+
+	board_layout_info->num_of_slots = 0;
+
+	for (i = 0; i < MAX_BOARD_SLOTS; ++i) {
+		record_result = get_bracket_layout_record(dcb,
+			slot_index_to_vbios_id[i],
+			&board_layout_info->slots[i]);
+
+		if (record_result == BP_RESULT_NORECORD && i > 0)
+			break; /* no more slots present in bios */
+		else if (record_result != BP_RESULT_OK)
+			return record_result;  /* fail */
+
+		++board_layout_info->num_of_slots;
+	}
+
+	/* all data is valid */
+	board_layout_info->is_number_of_slots_valid = 1;
+	board_layout_info->is_slots_size_valid = 1;
+	board_layout_info->is_connector_offsets_valid = 1;
+	board_layout_info->is_connector_lengths_valid = 1;
+
+	return BP_RESULT_OK;
+}
+
 /******************************************************************************/
 
 static const struct dc_vbios_funcs vbios_funcs = {
@@ -3741,14 +3989,11 @@ static const struct dc_vbios_funcs vbios_funcs = {
 
 	.get_gpio_pin_info = bios_parser_get_gpio_pin_info,
 
-	.get_embedded_panel_info = bios_parser_get_embedded_panel_info,
-
-	.get_gpio_pin_info = bios_parser_get_gpio_pin_info,
-
 	.get_encoder_cap_info = bios_parser_get_encoder_cap_info,
 
 	/* bios scratch register communication */
 	.is_accelerated_mode = bios_is_accelerated_mode,
+	.get_vga_enabled_displays = bios_get_vga_enabled_displays,
 
 	.set_scratch_critical_state = bios_parser_set_scratch_critical_state,
 
@@ -3783,6 +4028,8 @@ static const struct dc_vbios_funcs vbios_funcs = {
 	.post_init = bios_parser_post_init,  /* patch vbios table for mxm module by reading i2c */
 
 	.bios_parser_destroy = bios_parser_destroy,
+
+	.get_board_layout_info = bios_get_board_layout_info,
 };
 
 static bool bios_parser_construct(

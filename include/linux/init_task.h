@@ -18,6 +18,7 @@
 #include <linux/sched/rt.h>
 #include <linux/livepatch.h>
 #include <linux/mm_types.h>
+#include <linux/audit.h>
 
 #include <asm/thread_info.h>
 
@@ -120,8 +121,7 @@ extern struct group_info init_groups;
 
 #ifdef CONFIG_AUDITSYSCALL
 #define INIT_IDS \
-	.loginuid = INVALID_UID, \
-	.sessionid = (unsigned int)-1,
+	.audit = &init_struct_audit,
 #else
 #define INIT_IDS
 #endif

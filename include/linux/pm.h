@@ -539,28 +539,6 @@ struct wakeup_source;
 struct wake_irq;
 struct pm_domain_data;
 
-/**
- * System wakeup types.
- *
- * WAKEUP_UNKNOWN	The system was woken up, but the wakeup device type was
- *			not set (default state).
- *
- * WAKEUP_AUTOMATIC	Wakeup type indicating the system woke up to handle an
- *			automated behavior.
- *
- * WAKEUP_USER		The user woke the system (expected full functionality).
- *
- * WAKEUP_INVALID	No wakeup type available. The system either has not
- *			suspended or some invalid state.
- */
-
-enum pm_wakeup_type {
-	WAKEUP_UNKNOWN = 0,
-	WAKEUP_AUTOMATIC,
-	WAKEUP_USER,
-	WAKEUP_INVALID,
-};
-
 struct pm_subsys_data {
 	spinlock_t lock;
 	unsigned int refcount;
@@ -581,6 +559,7 @@ struct dev_pm_info {
 	bool			is_suspended:1;	/* Ditto */
 	bool			is_noirq_suspended:1;
 	bool			is_late_suspended:1;
+	bool			no_pm:1;
 	bool			early_init:1;	/* Owned by the PM core */
 	bool			direct_complete:1;	/* Owned by the PM core */
 	spinlock_t		lock;
@@ -588,12 +567,9 @@ struct dev_pm_info {
 	struct list_head	entry;
 	struct completion	completion;
 	struct wakeup_source	*wakeup;
-	void			*wakeup_data;
-	enum pm_wakeup_type	wakeup_source_type;
 	bool			wakeup_path:1;
 	bool			syscore:1;
 	bool			no_pm_callbacks:1;	/* Owned by the PM core */
-	bool			use_dark_resume:1;
 #else
 	unsigned int		should_wakeup:1;
 #endif

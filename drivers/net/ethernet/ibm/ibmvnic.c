@@ -457,8 +457,8 @@ static void release_rx_pools(struct ibmvnic_adapter *adapter)
 
 		for (j = 0; j < rx_pool->size; j++) {
 			if (rx_pool->rx_buff[j].skb) {
-				dev_kfree_skb_any(rx_pool->rx_buff[i].skb);
-				rx_pool->rx_buff[i].skb = NULL;
+				dev_kfree_skb_any(rx_pool->rx_buff[j].skb);
+				rx_pool->rx_buff[j].skb = NULL;
 			}
 		}
 
@@ -933,6 +933,35 @@ static int ibmvnic_open(struct net_device *netdev)
 	return rc;
 }
 
+static void clean_rx_pools(struct ibmvnic_adapter *adapter)
+{
+	struct ibmvnic_rx_pool *rx_pool;
+	u64 rx_entries;
+	int rx_scrqs;
+	int i, j;
+
+	if (!adapter->rx_pool)
+		return;
+
+	rx_scrqs = be32_to_cpu(adapter->login_rsp_buf->num_rxadd_subcrqs);
+	rx_entries = adapter->req_rx_add_entries_per_subcrq;
+
+	/* Free any remaining skbs in the rx buffer pools */
+	for (i = 0; i < rx_scrqs; i++) {
+		rx_pool = &adapter->rx_pool[i];
+		if (!rx_pool)
+			continue;
+
+		netdev_dbg(adapter->netdev, "Cleaning rx_pool[%d]\n", i);
+		for (j = 0; j < rx_entries; j++) {
+			if (rx_pool->rx_buff[j].skb) {
+				dev_kfree_skb_any(rx_pool->rx_buff[j].skb);
+				rx_pool->rx_buff[j].skb = NULL;
+			}
+		}
+	}
+}
+
 static void clean_tx_pools(struct ibmvnic_adapter *adapter)
 {
 	struct ibmvnic_tx_pool *tx_pool;
@@ -1010,7 +1039,7 @@ static int __ibmvnic_close(struct net_device *netdev)
 			}
 		}
 	}
-
+	clean_rx_pools(adapter);
 	clean_tx_pools(adapter);
 	adapter->state = VNIC_CLOSED;
 	return rc;
@@ -1230,7 +1259,7 @@ static int ibmvnic_xmit(struct sk_buff *skb, struct net_device *netdev)
 	tx_crq.v1.sge_len = cpu_to_be32(skb->len);
 	tx_crq.v1.ioba = cpu_to_be64(data_dma_addr);
 
-	if (adapter->vlan_header_insertion) {
+	if (adapter->vlan_header_insertion && skb_vlan_tag_present(skb)) {
 		tx_crq.v1.flags2 |= IBMVNIC_TX_VLAN_INSERT;
 		tx_crq.v1.vlan_id = cpu_to_be16(skb->vlan_tci);
 	}
@@ -1434,8 +1463,8 @@ static int do_reset(struct ibmvnic_adapter *adapter,
 
 		rc = ibmvnic_login(netdev);
 		if (rc) {
-			adapter->state = VNIC_PROBED;
-			return 0;
+			adapter->state = reset_state;
+			return rc;
 		}
 
 		rc = reset_tx_pools(adapter);
@@ -1460,7 +1489,8 @@ static int do_reset(struct ibmvnic_adapter *adapter,
 		return 0;
 	}
 
-	netif_carrier_on(netdev);
+	/* refresh device's multicast list */
+	ibmvnic_set_multi(netdev);
 
 	/* kick napi */
 	for (i = 0; i < adapter->req_rx_queues; i++)
@@ -1468,6 +1498,8 @@ static int do_reset(struct ibmvnic_adapter *adapter,
 
 	if (adapter->reset_reason != VNIC_RESET_FAILOVER)
 		netdev_notify_peers(netdev);
+
+	netif_carrier_on(netdev);
 
 	return 0;
 }
@@ -1567,7 +1599,7 @@ static void ibmvnic_reset(struct ibmvnic_adapter *adapter,
 		}
 	}
 
-	rwi = kzalloc(sizeof(*rwi), GFP_KERNEL);
+	rwi = kzalloc(sizeof(*rwi), GFP_ATOMIC);
 	if (!rwi) {
 		mutex_unlock(&adapter->rwi_lock);
 		ibmvnic_close(netdev);
@@ -1634,6 +1666,12 @@ restart_poll:
 		if (next->rx_comp.rc) {
 			netdev_dbg(netdev, "rx buffer returned with rc %x\n",
 				   be16_to_cpu(next->rx_comp.rc));
+			/* free the entry */
+			next->rx_comp.first = 0;
+			dev_kfree_skb_any(rx_buff->skb);
+			remove_buff_from_pool(adapter, rx_buff);
+			continue;
+		} else if (!rx_buff->skb) {
 			/* free the entry */
 			next->rx_comp.first = 0;
 			remove_buff_from_pool(adapter, rx_buff);
@@ -1927,6 +1965,7 @@ static int reset_one_sub_crq_queue(struct ibmvnic_adapter *adapter,
 	}
 
 	memset(scrq->msgs, 0, 4 * PAGE_SIZE);
+	atomic_set(&scrq->used, 0);
 	scrq->cur = 0;
 
 	rc = h_reg_sub_crq(adapter->vdev->unit_address, scrq->msg_token,
@@ -2208,6 +2247,12 @@ static irqreturn_t ibmvnic_interrupt_rx(int irq, void *instance)
 {
 	struct ibmvnic_sub_crq_queue *scrq = instance;
 	struct ibmvnic_adapter *adapter = scrq->adapter;
+
+	/* When booting a kdump kernel we can hit pending interrupts
+	 * prior to completing driver initialization.
+	 */
+	if (unlikely(adapter->state != VNIC_OPEN))
+		return IRQ_NONE;
 
 	adapter->rx_stats_buffers[scrq->scrq_num].interrupts++;
 

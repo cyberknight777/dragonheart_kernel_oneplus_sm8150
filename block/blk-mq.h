@@ -6,6 +6,11 @@
 
 struct blk_mq_tag_set;
 
+struct blk_mq_ctxs {
+	struct kobject kobj;
+	struct blk_mq_ctx __percpu	*queue_ctx;
+};
+
 struct blk_mq_ctx {
 	struct {
 		spinlock_t		lock;
@@ -23,6 +28,7 @@ struct blk_mq_ctx {
 	unsigned long		____cacheline_aligned_in_smp rq_completed[2];
 
 	struct request_queue	*queue;
+	struct blk_mq_ctxs      *ctxs;
 	struct kobject		kobj;
 } ____cacheline_aligned_in_smp;
 
@@ -136,6 +142,8 @@ static inline bool blk_mq_hw_queue_mapped(struct blk_mq_hw_ctx *hctx)
 }
 
 void blk_mq_in_flight(struct request_queue *q, struct hd_struct *part,
-			unsigned int inflight[2]);
+		      unsigned int inflight[2]);
+void blk_mq_in_flight_rw(struct request_queue *q, struct hd_struct *part,
+			 unsigned int inflight[2]);
 
 #endif

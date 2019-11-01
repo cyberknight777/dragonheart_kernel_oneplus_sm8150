@@ -93,29 +93,31 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 	struct sst_module_template template;
 	int count, ret;
 	void __iomem *ram;
+	int type = le16_to_cpu(module->type);
+	int entry_point = le32_to_cpu(module->entry_point);
 
 	/* TODO: allowed module types need to be configurable */
-	if (module->type != SST_HSW_MODULE_BASE_FW
-		&& module->type != SST_HSW_MODULE_PCM_SYSTEM
-		&& module->type != SST_HSW_MODULE_PCM
-		&& module->type != SST_HSW_MODULE_PCM_REFERENCE
-		&& module->type != SST_HSW_MODULE_PCM_CAPTURE
-		&& module->type != SST_HSW_MODULE_WAVES
-		&& module->type != SST_HSW_MODULE_LPAL)
+	if (type != SST_HSW_MODULE_BASE_FW &&
+	    type != SST_HSW_MODULE_PCM_SYSTEM &&
+	    type != SST_HSW_MODULE_PCM &&
+	    type != SST_HSW_MODULE_PCM_REFERENCE &&
+	    type != SST_HSW_MODULE_PCM_CAPTURE &&
+	    type != SST_HSW_MODULE_WAVES &&
+	    type != SST_HSW_MODULE_LPAL)
 		return 0;
 
 	dev_dbg(dsp->dev, "new module sign 0x%s size 0x%x blocks 0x%x type 0x%x\n",
 		module->signature, module->mod_size,
-		module->blocks, module->type);
-	dev_dbg(dsp->dev, " entrypoint 0x%x\n", module->entry_point);
+		module->blocks, type);
+	dev_dbg(dsp->dev, " entrypoint 0x%x\n", entry_point);
 	dev_dbg(dsp->dev, " persistent 0x%x scratch 0x%x\n",
 		module->info.persistent_size, module->info.scratch_size);
 
 	memset(&template, 0, sizeof(template));
-	template.id = module->type;
-	template.entry = module->entry_point - 4;
-	template.persistent_size = module->info.persistent_size;
-	template.scratch_size = module->info.scratch_size;
+	template.id = type;
+	template.entry = entry_point - 4;
+	template.persistent_size = le32_to_cpu(module->info.persistent_size);
+	template.scratch_size = le32_to_cpu(module->info.scratch_size);
 
 	mod = sst_module_new(fw, &template, NULL);
 	if (mod == NULL)
@@ -123,26 +125,26 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 
 	block = (void *)module + sizeof(*module);
 
-	for (count = 0; count < module->blocks; count++) {
+	for (count = 0; count < le32_to_cpu(module->blocks); count++) {
 
-		if (block->size <= 0) {
+		if (le32_to_cpu(block->size) <= 0) {
 			dev_err(dsp->dev,
 				"error: block %d size invalid\n", count);
 			sst_module_free(mod);
 			return -EINVAL;
 		}
 
-		switch (block->type) {
+		switch (le32_to_cpu(block->type)) {
 		case SST_HSW_IRAM:
 			ram = dsp->addr.lpe;
-			mod->offset =
-				block->ram_offset + dsp->addr.iram_offset;
+			mod->offset = le32_to_cpu(block->ram_offset) +
+				dsp->addr.iram_offset;
 			mod->type = SST_MEM_IRAM;
 			break;
 		case SST_HSW_DRAM:
 		case SST_HSW_REGS:
 			ram = dsp->addr.lpe;
-			mod->offset = block->ram_offset;
+			mod->offset = le32_to_cpu(block->ram_offset);
 			mod->type = SST_MEM_DRAM;
 			break;
 		default:
@@ -152,7 +154,7 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 			return -EINVAL;
 		}
 
-		mod->size = block->size;
+		mod->size = le32_to_cpu(block->size);
 		mod->data = (void *)block + sizeof(*block);
 		mod->data_offset = mod->data - fw->dma_buf;
 
@@ -169,7 +171,8 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 			return ret;
 		}
 
-		block = (void *)block + sizeof(*block) + block->size;
+		block = (void *)block + sizeof(*block) +
+			le32_to_cpu(block->size);
 	}
 	mod->state = SST_MODULE_STATE_LOADED;
 
@@ -188,7 +191,8 @@ static int hsw_parse_fw_image(struct sst_fw *sst_fw)
 
 	/* verify FW */
 	if ((strncmp(header->signature, SST_HSW_FW_SIGN, 4) != 0) ||
-		(sst_fw->size != header->file_size + sizeof(*header))) {
+	    (sst_fw->size !=
+	     le32_to_cpu(header->file_size) + sizeof(*header))) {
 		dev_err(dsp->dev, "error: invalid fw sign/filesize mismatch\n");
 		return -EINVAL;
 	}
@@ -199,7 +203,7 @@ static int hsw_parse_fw_image(struct sst_fw *sst_fw)
 
 	/* parse each module */
 	module = (void *)sst_fw->dma_buf + sizeof(*header);
-	for (count = 0; count < header->modules; count++) {
+	for (count = 0; count < le32_to_cpu(header->modules); count++) {
 
 		/* module */
 		ret = hsw_parse_module(dsp, sst_fw, module);
@@ -207,7 +211,8 @@ static int hsw_parse_fw_image(struct sst_fw *sst_fw)
 			dev_err(dsp->dev, "error: invalid module %d\n", count);
 			return ret;
 		}
-		module = (void *)module + sizeof(*module) + module->mod_size;
+		module = (void *)module + sizeof(*module) +
+			le32_to_cpu(module->mod_size);
 	}
 
 	return 0;
@@ -250,42 +255,17 @@ static irqreturn_t hsw_irq(int irq, void *context)
 static void hsw_set_dsp_D3(struct sst_dsp *sst)
 {
 	u32 val;
-	u32 reg;
 
-	/* Disable core clock gating (VDRTCTL2.DCLCGE = 0) */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	reg &= ~(SST_VDRTCL2_DCLCGE | SST_VDRTCL2_DTCGE);
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	/* enable power gating and switch off DRAM & IRAM blocks */
+	/* switch off audio PLL, DRAM & IRAM blocks */
 	val = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
-	val |= SST_VDRTCL0_DSRAMPGE_MASK |
+	val |= SST_VDRTCL0_APLLSE_MASK | SST_VDRTCL0_DSRAMPGE_MASK |
 		SST_VDRTCL0_ISRAMPGE_MASK;
-	val &= ~(SST_VDRTCL0_D3PGD | SST_VDRTCL0_D3SRAMPGD);
 	writel(val, sst->addr.pci_cfg + SST_VDRTCTL0);
 
-	/* switch off audio PLL */
-	val = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	val |= SST_VDRTCL2_APLLSE_MASK;
-	writel(val, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	/* disable MCLK(clkctl.smos = 0) */
-	sst_dsp_shim_update_bits_unlocked(sst, SST_CLKCTL,
-		SST_CLKCTL_MASK, 0);
-
-	/* Set D3 state, delay 50 us */
+	/* Set D3 state */
 	val = readl(sst->addr.pci_cfg + SST_PMCS);
 	val |= SST_PMCS_PS_MASK;
 	writel(val, sst->addr.pci_cfg + SST_PMCS);
-	udelay(50);
-
-	/* Enable core clock gating (VDRTCTL2.DCLCGE = 1), delay 50 us */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	reg |= SST_VDRTCL2_DCLCGE | SST_VDRTCL2_DTCGE;
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	udelay(50);
-
 }
 
 static void hsw_reset(struct sst_dsp *sst)
@@ -306,17 +286,7 @@ static void hsw_reset(struct sst_dsp *sst)
 static int hsw_set_dsp_D0(struct sst_dsp *sst)
 {
 	int tries = 10;
-	u32 reg, fw_dump_bit;
-
-	/* Disable core clock gating (VDRTCTL2.DCLCGE = 0) */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	reg &= ~(SST_VDRTCL2_DCLCGE | SST_VDRTCL2_DTCGE);
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	/* Disable D3PG (VDRTCTL0.D3PGD = 1) */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
-	reg |= SST_VDRTCL0_D3PGD;
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL0);
+	u32 reg;
 
 	/* Set D0 state */
 	reg = readl(sst->addr.pci_cfg + SST_PMCS);
@@ -335,6 +305,14 @@ static int hsw_set_dsp_D0(struct sst_dsp *sst)
 	return -ENODEV;
 
 finish:
+	hsw_reset(sst);
+
+	/* switch on audio PLL, DRAM & IRAM blocks */
+	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
+	reg &= ~(SST_VDRTCL0_APLLSE_MASK | SST_VDRTCL0_DSRAMPGE_MASK |
+		SST_VDRTCL0_ISRAMPGE_MASK);
+	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL0);
+
 	/* select SSP1 19.2MHz base clock, SSP clock 0, turn off Low Power Clock */
 	sst_dsp_shim_update_bits_unlocked(sst, SST_CSR,
 		SST_CSR_S1IOCS | SST_CSR_SBCS1 | SST_CSR_LPCS, 0x0);
@@ -348,30 +326,6 @@ finish:
 	sst_dsp_shim_update_bits_unlocked(sst, SST_CLKCTL,
 		SST_CLKCTL_MASK | SST_CLKCTL_DCPLCG | SST_CLKCTL_SCOE0,
 		SST_CLKCTL_MASK | SST_CLKCTL_DCPLCG | SST_CLKCTL_SCOE0);
-
-	/* Stall and reset core, set CSR */
-	hsw_reset(sst);
-
-	/* Enable core clock gating (VDRTCTL2.DCLCGE = 1), delay 50 us */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	reg |= SST_VDRTCL2_DCLCGE | SST_VDRTCL2_DTCGE;
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	udelay(50);
-
-	/* switch on audio PLL */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	reg &= ~SST_VDRTCL2_APLLSE_MASK;
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	/* set default power gating control, enable power gating control for all blocks. that is,
-	can't be accessed, please enable each block before accessing. */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
-	reg |= SST_VDRTCL0_DSRAMPGE_MASK | SST_VDRTCL0_ISRAMPGE_MASK;
-	/* for D0, always enable the block(DSRAM[0]) used for FW dump */
-	fw_dump_bit = 1 << SST_VDRTCL0_DSRAMPGE_SHIFT;
-	writel(reg & ~fw_dump_bit, sst->addr.pci_cfg + SST_VDRTCTL0);
-
 
 	/* disable DMA finish function for SSP0 & SSP1 */
 	sst_dsp_shim_update_bits_unlocked(sst, SST_CSR2, SST_CSR2_SDFD_SSP1,
@@ -393,6 +347,9 @@ finish:
 	sst_dsp_shim_write(sst, SST_IPCD, 0x0);
 	sst_dsp_shim_write(sst, 0x80, 0x6);
 	sst_dsp_shim_write(sst, 0xe0, 0x300a);
+
+	/* disable all clock gating */
+	writel(0x0, sst->addr.pci_cfg + SST_VDRTCTL2);
 
 	return 0;
 }
@@ -546,24 +503,12 @@ static int hsw_block_enable(struct sst_mem_block *block)
 	dev_dbg(block->dsp->dev, " enabled block %d:%d at offset 0x%x\n",
 		block->type, block->index, block->offset);
 
-	/* Disable core clock gating (VDRTCTL2.DCLCGE = 0) */
-	val = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	val &= ~SST_VDRTCL2_DCLCGE;
-	writel(val, sst->addr.pci_cfg + SST_VDRTCTL2);
-
 	val = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
 	bit = hsw_block_get_bit(block);
 	writel(val & ~bit, sst->addr.pci_cfg + SST_VDRTCTL0);
 
 	/* wait 18 DSP clock ticks */
 	udelay(10);
-
-	/* Enable core clock gating (VDRTCTL2.DCLCGE = 1), delay 50 us */
-	val = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	val |= SST_VDRTCL2_DCLCGE;
-	writel(val, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	udelay(50);
 
 	/*add a dummy read before the SRAM block is written, otherwise the writing may miss bytes sometimes.*/
 	sst_mem_block_dummy_read(block);
@@ -582,27 +527,11 @@ static int hsw_block_disable(struct sst_mem_block *block)
 	dev_dbg(block->dsp->dev, " disabled block %d:%d at offset 0x%x\n",
 		block->type, block->index, block->offset);
 
-	/* Disable core clock gating (VDRTCTL2.DCLCGE = 0) */
-	val = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	val &= ~SST_VDRTCL2_DCLCGE;
-	writel(val, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-
 	val = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
 	bit = hsw_block_get_bit(block);
 	/* don't disable DSRAM[0], keep it always enable for FW dump*/
 	if (bit != (1 << SST_VDRTCL0_DSRAMPGE_SHIFT))
 		writel(val | bit, sst->addr.pci_cfg + SST_VDRTCTL0);
-
-	/* wait 18 DSP clock ticks */
-	udelay(10);
-
-	/* Enable core clock gating (VDRTCTL2.DCLCGE = 1), delay 50 us */
-	val = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
-	val |= SST_VDRTCL2_DCLCGE;
-	writel(val, sst->addr.pci_cfg + SST_VDRTCTL2);
-
-	udelay(50);
 
 	return 0;
 }

@@ -58,12 +58,18 @@ module_param_named(disable_hugepages,
 MODULE_PARM_DESC(disable_hugepages,
 		 "Disable VFIO IOMMU support for IOMMU hugepages.");
 
+static unsigned int dma_entry_limit __read_mostly = U16_MAX;
+module_param_named(dma_entry_limit, dma_entry_limit, uint, 0644);
+MODULE_PARM_DESC(dma_entry_limit,
+		 "Maximum number of user DMA mappings per container (65535).");
+
 struct vfio_iommu {
 	struct list_head	domain_list;
 	struct vfio_domain	*external_domain; /* domain for external user */
 	struct mutex		lock;
 	struct rb_root		dma_list;
 	struct blocking_notifier_head notifier;
+	unsigned int		dma_avail;
 	bool			v2;
 	bool			nesting;
 };
@@ -83,6 +89,7 @@ struct vfio_dma {
 	size_t			size;		/* Map size (bytes) */
 	int			prot;		/* IOMMU_READ/WRITE */
 	bool			iommu_mapped;
+	bool			lock_cap;	/* capable(CAP_IPC_LOCK) */
 	struct task_struct	*task;
 	struct rb_root		pfn_list;	/* Ex-user pinned pfn list */
 };
@@ -246,29 +253,25 @@ static int vfio_iova_put_vfio_pfn(struct vfio_dma *dma, struct vfio_pfn *vpfn)
 	return ret;
 }
 
-static int vfio_lock_acct(struct task_struct *task, long npage, bool *lock_cap)
+static int vfio_lock_acct(struct vfio_dma *dma, long npage, bool async)
 {
 	struct mm_struct *mm;
-	bool is_current;
 	int ret;
 
 	if (!npage)
 		return 0;
 
-	is_current = (task->mm == current->mm);
-
-	mm = is_current ? task->mm : get_task_mm(task);
+	mm = async ? get_task_mm(dma->task) : dma->task->mm;
 	if (!mm)
 		return -ESRCH; /* process exited */
 
 	ret = down_write_killable(&mm->mmap_sem);
 	if (!ret) {
 		if (npage > 0) {
-			if (lock_cap ? !*lock_cap :
-			    !has_capability(task, CAP_IPC_LOCK)) {
+			if (!dma->lock_cap) {
 				unsigned long limit;
 
-				limit = task_rlimit(task,
+				limit = task_rlimit(dma->task,
 						RLIMIT_MEMLOCK) >> PAGE_SHIFT;
 
 				if (mm->locked_vm + npage > limit)
@@ -282,7 +285,7 @@ static int vfio_lock_acct(struct task_struct *task, long npage, bool *lock_cap)
 		up_write(&mm->mmap_sem);
 	}
 
-	if (!is_current)
+	if (async)
 		mmput(mm);
 
 	return ret;
@@ -339,18 +342,16 @@ static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
 	struct page *page[1];
 	struct vm_area_struct *vma;
 	struct vm_area_struct *vmas[1];
+	unsigned int flags = 0;
 	int ret;
 
+	if (prot & IOMMU_WRITE)
+		flags |= FOLL_WRITE;
+
+	down_read(&mm->mmap_sem);
 	if (mm == current->mm) {
-		ret = get_user_pages_longterm(vaddr, 1, !!(prot & IOMMU_WRITE),
-					      page, vmas);
+		ret = get_user_pages_longterm(vaddr, 1, flags, page, vmas);
 	} else {
-		unsigned int flags = 0;
-
-		if (prot & IOMMU_WRITE)
-			flags |= FOLL_WRITE;
-
-		down_read(&mm->mmap_sem);
 		ret = get_user_pages_remote(NULL, mm, vaddr, 1, flags, page,
 					    vmas, NULL);
 		/*
@@ -364,8 +365,8 @@ static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
 			ret = -EOPNOTSUPP;
 			put_page(page[0]);
 		}
-		up_read(&mm->mmap_sem);
 	}
+	up_read(&mm->mmap_sem);
 
 	if (ret == 1) {
 		*pfn = page_to_pfn(page[0]);
@@ -393,7 +394,7 @@ static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
  */
 static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 				  long npage, unsigned long *pfn_base,
-				  bool lock_cap, unsigned long limit)
+				  unsigned long limit)
 {
 	unsigned long pfn = 0;
 	long ret, pinned = 0, lock_acct = 0;
@@ -416,7 +417,7 @@ static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 	 * pages are already counted against the user.
 	 */
 	if (!rsvd && !vfio_find_vpfn(dma, iova)) {
-		if (!lock_cap && current->mm->locked_vm + 1 > limit) {
+		if (!dma->lock_cap && current->mm->locked_vm + 1 > limit) {
 			put_pfn(*pfn_base, dma->prot);
 			pr_warn("%s: RLIMIT_MEMLOCK (%ld) exceeded\n", __func__,
 					limit << PAGE_SHIFT);
@@ -442,7 +443,7 @@ static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 		}
 
 		if (!rsvd && !vfio_find_vpfn(dma, iova)) {
-			if (!lock_cap &&
+			if (!dma->lock_cap &&
 			    current->mm->locked_vm + lock_acct + 1 > limit) {
 				put_pfn(pfn, dma->prot);
 				pr_warn("%s: RLIMIT_MEMLOCK (%ld) exceeded\n",
@@ -455,7 +456,7 @@ static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 	}
 
 out:
-	ret = vfio_lock_acct(current, lock_acct, &lock_cap);
+	ret = vfio_lock_acct(dma, lock_acct, false);
 
 unpin_out:
 	if (ret) {
@@ -486,7 +487,7 @@ static long vfio_unpin_pages_remote(struct vfio_dma *dma, dma_addr_t iova,
 	}
 
 	if (do_accounting)
-		vfio_lock_acct(dma->task, locked - unlocked, NULL);
+		vfio_lock_acct(dma, locked - unlocked, true);
 
 	return unlocked;
 }
@@ -503,7 +504,7 @@ static int vfio_pin_page_external(struct vfio_dma *dma, unsigned long vaddr,
 
 	ret = vaddr_get_pfn(mm, vaddr, dma->prot, pfn_base);
 	if (!ret && do_accounting && !is_invalid_reserved_pfn(*pfn_base)) {
-		ret = vfio_lock_acct(dma->task, 1, NULL);
+		ret = vfio_lock_acct(dma, 1, true);
 		if (ret) {
 			put_pfn(*pfn_base, dma->prot);
 			if (ret == -ENOMEM)
@@ -530,7 +531,7 @@ static int vfio_unpin_page_external(struct vfio_dma *dma, dma_addr_t iova,
 	unlocked = vfio_iova_put_vfio_pfn(dma, vpfn);
 
 	if (do_accounting)
-		vfio_lock_acct(dma->task, -unlocked, NULL);
+		vfio_lock_acct(dma, -unlocked, true);
 
 	return unlocked;
 }
@@ -725,7 +726,7 @@ static long vfio_unmap_unpin(struct vfio_iommu *iommu, struct vfio_dma *dma,
 
 	dma->iommu_mapped = false;
 	if (do_accounting) {
-		vfio_lock_acct(dma->task, -unlocked, NULL);
+		vfio_lock_acct(dma, -unlocked, true);
 		return 0;
 	}
 	return unlocked;
@@ -737,6 +738,7 @@ static void vfio_remove_dma(struct vfio_iommu *iommu, struct vfio_dma *dma)
 	vfio_unlink_dma(iommu, dma);
 	put_task_struct(dma->task);
 	kfree(dma);
+	iommu->dma_avail++;
 }
 
 static unsigned long vfio_pgsize_bitmap(struct vfio_iommu *iommu)
@@ -937,14 +939,12 @@ static int vfio_pin_map_dma(struct vfio_iommu *iommu, struct vfio_dma *dma,
 	size_t size = map_size;
 	long npage;
 	unsigned long pfn, limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
-	bool lock_cap = capable(CAP_IPC_LOCK);
 	int ret = 0;
 
 	while (size) {
 		/* Pin a contiguous chunk of memory */
 		npage = vfio_pin_pages_remote(dma, vaddr + dma->size,
-					      size >> PAGE_SHIFT, &pfn,
-					      lock_cap, limit);
+					      size >> PAGE_SHIFT, &pfn, limit);
 		if (npage <= 0) {
 			WARN_ON(!npage);
 			ret = (int)npage;
@@ -1010,17 +1010,51 @@ static int vfio_dma_do_map(struct vfio_iommu *iommu,
 		goto out_unlock;
 	}
 
+	if (!iommu->dma_avail) {
+		ret = -ENOSPC;
+		goto out_unlock;
+	}
+
 	dma = kzalloc(sizeof(*dma), GFP_KERNEL);
 	if (!dma) {
 		ret = -ENOMEM;
 		goto out_unlock;
 	}
 
+	iommu->dma_avail--;
 	dma->iova = iova;
 	dma->vaddr = vaddr;
 	dma->prot = prot;
-	get_task_struct(current);
-	dma->task = current;
+
+	/*
+	 * We need to be able to both add to a task's locked memory and test
+	 * against the locked memory limit and we need to be able to do both
+	 * outside of this call path as pinning can be asynchronous via the
+	 * external interfaces for mdev devices.  RLIMIT_MEMLOCK requires a
+	 * task_struct and VM locked pages requires an mm_struct, however
+	 * holding an indefinite mm reference is not recommended, therefore we
+	 * only hold a reference to a task.  We could hold a reference to
+	 * current, however QEMU uses this call path through vCPU threads,
+	 * which can be killed resulting in a NULL mm and failure in the unmap
+	 * path when called via a different thread.  Avoid this problem by
+	 * using the group_leader as threads within the same group require
+	 * both CLONE_THREAD and CLONE_VM and will therefore use the same
+	 * mm_struct.
+	 *
+	 * Previously we also used the task for testing CAP_IPC_LOCK at the
+	 * time of pinning and accounting, however has_capability() makes use
+	 * of real_cred, a copy-on-write field, so we can't guarantee that it
+	 * matches group_leader, or in fact that it might not change by the
+	 * time it's evaluated.  If a process were to call MAP_DMA with
+	 * CAP_IPC_LOCK but later drop it, it doesn't make sense that they
+	 * possibly see different results for an iommu_mapped vfio_dma vs
+	 * externally mapped.  Therefore track CAP_IPC_LOCK in vfio_dma at the
+	 * time of calling MAP_DMA.
+	 */
+	get_task_struct(current->group_leader);
+	dma->task = current->group_leader;
+	dma->lock_cap = capable(CAP_IPC_LOCK);
+
 	dma->pfn_list = RB_ROOT;
 
 	/* Insert zero-sized and grow as we map chunks of it */
@@ -1055,7 +1089,6 @@ static int vfio_iommu_replay(struct vfio_iommu *iommu,
 	struct vfio_domain *d;
 	struct rb_node *n;
 	unsigned long limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
-	bool lock_cap = capable(CAP_IPC_LOCK);
 	int ret;
 
 	/* Arbitrarily pick the first domain in the list for lookups */
@@ -1102,8 +1135,7 @@ static int vfio_iommu_replay(struct vfio_iommu *iommu,
 
 				npage = vfio_pin_pages_remote(dma, vaddr,
 							      n >> PAGE_SHIFT,
-							      &pfn, lock_cap,
-							      limit);
+							      &pfn, limit);
 				if (npage <= 0) {
 					WARN_ON(!npage);
 					ret = (int)npage;
@@ -1380,7 +1412,7 @@ static void vfio_iommu_unmap_unpin_reaccount(struct vfio_iommu *iommu)
 			if (!is_invalid_reserved_pfn(vpfn->pfn))
 				locked++;
 		}
-		vfio_lock_acct(dma->task, locked - unlocked, NULL);
+		vfio_lock_acct(dma, locked - unlocked, true);
 	}
 }
 
@@ -1485,6 +1517,7 @@ static void *vfio_iommu_type1_open(unsigned long arg)
 
 	INIT_LIST_HEAD(&iommu->domain_list);
 	iommu->dma_list = RB_ROOT;
+	iommu->dma_avail = dma_entry_limit;
 	mutex_init(&iommu->lock);
 	BLOCKING_INIT_NOTIFIER_HEAD(&iommu->notifier);
 

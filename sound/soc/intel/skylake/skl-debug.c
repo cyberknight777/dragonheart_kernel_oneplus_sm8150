@@ -15,10 +15,10 @@
 
 #include <linux/pci.h>
 #include <linux/debugfs.h>
+#include <uapi/sound/skl-tplg-interface.h>
 #include "skl.h"
 #include "skl-sst-dsp.h"
 #include "skl-sst-ipc.h"
-#include "skl-tplg-interface.h"
 #include "skl-topology.h"
 #include "../common/sst-dsp.h"
 #include "../common/sst-dsp-priv.h"
@@ -142,8 +142,8 @@ static ssize_t module_read(struct file *file, char __user *user_buf,
 			mconfig->max_out_queue, ret, false);
 
 	ret += snprintf(buf + ret, MOD_BUF - ret,
-			"Other:\n\tDomain %d\n\tHomogenous Input %s\n\t"
-			"Homogenous Output %s\n\tIn Queue Mask %d\n\t"
+			"Other:\n\tDomain %d\n\tHomogeneous Input %s\n\t"
+			"Homogeneous Output %s\n\tIn Queue Mask %d\n\t"
 			"Out Queue Mask %d\n\tDMA ID %d\n\tMem Pages %d\n\t"
 			"Module Type %d\n\tModule State %d\n",
 			mconfig->domain,
@@ -196,7 +196,7 @@ static ssize_t fw_softreg_read(struct file *file, char __user *user_buf,
 	memset(d->fw_read_buff, 0, FW_REG_BUF);
 
 	if (w0_stat_sz > 0)
-		__iowrite32_copy(d->fw_read_buff, fw_reg_addr, w0_stat_sz >> 2);
+		__ioread32_copy(d->fw_read_buff, fw_reg_addr, w0_stat_sz >> 2);
 
 	for (offset = 0; offset < FW_REG_SIZE; offset += 16) {
 		ret += snprintf(tmp + ret, FW_REG_BUF - ret, "%#.4x: ", offset);
@@ -231,7 +231,7 @@ struct skl_debug *skl_debugfs_init(struct skl *skl)
 
 	/* create the debugfs dir with platform component's debugfs as parent */
 	d->fs = debugfs_create_dir("dsp",
-				   skl->platform->component.debugfs_root);
+				   skl->component->debugfs_root);
 	if (IS_ERR(d->fs) || !d->fs) {
 		dev_err(&skl->pci->dev, "debugfs root creation failed\n");
 		return NULL;

@@ -228,8 +228,6 @@ struct nv50_wndw_atom {
 	struct drm_plane_state state;
 	u8 interval;
 
-	struct drm_rect clip;
-
 	struct {
 		u32  handle;
 		u16  offset:12;
@@ -840,10 +838,6 @@ nv50_wndw_atomic_check_acquire(struct nv50_wndw *wndw,
 	int ret;
 
 	NV_ATOMIC(drm, "%s acquire\n", wndw->plane.name);
-	asyw->clip.x1 = 0;
-	asyw->clip.y1 = 0;
-	asyw->clip.x2 = asyh->state.mode.hdisplay;
-	asyw->clip.y2 = asyh->state.mode.vdisplay;
 
 	asyw->image.w = fb->base.width;
 	asyw->image.h = fb->base.height;
@@ -1143,10 +1137,10 @@ nv50_curs_acquire(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw,
 {
 	int ret;
 
-	ret = drm_plane_helper_check_state(&asyw->state, &asyw->clip,
-					   DRM_PLANE_HELPER_NO_SCALING,
-					   DRM_PLANE_HELPER_NO_SCALING,
-					   true, true);
+	ret = drm_atomic_helper_check_plane_state(&asyw->state, &asyh->state,
+						  DRM_PLANE_HELPER_NO_SCALING,
+						  DRM_PLANE_HELPER_NO_SCALING,
+						  true, true);
 	asyh->curs.visible = asyw->state.visible;
 	if (ret || !asyh->curs.visible)
 		return ret;
@@ -1432,10 +1426,10 @@ nv50_base_acquire(struct nv50_wndw *wndw, struct nv50_wndw_atom *asyw,
 	if (!fb->format->depth)
 		return -EINVAL;
 
-	ret = drm_plane_helper_check_state(&asyw->state, &asyw->clip,
-					   DRM_PLANE_HELPER_NO_SCALING,
-					   DRM_PLANE_HELPER_NO_SCALING,
-					   false, true);
+	ret = drm_atomic_helper_check_plane_state(&asyw->state, &asyh->state,
+						  DRM_PLANE_HELPER_NO_SCALING,
+						  DRM_PLANE_HELPER_NO_SCALING,
+						  false, true);
 	if (ret)
 		return ret;
 
@@ -2637,7 +2631,7 @@ nv50_dac_create(struct drm_connector *connector, struct dcb_output *dcbe)
 			 "dac-%04x-%04x", dcbe->hasht, dcbe->hashm);
 	drm_encoder_helper_add(encoder, &nv50_dac_help);
 
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 	return 0;
 }
 
@@ -2688,7 +2682,6 @@ nv50_audio_enable(struct drm_encoder *encoder, struct drm_display_mode *mode)
 	if (!drm_detect_monitor_audio(nv_connector->edid))
 		return;
 
-	drm_edid_to_eld(&nv_connector->base, nv_connector->edid);
 	memcpy(args.data, nv_connector->base.eld, sizeof(args.data));
 
 	nvif_mthd(disp->disp, 0, &args,
@@ -2755,7 +2748,8 @@ nv50_hdmi_enable(struct drm_encoder *encoder, struct drm_display_mode *mode)
 			= hdmi_infoframe_pack(&avi_frame, args.infoframes, 17);
 	}
 
-	ret = drm_hdmi_vendor_infoframe_from_display_mode(&vendor_frame.vendor.hdmi, mode);
+	ret = drm_hdmi_vendor_infoframe_from_display_mode(&vendor_frame.vendor.hdmi,
+							  &nv_connector->base, mode);
 	if (!ret) {
 		/* We have a Vendor InfoFrame, populate it to the display */
 		args.pwr.vendor_infoframe_length
@@ -3063,11 +3057,9 @@ nv50_mstc_get_modes(struct drm_connector *connector)
 	int ret = 0;
 
 	mstc->edid = drm_dp_mst_get_edid(&mstc->connector, mstc->port->mgr, mstc->port);
-	drm_mode_connector_update_edid_property(&mstc->connector, mstc->edid);
-	if (mstc->edid) {
+	drm_connector_update_edid_property(&mstc->connector, mstc->edid);
+	if (mstc->edid)
 		ret = drm_add_edid_modes(&mstc->connector, mstc->edid);
-		drm_edid_to_eld(&mstc->connector, mstc->edid);
-	}
 
 	if (!mstc->connector.display_info.bpc)
 		mstc->connector.display_info.bpc = 8;
@@ -3142,11 +3134,11 @@ nv50_mstc_new(struct nv50_mstm *mstm, struct drm_dp_mst_port *port,
 	nouveau_conn_attach_properties(&mstc->connector);
 
 	for (i = 0; i < ARRAY_SIZE(mstm->msto) && mstm->msto[i]; i++)
-		drm_mode_connector_attach_encoder(&mstc->connector, &mstm->msto[i]->encoder);
+		drm_connector_attach_encoder(&mstc->connector, &mstm->msto[i]->encoder);
 
 	drm_object_attach_property(&mstc->connector.base, dev->mode_config.path_property, 0);
 	drm_object_attach_property(&mstc->connector.base, dev->mode_config.tile_property, 0);
-	drm_mode_connector_set_path_property(&mstc->connector, path);
+	drm_connector_set_path_property(&mstc->connector, path);
 	return 0;
 }
 
@@ -3216,10 +3208,11 @@ nv50_mstm_destroy_connector(struct drm_dp_mst_topology_mgr *mgr,
 
 	drm_connector_unregister(&mstc->connector);
 
-	drm_modeset_lock_all(drm->dev);
 	drm_fb_helper_remove_one_connector(&drm->fbcon->helper, &mstc->connector);
+
+	drm_modeset_lock(&drm->dev->mode_config.connection_mutex, NULL);
 	mstc->port = NULL;
-	drm_modeset_unlock_all(drm->dev);
+	drm_modeset_unlock(&drm->dev->mode_config.connection_mutex);
 
 	drm_connector_unreference(&mstc->connector);
 }
@@ -3229,9 +3222,7 @@ nv50_mstm_register_connector(struct drm_connector *connector)
 {
 	struct nouveau_drm *drm = nouveau_drm(connector->dev);
 
-	drm_modeset_lock_all(drm->dev);
 	drm_fb_helper_add_one_connector(&drm->fbcon->helper, connector);
-	drm_modeset_unlock_all(drm->dev);
 
 	drm_connector_register(connector);
 }
@@ -3379,6 +3370,7 @@ nv50_mstm_del(struct nv50_mstm **pmstm)
 {
 	struct nv50_mstm *mstm = *pmstm;
 	if (mstm) {
+		drm_dp_mst_topology_mgr_destroy(&mstm->mgr);
 		kfree(*pmstm);
 		*pmstm = NULL;
 	}
@@ -3658,7 +3650,7 @@ nv50_sor_create(struct drm_connector *connector, struct dcb_output *dcbe)
 			 "sor-%04x-%04x", dcbe->hasht, dcbe->hashm);
 	drm_encoder_helper_add(encoder, &nv50_sor_help);
 
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 
 	if (dcbe->type == DCB_OUTPUT_DP) {
 		struct nv50_disp *disp = nv50_disp(encoder->dev);
@@ -3844,7 +3836,7 @@ nv50_pior_create(struct drm_connector *connector, struct dcb_output *dcbe)
 			 "pior-%04x-%04x", dcbe->hasht, dcbe->hashm);
 	drm_encoder_helper_add(encoder, &nv50_pior_help);
 
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 	return 0;
 }
 
@@ -4151,7 +4143,7 @@ nv50_disp_atomic_commit(struct drm_device *dev,
 		nv50_disp_atomic_commit_tail(state);
 
 	drm_for_each_crtc(crtc, dev) {
-		if (crtc->state->enable) {
+		if (crtc->state->active) {
 			if (!drm->have_disp_power_ref) {
 				drm->have_disp_power_ref = true;
 				return 0;
@@ -4399,10 +4391,6 @@ nv50_display_destroy(struct drm_device *dev)
 	kfree(disp);
 }
 
-MODULE_PARM_DESC(atomic, "Expose atomic ioctl (default: disabled)");
-static int nouveau_atomic = 0;
-module_param_named(atomic, nouveau_atomic, int, 0400);
-
 int
 nv50_display_create(struct drm_device *dev)
 {
@@ -4427,8 +4415,6 @@ nv50_display_create(struct drm_device *dev)
 	disp->disp = &nouveau_display(dev)->disp;
 	dev->mode_config.funcs = &nv50_disp_func;
 	dev->driver->driver_features |= DRIVER_PREFER_XBGR_30BPP;
-	if (nouveau_atomic)
-		dev->driver->driver_features |= DRIVER_ATOMIC;
 
 	/* small shared memory area we use for notifiers and semaphores */
 	ret = nouveau_bo_new(&drm->client, 4096, 0x1000, TTM_PL_FLAG_VRAM,

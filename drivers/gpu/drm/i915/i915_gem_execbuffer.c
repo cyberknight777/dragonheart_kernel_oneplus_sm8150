@@ -726,7 +726,7 @@ static int eb_lookup_vmas(struct i915_execbuffer *eb)
 
 		err = radix_tree_insert(handles_vma, handle, vma);
 		if (unlikely(err)) {
-			kfree(lut);
+			kmem_cache_free(eb->i915->luts, lut);
 			goto err_obj;
 		}
 
@@ -1071,7 +1071,7 @@ static int __reloc_gpu_alloc(struct i915_execbuffer *eb,
 	u32 *cmd;
 	int err;
 
-	GEM_BUG_ON(vma->obj->base.write_domain & I915_GEM_DOMAIN_CPU);
+	GEM_BUG_ON(vma->obj->write_domain & I915_GEM_DOMAIN_CPU);
 
 	obj = i915_gem_batch_pool_get(&eb->engine->batch_pool, PAGE_SIZE);
 	if (IS_ERR(obj))
@@ -1543,6 +1543,7 @@ static int eb_copy_relocations(const struct i915_execbuffer *eb)
 			if (__copy_from_user((char *)relocs + copied,
 					     (char __user *)urelocs + copied,
 					     len)) {
+access_err:
 				kvfree(relocs);
 				err = -EFAULT;
 				goto err;
@@ -1561,6 +1562,8 @@ static int eb_copy_relocations(const struct i915_execbuffer *eb)
 		 * happened we would make the mistake of assuming that the
 		 * relocations were valid.
 		 */
+		if (!access_ok(VERIFY_WRITE, urelocs, size))
+			goto access_err;
 		user_access_begin();
 		for (copied = 0; copied < nreloc; copied++)
 			unsafe_put_user(-1,
@@ -1868,16 +1871,16 @@ void i915_vma_move_to_active(struct i915_vma *vma,
 	i915_gem_active_set(&vma->last_read[idx], req);
 	list_move_tail(&vma->vm_link, &vma->vm->active_list);
 
-	obj->base.write_domain = 0;
+	obj->write_domain = 0;
 	if (flags & EXEC_OBJECT_WRITE) {
-		obj->base.write_domain = I915_GEM_DOMAIN_RENDER;
+		obj->write_domain = I915_GEM_DOMAIN_RENDER;
 
 		if (intel_fb_obj_invalidate(obj, ORIGIN_CS))
 			i915_gem_active_set(&obj->frontbuffer_write, req);
 
-		obj->base.read_domains = 0;
+		obj->read_domains = 0;
 	}
-	obj->base.read_domains |= I915_GEM_GPU_DOMAINS;
+	obj->read_domains |= I915_GEM_GPU_DOMAINS;
 
 	if (flags & EXEC_OBJECT_NEEDS_FENCE)
 		i915_gem_active_set(&vma->last_fence, req);
@@ -2600,6 +2603,18 @@ i915_gem_execbuffer2(struct drm_device *dev, void *data,
 		unsigned int i;
 
 		/* Copy the new buffer offsets back to the user's exec list. */
+		/*
+		 * Note: count * sizeof(*user_exec_list) does not overflow,
+		 * because we checked 'count' in check_buffer_count().
+		 *
+		 * And this range already got effectively checked earlier
+		 * when we did the "copy_from_user()" above.
+		 */
+		if (!access_ok(VERIFY_WRITE,
+			       user_exec_list,
+			       args->buffer_count * sizeof(*user_exec_list)))
+			goto end_user;
+
 		user_access_begin();
 		for (i = 0; i < args->buffer_count; i++) {
 			if (!(exec2_list[i].offset & UPDATE))

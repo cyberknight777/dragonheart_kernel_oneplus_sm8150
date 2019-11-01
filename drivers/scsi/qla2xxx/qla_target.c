@@ -971,6 +971,7 @@ static void qlt_free_session_done(struct work_struct *work)
 
 			logo.id = sess->d_id;
 			logo.cmd_count = 0;
+			sess->send_els_logo = 0;
 			qlt_send_first_logo(vha, &logo);
 		}
 
@@ -1202,7 +1203,8 @@ void qlt_schedule_sess_for_deletion(struct fc_port *sess,
 	qla24xx_chk_fcp_state(sess);
 
 	ql_dbg(ql_dbg_tgt, sess->vha, 0xe001,
-	    "Scheduling sess %p for deletion\n", sess);
+	    "Scheduling sess %p for deletion %8phC\n",
+	    sess, sess->port_name);
 
 	INIT_WORK(&sess->del_work, qla24xx_delete_sess_fn);
 	queue_work(sess->vha->hw->wq, &sess->del_work);

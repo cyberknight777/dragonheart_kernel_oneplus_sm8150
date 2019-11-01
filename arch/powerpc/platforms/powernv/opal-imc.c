@@ -87,6 +87,10 @@ static int imc_pmu_create(struct device_node *parent, int pmu_index, int domain)
 	struct imc_pmu *pmu_ptr;
 	u32 offset;
 
+	/* Return for unknown domain */
+	if (domain < 0)
+		return -EINVAL;
+
 	/* memory for pmu */
 	pmu_ptr = kzalloc(sizeof(struct imc_pmu), GFP_KERNEL);
 	if (!pmu_ptr)
@@ -126,9 +130,11 @@ static void disable_nest_pmu_counters(void)
 	const struct cpumask *l_cpumask;
 
 	get_online_cpus();
-	for_each_online_node(nid) {
+	for_each_node_with_cpus(nid) {
 		l_cpumask = cpumask_of_node(nid);
-		cpu = cpumask_first(l_cpumask);
+		cpu = cpumask_first_and(l_cpumask, cpu_online_mask);
+		if (cpu >= nr_cpu_ids)
+			continue;
 		opal_imc_counters_stop(OPAL_IMC_COUNTERS_NEST,
 				       get_hard_smp_processor_id(cpu));
 	}

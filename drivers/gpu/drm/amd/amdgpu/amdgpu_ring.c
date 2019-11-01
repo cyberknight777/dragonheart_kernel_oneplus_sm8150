@@ -164,7 +164,7 @@ void amdgpu_ring_undo(struct amdgpu_ring *ring)
  * Release a request for executing at @priority
  */
 void amdgpu_ring_priority_put(struct amdgpu_ring *ring,
-			      enum amd_sched_priority priority)
+			      enum drm_sched_priority priority)
 {
 	int i;
 
@@ -175,7 +175,7 @@ void amdgpu_ring_priority_put(struct amdgpu_ring *ring,
 		return;
 
 	/* no need to restore if the job is already at the lowest priority */
-	if (priority == AMD_SCHED_PRIORITY_NORMAL)
+	if (priority == DRM_SCHED_PRIORITY_NORMAL)
 		return;
 
 	mutex_lock(&ring->priority_mutex);
@@ -184,8 +184,8 @@ void amdgpu_ring_priority_put(struct amdgpu_ring *ring,
 		goto out_unlock;
 
 	/* decay priority to the next level with a job available */
-	for (i = priority; i >= AMD_SCHED_PRIORITY_MIN; i--) {
-		if (i == AMD_SCHED_PRIORITY_NORMAL
+	for (i = priority; i >= DRM_SCHED_PRIORITY_MIN; i--) {
+		if (i == DRM_SCHED_PRIORITY_NORMAL
 				|| atomic_read(&ring->num_jobs[i])) {
 			ring->priority = i;
 			ring->funcs->set_priority(ring, i);
@@ -206,12 +206,13 @@ out_unlock:
  * Request a ring's priority to be raised to @priority (refcounted).
  */
 void amdgpu_ring_priority_get(struct amdgpu_ring *ring,
-			      enum amd_sched_priority priority)
+			      enum drm_sched_priority priority)
 {
 	if (!ring->funcs->set_priority)
 		return;
 
-	atomic_inc(&ring->num_jobs[priority]);
+	if (atomic_inc_return(&ring->num_jobs[priority]) <= 0)
+		return;
 
 	mutex_lock(&ring->priority_mutex);
 	if (priority <= ring->priority)
@@ -263,25 +264,25 @@ int amdgpu_ring_init(struct amdgpu_device *adev, struct amdgpu_ring *ring,
 			return r;
 	}
 
-	r = amdgpu_wb_get(adev, &ring->rptr_offs);
+	r = amdgpu_device_wb_get(adev, &ring->rptr_offs);
 	if (r) {
 		dev_err(adev->dev, "(%d) ring rptr_offs wb alloc failed\n", r);
 		return r;
 	}
 
-	r = amdgpu_wb_get(adev, &ring->wptr_offs);
+	r = amdgpu_device_wb_get(adev, &ring->wptr_offs);
 	if (r) {
 		dev_err(adev->dev, "(%d) ring wptr_offs wb alloc failed\n", r);
 		return r;
 	}
 
-	r = amdgpu_wb_get(adev, &ring->fence_offs);
+	r = amdgpu_device_wb_get(adev, &ring->fence_offs);
 	if (r) {
 		dev_err(adev->dev, "(%d) ring fence_offs wb alloc failed\n", r);
 		return r;
 	}
 
-	r = amdgpu_wb_get(adev, &ring->cond_exe_offs);
+	r = amdgpu_device_wb_get(adev, &ring->cond_exe_offs);
 	if (r) {
 		dev_err(adev->dev, "(%d) ring cond_exec_polling wb alloc failed\n", r);
 		return r;
@@ -304,7 +305,7 @@ int amdgpu_ring_init(struct amdgpu_device *adev, struct amdgpu_ring *ring,
 		0xffffffffffffffff : ring->buf_mask;
 	/* Allocate ring buffer */
 	if (ring->ring_obj == NULL) {
-		r = amdgpu_bo_create_kernel(adev, ring->ring_size, PAGE_SIZE,
+		r = amdgpu_bo_create_kernel(adev, ring->ring_size + ring->funcs->extra_dw, PAGE_SIZE,
 					    AMDGPU_GEM_DOMAIN_GTT,
 					    &ring->ring_obj,
 					    &ring->gpu_addr,
@@ -317,12 +318,12 @@ int amdgpu_ring_init(struct amdgpu_device *adev, struct amdgpu_ring *ring,
 	}
 
 	ring->max_dw = max_dw;
-	ring->priority = AMD_SCHED_PRIORITY_NORMAL;
+	ring->priority = DRM_SCHED_PRIORITY_NORMAL;
 	mutex_init(&ring->priority_mutex);
 	INIT_LIST_HEAD(&ring->lru_list);
 	amdgpu_ring_lru_touch(adev, ring);
 
-	for (i = 0; i < AMD_SCHED_PRIORITY_MAX; ++i)
+	for (i = 0; i < DRM_SCHED_PRIORITY_MAX; ++i)
 		atomic_set(&ring->num_jobs[i], 0);
 
 	if (amdgpu_debugfs_ring_init(adev, ring)) {
@@ -348,17 +349,21 @@ void amdgpu_ring_fini(struct amdgpu_ring *ring)
 	if (!(ring->adev) || !(ring->adev->rings[ring->idx]))
 		return;
 
-	amdgpu_wb_free(ring->adev, ring->rptr_offs);
-	amdgpu_wb_free(ring->adev, ring->wptr_offs);
+	amdgpu_device_wb_free(ring->adev, ring->rptr_offs);
+	amdgpu_device_wb_free(ring->adev, ring->wptr_offs);
 
-	amdgpu_wb_free(ring->adev, ring->cond_exe_offs);
-	amdgpu_wb_free(ring->adev, ring->fence_offs);
+	amdgpu_device_wb_free(ring->adev, ring->cond_exe_offs);
+	amdgpu_device_wb_free(ring->adev, ring->fence_offs);
 
 	amdgpu_bo_free_kernel(&ring->ring_obj,
 			      &ring->gpu_addr,
 			      (void **)&ring->ring);
 
 	amdgpu_debugfs_ring_fini(ring);
+
+	dma_fence_put(ring->vmid_wait);
+	ring->vmid_wait = NULL;
+	ring->me = 0;
 
 	ring->adev->rings[ring->idx] = NULL;
 }
@@ -456,6 +461,51 @@ void amdgpu_ring_lru_touch(struct amdgpu_device *adev, struct amdgpu_ring *ring)
 	spin_unlock(&adev->ring_lru_list_lock);
 }
 
+/**
+ * amdgpu_ring_emit_reg_write_reg_wait_helper - ring helper
+ *
+ * @adev: amdgpu_device pointer
+ * @reg0: register to write
+ * @reg1: register to wait on
+ * @ref: reference value to write/wait on
+ * @mask: mask to wait on
+ *
+ * Helper for rings that don't support write and wait in a
+ * single oneshot packet.
+ */
+void amdgpu_ring_emit_reg_write_reg_wait_helper(struct amdgpu_ring *ring,
+						uint32_t reg0, uint32_t reg1,
+						uint32_t ref, uint32_t mask)
+{
+	amdgpu_ring_emit_wreg(ring, reg0, ref);
+	amdgpu_ring_emit_reg_wait(ring, reg1, mask, mask);
+}
+
+/**
+ * amdgpu_ring_soft_recovery - try to soft recover a ring lockup
+ *
+ * @ring: ring to try the recovery on
+ * @vmid: VMID we try to get going again
+ * @fence: timedout fence
+ *
+ * Tries to get a ring proceeding again when it is stuck.
+ */
+bool amdgpu_ring_soft_recovery(struct amdgpu_ring *ring, unsigned int vmid,
+			       struct dma_fence *fence)
+{
+	ktime_t deadline = ktime_add_us(ktime_get(), 10000);
+
+	if (!ring->funcs->soft_recovery)
+		return false;
+
+	atomic_inc(&ring->adev->gpu_reset_counter);
+	while (!dma_fence_is_signaled(fence) &&
+	       ktime_to_ns(ktime_sub(deadline, ktime_get())) > 0)
+		ring->funcs->soft_recovery(ring, vmid);
+
+	return dma_fence_is_signaled(fence);
+}
+
 /*
  * Debugfs info
  */
@@ -481,7 +531,7 @@ static ssize_t amdgpu_debugfs_ring_read(struct file *f, char __user *buf,
 	result = 0;
 
 	if (*pos < 12) {
-		early[0] = amdgpu_ring_get_rptr(ring);
+		early[0] = amdgpu_ring_get_rptr(ring) & ring->buf_mask;
 		early[1] = amdgpu_ring_get_wptr(ring) & ring->buf_mask;
 		early[2] = ring->wptr & ring->buf_mask;
 		for (i = *pos / 4; i < 3 && size; i++) {

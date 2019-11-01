@@ -421,8 +421,12 @@ static void _bxt_ddi_phy_init(struct drm_i915_private *dev_priv,
 		 * the corresponding calibrated value from PHY1, and disable
 		 * the automatic calibration on PHY0.
 		 */
-		val = dev_priv->bxt_phy_grc = bxt_get_grc(dev_priv,
-							  phy_info->rcomp_phy);
+		if (!dev_priv->bxt_phy_grc)
+			val = dev_priv->bxt_phy_grc = bxt_get_grc(dev_priv,
+								  phy_info->rcomp_phy);
+		else
+			val = dev_priv->bxt_phy_grc;
+
 		grc_code = val << GRC_CODE_FAST_SHIFT |
 			   val << GRC_CODE_SLOW_SHIFT |
 			   val;

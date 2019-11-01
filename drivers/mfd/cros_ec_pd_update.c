@@ -230,8 +230,8 @@ static int cros_ec_pd_enter_gfu(struct device *dev, struct cros_ec_dev *pd_dev,
 				int port)
 {
 	int rv;
-
 	struct ec_params_usb_pd_set_mode_request set_mode_request;
+
 	set_mode_request.port = port;
 	set_mode_request.svid = USB_VID_GOOGLE;
 	/* TODO(tbroch) Will GFU always be '1'? */
@@ -247,6 +247,39 @@ static int cros_ec_pd_enter_gfu(struct device *dev, struct cros_ec_dev *pd_dev,
 
 	return rv;
 }
+
+int cros_ec_pd_get_polarity(int port, int *polarity)
+{
+	struct cros_ec_dev *pd_dev = pd_ec;
+	struct device *dev;
+	struct ec_params_usb_pd_control request;
+	struct ec_response_usb_pd_control response;
+	int ret;
+
+	if (!pd_dev) {
+		pr_err("No pd_ec device found\n");
+		return -ENODEV;
+	}
+
+	dev = pd_dev->dev;
+
+	request.port = port;
+	request.role = USB_PD_CTRL_ROLE_NO_CHANGE;
+	request.mux = USB_PD_CTRL_MUX_NO_CHANGE;
+	ret = cros_ec_pd_command(dev, pd_dev, EC_CMD_USB_PD_CONTROL,
+				 (uint8_t *)&request, sizeof(request),
+				 (uint8_t *)&response, sizeof(response));
+	if (ret < 0)
+		return ret;
+
+	dev_info(dev, "%s: port:%d enabled:%d, role:%d, polarity:%d, state:%d\n",
+		 __func__, port, response.enabled, response.role,
+		 response.polarity, response.state);
+	*polarity = response.polarity;
+
+	return 0;
+}
+EXPORT_SYMBOL(cros_ec_pd_get_polarity);
 
 /**
  * cros_ec_pd_get_status - Get info about a possible PD device attached to a
@@ -404,7 +437,7 @@ static int cros_ec_pd_fw_update(struct cros_ec_pd_update_data *drv_data,
 	/*
 	 * Wait for the charger to reboot.
 	 * TODO(shawnn): Instead of waiting for a fixed period of time, wait
-	 * to recieve an interrupt that signals the charger is back online.
+	 * to receive an interrupt that signals the charger is back online.
 	 */
 	msleep(4000);
 
@@ -517,9 +550,8 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 			 * reflash.
 			 */
 			return PD_DO_UPDATE;
-		else
-			/* Device is already updated */
-			return PD_ALREADY_HAVE_LATEST;
+		/* Device is already updated */
+		return PD_ALREADY_HAVE_LATEST;
 	}
 
 	/* Always update if PD device is stuck in RO. */
@@ -593,7 +625,7 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	struct device *dev = drv_data->dev;
 	struct power_supply *charger;
 	enum cros_ec_pd_find_update_firmware_result result;
-	int ret, port;
+	int ret, port, polarity;
 	uint32_t pd_status;
 
 	if (disable) {
@@ -641,6 +673,13 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 		/* Don't try to update if we're going to suspend. */
 		if (drv_data->is_suspending)
 			return;
+
+		ret = cros_ec_pd_get_polarity(port, &polarity);
+		if (ret < 0) {
+			dev_err(dev, "Can't get Port%d device polarity (err:%d)\n",
+				port, ret);
+			return;
+		}
 
 		ret = cros_ec_pd_get_status(dev, pd_ec, port, &hash_entry,
 					    &discovery_entry);
@@ -746,7 +785,7 @@ static ssize_t disable_firmware_update(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(disable, S_IWUSR, NULL, disable_firmware_update);
+static DEVICE_ATTR(disable, 0200, NULL, disable_firmware_update);
 
 static struct attribute *pd_attrs[] = {
 	&dev_attr_disable.attr,
@@ -893,7 +932,7 @@ static ssize_t show_firmware_images(struct device *dev,
 }
 
 
-static DEVICE_ATTR(firmware_images, S_IRUGO, show_firmware_images, NULL);
+static DEVICE_ATTR(firmware_images, 0444, show_firmware_images, NULL);
 
 static struct attribute *__pd_attrs[] = {
 	&dev_attr_firmware_images.attr,

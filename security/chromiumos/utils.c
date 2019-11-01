@@ -143,8 +143,7 @@ char *printable_cmdline(struct task_struct *task)
 	}
 
 	/* Make sure the buffer is always NULL-terminated. */
-	len = max_t(int, PAGE_SIZE-1, res);
-	buffer[len] = 0;
+	buffer[PAGE_SIZE-1] = 0;
 
 	/* Make sure result is printable. */
 	sanitized = printable(buffer, res);
