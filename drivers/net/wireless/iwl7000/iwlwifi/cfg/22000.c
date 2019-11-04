@@ -247,6 +247,18 @@ const struct iwl_cfg_trans_params iwl_qu_trans_cfg = {
 	.xtal_latency = 5000,
 };
 
+const struct iwl_cfg_trans_params iwl_qu_long_latency_trans_cfg = {
+	.mq_rx_supported = true,
+	.use_tfh = true,
+	.rf_id = true,
+	.gen2 = true,
+	.device_family = IWL_DEVICE_FAMILY_22000,
+	.base_params = &iwl_22000_base_params,
+	.integrated = true,
+	.xtal_latency = 12000,
+	.low_latency_xtal = true,
+};
+
 /*
  * If the device doesn't support HE, no need to have that many buffers.
  * 22000 devices can split multiple frames into a single RB, so fewer are
