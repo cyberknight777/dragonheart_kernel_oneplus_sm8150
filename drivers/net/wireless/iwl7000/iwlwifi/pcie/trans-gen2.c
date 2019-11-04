@@ -111,7 +111,7 @@ int iwl_pcie_gen2_apm_init(struct iwl_trans *trans)
 	iwl_pcie_apm_config(trans);
 
 	if (trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_22000 &&
-	    trans->cfg->integrated) {
+	    trans->trans_cfg->integrated) {
 		ret = iwl_pcie_gen2_force_power_gating(trans);
 		if (ret)
 			return ret;
