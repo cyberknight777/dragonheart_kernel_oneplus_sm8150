@@ -1350,9 +1350,9 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	ieee80211_remove_interfaces(local);
  fail_rate:
 	rtnl_unlock();
+ fail_flows:
 	ieee80211_led_exit(local);
 	ieee80211_wep_free(local);
- fail_flows:
 	destroy_workqueue(local->workqueue);
  fail_workqueue:
 	wiphy_unregister(local->hw.wiphy);
