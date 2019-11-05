@@ -983,12 +983,12 @@ found:
 	if (!iwl_trans->name)
 		iwl_trans->name = iwl_trans->cfg->name;
 
-	if (cfg->trans.mq_rx_supported) {
-		if (WARN_ON(!cfg->num_rbds)) {
+	if (iwl_trans->trans_cfg->mq_rx_supported) {
+		if (WARN_ON(!iwl_trans->cfg->num_rbds)) {
 			ret = -EINVAL;
 			goto out_free_trans;
 		}
-		trans_pcie->num_rx_bufs = cfg->num_rbds;
+		trans_pcie->num_rx_bufs = iwl_trans->cfg->num_rbds;
 	} else {
 		trans_pcie->num_rx_bufs = RX_QUEUE_SIZE;
 	}
