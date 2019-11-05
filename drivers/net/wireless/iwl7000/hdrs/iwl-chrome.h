@@ -911,6 +911,13 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 
 #endif /* LINUX_VERSION_IS_LESS(4,12,0) */
 
+#if LINUX_VERSION_IS_LESS(4,18,0)
+static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
+{
+	return kvmalloc_array(n, size, flags | __GFP_ZERO);
+}
+#endif /* LINUX_VERSION_IS_LESS(4,18,0) */
+
 /* avoid conflicts with other headers */
 #ifdef is_signed_type
 #undef is_signed_type
