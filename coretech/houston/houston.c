@@ -192,7 +192,7 @@ module_param_named(bat_update_period_us, bat_update_period_us, ulong, 0664);
 extern void bq27541_force_update_current(void);
 
 /* fps boost switch */
-static bool fps_boost_enable = true;
+static bool fps_boost_enable = false;
 module_param_named(fps_boost_enable, fps_boost_enable, bool, 0664);
 
 static bool fps_boost_force_enable;
@@ -209,7 +209,7 @@ module_param_named(cpufreq_hispeed_enable, cpufreq_hispeed_enable, bool, 0664);
 static unsigned int cpufreq_hispeed[HT_CLUSTERS] = { 1209600, 1612800, 1612800 };
 module_param_array_named(cpufreq_hispeed, cpufreq_hispeed, uint, NULL, 0664);
 
-static bool ddrfreq_hispeed_enable = true;
+static bool ddrfreq_hispeed_enable = false;
 module_param_named(ddrfreq_hispeed_enable, ddrfreq_hispeed_enable, bool, 0664);
 
 static unsigned int ddrfreq_hispeed = 1017;
