@@ -873,7 +873,6 @@ static inline int nla_validate_nested4(const struct nlattr *start, int maxtype,
 #define nla_validate_nested(...) \
 	macro_dispatcher(nla_validate_nested, __VA_ARGS__)(__VA_ARGS__)
 
-#if LINUX_VERSION_IS_LESS(4,12,0)
 #define kvmalloc LINUX_BACKPORT(kvmalloc)
 static inline void *kvmalloc(size_t size, gfp_t flags)
 {
@@ -903,7 +902,6 @@ static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
 
 	return kvmalloc(bytes, flags);
 }
-#endif
 
 #define kvzalloc LINUX_BACKPORT(kvzalloc)
 static inline void *kvzalloc(size_t size, gfp_t flags)
