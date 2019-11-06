@@ -2733,6 +2733,18 @@ static inline void cfg80211_bss_iter(struct wiphy *wiphy,
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */
 
+#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
+static inline bool nl80211_is_6ghz(enum nl80211_band band)
+{
+	return false;
+}
+#else
+static inline bool nl80211_is_6ghz(enum nl80211_band band)
+{
+	return band == NL80211_BAND_6GHZ;
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,4,0) */
+
 #if CFG80211_VERSION < KERNEL_VERSION(9,9,9)
 #define ftm_non_trigger_based(peer)	0
 #define ftm_trigger_based(peer)	0
