@@ -1,7 +1,7 @@
 /*
  * ChromeOS backport definitions
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  */
 #include <linux/if_ether.h>
 #include <net/cfg80211.h>
@@ -1485,6 +1485,12 @@ bool ieee80211_has_nan_iftype(unsigned int iftype)
 #define nan_conf_cdw_5g(conf) ((conf)->cdw_5g)
 #endif
 
+#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
+#define beacon_ftm_len(beacon, m) 0
+#else
+#define beacon_ftm_len(beacon, m) ((beacon)->m)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
 static inline long ktime_get_seconds(void)
 {
@@ -2239,6 +2245,10 @@ void cfg80211_send_layer2_update(struct net_device *dev, const u8 *addr)
 }
 
 #define NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 -1
+
+int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
+			      enum ieee80211_vht_chanwidth bw,
+			      int mcs, bool ext_nss_bw_capable);
 #endif /* >= 4.20 */
 
 /*
@@ -2550,6 +2560,32 @@ static inline void cfg80211_pmsr_complete(struct wireless_dev *wdev,
 	kfree(req);
 }
 
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+static inline u64 ether_addr_to_u64(const u8 *addr)
+{
+	u64 u = 0;
+	int i;
+
+	for (i = 0; i < ETH_ALEN; i++)
+		u = u << 8 | addr[i];
+
+	return u;
+}
+
+static inline void u64_to_ether_addr(u64 u, u8 *addr)
+{
+	int i;
+
+	for (i = ETH_ALEN - 1; i >= 0; i--) {
+		addr[i] = u & 0xff;
+		u = u >> 8;
+	}
+}
+#endif /* < 4,11,0 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(4, 19, 0)
 static inline void
 ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
 				     u16 n)
@@ -2582,8 +2618,40 @@ ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
 		  "Tried to use unsupported sband iftype data\n");
 	return NULL;
 }
+#else  /* CFG80211_VERSION < KERNEL_VERSION(4,19,0) */
+static inline void
+ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
+				     u16 n)
+{
+	sband->n_iftype_data = n;
+}
 
-#endif /* CFG80211_VERSION < KERNEL_VERSION(4,21,0) */
+static inline u16
+ieee80211_sband_get_num_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return sband->n_iftype_data;
+}
+
+static inline void
+ieee80211_sband_set_iftypes_data(struct ieee80211_supported_band *sband,
+				 const struct ieee80211_sband_iftype_data *data)
+{
+	sband->iftype_data = data;
+}
+
+static inline const struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data(struct ieee80211_supported_band *sband)
+{
+	return sband->iftype_data;
+}
+
+static inline const struct ieee80211_sband_iftype_data *
+ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
+				       u16 i)
+{
+	return &sband->iftype_data[i];
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(4,19,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,1,0)
 static inline int cfg80211_vendor_cmd_get_sender(struct wiphy *wiphy)
@@ -2608,4 +2676,32 @@ cfg80211_vendor_event_alloc_ucast(struct wiphy *wiphy,
 	 */
 	return NULL;
 }
+
+static inline const struct element *
+cfg80211_find_elem(u8 eid, const u8 *ies, int len)
+{
+	return (void *)cfg80211_find_ie(eid, ies, len);
+}
+
+static inline const struct element *
+cfg80211_find_ext_elem(u8 ext_eid, const u8 *ies, int len)
+{
+	return (void *)cfg80211_find_ext_ie(ext_eid, ies, len);
+}
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,1,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,3,0)
+static inline void cfg80211_bss_iter(struct wiphy *wiphy,
+				     struct cfg80211_chan_def *chandef,
+				     void (*iter)(struct wiphy *wiphy,
+						  struct cfg80211_bss *bss,
+						  void *data),
+				     void *iter_data)
+{
+	/*
+	 * It might be possible to backport this function, but that would
+	 * require duplicating large portions of data structure/code, so
+	 * leave it empty for now.
+	 */
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */

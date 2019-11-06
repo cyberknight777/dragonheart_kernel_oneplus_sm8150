@@ -556,6 +556,12 @@ struct ieee80211_if_managed {
 	 * get stuck in a downgraded situation and flush takes forever.
 	 */
 	struct delayed_work tx_tspec_wk;
+
+	/* Information elements from the last transmitted (Re)Association
+	 * Request frame.
+	 */
+	u8 *assoc_req_ies;
+	size_t assoc_req_ies_len;
 };
 
 struct ieee80211_if_ibss {
@@ -1511,6 +1517,11 @@ struct ieee802_11_elems {
 	const struct ieee80211_sec_chan_offs_ie *sec_chan_offs;
 	struct ieee80211_mesh_chansw_params_ie *mesh_chansw_params_ie;
 	const struct ieee80211_bss_max_idle_period_ie *max_idle_period_ie;
+	const struct ieee80211_multiple_bssid_configuration *mbssid_config_ie;
+	const struct ieee80211_bssid_index *bssid_index;
+	u8 max_bssid_indicator;
+	u8 dtim_count;
+	u8 dtim_period;
 
 	/* length of them, respectively */
 	u8 ext_capab_len;
@@ -1529,6 +1540,7 @@ struct ieee802_11_elems {
 	u8 prep_len;
 	u8 perr_len;
 	u8 country_elem_len;
+	u8 bssid_index_len;
 
 	/* whether a parse error occurred while retrieving these elements */
 	bool parse_error;
@@ -1688,7 +1700,6 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 			  struct ieee80211_rx_status *rx_status,
 			  struct ieee80211_mgmt *mgmt,
 			  size_t len,
-			  struct ieee802_11_elems *elems,
 			  struct ieee80211_channel *channel);
 void ieee80211_rx_bss_put(struct ieee80211_local *local,
 			  struct ieee80211_bss *bss);
@@ -1982,12 +1993,16 @@ static inline void ieee80211_tx_skb(struct ieee80211_sub_if_data *sdata,
 
 u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 			       struct ieee802_11_elems *elems,
-			       u64 filter, u32 crc);
+			       u64 filter, u32 crc, u8 *transmitter_bssid,
+			       u8 *bss_bssid);
 static inline void ieee802_11_parse_elems(const u8 *start, size_t len,
 					  bool action,
-					  struct ieee802_11_elems *elems)
+					  struct ieee802_11_elems *elems,
+					  u8 *transmitter_bssid,
+					  u8 *bss_bssid)
 {
-	ieee802_11_parse_elems_crc(start, len, action, elems, 0, 0);
+	ieee802_11_parse_elems_crc(start, len, action, elems, 0, 0,
+				   transmitter_bssid, bss_bssid);
 }
 
 
@@ -2101,7 +2116,8 @@ void ieee80211_send_auth(struct ieee80211_sub_if_data *sdata,
 			 const u8 *da, const u8 *key, u8 key_len, u8 key_idx,
 			 u32 tx_flags);
 void ieee80211_send_deauth_disassoc(struct ieee80211_sub_if_data *sdata,
-				    const u8 *bssid, u16 stype, u16 reason,
+				    const u8 *da, const u8 *bssid,
+				    u16 stype, u16 reason,
 				    bool send_frame, u8 *frame_buf);
 
 enum {
@@ -2119,7 +2135,7 @@ int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
 			     u32 flags);
 struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 					  const u8 *src, const u8 *dst,
-					  u32 ratemask,
+					  const u8 *bssid, u32 ratemask,
 					  struct ieee80211_channel *chan,
 					  const u8 *ssid, size_t ssid_len,
 					  const u8 *ie, size_t ie_len,
@@ -2254,6 +2270,9 @@ void ieee80211_tdls_cancel_channel_switch(struct wiphy *wiphy,
 					  const u8 *addr);
 void ieee80211_teardown_tdls_peers(struct ieee80211_sub_if_data *sdata);
 void ieee80211_tdls_chsw_work(struct work_struct *wk);
+void ieee80211_tdls_handle_disconnect(struct ieee80211_sub_if_data *sdata,
+				      const u8 *peer, u16 reason);
+const char *ieee80211_get_reason_code_string(u16 reason_code);
 
 extern const struct ethtool_ops ieee80211_ethtool_ops;
 

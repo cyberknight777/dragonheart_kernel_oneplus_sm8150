@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -27,7 +27,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -107,7 +107,7 @@ static ssize_t iwl_dbgfs_fw_dbg_collect_write(struct iwl_xvt *xvt,
 		return 0;
 
 	iwl_fw_dbg_collect(&xvt->fwrt, FW_DBG_TRIGGER_USER, buf,
-			   (count - 1));
+			   (count - 1), NULL);
 
 	return count;
 }

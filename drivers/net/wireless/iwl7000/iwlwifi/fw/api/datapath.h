@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -111,7 +111,8 @@ enum iwl_data_path_subcmd_ids {
 
 	/**
 	 * @CHEST_COLLECTOR_FILTER_CONFIG_CMD: Configure the CSI
-	 *	matrix collection, uses &struct iwl_channel_estimation_cfg
+	 *	matrix collection, uses &struct iwl_channel_estimation_cfg_v1
+	 *	or &struct iwl_channel_estimation_cfg
 	 */
 	CHEST_COLLECTOR_FILTER_CONFIG_CMD = 0x14,
 
@@ -171,12 +172,14 @@ enum iwl_channel_estimation_flags {
 	IWL_CHANNEL_ESTIMATION_ENABLE	= BIT(0),
 	IWL_CHANNEL_ESTIMATION_TIMER	= BIT(1),
 	IWL_CHANNEL_ESTIMATION_COUNTER	= BIT(2),
+	/* starting from v2: */
+	IWL_CHANNEL_ESTIMATION_INTERVAL	= BIT(3),
 };
 
 /**
- * struct iwl_channel_estimation_cfg - channel estimation reporting config
+ * struct iwl_channel_estimation_cfg_v1 - channel estimation reporting config
  */
-struct iwl_channel_estimation_cfg {
+struct iwl_channel_estimation_cfg_v1 {
 	/**
 	 * @flags: flags, see &enum iwl_channel_estimation_flags
 	 */
@@ -215,5 +218,63 @@ struct iwl_channel_estimation_cfg {
 	 */
 	__le64 frame_types;
 } __packed; /* CHEST_COLLECTOR_FILTER_CMD_API_S_VER_1 */
+
+/* CHEST_MAX_MAC_ADDR_FILTERED_IN_API_D_VER_1 */
+#define IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS 20
+
+/**
+ * struct iwl_channel_estimation_cfg - channel estimation reporting config
+ */
+struct iwl_channel_estimation_cfg {
+	/**
+	 * @flags: flags, see &enum iwl_channel_estimation_flags
+	 */
+	__le32 flags;
+	/**
+	 * @timer: if enabled via flags, automatically disable after this many
+	 *	microseconds
+	 */
+	__le32 timer;
+	/**
+	 * @count: if enabled via flags, automatically disable after this many
+	 *	frames with channel estimation matrix were captured
+	 */
+	__le32 count;
+	/**
+	 * @rate_n_flags_mask: only try to record the channel estimation matrix
+	 *	if the rate_n_flags value for the received frame (let's call
+	 *	that rx_rnf) matches the mask/value given here like this:
+	 *	(rx_rnf & rate_n_flags_mask) == rate_n_flags_val.
+	 */
+	__le32 rate_n_flags_mask;
+	/**
+	 * @rate_n_flags_val: see @rate_n_flags_mask
+	 */
+	__le32 rate_n_flags_val;
+	/**
+	 * @min_time_between_collection: minimum time between collecting data
+	 */
+	__le32 min_time_between_collection;
+	/**
+	 * @frame_types: bitmap of frame types to capture, the received frame's
+	 *	subtype|type takes 6 bits in the frame and the corresponding bit
+	 *	in this field must be set to 1 to capture channel estimation for
+	 *	that frame type. Set to all-ones to enable capturing for all
+	 *	frame types.
+	 */
+	__le64 frame_types;
+	/**
+	 * @num_filter_addrs: number of MAC address filters configured, if 0
+	 *	no filters are applied
+	 */
+	__le32 num_filter_addrs;
+	/**
+	 * @filter_addrs: MAC address filters, used length in @num_filter_addrs
+	 */
+	struct {
+		u8 addr[ETH_ALEN];
+		__le16 reserved;
+	} filter_addrs[IWL_NUM_CHANNEL_ESTIMATION_FILTER_ADDRS];
+} __packed; /* CHEST_COLLECTOR_FILTER_CMD_API_S_VER_2 */
 
 #endif /* __iwl_fw_api_datapath_h__ */

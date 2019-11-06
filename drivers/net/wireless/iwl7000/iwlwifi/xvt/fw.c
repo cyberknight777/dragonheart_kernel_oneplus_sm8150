@@ -7,7 +7,7 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -29,7 +29,7 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,6 +68,7 @@
 #include "iwl-dnt-cfg.h"
 #include "fw/dbg.h"
 #include "fw/testmode.h"
+#include "fw/api/power.h"
 
 #define XVT_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 
@@ -156,7 +157,7 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 			lmac2 = &palive4->lmac_data[1];
 			umac = &palive4->umac_data;
 			lmac2_err_ptr = lmac2->dbg_ptrs.error_event_table_ptr;
-			xvt->trans->lmac_error_event_table[1] =
+			xvt->trans->dbg.lmac_error_event_table[1] =
 				le32_to_cpu(lmac2_err_ptr);
 
 			IWL_DEBUG_FW(xvt, "Alive VER4 CDB\n");
@@ -260,7 +261,8 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	if (ret)
 		return ret;
 
-	if (ucode_type == IWL_UCODE_REGULAR) {
+	if (ucode_type == IWL_UCODE_REGULAR &&
+	    fw_has_capa(&xvt->fw->ucode_capa, IWL_UCODE_TLV_CAPA_DQA_SUPPORT)) {
 		ret = iwl_xvt_send_dqa_cmd(xvt);
 		if (ret)
 			return ret;
@@ -308,7 +310,19 @@ static int iwl_xvt_send_extended_config(struct iwl_xvt *xvt)
 				    sizeof(ext_cfg), &ext_cfg);
 }
 
-int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
+static int iwl_xvt_config_ltr(struct iwl_xvt *xvt)
+{
+	struct iwl_ltr_config_cmd cmd = {
+		.flags = cpu_to_le32(LTR_CFG_FLAG_FEATURE_ENABLE),
+	};
+
+	if (!xvt->trans->ltr_enabled)
+		return 0;
+
+	return iwl_xvt_send_cmd_pdu(xvt, LTR_CONFIG, 0, sizeof(cmd), &cmd);
+}
+
+int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 {
 	int ret;
 
@@ -323,13 +337,11 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 			if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR)
 				iwl_xvt_txq_disable(xvt);
 		}
-		_iwl_trans_stop_device(xvt->trans, !cont_run);
+		iwl_fw_dbg_stop_sync(&xvt->fwrt);
+		iwl_trans_stop_device(xvt->trans);
 	}
 
-	if (cont_run)
-		ret = _iwl_trans_start_hw(xvt->trans, false);
-	else
-		ret = iwl_trans_start_hw(xvt->trans);
+	ret = iwl_trans_start_hw(xvt->trans);
 	if (ret) {
 		IWL_ERR(xvt, "Failed to start HW\n");
 		return ret;
@@ -344,6 +356,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 	ret = iwl_xvt_load_ucode_wait_alive(xvt, ucode_type);
 	if (ret) {
 		IWL_ERR(xvt, "Failed to start ucode: %d\n", ret);
+		iwl_fw_dbg_stop_sync(&xvt->fwrt);
 		iwl_trans_stop_device(xvt->trans);
 	}
 
@@ -352,11 +365,17 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type, bool cont_run)
 		if (ret) {
 			IWL_ERR(xvt, "Failed to send extended_config: %d\n",
 				ret);
+			iwl_fw_dbg_stop_sync(&xvt->fwrt);
 			iwl_trans_stop_device(xvt->trans);
 			return ret;
 		}
 	}
 	iwl_dnt_start(xvt->trans);
+
+	if (xvt->fwrt.cur_fw_img == IWL_UCODE_REGULAR &&
+	    (!fw_has_capa(&xvt->fw->ucode_capa,
+			  IWL_UCODE_TLV_CAPA_SET_LTR_GEN2)))
+		WARN_ON(iwl_xvt_config_ltr(xvt));
 
 	xvt->fwrt.dump.conf = FW_DBG_INVALID;
 	/* if we have a destination, assume EARLY START */

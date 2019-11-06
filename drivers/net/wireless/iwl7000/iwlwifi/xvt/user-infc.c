@@ -7,8 +7,8 @@
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018         Intel Corporation
+ * Copyright(C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,8 +30,8 @@
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(C) 2015 - 2017 Intel Deutschland GmbH
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -83,6 +83,8 @@
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
 #include "iwl-trans.h"
+#include "fw/dbg.h"
+#include "fw/acpi.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ)
 #define XVT_SCU_BASE	(0xe6a00000)
@@ -446,7 +448,7 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 	struct iwl_nvm_access_complete_cmd nvm_complete = {};
 	struct iwl_notification_wait init_complete_wait;
 	static const u16 init_complete[] = { INIT_COMPLETE_NOTIF };
-	int err;
+	int err, ret;
 
 	err = iwl_xvt_send_cmd_pdu(xvt,
 				   WIDE_ID(REGULATORY_AND_NVM_GROUP,
@@ -474,17 +476,26 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 				    XVT_UCODE_CALIB_TIMEOUT);
 	if (err)
 		goto init_error;
-	return 0;
+
+	ret = iwl_xvt_init_sar_tables(xvt);
+	if (ret < 0) {
+		err = ret;
+		goto init_error;
+	}
+
+	return err;
 init_error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 	return err;
 }
-static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt, bool cont_run)
+
+static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt)
 {
 	int err;
 
-	err = iwl_xvt_run_fw(xvt, IWL_UCODE_REGULAR, cont_run);
+	err = iwl_xvt_run_fw(xvt, IWL_UCODE_REGULAR);
 	if (err)
 		goto fw_error;
 
@@ -511,6 +522,7 @@ static int iwl_xvt_run_runtime_fw(struct iwl_xvt *xvt, bool cont_run)
 	return 0;
 
 phy_error:
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 
 fw_error:
@@ -554,10 +566,11 @@ static int iwl_xvt_start_op_mode(struct iwl_xvt *xvt)
 	 */
 	if (!(xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_INIT)) {
 		if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME) {
-			err = iwl_xvt_run_runtime_fw(xvt, false);
+			err = iwl_xvt_run_runtime_fw(xvt);
 		} else {
 			if (xvt->state != IWL_XVT_STATE_UNINITIALIZED) {
 				xvt->fw_running = false;
+				iwl_fw_dbg_stop_sync(&xvt->fwrt);
 				iwl_trans_stop_device(xvt->trans);
 			}
 			err = iwl_trans_start_hw(xvt->trans);
@@ -575,7 +588,7 @@ static int iwl_xvt_start_op_mode(struct iwl_xvt *xvt)
 	/* when fw image is unified, only regular ucode is loaded. */
 	if (iwl_xvt_is_unified_fw(xvt))
 		ucode_type = IWL_UCODE_REGULAR;
-	err = iwl_xvt_run_fw(xvt, ucode_type, false);
+	err = iwl_xvt_run_fw(xvt, ucode_type);
 	if (err)
 		return err;
 
@@ -607,6 +620,7 @@ static void iwl_xvt_stop_op_mode(struct iwl_xvt *xvt)
 		iwl_xvt_txq_disable(xvt);
 		xvt->fw_running = false;
 	}
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 
 	iwl_free_fw_paging(&xvt->fwrt);
@@ -626,7 +640,7 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 		INIT_COMPLETE_NOTIF,
 		CALIB_RES_NOTIF_PHY_DB
 	};
-	int err;
+	int err, ret;
 
 	if (xvt->state != IWL_XVT_STATE_INIT_STARTED)
 		return -EINVAL;
@@ -660,13 +674,22 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 
 	if (xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME)
 		/* Run runtime FW stops the device by itself if error occurs */
-		err = iwl_xvt_run_runtime_fw(xvt, true);
+		err = iwl_xvt_run_runtime_fw(xvt);
+	if (err)
+		goto cont_init_end;
+
+	ret = iwl_xvt_init_sar_tables(xvt);
+	if (ret < 0) {
+		err = ret;
+		goto error;
+	}
 
 	goto cont_init_end;
 
 error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
 	iwl_xvt_txq_disable(xvt);
+	iwl_fw_dbg_stop_sync(&xvt->fwrt);
 	iwl_trans_stop_device(xvt->trans);
 
 cont_init_end:
@@ -1750,10 +1773,10 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 			       sizeof(mac_addr_info->mac_addr));
 		} else {
 			/* read the mac address from WFMP registers */
-			mac_addr0 = iwl_trans_read_prph(xvt->trans,
-							WFMP_MAC_ADDR_0);
-			mac_addr1 = iwl_trans_read_prph(xvt->trans,
-							WFMP_MAC_ADDR_1);
+			mac_addr0 = iwl_read_umac_prph_no_grab(xvt->trans,
+							       WFMP_MAC_ADDR_0);
+			mac_addr1 = iwl_read_umac_prph_no_grab(xvt->trans,
+							       WFMP_MAC_ADDR_1);
 
 			hw_addr = (const u8 *)&mac_addr0;
 			temp_mac_addr[0] = hw_addr[3];
@@ -1814,6 +1837,15 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 	int ret = 0;
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
+		struct iwl_tx_queue_cfg_cmd queue_cfg_cmd = {
+			.flags = 0,
+			.sta_id = cmd->sta_id,
+			.tid = cmd->tid,
+		};
+
+		ret = iwl_xvt_send_cmd_pdu(xvt, SCD_QUEUE_CFG, 0,
+					   sizeof(queue_cfg_cmd),
+					   &queue_cfg_cmd);
 		iwl_trans_txq_free(xvt->trans, cmd->scd_queue);
 	} else {
 		iwl_trans_txq_disable(xvt->trans, cmd->scd_queue, false);

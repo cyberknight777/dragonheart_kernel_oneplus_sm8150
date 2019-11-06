@@ -8,7 +8,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 Intel Corporation
+ * Copyright(c) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -262,9 +262,7 @@ int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 		.preferred_tsf = NUM_TSF_IDS,
 		.found_vif = false,
 	};
-	u32 ac;
-	int ret, i, queue_limit;
-	unsigned long used_hw_queues;
+	int ret, i;
 
 	lockdep_assert_held(&mvm->mutex);
 
@@ -343,36 +341,8 @@ int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	/* No need to allocate data queues to P2P Device MAC and NAN.*/
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE ||
-	    ieee80211_viftype_nan(vif->type)) {
-		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
-			vif->hw_queue[ac] = IEEE80211_INVAL_HW_QUEUE;
-
+	    ieee80211_viftype_nan(vif->type))
 		return 0;
-	}
-
-	/*
-	 * queues in mac80211 almost entirely independent of
-	 * the ones here - no real limit
-	 */
-	queue_limit = IEEE80211_MAX_QUEUES;
-
-	/*
-	 * Find available queues, and allocate them to the ACs. When in
-	 * DQA-mode they aren't really used, and this is done only so the
-	 * mac80211 ieee80211_check_queues() function won't fail
-	 */
-	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
-		u8 queue = find_first_zero_bit(&used_hw_queues, queue_limit);
-
-		if (queue >= queue_limit) {
-			IWL_ERR(mvm, "Failed to allocate queue\n");
-			ret = -EIO;
-			goto exit_fail;
-		}
-
-		__set_bit(queue, &used_hw_queues);
-		vif->hw_queue[ac] = queue;
-	}
 
 	/* Allocate the CAB queue for softAP and GO interfaces */
 	if (vif->type == NL80211_IFTYPE_AP ||
@@ -585,19 +555,20 @@ static void iwl_mvm_mac_ctxt_cmd_common(struct iwl_mvm *mvm,
 		cpu_to_le32(vif->bss_conf.use_short_slot ?
 			    MAC_FLG_SHORT_SLOT : 0);
 
-	cmd->filter_flags = cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
+	cmd->filter_flags = 0;
 
 	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
 		u8 txf = iwl_mvm_mac_ac_to_tx_fifo(mvm, i);
+		u8 ucode_ac = iwl_mvm_mac80211_ac_to_ucode_ac(i);
 
-		cmd->ac[txf].cw_min =
+		cmd->ac[ucode_ac].cw_min =
 			cpu_to_le16(mvmvif->queue_params[i].cw_min);
-		cmd->ac[txf].cw_max =
+		cmd->ac[ucode_ac].cw_max =
 			cpu_to_le16(mvmvif->queue_params[i].cw_max);
-		cmd->ac[txf].edca_txop =
+		cmd->ac[ucode_ac].edca_txop =
 			cpu_to_le16(mvmvif->queue_params[i].txop * 32);
-		cmd->ac[txf].aifsn = mvmvif->queue_params[i].aifs;
-		cmd->ac[txf].fifos_mask = BIT(txf);
+		cmd->ac[ucode_ac].aifsn = mvmvif->queue_params[i].aifs;
+		cmd->ac[ucode_ac].fifos_mask = BIT(txf);
 	}
 
 	if (vif->bss_conf.qos)
@@ -662,6 +633,8 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 	/* We need the dtim_period to set the MAC as associated */
 	if (vif->bss_conf.assoc && vif->bss_conf.dtim_period &&
 	    !force_assoc_off) {
+		struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+		u8 ap_sta_id = mvmvif->ap_sta_id;
 		u32 dtim_offs;
 
 		/*
@@ -697,6 +670,29 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 			       dtim_offs);
 
 		ctxt_sta->is_assoc = cpu_to_le32(1);
+
+		/*
+		 * allow multicast data frames only as long as the station is
+		 * authorized, i.e., GTK keys are already installed (if needed)
+		 */
+		if (ap_sta_id < IWL_MVM_STATION_COUNT) {
+			struct ieee80211_sta *sta;
+
+			rcu_read_lock();
+
+			sta = rcu_dereference(mvm->fw_id_to_mac_id[ap_sta_id]);
+			if (!IS_ERR_OR_NULL(sta)) {
+				struct iwl_mvm_sta *mvmsta =
+					iwl_mvm_sta_from_mac80211(sta);
+
+				if (mvmsta->sta_state ==
+				    IEEE80211_STA_AUTHORIZED)
+					cmd.filter_flags |=
+						cpu_to_le32(MAC_FILTER_ACCEPT_GRP);
+			}
+
+			rcu_read_unlock();
+		}
 	} else {
 		ctxt_sta->is_assoc = cpu_to_le32(0);
 
@@ -718,7 +714,7 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 
 	if (vif->bss_conf.he_support && !iwlwifi_mod_params.disable_11ax) {
 		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
-		if (vif->bss_conf.twt_requester)
+		if (vif->bss_conf.twt_requester && IWL_MVM_USE_TWT)
 			ctxt_sta->data_policy |= cpu_to_le32(TWT_SUPPORTED);
 	}
 
@@ -742,7 +738,8 @@ static int iwl_mvm_mac_ctxt_cmd_listener(struct iwl_mvm *mvm,
 				       MAC_FILTER_IN_CONTROL_AND_MGMT |
 				       MAC_FILTER_IN_BEACON |
 				       MAC_FILTER_IN_PROBE_REQUEST |
-				       MAC_FILTER_IN_CRC32);
+				       MAC_FILTER_IN_CRC32 |
+				       MAC_FILTER_ACCEPT_GRP);
 	ieee80211_hw_set(mvm->hw, RX_INCLUDES_FCS);
 
 	/* Allocate sniffer station */
@@ -766,7 +763,8 @@ static int iwl_mvm_mac_ctxt_cmd_ibss(struct iwl_mvm *mvm,
 	iwl_mvm_mac_ctxt_cmd_common(mvm, vif, &cmd, NULL, action);
 
 	cmd.filter_flags = cpu_to_le32(MAC_FILTER_IN_BEACON |
-				       MAC_FILTER_IN_PROBE_REQUEST);
+				       MAC_FILTER_IN_PROBE_REQUEST |
+				       MAC_FILTER_ACCEPT_GRP);
 
 	/* cmd.ibss.beacon_time/cmd.ibss.beacon_tsf are curently ignored */
 	cmd.ibss.bi = cpu_to_le32(vif->bss_conf.beacon_int);
@@ -1031,6 +1029,9 @@ int iwl_mvm_mac_ctxt_send_beacon(struct iwl_mvm *mvm,
 	if (WARN_ON(!beacon))
 		return -EINVAL;
 
+	if (IWL_MVM_NON_TRANSMITTING_AP)
+		return 0;
+
 	if (!fw_has_capa(&mvm->fw->ucode_capa,
 			 IWL_UCODE_TLV_CAPA_CSA_AND_TBTT_OFFLOAD))
 		return iwl_mvm_mac_ctxt_send_beacon_v6(mvm, vif, beacon);
@@ -1057,6 +1058,11 @@ int iwl_mvm_mac_ctxt_beacon_changed(struct iwl_mvm *mvm,
 	beacon = ieee80211_beacon_get_template(mvm->hw, vif, NULL);
 	if (!beacon)
 		return -ENOMEM;
+
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	if (mvm->beacon_inject_active)
+		return -EBUSY;
+#endif
 
 	ret = iwl_mvm_mac_ctxt_send_beacon(mvm, vif, beacon);
 	dev_kfree_skb(beacon);
@@ -1120,9 +1126,6 @@ static void iwl_mvm_mac_ctxt_cmd_fill_ap(struct iwl_mvm *mvm,
 		IWL_DEBUG_HC(mvm, "No need to receive beacons\n");
 	}
 
-	if (vif->bss_conf.he_support && !iwlwifi_mod_params.disable_11ax)
-		cmd->filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
-
 	ctxt_ap->bi = cpu_to_le32(vif->bss_conf.beacon_int);
 	ctxt_ap->dtim_interval = cpu_to_le32(vif->bss_conf.beacon_int *
 					     vif->bss_conf.dtim_period);
@@ -1152,9 +1155,7 @@ static void iwl_mvm_mac_ctxt_cmd_fill_ap(struct iwl_mvm *mvm,
 				ieee80211_tu_to_usec(data.beacon_int * rand /
 						     100);
 		} else {
-			mvmvif->ap_beacon_time =
-				iwl_read_prph(mvm->trans,
-					      DEVICE_SYSTEM_TIME_REG);
+			mvmvif->ap_beacon_time = iwl_mvm_get_systime(mvm);
 		}
 	}
 
@@ -1591,6 +1592,7 @@ void iwl_mvm_channel_switch_noa_notif(struct iwl_mvm *mvm,
 
 	rcu_read_lock();
 	vif = rcu_dereference(mvm->vif_id_to_mac[mac_id]);
+	mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
 	switch (vif->type) {
 	case NL80211_IFTYPE_AP:
@@ -1599,7 +1601,6 @@ void iwl_mvm_channel_switch_noa_notif(struct iwl_mvm *mvm,
 			    csa_vif != vif))
 			goto out_unlock;
 
-		mvmvif = iwl_mvm_vif_from_mac80211(csa_vif);
 		csa_id = FW_CMD_ID_AND_COLOR(mvmvif->id, mvmvif->color);
 		if (WARN(csa_id != id_n_color,
 			 "channel switch noa notification on unexpected vif (csa_vif=%d, notif=%d)",
@@ -1619,7 +1620,10 @@ void iwl_mvm_channel_switch_noa_notif(struct iwl_mvm *mvm,
 		RCU_INIT_POINTER(mvm->csa_vif, NULL);
 		return;
 	case NL80211_IFTYPE_STATION:
-		iwl_mvm_csa_client_absent(mvm, vif);
+		if (!fw_has_capa(&mvm->fw->ucode_capa,
+				 IWL_UCODE_TLV_CAPA_CHANNEL_SWITCH_CMD))
+			iwl_mvm_csa_client_absent(mvm, vif);
+		cancel_delayed_work(&mvmvif->csa_work);
 		ieee80211_chswitch_done(vif, true);
 		break;
 	default:

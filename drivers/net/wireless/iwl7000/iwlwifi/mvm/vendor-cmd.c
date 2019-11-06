@@ -761,7 +761,7 @@ static int iwl_mvm_vendor_dbg_collect(struct wiphy *wiphy,
 	len = nla_len(tb[IWL_MVM_VENDOR_ATTR_DBG_COLLECT_TRIGGER]);
 
 	iwl_fw_dbg_collect(&mvm->fwrt, FW_DBG_TRIGGER_USER_EXTENDED,
-			   trigger_desc, len);
+			   trigger_desc, len, NULL);
 	err = 0;
 
 free:
@@ -843,14 +843,14 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 	chain_a = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE]);
 	chain_b = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE]);
 
-	if (mvm->sar_chain_a_profile == chain_a &&
-	    mvm->sar_chain_b_profile == chain_b) {
+	if (mvm->fwrt.sar_chain_a_profile == chain_a &&
+	    mvm->fwrt.sar_chain_b_profile == chain_b) {
 		err = 0;
 		goto free;
 	}
 
-	mvm->sar_chain_a_profile = chain_a;
-	mvm->sar_chain_b_profile = chain_b;
+	mvm->fwrt.sar_chain_a_profile = chain_a;
+	mvm->fwrt.sar_chain_b_profile = chain_b;
 
 	mutex_lock(&mvm->mutex);
 	err = iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
@@ -872,7 +872,7 @@ static int iwl_mvm_vendor_get_sar_profile_info(struct wiphy *wiphy,
 	u32 n_profiles = 0;
 
 	for (i = 0; i < ACPI_SAR_PROFILE_NUM; i++) {
-		if (mvm->sar_profiles[i].enabled)
+		if (mvm->fwrt.sar_profiles[i].enabled)
 			n_profiles++;
 	}
 
@@ -882,9 +882,9 @@ static int iwl_mvm_vendor_get_sar_profile_info(struct wiphy *wiphy,
 	if (nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_SAR_ENABLED_PROFILE_NUM,
 		       n_profiles) ||
 	    nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_SAR_CHAIN_A_PROFILE,
-		       mvm->sar_chain_a_profile) ||
+		       mvm->fwrt.sar_chain_a_profile) ||
 	    nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_SAR_CHAIN_B_PROFILE,
-		       mvm->sar_chain_b_profile)) {
+		       mvm->fwrt.sar_chain_b_profile)) {
 		kfree_skb(skb);
 		return -ENOBUFS;
 	}
@@ -931,7 +931,7 @@ static int iwl_mvm_vendor_get_geo_profile_info(struct wiphy *wiphy,
 			return -ENOBUFS;
 		}
 
-		value =  &mvm->geo_profiles[tbl_idx - 1].values[idx];
+		value =  &mvm->fwrt.geo_profiles[tbl_idx - 1].values[idx];
 
 		nla_put_u8(skb, IWL_VENDOR_SAR_GEO_MAX_TXP, value[0]);
 		nla_put_u8(skb, IWL_VENDOR_SAR_GEO_CHAIN_A_OFFSET, value[1]);
@@ -943,7 +943,6 @@ out:
 
 	return cfg80211_vendor_cmd_reply(skb);
 }
-#endif
 
 static const struct nla_policy
 iwl_mvm_vendor_fips_hw_policy[NUM_IWL_VENDOR_FIPS_TEST_VECTOR_HW] = {
@@ -1177,6 +1176,7 @@ free:
 	kfree(tb);
 	return ret;
 }
+#endif
 
 static int iwl_mvm_vendor_csi_register(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
@@ -1521,8 +1521,8 @@ static void iwl_mvm_csi_complete(struct iwl_mvm *mvm)
 {
 	struct iwl_rx_packet *hdr_pkt;
 	struct iwl_csi_data_buffer *hdr_buf = &mvm->csi_data_entries[0];
-	void *data[5] = {};
-	unsigned int len[5] = {};
+	void *data[IWL_CSI_MAX_EXPECTED_CHUNKS + 1] = {};
+	unsigned int len[IWL_CSI_MAX_EXPECTED_CHUNKS + 1] = {};
 	unsigned int csi_hdr_len;
 	void *csi_hdr;
 	int i;
@@ -1577,17 +1577,30 @@ void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_csi_chunk_notification *chunk = (void *)pkt->data;
-	int num = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_NUM_MASK);
-	int idx = le16_get_bits(chunk->ctl, IWL_CSI_CHUNK_CTL_IDX_MASK) + 1;
+	int num;
+	int idx;
 
-	/*
-	 * +1 to get from mask to number
-	 * -1 to account for the header we also store there
-	 */
-	BUILD_BUG_ON(IWL_CSI_CHUNK_CTL_NUM_MASK + 1 >
-		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
-	BUILD_BUG_ON((IWL_CSI_CHUNK_CTL_IDX_MASK >> 2) + 1 >
-		     ARRAY_SIZE(mvm->csi_data_entries) - 1);
+	switch (mvm->cmd_ver.csi_notif) {
+	case 1:
+		num = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_NUM_MASK_VER_1);
+		idx = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_IDX_MASK_VER_1) + 1;
+		break;
+	case 2:
+		num = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_NUM_MASK_VER_2);
+		idx = le16_get_bits(chunk->ctl,
+				    IWL_CSI_CHUNK_CTL_IDX_MASK_VER_2) + 1;
+		break;
+	default:
+		WARN_ON(1);
+		return;
+	}
+
+	/* -1 to account for the header we also store there */
+	if (WARN_ON_ONCE(idx >= ARRAY_SIZE(mvm->csi_data_entries) - 1))
+		return;
 
 	iwl_mvm_csi_steal(mvm, idx, rxb);
 

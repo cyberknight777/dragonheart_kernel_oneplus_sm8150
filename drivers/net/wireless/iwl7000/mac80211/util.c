@@ -302,8 +302,7 @@ out:
 static void
 __releases(&local->queue_stop_reason_lock)
 __acquires(&local->queue_stop_reason_lock)
-_ieee80211_wake_txqs(struct ieee80211_local *local,
-				 unsigned long *flags)
+_ieee80211_wake_txqs(struct ieee80211_local *local, unsigned long *flags)
 {
 	struct ieee80211_sub_if_data *sdata;
 	int n_acs = IEEE80211_NUM_ACS;
@@ -892,33 +891,31 @@ void ieee80211_queue_delayed_work(struct ieee80211_hw *hw,
 }
 EXPORT_SYMBOL(ieee80211_queue_delayed_work);
 
-u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
-			       struct ieee802_11_elems *elems,
-			       u64 filter, u32 crc)
+static u32
+_ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
+			    struct ieee802_11_elems *elems,
+			    u64 filter, u32 crc,
+			    const struct element *check_inherit)
 {
-	size_t left = len;
-	const u8 *pos = start;
+	const struct element *elem;
 	bool calc_crc = filter != 0;
 	DECLARE_BITMAP(seen_elems, 256);
 	const u8 *ie;
 
 	bitmap_zero(seen_elems, 256);
-	memset(elems, 0, sizeof(*elems));
-	elems->ie_start = start;
-	elems->total_len = len;
 
-	while (left >= 2) {
-		u8 id, elen;
+	for_each_element(elem, start, len) {
 		bool elem_parse_failed;
+		u8 id = elem->id;
+		u8 elen = elem->datalen;
+		const u8 *pos = elem->data;
 
-		id = *pos++;
-		elen = *pos++;
-		left -= 2;
-
-		if (elen > left) {
-			elems->parse_error = true;
-			break;
-		}
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
+		if (check_inherit &&
+		    !cfg80211_is_element_inherited(elem,
+						   check_inherit))
+			continue;
+#endif
 
 		switch (id) {
 		case WLAN_EID_SSID:
@@ -961,8 +958,6 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 		 */
 			if (test_bit(id, seen_elems)) {
 				elems->parse_error = true;
-				left -= elen;
-				pos += elen;
 				continue;
 			}
 			break;
@@ -1239,6 +1234,10 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 				   WLAN_EID_EXT_MAX_CHANNEL_SWITCH_TIME &&
 				   elen == 4) {
 				elems->max_channel_switch_time = pos + 1;
+			} else if (pos[0] ==
+				   WLAN_EID_EXT_MULTIPLE_BSSID_CONFIGURATION &&
+				   elen == 3) {
+				elems->mbssid_config_ie = (void *)&pos[1];
 			}
 			break;
 		default:
@@ -1249,13 +1248,140 @@ u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 			elems->parse_error = true;
 		else
 			__set_bit(id, seen_elems);
-
-		left -= elen;
-		pos += elen;
 	}
 
-	if (left != 0)
+	if (!for_each_element_completed(elem, start, len))
 		elems->parse_error = true;
+
+	return crc;
+}
+
+static size_t ieee802_11_find_bssid_profile(const u8 *start, size_t len,
+					    struct ieee802_11_elems *elems,
+					    u8 *transmitter_bssid,
+					    u8 *bss_bssid,
+					    u8 **nontransmitted_profile)
+{
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
+	const struct element *elem, *sub;
+	size_t profile_len = 0;
+	bool found = false;
+
+	if (!bss_bssid || !transmitter_bssid)
+		return profile_len;
+
+	for_each_element_id(elem, WLAN_EID_MULTIPLE_BSSID, start, len) {
+		if (elem->datalen < 2)
+			continue;
+
+		for_each_element(sub, elem->data + 1, elem->datalen - 1) {
+			u8 new_bssid[ETH_ALEN];
+			const u8 *index;
+
+			if (sub->id != 0 || sub->datalen < 4) {
+				/* not a valid BSS profile */
+				continue;
+			}
+
+			if (sub->data[0] != WLAN_EID_NON_TX_BSSID_CAP ||
+			    sub->data[1] != 2) {
+				/* The first element of the
+				 * Nontransmitted BSSID Profile is not
+				 * the Nontransmitted BSSID Capability
+				 * element.
+				 */
+				continue;
+			}
+
+			memset(*nontransmitted_profile, 0, len);
+			profile_len = cfg80211_merge_profile(start, len,
+							     elem,
+							     sub,
+							     nontransmitted_profile,
+							     len);
+
+			/* found a Nontransmitted BSSID Profile */
+			index = cfg80211_find_ie(WLAN_EID_MULTI_BSSID_IDX,
+						 *nontransmitted_profile,
+						 profile_len);
+			if (!index || index[1] < 1 || index[2] == 0) {
+				/* Invalid MBSSID Index element */
+				continue;
+			}
+
+			cfg80211_gen_new_bssid(transmitter_bssid,
+					       elem->data[0],
+					       index[2],
+					       new_bssid);
+			if (ether_addr_equal(new_bssid, bss_bssid)) {
+				found = true;
+				elems->bssid_index_len = index[1];
+				elems->bssid_index = (void *)&index[2];
+				break;
+			}
+		}
+	}
+
+	return found ? profile_len : 0;
+#else
+	return 0;
+#endif
+}
+
+u32 ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
+			       struct ieee802_11_elems *elems,
+			       u64 filter, u32 crc, u8 *transmitter_bssid,
+			       u8 *bss_bssid)
+{
+	const struct element *non_inherit = NULL;
+	u8 *nontransmitted_profile;
+	int nontransmitted_profile_len = 0;
+
+	memset(elems, 0, sizeof(*elems));
+	elems->ie_start = start;
+	elems->total_len = len;
+
+	nontransmitted_profile = kmalloc(len, GFP_ATOMIC);
+	if (nontransmitted_profile) {
+		nontransmitted_profile_len =
+			ieee802_11_find_bssid_profile(start, len, elems,
+						      transmitter_bssid,
+						      bss_bssid,
+						      &nontransmitted_profile);
+		non_inherit =
+			cfg80211_find_ext_elem(WLAN_EID_EXT_NON_INHERITANCE,
+					       nontransmitted_profile,
+					       nontransmitted_profile_len);
+	}
+
+	crc = _ieee802_11_parse_elems_crc(start, len, action, elems, filter,
+					  crc, non_inherit);
+
+	/* Override with nontransmitted profile, if found */
+	if (nontransmitted_profile_len)
+		_ieee802_11_parse_elems_crc(nontransmitted_profile,
+					    nontransmitted_profile_len,
+					    action, elems, 0, 0, NULL);
+
+	if (elems->tim && !elems->parse_error) {
+		const struct ieee80211_tim_ie *tim_ie = elems->tim;
+
+		elems->dtim_period = tim_ie->dtim_period;
+		elems->dtim_count = tim_ie->dtim_count;
+	}
+
+	/* Override DTIM period and count if needed */
+	if (elems->bssid_index &&
+	    elems->bssid_index_len >=
+	    offsetofend(struct ieee80211_bssid_index, dtim_period))
+		elems->dtim_period = elems->bssid_index->dtim_period;
+
+	if (elems->bssid_index &&
+	    elems->bssid_index_len >=
+	    offsetofend(struct ieee80211_bssid_index, dtim_count))
+		elems->dtim_count = elems->bssid_index->dtim_count;
+
+	kfree(nontransmitted_profile);
 
 	return crc;
 }
@@ -1469,7 +1595,8 @@ void ieee80211_send_auth(struct ieee80211_sub_if_data *sdata,
 }
 
 void ieee80211_send_deauth_disassoc(struct ieee80211_sub_if_data *sdata,
-				    const u8 *bssid, u16 stype, u16 reason,
+				    const u8 *da, const u8 *bssid,
+				    u16 stype, u16 reason,
 				    bool send_frame, u8 *frame_buf)
 {
 	struct ieee80211_local *local = sdata->local;
@@ -1480,7 +1607,7 @@ void ieee80211_send_deauth_disassoc(struct ieee80211_sub_if_data *sdata,
 	mgmt->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT | stype);
 	mgmt->duration = 0; /* initialize only */
 	mgmt->seq_ctrl = 0; /* initialize only */
-	memcpy(mgmt->da, bssid, ETH_ALEN);
+	memcpy(mgmt->da, da, ETH_ALEN);
 	memcpy(mgmt->sa, sdata->vif.addr, ETH_ALEN);
 	memcpy(mgmt->bssid, bssid, ETH_ALEN);
 	/* u.deauth.reason_code == u.disassoc.reason_code */
@@ -1751,7 +1878,7 @@ int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
 
 struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 					  const u8 *src, const u8 *dst,
-					  u32 ratemask,
+					  const u8 *bssid, u32 ratemask,
 					  struct ieee80211_channel *chan,
 					  const u8 *ssid, size_t ssid_len,
 					  const u8 *ie, size_t ie_len,
@@ -1788,11 +1915,12 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 					   rate_masks, &chandef, flags);
 	skb_put(skb, ies_len);
 
-	if (dst) {
-		mgmt = (struct ieee80211_mgmt *) skb->data;
+	mgmt = (void *)skb->data;
+	if (dst)
 		memcpy(mgmt->da, dst, ETH_ALEN);
-		memcpy(mgmt->bssid, dst, ETH_ALEN);
-	}
+
+	if (bssid)
+		memcpy(mgmt->bssid, bssid, ETH_ALEN);
 
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
 
@@ -2323,11 +2451,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 
 	/* add back keys */
 	list_for_each_entry(sdata, &local->interfaces, list)
-		ieee80211_reset_crypto_tx_tailroom(sdata);
-
-	list_for_each_entry(sdata, &local->interfaces, list)
-		if (ieee80211_sdata_running(sdata))
-			ieee80211_enable_keys(sdata);
+		ieee80211_reenable_keys(sdata);
 
 	/* Reconfigure sched scan if it was interrupted by FW restart */
 	mutex_lock(&local->mtx);

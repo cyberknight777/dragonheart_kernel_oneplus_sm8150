@@ -6,7 +6,7 @@
  * Copyright 2007-2010	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (C) 2015 - 2017 Intel Deutschland GmbH
- * Copyright (C) 2018        Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -469,7 +469,7 @@ struct ieee80211_mu_group_data {
 };
 
 /**
- * ieee80211_ftm_responder_params - FTM responder parameters
+ * struct ieee80211_ftm_responder_params - FTM responder parameters
  *
  * @lci: LCI subelement content
  * @civicloc: CIVIC location subelement content
@@ -587,6 +587,14 @@ struct ieee80211_ftm_responder_params {
  * @ftm_responder: whether to enable or disable fine timing measurement FTM
  *	responder functionality.
  * @ftmr_params: configurable lci/civic parameter when enabling FTM responder.
+ * @nontransmitted: this BSS is a nontransmitted BSS profile
+ * @transmitter_bssid: the address of transmitter AP
+ * @bssid_index: index inside the multiple BSSID set
+ * @bssid_indicator: 2^bssid_indicator is the maximum number of APs in set
+ * @ema_ap: AP supports enhancements of discovery and advertisement of
+ *	nontransmitted BSSIDs
+ * @profile_periodicity: the least number of beacon frames need to be received
+ *	in order to discover all the nontransmitted BSSIDs in the set.
  */
 struct ieee80211_bss_conf {
 	const u8 *bssid;
@@ -640,6 +648,13 @@ struct ieee80211_bss_conf {
 	bool protected_keep_alive;
 	bool ftm_responder;
 	struct ieee80211_ftm_responder_params *ftmr_params;
+	/* Multiple BSSID data */
+	bool nontransmitted;
+	u8 transmitter_bssid[ETH_ALEN];
+	u8 bssid_index;
+	u8 bssid_indicator;
+	bool ema_ap;
+	u8 profile_periodicity;
 };
 
 /**
@@ -2200,6 +2215,11 @@ struct ieee80211_txq {
  *	MMPDUs on station interfaces. This of course requires the driver to use
  *	TXQs to start with.
  *
+ * @IEEE80211_HW_SUPPORTS_MULTI_BSSID: Hardware supports multi BSSID
+ *
+ * @IEEE80211_HW_SUPPORTS_ONLY_HE_MULTI_BSSID: Hardware supports multi BSSID
+ *	only for HE APs. Applies if @IEEE80211_HW_SUPPORTS_MULTI_BSSID is set.
+ *
  * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
  */
 enum ieee80211_hw_flags {
@@ -2248,6 +2268,8 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_BUFF_MMPDU_TXQ,
 	IEEE80211_HW_SUPPORTS_VHT_EXT_NSS_BW,
 	IEEE80211_HW_STA_MMPDU_TXQ,
+	IEEE80211_HW_SUPPORTS_MULTI_BSSID,
+	IEEE80211_HW_SUPPORTS_ONLY_HE_MULTI_BSSID,
 
 	/* keep last, obviously */
 	NUM_IEEE80211_HW_FLAGS
@@ -3279,6 +3301,11 @@ enum ieee80211_reconfig_type {
  *	When the scan finishes, ieee80211_scan_completed() must be called;
  *	note that it also must be called when the scan cannot finish due to
  *	any error unless this callback returned a negative error code.
+ *	This callback is also allowed to return the special return value 1,
+ *	this indicates that hardware scan isn't desirable right now and a
+ *	software scan should be done instead. A driver wishing to use this
+ *	capability must ensure its (hardware) scan capabilities aren't
+ *	advertised as more capable than mac80211's software scan is.
  *	The callback can sleep.
  *
  * @cancel_hw_scan: Ask the low-level tp cancel the active hw scan.
@@ -3610,7 +3637,9 @@ enum ieee80211_reconfig_type {
  * @abort_channel_switch: This is an optional callback that is called
  *	when channel switch procedure was completed, allowing the
  *	driver to go back to a normal configuration.
- *
+ * @channel_switch_rx_beacon: This is an optional callback that is called
+ *	when channel switch procedure is in progress and additional beacon with
+ *	CSA IE was received, allowing driver to track changes in count.
  * @join_ibss: Join an IBSS (on an IBSS interface); this is called after all
  *	information in bss_conf is set up and the beacon can be retrieved. A
  *	channel context is bound before this is called.
@@ -3915,6 +3944,9 @@ struct ieee80211_ops {
 				   struct ieee80211_vif *vif);
 	void (*abort_channel_switch)(struct ieee80211_hw *hw,
 				     struct ieee80211_vif *vif);
+	void (*channel_switch_rx_beacon)(struct ieee80211_hw *hw,
+					 struct ieee80211_vif *vif,
+					 struct ieee80211_channel_switch *ch_switch);
 
 	int (*join_ibss)(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
 	void (*leave_ibss)(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
