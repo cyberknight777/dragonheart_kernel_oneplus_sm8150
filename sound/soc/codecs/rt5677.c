@@ -5049,6 +5049,11 @@ static const struct snd_soc_dai_ops rt5677_aif_dai_ops = {
 	.set_tdm_slot = rt5677_set_tdm_slot,
 };
 
+static const struct snd_soc_dai_ops rt5677_dsp_dai_ops = {
+	.set_sysclk = rt5677_set_dai_sysclk,
+	.set_pll = rt5677_set_dai_pll,
+};
+
 static struct snd_soc_dai_driver rt5677_dai[] = {
 	{
 		.name = "rt5677-aif1",
@@ -5155,6 +5160,7 @@ static struct snd_soc_dai_driver rt5677_dai[] = {
 			.rates = SNDRV_PCM_RATE_16000,
 			.formats = SNDRV_PCM_FMTBIT_S16_LE,
 		},
+		.ops = &rt5677_dsp_dai_ops,
 	},
 };
 
