@@ -1522,6 +1522,7 @@ struct ieee802_11_elems {
 	const struct ieee80211_bss_max_idle_period_ie *max_idle_period_ie;
 	const struct ieee80211_multiple_bssid_configuration *mbssid_config_ie;
 	const struct ieee80211_bssid_index *bssid_index;
+	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
 	u8 max_bssid_indicator;
 	u8 dtim_count;
 	u8 dtim_period;

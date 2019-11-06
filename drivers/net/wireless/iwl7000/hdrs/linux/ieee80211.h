@@ -3071,6 +3071,11 @@ struct ieee80211_tspec_ie {
 	__le16 medium_time;
 } __packed;
 
+struct ieee80211_he_6ghz_capa {
+	/* uses IEEE80211_HE_6GHZ_CAP_* below */
+	__le16 capa;
+} __packed;
+
 /* HE 6 GHz band capabilities */
 /* uses enum ieee80211_min_mpdu_spacing values */
 #define IEEE80211_HE_6GHZ_CAP_MIN_MPDU_START	0x0007
