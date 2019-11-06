@@ -163,7 +163,9 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 	chandef->center_freq2 = 0;
 
 	if (!ht_oper || !sta_ht_cap.ht_supported) {
-		ret = IEEE80211_STA_DISABLE_HT | IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_HT |
+		      IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		goto out;
 	}
 
@@ -184,7 +186,9 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 			   "mismatch: center-freq: %d ht-cfreq: %d ht->primary_chan: %d band: %d - Disable HT\n",
 			   channel->center_freq, ht_cfreq,
 			   ht_oper->primary_chan, channel->band);
-		ret = IEEE80211_STA_DISABLE_HT | IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_HT |
+		      IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		goto out;
 	}
 
@@ -193,14 +197,16 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		ieee80211_chandef_ht_oper(ht_oper, chandef);
 	} else {
 		/* 40 MHz (and 80 MHz) must be supported for VHT */
-		ret = IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		/* also mark 40 MHz disabled */
 		ret |= IEEE80211_STA_DISABLE_40MHZ;
 		goto out;
 	}
 
 	if (!vht_oper || !sband->vht_cap.vht_supported) {
-		ret = IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		goto out;
 	}
 
@@ -231,7 +237,8 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information is invalid, disable VHT\n");
-		ret = IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		goto out;
 	}
 
@@ -239,7 +246,8 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information is invalid, disable VHT\n");
-		ret = IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		goto out;
 	}
 
@@ -252,7 +260,8 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information doesn't match HT, disable VHT\n");
-		ret = IEEE80211_STA_DISABLE_VHT;
+		ret = IEEE80211_STA_DISABLE_VHT |
+		      IEEE80211_STA_DISABLE_HE;
 		goto out;
 	}
 
@@ -300,7 +309,8 @@ out:
 						   IEEE80211_CHAN_DISABLED)) {
 		if (WARN_ON(chandef->width == NL80211_CHAN_WIDTH_20_NOHT)) {
 			ret = IEEE80211_STA_DISABLE_HT |
-			      IEEE80211_STA_DISABLE_VHT;
+			      IEEE80211_STA_DISABLE_VHT |
+			      IEEE80211_STA_DISABLE_HE;
 			break;
 		}
 
@@ -392,6 +402,7 @@ static int ieee80211_config_bw(struct ieee80211_sub_if_data *sdata,
 
 	if (flags != (ifmgd->flags & (IEEE80211_STA_DISABLE_HT |
 				      IEEE80211_STA_DISABLE_VHT |
+				      IEEE80211_STA_DISABLE_HE |
 				      IEEE80211_STA_DISABLE_40MHZ |
 				      IEEE80211_STA_DISABLE_80P80MHZ |
 				      IEEE80211_STA_DISABLE_160MHZ)) ||
@@ -869,7 +880,8 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 
 	if (WARN_ON_ONCE((ifmgd->flags & IEEE80211_STA_DISABLE_HT) &&
 			 !(ifmgd->flags & IEEE80211_STA_DISABLE_VHT)))
-		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT |
+				IEEE80211_STA_DISABLE_HE;
 
 	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HT))
 		ieee80211_add_ht_ie(sdata, skb, assoc_data->ap_ht_param,
@@ -4719,10 +4731,24 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 			  IEEE80211_STA_DISABLE_80P80MHZ |
 			  IEEE80211_STA_DISABLE_160MHZ);
 
+	/* disable HT/VHT/HE if we don't support them */
+	if (!sband->ht_cap.ht_supported) {
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+	}
+
+	if (!sband->vht_cap.vht_supported) {
+		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+	}
+
+	if (!ieee80211_get_he_sta_cap(sband))
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+
 	rcu_read_lock();
 
-	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HT) &&
-	    sband->ht_cap.ht_supported) {
+	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HT)) {
 		const u8 *ht_oper_ie, *ht_cap_ie;
 
 		ht_oper_ie = ieee80211_bss_get_ie(cbss, WLAN_EID_HT_OPERATION);
@@ -4739,8 +4765,7 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		}
 	}
 
-	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT) &&
-	    sband->vht_cap.vht_supported) {
+	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT)) {
 		const u8 *vht_oper_ie, *vht_cap;
 
 		vht_oper_ie = ieee80211_bss_get_ie(cbss,
@@ -4750,20 +4775,19 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		if (vht_oper && !ht_oper) {
 			vht_oper = NULL;
 			sdata_info(sdata,
-				   "AP advertised VHT without HT, disabling both\n");
+				   "AP advertised VHT without HT, disabling HT/VHT/HE\n");
 			ifmgd->flags |= IEEE80211_STA_DISABLE_HT;
 			ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+			ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 		}
 
 		vht_cap = ieee80211_bss_get_ie(cbss, WLAN_EID_VHT_CAPABILITY);
 		if (!vht_cap || vht_cap[1] < sizeof(struct ieee80211_vht_cap)) {
 			ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+			ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 			vht_oper = NULL;
 		}
 	}
-
-	if (!ieee80211_get_he_sta_cap(sband))
-		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 
 	if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE)) {
 		const struct cfg80211_bss_ies *ies;
@@ -4793,8 +4817,10 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		break;
 	}
 
-	if (!have_80mhz)
+	if (!have_80mhz) {
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+	}
 
 	ifmgd->flags |= ieee80211_determine_chantype(sdata, sband,
 						     cbss->channel,
@@ -5269,27 +5295,15 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		}
 	}
 
-	/* Also disable HT if we don't support it or the AP doesn't use WMM */
 	sband = local->hw.wiphy->bands[req->bss->channel->band];
-	if (!sband->ht_cap.ht_supported ||
-	    local->hw.queues < IEEE80211_NUM_ACS || !bss->wmm_used ||
-	    ifmgd->flags & IEEE80211_STA_DISABLE_WMM) {
-		ifmgd->flags |= IEEE80211_STA_DISABLE_HT;
-		if (!bss->wmm_used &&
-		    !(ifmgd->flags & IEEE80211_STA_DISABLE_WMM))
-			netdev_info(sdata->dev,
-				    "disabling HT as WMM/QoS is not supported by the AP\n");
-	}
 
-	/* disable VHT if we don't support it or the AP doesn't use WMM */
-	if (!sband->vht_cap.vht_supported ||
-	    local->hw.queues < IEEE80211_NUM_ACS || !bss->wmm_used ||
-	    ifmgd->flags & IEEE80211_STA_DISABLE_WMM) {
+	/* also disable HT/VHT/HE if the AP doesn't use WMM */
+	if (!bss->wmm_used) {
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HT;
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
-		if (!bss->wmm_used &&
-		    !(ifmgd->flags & IEEE80211_STA_DISABLE_WMM))
-			netdev_info(sdata->dev,
-				    "disabling VHT as WMM/QoS is not supported by the AP\n");
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+		netdev_info(sdata->dev,
+			    "disabling HT/VHT/HE as WMM/QoS is not supported by the AP\n");
 	}
 
 	memcpy(&ifmgd->ht_capa, &req->ht_capa, sizeof(ifmgd->ht_capa));
@@ -5348,7 +5362,8 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		memcpy(&assoc_data->ap_vht_cap, vht_ie + 2,
 		       sizeof(struct ieee80211_vht_cap));
 	else
-		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT |
+				IEEE80211_STA_DISABLE_HE;
 	rcu_read_unlock();
 
 	if (WARN((sdata->vif.driver_flags & IEEE80211_VIF_SUPPORTS_UAPSD) &&
@@ -5423,10 +5438,13 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 	if (req->flags & ASSOC_REQ_DISABLE_HT) {
 		ifmgd->flags |= IEEE80211_STA_DISABLE_HT;
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 	}
 
-	if (req->flags & ASSOC_REQ_DISABLE_VHT)
+	if (req->flags & ASSOC_REQ_DISABLE_VHT) {
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
+	}
 
 	err = ieee80211_prep_connection(sdata, req->bss, true, override);
 	if (err)
