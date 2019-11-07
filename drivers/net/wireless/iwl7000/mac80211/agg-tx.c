@@ -578,7 +578,8 @@ int ieee80211_start_tx_ba_session(struct ieee80211_sta *pubsta, u16 tid,
 		 "Requested to start BA session on reserved tid=%d", tid))
 		return -EINVAL;
 
-	if (!pubsta->ht_cap.ht_supported)
+	if (!pubsta->ht_cap.ht_supported &&
+	    !nl80211_is_6ghz(sta->sdata->vif.bss_conf.chandef.chan->band))
 		return -EINVAL;
 
 	if (WARN_ON_ONCE(!local->ops->ampdu_action))
