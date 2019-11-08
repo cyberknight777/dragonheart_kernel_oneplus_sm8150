@@ -8,6 +8,8 @@
 #define ieee80211_start_tx_ba_cb_irqsafe __iwl7000_ieee80211_start_tx_ba_cb_irqsafe
 #define ieee80211_stop_tx_ba_session __iwl7000_ieee80211_stop_tx_ba_session
 #define ieee80211_stop_tx_ba_cb_irqsafe __iwl7000_ieee80211_stop_tx_ba_cb_irqsafe
+#define arc4_setkey __iwl7000_arc4_setkey
+#define arc4_crypt __iwl7000_arc4_crypt
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 #define dev_coredumpsg __iwl7000_dev_coredumpsg
 #endif /* < 4.7.0 */
