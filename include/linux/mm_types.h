@@ -46,28 +46,23 @@ struct page {
 	unsigned long flags;		/* Atomic flags, some possibly
 					 * updated asynchronously */
 	union {
-		struct {
-			union {
-				struct address_space *mapping;	/* If low bit clear, points to
-								 * inode address_space, or NULL.
-								 * If page mapped as anonymous
-								 * memory, low bit is set, and
-								 * it points to anon_vma object:
-								 * see PAGE_MAPPING_ANON below.
-								 */
-				void *s_mem;			/* slab first object */
-				atomic_t compound_mapcount;	/* first tail page */
-				/* page_deferred_list().next	 -- second tail page */
-			};
+		struct address_space *mapping;	/* If low bit clear, points to
+						 * inode address_space, or NULL.
+						 * If page mapped as anonymous
+						 * memory, low bit is set, and
+						 * it points to anon_vma object:
+						 * see PAGE_MAPPING_ANON below.
+						 */
+		void *s_mem;			/* slab first object */
+		atomic_t compound_mapcount;	/* first tail page */
+		/* page_deferred_list().next	 -- second tail page */
+	};
 
-			/* Second double word */
-			union {
-				pgoff_t index;		/* Our offset within mapping. */
-				void *freelist;		/* sl[aou]b first free object */
-				/* page_deferred_list().prev	-- second tail page */
-			};
-		};
-		struct list_head pmdp_list;	/* kstaled pmd page list */
+	/* Second double word */
+	union {
+		pgoff_t index;		/* Our offset within mapping. */
+		void *freelist;		/* sl[aou]b first free object */
+		/* page_deferred_list().prev	-- second tail page */
 	};
 
 	union {
