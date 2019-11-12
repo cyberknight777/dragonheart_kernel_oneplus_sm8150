@@ -1044,4 +1044,9 @@ rcu_head_after_call_rcu(struct rcu_head *rhp, void *f)
 	return false;
 }
 #endif /* LINUX_VERSION_IS_LESS(4,20,0) */
+
+#if LINUX_VERSION_IS_LESS(5,4,0)
+#include <linux/pci-aspm.h>
+#endif
+
 #endif /* __IWL_CHROME */
