@@ -2746,6 +2746,8 @@ static inline bool nl80211_is_6ghz(enum nl80211_band band)
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,4,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(9,9,9)
+#define NL80211_PREAMBLE_HE 4
+
 #define ftm_non_trigger_based(peer)	0
 #define ftm_trigger_based(peer)	0
 #else
