@@ -523,6 +523,8 @@ struct mm_struct {
 	struct hmm *hmm;
 #endif
 #ifdef CONFIG_KSTALED
+	struct list_head mm_list;
+	struct rcu_head rcu_head;
 	atomic_t throttle_disabled;
 #endif
 } __randomize_layout;
