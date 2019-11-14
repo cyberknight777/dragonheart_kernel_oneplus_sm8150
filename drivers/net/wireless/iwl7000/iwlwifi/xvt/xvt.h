@@ -349,7 +349,7 @@ struct iwl_umac_error_event_table {
  * @trans: transport data
  */
 struct iwl_xvt_skb_info {
-	struct iwl_device_cmd *dev_cmd;
+	struct iwl_device_tx_cmd *dev_cmd;
 	void *trans[2];
 };
 
