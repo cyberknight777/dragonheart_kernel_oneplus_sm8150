@@ -1201,6 +1201,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto keep_locked;
 		}
 
+		/* split_huge_page_to_list() might have split a young pmd */
 		if (kstaled_is_enabled() && kstaled_get_age(page))
 			goto activate_locked;
 
@@ -1218,9 +1219,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto activate_locked;
 			}
 		}
-
-		if (kstaled_is_enabled() && kstaled_get_age(page))
-			goto activate_locked;
 
 		if (PageDirty(page)) {
 			/*

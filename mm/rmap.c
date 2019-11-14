@@ -1356,6 +1356,11 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	if (flags & TTU_SPLIT_HUGE_PMD) {
 		split_huge_pmd_address(vma, address,
 				flags & TTU_SPLIT_FREEZE, page);
+
+		/* split_huge_pmd_address() might have split a young pmd */
+		if (!(flags & TTU_IGNORE_ACCESS) &&
+		    kstaled_is_enabled() && kstaled_get_age(page))
+			return false;
 	}
 
 	/*
