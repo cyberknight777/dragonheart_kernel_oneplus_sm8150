@@ -5187,7 +5187,14 @@ static int rt5677_irq_map(struct irq_domain *h, unsigned int virq,
 	irq_set_chip(virq, &rt5677_irq_chip);
 	irq_set_nested_thread(virq, 1);
 
+	/* ARM needs us to explicitly flag the IRQ as valid
+	 * and will set them noprobe when we do so.
+	 */
+#ifdef CONFIG_ARM
+	set_irq_flags(virq, IRQF_VALID);
+#else
 	irq_set_noprobe(virq);
+#endif
 	return 0;
 }
 
