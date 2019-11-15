@@ -1636,12 +1636,6 @@
 #define RT5677_GPIO6_P_NOR			(0x0 << 0)
 #define RT5677_GPIO6_P_INV			(0x1 << 0)
 
-/* General Control (0xfa) */
-#define RT5677_IRQ_DEBOUNCE_SEL_MASK		(0x3 << 3)
-#define RT5677_IRQ_DEBOUNCE_SEL_MCLK		(0x0 << 3)
-#define RT5677_IRQ_DEBOUNCE_SEL_RC		(0x1 << 3)
-#define RT5677_IRQ_DEBOUNCE_SEL_SLIM		(0x2 << 3)
-
 /* Virtual DSP Mixer Control (0xf7 0xf8 0xf9) */
 #define RT5677_DSP_IB_01_H			(0x1 << 15)
 #define RT5677_DSP_IB_01_H_SFT			15
@@ -1719,7 +1713,6 @@ enum {
 	RT5677_IRQ_JD1,
 	RT5677_IRQ_JD2,
 	RT5677_IRQ_JD3,
-	RT5677_IRQ_NUM,
 };
 
 enum rt5677_type {
@@ -1818,14 +1811,9 @@ struct rt5677_priv {
 	struct gpio_chip gpio_chip;
 #endif
 	bool dsp_vad_en;
+	struct regmap_irq_chip_data *irq_data;
 	bool is_dsp_mode;
 	bool is_vref_slow;
-
-	/* Interrupt handling */
-	struct irq_domain *domain;
-	struct mutex irq_lock;
-	unsigned int irq_en;
-	struct delayed_work irq_work;
 };
 
 int rt5677_sel_asrc_clk_src(struct snd_soc_component *component,
