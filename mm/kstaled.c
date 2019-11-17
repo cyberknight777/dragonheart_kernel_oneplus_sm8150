@@ -655,6 +655,7 @@ static bool kstaled_lru_reclaimable(bool file)
 
 static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 					 bool file, gfp_t gfp_mask,
+					 unsigned long *acc_scanned,
 					 unsigned long *acc_isolated)
 {
 	int i;
@@ -738,8 +739,6 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 unlock:
 	spin_unlock_irq(&node->lru_lock);
 
-	if (scanned)
-		atomic_long_add(scanned, &kstaled->scanned);
 	if (isolated)
 		reclaimed = node_shrink_list(node, &list, isolated, file, gfp_mask);
 	if (reclaimed)
@@ -748,12 +747,14 @@ unlock:
 	trace_kstaled_reclaim(node->node_id, file, clean_only, span, scanned,
 			      scanned - batch, isolated, reclaimed);
 
+	*acc_scanned += scanned;
 	*acc_isolated += isolated;
 	return reclaimed;
 }
 
 static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
-				bool file_only, unsigned long *reclaimed)
+				bool file_only, unsigned long *scanned,
+				unsigned long *reclaimed)
 {
 	int i;
 	bool file[KSTALED_LRU_TYPES];
@@ -780,7 +781,7 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 			continue;
 
 		*reclaimed += kstaled_reclaim_lru(kstaled, file[i], GFP_KERNEL,
-						  &isolated);
+						  scanned, &isolated);
 		if (isolated)
 			return true;
 	}
@@ -789,15 +790,11 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 }
 
 static unsigned long kstaled_shrink_slab(struct kstaled_struct *kstaled,
-					 gfp_t gfp_mask)
+					 gfp_t gfp_mask, unsigned long scanned)
 {
 	int i;
 	struct pglist_data *node = kstaled_node(kstaled);
-	unsigned long scanned = atomic_long_xchg(&kstaled->scanned, 0);
 	unsigned long total = 0;
-
-	if (!scanned)
-		return 0;
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++)
 		total += node_page_state(node, NR_LRU_BASE + kstaled_lru(i));
@@ -948,6 +945,7 @@ static int kstaled_node_worker(void *arg)
 
 	while (!kthread_should_stop()) {
 		long timeout = HZ;
+		unsigned long scanned = 0;
 		unsigned long reclaimed = 0;
 
 		ctx.ratio = READ_ONCE(kstaled_ratio);
@@ -977,10 +975,12 @@ static int kstaled_node_worker(void *arg)
 		}
 
 		while (kstaled_balance_lru(kstaled,
-		       reclaimed >= ctx.nr_to_reclaim, &reclaimed))
+		       reclaimed >= ctx.nr_to_reclaim, &scanned, &reclaimed))
 			;
 
-		kstaled_shrink_slab(kstaled, GFP_KERNEL);
+		scanned += atomic_long_xchg(&kstaled->scanned, 0);
+		if (scanned)
+			kstaled_shrink_slab(kstaled, GFP_KERNEL, scanned);
 
 		timeout -= jiffies;
 		if (timeout < 0) {
@@ -1296,6 +1296,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 {
 	int i;
 	bool interrupted;
+	unsigned long scanned = 0;
 	unsigned long isolated = 0;
 	unsigned long reclaimed = 0;
 	struct kstaled_struct *kstaled = kstaled_of_zone(zone);
@@ -1312,14 +1313,15 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 			continue;
 
 		reclaimed += kstaled_reclaim_lru(kstaled, i, gfp_mask,
-						 &isolated);
+						 &scanned, &isolated);
 	}
 
 	if (reclaimed) {
+		atomic_long_add(scanned, &kstaled->scanned);
 		return true;
 	}
 
-	if (kstaled_shrink_slab(kstaled, gfp_mask))
+	if (kstaled_shrink_slab(kstaled, gfp_mask, scanned))
 		return true;
 
 	/* unlimited retries if the thread has disabled throttle */
