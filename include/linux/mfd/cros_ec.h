@@ -379,4 +379,12 @@ void cros_ec_debugfs_resume(struct cros_ec_dev *ec);
  */
 s64 cros_ec_get_time_ns(void);
 
+/**
+ * cros_ec_get_sensor_count() - Return the number of MEMS sensors supported.
+ *
+ * @ec: EC device, does not have to be connected directly to the AP,
+ *      can be daisy chained through another device.
+ * Return: < 0 in case of error.
+ */
+int cros_ec_get_sensor_count(struct cros_ec_dev *ec);
 #endif  /* __LINUX_MFD_CROS_EC_H */
