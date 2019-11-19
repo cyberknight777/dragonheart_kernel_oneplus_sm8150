@@ -32,8 +32,8 @@ ifeq ($(CONFIG_IWL7000_XVT),m)
 export CPTCFG_IWLXVT=m
 endif
 
-subdir-ccflags-y := -I$(src) -include "hdrs/iwl-chrome.h"
-subdir-ccflags-y += -I$(src)/hdrs/
+subdir-ccflags-y := -I$(srctree)/$(src) -include "hdrs/iwl-chrome.h"
+subdir-ccflags-y += -I$(srctree)/$(src)/hdrs/
 subdir-ccflags-y += $(call cc-option,-Wno-error=date-time)
 subdir-ccflags-y += $(call cc-option,-Wno-date-time)
 # otherwise ieee80211_band vs. nl80211_band warnings come up
