@@ -89,6 +89,7 @@ struct iwl_dbg_cfg {
 #define IWL_MOD_PARAM(type, name)	/* do nothing */
 #define IWL_MVM_MOD_PARAM(type, name)	type mvm_##name; \
 					bool __mvm_mod_param_##name;
+#define IWL_DBG_CFG_FN(name, fn)	/* nothing */
 
 #endif /* DBG_CFG_REINCLUDE */
 #if IS_ENABLED(CPTCFG_IWLXVT)
@@ -291,6 +292,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_BIN(he_mac_cap)
 	IWL_DBG_CFG_BIN(he_phy_cap)
 	IWL_DBG_CFG_NODEF(u32, FW_DBG_DOMAIN)
+	IWL_DBG_CFG_FN(FW_DBG_PRESET, iwl_dbg_cfg_parse_fw_dbg_preset)
 #ifdef CPTCFG_IWLWIFI_DEBUG
 	IWL_MOD_PARAM(u32, debug_level)
 #endif /* CPTCFG_IWLWIFI_DEBUG */
@@ -305,6 +307,7 @@ struct iwl_dbg_cfg {
 #undef IWL_DBG_CFG_RANGE
 #undef IWL_MOD_PARAM
 #undef IWL_MVM_MOD_PARAM
+#undef IWL_DBG_CFG_FN
 #ifndef DBG_CFG_REINCLUDE
 };
 

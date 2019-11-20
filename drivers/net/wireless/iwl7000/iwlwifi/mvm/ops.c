@@ -641,6 +641,7 @@ static void iwl_mvm_init_modparams(struct iwl_mvm *mvm)
 #define IWL_MVM_MOD_PARAM(t, n)				\
 	if (mvm->trans->dbg_cfg.__mvm_mod_param_##n)	\
 		iwlmvm_mod_params.n = mvm->trans->dbg_cfg.mvm_##n;
+#define IWL_DBG_CFG_FN(n, fn)			/* nothing */
 #define DBG_CFG_REINCLUDE
 #include "iwl-dbg-cfg.h"
 #undef IWL_DBG_CFG
@@ -651,6 +652,7 @@ static void iwl_mvm_init_modparams(struct iwl_mvm *mvm)
 #undef IWL_DBG_CFG_RANGE
 #undef IWL_MOD_PARAM
 #undef IWL_MVM_MOD_PARAM
+#undef IWL_DBG_CFG_FN
 }
 #endif
 
