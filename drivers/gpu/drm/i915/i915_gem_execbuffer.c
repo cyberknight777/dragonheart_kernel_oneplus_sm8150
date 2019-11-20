@@ -1827,6 +1827,13 @@ static int eb_move_to_gpu(struct i915_execbuffer *eb)
 
 static bool i915_gem_check_execbuffer(struct drm_i915_gem_execbuffer2 *exec)
 {
+	/* ChromeOS userspace doesn't use the blitter and it has a
+	 * security bug that allows abitrary memory access.
+	 * See crbug.com/1024182.
+	 */
+	if ((exec->flags & I915_EXEC_RING_MASK) == I915_EXEC_BLT)
+		return false;
+
 	if (exec->flags & __I915_EXEC_ILLEGAL_FLAGS)
 		return false;
 
