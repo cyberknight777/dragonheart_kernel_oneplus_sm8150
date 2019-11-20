@@ -55,7 +55,6 @@ mac80211-y += bucket_locks.o
 mac80211-y += rhashtable.o
 
 CFLAGS_trace.o := -I$(srctree)/$(src)
-subdir-ccflags-y += $(call cc-option,-Wimplicit-fallthrough)
 
 CFLAGS_tx.o += -include "hdrs/iwl-tx.h"
 CFLAGS_debugfs.o += -include "hdrs/net/fq.h"
