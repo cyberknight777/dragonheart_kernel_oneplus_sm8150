@@ -169,8 +169,10 @@ static int emac_rockchip_probe(struct platform_device *pdev)
 	/* Optional regulator for PHY */
 	priv->regulator = devm_regulator_get_optional(dev, "phy");
 	if (IS_ERR(priv->regulator)) {
-		if (PTR_ERR(priv->regulator) == -EPROBE_DEFER)
-			return -EPROBE_DEFER;
+		if (PTR_ERR(priv->regulator) == -EPROBE_DEFER) {
+			err = -EPROBE_DEFER;
+			goto out_clk_disable;
+		}
 		dev_err(dev, "no regulator found\n");
 		priv->regulator = NULL;
 	}
@@ -258,6 +260,9 @@ static int emac_rockchip_remove(struct platform_device *pdev)
 
 	if (priv->regulator)
 		regulator_disable(priv->regulator);
+
+	if (priv->soc_data->need_div_macclk)
+		clk_disable_unprepare(priv->macclk);
 
 	free_netdev(ndev);
 	return err;

@@ -324,7 +324,10 @@ void acpi_set_irq_model(enum acpi_irq_model_id model,
 #ifdef CONFIG_X86_IO_APIC
 extern int acpi_get_override_irq(u32 gsi, int *trigger, int *polarity);
 #else
-#define acpi_get_override_irq(gsi, trigger, polarity) (-1)
+static inline int acpi_get_override_irq(u32 gsi, int *trigger, int *polarity)
+{
+	return -1;
+}
 #endif
 /*
  * This function undoes the effect of one call to acpi_register_gsi().
@@ -440,6 +443,9 @@ int acpi_check_resource_conflict(const struct resource *res);
 
 int acpi_check_region(resource_size_t start, resource_size_t n,
 		      const char *name);
+
+acpi_status acpi_release_memory(acpi_handle handle, struct resource *res,
+				u32 level);
 
 int acpi_resources_are_enforced(void);
 
@@ -638,6 +644,12 @@ static inline bool acpi_dev_found(const char *hid)
 static inline bool acpi_dev_present(const char *hid, const char *uid, s64 hrv)
 {
 	return false;
+}
+
+static inline const char *
+acpi_dev_get_first_match_name(const char *hid, const char *uid, s64 hrv)
+{
+	return NULL;
 }
 
 static inline bool is_acpi_node(struct fwnode_handle *fwnode)
@@ -881,7 +893,7 @@ static inline struct acpi_device *acpi_dev_pm_get_node(struct device *dev)
 }
 static inline int acpi_dev_pm_attach(struct device *dev, bool power_on)
 {
-	return -ENODEV;
+	return 0;
 }
 #endif
 

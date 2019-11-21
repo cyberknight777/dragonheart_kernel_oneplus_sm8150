@@ -24,6 +24,7 @@
 
 #include "psmouse.h"
 #include "alps.h"
+#include "trackpoint.h"
 
 /*
  * Definitions for ALPS version 3 and 4 command mode protocol
@@ -2544,12 +2545,30 @@ static int alps_update_btn_info_ss4_v2(unsigned char otp[][4],
 }
 
 static int alps_update_dual_info_ss4_v2(unsigned char otp[][4],
-				       struct alps_data *priv)
+					struct alps_data *priv,
+					struct psmouse *psmouse)
 {
 	bool is_dual = false;
+	int reg_val = 0;
+	struct ps2dev *ps2dev = &psmouse->ps2dev;
 
-	if (IS_SS4PLUS_DEV(priv->dev_id))
+	if (IS_SS4PLUS_DEV(priv->dev_id)) {
 		is_dual = (otp[0][0] >> 4) & 0x01;
+
+		if (!is_dual) {
+			/* For support TrackStick of Thinkpad L/E series */
+			if (alps_exit_command_mode(psmouse) == 0 &&
+				alps_enter_command_mode(psmouse) == 0) {
+				reg_val = alps_command_mode_read_reg(psmouse,
+									0xD7);
+			}
+			alps_exit_command_mode(psmouse);
+			ps2_command(ps2dev, NULL, PSMOUSE_CMD_ENABLE);
+
+			if (reg_val == 0x0C || reg_val == 0x1D)
+				is_dual = true;
+		}
+	}
 
 	if (is_dual)
 		priv->flags |= ALPS_DUALPOINT |
@@ -2573,7 +2592,7 @@ static int alps_set_defaults_ss4_v2(struct psmouse *psmouse,
 
 	alps_update_btn_info_ss4_v2(otp, priv);
 
-	alps_update_dual_info_ss4_v2(otp, priv);
+	alps_update_dual_info_ss4_v2(otp, priv, psmouse);
 
 	return 0;
 }
@@ -2840,6 +2859,23 @@ static const struct alps_protocol_info *alps_match_table(unsigned char *e7,
 	}
 
 	return NULL;
+}
+
+static bool alps_is_cs19_trackpoint(struct psmouse *psmouse)
+{
+	u8 param[2] = { 0 };
+
+	if (ps2_command(&psmouse->ps2dev,
+			param, MAKE_PS2_CMD(0, 2, TP_READ_ID)))
+		return false;
+
+	/*
+	 * param[0] contains the trackpoint device variant_id while
+	 * param[1] contains the firmware_id. So far all alps
+	 * trackpoint-only devices have their variant_ids equal
+	 * TP_VARIANT_ALPS and their firmware_ids are in 0x20~0x2f range.
+	 */
+	return param[0] == TP_VARIANT_ALPS && ((param[1] & 0xf0) == 0x20);
 }
 
 static int alps_identify(struct psmouse *psmouse, struct alps_data *priv)
@@ -3141,6 +3177,20 @@ int alps_detect(struct psmouse *psmouse, bool set_properties)
 	error = alps_identify(psmouse, NULL);
 	if (error)
 		return error;
+
+	/*
+	 * ALPS cs19 is a trackpoint-only device, and uses different
+	 * protocol than DualPoint ones, so we return -EINVAL here and let
+	 * trackpoint.c drive this device. If the trackpoint driver is not
+	 * enabled, the device will fall back to a bare PS/2 mouse.
+	 * If ps2_command() fails here, we depend on the immediately
+	 * followed psmouse_reset() to reset the device to normal state.
+	 */
+	if (alps_is_cs19_trackpoint(psmouse)) {
+		psmouse_dbg(psmouse,
+			    "ALPS CS19 trackpoint-only device detected, ignoring\n");
+		return -EINVAL;
+	}
 
 	/*
 	 * Reset the device to make sure it is fully operational:

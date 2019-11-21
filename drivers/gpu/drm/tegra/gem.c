@@ -570,18 +570,6 @@ static void tegra_gem_prime_release(struct dma_buf *buf)
 	drm_gem_dmabuf_release(buf);
 }
 
-static void *tegra_gem_prime_kmap_atomic(struct dma_buf *buf,
-					 unsigned long page)
-{
-	return NULL;
-}
-
-static void tegra_gem_prime_kunmap_atomic(struct dma_buf *buf,
-					  unsigned long page,
-					  void *addr)
-{
-}
-
 static void *tegra_gem_prime_kmap(struct dma_buf *buf, unsigned long page)
 {
 	return NULL;
@@ -620,8 +608,6 @@ static const struct dma_buf_ops tegra_gem_prime_dmabuf_ops = {
 	.map_dma_buf = tegra_gem_prime_map_dma_buf,
 	.unmap_dma_buf = tegra_gem_prime_unmap_dma_buf,
 	.release = tegra_gem_prime_release,
-	.map_atomic = tegra_gem_prime_kmap_atomic,
-	.unmap_atomic = tegra_gem_prime_kunmap_atomic,
 	.map = tegra_gem_prime_kmap,
 	.unmap = tegra_gem_prime_kunmap,
 	.mmap = tegra_gem_prime_mmap,

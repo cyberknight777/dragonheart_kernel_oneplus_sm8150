@@ -795,7 +795,7 @@ static void hdmi_reg_infoframes(struct hdmi_context *hdata)
 	}
 
 	ret = drm_hdmi_vendor_infoframe_from_display_mode(&frm.vendor.hdmi,
-			&hdata->current_mode);
+			&hdata->connector, &hdata->current_mode);
 	if (!ret)
 		ret = hdmi_vendor_infoframe_pack(&frm.vendor.hdmi, buf,
 				sizeof(buf));
@@ -861,7 +861,7 @@ static int hdmi_get_modes(struct drm_connector *connector)
 		(hdata->dvi_mode ? "dvi monitor" : "hdmi monitor"),
 		edid->width_cm, edid->height_cm);
 
-	drm_mode_connector_update_edid_property(connector, edid);
+	drm_connector_update_edid_property(connector, edid);
 	cec_notifier_set_phys_addr_from_edid(hdata->notifier, edid);
 
 	ret = drm_add_edid_modes(connector, edid);
@@ -924,7 +924,7 @@ static int hdmi_create_connector(struct drm_encoder *encoder)
 	}
 
 	drm_connector_helper_add(connector, &hdmi_connector_helper_funcs);
-	drm_mode_connector_attach_encoder(connector, encoder);
+	drm_connector_attach_encoder(connector, encoder);
 
 	if (hdata->bridge) {
 		encoder->bridge = hdata->bridge;

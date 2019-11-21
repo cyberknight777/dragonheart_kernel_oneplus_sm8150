@@ -13,6 +13,9 @@ config KEXEC_CORE
 config HAVE_IMA_KEXEC
 	bool
 
+config HOTPLUG_SMT
+	bool
+
 config OPROFILE
 	tristate "OProfile system profiling"
 	depends on PROFILING
@@ -331,6 +334,9 @@ config HAVE_ARCH_JUMP_LABEL
 	bool
 
 config HAVE_RCU_TABLE_FREE
+	bool
+
+config HAVE_RCU_TABLE_INVALIDATE
 	bool
 
 config ARCH_HAVE_NMI_SAFE_CMPXCHG
@@ -958,5 +964,13 @@ config REFCOUNT_FULL
 	  implementation, which can be (slightly) slower but provides protections
 	  against various use-after-free conditions that can be used in
 	  security flaw exploits.
+
+config HAVE_ARCH_COMPILER_H
+	bool
+	help
+	  An architecture can select this if it provides an
+	  asm/compiler.h header that should be included after
+	  linux/compiler-*.h in order to override macro definitions that those
+	  headers generally provide.
 
 source "kernel/gcov/Kconfig"

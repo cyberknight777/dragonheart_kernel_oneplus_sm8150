@@ -598,6 +598,7 @@ static ssize_t n_hdlc_tty_read(struct tty_struct *tty, struct file *file,
 				/* too large for caller's buffer */
 				ret = -EOVERFLOW;
 			} else {
+				__set_current_state(TASK_RUNNING);
 				if (copy_to_user(buf, rbuf->buf, rbuf->count))
 					ret = -EFAULT;
 				else
@@ -967,6 +968,11 @@ static int __init n_hdlc_init(void)
 	return status;
 	
 }	/* end of init_module() */
+
+#ifdef CONFIG_SPARC
+#undef __exitdata
+#define __exitdata
+#endif
 
 static const char hdlc_unregister_ok[] __exitdata =
 	KERN_INFO "N_HDLC: line discipline unregistered\n";

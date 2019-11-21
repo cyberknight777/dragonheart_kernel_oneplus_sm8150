@@ -51,6 +51,13 @@ config SPI_MASTER
 
 if SPI_MASTER
 
+config SPI_MEM
+	bool "SPI memory extension"
+	help
+	  Enable this option if you want to enable the SPI memory extension.
+	  This extension is meant to simplify interaction with SPI memories
+	  by providing an high-level interface to send memory-like commands.
+
 comment "SPI Master Controller Drivers"
 
 config SPI_ALTERA
@@ -137,14 +144,6 @@ config SPI_BFIN_SPORT
 	depends on BLACKFIN
 	help
 	  Enable support for a SPI bus via the Blackfin SPORT peripheral.
-
-config SPI_BCM53XX
-	tristate "Broadcom BCM53xx SPI controller"
-	depends on ARCH_BCM_5301X
-	depends on BCMA_POSSIBLE
-	select BCMA
-	help
-          Enable support for the SPI controller on Broadcom BCM53xx ARM SoCs.
 
 config SPI_BCM63XX
 	tristate "Broadcom BCM63xx SPI controller"
@@ -550,6 +549,12 @@ config SPI_RSPI
 	help
 	  SPI driver for Renesas RSPI and QSPI blocks.
 
+config SPI_QCOM_QSPI
+	tristate "QTI QSPI controller"
+	depends on ARCH_QCOM
+	help
+	  QSPI(Quad SPI) driver for Qualcomm QSPI controller.
+
 config SPI_QUP
 	tristate "Qualcomm SPI controller with QUP interface"
 	depends on ARCH_QCOM || (ARM && COMPILE_TEST)
@@ -562,6 +567,18 @@ config SPI_QUP
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called spi_qup.
+
+config SPI_QCOM_GENI
+	tristate "Qualcomm GENI based SPI controller"
+	depends on QCOM_GENI_SE
+	help
+	  This driver supports GENI serial engine based SPI controller in
+	  master mode on the Qualcomm Technologies Inc.'s SoCs. If you say
+	  yes to this option, support will be included for the built-in SPI
+	  interface on the Qualcomm Technologies Inc.'s SoCs.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called spi-geni-qcom.
 
 config SPI_S3C24XX
 	tristate "Samsung S3C24XX series SPI"

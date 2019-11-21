@@ -107,6 +107,10 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_READ_EXT_INFO,
 	MGMT_OP_SET_APPEARANCE,
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
+	MGMT_OP_SET_EVENT_MASK,
+	MGMT_OP_SET_BLOCKED_LTKS,
+	MGMT_OP_READ_SUPPORTED_CAPABILITIES,
+	MGMT_OP_SET_KERNEL_DEBUG,
 };
 
 static const u16 mgmt_events[] = {
@@ -1014,8 +1018,7 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 
 	hci_req_clear_adv_instance(hdev, NULL, NULL, 0x00, false);
 
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-		__hci_req_disable_advertising(&req);
+	__hci_req_disable_advertising(&req);
 
 	discov_stopped = hci_req_stop_discovery(&req);
 
@@ -1023,6 +1026,22 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 		/* 0x15 == Terminated due to Power Off */
 		__hci_abort_conn(&req, conn, 0x15);
 	}
+
+	/* When there are no bluetooth activities, i.e., no advertising,
+	 * no scanning, and no connections, the only command built into
+	 * the request would be a conditional HCI command to disable
+	 * advertising. Since the advertising is already off, the command
+	 * is skipped at run time. This leads to an issue that there is
+	 * no command complete event and thus the clean_up_hci_complete()
+	 * callback below is not invoked. This ends up with a 5-second delay
+	 * in setting power off.
+	 * It is important to add this dummy HCI command at the end of the
+	 * request to ensure that the last command in the request would
+	 * definitely be executed. As a result, the clean_up_hci_complete()
+	 * callback would be executed which in turn starts the power off
+	 * procedure immediately.
+	 */
+	hci_req_add(&req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
 
 	err = hci_req_run(&req, clean_up_hci_complete);
 	if (!err && discov_stopped)
@@ -1826,8 +1845,7 @@ static int set_le(struct sock *sk, struct hci_dev *hdev, void *data, u16 len)
 		hci_cp.le = val;
 		hci_cp.simul = 0x00;
 	} else {
-		if (hci_dev_test_flag(hdev, HCI_LE_ADV))
-			__hci_req_disable_advertising(&req);
+		__hci_req_disable_advertising(&req);
 	}
 
 	hci_req_add(&req, HCI_OP_WRITE_LE_HOST_SUPPORTED, sizeof(hci_cp),
@@ -2164,8 +2182,8 @@ static int load_link_keys(struct sock *sk, struct hci_dev *hdev, void *data,
 
 	key_count = __le16_to_cpu(cp->key_count);
 	if (key_count > max_key_count) {
-		BT_ERR("load_link_keys: too big key_count value %u",
-		       key_count);
+		bt_dev_err(hdev, "load_link_keys: too big key_count value %u",
+			   key_count);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_LINK_KEYS,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -2173,8 +2191,8 @@ static int load_link_keys(struct sock *sk, struct hci_dev *hdev, void *data,
 	expected_len = sizeof(*cp) + key_count *
 					sizeof(struct mgmt_link_key_info);
 	if (expected_len != len) {
-		BT_ERR("load_link_keys: expected %u bytes, got %u bytes",
-		       expected_len, len);
+		bt_dev_err(hdev, "load_link_keys: expected %u bytes, got %u bytes",
+			   expected_len, len);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_LINK_KEYS,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -2303,9 +2321,8 @@ static int unpair_device(struct sock *sk, struct hci_dev *hdev, void *data,
 	/* LE address type */
 	addr_type = le_addr_type(cp->addr.type);
 
-	hci_remove_irk(hdev, &cp->addr.bdaddr, addr_type);
-
-	err = hci_remove_ltk(hdev, &cp->addr.bdaddr, addr_type);
+	/* Abort any ongoing SMP pairing. Removes ltk and irk if they exist. */
+	err = smp_cancel_and_remove_pairing(hdev, &cp->addr.bdaddr, addr_type);
 	if (err < 0) {
 		err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_UNPAIR_DEVICE,
 					MGMT_STATUS_NOT_PAIRED, &rp,
@@ -2319,8 +2336,6 @@ static int unpair_device(struct sock *sk, struct hci_dev *hdev, void *data,
 		goto done;
 	}
 
-	/* Abort any ongoing SMP pairing */
-	smp_cancel_pairing(conn);
 
 	/* Defer clearing up the connection parameters until closing to
 	 * give a chance of keeping them if a repairing happens.
@@ -2566,7 +2581,7 @@ static int pin_code_reply(struct sock *sk, struct hci_dev *hdev, void *data,
 
 		memcpy(&ncp.addr, &cp->addr, sizeof(ncp.addr));
 
-		BT_ERR("PIN code is not 16 bytes long");
+		bt_dev_err(hdev, "PIN code is not 16 bytes long");
 
 		err = send_pin_code_neg_reply(sk, hdev, &ncp);
 		if (err >= 0)
@@ -3396,7 +3411,8 @@ static int add_remote_oob_data(struct sock *sk, struct hci_dev *hdev,
 					MGMT_OP_ADD_REMOTE_OOB_DATA,
 					status, &cp->addr, sizeof(cp->addr));
 	} else {
-		BT_ERR("add_remote_oob_data: invalid length of %u bytes", len);
+		bt_dev_err(hdev, "add_remote_oob_data: invalid len of %u bytes",
+			   len);
 		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_REMOTE_OOB_DATA,
 				      MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -3546,7 +3562,7 @@ static int start_discovery_internal(struct sock *sk, struct hci_dev *hdev,
 	cmd->cmd_complete = generic_cmd_complete;
 
 	hci_discovery_set_state(hdev, DISCOVERY_STARTING);
-	queue_work(hdev->req_workqueue, &hdev->discov_update);
+	queue_work(hdev->req_workqueue, &hdev->start_discov_update);
 	err = 0;
 
 failed:
@@ -3609,8 +3625,8 @@ static int start_service_discovery(struct sock *sk, struct hci_dev *hdev,
 
 	uuid_count = __le16_to_cpu(cp->uuid_count);
 	if (uuid_count > max_uuid_count) {
-		BT_ERR("service_discovery: too big uuid_count value %u",
-		       uuid_count);
+		bt_dev_err(hdev, "service_discovery: too big uuid_count value %u",
+			   uuid_count);
 		err = mgmt_cmd_complete(sk, hdev->id,
 					MGMT_OP_START_SERVICE_DISCOVERY,
 					MGMT_STATUS_INVALID_PARAMS, &cp->type,
@@ -3620,8 +3636,8 @@ static int start_service_discovery(struct sock *sk, struct hci_dev *hdev,
 
 	expected_len = sizeof(*cp) + uuid_count * 16;
 	if (expected_len != len) {
-		BT_ERR("service_discovery: expected %u bytes, got %u bytes",
-		       expected_len, len);
+		bt_dev_err(hdev, "service_discovery: expected %u bytes, got %u bytes",
+			   expected_len, len);
 		err = mgmt_cmd_complete(sk, hdev->id,
 					MGMT_OP_START_SERVICE_DISCOVERY,
 					MGMT_STATUS_INVALID_PARAMS, &cp->type,
@@ -3669,7 +3685,7 @@ static int start_service_discovery(struct sock *sk, struct hci_dev *hdev,
 	}
 
 	hci_discovery_set_state(hdev, DISCOVERY_STARTING);
-	queue_work(hdev->req_workqueue, &hdev->discov_update);
+	queue_work(hdev->req_workqueue, &hdev->start_discov_update);
 	err = 0;
 
 failed:
@@ -3728,7 +3744,7 @@ static int stop_discovery(struct sock *sk, struct hci_dev *hdev, void *data,
 	cmd->cmd_complete = generic_cmd_complete;
 
 	hci_discovery_set_state(hdev, DISCOVERY_STOPPING);
-	queue_work(hdev->req_workqueue, &hdev->discov_update);
+	queue_work(hdev->req_workqueue, &hdev->stop_discov_update);
 	err = 0;
 
 unlock:
@@ -3948,7 +3964,7 @@ static void set_advertising_complete(struct hci_dev *hdev, u8 status,
 		err = hci_req_run(&req, enable_advertising_instance);
 
 	if (err)
-		BT_ERR("Failed to re-configure advertising");
+		bt_dev_err(hdev, "failed to re-configure advertising");
 
 unlock:
 	hci_dev_unlock(hdev);
@@ -4138,11 +4154,14 @@ static int set_scan_params(struct sock *sk, struct hci_dev *hdev,
 	err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_SCAN_PARAMS, 0,
 				NULL, 0);
 
-	/* If background scan is running, restart it so new parameters are
+	/* If background scan is running (and not in progress of stopping
+	 * already), restart it so new parameters are
 	 * loaded.
 	 */
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
+	    !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS) &&
 	    hdev->discovery.state == DISCOVERY_STOPPED) {
+
 		struct hci_request req;
 
 		hci_req_init(&req, hdev);
@@ -4328,6 +4347,85 @@ static int set_advertising_intervals(struct sock *sk, struct hci_dev *hdev,
 	hci_dev_unlock(hdev);
 
 	return err;
+}
+
+static void set_event_mask_complete(struct hci_dev *hdev, u8 status, u16 opcode)
+{
+	struct mgmt_pending_cmd *cmd;
+
+	BT_DBG("status 0x%02x", status);
+
+	hci_dev_lock(hdev);
+
+	/* Saving of the new event mask is done in  */
+	cmd = pending_find_data(MGMT_OP_SET_EVENT_MASK, hdev, NULL);
+	if (!cmd)
+		goto unlock;
+
+	cmd->cmd_complete(cmd, mgmt_status(status));
+	mgmt_pending_remove(cmd);
+
+unlock:
+	hci_dev_unlock(hdev);
+}
+
+static int set_event_mask(struct sock *sk, struct hci_dev *hdev,
+			  void *data, u16 len)
+{
+	struct mgmt_cp_set_event_mask *cp = data;
+	struct mgmt_pending_cmd *cmd;
+	struct hci_request req;
+	u8 new_events[8], i;
+	int err;
+
+	BT_DBG("request for %s", hdev->name);
+
+	hci_dev_lock(hdev);
+
+	if (pending_find(MGMT_OP_SET_EVENT_MASK, hdev)) {
+		err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_EVENT_MASK,
+					MGMT_STATUS_BUSY, NULL, 0);
+		goto failed;
+	}
+
+	cmd = mgmt_pending_add(sk, MGMT_OP_SET_EVENT_MASK, hdev, data, len);
+	if (!cmd) {
+		err = -ENOMEM;
+		goto failed;
+	}
+
+	cmd->cmd_complete = generic_cmd_complete;
+
+	hci_req_init(&req, hdev);
+	for (i = 0 ; i < HCI_SET_EVENT_MASK_SIZE; i++) {
+		/* Modify only bits that are requested by the stack */
+		new_events[i] = hdev->event_mask[i];
+		new_events[i] &= ~cp->mask[i];
+		new_events[i] |= cp->mask[i] & cp->events[i];
+	}
+
+	hci_req_add(&req, HCI_OP_SET_EVENT_MASK, sizeof(new_events),
+		    new_events);
+	err = hci_req_run(&req, set_event_mask_complete);
+	if (err < 0)
+		mgmt_pending_remove(cmd);
+
+failed:
+	hci_dev_unlock(hdev);
+	return err;
+}
+
+static int set_blocked_ltks(struct sock *sk, struct hci_dev *hdev,
+			    void *data, u16 len)
+{
+	struct mgmt_cp_set_blocked_ltks *cp = data;
+
+	hci_dev_lock(hdev);
+	memcpy(hdev->blocked_ltks, cp->ltks, sizeof(hdev->blocked_ltks));
+	hci_dev_unlock(hdev);
+
+	return mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_BLOCKED_LTKS, 0,
+				 NULL, 0);
 }
 
 static void set_bredr_complete(struct hci_dev *hdev, u8 status, u16 opcode)
@@ -4742,15 +4840,16 @@ static int load_irks(struct sock *sk, struct hci_dev *hdev, void *cp_data,
 
 	irk_count = __le16_to_cpu(cp->irk_count);
 	if (irk_count > max_irk_count) {
-		BT_ERR("load_irks: too big irk_count value %u", irk_count);
+		bt_dev_err(hdev, "load_irks: too big irk_count value %u",
+			   irk_count);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_IRKS,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
 
 	expected_len = sizeof(*cp) + irk_count * sizeof(struct mgmt_irk_info);
 	if (expected_len != len) {
-		BT_ERR("load_irks: expected %u bytes, got %u bytes",
-		       expected_len, len);
+		bt_dev_err(hdev, "load_irks: expected %u bytes, got %u bytes",
+			   expected_len, len);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_IRKS,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -4823,7 +4922,8 @@ static int load_long_term_keys(struct sock *sk, struct hci_dev *hdev,
 
 	key_count = __le16_to_cpu(cp->key_count);
 	if (key_count > max_key_count) {
-		BT_ERR("load_ltks: too big key_count value %u", key_count);
+		bt_dev_err(hdev, "load_ltks: too big key_count value %u",
+			   key_count);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_LONG_TERM_KEYS,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -4831,8 +4931,8 @@ static int load_long_term_keys(struct sock *sk, struct hci_dev *hdev,
 	expected_len = sizeof(*cp) + key_count *
 					sizeof(struct mgmt_ltk_info);
 	if (expected_len != len) {
-		BT_ERR("load_keys: expected %u bytes, got %u bytes",
-		       expected_len, len);
+		bt_dev_err(hdev, "load_keys: expected %u bytes, got %u bytes",
+			   expected_len, len);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_LONG_TERM_KEYS,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -4951,14 +5051,15 @@ static void conn_info_refresh_complete(struct hci_dev *hdev, u8 hci_status,
 	}
 
 	if (!cp) {
-		BT_ERR("invalid sent_cmd in conn_info response");
+		bt_dev_err(hdev, "invalid sent_cmd in conn_info response");
 		goto unlock;
 	}
 
 	handle = __le16_to_cpu(cp->handle);
 	conn = hci_conn_hash_lookup_handle(hdev, handle);
 	if (!conn) {
-		BT_ERR("unknown handle (%d) in conn_info response", handle);
+		bt_dev_err(hdev, "unknown handle (%d) in conn_info response",
+			   handle);
 		goto unlock;
 	}
 
@@ -5555,8 +5656,8 @@ static int load_conn_param(struct sock *sk, struct hci_dev *hdev, void *data,
 
 	param_count = __le16_to_cpu(cp->param_count);
 	if (param_count > max_param_count) {
-		BT_ERR("load_conn_param: too big param_count value %u",
-		       param_count);
+		bt_dev_err(hdev, "load_conn_param: too big param_count value %u",
+			   param_count);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_CONN_PARAM,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -5564,8 +5665,8 @@ static int load_conn_param(struct sock *sk, struct hci_dev *hdev, void *data,
 	expected_len = sizeof(*cp) + param_count *
 					sizeof(struct mgmt_conn_param);
 	if (expected_len != len) {
-		BT_ERR("load_conn_param: expected %u bytes, got %u bytes",
-		       expected_len, len);
+		bt_dev_err(hdev, "load_conn_param: expected %u bytes, got %u bytes",
+			   expected_len, len);
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_LOAD_CONN_PARAM,
 				       MGMT_STATUS_INVALID_PARAMS);
 	}
@@ -5590,7 +5691,7 @@ static int load_conn_param(struct sock *sk, struct hci_dev *hdev, void *data,
 		} else if (param->addr.type == BDADDR_LE_RANDOM) {
 			addr_type = ADDR_LE_DEV_RANDOM;
 		} else {
-			BT_ERR("Ignoring invalid connection parameters");
+			bt_dev_err(hdev, "ignoring invalid connection parameters");
 			continue;
 		}
 
@@ -5603,14 +5704,14 @@ static int load_conn_param(struct sock *sk, struct hci_dev *hdev, void *data,
 		       min, max, latency, timeout);
 
 		if (hci_check_conn_params(min, max, latency, timeout) < 0) {
-			BT_ERR("Ignoring invalid connection parameters");
+			bt_dev_err(hdev, "ignoring invalid connection parameters");
 			continue;
 		}
 
 		hci_param = hci_conn_params_add(hdev, &param->addr.bdaddr,
 						addr_type);
 		if (!hci_param) {
-			BT_ERR("Failed to add connection parameters");
+			bt_dev_err(hdev, "failed to add connection parameters");
 			continue;
 		}
 
@@ -6229,12 +6330,24 @@ static void add_advertising_complete(struct hci_dev *hdev, u8 status,
 	cp = cmd->param;
 	rp.instance = cp->instance;
 
-	if (status)
+	if (status) {
 		mgmt_cmd_status(cmd->sk, cmd->index, cmd->opcode,
 				mgmt_status(status));
-	else
+		// Error codes from mgmt_status_table.
+		WARN_ONCE(status == 0x0c,
+			  "HCI error: Command Disallowed (%d)", status);
+		WARN_ONCE(status == 0x17,
+			  "HCI error: Repeated Attempts (%d)", status);
+		WARN_ONCE(status == 0x30,
+			  "HCI error: Role Switch Pending? (%d)", status);
+		WARN_ONCE(status == 0x35,
+			  "HCI error: Host Busy Pairing? (%d)", status);
+		WARN_ONCE(status == 0x37,
+			  "HCI error: Controller Busy? (%d)", status);
+	} else {
 		mgmt_cmd_complete(cmd->sk, cmd->index, cmd->opcode,
 				  mgmt_status(status), &rp, sizeof(rp));
+	}
 
 	mgmt_pending_remove(cmd);
 
@@ -6296,6 +6409,7 @@ static int add_advertising(struct sock *sk, struct hci_dev *hdev,
 	if (pending_find(MGMT_OP_ADD_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_REMOVE_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_SET_LE, hdev)) {
+		WARN_ONCE(1, "MGMT_OP_ADD_ADVERTISING error: pending command");
 		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_ADVERTISING,
 				      MGMT_STATUS_BUSY);
 		goto unlock;
@@ -6369,13 +6483,18 @@ static int add_advertising(struct sock *sk, struct hci_dev *hdev,
 
 	hci_req_init(&req, hdev);
 
+	hci_req_add(&req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
+
 	err = __hci_req_schedule_adv_instance(&req, schedule_instance, true);
 
 	if (!err)
 		err = hci_req_run(&req, add_advertising_complete);
 
-	if (err < 0)
+	if (err < 0) {
+		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_ADD_ADVERTISING,
+				      MGMT_STATUS_FAILED);
 		mgmt_pending_remove(cmd);
+	}
 
 unlock:
 	hci_dev_unlock(hdev);
@@ -6436,6 +6555,8 @@ static int remove_advertising(struct sock *sk, struct hci_dev *hdev,
 	if (pending_find(MGMT_OP_ADD_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_REMOVE_ADVERTISING, hdev) ||
 	    pending_find(MGMT_OP_SET_LE, hdev)) {
+		WARN_ONCE(1,
+			  "MGMT_OP_REMOVE_ADVERTISING error: pending command");
 		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_REMOVE_ADVERTISING,
 				      MGMT_STATUS_BUSY);
 		goto unlock;
@@ -6522,6 +6643,32 @@ static int get_adv_size_info(struct sock *sk, struct hci_dev *hdev,
 				MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
 
 	return err;
+}
+
+static int read_supported_capabilities(struct sock *sk, struct hci_dev *hdev,
+				       void *data, u16 data_len)
+{
+	struct mgmt_rp_read_supported_capabilities rp;
+	int err;
+
+	rp.wide_band_speech = hdev->wide_band_speech;
+
+	err = mgmt_cmd_complete(sk, hdev->id,
+				MGMT_OP_READ_SUPPORTED_CAPABILITIES,
+				MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
+
+	return err;
+}
+
+static int set_kernel_debug(struct sock *sk, struct hci_dev *hdev,
+			    void *data, u16 data_len)
+{
+	struct mgmt_cp_set_kernel_debug *cp = data;
+
+	bt_set_debug(cp->enabled);
+
+	return mgmt_cmd_complete(sk, MGMT_INDEX_NONE, MGMT_OP_SET_KERNEL_DEBUG,
+				 MGMT_STATUS_SUCCESS, NULL, 0);
 }
 
 static const struct hci_mgmt_handler mgmt_handlers[] = {
@@ -6617,6 +6764,12 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 						HCI_MGMT_UNTRUSTED },
 	{ set_appearance,	   MGMT_SET_APPEARANCE_SIZE },
 	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
+	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
+	{ set_blocked_ltks,	   MGMT_SET_BLOCKED_LTKS_CP_SIZE },
+	{ read_supported_capabilities, MGMT_READ_SUPPORTED_CAPABILITIES_SIZE },
+	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
+						HCI_MGMT_NO_HDEV |
+						HCI_MGMT_UNTRUSTED },
 };
 
 void mgmt_index_added(struct hci_dev *hdev)
@@ -7510,6 +7663,7 @@ static bool is_filter_match(struct hci_dev *hdev, s8 rssi, u8 *eir,
 	 * scanning to ensure updated result with updated RSSI values.
 	 */
 	if (test_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks)) {
+		BT_DBG("BT_DBG_DG: queue le_scan_restart: mgmt:restart_le_scan:is_filter_match\n");
 		restart_le_scan(hdev);
 
 		/* Validate RSSI value against the RSSI threshold once more. */

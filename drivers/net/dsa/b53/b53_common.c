@@ -1431,7 +1431,6 @@ int b53_mirror_add(struct dsa_switch *ds, int port,
 		loc = B53_EG_MIR_CTL;
 
 	b53_read16(dev, B53_MGMT_PAGE, loc, &reg);
-	reg &= ~MIRROR_MASK;
 	reg |= BIT(port);
 	b53_write16(dev, B53_MGMT_PAGE, loc, reg);
 
@@ -1548,6 +1547,18 @@ static const struct b53_chip_data b53_switch_chips[] = {
 		.arl_entries = 2,
 		.cpu_port = B53_CPU_PORT_25,
 		.duplex_reg = B53_DUPLEX_STAT_FE,
+	},
+	{
+		.chip_id = BCM5389_DEVICE_ID,
+		.dev_name = "BCM5389",
+		.vlans = 4096,
+		.enabled_ports = 0x1f,
+		.arl_entries = 4,
+		.cpu_port = B53_CPU_PORT,
+		.vta_regs = B53_VTA_REGS,
+		.duplex_reg = B53_DUPLEX_STAT_GE,
+		.jumbo_pm_reg = B53_JUMBO_PORT_MASK,
+		.jumbo_size_reg = B53_JUMBO_MAX_SIZE,
 	},
 	{
 		.chip_id = BCM5395_DEVICE_ID,
@@ -1872,6 +1883,7 @@ int b53_switch_detect(struct b53_device *dev)
 		else
 			dev->chip_id = BCM5365_DEVICE_ID;
 		break;
+	case BCM5389_DEVICE_ID:
 	case BCM5395_DEVICE_ID:
 	case BCM5397_DEVICE_ID:
 	case BCM5398_DEVICE_ID:

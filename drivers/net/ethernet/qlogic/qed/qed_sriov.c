@@ -1963,7 +1963,9 @@ static void qed_iov_vf_mbx_start_vport(struct qed_hwfn *p_hwfn,
 	params.vport_id = vf->vport_id;
 	params.max_buffers_per_cqe = start->max_buffers_per_cqe;
 	params.mtu = vf->mtu;
-	params.check_mac = true;
+
+	/* Non trusted VFs should enable control frame filtering */
+	params.check_mac = !vf->p_vf_info.is_trusted_configured;
 
 	rc = qed_sp_eth_vport_start(p_hwfn, &params);
 	if (rc) {
@@ -2826,7 +2828,7 @@ qed_iov_vp_update_mcast_bin_param(struct qed_hwfn *p_hwfn,
 
 	p_data->update_approx_mcast_flg = 1;
 	memcpy(p_data->bins, p_mcast_tlv->bins,
-	       sizeof(unsigned long) * ETH_MULTICAST_MAC_BINS_IN_REGS);
+	       sizeof(u32) * ETH_MULTICAST_MAC_BINS_IN_REGS);
 	*tlvs_mask |= 1 << QED_IOV_VP_UPDATE_MCAST;
 }
 
@@ -4396,6 +4398,8 @@ static void qed_sriov_enable_qid_config(struct qed_hwfn *hwfn,
 static int qed_sriov_enable(struct qed_dev *cdev, int num)
 {
 	struct qed_iov_vf_init_params params;
+	struct qed_hwfn *hwfn;
+	struct qed_ptt *ptt;
 	int i, j, rc;
 
 	if (num >= RESC_NUM(&cdev->hwfns[0], QED_VPORT)) {
@@ -4408,8 +4412,8 @@ static int qed_sriov_enable(struct qed_dev *cdev, int num)
 
 	/* Initialize HW for VF access */
 	for_each_hwfn(cdev, j) {
-		struct qed_hwfn *hwfn = &cdev->hwfns[j];
-		struct qed_ptt *ptt = qed_ptt_acquire(hwfn);
+		hwfn = &cdev->hwfns[j];
+		ptt = qed_ptt_acquire(hwfn);
 
 		/* Make sure not to use more than 16 queues per VF */
 		params.num_queues = min_t(int,
@@ -4444,6 +4448,19 @@ static int qed_sriov_enable(struct qed_dev *cdev, int num)
 		DP_ERR(cdev, "Failed to enable sriov [%d]\n", rc);
 		goto err;
 	}
+
+	hwfn = QED_LEADING_HWFN(cdev);
+	ptt = qed_ptt_acquire(hwfn);
+	if (!ptt) {
+		DP_ERR(hwfn, "Failed to acquire ptt\n");
+		rc = -EBUSY;
+		goto err;
+	}
+
+	rc = qed_mcp_ov_update_eswitch(hwfn, ptt, QED_OV_ESWITCH_VEB);
+	if (rc)
+		DP_INFO(cdev, "Failed to update eswitch mode\n");
+	qed_ptt_release(hwfn, ptt);
 
 	return num;
 
@@ -4895,6 +4912,9 @@ static void qed_iov_handle_trust_change(struct qed_hwfn *hwfn)
 		params.opaque_fid = vf->opaque_fid;
 		params.vport_id = vf->vport_id;
 
+		params.update_ctl_frame_check = 1;
+		params.mac_chk_en = !vf_info->is_trusted_configured;
+
 		if (vf_info->rx_accept_mode & mask) {
 			flags->update_rx_mode_config = 1;
 			flags->rx_accept_filter = vf_info->rx_accept_mode;
@@ -4912,7 +4932,8 @@ static void qed_iov_handle_trust_change(struct qed_hwfn *hwfn)
 		}
 
 		if (flags->update_rx_mode_config ||
-		    flags->update_tx_mode_config)
+		    flags->update_tx_mode_config ||
+		    params.update_ctl_frame_check)
 			qed_sp_vport_update(hwfn, &params,
 					    QED_SPQ_MODE_EBLOCK, NULL);
 	}

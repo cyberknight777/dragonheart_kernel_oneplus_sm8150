@@ -449,8 +449,8 @@ static const struct dw_pcie_host_ops kirin_pcie_host_ops = {
 	.host_init = kirin_pcie_host_init,
 };
 
-static int __init kirin_add_pcie_port(struct dw_pcie *pci,
-				      struct platform_device *pdev)
+static int kirin_add_pcie_port(struct dw_pcie *pci,
+			       struct platform_device *pdev)
 {
 	pci->pp.ops = &kirin_pcie_host_ops;
 
@@ -490,7 +490,7 @@ static int kirin_pcie_probe(struct platform_device *pdev)
 		return ret;
 
 	kirin_pcie->gpio_id_reset = of_get_named_gpio(dev->of_node,
-						      "reset-gpio", 0);
+						      "reset-gpios", 0);
 	if (kirin_pcie->gpio_id_reset < 0)
 		return -ENODEV;
 

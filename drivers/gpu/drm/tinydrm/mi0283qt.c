@@ -9,6 +9,9 @@
  * (at your option) any later version.
  */
 
+#include <drm/drm_fb_helper.h>
+#include <drm/drm_gem_framebuffer_helper.h>
+#include <drm/drm_modeset_helper.h>
 #include <drm/tinydrm/ili9341.h>
 #include <drm/tinydrm/mipi-dbi.h>
 #include <drm/tinydrm/tinydrm-helpers.h>
@@ -125,7 +128,7 @@ static const struct drm_simple_display_pipe_funcs mi0283qt_pipe_funcs = {
 	.enable = mipi_dbi_pipe_enable,
 	.disable = mipi_dbi_pipe_disable,
 	.update = tinydrm_display_pipe_update,
-	.prepare_fb = tinydrm_display_pipe_prepare_fb,
+	.prepare_fb = drm_gem_fb_simple_display_pipe_prepare_fb,
 };
 
 static const struct drm_display_mode mi0283qt_mode = {
@@ -139,7 +142,6 @@ static struct drm_driver mi0283qt_driver = {
 				  DRIVER_ATOMIC,
 	.fops			= &mi0283qt_fops,
 	TINYDRM_GEM_DRIVER_OPS,
-	.lastclose		= tinydrm_lastclose,
 	.debugfs_init		= mipi_dbi_debugfs_init,
 	.name			= "mi0283qt",
 	.desc			= "Multi-Inno MI0283QT",
@@ -243,7 +245,7 @@ static int __maybe_unused mi0283qt_pm_suspend(struct device *dev)
 	struct mipi_dbi *mipi = dev_get_drvdata(dev);
 	int ret;
 
-	ret = tinydrm_suspend(&mipi->tinydrm);
+	ret = drm_mode_config_helper_suspend(mipi->tinydrm.drm);
 	if (ret)
 		return ret;
 
@@ -261,7 +263,9 @@ static int __maybe_unused mi0283qt_pm_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	return tinydrm_resume(&mipi->tinydrm);
+	drm_mode_config_helper_resume(mipi->tinydrm.drm);
+
+	return 0;
 }
 
 static const struct dev_pm_ops mi0283qt_pm_ops = {

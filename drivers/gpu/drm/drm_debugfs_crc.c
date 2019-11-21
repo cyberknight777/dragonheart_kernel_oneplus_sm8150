@@ -139,6 +139,7 @@ static int crtc_crc_data_count(struct drm_crtc_crc *crc)
 static void crtc_crc_cleanup(struct drm_crtc_crc *crc)
 {
 	kfree(crc->entries);
+	crc->overflow = false;
 	crc->entries = NULL;
 	crc->head = 0;
 	crc->tail = 0;
@@ -307,10 +308,29 @@ static ssize_t crtc_crc_read(struct file *filep, char __user *user_buf,
 	return LINE_LEN(crc->values_cnt);
 }
 
+static unsigned int crtc_crc_poll(struct file *file, poll_table *wait)
+{
+	struct drm_crtc *crtc = file->f_inode->i_private;
+	struct drm_crtc_crc *crc = &crtc->crc;
+	unsigned ret;
+
+	poll_wait(file, &crc->wq, wait);
+
+	spin_lock_irq(&crc->lock);
+	if (crc->source && crtc_crc_data_count(crc))
+		ret = POLLIN | POLLRDNORM;
+	else
+		ret = 0;
+	spin_unlock_irq(&crc->lock);
+
+	return ret;
+}
+
 static const struct file_operations drm_crtc_crc_data_fops = {
 	.owner = THIS_MODULE,
 	.open = crtc_crc_open,
 	.read = crtc_crc_read,
+	.poll = crtc_crc_poll,
 	.release = crtc_crc_release,
 };
 
@@ -359,12 +379,13 @@ int drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,
 	struct drm_crtc_crc *crc = &crtc->crc;
 	struct drm_crtc_crc_entry *entry;
 	int head, tail;
+	unsigned long flags;
 
-	spin_lock(&crc->lock);
+	spin_lock_irqsave(&crc->lock, flags);
 
 	/* Caller may not have noticed yet that userspace has stopped reading */
 	if (!crc->entries) {
-		spin_unlock(&crc->lock);
+		spin_unlock_irqrestore(&crc->lock, flags);
 		return -EINVAL;
 	}
 
@@ -372,8 +393,14 @@ int drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,
 	tail = crc->tail;
 
 	if (CIRC_SPACE(head, tail, DRM_CRC_ENTRIES_NR) < 1) {
-		spin_unlock(&crc->lock);
-		DRM_ERROR("Overflow of CRC buffer, userspace reads too slow.\n");
+		bool was_overflow = crc->overflow;
+
+		crc->overflow = true;
+		spin_unlock_irqrestore(&crc->lock, flags);
+
+		if (!was_overflow)
+			DRM_ERROR("Overflow of CRC buffer, userspace reads too slow.\n");
+
 		return -ENOBUFS;
 	}
 
@@ -385,7 +412,7 @@ int drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,
 	head = (head + 1) & (DRM_CRC_ENTRIES_NR - 1);
 	crc->head = head;
 
-	spin_unlock(&crc->lock);
+	spin_unlock_irqrestore(&crc->lock, flags);
 
 	wake_up_interruptible(&crc->wq);
 

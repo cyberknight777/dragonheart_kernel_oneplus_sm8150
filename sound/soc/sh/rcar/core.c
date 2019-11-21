@@ -486,7 +486,7 @@ static int rsnd_status_update(u32 *status,
 			(func_call && (mod)->ops->fn) ? #fn : "");	\
 		if (func_call && (mod)->ops->fn)			\
 			tmp = (mod)->ops->fn(mod, io, param);		\
-		if (tmp)						\
+		if (tmp && (tmp != -EPROBE_DEFER))			\
 			dev_err(dev, "%s[%d] : %s error %d\n",		\
 				rsnd_mod_name(mod), rsnd_mod_id(mod),	\
 						     #fn, tmp);		\
@@ -676,6 +676,7 @@ static int rsnd_soc_dai_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	}
 
 	/* set format */
+	rdai->bit_clk_inv = 0;
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
 		rdai->sys_delay = 0;
@@ -925,12 +926,23 @@ static void rsnd_soc_dai_shutdown(struct snd_pcm_substream *substream,
 	rsnd_dai_call(nolock_stop, io, priv);
 }
 
+static int rsnd_soc_dai_prepare(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	struct rsnd_priv *priv = rsnd_dai_to_priv(dai);
+	struct rsnd_dai *rdai = rsnd_dai_to_rdai(dai);
+	struct rsnd_dai_stream *io = rsnd_rdai_to_io(rdai, substream);
+
+	return rsnd_dai_call(prepare, io, priv);
+}
+
 static const struct snd_soc_dai_ops rsnd_soc_dai_ops = {
 	.startup	= rsnd_soc_dai_startup,
 	.shutdown	= rsnd_soc_dai_shutdown,
 	.trigger	= rsnd_soc_dai_trigger,
 	.set_fmt	= rsnd_soc_dai_set_fmt,
 	.set_tdm_slot	= rsnd_soc_set_dai_tdm_slot,
+	.prepare	= rsnd_soc_dai_prepare,
 };
 
 void rsnd_parse_connect_common(struct rsnd_dai *rdai,
@@ -1291,7 +1303,7 @@ int rsnd_kctrl_new(struct rsnd_mod *mod,
 }
 
 /*
- *		snd_soc_platform
+ *		snd_soc_component
  */
 
 #define PREALLOC_BUFFER		(32 * 1024)
@@ -1318,12 +1330,9 @@ static int rsnd_pcm_new(struct snd_soc_pcm_runtime *rtd)
 		PREALLOC_BUFFER, PREALLOC_BUFFER_MAX);
 }
 
-static const struct snd_soc_platform_driver rsnd_soc_platform = {
+static const struct snd_soc_component_driver rsnd_soc_component = {
 	.ops		= &rsnd_pcm_ops,
 	.pcm_new	= rsnd_pcm_new,
-};
-
-static const struct snd_soc_component_driver rsnd_soc_component = {
 	.name		= "rsnd",
 };
 
@@ -1432,17 +1441,11 @@ static int rsnd_probe(struct platform_device *pdev)
 	/*
 	 *	asoc register
 	 */
-	ret = snd_soc_register_platform(dev, &rsnd_soc_platform);
-	if (ret < 0) {
-		dev_err(dev, "cannot snd soc register\n");
-		return ret;
-	}
-
-	ret = snd_soc_register_component(dev, &rsnd_soc_component,
+	ret = devm_snd_soc_register_component(dev, &rsnd_soc_component,
 					 priv->daidrv, rsnd_rdai_nr(priv));
 	if (ret < 0) {
 		dev_err(dev, "cannot snd dai register\n");
-		goto exit_snd_soc;
+		goto exit_snd_probe;
 	}
 
 	pm_runtime_enable(dev);
@@ -1450,13 +1453,19 @@ static int rsnd_probe(struct platform_device *pdev)
 	dev_info(dev, "probed\n");
 	return ret;
 
-exit_snd_soc:
-	snd_soc_unregister_platform(dev);
 exit_snd_probe:
 	for_each_rsnd_dai(rdai, priv, i) {
 		rsnd_dai_call(remove, &rdai->playback, priv);
 		rsnd_dai_call(remove, &rdai->capture, priv);
 	}
+
+	/*
+	 * adg is very special mod which can't use rsnd_dai_call(remove),
+	 * and it registers ADG clock on probe.
+	 * It should be unregister if probe failed.
+	 * Mainly it is assuming -EPROBE_DEFER case
+	 */
+	rsnd_adg_remove(priv);
 
 	return ret;
 }
@@ -1486,9 +1495,6 @@ static int rsnd_remove(struct platform_device *pdev)
 
 	for (i = 0; i < ARRAY_SIZE(remove_func); i++)
 		remove_func[i](priv);
-
-	snd_soc_unregister_component(&pdev->dev);
-	snd_soc_unregister_platform(&pdev->dev);
 
 	return ret;
 }

@@ -41,12 +41,6 @@ static void afs_charge_preallocation(struct work_struct *);
 
 static DECLARE_WORK(afs_charge_preallocation_work, afs_charge_preallocation);
 
-static int afs_wait_atomic_t(atomic_t *p)
-{
-	schedule();
-	return 0;
-}
-
 /*
  * open an RxRPC socket and bind it to be a server for callback notifications
  * - the socket is left in blocking mode and non-blocking ops use MSG_DONTWAIT
@@ -55,6 +49,7 @@ int afs_open_socket(void)
 {
 	struct sockaddr_rxrpc srx;
 	struct socket *socket;
+	unsigned int min_level;
 	int ret;
 
 	_enter("");
@@ -79,6 +74,12 @@ int afs_open_socket(void)
 	srx.transport.sin.sin_port	= htons(AFS_CM_PORT);
 	memset(&srx.transport.sin.sin_addr, 0,
 	       sizeof(srx.transport.sin.sin_addr));
+
+	min_level = RXRPC_SECURITY_ENCRYPT;
+	ret = kernel_setsockopt(socket, SOL_RXRPC, RXRPC_MIN_SECURITY_LEVEL,
+				(void *)&min_level, sizeof(min_level));
+	if (ret < 0)
+		goto error_2;
 
 	ret = kernel_bind(socket, (struct sockaddr *) &srx, sizeof(srx));
 	if (ret < 0)
@@ -121,7 +122,7 @@ void afs_close_socket(void)
 	}
 
 	_debug("outstanding %u", atomic_read(&afs_outstanding_calls));
-	wait_on_atomic_t(&afs_outstanding_calls, afs_wait_atomic_t,
+	wait_on_atomic_t(&afs_outstanding_calls, atomic_t_wait,
 			 TASK_UNINTERRUPTIBLE);
 	_debug("no outstanding calls");
 

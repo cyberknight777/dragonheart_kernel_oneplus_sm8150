@@ -27,6 +27,8 @@
 
 #include "i915_drv.h"
 #include "intel_drv.h"
+#include "linux/dmi.h"
+#include "linux/mfd/cros_ec_pd_update.h"
 
 struct ddi_buf_trans {
 	u32 trans1;	/* balance leg enable, de-emph level */
@@ -1463,6 +1465,10 @@ void intel_ddi_set_pipe_settings(const struct intel_crtc_state *crtc_state)
 		WARN_ON(transcoder_is_dsi(cpu_transcoder));
 
 		temp = TRANS_MSA_SYNC_CLK;
+
+		if (crtc_state->limited_color_range)
+			temp |= TRANS_MSA_CEA_RANGE;
+
 		switch (crtc_state->pipe_bpp) {
 		case 18:
 			temp |= TRANS_MSA_6_BPC;
@@ -1589,15 +1595,53 @@ void intel_ddi_enable_transcoder_func(const struct intel_crtc_state *crtc_state)
 	I915_WRITE(TRANS_DDI_FUNC_CTL(cpu_transcoder), temp);
 }
 
-void intel_ddi_disable_transcoder_func(struct drm_i915_private *dev_priv,
-				       enum transcoder cpu_transcoder)
+void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state)
 {
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
+	enum transcoder cpu_transcoder = crtc_state->cpu_transcoder;
 	i915_reg_t reg = TRANS_DDI_FUNC_CTL(cpu_transcoder);
 	uint32_t val = I915_READ(reg);
 
 	val &= ~(TRANS_DDI_FUNC_ENABLE | TRANS_DDI_PORT_MASK | TRANS_DDI_DP_VC_PAYLOAD_ALLOC);
 	val |= TRANS_DDI_PORT_NONE;
 	I915_WRITE(reg, val);
+
+	if (dev_priv->quirks & QUIRK_INCREASE_DDI_DISABLED_TIME &&
+	    intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI)) {
+		DRM_DEBUG_KMS("Quirk Increase DDI disabled time\n");
+		/* Quirk time at 100ms for reliable operation */
+		msleep(100);
+	}
+}
+
+int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
+				     bool enable)
+{
+	struct drm_device *dev = intel_encoder->base.dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	enum pipe pipe = 0;
+	int ret = 0;
+	uint32_t tmp;
+
+	if (WARN_ON(!intel_display_power_get_if_enabled(dev_priv,
+						intel_encoder->power_domain)))
+		return -ENXIO;
+
+	if (WARN_ON(!intel_encoder->get_hw_state(intel_encoder, &pipe))) {
+		ret = -EIO;
+		goto out;
+	}
+
+	tmp = I915_READ(TRANS_DDI_FUNC_CTL(pipe));
+	if (enable)
+		tmp |= TRANS_DDI_HDCP_SIGNALLING;
+	else
+		tmp &= ~TRANS_DDI_HDCP_SIGNALLING;
+	I915_WRITE(TRANS_DDI_FUNC_CTL(pipe), tmp);
+out:
+	intel_display_power_put(dev_priv, intel_encoder->power_domain);
+	return ret;
 }
 
 bool intel_ddi_connector_get_hw_state(struct intel_connector *intel_connector)
@@ -2142,6 +2186,32 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 	mutex_unlock(&dev_priv->dpll_lock);
 }
 
+static int intel_ddi_is_reversed(int dp_port)
+{
+	int polarity = 0;
+
+#ifdef CONFIG_MFD_CROS_EC_PD_UPDATE
+	const char *dmi_product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
+	const char *dmi_sys_vendor = dmi_get_system_info(DMI_SYS_VENDOR);
+	/*
+	 * TODO(crbug.com/488161) Find more elegant way to plumb polarity into
+	 * GPU for USB type-C devices which take advantage of built-in DP lane
+	 * reversal functionality.
+	 */
+	if ((strstr(dmi_sys_vendor, "GOOGLE") &&
+	     strstr(dmi_product_name, "Samus"))) {
+		int rv = cros_ec_pd_get_polarity(dp_port - 1, &polarity);
+		if (rv < 0)
+			DRM_ERROR("Getting DP Port%d polarity (err:%d)\n",
+				  dp_port, rv);
+	}
+#endif
+
+	DRM_INFO("DP Port%d lanes %sreversed\n", dp_port,
+		 polarity ? "" : "not ");
+	return polarity;
+}
+
 static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 				    int link_rate, uint32_t lane_count,
 				    struct intel_shared_dpll *pll,
@@ -2172,6 +2242,12 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 		intel_prepare_dp_ddi_buffers(encoder);
 
 	intel_ddi_init_dp_buf_reg(encoder);
+
+	if (!intel_dp_is_edp(intel_dp) && intel_ddi_is_reversed(port))
+		intel_dp->DP |= DDI_BUF_PORT_REVERSAL;
+	else
+		intel_dp->DP &= ~DDI_BUF_PORT_REVERSAL;
+
 	intel_dp_sink_dpms(intel_dp, DRM_MODE_DPMS_ON);
 	intel_dp_start_link_train(intel_dp);
 	if (port != PORT_A || INTEL_GEN(dev_priv) >= 9)
@@ -2372,6 +2448,11 @@ static void intel_enable_ddi(struct intel_encoder *intel_encoder,
 
 	if (pipe_config->has_audio)
 		intel_audio_codec_enable(intel_encoder, pipe_config, conn_state);
+
+	/* Enable hdcp if it's desired */
+	if (conn_state->content_protection ==
+	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
+		intel_hdcp_enable(to_intel_connector(conn_state->connector));
 }
 
 static void intel_disable_ddi(struct intel_encoder *intel_encoder,
@@ -2380,6 +2461,8 @@ static void intel_disable_ddi(struct intel_encoder *intel_encoder,
 {
 	struct drm_encoder *encoder = &intel_encoder->base;
 	int type = intel_encoder->type;
+
+	intel_hdcp_disable(to_intel_connector(old_conn_state->connector));
 
 	if (old_crtc_state->has_audio)
 		intel_audio_codec_disable(intel_encoder);

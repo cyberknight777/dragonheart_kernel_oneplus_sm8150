@@ -57,6 +57,9 @@ static int pcm_open(struct snd_pcm_substream *substream)
 		goto err_locked;
 
 	err = snd_tscm_stream_get_clock(tscm, &clock);
+	if (err < 0)
+		goto err_locked;
+
 	if (clock != SND_TSCM_CLOCK_INTERNAL ||
 	    amdtp_stream_pcm_running(&tscm->rx_stream) ||
 	    amdtp_stream_pcm_running(&tscm->tx_stream)) {
@@ -279,7 +282,6 @@ int snd_tscm_create_pcm_devices(struct snd_tscm *tscm)
 		.pointer	= pcm_playback_pointer,
 		.ack		= pcm_playback_ack,
 		.page		= snd_pcm_lib_get_vmalloc_page,
-		.mmap		= snd_pcm_lib_mmap_vmalloc,
 	};
 	struct snd_pcm *pcm;
 	int err;

@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 
 #include <crypto/aes.h>
+#include <crypto/gcm.h>
 #include <crypto/internal/aead.h>
 #include <crypto/internal/hash.h>
 #include <crypto/internal/skcipher.h>
@@ -283,6 +284,7 @@ enum artpec6_crypto_hash_flags {
 
 struct artpec6_crypto_req_common {
 	struct list_head list;
+	struct list_head complete_in_progress;
 	struct artpec6_crypto_dma_descriptors *dma;
 	struct crypto_async_request *req;
 	void (*complete)(struct crypto_async_request *req);
@@ -1934,7 +1936,7 @@ static int artpec6_crypto_prepare_aead(struct aead_request *areq)
 
 	memcpy(req_ctx->hw_ctx.J0, areq->iv, crypto_aead_ivsize(cipher));
 	// The HW omits the initial increment of the counter field.
-	crypto_inc(req_ctx->hw_ctx.J0+12, 4);
+	memcpy(req_ctx->hw_ctx.J0 + GCM_AES_IV_SIZE, "\x00\x00\x00\x01", 4);
 
 	ret = artpec6_crypto_setup_out_descr(common, &req_ctx->hw_ctx,
 		sizeof(struct artpec6_crypto_aead_hw_ctx), false, false);
@@ -2045,7 +2047,8 @@ static int artpec6_crypto_prepare_aead(struct aead_request *areq)
 	return artpec6_crypto_dma_map_descs(common);
 }
 
-static void artpec6_crypto_process_queue(struct artpec6_crypto *ac)
+static void artpec6_crypto_process_queue(struct artpec6_crypto *ac,
+	    struct list_head *completions)
 {
 	struct artpec6_crypto_req_common *req;
 
@@ -2056,7 +2059,7 @@ static void artpec6_crypto_process_queue(struct artpec6_crypto *ac)
 		list_move_tail(&req->list, &ac->pending);
 		artpec6_crypto_start_dma(req);
 
-		req->req->complete(req->req, -EINPROGRESS);
+		list_add_tail(&req->complete_in_progress, completions);
 	}
 
 	/*
@@ -2086,6 +2089,11 @@ static void artpec6_crypto_task(unsigned long data)
 	struct artpec6_crypto *ac = (struct artpec6_crypto *)data;
 	struct artpec6_crypto_req_common *req;
 	struct artpec6_crypto_req_common *n;
+	struct list_head complete_done;
+	struct list_head complete_in_progress;
+
+	INIT_LIST_HEAD(&complete_done);
+	INIT_LIST_HEAD(&complete_in_progress);
 
 	if (list_empty(&ac->pending)) {
 		pr_debug("Spurious IRQ\n");
@@ -2119,19 +2127,30 @@ static void artpec6_crypto_task(unsigned long data)
 
 		pr_debug("Completing request %p\n", req);
 
-		list_del(&req->list);
+		list_move_tail(&req->list, &complete_done);
 
 		artpec6_crypto_dma_unmap_all(req);
 		artpec6_crypto_copy_bounce_buffers(req);
 
 		ac->pending_count--;
 		artpec6_crypto_common_destroy(req);
+	}
+
+	artpec6_crypto_process_queue(ac, &complete_in_progress);
+
+	spin_unlock_bh(&ac->queue_lock);
+
+	/* Perform the completion callbacks without holding the queue lock
+	 * to allow new request submissions from the callbacks.
+	 */
+	list_for_each_entry_safe(req, n, &complete_done, list) {
 		req->complete(req->req);
 	}
 
-	artpec6_crypto_process_queue(ac);
-
-	spin_unlock_bh(&ac->queue_lock);
+	list_for_each_entry_safe(req, n, &complete_in_progress,
+				 complete_in_progress) {
+		req->req->complete(req->req, -EINPROGRESS);
+	}
 }
 
 static void artpec6_crypto_complete_crypto(struct crypto_async_request *req)
@@ -2956,7 +2975,7 @@ static struct aead_alg aead_algos[] = {
 		.setkey = artpec6_crypto_aead_set_key,
 		.encrypt = artpec6_crypto_aead_encrypt,
 		.decrypt = artpec6_crypto_aead_decrypt,
-		.ivsize = AES_BLOCK_SIZE,
+		.ivsize = GCM_AES_IV_SIZE,
 		.maxauthsize = AES_BLOCK_SIZE,
 
 		.base = {

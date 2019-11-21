@@ -27,7 +27,6 @@
 #include <linux/dmi.h>
 #include <linux/slab.h>
 #include <asm/cpu_device_id.h>
-#include <asm/platform_sst_audio.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
@@ -49,7 +48,7 @@ struct cht_acpi_card {
 struct cht_mc_private {
 	struct snd_soc_jack jack;
 	struct cht_acpi_card *acpi_card;
-	char codec_name[16];
+	char codec_name[SND_ACPI_I2C_ID_LEN];
 	struct clk *mclk;
 };
 
@@ -118,6 +117,7 @@ static const struct snd_soc_dapm_widget cht_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Headphone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Int Mic", NULL),
+	SND_SOC_DAPM_MIC("Int Analog Mic", NULL),
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 	SND_SOC_DAPM_SUPPLY("Platform Clock", SND_SOC_NOPM, 0, 0,
 			platform_clock_control, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
@@ -128,6 +128,8 @@ static const struct snd_soc_dapm_route cht_rt5645_audio_map[] = {
 	{"IN1N", NULL, "Headset Mic"},
 	{"DMIC L1", NULL, "Int Mic"},
 	{"DMIC R1", NULL, "Int Mic"},
+	{"IN2P", NULL, "Int Analog Mic"},
+	{"IN2N", NULL, "Int Analog Mic"},
 	{"Headphone", NULL, "HPOL"},
 	{"Headphone", NULL, "HPOR"},
 	{"Ext Spk", NULL, "SPOL"},
@@ -135,6 +137,9 @@ static const struct snd_soc_dapm_route cht_rt5645_audio_map[] = {
 	{"Headphone", NULL, "Platform Clock"},
 	{"Headset Mic", NULL, "Platform Clock"},
 	{"Int Mic", NULL, "Platform Clock"},
+	{"Int Analog Mic", NULL, "Platform Clock"},
+	{"Int Analog Mic", NULL, "micbias1"},
+	{"Int Analog Mic", NULL, "micbias2"},
 	{"Ext Spk", NULL, "Platform Clock"},
 };
 
@@ -154,41 +159,50 @@ static const struct snd_soc_dapm_route cht_rt5650_audio_map[] = {
 };
 
 static const struct snd_soc_dapm_route cht_rt5645_ssp2_aif1_map[] = {
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	{"AIF1 Playback", NULL, "ssp2 Tx"},
 	{"ssp2 Tx", NULL, "codec_out0"},
 	{"ssp2 Tx", NULL, "codec_out1"},
 	{"codec_in0", NULL, "ssp2 Rx" },
 	{"codec_in1", NULL, "ssp2 Rx" },
 	{"ssp2 Rx", NULL, "AIF1 Capture"},
+#endif
 };
 
 static const struct snd_soc_dapm_route cht_rt5645_ssp2_aif2_map[] = {
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	{"AIF2 Playback", NULL, "ssp2 Tx"},
 	{"ssp2 Tx", NULL, "codec_out0"},
 	{"ssp2 Tx", NULL, "codec_out1"},
 	{"codec_in0", NULL, "ssp2 Rx" },
 	{"codec_in1", NULL, "ssp2 Rx" },
 	{"ssp2 Rx", NULL, "AIF2 Capture"},
+#endif
 };
 
 static const struct snd_soc_dapm_route cht_rt5645_ssp0_aif1_map[] = {
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	{"AIF1 Playback", NULL, "ssp0 Tx"},
 	{"ssp0 Tx", NULL, "modem_out"},
 	{"modem_in", NULL, "ssp0 Rx" },
 	{"ssp0 Rx", NULL, "AIF1 Capture"},
+#endif
 };
 
 static const struct snd_soc_dapm_route cht_rt5645_ssp0_aif2_map[] = {
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL)
 	{"AIF2 Playback", NULL, "ssp0 Tx"},
 	{"ssp0 Tx", NULL, "modem_out"},
 	{"modem_in", NULL, "ssp0 Rx" },
 	{"ssp0 Rx", NULL, "AIF2 Capture"},
+#endif
 };
 
 static const struct snd_kcontrol_new cht_mc_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Headphone"),
 	SOC_DAPM_PIN_SWITCH("Headset Mic"),
 	SOC_DAPM_PIN_SWITCH("Int Mic"),
+	SOC_DAPM_PIN_SWITCH("Int Analog Mic"),
 	SOC_DAPM_PIN_SWITCH("Ext Spk"),
 };
 
@@ -245,14 +259,14 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 {
 	struct snd_soc_card *card = runtime->card;
 	struct cht_mc_private *ctx = snd_soc_card_get_drvdata(runtime->card);
-	struct snd_soc_codec *codec = runtime->codec;
+	struct snd_soc_component *component = runtime->codec_dai->component;
 	int jack_type;
 	int ret;
 
 	if ((cht_rt5645_quirk & CHT_RT5645_SSP2_AIF2) ||
 	    (cht_rt5645_quirk & CHT_RT5645_SSP0_AIF2)) {
 		/* Select clk_i2s2_asrc as ASRC clock source */
-		rt5645_sel_asrc_clk_src(codec,
+		rt5645_sel_asrc_clk_src(component,
 					RT5645_DA_STEREO_FILTER |
 					RT5645_DA_MONO_L_FILTER |
 					RT5645_DA_MONO_R_FILTER |
@@ -260,7 +274,7 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 					RT5645_CLK_SEL_I2S2_ASRC);
 	} else {
 		/* Select clk_i2s1_asrc as ASRC clock source */
-		rt5645_sel_asrc_clk_src(codec,
+		rt5645_sel_asrc_clk_src(component,
 					RT5645_DA_STEREO_FILTER |
 					RT5645_DA_MONO_L_FILTER |
 					RT5645_DA_MONO_R_FILTER |
@@ -303,7 +317,7 @@ static int cht_codec_init(struct snd_soc_pcm_runtime *runtime)
 		return ret;
 	}
 
-	rt5645_set_jack_detect(codec, &ctx->jack, &ctx->jack, &ctx->jack);
+	rt5645_set_jack_detect(component, &ctx->jack, &ctx->jack, &ctx->jack);
 
 
 	/*
@@ -499,7 +513,7 @@ static struct cht_acpi_card snd_soc_cards[] = {
 	{"10EC5650", CODEC_TYPE_RT5650, &snd_soc_card_chtrt5650},
 };
 
-static char cht_rt5645_codec_name[16]; /* i2c-<HID>:00 with HID being 8 chars */
+static char cht_rt5645_codec_name[SND_ACPI_I2C_ID_LEN];
 static char cht_rt5645_codec_aif_name[12]; /*  = "rt5645-aif[1|2]" */
 static char cht_rt5645_cpu_dai_name[10]; /*  = "ssp[0|2]-port" */
 
@@ -524,6 +538,7 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = snd_soc_cards[0].soc_card;
 	struct snd_soc_acpi_mach *mach;
+	const char *platform_name;
 	struct cht_mc_private *drv;
 	const char *i2c_name = NULL;
 	bool found = false;
@@ -532,7 +547,7 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 	int ret_val = 0;
 	int i;
 
-	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_ATOMIC);
+	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
 		return -ENOMEM;
 
@@ -566,7 +581,7 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 		}
 
 	/* fixup codec name based on HID */
-	i2c_name = snd_soc_acpi_find_name_from_hid(mach->id);
+	i2c_name = acpi_dev_get_first_match_name(mach->id, NULL, -1);
 	if (i2c_name) {
 		snprintf(cht_rt5645_codec_name, sizeof(cht_rt5645_codec_name),
 			"%s%s", "i2c-", i2c_name);
@@ -578,11 +593,10 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 	 * (will be overridden if DMI quirk is detected)
 	 */
 	if (is_valleyview()) {
-		struct sst_platform_info *p_info = mach->pdata;
-		const struct sst_res_info *res_info = p_info->res_info;
-
-		if (res_info->acpi_ipc_irq_index == 0)
+#if !IS_ENABLED(CONFIG_SND_SOC_SOF_INTEL) /* FIXME: bytcr not supported yet */
+		if (mach->mach_params.acpi_ipc_irq_index == 0)
 			is_bytcr = true;
+#endif
 	}
 
 	if (is_bytcr) {
@@ -659,6 +673,14 @@ static int snd_cht_mc_probe(struct platform_device *pdev)
 		cht_dailink[dai_index].cpu_dai_name =
 			cht_rt5645_cpu_dai_name;
 	}
+
+	/* override plaform name, if required */
+	platform_name = mach->mach_params.platform;
+
+	ret_val = snd_soc_fixup_dai_links_platform_name(card,
+							platform_name);
+	if (ret_val)
+		return ret_val;
 
 	drv->mclk = devm_clk_get(&pdev->dev, "pmc_plt_clk_3");
 	if (IS_ERR(drv->mclk)) {

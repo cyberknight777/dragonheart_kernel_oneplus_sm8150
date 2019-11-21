@@ -26,26 +26,10 @@
 #include "dc_bios_types.h"
 #include "dce_stream_encoder.h"
 #include "reg_helper.h"
+#include "hw_shared.h"
 
-enum DP_PIXEL_ENCODING {
-DP_PIXEL_ENCODING_RGB444                 = 0x00000000,
-DP_PIXEL_ENCODING_YCBCR422               = 0x00000001,
-DP_PIXEL_ENCODING_YCBCR444               = 0x00000002,
-DP_PIXEL_ENCODING_RGB_WIDE_GAMUT         = 0x00000003,
-DP_PIXEL_ENCODING_Y_ONLY                 = 0x00000004,
-DP_PIXEL_ENCODING_YCBCR420               = 0x00000005,
-DP_PIXEL_ENCODING_RESERVED               = 0x00000006,
-};
-
-
-enum DP_COMPONENT_DEPTH {
-DP_COMPONENT_DEPTH_6BPC                  = 0x00000000,
-DP_COMPONENT_DEPTH_8BPC                  = 0x00000001,
-DP_COMPONENT_DEPTH_10BPC                 = 0x00000002,
-DP_COMPONENT_DEPTH_12BPC                 = 0x00000003,
-DP_COMPONENT_DEPTH_16BPC                 = 0x00000004,
-DP_COMPONENT_DEPTH_RESERVED              = 0x00000005,
-};
+#define DC_LOGGER \
+		enc110->base.ctx->logger
 
 
 #define REG(reg)\
@@ -79,13 +63,17 @@ enum {
 static void dce110_update_generic_info_packet(
 	struct dce110_stream_encoder *enc110,
 	uint32_t packet_index,
-	const struct encoder_info_packet *info_packet)
+	const struct dc_info_packet *info_packet)
 {
 	uint32_t regval;
 	/* TODOFPGA Figure out a proper number for max_retries polling for lock
 	 * use 50 for now.
 	 */
 	uint32_t max_retries = 50;
+
+	/*we need turn on clock before programming AFMT block*/
+	if (REG(AFMT_CNTL))
+		REG_UPDATE(AFMT_CNTL, AFMT_AUDIO_CLOCK_EN, 1);
 
 	if (REG(AFMT_VBI_PACKET_CONTROL1)) {
 		if (packet_index >= 8)
@@ -192,9 +180,8 @@ static void dce110_update_generic_info_packet(
 static void dce110_update_hdmi_info_packet(
 	struct dce110_stream_encoder *enc110,
 	uint32_t packet_index,
-	const struct encoder_info_packet *info_packet)
+	const struct dc_info_packet *info_packet)
 {
-	struct dc_context *ctx = enc110->base.ctx;
 	uint32_t cont, send, line;
 
 	if (info_packet->valid) {
@@ -274,8 +261,7 @@ static void dce110_update_hdmi_info_packet(
 #endif
 	default:
 		/* invalid HW packet index */
-		dm_logger_write(
-			ctx->logger, LOG_WARNING,
+		DC_LOG_WARNING(
 			"Invalid HW packet index: %s()\n",
 			__func__);
 		return;
@@ -297,24 +283,21 @@ static void dce110_stream_encoder_dp_set_stream_attribute(
 	uint32_t h_back_porch;
 	uint8_t synchronous_clock = 0; /* asynchronous mode */
 	uint8_t colorimetry_bpc;
+	uint8_t dynamic_range_rgb = 0; /*full range*/
+	uint8_t dynamic_range_ycbcr = 1; /*bt709*/
 #endif
 
 	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
-
-#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
-	if (REG(DP_DB_CNTL))
-		REG_UPDATE(DP_DB_CNTL, DP_DB_DISABLE, 1);
-#endif
 
 	/* set pixel encoding */
 	switch (crtc_timing->pixel_encoding) {
 	case PIXEL_ENCODING_YCBCR422:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_PIXEL_ENCODING,
-				DP_PIXEL_ENCODING_YCBCR422);
+				DP_PIXEL_ENCODING_TYPE_YCBCR422);
 		break;
 	case PIXEL_ENCODING_YCBCR444:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_PIXEL_ENCODING,
-				DP_PIXEL_ENCODING_YCBCR444);
+				DP_PIXEL_ENCODING_TYPE_YCBCR444);
 
 		if (crtc_timing->flags.Y_ONLY)
 			if (crtc_timing->display_color_depth != COLOR_DEPTH_666)
@@ -322,7 +305,7 @@ static void dce110_stream_encoder_dp_set_stream_attribute(
 				 * Color depth of Y-only could be
 				 * 8, 10, 12, 16 bits */
 				REG_UPDATE(DP_PIXEL_FORMAT, DP_PIXEL_ENCODING,
-						DP_PIXEL_ENCODING_Y_ONLY);
+						DP_PIXEL_ENCODING_TYPE_Y_ONLY);
 		/* Note: DP_MSA_MISC1 bit 7 is the indicator
 		 * of Y-only mode.
 		 * This bit is set in HW if register
@@ -330,7 +313,7 @@ static void dce110_stream_encoder_dp_set_stream_attribute(
 		break;
 	case PIXEL_ENCODING_YCBCR420:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_PIXEL_ENCODING,
-				DP_PIXEL_ENCODING_YCBCR420);
+				DP_PIXEL_ENCODING_TYPE_YCBCR420);
 		if (enc110->se_mask->DP_VID_M_DOUBLE_VALUE_EN)
 			REG_UPDATE(DP_VID_TIMING, DP_VID_M_DOUBLE_VALUE_EN, 1);
 
@@ -341,7 +324,7 @@ static void dce110_stream_encoder_dp_set_stream_attribute(
 		break;
 	default:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_PIXEL_ENCODING,
-				DP_PIXEL_ENCODING_RGB444);
+				DP_PIXEL_ENCODING_TYPE_RGB444);
 		break;
 	}
 
@@ -359,29 +342,25 @@ static void dce110_stream_encoder_dp_set_stream_attribute(
 		break;
 	case COLOR_DEPTH_888:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_COMPONENT_DEPTH,
-				DP_COMPONENT_DEPTH_8BPC);
+				DP_COMPONENT_PIXEL_DEPTH_8BPC);
 		break;
 	case COLOR_DEPTH_101010:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_COMPONENT_DEPTH,
-				DP_COMPONENT_DEPTH_10BPC);
+				DP_COMPONENT_PIXEL_DEPTH_10BPC);
 
 		break;
 	case COLOR_DEPTH_121212:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_COMPONENT_DEPTH,
-				DP_COMPONENT_DEPTH_12BPC);
+				DP_COMPONENT_PIXEL_DEPTH_12BPC);
 		break;
 	default:
 		REG_UPDATE(DP_PIXEL_FORMAT, DP_COMPONENT_DEPTH,
-				DP_COMPONENT_DEPTH_6BPC);
+				DP_COMPONENT_PIXEL_DEPTH_6BPC);
 		break;
 	}
 
 	/* set dynamic range and YCbCr range */
-	if (enc110->se_mask->DP_DYN_RANGE && enc110->se_mask->DP_YCBCR_RANGE)
-		REG_UPDATE_2(
-			DP_PIXEL_FORMAT,
-			DP_DYN_RANGE, 0,
-			DP_YCBCR_RANGE, 0);
+
 
 #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
 	switch (crtc_timing->display_color_depth) {
@@ -410,37 +389,57 @@ static void dce110_stream_encoder_dp_set_stream_attribute(
 		case COLOR_SPACE_SRGB:
 			misc0 = misc0 | 0x0;
 			misc1 = misc1 & ~0x80; /* bit7 = 0*/
+			dynamic_range_rgb = 0; /*full range*/
 			break;
 		case COLOR_SPACE_SRGB_LIMITED:
 			misc0 = misc0 | 0x8; /* bit3=1 */
 			misc1 = misc1 & ~0x80; /* bit7 = 0*/
+			dynamic_range_rgb = 1; /*limited range*/
 			break;
 		case COLOR_SPACE_YCBCR601:
+		case COLOR_SPACE_YCBCR601_LIMITED:
 			misc0 = misc0 | 0x8; /* bit3=1, bit4=0 */
 			misc1 = misc1 & ~0x80; /* bit7 = 0*/
+			dynamic_range_ycbcr = 0; /*bt601*/
 			if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR422)
 				misc0 = misc0 | 0x2; /* bit2=0, bit1=1 */
 			else if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR444)
 				misc0 = misc0 | 0x4; /* bit2=1, bit1=0 */
 			break;
 		case COLOR_SPACE_YCBCR709:
+		case COLOR_SPACE_YCBCR709_LIMITED:
 			misc0 = misc0 | 0x18; /* bit3=1, bit4=1 */
 			misc1 = misc1 & ~0x80; /* bit7 = 0*/
+			dynamic_range_ycbcr = 1; /*bt709*/
 			if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR422)
 				misc0 = misc0 | 0x2; /* bit2=0, bit1=1 */
 			else if (crtc_timing->pixel_encoding == PIXEL_ENCODING_YCBCR444)
 				misc0 = misc0 | 0x4; /* bit2=1, bit1=0 */
 			break;
-		case COLOR_SPACE_2020_RGB_FULLRANGE:
 		case COLOR_SPACE_2020_RGB_LIMITEDRANGE:
+			dynamic_range_rgb = 1; /*limited range*/
+			break;
+		case COLOR_SPACE_2020_RGB_FULLRANGE:
 		case COLOR_SPACE_2020_YCBCR:
+		case COLOR_SPACE_XR_RGB:
+		case COLOR_SPACE_MSREF_SCRGB:
 		case COLOR_SPACE_ADOBERGB:
+		case COLOR_SPACE_DCIP3:
+		case COLOR_SPACE_XV_YCC_709:
+		case COLOR_SPACE_XV_YCC_601:
+		case COLOR_SPACE_DISPLAYNATIVE:
+		case COLOR_SPACE_DOLBYVISION:
+		case COLOR_SPACE_APPCTRL:
+		case COLOR_SPACE_CUSTOMPOINTS:
 		case COLOR_SPACE_UNKNOWN:
-		case COLOR_SPACE_YCBCR601_LIMITED:
-		case COLOR_SPACE_YCBCR709_LIMITED:
 			/* do nothing */
 			break;
 		}
+		if (enc110->se_mask->DP_DYN_RANGE && enc110->se_mask->DP_YCBCR_RANGE)
+			REG_UPDATE_2(
+				DP_PIXEL_FORMAT,
+				DP_DYN_RANGE, dynamic_range_rgb,
+				DP_YCBCR_RANGE, dynamic_range_ycbcr);
 
 #if defined(CONFIG_DRM_AMD_DC_DCN1_0)
 		if (REG(DP_MSA_COLORIMETRY))
@@ -680,11 +679,11 @@ static void dce110_stream_encoder_set_mst_bandwidth(
 	struct fixed31_32 avg_time_slots_per_mtp)
 {
 	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
-	uint32_t x = dal_fixed31_32_floor(
+	uint32_t x = dc_fixpt_floor(
 		avg_time_slots_per_mtp);
-	uint32_t y = dal_fixed31_32_ceil(
-		dal_fixed31_32_shl(
-			dal_fixed31_32_sub_int(
+	uint32_t y = dc_fixpt_ceil(
+		dc_fixpt_shl(
+			dc_fixpt_sub_int(
 				avg_time_slots_per_mtp,
 				x),
 			26));
@@ -715,6 +714,9 @@ static void dce110_stream_encoder_update_hdmi_info_packets(
 		if (info_frame->avi.valid) {
 			const uint32_t *content =
 				(const uint32_t *) &info_frame->avi.sb[0];
+			/*we need turn on clock before programming AFMT block*/
+			if (REG(AFMT_CNTL))
+				REG_UPDATE(AFMT_CNTL, AFMT_AUDIO_CLOCK_EN, 1);
 
 			REG_WRITE(AFMT_AVI_INFO0, content[0]);
 
@@ -814,7 +816,7 @@ static void dce110_stream_encoder_update_dp_info_packets(
 	const struct encoder_info_frame *info_frame)
 {
 	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
-	uint32_t value = REG_READ(DP_SEC_CNTL);
+	uint32_t value = 0;
 
 	if (info_frame->vsc.valid)
 		dce110_update_generic_info_packet(
@@ -848,6 +850,7 @@ static void dce110_stream_encoder_update_dp_info_packets(
 	* Therefore we need to enable master bit
 	* if at least on of the fields is not 0
 	*/
+	value = REG_READ(DP_SEC_CNTL);
 	if (value)
 		REG_UPDATE(DP_SEC_CNTL, DP_SEC_STREAM_ENABLE, 1);
 }
@@ -857,7 +860,7 @@ static void dce110_stream_encoder_stop_dp_info_packets(
 {
 	/* stop generic packets on DP */
 	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
-	uint32_t value = REG_READ(DP_SEC_CNTL);
+	uint32_t value = 0;
 
 	if (enc110->se_mask->DP_SEC_AVI_ENABLE) {
 		REG_SET_7(DP_SEC_CNTL, 0,
@@ -870,25 +873,10 @@ static void dce110_stream_encoder_stop_dp_info_packets(
 			DP_SEC_STREAM_ENABLE, 0);
 	}
 
-#if defined(CONFIG_DRM_AMD_DC_DCN1_0)
-	if (enc110->se_mask->DP_SEC_GSP7_ENABLE) {
-		REG_SET_10(DP_SEC_CNTL, 0,
-			DP_SEC_GSP0_ENABLE, 0,
-			DP_SEC_GSP1_ENABLE, 0,
-			DP_SEC_GSP2_ENABLE, 0,
-			DP_SEC_GSP3_ENABLE, 0,
-			DP_SEC_GSP4_ENABLE, 0,
-			DP_SEC_GSP5_ENABLE, 0,
-			DP_SEC_GSP6_ENABLE, 0,
-			DP_SEC_GSP7_ENABLE, 0,
-			DP_SEC_MPG_ENABLE, 0,
-			DP_SEC_STREAM_ENABLE, 0);
-	}
-#endif
 	/* this register shared with audio info frame.
 	 * therefore we need to keep master enabled
 	 * if at least one of the fields is not 0 */
-
+	value = REG_READ(DP_SEC_CNTL);
 	if (value)
 		REG_UPDATE(DP_SEC_CNTL, DP_SEC_STREAM_ENABLE, 1);
 
@@ -899,6 +887,7 @@ static void dce110_stream_encoder_dp_blank(
 {
 	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
 	uint32_t retries = 0;
+	uint32_t  reg1 = 0;
 	uint32_t max_retries = DP_BLANK_MAX_RETRY * 10;
 
 	/* Note: For CZ, we are changing driver default to disable
@@ -907,7 +896,10 @@ static void dce110_stream_encoder_dp_blank(
 	 * handful of panels that cannot handle disable stream at
 	 * HBLANK and will result in a white line flash across the
 	 * screen on stream disable. */
-
+	REG_GET(DP_VID_STREAM_CNTL, DP_VID_STREAM_ENABLE, &reg1);
+	if ((reg1 & 0x1) == 0)
+		/*stream not enabled*/
+		return;
 	/* Specify the video stream disable point
 	 * (2 = start of the next vertical blank) */
 	REG_UPDATE(DP_VID_STREAM_CNTL, DP_VID_STREAM_DIS_DEFER, 2);
@@ -1361,7 +1353,7 @@ static void dce110_se_setup_hdmi_audio(
 			     crtc_info->requested_pixel_clock,
 			     crtc_info->calculated_pixel_clock,
 			     &audio_clock_info);
-	dm_logger_write(enc->ctx->logger, LOG_HW_AUDIO,
+	DC_LOG_HW_AUDIO(
 			"\n%s:Input::requested_pixel_clock = %d"	\
 			"calculated_pixel_clock = %d \n", __func__,	\
 			crtc_info->requested_pixel_clock,		\
@@ -1487,7 +1479,7 @@ static void dce110_se_disable_dp_audio(
 	struct stream_encoder *enc)
 {
 	struct dce110_stream_encoder *enc110 = DCE110STRENC_FROM_STRENC(enc);
-	uint32_t value = REG_READ(DP_SEC_CNTL);
+	uint32_t value = 0;
 
 	/* Disable Audio packets */
 	REG_UPDATE_5(DP_SEC_CNTL,
@@ -1499,6 +1491,7 @@ static void dce110_se_disable_dp_audio(
 
 	/* This register shared with encoder info frame. Therefore we need to
 	keep master enabled if at least on of the fields is not 0 */
+	value = REG_READ(DP_SEC_CNTL);
 	if (value != 0)
 		REG_UPDATE(DP_SEC_CNTL, DP_SEC_STREAM_ENABLE, 1);
 

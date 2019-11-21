@@ -131,6 +131,7 @@ static const char * const page_flag_names[] = {
 	[KPF_KSM]		= "x:ksm",
 	[KPF_THP]		= "t:thp",
 	[KPF_BALLOON]		= "o:balloon",
+	[KPF_PGTABLE]		= "g:pgtable",
 	[KPF_ZERO_PAGE]		= "z:zero_page",
 	[KPF_IDLE]              = "i:idle_page",
 
@@ -154,12 +155,6 @@ static const char * const page_flag_names[] = {
 	[KPF_MMAP_EXCLUSIVE]	= "1:mmap_exclusive",
 };
 
-
-static const char * const debugfs_known_mountpoints[] = {
-	"/sys/kernel/debug",
-	"/debug",
-	0,
-};
 
 /*
  * data structures

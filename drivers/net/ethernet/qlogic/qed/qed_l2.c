@@ -115,8 +115,7 @@ int qed_l2_alloc(struct qed_hwfn *p_hwfn)
 
 void qed_l2_setup(struct qed_hwfn *p_hwfn)
 {
-	if (p_hwfn->hw_info.personality != QED_PCI_ETH &&
-	    p_hwfn->hw_info.personality != QED_PCI_ETH_ROCE)
+	if (!QED_IS_L2_PERSONALITY(p_hwfn))
 		return;
 
 	mutex_init(&p_hwfn->p_l2_info->lock);
@@ -126,8 +125,7 @@ void qed_l2_free(struct qed_hwfn *p_hwfn)
 {
 	u32 i;
 
-	if (p_hwfn->hw_info.personality != QED_PCI_ETH &&
-	    p_hwfn->hw_info.personality != QED_PCI_ETH_ROCE)
+	if (!QED_IS_L2_PERSONALITY(p_hwfn))
 		return;
 
 	if (!p_hwfn->p_l2_info)
@@ -609,6 +607,10 @@ qed_sp_update_accept_mode(struct qed_hwfn *p_hwfn,
 			  (!!(accept_filter & QED_ACCEPT_MCAST_MATCHED) &&
 			   !!(accept_filter & QED_ACCEPT_MCAST_UNMATCHED)));
 
+		SET_FIELD(state, ETH_VPORT_TX_MODE_UCAST_ACCEPT_ALL,
+			  (!!(accept_filter & QED_ACCEPT_UCAST_MATCHED) &&
+			   !!(accept_filter & QED_ACCEPT_UCAST_UNMATCHED)));
+
 		SET_FIELD(state, ETH_VPORT_TX_MODE_BCAST_ACCEPT_ALL,
 			  !!(accept_filter & QED_ACCEPT_BCAST));
 
@@ -665,7 +667,7 @@ qed_sp_update_mcast_bin(struct qed_hwfn *p_hwfn,
 
 	p_ramrod->common.update_approx_mcast_flg = 1;
 	for (i = 0; i < ETH_MULTICAST_MAC_BINS_IN_REGS; i++) {
-		u32 *p_bins = (u32 *)p_params->bins;
+		u32 *p_bins = p_params->bins;
 
 		p_ramrod->approx_mcast.bins[i] = cpu_to_le32(p_bins[i]);
 	}
@@ -743,6 +745,11 @@ int qed_sp_vport_update(struct qed_hwfn *p_hwfn,
 		/* Return spq entry which is taken in qed_sp_init_request()*/
 		qed_spq_return_entry(p_hwfn, p_ent);
 		return rc;
+	}
+
+	if (p_params->update_ctl_frame_check) {
+		p_cmn->ctl_frame_mac_check_en = p_params->mac_chk_en;
+		p_cmn->ctl_frame_ethtype_check_en = p_params->ethtype_chk_en;
 	}
 
 	/* Update mcast bins for VFs, PF doesn't use this functionality */
@@ -1476,8 +1483,8 @@ qed_sp_eth_filter_mcast(struct qed_hwfn *p_hwfn,
 			enum spq_mode comp_mode,
 			struct qed_spq_comp_cb *p_comp_data)
 {
-	unsigned long bins[ETH_MULTICAST_MAC_BINS_IN_REGS];
 	struct vport_update_ramrod_data *p_ramrod = NULL;
+	u32 bins[ETH_MULTICAST_MAC_BINS_IN_REGS];
 	struct qed_spq_entry *p_ent = NULL;
 	struct qed_sp_init_data init_data;
 	u8 abs_vport_id = 0;
@@ -1513,26 +1520,25 @@ qed_sp_eth_filter_mcast(struct qed_hwfn *p_hwfn,
 	/* explicitly clear out the entire vector */
 	memset(&p_ramrod->approx_mcast.bins, 0,
 	       sizeof(p_ramrod->approx_mcast.bins));
-	memset(bins, 0, sizeof(unsigned long) *
-	       ETH_MULTICAST_MAC_BINS_IN_REGS);
+	memset(bins, 0, sizeof(bins));
 	/* filter ADD op is explicit set op and it removes
 	 *  any existing filters for the vport
 	 */
 	if (p_filter_cmd->opcode == QED_FILTER_ADD) {
 		for (i = 0; i < p_filter_cmd->num_mc_addrs; i++) {
-			u32 bit;
+			u32 bit, nbits;
 
 			bit = qed_mcast_bin_from_mac(p_filter_cmd->mac[i]);
-			__set_bit(bit, bins);
+			nbits = sizeof(u32) * BITS_PER_BYTE;
+			bins[bit / nbits] |= 1 << (bit % nbits);
 		}
 
 		/* Convert to correct endianity */
 		for (i = 0; i < ETH_MULTICAST_MAC_BINS_IN_REGS; i++) {
 			struct vport_update_ramrod_mcast *p_ramrod_bins;
-			u32 *p_bins = (u32 *)bins;
 
 			p_ramrod_bins = &p_ramrod->approx_mcast;
-			p_ramrod_bins->bins[i] = cpu_to_le32(p_bins[i]);
+			p_ramrod_bins->bins[i] = cpu_to_le32(bins[i]);
 		}
 	}
 
@@ -2164,7 +2170,7 @@ static int qed_fill_eth_dev_info(struct qed_dev *cdev,
 			u16 num_queues = 0;
 
 			/* Since the feature controls only queue-zones,
-			 * make sure we have the contexts [rx, tx, xdp] to
+			 * make sure we have the contexts [rx, xdp, tcs] to
 			 * match.
 			 */
 			for_each_hwfn(cdev, i) {
@@ -2174,7 +2180,8 @@ static int qed_fill_eth_dev_info(struct qed_dev *cdev,
 				u16 cids;
 
 				cids = hwfn->pf_params.eth_pf_params.num_cons;
-				num_queues += min_t(u16, l2_queues, cids / 3);
+				cids /= (2 + info->num_tc);
+				num_queues += min_t(u16, l2_queues, cids);
 			}
 
 			/* queues might theoretically be >256, but interrupts'
@@ -2643,7 +2650,8 @@ static int qed_configure_filter_rx_mode(struct qed_dev *cdev,
 	if (type == QED_FILTER_RX_MODE_TYPE_PROMISC) {
 		accept_flags.rx_accept_filter |= QED_ACCEPT_UCAST_UNMATCHED |
 						 QED_ACCEPT_MCAST_UNMATCHED;
-		accept_flags.tx_accept_filter |= QED_ACCEPT_MCAST_UNMATCHED;
+		accept_flags.tx_accept_filter |= QED_ACCEPT_UCAST_UNMATCHED |
+						 QED_ACCEPT_MCAST_UNMATCHED;
 	} else if (type == QED_FILTER_RX_MODE_TYPE_MULTI_PROMISC) {
 		accept_flags.rx_accept_filter |= QED_ACCEPT_MCAST_UNMATCHED;
 		accept_flags.tx_accept_filter |= QED_ACCEPT_MCAST_UNMATCHED;

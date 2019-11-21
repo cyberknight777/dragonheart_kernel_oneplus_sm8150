@@ -109,7 +109,7 @@ enum dc_edid_status dm_helpers_parse_edid_caps(
 		struct cea_sad *sad = &sads[i];
 
 		edid_caps->audio_modes[i].format_code = sad->format;
-		edid_caps->audio_modes[i].channel_count = sad->channels;
+		edid_caps->audio_modes[i].channel_count = sad->channels + 1;
 		edid_caps->audio_modes[i].sample_rate = sad->freq;
 		edid_caps->audio_modes[i].sample_size = sad->byte2;
 	}
@@ -168,6 +168,11 @@ static void get_payload_table(
 
 	mutex_unlock(&mst_mgr->payload_lock);
 }
+
+void dm_helpers_dp_update_branch_info(
+	struct dc_context *ctx,
+	const struct dc_link *link)
+{}
 
 /*
  * Writes payload allocation table in immediate downstream device.
@@ -258,6 +263,15 @@ bool dm_helpers_dp_mst_write_payload_allocation_table(
 	return true;
 }
 
+
+/*
+ * Clear payload allocation table before enable MST DP link.
+ */
+void dm_helpers_dp_mst_clear_payload_allocation_table(
+	struct dc_context *ctx,
+	const struct dc_link *link)
+{}
+
 /*
  * Polls for ACT (allocation change trigger) handled and sends
  * ALLOCATE_PAYLOAD message.
@@ -318,11 +332,6 @@ bool dm_helpers_dp_mst_send_payload_allocation(
 	if (!enable)
 		drm_dp_mst_deallocate_vcpi(mst_mgr, mst_port);
 
-	return true;
-}
-
-bool dm_helpers_dc_conn_log(struct dc_context *ctx, struct log_entry *entry, enum dc_log_type event)
-{
 	return true;
 }
 
@@ -431,7 +440,7 @@ bool dm_helpers_submit_i2c(
 		return false;
 	}
 
-	msgs = kzalloc(num * sizeof(struct i2c_msg), GFP_KERNEL);
+	msgs = kcalloc(num, sizeof(struct i2c_msg), GFP_KERNEL);
 
 	if (!msgs)
 		return false;
@@ -448,6 +457,22 @@ bool dm_helpers_submit_i2c(
 	kfree(msgs);
 
 	return result;
+}
+
+bool dm_helpers_is_dp_sink_present(struct dc_link *link)
+{
+	bool dp_sink_present;
+	struct amdgpu_dm_connector *aconnector = link->priv;
+
+	if (!aconnector) {
+		BUG_ON("Failed to found connector for link!");
+		return true;
+	}
+
+	mutex_lock(&aconnector->dm_dp_aux.aux.hw_mutex);
+	dp_sink_present = dc_link_is_dp_sink_present(link);
+	mutex_unlock(&aconnector->dm_dp_aux.aux.hw_mutex);
+	return dp_sink_present;
 }
 
 enum dc_edid_status dm_helpers_read_local_edid(
@@ -493,6 +518,39 @@ enum dc_edid_status dm_helpers_read_local_edid(
 		DRM_ERROR("EDID err: %d, on connector: %s",
 				edid_status,
 				aconnector->base.name);
+	if (link->aux_mode) {
+		union test_request test_request = { {0} };
+		union test_response test_response = { {0} };
+
+		dm_helpers_dp_read_dpcd(ctx,
+					link,
+					DP_TEST_REQUEST,
+					&test_request.raw,
+					sizeof(union test_request));
+
+		if (!test_request.bits.EDID_READ)
+			return edid_status;
+
+		test_response.bits.EDID_CHECKSUM_WRITE = 1;
+
+		dm_helpers_dp_write_dpcd(ctx,
+					link,
+					DP_TEST_EDID_CHECKSUM,
+					&sink->dc_edid.raw_edid[sink->dc_edid.length-1],
+					1);
+
+		dm_helpers_dp_write_dpcd(ctx,
+					link,
+					DP_TEST_RESPONSE,
+					&test_response.raw,
+					sizeof(test_response));
+
+	}
 
 	return edid_status;
+}
+
+void dm_set_dcn_clocks(struct dc_context *ctx, struct dc_clocks *clks)
+{
+	/* TODO: something */
 }

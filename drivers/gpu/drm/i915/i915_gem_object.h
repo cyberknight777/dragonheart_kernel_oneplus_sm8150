@@ -141,12 +141,26 @@ struct drm_i915_gem_object {
 	 * Is the object to be mapped as read-only to the GPU
 	 * Only honoured if hardware has relevant pte bit
 	 */
-	unsigned long gt_ro:1;
 	unsigned int cache_level:3;
 	unsigned int cache_coherent:2;
 #define I915_BO_CACHE_COHERENT_FOR_READ BIT(0)
 #define I915_BO_CACHE_COHERENT_FOR_WRITE BIT(1)
 	unsigned int cache_dirty:1;
+
+	/**
+	 * @read_domains: Read memory domains.
+	 *
+	 * These monitor which caches contain read/write data related to the
+	 * object. When transitioning from one set of domains to another,
+	 * the driver is called to ensure that caches are suitably flushed and
+	 * invalidated.
+	 */
+	u16 read_domains;
+
+	/**
+	 * @write_domain: Corresponding unique write memory domain.
+	 */
+	u16 write_domain;
 
 	atomic_t frontbuffer_bits;
 	unsigned int frontbuffer_ggtt_origin; /* write once */
@@ -312,6 +326,18 @@ static inline void i915_gem_object_lock(struct drm_i915_gem_object *obj)
 static inline void i915_gem_object_unlock(struct drm_i915_gem_object *obj)
 {
 	reservation_object_unlock(obj->resv);
+}
+
+static inline void
+i915_gem_object_set_readonly(struct drm_i915_gem_object *obj)
+{
+	obj->base.vma_node.readonly = true;
+}
+
+static inline bool
+i915_gem_object_is_readonly(const struct drm_i915_gem_object *obj)
+{
+	return obj->base.vma_node.readonly;
 }
 
 static inline bool

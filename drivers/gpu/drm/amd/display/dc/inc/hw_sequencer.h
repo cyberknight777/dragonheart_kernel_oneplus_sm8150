@@ -28,8 +28,11 @@
 #include "dc_types.h"
 #include "clock_source.h"
 #include "inc/hw/timing_generator.h"
+#include "inc/hw/opp.h"
 #include "inc/hw/link_encoder.h"
 #include "core_status.h"
+
+#define EDP_BACKLIGHT_RAMP_DISABLE_LEVEL 0xFFFFFFFF
 
 enum pipe_gating_control {
 	PIPE_GATING_CONTROL_DISABLE = 0,
@@ -39,6 +42,13 @@ enum pipe_gating_control {
 
 struct dce_hwseq_wa {
 	bool blnd_crtc_trigger;
+	bool DEGVIDCN10_253;
+	bool false_optc_underflow;
+	bool DEGVIDCN10_254;
+};
+
+struct hwseq_wa_state {
+	bool DEGVIDCN10_253_applied;
 };
 
 struct dce_hwseq {
@@ -47,6 +57,7 @@ struct dce_hwseq {
 	const struct dce_hwseq_shift *shifts;
 	const struct dce_hwseq_mask *masks;
 	struct dce_hwseq_wa wa;
+	struct hwseq_wa_state wa_state;
 };
 
 struct pipe_ctx;
@@ -55,6 +66,7 @@ struct dchub_init_data;
 struct dc_static_screen_events;
 struct resource_pool;
 struct resource_context;
+struct stream_resource;
 
 struct hw_sequencer_funcs {
 
@@ -72,11 +84,6 @@ struct hw_sequencer_funcs {
 			int num_planes,
 			struct dc_state *context);
 
-	void (*set_plane_config)(
-			const struct dc *dc,
-			struct pipe_ctx *pipe_ctx,
-			struct resource_context *res_ctx);
-
 	void (*program_gamut_remap)(
 			struct pipe_ctx *pipe_ctx);
 
@@ -85,13 +92,27 @@ struct hw_sequencer_funcs {
 			enum dc_color_space colorspace,
 			uint16_t *matrix);
 
+	void (*program_output_csc)(struct dc *dc,
+			struct pipe_ctx *pipe_ctx,
+			enum dc_color_space colorspace,
+			uint16_t *matrix,
+			int opp_id);
+
 	void (*update_plane_addr)(
 		const struct dc *dc,
+		struct pipe_ctx *pipe_ctx);
+
+	void (*plane_atomic_disconnect)(
+		struct dc *dc,
 		struct pipe_ctx *pipe_ctx);
 
 	void (*update_dchub)(
 		struct dce_hwseq *hws,
 		struct dchub_init_data *dh_data);
+
+	void (*update_mpcc)(
+		struct dc *dc,
+		struct pipe_ctx *pipe_ctx);
 
 	void (*update_pending_status)(
 			struct pipe_ctx *pipe_ctx);
@@ -106,11 +127,16 @@ struct hw_sequencer_funcs {
 
 	void (*power_down)(struct dc *dc);
 
-	void (*enable_accelerated_mode)(struct dc *dc);
+	void (*enable_accelerated_mode)(struct dc *dc, struct dc_state *context);
 
 	void (*enable_timing_synchronization)(
 			struct dc *dc,
 			int group_index,
+			int group_size,
+			struct pipe_ctx *grouped_pipes[]);
+
+	void (*enable_per_frame_crtc_position_reset)(
+			struct dc *dc,
 			int group_size,
 			struct pipe_ctx *grouped_pipes[]);
 
@@ -124,11 +150,7 @@ struct hw_sequencer_funcs {
 					struct dc_bios *dcb,
 					enum pipe_gating_control power_gating);
 
-	void (*power_down_front_end)(struct dc *dc, int fe_idx);
-
-	void (*power_on_front_end)(struct dc *dc,
-			struct pipe_ctx *pipe,
-			struct dc_state *context);
+	void (*disable_plane)(struct dc *dc, struct pipe_ctx *pipe_ctx);
 
 	void (*update_info_frame)(struct pipe_ctx *pipe_ctx);
 
@@ -140,15 +162,25 @@ struct hw_sequencer_funcs {
 	void (*unblank_stream)(struct pipe_ctx *pipe_ctx,
 			struct dc_link_settings *link_settings);
 
+	void (*blank_stream)(struct pipe_ctx *pipe_ctx);
+
+	void (*enable_audio_stream)(struct pipe_ctx *pipe_ctx);
+
+	void (*disable_audio_stream)(struct pipe_ctx *pipe_ctx, int option);
+
 	void (*pipe_control_lock)(
 				struct dc *dc,
 				struct pipe_ctx *pipe,
 				bool lock);
+	void (*blank_pixel_data)(
+			struct dc *dc,
+			struct pipe_ctx *pipe_ctx,
+			bool blank);
 
 	void (*set_bandwidth)(
 			struct dc *dc,
 			struct dc_state *context,
-			bool decrease_allowed);
+			bool safe_to_lower);
 
 	void (*set_drr)(struct pipe_ctx **pipe_ctx, int num_pipes,
 			int vmin, int vmax);
@@ -159,7 +191,7 @@ struct hw_sequencer_funcs {
 	void (*set_static_screen_control)(struct pipe_ctx **pipe_ctx,
 			int num_pipes, const struct dc_static_screen_events *events);
 
-	enum dc_status (*prog_pixclk_crtc_otg)(
+	enum dc_status (*enable_stream_timing)(
 			struct pipe_ctx *pipe_ctx,
 			struct dc_state *context,
 			struct dc *dc);
@@ -178,12 +210,21 @@ struct hw_sequencer_funcs {
 
 	void (*ready_shared_resources)(struct dc *dc, struct dc_state *context);
 	void (*optimize_shared_resources)(struct dc *dc);
+	void (*pplib_apply_display_requirements)(
+			struct dc *dc,
+			struct dc_state *context);
 	void (*edp_power_control)(
-			struct link_encoder *enc,
+			struct dc_link *link,
 			bool enable);
 	void (*edp_backlight_control)(
 			struct dc_link *link,
 			bool enable);
+	void (*edp_wait_for_hpd_ready)(struct dc_link *link, bool power_up);
+
+	void (*set_cursor_position)(struct pipe_ctx *pipe);
+	void (*set_cursor_attribute)(struct pipe_ctx *pipe);
+	void (*set_cursor_sdr_white_level)(struct pipe_ctx *pipe);
+
 };
 
 void color_space_to_black_color(
@@ -193,5 +234,9 @@ void color_space_to_black_color(
 
 bool hwss_wait_for_blank_complete(
 		struct timing_generator *tg);
+
+const uint16_t *find_color_matrix(
+		enum dc_color_space color_space,
+		uint32_t *array_size);
 
 #endif /* __DC_HW_SEQUENCER_H__ */

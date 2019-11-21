@@ -108,18 +108,21 @@ static int skcipher_done_slow(struct skcipher_walk *walk, unsigned int bsize)
 
 int skcipher_walk_done(struct skcipher_walk *walk, int err)
 {
-	unsigned int n = walk->nbytes - err;
-	unsigned int nbytes;
+	unsigned int n = walk->nbytes;
+	unsigned int nbytes = 0;
 
-	nbytes = walk->total - n;
+	if (!n)
+		goto finish;
 
-	if (unlikely(err < 0)) {
-		nbytes = 0;
-		n = 0;
-	} else if (likely(!(walk->flags & (SKCIPHER_WALK_PHYS |
-					   SKCIPHER_WALK_SLOW |
-					   SKCIPHER_WALK_COPY |
-					   SKCIPHER_WALK_DIFF)))) {
+	if (likely(err >= 0)) {
+		n -= err;
+		nbytes = walk->total - n;
+	}
+
+	if (likely(!(walk->flags & (SKCIPHER_WALK_PHYS |
+				    SKCIPHER_WALK_SLOW |
+				    SKCIPHER_WALK_COPY |
+				    SKCIPHER_WALK_DIFF)))) {
 unmap_src:
 		skcipher_unmap_src(walk);
 	} else if (walk->flags & SKCIPHER_WALK_DIFF) {
@@ -130,7 +133,13 @@ unmap_src:
 		memcpy(walk->dst.virt.addr, walk->page, n);
 		skcipher_unmap_dst(walk);
 	} else if (unlikely(walk->flags & SKCIPHER_WALK_SLOW)) {
-		if (WARN_ON(err)) {
+		if (err > 0) {
+			/*
+			 * Didn't process all bytes.  Either the algorithm is
+			 * broken, or this was the last step and it turned out
+			 * the message wasn't evenly divisible into blocks but
+			 * the algorithm requires it.
+			 */
 			err = -EINVAL;
 			nbytes = 0;
 		} else
@@ -141,7 +150,7 @@ unmap_src:
 		err = 0;
 
 	walk->total = nbytes;
-	walk->nbytes = nbytes;
+	walk->nbytes = 0;
 
 	scatterwalk_advance(&walk->in, n);
 	scatterwalk_advance(&walk->out, n);
@@ -154,6 +163,7 @@ unmap_src:
 		return skcipher_walk_next(walk);
 	}
 
+finish:
 	/* Short-circuit for the common/fast path. */
 	if (!((unsigned long)walk->buffer | (unsigned long)walk->page))
 		goto out;
@@ -399,7 +409,7 @@ static int skcipher_copy_iv(struct skcipher_walk *walk)
 	unsigned size;
 	u8 *iv;
 
-	aligned_bs = ALIGN(bs, alignmask);
+	aligned_bs = ALIGN(bs, alignmask + 1);
 
 	/* Minimum size to align buffer by alignmask. */
 	size = alignmask & ~a;

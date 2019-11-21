@@ -482,7 +482,7 @@ static void tegra_xusb_mbox_handle(struct tegra_xusb *tegra,
 	unsigned long mask;
 	unsigned int port;
 	bool idle, enable;
-	int err;
+	int err = 0;
 
 	memset(&rsp, 0, sizeof(rsp));
 
@@ -1178,6 +1178,7 @@ static int tegra_xusb_remove(struct platform_device *pdev)
 
 	usb_remove_hcd(xhci->shared_hcd);
 	usb_put_hcd(xhci->shared_hcd);
+	xhci->shared_hcd = NULL;
 	usb_remove_hcd(tegra->hcd);
 	usb_put_hcd(tegra->hcd);
 

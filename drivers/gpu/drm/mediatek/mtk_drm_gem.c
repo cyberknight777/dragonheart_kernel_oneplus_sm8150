@@ -14,6 +14,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_gem.h>
 #include <linux/dma-buf.h>
+#include <drm/mediatek_drm.h>
 
 #include "mtk_drm_drv.h"
 #include "mtk_drm_gem.h"
@@ -240,4 +241,42 @@ struct drm_gem_object *mtk_gem_prime_import_sg_table(struct drm_device *dev,
 err_gem_free:
 	kfree(mtk_gem);
 	return ERR_PTR(ret);
+}
+
+int mtk_gem_map_offset_ioctl(struct drm_device *drm, void *data,
+			     struct drm_file *file_priv)
+{
+	struct drm_mtk_gem_map_off *args = data;
+
+	return drm->driver->dumb_map_offset(file_priv, drm, args->handle,
+					    &args->offset);
+}
+
+int mtk_gem_create_ioctl(struct drm_device *dev, void *data,
+			 struct drm_file *file_priv)
+{
+	struct mtk_drm_gem_obj *mtk_gem;
+	struct drm_mtk_gem_create *args = data;
+	int ret;
+
+	mtk_gem = mtk_drm_gem_create(dev, args->size, false);
+	if (IS_ERR(mtk_gem))
+		return PTR_ERR(mtk_gem);
+
+	/*
+	 * allocate a id of idr table where the obj is registered
+	 * and handle has the id what user can see.
+	 */
+	ret = drm_gem_handle_create(file_priv, &mtk_gem->base, &args->handle);
+	if (ret)
+		goto err_handle_create;
+
+	/* drop reference from allocate - handle holds it now. */
+	drm_gem_object_unreference_unlocked(&mtk_gem->base);
+
+	return 0;
+
+err_handle_create:
+	mtk_drm_gem_free_object(&mtk_gem->base);
+	return ret;
 }

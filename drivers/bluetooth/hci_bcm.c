@@ -305,6 +305,9 @@ static int bcm_open(struct hci_uart *hu)
 
 	bt_dev_dbg(hu->hdev, "hu %p", hu);
 
+	if (!hci_uart_has_flow_control(hu))
+		return -EOPNOTSUPP;
+
 	bcm = kzalloc(sizeof(*bcm), GFP_KERNEL);
 	if (!bcm)
 		return -ENOMEM;
@@ -313,15 +316,7 @@ static int bcm_open(struct hci_uart *hu)
 
 	hu->priv = bcm;
 
-	/* If this is a serdev defined device, then only use
-	 * serdev open primitive and skip the rest.
-	 */
-	if (hu->serdev) {
-		serdev_device_open(hu->serdev);
-		goto out;
-	}
-
-	if (!hu->tty->dev)
+	if (hu->serdev || !hu->tty->dev)
 		goto out;
 
 	mutex_lock(&bcm_device_lock);
@@ -355,12 +350,6 @@ static int bcm_close(struct hci_uart *hu)
 	struct bcm_device *bdev = bcm->dev;
 
 	bt_dev_dbg(hu->hdev, "hu %p", hu);
-
-	/* If this is a serdev defined device, only use serdev
-	 * close primitive and then continue as usual.
-	 */
-	if (hu->serdev)
-		serdev_device_close(hu->serdev);
 
 	/* Protect bcm->dev against removal of the device or driver */
 	mutex_lock(&bcm_device_lock);
@@ -694,22 +683,6 @@ static const struct acpi_gpio_mapping acpi_bcm_int_first_gpios[] = {
 #ifdef CONFIG_ACPI
 /* IRQ polarity of some chipsets are not defined correctly in ACPI table. */
 static const struct dmi_system_id bcm_active_low_irq_dmi_table[] = {
-	{
-		.ident = "Asus T100TA",
-		.matches = {
-			DMI_EXACT_MATCH(DMI_SYS_VENDOR,
-					"ASUSTeK COMPUTER INC."),
-			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "T100TA"),
-		},
-	},
-	{
-		.ident = "Asus T100CHI",
-		.matches = {
-			DMI_EXACT_MATCH(DMI_SYS_VENDOR,
-					"ASUSTeK COMPUTER INC."),
-			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "T100CHI"),
-		},
-	},
 	{	/* Handle ThinkPad 8 tablets with BCM2E55 chipset ACPI ID */
 		.ident = "Lenovo ThinkPad 8",
 		.matches = {
@@ -730,7 +703,9 @@ static int bcm_resource(struct acpi_resource *ares, void *data)
 	switch (ares->type) {
 	case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
 		irq = &ares->data.extended_irq;
-		dev->irq_active_low = irq->polarity == ACPI_ACTIVE_LOW;
+		if (irq->polarity != ACPI_ACTIVE_LOW)
+			dev_info(&dev->pdev->dev, "ACPI Interrupt resource is active-high, this is usually wrong, treating the IRQ as active-low\n");
+		dev->irq_active_low = true;
 		break;
 
 	case ACPI_RESOURCE_TYPE_GPIO:

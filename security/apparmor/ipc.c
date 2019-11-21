@@ -107,7 +107,8 @@ static int profile_tracer_perm(struct aa_profile *tracer,
 	aad(sa)->label = &tracer->label;
 	aad(sa)->peer = tracee;
 	aad(sa)->request = 0;
-	aad(sa)->error = aa_capable(&tracer->label, CAP_SYS_PTRACE, 1);
+	aad(sa)->error = aa_capable(&tracer->label, CAP_SYS_PTRACE,
+				    CAP_OPT_NONE);
 
 	return aa_audit(AUDIT_APPARMOR_AUTO, tracer, sa, audit_ptrace_cb);
 }
@@ -174,7 +175,7 @@ static void audit_signal_cb(struct audit_buffer *ab, void *va)
 			audit_signal_mask(ab, aad(sa)->denied);
 		}
 	}
-	if (aad(sa)->signal < MAXMAPPED_SIG)
+	if (aad(sa)->signal < MAXMAPPED_SIGNAME)
 		audit_log_format(ab, " signal=%s", sig_names[aad(sa)->signal]);
 	else
 		audit_log_format(ab, " signal=rtmin+%d",

@@ -45,6 +45,7 @@ static int tcf_sample_init(struct net *net, struct nlattr *nla,
 	struct tc_sample *parm;
 	struct tcf_sample *s;
 	bool exists = false;
+	u32 rate;
 	int ret;
 
 	if (!nla)
@@ -64,7 +65,7 @@ static int tcf_sample_init(struct net *net, struct nlattr *nla,
 
 	if (!exists) {
 		ret = tcf_idr_create(tn, parm->index, est, a,
-				     &act_sample_ops, bind, false);
+				     &act_sample_ops, bind, true);
 		if (ret)
 			return ret;
 		ret = ACT_P_CREATED;
@@ -73,10 +74,17 @@ static int tcf_sample_init(struct net *net, struct nlattr *nla,
 		if (!ovr)
 			return -EEXIST;
 	}
-	s = to_sample(*a);
 
+	rate = nla_get_u32(tb[TCA_SAMPLE_RATE]);
+	if (!rate) {
+		tcf_idr_release(*a, bind);
+		return -EINVAL;
+	}
+
+	s = to_sample(*a);
 	s->tcf_action = parm->action;
 	s->rate = nla_get_u32(tb[TCA_SAMPLE_RATE]);
+	s->rate = rate;
 	s->psample_group_num = nla_get_u32(tb[TCA_SAMPLE_PSAMPLE_GROUP]);
 	psample_group = psample_group_get(net, s->psample_group_num);
 	if (!psample_group) {
@@ -103,7 +111,8 @@ static void tcf_sample_cleanup_rcu(struct rcu_head *rcu)
 
 	psample_group = rcu_dereference_protected(s->psample_group, 1);
 	RCU_INIT_POINTER(s->psample_group, NULL);
-	psample_group_put(psample_group);
+	if (psample_group)
+		psample_group_put(psample_group);
 }
 
 static void tcf_sample_cleanup(struct tc_action *a, int bind)
@@ -120,6 +129,7 @@ static bool tcf_sample_dev_ok_push(struct net_device *dev)
 	case ARPHRD_TUNNEL6:
 	case ARPHRD_SIT:
 	case ARPHRD_IPGRE:
+	case ARPHRD_IP6GRE:
 	case ARPHRD_VOID:
 	case ARPHRD_NONE:
 		return false;
@@ -240,7 +250,7 @@ static __net_init int sample_init_net(struct net *net)
 {
 	struct tc_action_net *tn = net_generic(net, sample_net_id);
 
-	return tc_action_net_init(tn, &act_sample_ops);
+	return tc_action_net_init(net, tn, &act_sample_ops);
 }
 
 static void __net_exit sample_exit_net(struct net *net)

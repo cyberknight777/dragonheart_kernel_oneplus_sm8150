@@ -995,7 +995,8 @@ static u8 smp_random(struct smp_chan *smp)
 		return SMP_UNSPECIFIED;
 
 	if (crypto_memneq(smp->pcnf, confirm, sizeof(smp->pcnf))) {
-		BT_ERR("Pairing failed (confirmation values mismatch)");
+		bt_dev_err(hcon->hdev, "pairing failed "
+			   "(confirmation values mismatch)");
 		return SMP_CONFIRM_FAILED;
 	}
 
@@ -1209,7 +1210,7 @@ static void sc_generate_ltk(struct smp_chan *smp)
 
 	key = hci_find_link_key(hdev, &hcon->dst);
 	if (!key) {
-		BT_ERR("%s No Link Key found to generate LTK", hdev->name);
+		bt_dev_err(hdev, "no Link Key found to generate LTK");
 		return;
 	}
 
@@ -2059,11 +2060,11 @@ static int fixup_sc_false_positive(struct smp_chan *smp)
 		return SMP_UNSPECIFIED;
 
 	if (hci_dev_test_flag(hdev, HCI_SC_ONLY)) {
-		BT_ERR("Refusing SMP SC -> legacy fallback in SC-only mode");
+		bt_dev_err(hdev, "refusing legacy fallback in SC-only mode");
 		return SMP_UNSPECIFIED;
 	}
 
-	BT_ERR("Trying to fall back to legacy SMP");
+	bt_dev_err(hdev, "trying to fall back to legacy SMP");
 
 	req = (void *) &smp->preq[1];
 	rsp = (void *) &smp->prsp[1];
@@ -2074,7 +2075,7 @@ static int fixup_sc_false_positive(struct smp_chan *smp)
 	auth = req->auth_req & AUTH_REQ_MASK(hdev);
 
 	if (tk_request(conn, 0, auth, rsp->io_capability, req->io_capability)) {
-		BT_ERR("Failed to fall back to legacy SMP");
+		bt_dev_err(hdev, "failed to fall back to legacy SMP");
 		return SMP_UNSPECIFIED;
 	}
 
@@ -2228,6 +2229,14 @@ static bool smp_ltk_encrypt(struct l2cap_conn *conn, u8 sec_level)
 	if (test_and_set_bit(HCI_CONN_ENCRYPT_PEND, &hcon->flags))
 		return true;
 
+	if (is_ltk_blocked(key, hcon->hdev)) {
+		// The peer device provided a blocked LTK. We don't want to use
+		// this LTK to start encryption, so return here but don't
+		// return false as it would be interpreted as "device not yet
+		// paired" and trigger re-pairing.
+		return true;
+	}
+
 	hci_le_start_enc(hcon, key->ediv, key->rand, key->val, key->enc_size);
 	hcon->enc_key_size = key->enc_size;
 
@@ -2287,8 +2296,14 @@ static u8 smp_cmd_security_req(struct l2cap_conn *conn, struct sk_buff *skb)
 	else
 		sec_level = authreq_to_seclevel(auth);
 
-	if (smp_sufficient_security(hcon, sec_level, SMP_USE_LTK))
+	if (smp_sufficient_security(hcon, sec_level, SMP_USE_LTK)) {
+		/* If link is already encrypted with sufficient security we
+		 * still need refresh encryption as per Core Spec 5.0 Vol 3,
+		 * Part H 2.4.6
+		 */
+		smp_ltk_encrypt(conn, hcon->sec_level);
 		return 0;
+	}
 
 	if (sec_level > hcon->pending_sec_level)
 		hcon->pending_sec_level = sec_level;
@@ -2347,7 +2362,7 @@ int smp_conn_security(struct hci_conn *hcon, __u8 sec_level)
 
 	chan = conn->smp;
 	if (!chan) {
-		BT_ERR("SMP security requested but not available");
+		bt_dev_err(hcon->hdev, "security requested but not available");
 		return 1;
 	}
 
@@ -2404,30 +2419,51 @@ unlock:
 	return ret;
 }
 
-void smp_cancel_pairing(struct hci_conn *hcon)
+int smp_cancel_and_remove_pairing(struct hci_dev *hdev, bdaddr_t *bdaddr,
+				  u8 addr_type)
 {
-	struct l2cap_conn *conn = hcon->l2cap_data;
+	struct hci_conn *hcon;
+	struct l2cap_conn *conn;
 	struct l2cap_chan *chan;
 	struct smp_chan *smp;
+	int err;
 
+	err = hci_remove_ltk(hdev, bdaddr, addr_type);
+	hci_remove_irk(hdev, bdaddr, addr_type);
+
+	hcon = hci_conn_hash_lookup_le(hdev, bdaddr, addr_type);
+	if (!hcon)
+		goto done;
+
+	conn = hcon->l2cap_data;
 	if (!conn)
-		return;
+		goto done;
 
 	chan = conn->smp;
 	if (!chan)
-		return;
+		goto done;
 
 	l2cap_chan_lock(chan);
 
 	smp = chan->data;
 	if (smp) {
+		/* Set keys to NULL to make sure smp_failure() does not try to
+		 * remove and free already invalidated rcu list entries. */
+		smp->ltk = NULL;
+		smp->slave_ltk = NULL;
+		smp->remote_irk = NULL;
+
 		if (test_bit(SMP_FLAG_COMPLETE, &smp->flags))
 			smp_failure(conn, 0);
 		else
 			smp_failure(conn, SMP_UNSPECIFIED);
+		err = 0;
 	}
 
 	l2cap_chan_unlock(chan);
+
+done:
+	return err;
 }
 
 static int smp_cmd_encrypt_info(struct l2cap_conn *conn, struct sk_buff *skb)
@@ -2540,7 +2576,20 @@ static int smp_cmd_ident_addr_info(struct l2cap_conn *conn,
 	 */
 	if (!bacmp(&info->bdaddr, BDADDR_ANY) ||
 	    !hci_is_identity_address(&info->bdaddr, info->addr_type)) {
-		BT_ERR("Ignoring IRK with no identity address");
+		bt_dev_err(hcon->hdev, "ignoring IRK with no identity address");
+		goto distribute;
+	}
+
+	/* Drop IRK if peer is using identity address during pairing but is
+	 * providing different address as identity information.
+	 *
+	 * Microsoft Surface Precision Mouse is known to have this bug.
+	 */
+	if (hci_is_identity_address(&hcon->dst, hcon->dst_type) &&
+	    (bacmp(&info->bdaddr, &hcon->dst) ||
+	     info->addr_type != hcon->dst_type)) {
+		bt_dev_err(hcon->hdev,
+			   "ignoring IRK with invalid identity address");
 		goto distribute;
 	}
 
@@ -2933,8 +2982,8 @@ done:
 	return err;
 
 drop:
-	BT_ERR("%s unexpected SMP command 0x%02x from %pMR", hcon->hdev->name,
-	       code, &hcon->dst);
+	bt_dev_err(hcon->hdev, "unexpected SMP command 0x%02x from %pMR",
+		   code, &hcon->dst);
 	kfree_skb(skb);
 	return 0;
 }
@@ -3001,8 +3050,7 @@ static void bredr_pairing(struct l2cap_chan *chan)
 
 	smp = smp_chan_create(conn);
 	if (!smp) {
-		BT_ERR("%s unable to create SMP context for BR/EDR",
-		       hdev->name);
+		bt_dev_err(hdev, "unable to create SMP context for BR/EDR");
 		return;
 	}
 
