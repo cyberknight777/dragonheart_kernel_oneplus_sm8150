@@ -3014,11 +3014,11 @@ static int __do_readpage(struct extent_io_tree *tree,
 		 */
 		if (test_bit(EXTENT_FLAG_COMPRESSED, &em->flags) &&
 		    prev_em_start && *prev_em_start != (u64)-1 &&
-		    *prev_em_start != em->orig_start)
+		    *prev_em_start != em->start)
 			force_bio_submit = true;
 
 		if (prev_em_start)
-			*prev_em_start = em->orig_start;
+			*prev_em_start = em->start;
 
 		free_extent_map(em);
 		em = NULL;
@@ -4280,6 +4280,7 @@ int try_release_extent_mapping(struct extent_map_tree *map,
 	struct extent_map *em;
 	u64 start = page_offset(page);
 	u64 end = start + PAGE_SIZE - 1;
+	struct btrfs_inode *btrfs_inode = BTRFS_I(page->mapping->host);
 
 	if (gfpflags_allow_blocking(mask) &&
 	    page->mapping->host->i_size > SZ_16M) {
@@ -4302,6 +4303,8 @@ int try_release_extent_mapping(struct extent_map_tree *map,
 					    extent_map_end(em) - 1,
 					    EXTENT_LOCKED | EXTENT_WRITEBACK,
 					    0, NULL)) {
+				set_bit(BTRFS_INODE_NEEDS_FULL_SYNC,
+					&btrfs_inode->runtime_flags);
 				remove_extent_mapping(map, em);
 				/* once for the rb tree */
 				free_extent_map(em);

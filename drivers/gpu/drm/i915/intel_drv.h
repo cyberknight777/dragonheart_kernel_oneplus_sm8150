@@ -41,22 +41,21 @@
 #include <drm/drm_atomic.h>
 
 /**
- * _wait_for - magic (register) wait macro
+ * __wait_for - magic wait macro
  *
- * Does the right thing for modeset paths when run under kdgb or similar atomic
- * contexts. Note that it's important that we check the condition again after
- * having timed out, since the timeout could be due to preemption or similar and
- * we've never had a chance to check the condition before the timeout.
- *
- * TODO: When modesetting has fully transitioned to atomic, the below
- * drm_can_sleep() can be removed and in_atomic()/!in_atomic() asserts
- * added.
+ * Macro to help avoid open coding check/wait/timeout patterns. Note that it's
+ * important that we check the condition again after having timed out, since the
+ * timeout could be due to preemption or similar and we've never had a chance to
+ * check the condition before the timeout.
  */
-#define _wait_for(COND, US, W) ({ \
+#define __wait_for(OP, COND, US, Wmin, Wmax) ({ \
 	unsigned long timeout__ = jiffies + usecs_to_jiffies(US) + 1;	\
+	long wait__ = (Wmin); /* recommended min for usleep is 10 us */	\
 	int ret__;							\
+	might_sleep();							\
 	for (;;) {							\
 		bool expired__ = time_after(jiffies, timeout__);	\
+		OP;							\
 		if (COND) {						\
 			ret__ = 0;					\
 			break;						\
@@ -65,16 +64,16 @@
 			ret__ = -ETIMEDOUT;				\
 			break;						\
 		}							\
-		if ((W) && drm_can_sleep()) {				\
-			usleep_range((W), (W)*2);			\
-		} else {						\
-			cpu_relax();					\
-		}							\
+		usleep_range(wait__, wait__ * 2);			\
+		if (wait__ < (Wmax))					\
+			wait__ <<= 1;					\
 	}								\
 	ret__;								\
 })
 
-#define wait_for(COND, MS)	  	_wait_for((COND), (MS) * 1000, 1000)
+#define _wait_for(COND, US, Wmin, Wmax)	__wait_for(, (COND), (US), (Wmin), \
+						   (Wmax))
+#define wait_for(COND, MS)		_wait_for((COND), (MS) * 1000, 10, 1000)
 
 /* If CONFIG_PREEMPT_COUNT is disabled, in_atomic() always reports false. */
 #if defined(CONFIG_DRM_I915_DEBUG) && defined(CONFIG_PREEMPT_COUNT)
@@ -123,7 +122,7 @@
 	int ret__; \
 	BUILD_BUG_ON(!__builtin_constant_p(US)); \
 	if ((US) > 10) \
-		ret__ = _wait_for((COND), (US), 10); \
+		ret__ = _wait_for((COND), (US), 10, 10); \
 	else \
 		ret__ = _wait_for_atomic((COND), (US), 0); \
 	ret__; \
@@ -265,7 +264,6 @@ struct intel_encoder {
 
 struct intel_panel {
 	struct drm_display_mode *fixed_mode;
-	struct drm_display_mode *alt_fixed_mode;
 	struct drm_display_mode *downclock_mode;
 
 	/* backlight */
@@ -299,6 +297,76 @@ struct intel_panel {
 	} backlight;
 };
 
+/*
+ * This structure serves as a translation layer between the generic HDCP code
+ * and the bus-specific code. What that means is that HDCP over HDMI differs
+ * from HDCP over DP, so to account for these differences, we need to
+ * communicate with the receiver through this shim.
+ *
+ * For completeness, the 2 buses differ in the following ways:
+ *	- DP AUX vs. DDC
+ *		HDCP registers on the receiver are set via DP AUX for DP, and
+ *		they are set via DDC for HDMI.
+ *	- Receiver register offsets
+ *		The offsets of the registers are different for DP vs. HDMI
+ *	- Receiver register masks/offsets
+ *		For instance, the ready bit for the KSV fifo is in a different
+ *		place on DP vs HDMI
+ *	- Receiver register names
+ *		Seriously. In the DP spec, the 16-bit register containing
+ *		downstream information is called BINFO, on HDMI it's called
+ *		BSTATUS. To confuse matters further, DP has a BSTATUS register
+ *		with a completely different definition.
+ *	- KSV FIFO
+ *		On HDMI, the ksv fifo is read all at once, whereas on DP it must
+ *		be read 3 keys at a time
+ *	- Aksv output
+ *		Since Aksv is hidden in hardware, there's different procedures
+ *		to send it over DP AUX vs DDC
+ */
+struct intel_hdcp_shim {
+	/* Outputs the transmitter's An and Aksv values to the receiver. */
+	int (*write_an_aksv)(struct intel_digital_port *intel_dig_port, u8 *an);
+
+	/* Reads the receiver's key selection vector */
+	int (*read_bksv)(struct intel_digital_port *intel_dig_port, u8 *bksv);
+
+	/*
+	 * Reads BINFO from DP receivers and BSTATUS from HDMI receivers. The
+	 * definitions are the same in the respective specs, but the names are
+	 * different. Call it BSTATUS since that's the name the HDMI spec
+	 * uses and it was there first.
+	 */
+	int (*read_bstatus)(struct intel_digital_port *intel_dig_port,
+			    u8 *bstatus);
+
+	/* Determines whether a repeater is present downstream */
+	int (*repeater_present)(struct intel_digital_port *intel_dig_port,
+				bool *repeater_present);
+
+	/* Reads the receiver's Ri' value */
+	int (*read_ri_prime)(struct intel_digital_port *intel_dig_port, u8 *ri);
+
+	/* Determines if the receiver's KSV FIFO is ready for consumption */
+	int (*read_ksv_ready)(struct intel_digital_port *intel_dig_port,
+			      bool *ksv_ready);
+
+	/* Reads the ksv fifo for num_downstream devices */
+	int (*read_ksv_fifo)(struct intel_digital_port *intel_dig_port,
+			     int num_downstream, u8 *ksv_fifo);
+
+	/* Reads a 32-bit part of V' from the receiver */
+	int (*read_v_prime_part)(struct intel_digital_port *intel_dig_port,
+				 int i, u32 *part);
+
+	/* Enables HDCP signalling on the port */
+	int (*toggle_signalling)(struct intel_digital_port *intel_dig_port,
+				 bool enable);
+
+	/* Ensures the link is still protected */
+	bool (*check_link)(struct intel_digital_port *intel_dig_port);
+};
+
 struct intel_connector {
 	struct drm_connector base;
 	/*
@@ -330,6 +398,12 @@ struct intel_connector {
 
 	/* Work struct to schedule a uevent on link train failure */
 	struct work_struct modeset_retry_work;
+
+	const struct intel_hdcp_shim *hdcp_shim;
+	struct mutex hdcp_mutex;
+	uint64_t hdcp_value; /* protected by hdcp_mutex */
+	struct delayed_work hdcp_check_work;
+	struct work_struct hdcp_prop_work;
 };
 
 struct intel_digital_connector_state {
@@ -397,8 +471,10 @@ struct intel_atomic_state {
 	 */
 	bool skip_intermediate_wm;
 
+	bool rps_interactive;
+
 	/* Gen9+ only */
-	struct skl_wm_values wm_results;
+	struct skl_ddb_values wm_results;
 
 	struct i915_sw_fence commit_ready;
 
@@ -407,7 +483,6 @@ struct intel_atomic_state {
 
 struct intel_plane_state {
 	struct drm_plane_state base;
-	struct drm_rect clip;
 	struct i915_vma *vma;
 
 	struct {
@@ -463,6 +538,8 @@ struct intel_initial_plane_config {
 #define SKL_MAX_DST_W 4096
 #define SKL_MIN_DST_H 8
 #define SKL_MAX_DST_H 4096
+#define SKL_MIN_YUV_420_SRC_W 16
+#define SKL_MIN_YUV_420_SRC_H 16
 
 struct intel_scaler {
 	int in_use;
@@ -513,7 +590,9 @@ struct intel_pipe_wm {
 
 struct skl_plane_wm {
 	struct skl_wm_level wm[8];
+	struct skl_wm_level uv_wm[8];
 	struct skl_wm_level trans_wm;
+	bool is_planar;
 };
 
 struct skl_pipe_wm {
@@ -786,6 +865,7 @@ struct intel_crtc_state {
 
 	/* bitmask of visible planes (enum plane_id) */
 	u8 active_planes;
+	u8 nv12_planes;
 
 	/* HDMI scrambling status */
 	bool hdmi_scrambling;
@@ -800,7 +880,7 @@ struct intel_crtc_state {
 struct intel_crtc {
 	struct drm_crtc base;
 	enum pipe pipe;
-	enum plane plane;
+	enum i9xx_plane_id i9xx_plane;
 	/*
 	 * Whether the crtc and the connected output pipeline is active. Implies
 	 * that crtc->enabled is set, i.e. the current mode configuration has
@@ -846,7 +926,7 @@ struct intel_crtc {
 
 struct intel_plane {
 	struct drm_plane base;
-	u8 plane;
+	enum i9xx_plane_id i9xx_plane;
 	enum plane_id id;
 	enum pipe pipe;
 	bool can_scale;
@@ -868,6 +948,7 @@ struct intel_plane {
 			     const struct intel_plane_state *plane_state);
 	void (*disable_plane)(struct intel_plane *plane,
 			      struct intel_crtc *crtc);
+	bool (*get_hw_state)(struct intel_plane *plane);
 	int (*check_plane)(struct intel_plane *plane,
 			   struct intel_crtc_state *crtc_state,
 			   struct intel_plane_state *state);
@@ -1132,7 +1213,7 @@ intel_get_crtc_for_pipe(struct drm_i915_private *dev_priv, enum pipe pipe)
 }
 
 static inline struct intel_crtc *
-intel_get_crtc_for_plane(struct drm_i915_private *dev_priv, enum plane plane)
+intel_get_crtc_for_plane(struct drm_i915_private *dev_priv, enum i9xx_plane_id plane)
 {
 	return dev_priv->plane_to_crtc_mapping[plane];
 }
@@ -1280,8 +1361,7 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port);
 enum port intel_ddi_get_encoder_port(struct intel_encoder *intel_encoder);
 bool intel_ddi_get_hw_state(struct intel_encoder *encoder, enum pipe *pipe);
 void intel_ddi_enable_transcoder_func(const struct intel_crtc_state *crtc_state);
-void intel_ddi_disable_transcoder_func(struct drm_i915_private *dev_priv,
-				       enum transcoder cpu_transcoder);
+void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state);
 void intel_ddi_enable_pipe_clock(const struct intel_crtc_state *crtc_state);
 void intel_ddi_disable_pipe_clock(const  struct intel_crtc_state *crtc_state);
 struct intel_encoder *
@@ -1303,6 +1383,8 @@ void intel_ddi_compute_min_voltage_level(struct drm_i915_private *dev_priv,
 u32 bxt_signal_levels(struct intel_dp *intel_dp);
 uint32_t ddi_signal_levels(struct intel_dp *intel_dp);
 u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder);
+int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
+				     bool enable);
 
 unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
 				   int plane, unsigned int height);
@@ -1494,7 +1576,8 @@ void intel_mode_from_pipe_config(struct drm_display_mode *mode,
 				 struct intel_crtc_state *pipe_config);
 
 int skl_update_scaler_crtc(struct intel_crtc_state *crtc_state);
-int skl_max_scale(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state);
+int skl_max_scale(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state,
+		  uint32_t pixel_format);
 
 static inline u32 intel_plane_ggtt_offset(const struct intel_plane_state *state)
 {
@@ -1505,10 +1588,12 @@ u32 glk_plane_color_ctl(const struct intel_crtc_state *crtc_state,
 			const struct intel_plane_state *plane_state);
 u32 skl_plane_ctl(const struct intel_crtc_state *crtc_state,
 		  const struct intel_plane_state *plane_state);
+u32 glk_color_ctl(const struct intel_plane_state *plane_state);
 u32 skl_plane_stride(const struct drm_framebuffer *fb, int plane,
 		     unsigned int rotation);
 int skl_check_plane_surface(struct intel_plane_state *plane_state);
 int i9xx_check_plane_surface(struct intel_plane_state *plane_state);
+int skl_format_to_fourcc(int format, bool rgb_order, bool alpha);
 
 /* intel_csr.c */
 void intel_csr_ucode_init(struct drm_i915_private *);
@@ -1652,7 +1737,7 @@ static inline void intel_fbdev_restore_mode(struct drm_device *dev)
 
 /* intel_fbc.c */
 void intel_fbc_choose_crtc(struct drm_i915_private *dev_priv,
-			   struct drm_atomic_state *state);
+			   struct intel_atomic_state *state);
 bool intel_fbc_is_active(struct drm_i915_private *dev_priv);
 void intel_fbc_pre_update(struct intel_crtc *crtc,
 			  struct intel_crtc_state *crtc_state,
@@ -1719,7 +1804,6 @@ void intel_overlay_reset(struct drm_i915_private *dev_priv);
 /* intel_panel.c */
 int intel_panel_init(struct intel_panel *panel,
 		     struct drm_display_mode *fixed_mode,
-		     struct drm_display_mode *alt_fixed_mode,
 		     struct drm_display_mode *downclock_mode);
 void intel_panel_fini(struct intel_panel *panel);
 void intel_fixed_panel_mode(const struct drm_display_mode *fixed_mode,
@@ -1757,6 +1841,16 @@ static inline void intel_backlight_device_unregister(struct intel_connector *con
 }
 #endif /* CONFIG_BACKLIGHT_CLASS_DEVICE */
 
+/* intel_hdcp.c */
+void intel_hdcp_atomic_check(struct drm_connector *connector,
+			     struct drm_connector_state *old_state,
+			     struct drm_connector_state *new_state);
+int intel_hdcp_init(struct intel_connector *connector,
+		    const struct intel_hdcp_shim *hdcp_shim);
+int intel_hdcp_enable(struct intel_connector *connector);
+int intel_hdcp_disable(struct intel_connector *connector);
+int intel_hdcp_check_link(struct intel_connector *connector);
+bool is_hdcp_supported(struct drm_i915_private *dev_priv, enum port port);
 
 /* intel_psr.c */
 void intel_psr_enable(struct intel_dp *intel_dp,
@@ -1921,6 +2015,7 @@ bool intel_sdvo_init(struct drm_i915_private *dev_priv,
 
 
 /* intel_sprite.c */
+bool intel_format_is_yuv(u32 format);
 int intel_usecs_to_scanlines(const struct drm_display_mode *adjusted_mode,
 			     int usecs);
 struct intel_plane *intel_sprite_plane_create(struct drm_i915_private *dev_priv,
@@ -1933,6 +2028,12 @@ void skl_update_plane(struct intel_plane *plane,
 		      const struct intel_crtc_state *crtc_state,
 		      const struct intel_plane_state *plane_state);
 void skl_disable_plane(struct intel_plane *plane, struct intel_crtc *crtc);
+bool skl_plane_get_hw_state(struct intel_plane *plane);
+bool skl_plane_has_ccs(struct drm_i915_private *dev_priv,
+		       enum pipe pipe, enum plane_id plane_id);
+bool intel_format_is_yuv(uint32_t format);
+bool skl_plane_has_planar(struct drm_i915_private *dev_priv,
+			  enum pipe pipe, enum plane_id plane_id);
 
 /* intel_tv.c */
 void intel_tv_init(struct drm_i915_private *dev_priv);

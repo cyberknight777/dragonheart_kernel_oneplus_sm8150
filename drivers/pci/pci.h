@@ -253,6 +253,27 @@ bool pci_bus_clip_resource(struct pci_dev *dev, int idx);
 void pci_reassigndev_resource_alignment(struct pci_dev *dev);
 void pci_disable_bridge_window(struct pci_dev *dev);
 
+/* PCIe link information */
+#define PCIE_SPEED2STR(speed) \
+	((speed) == PCIE_SPEED_16_0GT ? "16 GT/s" : \
+	 (speed) == PCIE_SPEED_8_0GT ? "8 GT/s" : \
+	 (speed) == PCIE_SPEED_5_0GT ? "5 GT/s" : \
+	 (speed) == PCIE_SPEED_2_5GT ? "2.5 GT/s" : \
+	 "Unknown speed")
+
+/* PCIe speed to Mb/s reduced by encoding overhead */
+#define PCIE_SPEED2MBS_ENC(speed) \
+	((speed) == PCIE_SPEED_16_0GT ? 16000*128/130 : \
+	 (speed) == PCIE_SPEED_8_0GT  ?  8000*128/130 : \
+	 (speed) == PCIE_SPEED_5_0GT  ?  5000*8/10 : \
+	 (speed) == PCIE_SPEED_2_5GT  ?  2500*8/10 : \
+	 0)
+
+enum pci_bus_speed pcie_get_speed_cap(struct pci_dev *dev);
+enum pcie_link_width pcie_get_width_cap(struct pci_dev *dev);
+u32 pcie_bandwidth_capable(struct pci_dev *dev, enum pci_bus_speed *speed,
+			   enum pcie_link_width *width);
+
 /* Single Root I/O Virtualization */
 struct pci_sriov {
 	int pos;		/* capability position */
@@ -366,5 +387,13 @@ static inline int pci_dev_specific_reset(struct pci_dev *dev, int probe)
 int acpi_get_rc_resources(struct device *dev, const char *hid, u16 segment,
 			  struct resource *res);
 #endif
+
+u32 pci_rebar_get_possible_sizes(struct pci_dev *pdev, int bar);
+int pci_rebar_get_current_size(struct pci_dev *pdev, int bar);
+int pci_rebar_set_size(struct pci_dev *pdev, int bar, int size);
+static inline u64 pci_rebar_size_to_bytes(int size)
+{
+	return 1ULL << (size + 20);
+}
 
 #endif /* DRIVERS_PCI_H */

@@ -1122,10 +1122,8 @@ static int glk_calc_cdclk(int min_cdclk)
 {
 	if (min_cdclk > 158400)
 		return 316800;
-	else if (min_cdclk > 79200)
-		return 158400;
 	else
-		return 79200;
+		return 158400;
 }
 
 static u8 bxt_calc_voltage_level(int cdclk)
@@ -1308,10 +1306,15 @@ static void bxt_set_cdclk(struct drm_i915_private *dev_priv,
 		break;
 	}
 
-	/* Inform power controller of upcoming frequency change */
 	mutex_lock(&dev_priv->pcu_lock);
-	ret = sandybridge_pcode_write(dev_priv, HSW_PCODE_DE_WRITE_FREQ_REQ,
-				      0x80000000);
+	/*
+	 * Inform power controller of upcoming frequency change. BSpec
+	 * requires us to wait up to 150usec, but that leads to timeouts;
+	 * the 2ms used here is based on experiment.
+	 */
+	ret = sandybridge_pcode_write_timeout(dev_priv,
+					      HSW_PCODE_DE_WRITE_FREQ_REQ,
+					      0x80000000, 2000);
 	mutex_unlock(&dev_priv->pcu_lock);
 
 	if (ret) {
@@ -1342,8 +1345,15 @@ static void bxt_set_cdclk(struct drm_i915_private *dev_priv,
 	I915_WRITE(CDCLK_CTL, val);
 
 	mutex_lock(&dev_priv->pcu_lock);
-	ret = sandybridge_pcode_write(dev_priv, HSW_PCODE_DE_WRITE_FREQ_REQ,
-				      cdclk_state->voltage_level);
+	/*
+	 * The timeout isn't specified, the 2ms used here is based on
+	 * experiment.
+	 * FIXME: Waiting for the request completion could be delayed until
+	 * the next PCODE request based on BSpec.
+	 */
+	ret = sandybridge_pcode_write_timeout(dev_priv,
+					      HSW_PCODE_DE_WRITE_FREQ_REQ,
+					      DIV_ROUND_UP(cdclk, 25000), 2000);
 	mutex_unlock(&dev_priv->pcu_lock);
 
 	if (ret) {
@@ -1552,7 +1562,7 @@ static void cnl_cdclk_pll_disable(struct drm_i915_private *dev_priv)
 
 	/* Timeout 200us */
 	if (wait_for((I915_READ(BXT_DE_PLL_ENABLE) & BXT_DE_PLL_LOCK) == 0, 1))
-		DRM_ERROR("timout waiting for CDCLK PLL unlock\n");
+		DRM_ERROR("timeout waiting for CDCLK PLL unlock\n");
 
 	dev_priv->cdclk.hw.vco = 0;
 }
@@ -1570,7 +1580,7 @@ static void cnl_cdclk_pll_enable(struct drm_i915_private *dev_priv, int vco)
 
 	/* Timeout 200us */
 	if (wait_for((I915_READ(BXT_DE_PLL_ENABLE) & BXT_DE_PLL_LOCK) != 0, 1))
-		DRM_ERROR("timout waiting for CDCLK PLL lock\n");
+		DRM_ERROR("timeout waiting for CDCLK PLL lock\n");
 
 	dev_priv->cdclk.hw.vco = vco;
 }
@@ -1874,6 +1884,7 @@ int intel_crtc_compute_min_cdclk(const struct intel_crtc_state *crtc_state)
 
 	/* According to BSpec, "The CD clock frequency must be at least twice
 	 * the frequency of the Azalia BCLK." and BCLK is 96 MHz by default.
+	 * the platform minimum CDCLK, failing audio probe.
 	 */
 	if (crtc_state->has_audio && INTEL_GEN(dev_priv) >= 9)
 		min_cdclk = max(2 * 96000, min_cdclk);

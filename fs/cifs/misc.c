@@ -398,9 +398,17 @@ is_valid_oplock_break(char *buffer, struct TCP_Server_Info *srv)
 			(struct smb_com_transaction_change_notify_rsp *)buf;
 		struct file_notify_information *pnotify;
 		__u32 data_offset = 0;
+		size_t len = srv->total_read - sizeof(pSMBr->hdr.smb_buf_length);
+
 		if (get_bcc(buf) > sizeof(struct file_notify_information)) {
 			data_offset = le32_to_cpu(pSMBr->DataOffset);
 
+			if (data_offset >
+			    len - sizeof(struct file_notify_information)) {
+				cifs_dbg(FYI, "invalid data_offset %u\n",
+					 data_offset);
+				return true;
+			}
 			pnotify = (struct file_notify_information *)
 				((char *)&pSMBr->hdr.Protocol + data_offset);
 			cifs_dbg(FYI, "dnotify on %s Action: 0x%x\n",
@@ -478,8 +486,7 @@ is_valid_oplock_break(char *buffer, struct TCP_Server_Info *srv)
 					   CIFS_INODE_DOWNGRADE_OPLOCK_TO_L2,
 					   &pCifsInode->flags);
 
-				queue_work(cifsoplockd_wq,
-					   &netfile->oplock_break);
+				cifs_queue_oplock_break(netfile);
 				netfile->oplock_break_cancelled = false;
 
 				spin_unlock(&tcon->open_file_lock);
@@ -574,6 +581,28 @@ void cifs_put_writer(struct cifsInodeInfo *cinode)
 		wake_up_bit(&cinode->flags, CIFS_INODE_PENDING_WRITERS);
 	}
 	spin_unlock(&cinode->writers_lock);
+}
+
+/**
+ * cifs_queue_oplock_break - queue the oplock break handler for cfile
+ *
+ * This function is called from the demultiplex thread when it
+ * receives an oplock break for @cfile.
+ *
+ * Assumes the tcon->open_file_lock is held.
+ * Assumes cfile->file_info_lock is NOT held.
+ */
+void cifs_queue_oplock_break(struct cifsFileInfo *cfile)
+{
+	/*
+	 * Bump the handle refcount now while we hold the
+	 * open_file_lock to enforce the validity of it for the oplock
+	 * break handler. The matching put is done at the end of the
+	 * handler.
+	 */
+	cifsFileInfo_get(cfile);
+
+	queue_work(cifsoplockd_wq, &cfile->oplock_break);
 }
 
 void cifs_done_oplock_break(struct cifsInodeInfo *cinode)
@@ -847,4 +876,58 @@ setup_aio_ctx_iter(struct cifs_aio_ctx *ctx, struct iov_iter *iter, int rw)
 	ctx->npages = npages;
 	iov_iter_bvec(&ctx->iter, ITER_BVEC | rw, ctx->bv, npages, ctx->len);
 	return 0;
+}
+
+/**
+ * cifs_alloc_hash - allocate hash and hash context together
+ *
+ * The caller has to make sure @sdesc is initialized to either NULL or
+ * a valid context. Both can be freed via cifs_free_hash().
+ */
+int
+cifs_alloc_hash(const char *name,
+		struct crypto_shash **shash, struct sdesc **sdesc)
+{
+	int rc = 0;
+	size_t size;
+
+	if (*sdesc != NULL)
+		return 0;
+
+	*shash = crypto_alloc_shash(name, 0, 0);
+	if (IS_ERR(*shash)) {
+		cifs_dbg(VFS, "could not allocate crypto %s\n", name);
+		rc = PTR_ERR(*shash);
+		*shash = NULL;
+		*sdesc = NULL;
+		return rc;
+	}
+
+	size = sizeof(struct shash_desc) + crypto_shash_descsize(*shash);
+	*sdesc = kmalloc(size, GFP_KERNEL);
+	if (*sdesc == NULL) {
+		cifs_dbg(VFS, "no memory left to allocate crypto %s\n", name);
+		crypto_free_shash(*shash);
+		*shash = NULL;
+		return -ENOMEM;
+	}
+
+	(*sdesc)->shash.tfm = *shash;
+	(*sdesc)->shash.flags = 0x0;
+	return 0;
+}
+
+/**
+ * cifs_free_hash - free hash and hash context together
+ *
+ * Freeing a NULL hash or context is safe.
+ */
+void
+cifs_free_hash(struct crypto_shash **shash, struct sdesc **sdesc)
+{
+	kfree(*sdesc);
+	*sdesc = NULL;
+	if (*shash)
+		crypto_free_shash(*shash);
+	*shash = NULL;
 }

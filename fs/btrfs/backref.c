@@ -718,7 +718,7 @@ out:
  * read tree blocks and add keys where required.
  */
 static int add_missing_keys(struct btrfs_fs_info *fs_info,
-			    struct preftrees *preftrees)
+			    struct preftrees *preftrees, bool lock)
 {
 	struct prelim_ref *ref;
 	struct extent_buffer *eb;
@@ -742,12 +742,14 @@ static int add_missing_keys(struct btrfs_fs_info *fs_info,
 			free_extent_buffer(eb);
 			return -EIO;
 		}
-		btrfs_tree_read_lock(eb);
+		if (lock)
+			btrfs_tree_read_lock(eb);
 		if (btrfs_header_level(eb) == 0)
 			btrfs_item_key_to_cpu(eb, &ref->key_for_search, 0);
 		else
 			btrfs_node_key_to_cpu(eb, &ref->key_for_search, 0);
-		btrfs_tree_read_unlock(eb);
+		if (lock)
+			btrfs_tree_read_unlock(eb);
 		free_extent_buffer(eb);
 		prelim_ref_insert(fs_info, &preftrees->indirect, ref, NULL);
 		cond_resched();
@@ -1228,7 +1230,7 @@ again:
 
 	btrfs_release_path(path);
 
-	ret = add_missing_keys(fs_info, &preftrees);
+	ret = add_missing_keys(fs_info, &preftrees, path->skip_locking == 0);
 	if (ret)
 		goto out;
 
@@ -1252,7 +1254,16 @@ again:
 	while (node) {
 		ref = rb_entry(node, struct prelim_ref, rbnode);
 		node = rb_next(&ref->rbnode);
-		WARN_ON(ref->count < 0);
+		/*
+		 * ref->count < 0 can happen here if there are delayed
+		 * refs with a node->action of BTRFS_DROP_DELAYED_REF.
+		 * prelim_ref_insert() relies on this when merging
+		 * identical refs to keep the overall count correct.
+		 * prelim_ref_insert() will merge only those refs
+		 * which compare identically.  Any refs having
+		 * e.g. different offsets would not be merged,
+		 * and would retain their original ref->count < 0.
+		 */
 		if (roots && ref->count && ref->root_id && ref->parent == 0) {
 			if (sc && sc->root_objectid &&
 			    ref->root_id != sc->root_objectid) {
@@ -1279,11 +1290,14 @@ again:
 					ret = -EIO;
 					goto out;
 				}
-				btrfs_tree_read_lock(eb);
-				btrfs_set_lock_blocking_rw(eb, BTRFS_READ_LOCK);
+				if (!path->skip_locking) {
+					btrfs_tree_read_lock(eb);
+					btrfs_set_lock_blocking_rw(eb, BTRFS_READ_LOCK);
+				}
 				ret = find_extent_in_eb(eb, bytenr,
 							*extent_item_pos, &eie);
-				btrfs_tree_read_unlock_blocking(eb);
+				if (!path->skip_locking)
+					btrfs_tree_read_unlock_blocking(eb);
 				free_extent_buffer(eb);
 				if (ret < 0)
 					goto out;
@@ -1443,8 +1457,8 @@ int btrfs_find_all_roots(struct btrfs_trans_handle *trans,
  * callers (such as fiemap) which want to know whether the extent is
  * shared but do not need a ref count.
  *
- * This attempts to allocate a transaction in order to account for
- * delayed refs, but continues on even when the alloc fails.
+ * This attempts to attach to the running transaction in order to account for
+ * delayed refs, but continues on even when no running transaction exists.
  *
  * Return: 0 if extent is not shared, 1 if it is shared, < 0 on error.
  */
@@ -1467,13 +1481,16 @@ int btrfs_check_shared(struct btrfs_root *root, u64 inum, u64 bytenr)
 	tmp = ulist_alloc(GFP_NOFS);
 	roots = ulist_alloc(GFP_NOFS);
 	if (!tmp || !roots) {
-		ulist_free(tmp);
-		ulist_free(roots);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out;
 	}
 
-	trans = btrfs_join_transaction(root);
+	trans = btrfs_attach_transaction(root);
 	if (IS_ERR(trans)) {
+		if (PTR_ERR(trans) != -ENOENT && PTR_ERR(trans) != -EROFS) {
+			ret = PTR_ERR(trans);
+			goto out;
+		}
 		trans = NULL;
 		down_read(&fs_info->commit_root_sem);
 	} else {
@@ -1496,6 +1513,7 @@ int btrfs_check_shared(struct btrfs_root *root, u64 inum, u64 bytenr)
 		if (!node)
 			break;
 		bytenr = node->val;
+		shared.share_count = 0;
 		cond_resched();
 	}
 
@@ -1505,6 +1523,7 @@ int btrfs_check_shared(struct btrfs_root *root, u64 inum, u64 bytenr)
 	} else {
 		up_read(&fs_info->commit_root_sem);
 	}
+out:
 	ulist_free(tmp);
 	ulist_free(roots);
 	return ret;
@@ -1893,13 +1912,19 @@ int iterate_extent_inodes(struct btrfs_fs_info *fs_info,
 			extent_item_objectid);
 
 	if (!search_commit_root) {
-		trans = btrfs_join_transaction(fs_info->extent_root);
-		if (IS_ERR(trans))
-			return PTR_ERR(trans);
-		btrfs_get_tree_mod_seq(fs_info, &tree_mod_seq_elem);
-	} else {
-		down_read(&fs_info->commit_root_sem);
+		trans = btrfs_attach_transaction(fs_info->extent_root);
+		if (IS_ERR(trans)) {
+			if (PTR_ERR(trans) != -ENOENT &&
+			    PTR_ERR(trans) != -EROFS)
+				return PTR_ERR(trans);
+			trans = NULL;
+		}
 	}
+
+	if (trans)
+		btrfs_get_tree_mod_seq(fs_info, &tree_mod_seq_elem);
+	else
+		down_read(&fs_info->commit_root_sem);
 
 	ret = btrfs_find_all_leafs(trans, fs_info, extent_item_objectid,
 				   tree_mod_seq_elem.seq, &refs,
@@ -1931,7 +1956,7 @@ int iterate_extent_inodes(struct btrfs_fs_info *fs_info,
 
 	free_leaf_list(refs);
 out:
-	if (!search_commit_root) {
+	if (trans) {
 		btrfs_put_tree_mod_seq(fs_info, &tree_mod_seq_elem);
 		btrfs_end_transaction(trans);
 	} else {

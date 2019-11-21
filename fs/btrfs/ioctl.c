@@ -352,11 +352,20 @@ static noinline int btrfs_ioctl_fitrim(struct file *file, void __user *arg)
 	struct fstrim_range range;
 	u64 minlen = ULLONG_MAX;
 	u64 num_devices = 0;
-	u64 total_bytes = btrfs_super_total_bytes(fs_info->super_copy);
 	int ret;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+
+	/*
+	 * If the fs is mounted with nologreplay, which requires it to be
+	 * mounted in RO mode as well, we can not allow discard on free space
+	 * inside block groups, because log trees refer to extents that are not
+	 * pinned in a block group's free space cache (pinning the extents is
+	 * precisely the first phase of replaying a log tree).
+	 */
+	if (btrfs_test_opt(fs_info, NOLOGREPLAY))
+		return -EROFS;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(device, &fs_info->fs_devices->devices,
@@ -376,11 +385,15 @@ static noinline int btrfs_ioctl_fitrim(struct file *file, void __user *arg)
 		return -EOPNOTSUPP;
 	if (copy_from_user(&range, arg, sizeof(range)))
 		return -EFAULT;
-	if (range.start > total_bytes ||
-	    range.len < fs_info->sb->s_blocksize)
+
+	/*
+	 * NOTE: Don't truncate the range using super->total_bytes.  Bytenr of
+	 * block group is in the logical address space, which can be any
+	 * sectorsize aligned bytenr in  the range [0, U64_MAX].
+	 */
+	if (range.len < fs_info->sb->s_blocksize)
 		return -EINVAL;
 
-	range.len = min(range.len, total_bytes - range.start);
 	range.minlen = max(range.minlen, minlen);
 	ret = btrfs_trim_fs(fs_info, &range);
 	if (ret < 0)
@@ -2682,8 +2695,10 @@ static long btrfs_ioctl_rm_dev_v2(struct file *file, void __user *arg)
 	}
 
 	/* Check for compatibility reject unknown flags */
-	if (vol_args->flags & ~BTRFS_VOL_ARG_V2_FLAGS_SUPPORTED)
-		return -EOPNOTSUPP;
+	if (vol_args->flags & ~BTRFS_VOL_ARG_V2_FLAGS_SUPPORTED) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
 
 	if (test_and_set_bit(BTRFS_FS_EXCL_OP, &fs_info->flags)) {
 		ret = BTRFS_ERROR_DEV_EXCL_RUN_IN_PROGRESS;
@@ -3156,6 +3171,27 @@ static int btrfs_extent_same(struct inode *src, u64 loff, u64 olen,
 
 		same_lock_start = min_t(u64, loff, dst_loff);
 		same_lock_len = max_t(u64, loff, dst_loff) + len - same_lock_start;
+	} else {
+		/*
+		 * If the source and destination inodes are different, the
+		 * source's range end offset matches the source's i_size, that
+		 * i_size is not a multiple of the sector size, and the
+		 * destination range does not go past the destination's i_size,
+		 * we must round down the length to the nearest sector size
+		 * multiple. If we don't do this adjustment we end replacing
+		 * with zeroes the bytes in the range that starts at the
+		 * deduplication range's end offset and ends at the next sector
+		 * size multiple.
+		 */
+		if (loff + olen == i_size_read(src) &&
+		    dst_loff + len < i_size_read(dst)) {
+			const u64 sz = BTRFS_I(src)->root->fs_info->sectorsize;
+
+			len = round_down(i_size_read(src), sz) - loff;
+			if (len == 0)
+				return 0;
+			olen = len;
+		}
 	}
 
 	/* don't make the dst file partly checksummed */
@@ -3861,11 +3897,6 @@ static noinline int btrfs_clone_files(struct file *file, struct file *file_src,
 	    src->i_sb != inode->i_sb)
 		return -EXDEV;
 
-	/* don't make the dst file partly checksummed */
-	if ((BTRFS_I(src)->flags & BTRFS_INODE_NODATASUM) !=
-	    (BTRFS_I(inode)->flags & BTRFS_INODE_NODATASUM))
-		return -EINVAL;
-
 	if (S_ISDIR(src->i_mode) || S_ISDIR(inode->i_mode))
 		return -EISDIR;
 
@@ -3875,15 +3906,30 @@ static noinline int btrfs_clone_files(struct file *file, struct file *file_src,
 		inode_lock(src);
 	}
 
+	/* don't make the dst file partly checksummed */
+	if ((BTRFS_I(src)->flags & BTRFS_INODE_NODATASUM) !=
+	    (BTRFS_I(inode)->flags & BTRFS_INODE_NODATASUM)) {
+		ret = -EINVAL;
+		goto out_unlock;
+	}
+
 	/* determine range to clone */
 	ret = -EINVAL;
 	if (off + len > src->i_size || off + len < off)
 		goto out_unlock;
 	if (len == 0)
 		olen = len = src->i_size - off;
-	/* if we extend to eof, continue to block boundary */
-	if (off + len == src->i_size)
+	/*
+	 * If we extend to eof, continue to block boundary if and only if the
+	 * destination end offset matches the destination file's size, otherwise
+	 * we would be corrupting data by placing the eof block into the middle
+	 * of a file.
+	 */
+	if (off + len == src->i_size) {
+		if (!IS_ALIGNED(len, bs) && destoff + len < inode->i_size)
+			goto out_unlock;
 		len = ALIGN(src->i_size, bs) - off;
+	}
 
 	if (len == 0) {
 		ret = 0;

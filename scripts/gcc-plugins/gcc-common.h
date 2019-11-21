@@ -97,6 +97,10 @@
 #include "predict.h"
 #include "ipa-utils.h"
 
+#if BUILDING_GCC_VERSION >= 8000
+#include "stringpool.h"
+#endif
+
 #if BUILDING_GCC_VERSION >= 4009
 #include "attribs.h"
 #include "varasm.h"
@@ -146,8 +150,12 @@ void print_gimple_expr(FILE *, gimple, int, int);
 void dump_gimple_stmt(pretty_printer *, gimple, int, int);
 #endif
 
+#ifndef __unused
 #define __unused __attribute__((__unused__))
+#endif
+#ifndef __visible
 #define __visible __attribute__((visibility("default")))
+#endif
 
 #define DECL_NAME_POINTER(node) IDENTIFIER_POINTER(DECL_NAME(node))
 #define DECL_NAME_LENGTH(node) IDENTIFIER_LENGTH(DECL_NAME(node))

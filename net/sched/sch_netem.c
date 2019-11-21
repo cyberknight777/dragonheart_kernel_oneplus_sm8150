@@ -149,12 +149,6 @@ struct netem_skb_cb {
 	ktime_t		tstamp_save;
 };
 
-
-static struct sk_buff *netem_rb_to_skb(struct rb_node *rb)
-{
-	return rb_entry(rb, struct sk_buff, rbnode);
-}
-
 static inline struct netem_skb_cb *netem_skb_cb(struct sk_buff *skb)
 {
 	/* we assume we can use skb next/prev/tstamp as storage for rb_node */
@@ -365,7 +359,7 @@ static void tfifo_reset(struct Qdisc *sch)
 	struct rb_node *p;
 
 	while ((p = rb_first(&q->t_root))) {
-		struct sk_buff *skb = netem_rb_to_skb(p);
+		struct sk_buff *skb = rb_to_skb(p);
 
 		rb_erase(p, &q->t_root);
 		rtnl_kfree_skbs(skb, skb);
@@ -382,7 +376,7 @@ static void tfifo_enqueue(struct sk_buff *nskb, struct Qdisc *sch)
 		struct sk_buff *skb;
 
 		parent = *p;
-		skb = netem_rb_to_skb(parent);
+		skb = rb_to_skb(parent);
 		if (tnext >= netem_skb_cb(skb)->time_to_send)
 			p = &parent->rb_right;
 		else
@@ -441,6 +435,10 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	int nb = 0;
 	int count = 1;
 	int rc = NET_XMIT_SUCCESS;
+	int rc_drop = NET_XMIT_DROP;
+
+	/* Do not fool qdisc_drop_all() */
+	skb->prev = NULL;
 
 	/* Random duplication */
 	if (q->duplicate && q->duplicate >= get_crandom(&q->dup_cor))
@@ -471,12 +469,13 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 	 * skb will be queued.
 	 */
 	if (count > 1 && (skb2 = skb_clone(skb, GFP_ATOMIC)) != NULL) {
-		struct Qdisc *rootq = qdisc_root(sch);
+		struct Qdisc *rootq = qdisc_root_bh(sch);
 		u32 dupsave = q->duplicate; /* prevent duplicating a dup... */
 
 		q->duplicate = 0;
 		rootq->enqueue(skb2, rootq, to_free);
 		q->duplicate = dupsave;
+		rc_drop = NET_XMIT_SUCCESS;
 	}
 
 	/*
@@ -489,7 +488,7 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 		if (skb_is_gso(skb)) {
 			segs = netem_segment(skb, sch, to_free);
 			if (!segs)
-				return NET_XMIT_DROP;
+				return rc_drop;
 		} else {
 			segs = skb;
 		}
@@ -512,8 +511,10 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 			1<<(prandom_u32() % 8);
 	}
 
-	if (unlikely(sch->q.qlen >= sch->limit))
-		return qdisc_drop(skb, sch, to_free);
+	if (unlikely(sch->q.qlen >= sch->limit)) {
+		qdisc_drop_all(skb, sch, to_free);
+		return rc_drop;
+	}
 
 	qdisc_qstats_backlog_inc(sch, skb);
 
@@ -538,7 +539,7 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch,
 				struct sk_buff *t_skb;
 				struct netem_skb_cb *t_last;
 
-				t_skb = netem_rb_to_skb(rb_last(&q->t_root));
+				t_skb = skb_rb_last(&q->t_root);
 				t_last = netem_skb_cb(t_skb);
 				if (!last ||
 				    t_last->time_to_send > last->time_to_send) {
@@ -618,7 +619,7 @@ deliver:
 	if (p) {
 		psched_time_t time_to_send;
 
-		skb = netem_rb_to_skb(p);
+		skb = rb_to_skb(p);
 
 		/* if more time remaining? */
 		time_to_send = netem_skb_cb(skb)->time_to_send;
@@ -630,6 +631,10 @@ deliver:
 			skb->next = NULL;
 			skb->prev = NULL;
 			skb->tstamp = netem_skb_cb(skb)->tstamp_save;
+			/* skb->dev shares skb->rbnode area,
+			 * we need to restore its value.
+			 */
+			skb->dev = qdisc_dev(sch);
 
 #ifdef CONFIG_NET_CLS_ACT
 			/*
@@ -703,7 +708,7 @@ static int get_dist_table(struct Qdisc *sch, const struct nlattr *attr)
 	struct disttable *d;
 	int i;
 
-	if (n > NETEM_DIST_MAX)
+	if (!n || n > NETEM_DIST_MAX)
 		return -EINVAL;
 
 	d = kvmalloc(sizeof(struct disttable) + n * sizeof(s16), GFP_KERNEL);

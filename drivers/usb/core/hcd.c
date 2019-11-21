@@ -42,7 +42,6 @@
 #include <linux/workqueue.h>
 #include <linux/pm_runtime.h>
 #include <linux/types.h>
-#include <linux/pm_dark_resume.h>
 
 #include <linux/phy/phy.h>
 #include <linux/usb.h>
@@ -2313,14 +2312,6 @@ int hcd_bus_resume(struct usb_device *rhdev, pm_message_t msg)
 	if (HCD_RH_RUNNING(hcd))
 		return 0;
 
-	if (dev_dark_resume_active(&rhdev->dev)) {
-		/* This bit only gets set by asynchronous work that should
-		 * not be scheduled in dark resume.
-		 */
-		WARN_ON(HCD_WAKEUP_PENDING(hcd));
-		return 0;
-	}
-
 	hcd->state = HC_STATE_RESUMING;
 	status = hcd->driver->bus_resume(hcd);
 	clear_bit(HCD_FLAG_WAKEUP_PENDING, &hcd->flags);
@@ -2382,15 +2373,10 @@ static void hcd_resume_work(struct work_struct *work)
 void usb_hcd_resume_root_hub (struct usb_hcd *hcd)
 {
 	unsigned long flags;
-	struct device *dev = &hcd->self.root_hub->dev;
-
-	if (dev_dark_resume_active(dev)) {
-		dev_info(dev, "disabled for dark resume\n");
-		return;
-	}
 
 	spin_lock_irqsave (&hcd_root_hub_lock, flags);
 	if (hcd->rh_registered) {
+		pm_wakeup_event(&hcd->self.root_hub->dev, 0);
 		set_bit(HCD_FLAG_WAKEUP_PENDING, &hcd->flags);
 		queue_work(pm_wq, &hcd->wakeup_work);
 	}
@@ -2471,6 +2457,19 @@ EXPORT_SYMBOL_GPL(usb_hcd_irq);
 
 /*-------------------------------------------------------------------------*/
 
+/* Workqueue routine for when the root-hub has died. */
+static void hcd_died_work(struct work_struct *work)
+{
+	struct usb_hcd *hcd = container_of(work, struct usb_hcd, died_work);
+	static char *env[] = {
+		"ERROR=DEAD",
+		NULL
+	};
+
+	/* Notify user space that the host controller has died */
+	kobject_uevent_env(&hcd->self.root_hub->dev.kobj, KOBJ_OFFLINE, env);
+}
+
 /**
  * usb_hc_died - report abnormal shutdown of a host controller (bus glue)
  * @hcd: pointer to the HCD representing the controller
@@ -2511,6 +2510,13 @@ void usb_hc_died (struct usb_hcd *hcd)
 			usb_kick_hub_wq(hcd->self.root_hub);
 		}
 	}
+
+	/* Handle the case where this function gets called with a shared HCD */
+	if (usb_hcd_is_primary_hcd(hcd))
+		schedule_work(&hcd->died_work);
+	else
+		schedule_work(&hcd->primary_hcd->died_work);
+
 	spin_unlock_irqrestore (&hcd_root_hub_lock, flags);
 	/* Make sure that the other roothub is also deallocated. */
 }
@@ -2579,6 +2585,8 @@ struct usb_hcd *__usb_create_hcd(const struct hc_driver *driver,
 #ifdef CONFIG_PM
 	INIT_WORK(&hcd->wakeup_work, hcd_resume_work);
 #endif
+
+	INIT_WORK(&hcd->died_work, hcd_died_work);
 
 	hcd->driver = driver;
 	hcd->speed = driver->flags & HCD_MASK;
@@ -2938,6 +2946,7 @@ error_create_attr_group:
 #ifdef CONFIG_PM
 	cancel_work_sync(&hcd->wakeup_work);
 #endif
+	cancel_work_sync(&hcd->died_work);
 	mutex_lock(&usb_bus_idr_lock);
 	usb_disconnect(&rhdev);		/* Sets rhdev to NULL */
 	mutex_unlock(&usb_bus_idr_lock);
@@ -3006,6 +3015,7 @@ void usb_remove_hcd(struct usb_hcd *hcd)
 #ifdef CONFIG_PM
 	cancel_work_sync(&hcd->wakeup_work);
 #endif
+	cancel_work_sync(&hcd->died_work);
 
 	mutex_lock(&usb_bus_idr_lock);
 	usb_disconnect(&rhdev);		/* Sets rhdev to NULL */
@@ -3066,6 +3076,9 @@ void
 usb_hcd_platform_shutdown(struct platform_device *dev)
 {
 	struct usb_hcd *hcd = platform_get_drvdata(dev);
+
+	/* No need for pm_runtime_put(), we're shutting down */
+	pm_runtime_get_sync(&dev->dev);
 
 	if (hcd->driver->shutdown)
 		hcd->driver->shutdown(hcd);

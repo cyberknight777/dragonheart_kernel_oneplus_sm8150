@@ -349,6 +349,7 @@ int xgbe_config_netdev(struct xgbe_prv_data *pdata)
 	XGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, UDP4TE, 1);
 
 	/* Call MDIO/PHY initialization routine */
+	pdata->debugfs_an_cdr_workaround = pdata->vdata->an_cdr_workaround;
 	ret = pdata->phy_if.phy_init(pdata);
 	if (ret)
 		return ret;
@@ -486,13 +487,19 @@ static int __init xgbe_mod_init(void)
 
 	ret = xgbe_platform_init();
 	if (ret)
-		return ret;
+		goto err_platform_init;
 
 	ret = xgbe_pci_init();
 	if (ret)
-		return ret;
+		goto err_pci_init;
 
 	return 0;
+
+err_pci_init:
+	xgbe_platform_exit();
+err_platform_init:
+	unregister_netdevice_notifier(&xgbe_netdev_notifier);
+	return ret;
 }
 
 static void __exit xgbe_mod_exit(void)

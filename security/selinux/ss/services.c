@@ -516,7 +516,7 @@ static void security_dump_masked_av(struct context *scontext,
 		goto out;
 
 	/* audit a message */
-	ab = audit_log_start(current->audit_context,
+	ab = audit_log_start(audit_context(),
 			     GFP_ATOMIC, AUDIT_SELINUX_ERR);
 	if (!ab)
 		goto out;
@@ -751,7 +751,7 @@ static int security_validtrans_handle_fail(struct context *ocontext,
 		goto out;
 	if (context_struct_to_string(tcontext, &t, &tlen))
 		goto out;
-	audit_log(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR,
+	audit_log(audit_context(), GFP_ATOMIC, AUDIT_SELINUX_ERR,
 		  "op=security_validate_transition seresult=denied"
 		  " oldcontext=%s newcontext=%s taskcontext=%s tclass=%s",
 		  o, n, t, sym_name(&policydb, SYM_CLASSES, tclass-1));
@@ -921,7 +921,7 @@ int security_bounded_transition(u32 old_sid, u32 new_sid)
 					      &old_name, &length) &&
 		    !context_struct_to_string(new_context,
 					      &new_name, &length)) {
-			audit_log(current->audit_context,
+			audit_log(audit_context(),
 				  GFP_ATOMIC, AUDIT_SELINUX_ERR,
 				  "op=security_bounded_transition "
 				  "seresult=denied "
@@ -1448,7 +1448,7 @@ static int security_context_to_sid_core(const char *scontext, u32 scontext_len,
 				      scontext_len, &context, def_sid);
 	if (rc == -EINVAL && force) {
 		context.str = str;
-		context.len = scontext_len;
+		context.len = strlen(str) + 1;
 		str = NULL;
 	} else if (rc)
 		goto out_unlock;
@@ -1533,7 +1533,7 @@ static int compute_sid_handle_invalid_context(
 		goto out;
 	if (context_struct_to_string(newcontext, &n, &nlen))
 		goto out;
-	audit_log(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR,
+	audit_log(audit_context(), GFP_ATOMIC, AUDIT_SELINUX_ERR,
 		  "op=security_compute_sid invalid_context=%s"
 		  " scontext=%s"
 		  " tcontext=%s"
@@ -2757,7 +2757,7 @@ int security_set_bools(int len, int *values)
 
 	for (i = 0; i < len; i++) {
 		if (!!values[i] != policydb.bool_val_to_struct[i]->state) {
-			audit_log(current->audit_context, GFP_ATOMIC,
+			audit_log(audit_context(), GFP_ATOMIC,
 				AUDIT_MAC_CONFIG_CHANGE,
 				"bool=%s val=%d old_val=%d auid=%u ses=%u",
 				sym_name(&policydb, SYM_BOOLS, i),
@@ -2891,7 +2891,7 @@ int security_sid_mls_copy(u32 sid, u32 mls_sid, u32 *new_sid)
 		rc = convert_context_handle_invalid_context(&newcon);
 		if (rc) {
 			if (!context_struct_to_string(&newcon, &s, &len)) {
-				audit_log(current->audit_context,
+				audit_log(audit_context(),
 					  GFP_ATOMIC, AUDIT_SELINUX_ERR,
 					  "op=security_sid_mls_copy "
 					  "invalid_context=%s", s);

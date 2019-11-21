@@ -86,6 +86,7 @@ static int hv_mode;
 
 static struct {
 	u64	lpcr;
+	u64	lpcr_clear;
 	u64	hfscr;
 	u64	fscr;
 } system_registers;
@@ -115,6 +116,8 @@ static void cpufeatures_flush_tlb(void)
 
 static void __restore_cpu_cpufeatures(void)
 {
+	u64 lpcr;
+
 	/*
 	 * LPCR is restored by the power on engine already. It can be changed
 	 * after early init e.g., by radix enable, and we have no unified API
@@ -127,11 +130,14 @@ static void __restore_cpu_cpufeatures(void)
 	 * The best we can do to accommodate secondary boot and idle restore
 	 * for now is "or" LPCR with existing.
 	 */
-
-	mtspr(SPRN_LPCR, system_registers.lpcr | mfspr(SPRN_LPCR));
+	lpcr = mfspr(SPRN_LPCR);
+	lpcr |= system_registers.lpcr;
+	lpcr &= ~system_registers.lpcr_clear;
+	mtspr(SPRN_LPCR, lpcr);
 	if (hv_mode) {
 		mtspr(SPRN_LPID, 0);
 		mtspr(SPRN_HFSCR, system_registers.hfscr);
+		mtspr(SPRN_PCR, 0);
 	}
 	mtspr(SPRN_FSCR, system_registers.fscr);
 
@@ -351,8 +357,9 @@ static int __init feat_enable_mmu_hash_v3(struct dt_cpu_feature *f)
 {
 	u64 lpcr;
 
+	system_registers.lpcr_clear |= (LPCR_ISL | LPCR_UPRT | LPCR_HR);
 	lpcr = mfspr(SPRN_LPCR);
-	lpcr &= ~LPCR_ISL;
+	lpcr &= ~(LPCR_ISL | LPCR_UPRT | LPCR_HR);
 	mtspr(SPRN_LPCR, lpcr);
 
 	cur_cpu_spec->mmu_features |= MMU_FTRS_HASH_BASE;
@@ -726,15 +733,45 @@ static bool __init cpufeatures_process_feature(struct dt_cpu_feature *f)
 	return true;
 }
 
+/*
+ * Handle POWER9 broadcast tlbie invalidation issue using
+ * cpu feature flag.
+ */
+static __init void update_tlbie_feature_flag(unsigned long pvr)
+{
+	if (PVR_VER(pvr) == PVR_POWER9) {
+		/*
+		 * Set the tlbie feature flag for anything below
+		 * Nimbus DD 2.3 and Cumulus DD 1.3
+		 */
+		if ((pvr & 0xe000) == 0) {
+			/* Nimbus */
+			if ((pvr & 0xfff) < 0x203)
+				cur_cpu_spec->cpu_features |= CPU_FTR_P9_TLBIE_STQ_BUG;
+		} else if ((pvr & 0xc000) == 0) {
+			/* Cumulus */
+			if ((pvr & 0xfff) < 0x103)
+				cur_cpu_spec->cpu_features |= CPU_FTR_P9_TLBIE_STQ_BUG;
+		} else {
+			WARN_ONCE(1, "Unknown PVR");
+			cur_cpu_spec->cpu_features |= CPU_FTR_P9_TLBIE_STQ_BUG;
+		}
+
+		cur_cpu_spec->cpu_features |= CPU_FTR_P9_TLBIE_ERAT_BUG;
+	}
+}
+
 static __init void cpufeatures_cpu_quirks(void)
 {
-	int version = mfspr(SPRN_PVR);
+	unsigned long version = mfspr(SPRN_PVR);
 
 	/*
 	 * Not all quirks can be derived from the cpufeatures device tree.
 	 */
 	if ((version & 0xffffff00) == 0x004e0100)
 		cur_cpu_spec->cpu_features |= CPU_FTR_POWER9_DD1;
+
+	update_tlbie_feature_flag(version);
 }
 
 static void __init cpufeatures_setup_finished(void)

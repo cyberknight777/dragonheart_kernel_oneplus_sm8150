@@ -188,12 +188,12 @@ static inline int compute_score(struct sock *sk, struct net *net,
 			bool dev_match = (sk->sk_bound_dev_if == dif ||
 					  sk->sk_bound_dev_if == sdif);
 
-			if (exact_dif && !dev_match)
+			if (!dev_match)
 				return -1;
-			if (sk->sk_bound_dev_if && dev_match)
+			if (sk->sk_bound_dev_if)
 				score += 4;
 		}
-		if (sk->sk_incoming_cpu == raw_smp_processor_id())
+		if (READ_ONCE(sk->sk_incoming_cpu) == raw_smp_processor_id())
 			score++;
 	}
 	return score;

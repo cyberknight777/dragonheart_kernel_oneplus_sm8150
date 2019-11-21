@@ -755,10 +755,14 @@ F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.c
 F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd.h
 F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v7.c
 F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v8.c
+F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gfx_v9.c
+F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_fence.c
+F:	drivers/gpu/drm/amd/amdgpu/amdgpu_amdkfd_gpuvm.c
 F:	drivers/gpu/drm/amd/amdkfd/
 F:	drivers/gpu/drm/amd/include/cik_structs.h
 F:	drivers/gpu/drm/amd/include/kgd_kfd_interface.h
 F:	drivers/gpu/drm/amd/include/vi_structs.h
+F:	drivers/gpu/drm/amd/include/v9_structs.h
 F:	include/uapi/linux/kfd_ioctl.h
 
 AMD SEATTLE DEVICE TREE SUPPORT
@@ -5036,6 +5040,14 @@ M:	Tony Luck <tony.luck@intel.com>
 L:	linux-edac@vger.kernel.org
 S:	Maintained
 F:	drivers/edac/skx_edac.c
+
+EDAC-QCOM
+M:	Channagoud Kadabi <ckadabi@codeaurora.org>
+M:	Venkata Narendra Kumar Gutta <vnkgutta@codeaurora.org>
+L:	linux-arm-msm@vger.kernel.org
+L:	linux-edac@vger.kernel.org
+S:	Maintained
+F:	drivers/edac/qcom_edac.c
 
 EDIROL UA-101/UA-1000 DRIVER
 M:	Clemens Ladisch <clemens@ladisch.de>
@@ -11187,6 +11199,14 @@ L:	netdev@vger.kernel.org
 S:	Supported
 F:	drivers/net/ethernet/qualcomm/emac/
 
+QUALCOMM GENERIC INTERFACE I2C DRIVER
+M:	Alok Chauhan <alokc@codeaurora.org>
+M:	Karthikeyan Ramasubramanian <kramasub@codeaurora.org>
+L:	linux-i2c@vger.kernel.org
+L:	linux-arm-msm@vger.kernel.org
+S:	Supported
+F:	drivers/i2c/busses/i2c-qcom-geni.c
+
 QUALCOMM HEXAGON ARCHITECTURE
 M:	Richard Kuo <rkuo@codeaurora.org>
 L:	linux-hexagon@vger.kernel.org
@@ -11619,6 +11639,12 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/linville/wireless-testing.g
 S:	Maintained
 F:	drivers/net/wireless/realtek/rtlwifi/
 F:	drivers/net/wireless/realtek/rtlwifi/rtl8192ce/
+
+REALTEK WIRELESS DRIVER (rtw88)
+M:	Yan-Hsuan Chuang <yhchuang@realtek.com>
+L:	linux-wireless@vger.kernel.org
+S:	Maintained
+F:	drivers/net/wireless/realtek/rtw88/
 
 RTL8XXXU WIRELESS DRIVER (rtl8xxxu)
 M:	Jes Sorensen <Jes.Sorensen@gmail.com>
@@ -12661,6 +12687,7 @@ F:	arch/alpha/kernel/srm_env.c
 
 STABLE BRANCH
 M:	Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+M:	Sasha Levin <sashal@kernel.org>
 L:	stable@vger.kernel.org
 S:	Supported
 F:	Documentation/process/stable-kernel-rules.rst
@@ -13883,13 +13910,6 @@ L:	netdev@vger.kernel.org
 W:	http://www.linux-usb.org/usbnet
 S:	Maintained
 F:	drivers/net/usb/dm9601.c
-
-USB DIAMOND RIO500 DRIVER
-M:	Cesar Miquel <miquel@df.uba.ar>
-L:	rio500-users@lists.sourceforge.net
-W:	http://rio500.sourceforge.net
-S:	Maintained
-F:	drivers/usb/misc/rio500*
 
 USB EHCI DRIVER
 M:	Alan Stern <stern@rowland.harvard.edu>

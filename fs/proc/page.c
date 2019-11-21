@@ -42,10 +42,12 @@ static ssize_t kpagecount_read(struct file *file, char __user *buf,
 		return -EINVAL;
 
 	while (count > 0) {
-		if (pfn_valid(pfn))
-			ppage = pfn_to_page(pfn);
-		else
-			ppage = NULL;
+		/*
+		 * TODO: ZONE_DEVICE support requires to identify
+		 * memmaps that were actually initialized.
+		 */
+		ppage = pfn_to_online_page(pfn);
+
 		if (!ppage || PageSlab(ppage))
 			pcount = 0;
 		else
@@ -154,6 +156,8 @@ u64 stable_page_flags(struct page *page)
 
 	if (PageBalloon(page))
 		u |= 1 << KPF_BALLOON;
+	if (PageTable(page))
+		u |= 1 << KPF_PGTABLE;
 
 	if (page_is_idle(page))
 		u |= 1 << KPF_IDLE;
@@ -214,10 +218,11 @@ static ssize_t kpageflags_read(struct file *file, char __user *buf,
 		return -EINVAL;
 
 	while (count > 0) {
-		if (pfn_valid(pfn))
-			ppage = pfn_to_page(pfn);
-		else
-			ppage = NULL;
+		/*
+		 * TODO: ZONE_DEVICE support requires to identify
+		 * memmaps that were actually initialized.
+		 */
+		ppage = pfn_to_online_page(pfn);
 
 		if (put_user(stable_page_flags(ppage), out)) {
 			ret = -EFAULT;
@@ -259,10 +264,11 @@ static ssize_t kpagecgroup_read(struct file *file, char __user *buf,
 		return -EINVAL;
 
 	while (count > 0) {
-		if (pfn_valid(pfn))
-			ppage = pfn_to_page(pfn);
-		else
-			ppage = NULL;
+		/*
+		 * TODO: ZONE_DEVICE support requires to identify
+		 * memmaps that were actually initialized.
+		 */
+		ppage = pfn_to_online_page(pfn);
 
 		if (ppage)
 			ino = page_cgroup_ino(ppage);

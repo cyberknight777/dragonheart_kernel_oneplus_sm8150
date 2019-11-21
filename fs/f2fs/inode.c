@@ -62,13 +62,16 @@ static void __get_inode_rdev(struct inode *inode, struct f2fs_inode *ri)
 	}
 }
 
-static bool __written_first_block(struct f2fs_inode *ri)
+static int __written_first_block(struct f2fs_sb_info *sbi,
+					struct f2fs_inode *ri)
 {
 	block_t addr = le32_to_cpu(ri->i_addr[offset_in_addr(ri)]);
 
-	if (addr != NEW_ADDR && addr != NULL_ADDR)
-		return true;
-	return false;
+	if (!__is_valid_data_blkaddr(addr))
+		return 1;
+	if (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC))
+		return -EFSCORRUPTED;
+	return 0;
 }
 
 static void __set_inode_rdev(struct inode *inode, struct f2fs_inode *ri)
@@ -179,6 +182,72 @@ void f2fs_inode_chksum_set(struct f2fs_sb_info *sbi, struct page *page)
 	ri->i_inode_checksum = cpu_to_le32(f2fs_inode_chksum(sbi, page));
 }
 
+static bool sanity_check_inode(struct inode *inode, struct page *node_page)
+{
+	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
+	struct f2fs_inode_info *fi = F2FS_I(inode);
+	unsigned long long iblocks;
+
+	iblocks = le64_to_cpu(F2FS_INODE(node_page)->i_blocks);
+	if (!iblocks) {
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		f2fs_msg(sbi->sb, KERN_WARNING,
+			"%s: corrupted inode i_blocks i_ino=%lx iblocks=%llu, "
+			"run fsck to fix.",
+			__func__, inode->i_ino, iblocks);
+		return false;
+	}
+
+	if (ino_of_node(node_page) != nid_of_node(node_page)) {
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		f2fs_msg(sbi->sb, KERN_WARNING,
+			"%s: corrupted inode footer i_ino=%lx, ino,nid: "
+			"[%u, %u] run fsck to fix.",
+			__func__, inode->i_ino,
+			ino_of_node(node_page), nid_of_node(node_page));
+		return false;
+	}
+
+	if (f2fs_has_extra_attr(inode) &&
+			!f2fs_sb_has_extra_attr(sbi->sb)) {
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		f2fs_msg(sbi->sb, KERN_WARNING,
+			"%s: inode (ino=%lx) is with extra_attr, "
+			"but extra_attr feature is off",
+			__func__, inode->i_ino);
+		return false;
+	}
+
+	if (fi->i_extra_isize > F2FS_TOTAL_EXTRA_ATTR_SIZE ||
+			fi->i_extra_isize % sizeof(__le32)) {
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		f2fs_msg(sbi->sb, KERN_WARNING,
+			"%s: inode (ino=%lx) has corrupted i_extra_isize: %d, "
+			"max: %zu",
+			__func__, inode->i_ino, fi->i_extra_isize,
+			F2FS_TOTAL_EXTRA_ATTR_SIZE);
+		return false;
+	}
+
+	if (F2FS_I(inode)->extent_tree) {
+		struct extent_info *ei = &F2FS_I(inode)->extent_tree->largest;
+
+		if (ei->len &&
+			(!f2fs_is_valid_blkaddr(sbi, ei->blk, DATA_GENERIC) ||
+			!f2fs_is_valid_blkaddr(sbi, ei->blk + ei->len - 1,
+							DATA_GENERIC))) {
+			set_sbi_flag(sbi, SBI_NEED_FSCK);
+			f2fs_msg(sbi->sb, KERN_WARNING,
+				"%s: inode (ino=%lx) extent info [%u, %u, %u] "
+				"is incorrect, run fsck to fix",
+				__func__, inode->i_ino,
+				ei->blk, ei->fofs, ei->len);
+			return false;
+		}
+	}
+	return true;
+}
+
 static int do_read_inode(struct inode *inode)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
@@ -186,14 +255,11 @@ static int do_read_inode(struct inode *inode)
 	struct page *node_page;
 	struct f2fs_inode *ri;
 	projid_t i_projid;
+	int err;
 
 	/* Check if ino is within scope */
-	if (check_nid_range(sbi, inode->i_ino)) {
-		f2fs_msg(inode->i_sb, KERN_ERR, "bad inode number: %lu",
-			 (unsigned long) inode->i_ino);
-		WARN_ON(1);
+	if (check_nid_range(sbi, inode->i_ino))
 		return -EINVAL;
-	}
 
 	node_page = get_node_page(sbi, inode->i_ino);
 	if (IS_ERR(node_page))
@@ -232,6 +298,11 @@ static int do_read_inode(struct inode *inode)
 	fi->i_extra_isize = f2fs_has_extra_attr(inode) ?
 					le16_to_cpu(ri->i_extra_isize) : 0;
 
+	if (!sanity_check_inode(inode, node_page)) {
+		f2fs_put_page(node_page, 1);
+		return -EFSCORRUPTED;
+	}
+
 	/* check data exist */
 	if (f2fs_has_inline_data(inode) && !f2fs_exist_data(inode))
 		__recover_inline_status(inode, node_page);
@@ -239,7 +310,12 @@ static int do_read_inode(struct inode *inode)
 	/* get rdev by using inline_info */
 	__get_inode_rdev(inode, ri);
 
-	if (__written_first_block(ri))
+	err = __written_first_block(sbi, ri);
+	if (err < 0) {
+		f2fs_put_page(node_page, 1);
+		return err;
+	}
+	if (!err)
 		set_inode_flag(inode, FI_FIRST_BLOCK_WRITTEN);
 
 	if (!need_inode_block_update(sbi, inode->i_ino))
@@ -321,6 +397,7 @@ make_now:
 	return inode;
 
 bad_inode:
+	f2fs_inode_synced(inode);
 	iget_failed(inode);
 	trace_f2fs_iget_exit(inode, ret);
 	return ERR_PTR(ret);
@@ -538,8 +615,11 @@ no_delete:
 		alloc_nid_failed(sbi, inode->i_ino);
 		clear_inode_flag(inode, FI_FREE_NID);
 	} else {
-		f2fs_bug_on(sbi, err &&
-			!exist_written_data(sbi, inode->i_ino, ORPHAN_INO));
+		/*
+		 * If xattr nid is corrupted, we can reach out error condition,
+		 * err & !exist_written_data(sbi, inode->i_ino, ORPHAN_INO)).
+		 * In that case, check_nid_range() is enough to give a clue.
+		 */
 	}
 out_clear:
 	fscrypt_put_encryption_info(inode, NULL);

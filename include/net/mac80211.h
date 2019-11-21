@@ -1453,6 +1453,8 @@ enum ieee80211_vif_flags {
  * @drv_priv: data area for driver use, will always be aligned to
  *	sizeof(void \*).
  * @txq: the multicast data TX queue (if driver uses the TXQ abstraction)
+ * @txqs_stopped: per AC flag to indicate that intermediate TXQs are stopped,
+ *	protected by fq->lock.
  */
 struct ieee80211_vif {
 	enum nl80211_iftype type;
@@ -1476,6 +1478,8 @@ struct ieee80211_vif {
 #endif
 
 	unsigned int probe_req_reg;
+
+	bool txqs_stopped[IEEE80211_NUM_ACS];
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
@@ -2213,6 +2217,10 @@ enum ieee80211_hw_flags {
  *	supported by HW.
  * @max_nan_de_entries: maximum number of NAN DE functions supported by the
  *	device.
+ *
+ * @tx_sk_pacing_shift: Pacing shift to set on TCP sockets when frames from
+ *	them are encountered. The default should typically not be changed,
+ *	unless the driver has good reasons for needing more buffers.
  */
 struct ieee80211_hw {
 	struct ieee80211_conf conf;
@@ -2248,6 +2256,7 @@ struct ieee80211_hw {
 	u8 n_cipher_schemes;
 	const struct ieee80211_cipher_scheme *cipher_schemes;
 	u8 max_nan_de_entries;
+	u8 tx_sk_pacing_shift;
 };
 
 static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw,
@@ -2429,6 +2438,19 @@ void ieee80211_free_txskb(struct ieee80211_hw *hw, struct sk_buff *skb);
  * The set_default_unicast_key() call updates the default WEP key index
  * configured to the hardware for WEP encryption type. This is required
  * for devices that support offload of data packets (e.g. ARP responses).
+ *
+ * Mac80211 drivers should set the @NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 flag
+ * when they are able to replace in-use PTK keys according to to following
+ * requirements:
+ * 1) They do not hand over frames decrypted with the old key to
+      mac80211 once the call to set_key() with command %DISABLE_KEY has been
+      completed when also setting @IEEE80211_KEY_FLAG_GENERATE_IV for any key,
+   2) either drop or continue to use the old key for any outgoing frames queued
+      at the time of the key deletion (including re-transmits),
+   3) never send out a frame queued prior to the set_key() %SET_KEY command
+      encrypted with the new key and
+   4) never send out a frame unencrypted when it should be encrypted.
+   Mac80211 will not queue any new frames for a deleted key to the driver.
  */
 
 /**
@@ -4141,7 +4163,7 @@ void ieee80211_sta_uapsd_trigger(struct ieee80211_sta *sta, u8 tid);
  * The TX headroom reserved by mac80211 for its own tx_status functions.
  * This is enough for the radiotap header.
  */
-#define IEEE80211_TX_STATUS_HEADROOM	14
+#define IEEE80211_TX_STATUS_HEADROOM	ALIGN(14, 4)
 
 /**
  * ieee80211_sta_set_buffered - inform mac80211 about driver-buffered frames

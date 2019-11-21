@@ -53,15 +53,6 @@ struct pid_namespace {
 	int hide_pid;
 	int reboot;	/* group exit code if this pidns was rebooted */
 	struct ns_common ns;
-
-	/* Whether to enforce SELinux for processes running in this PID
-	 * namespace. Inherited by all child PID namespaces.
-	 *
-	 * This is to support only enabling SELinux in a container, as SELinux
-	 * is not compatible with the rest of Chrome OS (and Chrome OS uses
-	 * different mechanisms to achive stronger security restrictions).
-	 */
-	int selinux_enforcing;
 } __randomize_layout;
 
 extern struct pid_namespace init_pid_ns;

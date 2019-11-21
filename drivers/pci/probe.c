@@ -516,12 +516,14 @@ static void devm_pci_release_host_bridge_dev(struct device *dev)
 
 	if (bridge->release_fn)
 		bridge->release_fn(bridge);
+
+	pci_free_resource_list(&bridge->windows);
 }
 
 static void pci_release_host_bridge_dev(struct device *dev)
 {
 	devm_pci_release_host_bridge_dev(dev);
-	pci_free_host_bridge(to_pci_host_bridge(dev));
+	kfree(to_pci_host_bridge(dev));
 }
 
 struct pci_host_bridge *pci_alloc_host_bridge(size_t priv)
@@ -587,7 +589,7 @@ const unsigned char pcie_link_speed[] = {
 	PCIE_SPEED_2_5GT,		/* 1 */
 	PCIE_SPEED_5_0GT,		/* 2 */
 	PCIE_SPEED_8_0GT,		/* 3 */
-	PCI_SPEED_UNKNOWN,		/* 4 */
+	PCIE_SPEED_16_0GT,		/* 4 */
 	PCI_SPEED_UNKNOWN,		/* 5 */
 	PCI_SPEED_UNKNOWN,		/* 6 */
 	PCI_SPEED_UNKNOWN,		/* 7 */
@@ -1556,6 +1558,10 @@ static void pci_configure_mps(struct pci_dev *dev)
 	int mps, p_mps, rc;
 
 	if (!pci_is_pcie(dev) || !bridge || !pci_is_pcie(bridge))
+		return;
+
+	/* MPS and MRRS fields are of type 'RsvdP' for VFs, short-circuit out */
+	if (dev->is_virtfn)
 		return;
 
 	mps = pcie_get_mps(dev);

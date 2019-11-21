@@ -216,9 +216,6 @@ static int acpi_lid_notify_state(struct acpi_device *device, int state)
 		button->last_time = ktime_get();
 	}
 
-	if (state)
-		acpi_pm_wakeup_event(&device->dev);
-
 	ret = blocking_notifier_call_chain(&acpi_lid_notifier, state, device);
 	if (ret == NOTIFY_DONE)
 		ret = blocking_notifier_call_chain(&acpi_lid_notifier, state,
@@ -360,13 +357,17 @@ int acpi_lid_open(void)
 }
 EXPORT_SYMBOL(acpi_lid_open);
 
-static int acpi_lid_update_state(struct acpi_device *device)
+static int acpi_lid_update_state(struct acpi_device *device,
+				 bool signal_wakeup)
 {
 	int state;
 
 	state = acpi_lid_evaluate_state(device);
 	if (state < 0)
 		return state;
+
+	if (state && signal_wakeup)
+		acpi_pm_wakeup_event(&device->dev);
 
 	return acpi_lid_notify_state(device, state);
 }
@@ -378,7 +379,7 @@ static void acpi_lid_initialize_state(struct acpi_device *device)
 		(void)acpi_lid_notify_state(device, 1);
 		break;
 	case ACPI_BUTTON_LID_INIT_METHOD:
-		(void)acpi_lid_update_state(device);
+		(void)acpi_lid_update_state(device, false);
 		break;
 	case ACPI_BUTTON_LID_INIT_IGNORE:
 	default:
@@ -398,7 +399,7 @@ static void acpi_button_notify(struct acpi_device *device, u32 event)
 	case ACPI_BUTTON_NOTIFY_STATUS:
 		input = button->input;
 		if (button->type == ACPI_BUTTON_TYPE_LID) {
-			acpi_lid_update_state(device);
+			acpi_lid_update_state(device, true);
 		} else {
 			int keycode;
 
@@ -595,4 +596,26 @@ module_param_call(lid_init_state,
 		  NULL, 0644);
 MODULE_PARM_DESC(lid_init_state, "Behavior for reporting LID initial state");
 
-module_acpi_driver(acpi_button_driver);
+static int acpi_button_register_driver(struct acpi_driver *driver)
+{
+	/*
+	 * Modules such as nouveau.ko and i915.ko have a link time dependency
+	 * on acpi_lid_open(), and would therefore not be loadable on ACPI
+	 * capable kernels booted in non-ACPI mode if the return value of
+	 * acpi_bus_register_driver() is returned from here with ACPI disabled
+	 * when this driver is built as a module.
+	 */
+	if (acpi_disabled)
+		return 0;
+
+	return acpi_bus_register_driver(driver);
+}
+
+static void acpi_button_unregister_driver(struct acpi_driver *driver)
+{
+	if (!acpi_disabled)
+		acpi_bus_unregister_driver(driver);
+}
+
+module_driver(acpi_button_driver, acpi_button_register_driver,
+	       acpi_button_unregister_driver);

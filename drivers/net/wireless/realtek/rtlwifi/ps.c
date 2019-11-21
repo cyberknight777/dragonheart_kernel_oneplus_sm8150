@@ -66,7 +66,7 @@ bool rtl_ps_disable_nic(struct ieee80211_hw *hw)
 	struct rtl_priv *rtlpriv = rtl_priv(hw);
 
 	/*<1> Stop all timer */
-	rtl_deinit_deferred_work(hw);
+	rtl_deinit_deferred_work(hw, true);
 
 	/*<2> Disable Interrupt */
 	rtlpriv->cfg->ops->disable_interrupt(hw);
@@ -287,7 +287,7 @@ void rtl_ips_nic_on(struct ieee80211_hw *hw)
 	struct rtl_ps_ctl *ppsc = rtl_psc(rtl_priv(hw));
 	enum rf_pwrstate rtstate;
 
-	cancel_delayed_work(&rtlpriv->works.ips_nic_off_wq);
+	cancel_delayed_work_sync(&rtlpriv->works.ips_nic_off_wq);
 
 	spin_lock(&rtlpriv->locks.ips_lock);
 	if (ppsc->inactiveps) {
@@ -774,6 +774,9 @@ static void rtl_p2p_noa_ie(struct ieee80211_hw *hw, void *data,
 				return;
 			} else {
 				noa_num = (noa_len - 2) / 13;
+				if (noa_num > P2P_MAX_NOA_NUM)
+					noa_num = P2P_MAX_NOA_NUM;
+
 			}
 			noa_index = ie[3];
 			if (rtlpriv->psc.p2p_ps_info.p2p_ps_mode ==
@@ -868,6 +871,9 @@ static void rtl_p2p_action_ie(struct ieee80211_hw *hw, void *data,
 				return;
 			} else {
 				noa_num = (noa_len - 2) / 13;
+				if (noa_num > P2P_MAX_NOA_NUM)
+					noa_num = P2P_MAX_NOA_NUM;
+
 			}
 			noa_index = ie[3];
 			if (rtlpriv->psc.p2p_ps_info.p2p_ps_mode ==

@@ -85,9 +85,9 @@ int nfs_wait_bit_killable(struct wait_bit_key *key, int mode)
 }
 EXPORT_SYMBOL_GPL(nfs_wait_bit_killable);
 
-int nfs_wait_atomic_killable(atomic_t *p)
+int nfs_wait_atomic_killable(atomic_t *p, unsigned int mode)
 {
-	return nfs_wait_killable(TASK_KILLABLE);
+	return nfs_wait_killable(mode);
 }
 
 /**
@@ -1034,6 +1034,7 @@ int nfs_open(struct inode *inode, struct file *filp)
 	nfs_fscache_open_file(inode, filp);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(nfs_open);
 
 /*
  * This function is called whenever some part of NFS notices that

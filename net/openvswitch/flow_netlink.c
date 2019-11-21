@@ -459,7 +459,7 @@ static int __parse_flow_nlattrs(const struct nlattr *attr,
 			return -EINVAL;
 		}
 
-		if (!nz || !is_all_zero(nla_data(nla), expected_len)) {
+		if (!nz || !is_all_zero(nla_data(nla), nla_len(nla))) {
 			attrs |= 1 << type;
 			a[type] = nla;
 		}
@@ -1404,13 +1404,10 @@ static void nlattr_set(struct nlattr *attr, u8 val,
 
 	/* The nlattr stream should already have been validated */
 	nla_for_each_nested(nla, attr, rem) {
-		if (tbl[nla_type(nla)].len == OVS_ATTR_NESTED) {
-			if (tbl[nla_type(nla)].next)
-				tbl = tbl[nla_type(nla)].next;
-			nlattr_set(nla, val, tbl);
-		} else {
+		if (tbl[nla_type(nla)].len == OVS_ATTR_NESTED)
+			nlattr_set(nla, val, tbl[nla_type(nla)].next ? : tbl);
+		else
 			memset(nla_data(nla), val, nla_len(nla));
-		}
 
 		if (nla_type(nla) == OVS_KEY_ATTR_CT_STATE)
 			*(u32 *)nla_data(nla) &= CT_SUPPORTED_MASK;
@@ -1970,14 +1967,14 @@ static struct nlattr *reserve_sfa_size(struct sw_flow_actions **sfa,
 
 	struct sw_flow_actions *acts;
 	int new_acts_size;
-	int req_size = NLA_ALIGN(attr_len);
+	size_t req_size = NLA_ALIGN(attr_len);
 	int next_offset = offsetof(struct sw_flow_actions, actions) +
 					(*sfa)->actions_len;
 
 	if (req_size <= (ksize(*sfa) - next_offset))
 		goto out;
 
-	new_acts_size = ksize(*sfa) * 2;
+	new_acts_size = max(next_offset + req_size, ksize(*sfa) * 2);
 
 	if (new_acts_size > MAX_ACTIONS_BUFSIZE) {
 		if ((MAX_ACTIONS_BUFSIZE - next_offset) < req_size) {
@@ -2625,7 +2622,7 @@ static int __ovs_nla_copy_actions(struct net *net, const struct nlattr *attr,
 			 * is already present */
 			if (mac_proto != MAC_PROTO_NONE)
 				return -EINVAL;
-			mac_proto = MAC_PROTO_NONE;
+			mac_proto = MAC_PROTO_ETHERNET;
 			break;
 
 		case OVS_ACTION_ATTR_POP_ETH:
@@ -2633,7 +2630,7 @@ static int __ovs_nla_copy_actions(struct net *net, const struct nlattr *attr,
 				return -EINVAL;
 			if (vlan_tci & htons(VLAN_TAG_PRESENT))
 				return -EINVAL;
-			mac_proto = MAC_PROTO_ETHERNET;
+			mac_proto = MAC_PROTO_NONE;
 			break;
 
 		default:

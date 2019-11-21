@@ -67,7 +67,7 @@
 #include <scsi/scsi.h>
 #include <linux/debugfs.h>
 #include <linux/device.h>
-
+#include <linux/nospec.h>
 #include <linux/uaccess.h>
 
 #define DRIVER_NAME	"pktcdvd"
@@ -2231,6 +2231,8 @@ static struct pktcdvd_device *pkt_find_dev_from_minor(unsigned int dev_minor)
 {
 	if (dev_minor >= MAX_WRITERS)
 		return NULL;
+
+	dev_minor = array_index_nospec(dev_minor, MAX_WRITERS);
 	return pkt_devs[dev_minor];
 }
 
@@ -2583,7 +2585,6 @@ static int pkt_new_dev(struct pktcdvd_device *pd, dev_t dev)
 	if (ret)
 		return ret;
 	if (!blk_queue_scsi_passthrough(bdev_get_queue(bdev))) {
-		WARN_ONCE(true, "Attempt to register a non-SCSI queue\n");
 		blkdev_put(bdev, FMODE_READ | FMODE_NDELAY);
 		return -EINVAL;
 	}

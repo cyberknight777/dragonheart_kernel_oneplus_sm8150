@@ -75,8 +75,8 @@ static char *check[] = {
 	"cast6", "arc4", "michael_mic", "deflate", "crc32c", "tea", "xtea",
 	"khazad", "wp512", "wp384", "wp256", "tnepres", "xeta",  "fcrypt",
 	"camellia", "seed", "salsa20", "rmd128", "rmd160", "rmd256", "rmd320",
-	"lzo", "cts", "zlib", "sha3-224", "sha3-256", "sha3-384", "sha3-512",
-	NULL
+	"lzo", "lzo-rle", "cts", "zlib", "sha3-224", "sha3-256", "sha3-384",
+	"sha3-512", NULL
 };
 
 struct tcrypt_result {
@@ -726,6 +726,9 @@ static void test_ahash_speed_common(const char *algo, unsigned int secs,
 			       speed[i].blen, TVMEMSIZE * PAGE_SIZE);
 			break;
 		}
+
+		if (speed[i].klen)
+			crypto_ahash_setkey(tfm, tvmem[0], speed[i].klen);
 
 		pr_info("test%3u "
 			"(%5u byte blocks,%5u bytes per update,%4u updates): ",

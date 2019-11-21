@@ -860,7 +860,7 @@ struct drm_i915_gem_execbuffer2 {
 	 * struct drm_i915_gem_exec_fence *fences.
 	 */
 	__u64 cliprects_ptr;
-#define I915_EXEC_RING_MASK              (7<<0)
+#define I915_EXEC_RING_MASK              (0x3f)
 #define I915_EXEC_DEFAULT                (0<<0)
 #define I915_EXEC_RENDER                 (1<<0)
 #define I915_EXEC_BSD                    (2<<0)
@@ -1278,7 +1278,9 @@ struct drm_intel_overlay_attrs {
  * active on a given plane.
  */
 
-#define I915_SET_COLORKEY_NONE		(1<<0) /* disable color key matching */
+#define I915_SET_COLORKEY_NONE		(1<<0) /* Deprecated. Instead set
+						* flags==0 to disable colorkeying.
+						*/
 #define I915_SET_COLORKEY_DESTINATION	(1<<1)
 #define I915_SET_COLORKEY_SOURCE	(1<<2)
 struct drm_intel_sprite_colorkey {

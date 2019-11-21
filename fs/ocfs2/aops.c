@@ -134,6 +134,19 @@ bail:
 	return err;
 }
 
+static int ocfs2_lock_get_block(struct inode *inode, sector_t iblock,
+		    struct buffer_head *bh_result, int create)
+{
+	int ret = 0;
+	struct ocfs2_inode_info *oi = OCFS2_I(inode);
+
+	down_read(&oi->ip_alloc_sem);
+	ret = ocfs2_get_block(inode, iblock, bh_result, create);
+	up_read(&oi->ip_alloc_sem);
+
+	return ret;
+}
+
 int ocfs2_get_block(struct inode *inode, sector_t iblock,
 		    struct buffer_head *bh_result, int create)
 {
@@ -2041,7 +2054,8 @@ out_write_size:
 		inode->i_mtime = inode->i_ctime = current_time(inode);
 		di->i_mtime = di->i_ctime = cpu_to_le64(inode->i_mtime.tv_sec);
 		di->i_mtime_nsec = di->i_ctime_nsec = cpu_to_le32(inode->i_mtime.tv_nsec);
-		ocfs2_update_inode_fsync_trans(handle, inode, 1);
+		if (handle)
+			ocfs2_update_inode_fsync_trans(handle, inode, 1);
 	}
 	if (handle)
 		ocfs2_journal_dirty(handle, wc->w_di_bh);
@@ -2128,7 +2142,7 @@ static void ocfs2_dio_free_write_ctx(struct inode *inode,
  * called like this: dio->get_blocks(dio->inode, fs_startblk,
  * 					fs_count, map_bh, dio->rw == WRITE);
  */
-static int ocfs2_dio_get_block(struct inode *inode, sector_t iblock,
+static int ocfs2_dio_wr_get_block(struct inode *inode, sector_t iblock,
 			       struct buffer_head *bh_result, int create)
 {
 	struct ocfs2_super *osb = OCFS2_SB(inode->i_sb);
@@ -2138,12 +2152,29 @@ static int ocfs2_dio_get_block(struct inode *inode, sector_t iblock,
 	struct ocfs2_dio_write_ctxt *dwc = NULL;
 	struct buffer_head *di_bh = NULL;
 	u64 p_blkno;
-	loff_t pos = iblock << inode->i_sb->s_blocksize_bits;
+	unsigned int i_blkbits = inode->i_sb->s_blocksize_bits;
+	loff_t pos = iblock << i_blkbits;
+	sector_t endblk = (i_size_read(inode) - 1) >> i_blkbits;
 	unsigned len, total_len = bh_result->b_size;
 	int ret = 0, first_get_block = 0;
 
 	len = osb->s_clustersize - (pos & (osb->s_clustersize - 1));
 	len = min(total_len, len);
+
+	/*
+	 * bh_result->b_size is count in get_more_blocks according to write
+	 * "pos" and "end", we need map twice to return different buffer state:
+	 * 1. area in file size, not set NEW;
+	 * 2. area out file size, set  NEW.
+	 *
+	 *		   iblock    endblk
+	 * |--------|---------|---------|---------
+	 * |<-------area in file------->|
+	 */
+
+	if ((iblock <= endblk) &&
+	    ((iblock + ((len - 1) >> i_blkbits)) > endblk))
+		len = (endblk - iblock + 1) << i_blkbits;
 
 	mlog(0, "get block of %lu at %llu:%u req %u\n",
 			inode->i_ino, pos, len, total_len);
@@ -2154,12 +2185,9 @@ static int ocfs2_dio_get_block(struct inode *inode, sector_t iblock,
 	 * while file size will be changed.
 	 */
 	if (pos + total_len <= i_size_read(inode)) {
-		down_read(&oi->ip_alloc_sem);
+
 		/* This is the fast path for re-write. */
-		ret = ocfs2_get_block(inode, iblock, bh_result, create);
-
-		up_read(&oi->ip_alloc_sem);
-
+		ret = ocfs2_lock_get_block(inode, iblock, bh_result, create);
 		if (buffer_mapped(bh_result) &&
 		    !buffer_new(bh_result) &&
 		    ret == 0)
@@ -2229,6 +2257,9 @@ static int ocfs2_dio_get_block(struct inode *inode, sector_t iblock,
 	map_bh(bh_result, inode->i_sb, p_blkno);
 	bh_result->b_size = len;
 	if (desc->c_needs_zero)
+		set_buffer_new(bh_result);
+
+	if (iblock > endblk)
 		set_buffer_new(bh_result);
 
 	/* May sleep in end_io. It should not happen in a irq context. So defer
@@ -2394,8 +2425,16 @@ static int ocfs2_dio_end_io(struct kiocb *iocb,
 	/* this io's submitter should not have unlocked this before we could */
 	BUG_ON(!ocfs2_iocb_is_rw_locked(iocb));
 
-	if (bytes > 0 && private)
-		ret = ocfs2_dio_end_io_write(inode, private, offset, bytes);
+	if (bytes <= 0)
+		mlog_ratelimited(ML_ERROR, "Direct IO failed, bytes = %lld",
+				 (long long)bytes);
+	if (private) {
+		if (bytes > 0)
+			ret = ocfs2_dio_end_io_write(inode, private, offset,
+						     bytes);
+		else
+			ocfs2_dio_free_write_ctx(inode, private);
+	}
 
 	ocfs2_iocb_clear_rw_locked(iocb);
 
@@ -2424,9 +2463,9 @@ static ssize_t ocfs2_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 		return 0;
 
 	if (iov_iter_rw(iter) == READ)
-		get_block = ocfs2_get_block;
+		get_block = ocfs2_lock_get_block;
 	else
-		get_block = ocfs2_dio_get_block;
+		get_block = ocfs2_dio_wr_get_block;
 
 	return __blockdev_direct_IO(iocb, inode, inode->i_sb->s_bdev,
 				    iter, get_block,

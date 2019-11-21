@@ -300,7 +300,8 @@ int arch_update_cpu_topology(void)
 	rc = __arch_update_cpu_topology();
 	for_each_online_cpu(cpu) {
 		dev = get_cpu_device(cpu);
-		kobject_uevent(&dev->kobj, KOBJ_CHANGE);
+		if (dev)
+			kobject_uevent(&dev->kobj, KOBJ_CHANGE);
 	}
 	return rc;
 }
@@ -394,8 +395,7 @@ out:
 	put_online_cpus();
 	return rc ? rc : count;
 }
-static DEVICE_ATTR(dispatching, 0644, dispatching_show,
-			 dispatching_store);
+static DEVICE_ATTR_RW(dispatching);
 
 static ssize_t cpu_polarization_show(struct device *dev,
 				     struct device_attribute *attr, char *buf)

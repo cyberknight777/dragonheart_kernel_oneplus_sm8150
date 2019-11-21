@@ -105,7 +105,7 @@ static int compat_drm_version(struct file *file, unsigned int cmd,
 		.desc = compat_ptr(v32.desc),
 	};
 	err = drm_ioctl_kernel(file, drm_version, &v,
-			DRM_UNLOCKED|DRM_RENDER_ALLOW|DRM_CONTROL_ALLOW);
+			       DRM_UNLOCKED|DRM_RENDER_ALLOW);
 	if (err)
 		return err;
 
@@ -372,7 +372,10 @@ static int copy_one_buf32(void *data, int count, struct drm_buf_entry *from)
 			      .size = from->buf_size,
 			      .low_mark = from->low_mark,
 			      .high_mark = from->high_mark};
-	return copy_to_user(to + count, &v, offsetof(drm_buf_desc32_t, flags));
+
+	if (copy_to_user(to + count, &v, offsetof(drm_buf_desc32_t, flags)))
+		return -EFAULT;
+	return 0;
 }
 
 static int drm_legacy_infobufs32(struct drm_device *dev, void *data,
@@ -885,7 +888,7 @@ static int compat_drm_mode_addfb2(struct file *file, unsigned int cmd,
 		return -EFAULT;
 
 	err = drm_ioctl_kernel(file, drm_mode_addfb2, &req64,
-				DRM_CONTROL_ALLOW|DRM_UNLOCKED);
+			       DRM_UNLOCKED);
 	if (err)
 		return err;
 

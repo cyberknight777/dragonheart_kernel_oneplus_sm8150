@@ -56,7 +56,6 @@ intel_create_plane_state(struct drm_plane *plane)
 
 	state->base.plane = plane;
 	state->base.rotation = DRM_MODE_ROTATE_0;
-	state->ckey.flags = I915_SET_COLORKEY_NONE;
 
 	return state;
 }
@@ -120,22 +119,8 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 		&crtc_state->base.adjusted_mode;
 	int ret;
 
-	/*
-	 * Both crtc and plane->crtc could be NULL if we're updating a
-	 * property while the plane is disabled.  We don't actually have
-	 * anything driver-specific we need to test in that case, so
-	 * just return success.
-	 */
 	if (!intel_state->base.crtc && !old_plane_state->base.crtc)
 		return 0;
-
-	/* Clip all planes to CRTC size, or 0x0 if CRTC is disabled */
-	intel_state->clip.x1 = 0;
-	intel_state->clip.y1 = 0;
-	intel_state->clip.x2 =
-		crtc_state->base.enable ? crtc_state->pipe_src_w : 0;
-	intel_state->clip.y2 =
-		crtc_state->base.enable ? crtc_state->pipe_src_h : 0;
 
 	if (state->fb && drm_rotation_90_or_270(state->rotation)) {
 		struct drm_format_name_buf format_name;
@@ -191,10 +176,15 @@ int intel_plane_atomic_check_with_state(const struct intel_crtc_state *old_crtc_
 	}
 
 	/* FIXME pre-g4x don't work like this */
-	if (intel_state->base.visible)
+	if (state->visible)
 		crtc_state->active_planes |= BIT(intel_plane->id);
 	else
 		crtc_state->active_planes &= ~BIT(intel_plane->id);
+
+	if (state->visible && state->fb->format->format == DRM_FORMAT_NV12)
+		crtc_state->nv12_planes |= BIT(intel_plane->id);
+	else
+		crtc_state->nv12_planes &= ~BIT(intel_plane->id);
 
 	return intel_plane_atomic_calc_changes(old_crtc_state,
 					       &crtc_state->base,
@@ -212,12 +202,6 @@ static int intel_plane_atomic_check(struct drm_plane *plane,
 	const struct drm_crtc_state *old_crtc_state;
 	struct drm_crtc_state *new_crtc_state;
 
-	/*
-	 * Both crtc and plane->crtc could be NULL if we're updating a
-	 * property while the plane is disabled.  We don't actually have
-	 * anything driver-specific we need to test in that case, so
-	 * just return success.
-	 */
 	if (!crtc)
 		return 0;
 

@@ -1052,8 +1052,16 @@ enum qede_remove_mode {
 static void __qede_remove(struct pci_dev *pdev, enum qede_remove_mode mode)
 {
 	struct net_device *ndev = pci_get_drvdata(pdev);
-	struct qede_dev *edev = netdev_priv(ndev);
-	struct qed_dev *cdev = edev->cdev;
+	struct qede_dev *edev;
+	struct qed_dev *cdev;
+
+	if (!ndev) {
+		dev_info(&pdev->dev, "Device has already been removed\n");
+		return;
+	}
+
+	edev = netdev_priv(ndev);
+	cdev = edev->cdev;
 
 	DP_INFO(edev, "Starting qede_remove\n");
 
@@ -2066,8 +2074,6 @@ static int qede_load(struct qede_dev *edev, enum qede_load_mode mode,
 	link_params.link_up = true;
 	edev->ops->common->set_link(edev->cdev, &link_params);
 
-	qede_rdma_dev_event_open(edev);
-
 	edev->state = QEDE_STATE_OPEN;
 
 	DP_INFO(edev, "Ending successfully qede load\n");
@@ -2168,12 +2174,14 @@ static void qede_link_update(void *dev, struct qed_link_output *link)
 			DP_NOTICE(edev, "Link is up\n");
 			netif_tx_start_all_queues(edev->ndev);
 			netif_carrier_on(edev->ndev);
+			qede_rdma_dev_event_open(edev);
 		}
 	} else {
 		if (netif_carrier_ok(edev->ndev)) {
 			DP_NOTICE(edev, "Link is down\n");
 			netif_tx_disable(edev->ndev);
 			netif_carrier_off(edev->ndev);
+			qede_rdma_dev_event_close(edev);
 		}
 	}
 }

@@ -31,6 +31,16 @@ config BT_HCIBTUSB
 	  Say Y here to compile support for Bluetooth USB devices into the
 	  kernel or say M to compile it as module (btusb).
 
+config BT_HCIBTUSB_AUTOSUSPEND
+	bool "Enable USB autosuspend for Bluetooth USB devices by default"
+	depends on BT_HCIBTUSB
+	help
+	  Say Y here to enable USB autosuspend for Bluetooth USB devices by
+	  default.
+
+	  This can be overridden by passing btusb.enable_autosuspend=[y|n]
+	  on the kernel commandline.
+
 config BT_HCIBTUSB_BCM
 	bool "Broadcom protocol support"
 	depends on BT_HCIBTUSB
@@ -146,6 +156,7 @@ config BT_HCIUART_LL
 config BT_HCIUART_3WIRE
 	bool "Three-wire UART (H5) protocol support"
 	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
 	help
 	  The HCI Three-wire UART Transport Layer makes it possible to
 	  user the Bluetooth HCI over a serial port interface. The HCI
@@ -181,6 +192,7 @@ config BT_HCIUART_BCM
 config BT_HCIUART_QCA
 	bool "Qualcomm Atheros protocol support"
 	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
 	select BT_HCIUART_H4
 	select BT_QCA
 	help

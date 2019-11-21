@@ -22,7 +22,6 @@
 #include <linux/export.h>
 #include <linux/mutex.h>
 #include <linux/pm.h>
-#include <linux/pm_dark_resume.h>
 #include <linux/pm_runtime.h>
 #include <linux/pm-trace.h>
 #include <linux/pm_wakeirq.h>
@@ -125,6 +124,10 @@ void device_pm_unlock(void)
  */
 void device_pm_add(struct device *dev)
 {
+	/* Skip PM setup/initialization. */
+	if (device_pm_not_required(dev))
+		return;
+
 	pr_debug("PM: Adding info for %s:%s\n",
 		 dev->bus ? dev->bus->name : "No Bus", dev_name(dev));
 	device_pm_check_callbacks(dev);
@@ -143,6 +146,9 @@ void device_pm_add(struct device *dev)
  */
 void device_pm_remove(struct device *dev)
 {
+	if (device_pm_not_required(dev))
+		return;
+
 	pr_debug("PM: Removing info for %s:%s\n",
 		 dev->bus ? dev->bus->name : "No Bus", dev_name(dev));
 	complete_all(&dev->power.completion);
@@ -1059,6 +1065,7 @@ void dpm_resume_end(pm_message_t state)
 }
 EXPORT_SYMBOL_GPL(dpm_resume_end);
 
+
 /*------------------------- Suspend routines -------------------------*/
 
 /**
@@ -1462,8 +1469,10 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 
 	dpm_wait_for_subordinate(dev, async);
 
-	if (async_error)
+	if (async_error) {
+		dev->power.direct_complete = false;
 		goto Complete;
+	}
 
 	/*
 	 * If a device configured to wake up the system from sleep states
@@ -1475,12 +1484,17 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 		pm_wakeup_event(dev, 0);
 
 	if (pm_wakeup_pending()) {
+		dev->power.direct_complete = false;
 		async_error = -EBUSY;
 		goto Complete;
 	}
 
 	if (dev->power.syscore)
 		goto Complete;
+
+	/* Avoid direct_complete to let wakeup_path propagate. */
+	if (device_may_wakeup(dev) || dev->power.wakeup_path)
+		dev->power.direct_complete = false;
 
 	if (dev->power.direct_complete) {
 		/*

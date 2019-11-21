@@ -609,11 +609,9 @@ static int azx_pcm_open(struct snd_pcm_substream *substream)
 	}
 	runtime->private_data = azx_dev;
 
-	if (chip->gts_present)
-		azx_pcm_hw.info = azx_pcm_hw.info |
-			SNDRV_PCM_INFO_HAS_LINK_SYNCHRONIZED_ATIME;
-
 	runtime->hw = azx_pcm_hw;
+	if (chip->gts_present)
+		runtime->hw.info |= SNDRV_PCM_INFO_HAS_LINK_SYNCHRONIZED_ATIME;
 	runtime->hw.channels_min = hinfo->channels_min;
 	runtime->hw.channels_max = hinfo->channels_max;
 	runtime->hw.formats = hinfo->formats;
@@ -625,6 +623,13 @@ static int azx_pcm_open(struct snd_pcm_substream *substream)
 	snd_pcm_hw_constraint_minmax(runtime, SNDRV_PCM_HW_PARAM_BUFFER_TIME,
 				     20,
 				     178000000);
+
+	/* by some reason, the playback stream stalls on PulseAudio with
+	 * tsched=1 when a capture stream triggers.  Until we figure out the
+	 * real cause, disable tsched mode by telling the PCM info flag.
+	 */
+	if (chip->driver_caps & AZX_DCAPS_AMD_WORKAROUND)
+		runtime->hw.info |= SNDRV_PCM_INFO_BATCH;
 
 	if (chip->align_buffer_size)
 		/* constrain buffer sizes to be multiple of 128
@@ -748,8 +753,10 @@ int snd_hda_attach_pcm_stream(struct hda_bus *_bus, struct hda_codec *codec,
 		return err;
 	strlcpy(pcm->name, cpcm->name, sizeof(pcm->name));
 	apcm = kzalloc(sizeof(*apcm), GFP_KERNEL);
-	if (apcm == NULL)
+	if (apcm == NULL) {
+		snd_device_free(chip->card, pcm);
 		return -ENOMEM;
+	}
 	apcm->chip = chip;
 	apcm->pcm = pcm;
 	apcm->codec = codec;
@@ -870,10 +877,13 @@ static int azx_rirb_get_response(struct hdac_bus *bus, unsigned int addr,
 	 */
 	if (hbus->allow_bus_reset && !hbus->response_reset && !hbus->in_reset) {
 		hbus->response_reset = 1;
+		dev_err(chip->card->dev,
+			"No response from codec, resetting bus: last cmd=0x%08x\n",
+			bus->last_cmd[addr]);
 		return -EAGAIN; /* give a chance to retry */
 	}
 
-	dev_err(chip->card->dev,
+	dev_WARN(chip->card->dev,
 		"azx_get_response timeout, switching to single_cmd mode: last cmd=0x%08x\n",
 		bus->last_cmd[addr]);
 	chip->single_cmd = 1;
@@ -984,20 +994,9 @@ static int azx_get_response(struct hdac_bus *bus, unsigned int addr,
 		return azx_rirb_get_response(bus, addr, res);
 }
 
-static int azx_link_power(struct hdac_bus *bus, bool enable)
-{
-	struct azx *chip = bus_to_azx(bus);
-
-	if (chip->ops->link_power)
-		return chip->ops->link_power(chip, enable);
-	else
-		return -EINVAL;
-}
-
 static const struct hdac_bus_ops bus_core_ops = {
 	.command = azx_send_cmd,
 	.get_response = azx_get_response,
-	.link_power = azx_link_power,
 };
 
 #ifdef CONFIG_SND_HDA_DSP_LOADER

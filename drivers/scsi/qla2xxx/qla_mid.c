@@ -152,10 +152,15 @@ qla24xx_disable_vp(scsi_qla_host_t *vha)
 {
 	unsigned long flags;
 	int ret;
+	fc_port_t *fcport;
 
 	ret = qla24xx_control_vp(vha, VCE_COMMAND_DISABLE_VPS_LOGO_ALL);
 	atomic_set(&vha->loop_state, LOOP_DOWN);
 	atomic_set(&vha->loop_down_timer, LOOP_DOWN_TIME);
+	list_for_each_entry(fcport, &vha->vp_fcports, list)
+		fcport->logout_on_delete = 0;
+
+	qla2x00_mark_all_devices_lost(vha, 0);
 
 	/* Remove port id from vp target map */
 	spin_lock_irqsave(&vha->hw->vport_slock, flags);
@@ -582,8 +587,9 @@ qla25xx_delete_req_que(struct scsi_qla_host *vha, struct req_que *req)
 		ret = qla25xx_init_req_que(vha, req);
 		if (ret != QLA_SUCCESS)
 			return QLA_FUNCTION_FAILED;
+
+		qla25xx_free_req_que(vha, req);
 	}
-	qla25xx_free_req_que(vha, req);
 
 	return ret;
 }
@@ -598,8 +604,9 @@ qla25xx_delete_rsp_que(struct scsi_qla_host *vha, struct rsp_que *rsp)
 		ret = qla25xx_init_rsp_que(vha, rsp);
 		if (ret != QLA_SUCCESS)
 			return QLA_FUNCTION_FAILED;
+
+		qla25xx_free_rsp_que(vha, rsp);
 	}
-	qla25xx_free_rsp_que(vha, rsp);
 
 	return ret;
 }

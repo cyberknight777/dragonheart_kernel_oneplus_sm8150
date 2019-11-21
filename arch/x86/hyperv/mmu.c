@@ -57,12 +57,14 @@ static inline int fill_gva_list(u64 gva_list[], int offset,
 		 * Lower 12 bits encode the number of additional
 		 * pages to flush (in addition to the 'cur' page).
 		 */
-		if (diff >= HV_TLB_FLUSH_UNIT)
+		if (diff >= HV_TLB_FLUSH_UNIT) {
 			gva_list[gva_n] |= ~PAGE_MASK;
-		else if (diff)
+			cur += HV_TLB_FLUSH_UNIT;
+		}  else if (diff) {
 			gva_list[gva_n] |= (diff - 1) >> PAGE_SHIFT;
+			cur = end;
+		}
 
-		cur += HV_TLB_FLUSH_UNIT;
 		gva_n++;
 
 	} while (cur < end);
@@ -137,7 +139,12 @@ static void hyperv_flush_tlb_others(const struct cpumask *cpus,
 	}
 
 	if (info->mm) {
+		/*
+		 * AddressSpace argument must match the CR3 with PCID bits
+		 * stripped out.
+		 */
 		flush->address_space = virt_to_phys(info->mm->pgd);
+		flush->address_space &= CR3_ADDR_MASK;
 		flush->flags = 0;
 	} else {
 		flush->address_space = 0;
@@ -219,7 +226,12 @@ static void hyperv_flush_tlb_others_ex(const struct cpumask *cpus,
 	}
 
 	if (info->mm) {
+		/*
+		 * AddressSpace argument must match the CR3 with PCID bits
+		 * stripped out.
+		 */
 		flush->address_space = virt_to_phys(info->mm->pgd);
+		flush->address_space &= CR3_ADDR_MASK;
 		flush->flags = 0;
 	} else {
 		flush->address_space = 0;
@@ -277,8 +289,6 @@ void hyperv_setup_mmu_ops(void)
 {
 	if (!(ms_hyperv.hints & HV_X64_REMOTE_TLB_FLUSH_RECOMMENDED))
 		return;
-
-	setup_clear_cpu_cap(X86_FEATURE_PCID);
 
 	if (!(ms_hyperv.hints & HV_X64_EX_PROCESSOR_MASKS_RECOMMENDED)) {
 		pr_info("Using hypercall for remote TLB flush\n");

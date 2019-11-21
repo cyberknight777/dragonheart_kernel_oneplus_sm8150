@@ -118,7 +118,7 @@ int pl111_connector_init(struct drm_device *dev)
 	drm_connector_helper_add(connector, &connector_helper_funcs);
 
 	pl111_connector->panel = pl111_get_panel(dev->dev);
-	if (pl111_connector->panel)
+	if (!IS_ERR(pl111_connector->panel))
 		drm_panel_attach(pl111_connector->panel, connector);
 
 	return 0;

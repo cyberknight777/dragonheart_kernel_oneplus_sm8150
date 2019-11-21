@@ -560,6 +560,8 @@ static const struct samsung_gate_clock exynos5250_gate_clks[] __initconst = {
 		0),
 	GATE(CLK_GSCL3, "gscl3", "mout_aclk266_gscl_sub", GATE_IP_GSCL, 3, 0,
 		0),
+	GATE(CLK_CAMIF_TOP, "camif_top", "mout_aclk266_gscl_sub",
+			GATE_IP_GSCL, 4, 0, 0),
 	GATE(CLK_GSCL_WA, "gscl_wa", "div_gscl_wa", GATE_IP_GSCL, 5, 0, 0),
 	GATE(CLK_GSCL_WB, "gscl_wb", "div_gscl_wb", GATE_IP_GSCL, 6, 0, 0),
 	GATE(CLK_SMMU_GSCL0, "smmu_gscl0", "mout_aclk266_gscl_sub",
@@ -570,6 +572,10 @@ static const struct samsung_gate_clock exynos5250_gate_clks[] __initconst = {
 			GATE_IP_GSCL, 9, 0, 0),
 	GATE(CLK_SMMU_GSCL3, "smmu_gscl3", "mout_aclk266_gscl_sub",
 			GATE_IP_GSCL, 10, 0, 0),
+	GATE(CLK_SMMU_FIMC_LITE0, "smmu_fimc_lite0", "mout_aclk266_gscl_sub",
+			GATE_IP_GSCL, 11, 0, 0),
+	GATE(CLK_SMMU_FIMC_LITE1, "smmu_fimc_lite1", "mout_aclk266_gscl_sub",
+			GATE_IP_GSCL, 12, 0, 0),
 
 	GATE(CLK_FIMD1, "fimd1", "mout_aclk200_disp1_sub", GATE_IP_DISP1, 0, 0,
 		0),
@@ -711,13 +717,13 @@ static const struct samsung_pll_rate_table epll_24mhz_tbl[] __initconst = {
 	/* sorted in descending order */
 	/* PLL_36XX_RATE(rate, m, p, s, k) */
 	PLL_36XX_RATE(192000000, 64, 2, 2, 0),
-	PLL_36XX_RATE(180633600, 90, 3, 2, 20762),
+	PLL_36XX_RATE(180633605, 90, 3, 2, 20762),
 	PLL_36XX_RATE(180000000, 90, 3, 2, 0),
 	PLL_36XX_RATE(73728000, 98, 2, 4, 19923),
-	PLL_36XX_RATE(67737600, 90, 2, 4, 20762),
+	PLL_36XX_RATE(67737602, 90, 2, 4, 20762),
 	PLL_36XX_RATE(49152000, 98, 3, 4, 19923),
-	PLL_36XX_RATE(45158400, 90, 3, 4, 20762),
-	PLL_36XX_RATE(32768000, 131, 3, 5, 4719),
+	PLL_36XX_RATE(45158401, 90, 3, 4, 20762),
+	PLL_36XX_RATE(32768001, 131, 3, 5, 4719),
 	{ },
 };
 

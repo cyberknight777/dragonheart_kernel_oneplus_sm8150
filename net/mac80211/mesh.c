@@ -922,6 +922,7 @@ void ieee80211_stop_mesh(struct ieee80211_sub_if_data *sdata)
 
 	/* flush STAs and mpaths on this iface */
 	sta_info_flush(sdata);
+	ieee80211_free_keys(sdata, true);
 	mesh_path_flush_by_iface(sdata);
 
 	/* stop the beacon */
@@ -1209,7 +1210,8 @@ int ieee80211_mesh_finish_csa(struct ieee80211_sub_if_data *sdata)
 	ifmsh->chsw_ttl = 0;
 
 	/* Remove the CSA and MCSP elements from the beacon */
-	tmp_csa_settings = rcu_dereference(ifmsh->csa);
+	tmp_csa_settings = rcu_dereference_protected(ifmsh->csa,
+					    lockdep_is_held(&sdata->wdev.mtx));
 	RCU_INIT_POINTER(ifmsh->csa, NULL);
 	if (tmp_csa_settings)
 		kfree_rcu(tmp_csa_settings, rcu_head);
@@ -1230,6 +1232,8 @@ int ieee80211_mesh_csa_beacon(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_if_mesh *ifmsh = &sdata->u.mesh;
 	struct mesh_csa_settings *tmp_csa_settings;
 	int ret = 0;
+
+	lockdep_assert_held(&sdata->wdev.mtx);
 
 	tmp_csa_settings = kmalloc(sizeof(*tmp_csa_settings),
 				   GFP_ATOMIC);
@@ -1253,13 +1257,12 @@ int ieee80211_mesh_csa_beacon(struct ieee80211_sub_if_data *sdata,
 }
 
 static int mesh_fwd_csa_frame(struct ieee80211_sub_if_data *sdata,
-			       struct ieee80211_mgmt *mgmt, size_t len)
+			       struct ieee80211_mgmt *mgmt, size_t len,
+			       struct ieee802_11_elems *elems)
 {
 	struct ieee80211_mgmt *mgmt_fwd;
 	struct sk_buff *skb;
 	struct ieee80211_local *local = sdata->local;
-	u8 *pos = mgmt->u.action.u.chan_switch.variable;
-	size_t offset_ttl;
 
 	skb = dev_alloc_skb(local->tx_headroom + len);
 	if (!skb)
@@ -1267,13 +1270,9 @@ static int mesh_fwd_csa_frame(struct ieee80211_sub_if_data *sdata,
 	skb_reserve(skb, local->tx_headroom);
 	mgmt_fwd = skb_put(skb, len);
 
-	/* offset_ttl is based on whether the secondary channel
-	 * offset is available or not. Subtract 1 from the mesh TTL
-	 * and disable the initiator flag before forwarding.
-	 */
-	offset_ttl = (len < 42) ? 7 : 10;
-	*(pos + offset_ttl) -= 1;
-	*(pos + offset_ttl + 1) &= ~WLAN_EID_CHAN_SWITCH_PARAM_INITIATOR;
+	elems->mesh_chansw_params_ie->mesh_ttl--;
+	elems->mesh_chansw_params_ie->mesh_flags &=
+		~WLAN_EID_CHAN_SWITCH_PARAM_INITIATOR;
 
 	memcpy(mgmt_fwd, mgmt, len);
 	eth_broadcast_addr(mgmt_fwd->da);
@@ -1321,7 +1320,7 @@ static void mesh_rx_csa_frame(struct ieee80211_sub_if_data *sdata,
 
 	/* forward or re-broadcast the CSA frame */
 	if (fwd_csa) {
-		if (mesh_fwd_csa_frame(sdata, mgmt, len) < 0)
+		if (mesh_fwd_csa_frame(sdata, mgmt, len, &elems) < 0)
 			mcsa_dbg(sdata, "Failed to forward the CSA frame");
 	}
 }

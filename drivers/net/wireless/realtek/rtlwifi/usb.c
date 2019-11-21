@@ -1099,13 +1099,13 @@ int rtl_usb_probe(struct usb_interface *intf,
 	rtlpriv->cfg->ops->read_eeprom_info(hw);
 	err = _rtl_usb_init(hw);
 	if (err)
-		goto error_out;
+		goto error_out2;
 	rtl_usb_init_sw(hw);
 	/* Init mac80211 sw */
 	err = rtl_init_core(hw);
 	if (err) {
 		pr_err("Can't allocate sw for mac80211\n");
-		goto error_out;
+		goto error_out2;
 	}
 	if (rtlpriv->cfg->ops->init_sw_vars(hw)) {
 		pr_err("Can't init_sw_vars\n");
@@ -1126,6 +1126,7 @@ int rtl_usb_probe(struct usb_interface *intf,
 
 error_out:
 	rtl_deinit_core(hw);
+error_out2:
 	_rtl_usb_io_handler_release(hw);
 	usb_put_dev(udev);
 	complete(&rtlpriv->firmware_loading_complete);
@@ -1150,7 +1151,7 @@ void rtl_usb_disconnect(struct usb_interface *intf)
 		ieee80211_unregister_hw(hw);
 		rtlmac->mac80211_registered = 0;
 	} else {
-		rtl_deinit_deferred_work(hw);
+		rtl_deinit_deferred_work(hw, false);
 		rtlpriv->intf_ops->adapter_stop(hw);
 	}
 	/*deinit rfkill */

@@ -234,6 +234,17 @@ static bool xive_native_match(struct device_node *node)
 	return of_device_is_compatible(node, "ibm,opal-xive-vc");
 }
 
+static s64 opal_xive_allocate_irq(u32 chip_id)
+{
+	s64 irq = opal_xive_allocate_irq_raw(chip_id);
+
+	/*
+	 * Old versions of skiboot can incorrectly return 0xffffffff to
+	 * indicate no space, fix it up here.
+	 */
+	return irq == 0xffffffff ? OPAL_RESOURCE : irq;
+}
+
 #ifdef CONFIG_SMP
 static int xive_native_get_ipi(unsigned int cpu, struct xive_cpu *xc)
 {
@@ -387,6 +398,10 @@ static void xive_native_setup_cpu(unsigned int cpu, struct xive_cpu *xc)
 
 	if (xive_pool_vps == XIVE_INVALID_VP)
 		return;
+
+	/* Check if pool VP already active, if it is, pull it */
+	if (in_be32(xive_tima + TM_QW2_HV_POOL + TM_WORD2) & TM_QW2W2_VP)
+		in_be64(xive_tima + TM_SPC_PULL_POOL_CTX);
 
 	/* Enable the pool VP */
 	vp = xive_pool_vps + cpu;

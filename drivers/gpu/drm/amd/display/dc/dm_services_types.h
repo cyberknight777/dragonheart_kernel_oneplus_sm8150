@@ -29,7 +29,7 @@
 #include "os_types.h"
 #include "dc_types.h"
 
-#include "dm_pp_smu.h"
+struct pp_smu_funcs_rv;
 
 struct dm_pp_clock_range {
 	int min_khz;
@@ -137,7 +137,7 @@ struct dm_pp_clock_range_for_wm_set {
 	enum dm_pp_wm_set_id wm_set_id;
 	uint32_t wm_min_eng_clk_in_khz;
 	uint32_t wm_max_eng_clk_in_khz;
-	uint32_t wm_min_memg_clk_in_khz;
+	uint32_t wm_min_mem_clk_in_khz;
 	uint32_t wm_max_mem_clk_in_khz;
 };
 
@@ -150,7 +150,7 @@ struct dm_pp_clock_range_for_dmif_wm_set_soc15 {
 	enum dm_pp_wm_set_id wm_set_id;
 	uint32_t wm_min_dcfclk_clk_in_khz;
 	uint32_t wm_max_dcfclk_clk_in_khz;
-	uint32_t wm_min_memg_clk_in_khz;
+	uint32_t wm_min_mem_clk_in_khz;
 	uint32_t wm_max_mem_clk_in_khz;
 };
 
@@ -158,7 +158,7 @@ struct dm_pp_clock_range_for_mcif_wm_set_soc15 {
 	enum dm_pp_wm_set_id wm_set_id;
 	uint32_t wm_min_socclk_clk_in_khz;
 	uint32_t wm_max_socclk_clk_in_khz;
-	uint32_t wm_min_memg_clk_in_khz;
+	uint32_t wm_min_mem_clk_in_khz;
 	uint32_t wm_max_mem_clk_in_khz;
 };
 

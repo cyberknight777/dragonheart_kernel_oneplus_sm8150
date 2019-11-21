@@ -73,7 +73,15 @@ static struct i2c_client *of_i2c_register_device(struct i2c_adapter *adap,
 	if (of_get_property(node, "wakeup-source", NULL))
 		info.flags |= I2C_CLIENT_WAKE;
 
-	result = i2c_new_device(adap, &info);
+	/* Allow device property to enable probing before init */
+	if (of_get_property(node, "linux,probed", NULL)) {
+		unsigned short addrs[] = { info.addr, I2C_CLIENT_END };
+
+		result = i2c_new_probed_device(adap, &info, addrs, NULL);
+	} else {
+		result = i2c_new_device(adap, &info);
+	}
+
 	if (result == NULL) {
 		dev_err(&adap->dev, "of_i2c: Failure registering %pOF\n", node);
 		of_node_put(node);

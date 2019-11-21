@@ -33,8 +33,18 @@ enum da7219_mic_amp_in_sel {
 
 struct da7219_aad_pdata;
 
+enum da7219_dai_clks {
+	DA7219_DAI_WCLK_IDX = 0,
+	DA7219_DAI_BCLK_IDX,
+	DA7219_DAI_NUM_CLKS,
+};
+
 struct da7219_pdata {
 	bool wakeup_source;
+
+	const char *dai_clk_names[DA7219_DAI_NUM_CLKS];
+
+	const char *mclk_name;
 
 	/* Mic */
 	enum da7219_micbias_voltage micbias_lvl;

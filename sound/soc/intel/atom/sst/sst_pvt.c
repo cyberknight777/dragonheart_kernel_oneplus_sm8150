@@ -166,7 +166,7 @@ int sst_create_ipc_msg(struct ipc_post **arg, bool large)
 {
 	struct ipc_post *msg;
 
-	msg = kzalloc(sizeof(struct ipc_post), GFP_ATOMIC);
+	msg = kzalloc(sizeof(*msg), GFP_ATOMIC);
 	if (!msg)
 		return -ENOMEM;
 	if (large) {
@@ -358,14 +358,6 @@ int sst_assign_pvt_id(struct intel_sst_drv *drv)
 	change_bit(local, &drv->pvt_id);
 	spin_unlock(&drv->block_lock);
 	return local;
-}
-
-void sst_init_stream(struct stream_info *stream,
-		int codec, int sst_id, int ops, u8 slot)
-{
-	stream->status = STREAM_INIT;
-	stream->prev = STREAM_UN_INIT;
-	stream->ops = ops;
 }
 
 int sst_validate_strid(

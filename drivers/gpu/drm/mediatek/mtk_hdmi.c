@@ -1054,7 +1054,8 @@ static int mtk_hdmi_setup_vendor_specific_infoframe(struct mtk_hdmi *hdmi,
 	u8 buffer[10];
 	ssize_t err;
 
-	err = drm_hdmi_vendor_infoframe_from_display_mode(&frame, mode);
+	err = drm_hdmi_vendor_infoframe_from_display_mode(&frame,
+							  &hdmi->conn, mode);
 	if (err) {
 		dev_err(hdmi->dev,
 			"Failed to get vendor infoframe from mode: %zd\n", err);
@@ -1219,10 +1220,9 @@ static int mtk_hdmi_conn_get_modes(struct drm_connector *conn)
 
 	hdmi->dvi_mode = !drm_detect_monitor_audio(edid);
 
-	drm_mode_connector_update_edid_property(conn, edid);
+	drm_connector_update_edid_property(conn, edid);
 
 	ret = drm_add_edid_modes(conn, edid);
-	drm_edid_to_eld(conn, edid);
 	kfree(edid);
 	return ret;
 }
@@ -1306,7 +1306,7 @@ static int mtk_hdmi_bridge_attach(struct drm_bridge *bridge)
 	hdmi->conn.interlace_allowed = true;
 	hdmi->conn.doublescan_allowed = false;
 
-	ret = drm_mode_connector_attach_encoder(&hdmi->conn,
+	ret = drm_connector_attach_encoder(&hdmi->conn,
 						bridge->encoder);
 	if (ret) {
 		dev_err(hdmi->dev,
@@ -1446,8 +1446,7 @@ static int mtk_hdmi_dt_parse_pdata(struct mtk_hdmi *hdmi,
 	}
 
 	/* The CEC module handles HDMI hotplug detection */
-	cec_np = of_find_compatible_node(np->parent, NULL,
-					 "mediatek,mt8173-cec");
+	cec_np = of_get_compatible_child(np->parent, "mediatek,mt8173-cec");
 	if (!cec_np) {
 		dev_err(dev, "Failed to find CEC node\n");
 		return -EINVAL;
@@ -1457,8 +1456,10 @@ static int mtk_hdmi_dt_parse_pdata(struct mtk_hdmi *hdmi,
 	if (!cec_pdev) {
 		dev_err(hdmi->dev, "Waiting for CEC device %pOF\n",
 			cec_np);
+		of_node_put(cec_np);
 		return -EPROBE_DEFER;
 	}
+	of_node_put(cec_np);
 	hdmi->cec_dev = &cec_pdev->dev;
 
 	/*
@@ -1472,7 +1473,6 @@ static int mtk_hdmi_dt_parse_pdata(struct mtk_hdmi *hdmi,
 	if (IS_ERR(regmap))
 		ret = PTR_ERR(regmap);
 	if (ret) {
-		ret = PTR_ERR(regmap);
 		dev_err(dev,
 			"Failed to get system configuration registers: %d\n",
 			ret);
@@ -1508,6 +1508,7 @@ static int mtk_hdmi_dt_parse_pdata(struct mtk_hdmi *hdmi,
 	of_node_put(remote);
 
 	hdmi->ddc_adpt = of_find_i2c_adapter_by_node(i2c_np);
+	of_node_put(i2c_np);
 	if (!hdmi->ddc_adpt) {
 		dev_err(dev, "Failed to get ddc i2c adapter by node\n");
 		return -EINVAL;

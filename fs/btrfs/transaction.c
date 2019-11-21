@@ -319,7 +319,7 @@ static int record_root_in_trans(struct btrfs_trans_handle *trans,
 	if ((test_bit(BTRFS_ROOT_REF_COWS, &root->state) &&
 	    root->last_trans < trans->transid) || force) {
 		WARN_ON(root == fs_info->extent_root);
-		WARN_ON(root->commit_root != root->node);
+		WARN_ON(!force && root->commit_root != root->node);
 
 		/*
 		 * see below for IN_TRANS_SETUP usage rules
@@ -1366,6 +1366,14 @@ static int qgroup_account_snapshot(struct btrfs_trans_handle *trans,
 		return 0;
 
 	/*
+	 * Ensure dirty @src will be commited.  Or, after comming
+	 * commit_fs_roots() and switch_commit_roots(), any dirty but not
+	 * recorded root will never be updated again, causing an outdated root
+	 * item.
+	 */
+	record_root_in_trans(trans, src, 1);
+
+	/*
 	 * We are going to commit transaction, see btrfs_commit_transaction()
 	 * comment for reason locking tree_log_mutex
 	 */
@@ -1722,23 +1730,19 @@ static void update_super_roots(struct btrfs_fs_info *fs_info)
 
 	super = fs_info->super_copy;
 
-	/* update latest btrfs_super_block::chunk_root refs */
 	root_item = &fs_info->chunk_root->root_item;
-	btrfs_set_super_chunk_root(super, root_item->bytenr);
-	btrfs_set_super_chunk_root_generation(super, root_item->generation);
-	btrfs_set_super_chunk_root_level(super, root_item->level);
+	super->chunk_root = root_item->bytenr;
+	super->chunk_root_generation = root_item->generation;
+	super->chunk_root_level = root_item->level;
 
-	/* update latest btrfs_super_block::root refs */
 	root_item = &fs_info->tree_root->root_item;
-	btrfs_set_super_root(super, root_item->bytenr);
-	btrfs_set_super_generation(super, root_item->generation);
-	btrfs_set_super_root_level(super, root_item->level);
-
+	super->root = root_item->bytenr;
+	super->generation = root_item->generation;
+	super->root_level = root_item->level;
 	if (btrfs_test_opt(fs_info, SPACE_CACHE))
-		btrfs_set_super_cache_generation(super, root_item->generation);
+		super->cache_generation = root_item->generation;
 	if (test_bit(BTRFS_FS_UPDATE_UUID_TREE_GEN, &fs_info->flags))
-		btrfs_set_super_uuid_tree_generation(super,
-						     root_item->generation);
+		super->uuid_tree_generation = root_item->generation;
 }
 
 int btrfs_transaction_in_commit(struct btrfs_fs_info *info)
@@ -1951,6 +1955,9 @@ int btrfs_commit_transaction(struct btrfs_trans_handle *trans)
 		return ret;
 	}
 
+	btrfs_trans_release_metadata(trans, fs_info);
+	trans->block_rsv = NULL;
+
 	/* make a pass through all the delayed refs we have so far
 	 * any runnings procs may add more while we are here
 	 */
@@ -1959,9 +1966,6 @@ int btrfs_commit_transaction(struct btrfs_trans_handle *trans)
 		btrfs_end_transaction(trans);
 		return ret;
 	}
-
-	btrfs_trans_release_metadata(trans, fs_info);
-	trans->block_rsv = NULL;
 
 	cur_trans = trans->transaction;
 
@@ -2048,6 +2052,16 @@ int btrfs_commit_transaction(struct btrfs_trans_handle *trans)
 		}
 	} else {
 		spin_unlock(&fs_info->trans_lock);
+		/*
+		 * The previous transaction was aborted and was already removed
+		 * from the list of transactions at fs_info->trans_list. So we
+		 * abort to prevent writing a new superblock that reflects a
+		 * corrupt state (pointing to trees with unwritten nodes/leafs).
+		 */
+		if (test_bit(BTRFS_FS_STATE_TRANS_ABORTED, &fs_info->fs_state)) {
+			ret = -EROFS;
+			goto cleanup_transaction;
+		}
 	}
 
 	extwriter_counter_dec(cur_trans, trans->type);
@@ -2302,15 +2316,6 @@ int btrfs_commit_transaction(struct btrfs_trans_handle *trans)
 		current->journal_info = NULL;
 
 	kmem_cache_free(btrfs_trans_handle_cachep, trans);
-
-	/*
-	 * If fs has been frozen, we can not handle delayed iputs, otherwise
-	 * it'll result in deadlock about SB_FREEZE_FS.
-	 */
-	if (current != fs_info->transaction_kthread &&
-	    current != fs_info->cleaner_kthread &&
-	    !test_bit(BTRFS_FS_FROZEN, &fs_info->flags))
-		btrfs_run_delayed_iputs(fs_info);
 
 	return ret;
 

@@ -35,4 +35,15 @@ extern void fill_display_configs(
 	const struct dc_state *context,
 	struct dm_pp_display_configuration *pp_display_cfg);
 
+bool is_rgb_cspace(enum dc_color_space output_color_space);
+
+void hwss1_plane_atomic_disconnect(struct dc *dc, struct pipe_ctx *pipe_ctx);
+
+void dcn10_verify_allow_pstate_change_high(struct dc *dc);
+
+void dcn10_program_pipe(
+		struct dc *dc,
+		struct pipe_ctx *pipe_ctx,
+		struct dc_state *context);
+
 #endif /* __DC_HWSS_DCN10_H__ */

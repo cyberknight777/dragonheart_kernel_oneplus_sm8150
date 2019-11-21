@@ -229,9 +229,11 @@ static int exynos_dp_probe(struct platform_device *pdev)
 	np = of_parse_phandle(dev->of_node, "panel", 0);
 	if (np) {
 		dp->plat_data.panel = of_drm_find_panel(np);
+
 		of_node_put(np);
-		if (!dp->plat_data.panel)
-			return -EPROBE_DEFER;
+		if (IS_ERR(dp->plat_data.panel))
+			return PTR_ERR(dp->plat_data.panel);
+
 		goto out;
 	}
 
@@ -241,6 +243,7 @@ static int exynos_dp_probe(struct platform_device *pdev)
 
 	/* The remote port can be either a panel or a bridge */
 	dp->plat_data.panel = panel;
+	dp->plat_data.skip_connector = !!bridge;
 	dp->ptn_bridge = bridge;
 
 out:

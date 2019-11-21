@@ -56,7 +56,7 @@ int bcm54xx_auxctl_read(struct phy_device *phydev, u16 regnum)
 	/* The register must be written to both the Shadow Register Select and
 	 * the Shadow Read Register Selector
 	 */
-	phy_write(phydev, MII_BCM54XX_AUX_CTL, regnum |
+	phy_write(phydev, MII_BCM54XX_AUX_CTL, MII_BCM54XX_AUXCTL_SHDWSEL_MASK |
 		  regnum << MII_BCM54XX_AUXCTL_SHDWSEL_READ_SHIFT);
 	return phy_read(phydev, MII_BCM54XX_AUX_CTL);
 }
@@ -341,8 +341,8 @@ void bcm_phy_get_strings(struct phy_device *phydev, u8 *data)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(bcm_phy_hw_stats); i++)
-		memcpy(data + i * ETH_GSTRING_LEN,
-		       bcm_phy_hw_stats[i].string, ETH_GSTRING_LEN);
+		strlcpy(data + i * ETH_GSTRING_LEN,
+			bcm_phy_hw_stats[i].string, ETH_GSTRING_LEN);
 }
 EXPORT_SYMBOL_GPL(bcm_phy_get_strings);
 

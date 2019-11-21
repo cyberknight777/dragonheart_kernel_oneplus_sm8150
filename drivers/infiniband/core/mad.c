@@ -60,7 +60,7 @@ module_param_named(recv_queue_size, mad_recvq_size, int, 0444);
 MODULE_PARM_DESC(recv_queue_size, "Size of receive queue in number of work requests");
 
 static struct list_head ib_mad_port_list;
-static u32 ib_mad_client_id = 0;
+static atomic_t ib_mad_client_id = ATOMIC_INIT(0);
 
 /* Port list lock */
 static DEFINE_SPINLOCK(ib_mad_port_list_lock);
@@ -378,7 +378,7 @@ struct ib_mad_agent *ib_register_mad_agent(struct ib_device *device,
 	}
 
 	spin_lock_irqsave(&port_priv->reg_lock, flags);
-	mad_agent_priv->agent.hi_tid = ++ib_mad_client_id;
+	mad_agent_priv->agent.hi_tid = atomic_inc_return(&ib_mad_client_id);
 
 	/*
 	 * Make sure MAD registration (if supplied)
@@ -1558,7 +1558,8 @@ static int add_oui_reg_req(struct ib_mad_reg_req *mad_reg_req,
 			    mad_reg_req->oui, 3)) {
 			method = &(*vendor_table)->vendor_class[
 						vclass]->method_table[i];
-			BUG_ON(!*method);
+			if (!*method)
+				goto error3;
 			goto check_in_use;
 		}
 	}
@@ -1568,10 +1569,12 @@ static int add_oui_reg_req(struct ib_mad_reg_req *mad_reg_req,
 				vclass]->oui[i])) {
 			method = &(*vendor_table)->vendor_class[
 				vclass]->method_table[i];
-			BUG_ON(*method);
 			/* Allocate method table for this OUI */
-			if ((ret = allocate_method_table(method)))
-				goto error3;
+			if (!*method) {
+				ret = allocate_method_table(method);
+				if (ret)
+					goto error3;
+			}
 			memcpy((*vendor_table)->vendor_class[vclass]->oui[i],
 			       mad_reg_req->oui, 3);
 			goto check_in_use;
@@ -3167,18 +3170,18 @@ static int ib_mad_port_open(struct ib_device *device,
 	if (has_smi)
 		cq_size *= 2;
 
-	port_priv->cq = ib_alloc_cq(port_priv->device, port_priv, cq_size, 0,
-			IB_POLL_WORKQUEUE);
-	if (IS_ERR(port_priv->cq)) {
-		dev_err(&device->dev, "Couldn't create ib_mad CQ\n");
-		ret = PTR_ERR(port_priv->cq);
-		goto error3;
-	}
-
 	port_priv->pd = ib_alloc_pd(device, 0);
 	if (IS_ERR(port_priv->pd)) {
 		dev_err(&device->dev, "Couldn't create ib_mad PD\n");
 		ret = PTR_ERR(port_priv->pd);
+		goto error3;
+	}
+
+	port_priv->cq = ib_alloc_cq(port_priv->device, port_priv, cq_size, 0,
+			IB_POLL_UNBOUND_WORKQUEUE);
+	if (IS_ERR(port_priv->cq)) {
+		dev_err(&device->dev, "Couldn't create ib_mad CQ\n");
+		ret = PTR_ERR(port_priv->cq);
 		goto error4;
 	}
 
@@ -3221,11 +3224,11 @@ error8:
 error7:
 	destroy_mad_qp(&port_priv->qp_info[0]);
 error6:
-	ib_dealloc_pd(port_priv->pd);
-error4:
 	ib_free_cq(port_priv->cq);
 	cleanup_recv_queue(&port_priv->qp_info[1]);
 	cleanup_recv_queue(&port_priv->qp_info[0]);
+error4:
+	ib_dealloc_pd(port_priv->pd);
 error3:
 	kfree(port_priv);
 
@@ -3255,8 +3258,8 @@ static int ib_mad_port_close(struct ib_device *device, int port_num)
 	destroy_workqueue(port_priv->wq);
 	destroy_mad_qp(&port_priv->qp_info[1]);
 	destroy_mad_qp(&port_priv->qp_info[0]);
-	ib_dealloc_pd(port_priv->pd);
 	ib_free_cq(port_priv->cq);
+	ib_dealloc_pd(port_priv->pd);
 	cleanup_recv_queue(&port_priv->qp_info[1]);
 	cleanup_recv_queue(&port_priv->qp_info[0]);
 	/* XXX: Handle deallocation of MAD registration tables */

@@ -145,7 +145,6 @@ static void vb2_warn_zero_bytesused(struct vb2_buffer *vb)
 		return;
 
 	check_once = true;
-	WARN_ON(1);
 
 	pr_warn("use of bytesused == 0 is deprecated and will be removed in the future,\n");
 	if (vb->vb2_queue->allow_zero_bytesused)
@@ -279,11 +278,6 @@ static void __fill_v4l2_buffer(struct vb2_buffer *vb, void *pb)
 
 	if (vb2_buffer_in_use(q, vb))
 		b->flags |= V4L2_BUF_FLAG_MAPPED;
-
-	if (!q->is_output &&
-		b->flags & V4L2_BUF_FLAG_DONE &&
-		b->flags & V4L2_BUF_FLAG_LAST)
-		q->last_buffer_dequeued = true;
 }
 
 /**
@@ -587,6 +581,11 @@ int vb2_dqbuf(struct vb2_queue *q, struct v4l2_buffer *b, bool nonblocking)
 	}
 
 	ret = vb2_core_dqbuf(q, NULL, b, nonblocking);
+
+	if (!q->is_output &&
+		b->flags & V4L2_BUF_FLAG_DONE &&
+		b->flags & V4L2_BUF_FLAG_LAST)
+		q->last_buffer_dequeued = true;
 
 	/*
 	 *  After calling the VIDIOC_DQBUF V4L2_BUF_FLAG_DONE must be

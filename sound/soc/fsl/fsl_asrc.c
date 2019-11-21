@@ -286,8 +286,8 @@ static int fsl_asrc_config_pair(struct fsl_asrc_pair *pair)
 		return -EINVAL;
 	}
 
-	if ((outrate > 8000 && outrate < 30000) &&
-	    (outrate/inrate > 24 || inrate/outrate > 8)) {
+	if ((outrate >= 8000 && outrate <= 30000) &&
+	    (outrate > 24 * inrate || inrate > 8 * outrate)) {
 		pair_err("exceed supported ratio range [1/24, 8] for \
 				inrate/outrate: %d/%d\n", inrate, outrate);
 		return -EINVAL;
@@ -580,10 +580,6 @@ static struct snd_soc_dai_driver fsl_asrc_dai = {
 		.formats = FSL_ASRC_FORMATS,
 	},
 	.ops = &fsl_asrc_dai_ops,
-};
-
-static const struct snd_soc_component_driver fsl_asrc_component = {
-	.name = "fsl-asrc-dai",
 };
 
 static bool fsl_asrc_readable_reg(struct device *dev, unsigned int reg)
@@ -924,12 +920,6 @@ static int fsl_asrc_probe(struct platform_device *pdev)
 					      &fsl_asrc_dai, 1);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register ASoC DAI\n");
-		return ret;
-	}
-
-	ret = devm_snd_soc_register_platform(&pdev->dev, &fsl_asrc_platform);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to register ASoC platform\n");
 		return ret;
 	}
 

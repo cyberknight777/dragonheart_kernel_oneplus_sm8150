@@ -27,7 +27,7 @@
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 #include <sound/core.h>
-#include "hda_codec.h"
+#include <sound/hda_codec.h>
 #include <sound/asoundef.h>
 #include <sound/tlv.h>
 #include <sound/initval.h>
@@ -36,6 +36,7 @@
 #include "hda_beep.h"
 #include "hda_jack.h"
 #include <sound/hda_hwdep.h>
+#include <sound/hda_component.h>
 
 #ifdef CONFIG_PM
 #define codec_in_pm(codec)	atomic_read(&(codec)->core.in_pm)
@@ -481,9 +482,10 @@ static struct hda_pincfg *look_up_pincfg(struct hda_codec *codec,
 					 struct snd_array *array,
 					 hda_nid_t nid)
 {
+	struct hda_pincfg *pin;
 	int i;
-	for (i = 0; i < array->used; i++) {
-		struct hda_pincfg *pin = snd_array_elem(array, i);
+
+	snd_array_for_each(array, i, pin) {
 		if (pin->nid == nid)
 			return pin;
 	}
@@ -618,14 +620,15 @@ EXPORT_SYMBOL_GPL(snd_hda_codec_get_pin_target);
  */
 void snd_hda_shutup_pins(struct hda_codec *codec)
 {
+	const struct hda_pincfg *pin;
 	int i;
+
 	/* don't shut up pins when unloading the driver; otherwise it breaks
 	 * the default pin setup at the next load of the driver
 	 */
 	if (codec->bus->shutdown)
 		return;
-	for (i = 0; i < codec->init_pins.used; i++) {
-		struct hda_pincfg *pin = snd_array_elem(&codec->init_pins, i);
+	snd_array_for_each(&codec->init_pins, i, pin) {
 		/* use read here for syncing after issuing each verb */
 		snd_hda_codec_read(codec, pin->nid, 0,
 				   AC_VERB_SET_PIN_WIDGET_CONTROL, 0);
@@ -638,13 +641,14 @@ EXPORT_SYMBOL_GPL(snd_hda_shutup_pins);
 /* Restore the pin controls cleared previously via snd_hda_shutup_pins() */
 static void restore_shutup_pins(struct hda_codec *codec)
 {
+	const struct hda_pincfg *pin;
 	int i;
+
 	if (!codec->pins_shutup)
 		return;
 	if (codec->bus->shutdown)
 		return;
-	for (i = 0; i < codec->init_pins.used; i++) {
-		struct hda_pincfg *pin = snd_array_elem(&codec->init_pins, i);
+	snd_array_for_each(&codec->init_pins, i, pin) {
 		snd_hda_codec_write(codec, pin->nid, 0,
 				    AC_VERB_SET_PIN_WIDGET_CONTROL,
 				    pin->ctrl);
@@ -697,8 +701,7 @@ get_hda_cvt_setup(struct hda_codec *codec, hda_nid_t nid)
 	struct hda_cvt_setup *p;
 	int i;
 
-	for (i = 0; i < codec->cvt_setups.used; i++) {
-		p = snd_array_elem(&codec->cvt_setups, i);
+	snd_array_for_each(&codec->cvt_setups, i, p) {
 		if (p->nid == nid)
 			return p;
 	}
@@ -804,6 +807,13 @@ void snd_hda_codec_cleanup_for_unbind(struct hda_codec *codec)
 static unsigned int hda_set_power_state(struct hda_codec *codec,
 				unsigned int power_state);
 
+/* enable/disable display power per codec */
+static void codec_display_power(struct hda_codec *codec, bool enable)
+{
+	if (codec->display_power_control)
+		snd_hdac_display_power(&codec->bus->core, codec->addr, enable);
+}
+
 /* also called from hda_bind.c */
 void snd_hda_codec_register(struct hda_codec *codec)
 {
@@ -811,7 +821,7 @@ void snd_hda_codec_register(struct hda_codec *codec)
 		return;
 	if (device_is_registered(hda_codec_dev(codec))) {
 		snd_hda_register_beep_device(codec);
-		snd_hdac_link_power(&codec->core, true);
+		codec_display_power(codec, true);
 		pm_runtime_enable(hda_codec_dev(codec));
 		/* it was powered up in snd_hda_codec_new(), now all done */
 		snd_hda_power_down(codec);
@@ -839,7 +849,7 @@ static int snd_hda_codec_dev_free(struct snd_device *device)
 
 	codec->in_freeing = 1;
 	snd_hdac_device_unregister(&codec->core);
-	snd_hdac_link_power(&codec->core, false);
+	codec_display_power(codec, false);
 	put_device(hda_codec_dev(codec));
 	return 0;
 }
@@ -856,6 +866,39 @@ static void snd_hda_codec_dev_release(struct device *dev)
 	kfree(codec);
 }
 
+#define DEV_NAME_LEN 31
+
+static int snd_hda_codec_device_init(struct hda_bus *bus, struct snd_card *card,
+			unsigned int codec_addr, struct hda_codec **codecp)
+{
+	char name[DEV_NAME_LEN];
+	struct hda_codec *codec;
+	int err;
+
+	dev_dbg(card->dev, "%s: entry\n", __func__);
+
+	if (snd_BUG_ON(!bus))
+		return -EINVAL;
+	if (snd_BUG_ON(codec_addr > HDA_MAX_CODEC_ADDRESS))
+		return -EINVAL;
+
+	codec = kzalloc(sizeof(*codec), GFP_KERNEL);
+	if (!codec)
+		return -ENOMEM;
+
+	sprintf(name, "hdaudioC%dD%d", card->number, codec_addr);
+	err = snd_hdac_device_init(&codec->core, &bus->core, name, codec_addr);
+	if (err < 0) {
+		kfree(codec);
+		return err;
+	}
+
+	codec->core.type = HDA_DEV_LEGACY;
+	*codecp = codec;
+
+	return err;
+}
+
 /**
  * snd_hda_codec_new - create a HDA codec
  * @bus: the bus to assign
@@ -867,7 +910,19 @@ static void snd_hda_codec_dev_release(struct device *dev)
 int snd_hda_codec_new(struct hda_bus *bus, struct snd_card *card,
 		      unsigned int codec_addr, struct hda_codec **codecp)
 {
-	struct hda_codec *codec;
+	int ret;
+
+	ret = snd_hda_codec_device_init(bus, card, codec_addr, codecp);
+	if (ret < 0)
+		return ret;
+
+	return snd_hda_codec_device_new(bus, card, codec_addr, *codecp);
+}
+EXPORT_SYMBOL_GPL(snd_hda_codec_new);
+
+int snd_hda_codec_device_new(struct hda_bus *bus, struct snd_card *card,
+			unsigned int codec_addr, struct hda_codec *codec)
+{
 	char component[31];
 	hda_nid_t fg;
 	int err;
@@ -877,25 +932,14 @@ int snd_hda_codec_new(struct hda_bus *bus, struct snd_card *card,
 		.dev_free = snd_hda_codec_dev_free,
 	};
 
+	dev_dbg(card->dev, "%s: entry\n", __func__);
+
 	if (snd_BUG_ON(!bus))
 		return -EINVAL;
 	if (snd_BUG_ON(codec_addr > HDA_MAX_CODEC_ADDRESS))
 		return -EINVAL;
 
-	codec = kzalloc(sizeof(*codec), GFP_KERNEL);
-	if (!codec)
-		return -ENOMEM;
-
-	sprintf(component, "hdaudioC%dD%d", card->number, codec_addr);
-	err = snd_hdac_device_init(&codec->core, &bus->core, component,
-				   codec_addr);
-	if (err < 0) {
-		kfree(codec);
-		return err;
-	}
-
 	codec->core.dev.release = snd_hda_codec_dev_release;
-	codec->core.type = HDA_DEV_LEGACY;
 	codec->core.exec_verb = codec_exec_verb;
 
 	codec->bus = bus;
@@ -955,15 +999,13 @@ int snd_hda_codec_new(struct hda_bus *bus, struct snd_card *card,
 	if (err < 0)
 		goto error;
 
-	if (codecp)
-		*codecp = codec;
 	return 0;
 
  error:
 	put_device(hda_codec_dev(codec));
 	return err;
 }
-EXPORT_SYMBOL_GPL(snd_hda_codec_new);
+EXPORT_SYMBOL_GPL(snd_hda_codec_device_new);
 
 /**
  * snd_hda_codec_update_widgets - Refresh widget caps and pin defaults
@@ -977,7 +1019,7 @@ int snd_hda_codec_update_widgets(struct hda_codec *codec)
 	hda_nid_t fg;
 	int err;
 
-	err = snd_hdac_refresh_widget_sysfs(&codec->core);
+	err = snd_hdac_refresh_widgets(&codec->core, true);
 	if (err < 0)
 		return err;
 
@@ -1076,8 +1118,7 @@ void snd_hda_codec_setup_stream(struct hda_codec *codec, hda_nid_t nid,
 	/* make other inactive cvts with the same stream-tag dirty */
 	type = get_wcaps_type(get_wcaps(codec, nid));
 	list_for_each_codec(c, codec->bus) {
-		for (i = 0; i < c->cvt_setups.used; i++) {
-			p = snd_array_elem(&c->cvt_setups, i);
+		snd_array_for_each(&c->cvt_setups, i, p) {
 			if (!p->active && p->stream_tag == stream_tag &&
 			    get_wcaps_type(get_wcaps(c, p->nid)) == type)
 				p->dirty = 1;
@@ -1140,12 +1181,11 @@ static void really_cleanup_stream(struct hda_codec *codec,
 static void purify_inactive_streams(struct hda_codec *codec)
 {
 	struct hda_codec *c;
+	struct hda_cvt_setup *p;
 	int i;
 
 	list_for_each_codec(c, codec->bus) {
-		for (i = 0; i < c->cvt_setups.used; i++) {
-			struct hda_cvt_setup *p;
-			p = snd_array_elem(&c->cvt_setups, i);
+		snd_array_for_each(&c->cvt_setups, i, p) {
 			if (p->dirty)
 				really_cleanup_stream(c, p);
 		}
@@ -1156,10 +1196,10 @@ static void purify_inactive_streams(struct hda_codec *codec)
 /* clean up all streams; called from suspend */
 static void hda_cleanup_all_streams(struct hda_codec *codec)
 {
+	struct hda_cvt_setup *p;
 	int i;
 
-	for (i = 0; i < codec->cvt_setups.used; i++) {
-		struct hda_cvt_setup *p = snd_array_elem(&codec->cvt_setups, i);
+	snd_array_for_each(&codec->cvt_setups, i, p) {
 		if (p->stream_tag)
 			really_cleanup_stream(codec, p);
 	}
@@ -2461,10 +2501,10 @@ EXPORT_SYMBOL_GPL(snd_hda_create_dig_out_ctls);
 struct hda_spdif_out *snd_hda_spdif_out_of_nid(struct hda_codec *codec,
 					       hda_nid_t nid)
 {
+	struct hda_spdif_out *spdif;
 	int i;
-	for (i = 0; i < codec->spdif_out.used; i++) {
-		struct hda_spdif_out *spdif =
-				snd_array_elem(&codec->spdif_out, i);
+
+	snd_array_for_each(&codec->spdif_out, i, spdif) {
 		if (spdif->nid == nid)
 			return spdif;
 	}
@@ -2702,32 +2742,6 @@ void snd_hda_codec_set_power_to_all(struct hda_codec *codec, hda_nid_t fg,
 }
 EXPORT_SYMBOL_GPL(snd_hda_codec_set_power_to_all);
 
-/*
- * wait until the state is reached, returns the current state
- */
-static unsigned int hda_sync_power_state(struct hda_codec *codec,
-					 hda_nid_t fg,
-					 unsigned int power_state)
-{
-	unsigned long end_time = jiffies + msecs_to_jiffies(500);
-	unsigned int state, actual_state;
-
-	for (;;) {
-		state = snd_hda_codec_read(codec, fg, 0,
-					   AC_VERB_GET_POWER_STATE, 0);
-		if (state & AC_PWRST_ERROR)
-			break;
-		actual_state = (state >> 4) & 0x0f;
-		if (actual_state == power_state)
-			break;
-		if (time_after_eq(jiffies, end_time))
-			break;
-		/* wait until the codec reachs to the target state */
-		msleep(1);
-	}
-	return state;
-}
-
 /**
  * snd_hda_codec_eapd_power_filter - A power filter callback for EAPD
  * @codec: the HDA codec
@@ -2790,7 +2804,7 @@ static unsigned int hda_set_power_state(struct hda_codec *codec,
 						   state);
 			snd_hda_codec_set_power_to_all(codec, fg, power_state);
 		}
-		state = hda_sync_power_state(codec, fg, power_state);
+		state = snd_hda_sync_power_state(codec, fg, power_state);
 		if (!(state & AC_PWRST_ERROR))
 			break;
 	}
@@ -2900,6 +2914,7 @@ static void hda_call_codec_resume(struct hda_codec *codec)
 		hda_jackpoll_work(&codec->jackpoll_work.work);
 	else
 		snd_hda_jack_report_sync(codec);
+	codec->core.dev.power.power_state = PMSG_ON;
 	atomic_dec(&codec->core.in_pm);
 }
 
@@ -2916,7 +2931,7 @@ static int hda_codec_runtime_suspend(struct device *dev)
 	if (codec_has_clkstop(codec) && codec_has_epss(codec) &&
 	    (state & AC_PWRST_CLK_STOP_OK))
 		snd_hdac_codec_link_down(&codec->core);
-	snd_hdac_link_power(&codec->core, false);
+	codec_display_power(codec, false);
 	return 0;
 }
 
@@ -2924,7 +2939,7 @@ static int hda_codec_runtime_resume(struct device *dev)
 {
 	struct hda_codec *codec = dev_to_hda_codec(dev);
 
-	snd_hdac_link_power(&codec->core, true);
+	codec_display_power(codec, true);
 	snd_hdac_codec_link_up(&codec->core);
 	hda_call_codec_resume(codec);
 	pm_runtime_mark_last_busy(dev);
@@ -2932,10 +2947,62 @@ static int hda_codec_runtime_resume(struct device *dev)
 }
 #endif /* CONFIG_PM */
 
+#ifdef CONFIG_PM_SLEEP
+static int hda_codec_force_resume(struct device *dev)
+{
+	int ret;
+
+	/* The get/put pair below enforces the runtime resume even if the
+	 * device hasn't been used at suspend time.  This trick is needed to
+	 * update the jack state change during the sleep.
+	 */
+	pm_runtime_get_noresume(dev);
+	ret = pm_runtime_force_resume(dev);
+	pm_runtime_put(dev);
+	return ret;
+}
+
+static int hda_codec_pm_suspend(struct device *dev)
+{
+	dev->power.power_state = PMSG_SUSPEND;
+	return pm_runtime_force_suspend(dev);
+}
+
+static int hda_codec_pm_resume(struct device *dev)
+{
+	dev->power.power_state = PMSG_RESUME;
+	return hda_codec_force_resume(dev);
+}
+
+static int hda_codec_pm_freeze(struct device *dev)
+{
+	dev->power.power_state = PMSG_FREEZE;
+	return pm_runtime_force_suspend(dev);
+}
+
+static int hda_codec_pm_thaw(struct device *dev)
+{
+	dev->power.power_state = PMSG_THAW;
+	return hda_codec_force_resume(dev);
+}
+
+static int hda_codec_pm_restore(struct device *dev)
+{
+	dev->power.power_state = PMSG_RESTORE;
+	return hda_codec_force_resume(dev);
+}
+#endif /* CONFIG_PM_SLEEP */
+
 /* referred in hda_bind.c */
 const struct dev_pm_ops hda_codec_driver_pm = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+#ifdef CONFIG_PM_SLEEP
+	.suspend = hda_codec_pm_suspend,
+	.resume = hda_codec_pm_resume,
+	.freeze = hda_codec_pm_freeze,
+	.thaw = hda_codec_pm_thaw,
+	.poweroff = hda_codec_pm_suspend,
+	.restore = hda_codec_pm_restore,
+#endif /* CONFIG_PM_SLEEP */
 	SET_RUNTIME_PM_OPS(hda_codec_runtime_suspend, hda_codec_runtime_resume,
 			   NULL)
 };
@@ -3005,6 +3072,7 @@ int snd_hda_codec_build_controls(struct hda_codec *codec)
 	sync_power_up_states(codec);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(snd_hda_codec_build_controls);
 
 /*
  * PCM stuff
@@ -3210,6 +3278,7 @@ int snd_hda_codec_parse_pcms(struct hda_codec *codec)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(snd_hda_codec_parse_pcms);
 
 /* assign all PCMs of the given codec */
 int snd_hda_codec_build_pcms(struct hda_codec *codec)
@@ -3923,7 +3992,8 @@ void snd_hda_bus_reset_codecs(struct hda_bus *bus)
 
 	list_for_each_codec(codec, bus) {
 		/* FIXME: maybe a better way needed for forced reset */
-		cancel_delayed_work_sync(&codec->jackpoll_work);
+		if (current_work() != &codec->jackpoll_work.work)
+			cancel_delayed_work_sync(&codec->jackpoll_work);
 #ifdef CONFIG_PM
 		if (hda_codec_is_power_on(codec)) {
 			hda_call_codec_suspend(codec);

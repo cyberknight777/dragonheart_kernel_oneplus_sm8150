@@ -28,6 +28,8 @@
 #include <linux/hashtable.h>
 #include <linux/kernel.h>
 
+#define FAKE_JUMP_OFFSET -1
+
 struct alternative {
 	struct list_head list;
 	struct instruction *insn;
@@ -58,6 +60,31 @@ static struct instruction *next_insn_same_sec(struct objtool_file *file,
 
 	return next;
 }
+
+static struct instruction *next_insn_same_func(struct objtool_file *file,
+					       struct instruction *insn)
+{
+	struct instruction *next = list_next_entry(insn, list);
+	struct symbol *func = insn->func;
+
+	if (!func)
+		return NULL;
+
+	if (&next->list != &file->insn_list && next->func == func)
+		return next;
+
+	/* Check if we're already in the subfunction: */
+	if (func == func->cfunc)
+		return NULL;
+
+	/* Move to the subfunction: */
+	return find_insn(file, func->cfunc->sec, func->cfunc->offset);
+}
+
+#define func_for_each_insn_all(file, func, insn)			\
+	for (insn = find_insn(file, func->sec, func->offset);		\
+	     insn;							\
+	     insn = next_insn_same_func(file, insn))
 
 #define func_for_each_insn(file, func, insn)				\
 	for (insn = find_insn(file, func->sec, func->offset);		\
@@ -138,6 +165,8 @@ static int __dead_end_function(struct objtool_file *file, struct symbol *func,
 		"__reiserfs_panic",
 		"lbug_with_loc",
 		"fortify_panic",
+		"machine_real_restart",
+		"rewind_stack_do_exit",
 	};
 
 	if (func->bind == STB_WEAK)
@@ -148,10 +177,14 @@ static int __dead_end_function(struct objtool_file *file, struct symbol *func,
 			if (!strcmp(func->name, global_noreturns[i]))
 				return 1;
 
-	if (!func->sec)
+	if (!func->len)
 		return 0;
 
-	func_for_each_insn(file, func, insn) {
+	insn = find_insn(file, func->sec, func->offset);
+	if (!insn->func)
+		return 0;
+
+	func_for_each_insn_all(file, func, insn) {
 		empty = false;
 
 		if (insn->type == INSN_RETURN)
@@ -166,35 +199,28 @@ static int __dead_end_function(struct objtool_file *file, struct symbol *func,
 	 * case, the function's dead-end status depends on whether the target
 	 * of the sibling call returns.
 	 */
-	func_for_each_insn(file, func, insn) {
-		if (insn->sec != func->sec ||
-		    insn->offset >= func->offset + func->len)
-			break;
-
+	func_for_each_insn_all(file, func, insn) {
 		if (insn->type == INSN_JUMP_UNCONDITIONAL) {
 			struct instruction *dest = insn->jump_dest;
-			struct symbol *dest_func;
 
 			if (!dest)
 				/* sibling call to another file */
 				return 0;
 
-			if (dest->sec != func->sec ||
-			    dest->offset < func->offset ||
-			    dest->offset >= func->offset + func->len) {
-				/* local sibling call */
-				dest_func = find_symbol_by_offset(dest->sec,
-								  dest->offset);
-				if (!dest_func)
-					continue;
+			if (dest->func && dest->func->pfunc != insn->func->pfunc) {
 
+				/* local sibling call */
 				if (recursion == 5) {
-					WARN_FUNC("infinite recursion (objtool bug!)",
-						  dest->sec, dest->offset);
-					return -1;
+					/*
+					 * Infinite recursion: two functions
+					 * have sibling calls to each other.
+					 * This is a very rare case.  It means
+					 * they aren't dead ends.
+					 */
+					return 0;
 				}
 
-				return __dead_end_function(file, dest_func,
+				return __dead_end_function(file, dest->func,
 							   recursion + 1);
 			}
 		}
@@ -421,7 +447,7 @@ static void add_ignores(struct objtool_file *file)
 			if (!ignore_func(file, func))
 				continue;
 
-			func_for_each_insn(file, func, insn)
+			func_for_each_insn_all(file, func, insn)
 				insn->ignore = true;
 		}
 	}
@@ -476,7 +502,7 @@ static int add_jump_destinations(struct objtool_file *file)
 		    insn->type != INSN_JUMP_UNCONDITIONAL)
 			continue;
 
-		if (insn->ignore)
+		if (insn->ignore || insn->offset == FAKE_JUMP_OFFSET)
 			continue;
 
 		rela = find_rela_by_dest_range(insn->sec, insn->offset,
@@ -623,10 +649,10 @@ static int handle_group_alt(struct objtool_file *file,
 		clear_insn_state(&fake_jump->state);
 
 		fake_jump->sec = special_alt->new_sec;
-		fake_jump->offset = -1;
+		fake_jump->offset = FAKE_JUMP_OFFSET;
 		fake_jump->type = INSN_JUMP_UNCONDITIONAL;
 		fake_jump->jump_dest = list_next_entry(last_orig_insn, list);
-		fake_jump->ignore = true;
+		fake_jump->func = orig_insn->func;
 	}
 
 	if (!special_alt->new_len) {
@@ -781,30 +807,35 @@ out:
 	return ret;
 }
 
-static int add_switch_table(struct objtool_file *file, struct symbol *func,
-			    struct instruction *insn, struct rela *table,
-			    struct rela *next_table)
+static int add_switch_table(struct objtool_file *file, struct instruction *insn,
+			    struct rela *table, struct rela *next_table)
 {
 	struct rela *rela = table;
 	struct instruction *alt_insn;
 	struct alternative *alt;
+	struct symbol *pfunc = insn->func->pfunc;
+	unsigned int prev_offset = 0;
 
-	list_for_each_entry_from(rela, &file->rodata->rela->rela_list, list) {
+	list_for_each_entry_from(rela, &table->rela_sec->rela_list, list) {
 		if (rela == next_table)
 			break;
 
-		if (rela->sym->sec != insn->sec ||
-		    rela->addend <= func->offset ||
-		    rela->addend >= func->offset + func->len)
+		/* Make sure the switch table entries are consecutive: */
+		if (prev_offset && rela->offset != prev_offset + 8)
 			break;
 
-		alt_insn = find_insn(file, insn->sec, rela->addend);
-		if (!alt_insn) {
-			WARN("%s: can't find instruction at %s+0x%x",
-			     file->rodata->rela->name, insn->sec->name,
-			     rela->addend);
-			return -1;
-		}
+		/* Detect function pointers from contiguous objects: */
+		if (rela->sym->sec == pfunc->sec &&
+		    rela->addend == pfunc->offset)
+			break;
+
+		alt_insn = find_insn(file, rela->sym->sec, rela->addend);
+		if (!alt_insn)
+			break;
+
+		/* Make sure the jmp dest is in the function or subfunction: */
+		if (alt_insn->func->pfunc != pfunc)
+			break;
 
 		alt = malloc(sizeof(*alt));
 		if (!alt) {
@@ -814,6 +845,13 @@ static int add_switch_table(struct objtool_file *file, struct symbol *func,
 
 		alt->insn = alt_insn;
 		list_add_tail(&alt->list, &insn->alts);
+		prev_offset = rela->offset;
+	}
+
+	if (!prev_offset) {
+		WARN_FUNC("can't find switch jump table",
+			  insn->sec, insn->offset);
+		return -1;
 	}
 
 	return 0;
@@ -868,40 +906,22 @@ static struct rela *find_switch_table(struct objtool_file *file,
 {
 	struct rela *text_rela, *rodata_rela;
 	struct instruction *orig_insn = insn;
+	struct section *rodata_sec;
+	unsigned long table_offset;
 
-	text_rela = find_rela_by_dest_range(insn->sec, insn->offset, insn->len);
-	if (text_rela && text_rela->sym == file->rodata->sym) {
-		/* case 1 */
-		rodata_rela = find_rela_by_dest(file->rodata,
-						text_rela->addend);
-		if (rodata_rela)
-			return rodata_rela;
-
-		/* case 2 */
-		rodata_rela = find_rela_by_dest(file->rodata,
-						text_rela->addend + 4);
-		if (!rodata_rela)
-			return NULL;
-
-		file->ignore_unreachables = true;
-		return rodata_rela;
-	}
-
-	/* case 3 */
 	/*
 	 * Backward search using the @first_jump_src links, these help avoid
 	 * much of the 'in between' code. Which avoids us getting confused by
 	 * it.
 	 */
-	for (insn = list_prev_entry(insn, list);
-
+	for (;
 	     &insn->list != &file->insn_list &&
 	     insn->sec == func->sec &&
 	     insn->offset >= func->offset;
 
 	     insn = insn->first_jump_src ?: list_prev_entry(insn, list)) {
 
-		if (insn->type == INSN_JUMP_DYNAMIC)
+		if (insn != orig_insn && insn->type == INSN_JUMP_DYNAMIC)
 			break;
 
 		/* allow small jumps within the range */
@@ -914,21 +934,35 @@ static struct rela *find_switch_table(struct objtool_file *file,
 		/* look for a relocation which references .rodata */
 		text_rela = find_rela_by_dest_range(insn->sec, insn->offset,
 						    insn->len);
-		if (!text_rela || text_rela->sym != file->rodata->sym)
+		if (!text_rela || text_rela->sym->type != STT_SECTION ||
+		    !text_rela->sym->sec->rodata)
 			continue;
+
+		table_offset = text_rela->addend;
+		rodata_sec = text_rela->sym->sec;
+
+		if (text_rela->type == R_X86_64_PC32)
+			table_offset += 4;
 
 		/*
 		 * Make sure the .rodata address isn't associated with a
 		 * symbol.  gcc jump tables are anonymous data.
 		 */
-		if (find_symbol_containing(file->rodata, text_rela->addend))
+		if (find_symbol_containing(rodata_sec, table_offset))
 			continue;
 
-		rodata_rela = find_rela_by_dest(file->rodata, text_rela->addend);
-		if (!rodata_rela)
-			continue;
+		rodata_rela = find_rela_by_dest(rodata_sec, table_offset);
+		if (rodata_rela) {
+			/*
+			 * Use of RIP-relative switch jumps is quite rare, and
+			 * indicates a rare GCC quirk/bug which can leave dead
+			 * code behind.
+			 */
+			if (text_rela->type == R_X86_64_PC32)
+				file->ignore_unreachables = true;
 
-		return rodata_rela;
+			return rodata_rela;
+		}
 	}
 
 	return NULL;
@@ -942,7 +976,7 @@ static int add_func_switch_tables(struct objtool_file *file,
 	struct rela *rela, *prev_rela = NULL;
 	int ret;
 
-	func_for_each_insn(file, func, insn) {
+	func_for_each_insn_all(file, func, insn) {
 		if (!last)
 			last = insn;
 
@@ -973,8 +1007,7 @@ static int add_func_switch_tables(struct objtool_file *file,
 		 * the beginning of another switch table in the same function.
 		 */
 		if (prev_jump) {
-			ret = add_switch_table(file, func, prev_jump, prev_rela,
-					       rela);
+			ret = add_switch_table(file, prev_jump, prev_rela, rela);
 			if (ret)
 				return ret;
 		}
@@ -984,7 +1017,7 @@ static int add_func_switch_tables(struct objtool_file *file,
 	}
 
 	if (prev_jump) {
-		ret = add_switch_table(file, func, prev_jump, prev_rela, NULL);
+		ret = add_switch_table(file, prev_jump, prev_rela, NULL);
 		if (ret)
 			return ret;
 	}
@@ -1003,7 +1036,7 @@ static int add_switch_table_alts(struct objtool_file *file)
 	struct symbol *func;
 	int ret;
 
-	if (!file->rodata || !file->rodata->rela)
+	if (!file->rodata)
 		return 0;
 
 	for_each_sec(file, sec) {
@@ -1148,9 +1181,32 @@ static int read_retpoline_hints(struct objtool_file *file)
 	return 0;
 }
 
+static void mark_rodata(struct objtool_file *file)
+{
+	struct section *sec;
+	bool found = false;
+
+	/*
+	 * This searches for the .rodata section or multiple .rodata.func_name
+	 * sections if -fdata-sections is being used. The .str.1.1 and .str.1.8
+	 * rodata sections are ignored as they don't contain jump tables.
+	 */
+	for_each_sec(file, sec) {
+		if (!strncmp(sec->name, ".rodata", 7) &&
+		    !strstr(sec->name, ".str1.")) {
+			sec->rodata = true;
+			found = true;
+		}
+	}
+
+	file->rodata = found;
+}
+
 static int decode_sections(struct objtool_file *file)
 {
 	int ret;
+
+	mark_rodata(file);
 
 	ret = decode_instructions(file);
 	if (ret)
@@ -1383,6 +1439,17 @@ static int update_insn_state(struct instruction *insn, struct insn_state *state)
 				 */
 				state->vals[op->dest.reg].base = CFI_CFA;
 				state->vals[op->dest.reg].offset = -state->stack_size;
+			}
+
+			else if (op->src.reg == CFI_BP && op->dest.reg == CFI_SP &&
+				 cfa->base == CFI_BP) {
+
+				/*
+				 * mov %rbp, %rsp
+				 *
+				 * Restore the original stack pointer (Clang).
+				 */
+				state->stack_size = -state->regs[CFI_BP].offset;
 			}
 
 			else if (op->dest.reg == cfa->base) {
@@ -1737,15 +1804,14 @@ static int validate_branch(struct objtool_file *file, struct instruction *first,
 	while (1) {
 		next_insn = next_insn_same_sec(file, insn);
 
-
-		if (file->c_file && func && insn->func && func != insn->func) {
+		if (file->c_file && func && insn->func && func != insn->func->pfunc) {
 			WARN("%s() falls through to next function %s()",
 			     func->name, insn->func->name);
 			return 1;
 		}
 
 		if (insn->func)
-			func = insn->func;
+			func = insn->func->pfunc;
 
 		if (func && insn->ignore) {
 			WARN_FUNC("BUG: why am I validating an ignored function?",
@@ -1766,7 +1832,7 @@ static int validate_branch(struct objtool_file *file, struct instruction *first,
 
 				i = insn;
 				save_insn = NULL;
-				func_for_each_insn_continue_reverse(file, func, i) {
+				func_for_each_insn_continue_reverse(file, insn->func, i) {
 					if (i->save) {
 						save_insn = i;
 						break;
@@ -1853,7 +1919,7 @@ static int validate_branch(struct objtool_file *file, struct instruction *first,
 		case INSN_JUMP_UNCONDITIONAL:
 			if (insn->jump_dest &&
 			    (!func || !insn->jump_dest->func ||
-			     func == insn->jump_dest->func)) {
+			     insn->jump_dest->func->pfunc == func)) {
 				ret = validate_branch(file, insn->jump_dest,
 						      state);
 				if (ret)
@@ -2048,7 +2114,7 @@ static int validate_functions(struct objtool_file *file)
 
 	for_each_sec(file, sec) {
 		list_for_each_entry(func, &sec->symbol_list, list) {
-			if (func->type != STT_FUNC)
+			if (func->type != STT_FUNC || func->pfunc != func)
 				continue;
 
 			insn = find_insn(file, sec, func->offset);
@@ -2098,9 +2164,10 @@ static void cleanup(struct objtool_file *file)
 	elf_close(file->elf);
 }
 
+static struct objtool_file file;
+
 int check(const char *_objname, bool orc)
 {
-	struct objtool_file file;
 	int ret, warnings = 0;
 
 	objname = _objname;
@@ -2112,7 +2179,6 @@ int check(const char *_objname, bool orc)
 	INIT_LIST_HEAD(&file.insn_list);
 	hash_init(file.insn_hash);
 	file.whitelist = find_section_by_name(file.elf, ".discard.func_stack_frame_non_standard");
-	file.rodata = find_section_by_name(file.elf, ".rodata");
 	file.c_file = find_section_by_name(file.elf, ".comment");
 	file.ignore_unreachables = no_unreachable;
 	file.hints = false;

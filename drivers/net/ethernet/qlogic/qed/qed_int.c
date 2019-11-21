@@ -321,7 +321,7 @@ static int qed_pglub_rbc_attn_cb(struct qed_hwfn *p_hwfn)
 	tmp = qed_rd(p_hwfn, p_hwfn->p_dpc_ptt,
 		     PGLUE_B_REG_TX_ERR_WR_DETAILS_ICPL);
 	if (tmp & PGLUE_ATTENTION_ICPL_VALID)
-		DP_INFO(p_hwfn, "ICPL eror - %08x\n", tmp);
+		DP_INFO(p_hwfn, "ICPL error - %08x\n", tmp);
 
 	tmp = qed_rd(p_hwfn, p_hwfn->p_dpc_ptt,
 		     PGLUE_B_REG_MASTER_ZLR_ERR_DETAILS);
@@ -939,7 +939,7 @@ static int qed_int_deassertion(struct qed_hwfn  *p_hwfn,
 						snprintf(bit_name, 30,
 							 p_aeu->bit_name, num);
 					else
-						strncpy(bit_name,
+						strlcpy(bit_name,
 							p_aeu->bit_name, 30);
 
 					/* We now need to pass bitmask in its
@@ -992,6 +992,8 @@ static int qed_int_attentions(struct qed_hwfn *p_hwfn)
 	 */
 	do {
 		index = p_sb_attn->sb_index;
+		/* finish reading index before the loop condition */
+		dma_rmb();
 		attn_bits = le32_to_cpu(p_sb_attn->atten_bits);
 		attn_acks = le32_to_cpu(p_sb_attn->atten_ack);
 	} while (index != p_sb_attn->sb_index);

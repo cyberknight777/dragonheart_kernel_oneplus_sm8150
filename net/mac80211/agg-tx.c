@@ -8,6 +8,7 @@
  * Copyright 2007, Michael Wu <flamingice@sourmilk.net>
  * Copyright 2007-2010, Intel Corporation
  * Copyright(c) 2015-2017 Intel Deutschland GmbH
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -359,6 +360,8 @@ int ___ieee80211_stop_tx_ba_session(struct sta_info *sta, u16 tid,
 	}
 
 	set_bit(HT_AGG_STATE_STOPPING, &tid_tx->state);
+
+	ieee80211_agg_stop_txq(sta, tid);
 
 	spin_unlock_bh(&sta->lock);
 
@@ -986,6 +989,9 @@ void ieee80211_process_addba_resp(struct ieee80211_local *local,
 			ieee80211_agg_tx_operational(local, sta, tid);
 
 		sta->ampdu_mlme.addba_req_num[tid] = 0;
+
+		tid_tx->timeout =
+			le16_to_cpu(mgmt->u.action.u.addba_resp.timeout);
 
 		if (tid_tx->timeout) {
 			mod_timer(&tid_tx->session_timer,

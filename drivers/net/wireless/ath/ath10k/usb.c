@@ -706,7 +706,8 @@ static void ath10k_usb_hif_send_complete_check(struct ath10k *ar,
 {
 }
 
-static int ath10k_usb_hif_power_up(struct ath10k *ar)
+static int ath10k_usb_hif_power_up(struct ath10k *ar,
+				   enum ath10k_firmware_mode fw_mode)
 {
 	return 0;
 }
@@ -1025,7 +1026,7 @@ static int ath10k_usb_probe(struct usb_interface *interface,
 	}
 
 	/* TODO: remove this once USB support is fully implemented */
-	ath10k_warn(ar, "WARNING: ath10k USB support is incomplete, don't expect anything to work!\n");
+	ath10k_warn(ar, "Warning: ath10k USB support is incomplete, don't expect anything to work!\n");
 
 	return 0;
 

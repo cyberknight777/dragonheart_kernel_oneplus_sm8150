@@ -137,8 +137,8 @@ describe_obj(struct seq_file *m, struct drm_i915_gem_object *obj)
 		   get_global_flag(obj),
 		   get_pin_mapped_flag(obj),
 		   obj->base.size / 1024,
-		   obj->base.read_domains,
-		   obj->base.write_domain,
+		   obj->read_domains,
+		   obj->write_domain,
 		   i915_cache_level_str(dev_priv, obj->cache_level),
 		   obj->mm.dirty ? " dirty" : "",
 		   obj->mm.madv == I915_MADV_DONTNEED ? " purgeable" : "");
@@ -1129,7 +1129,8 @@ static int i915_frequency_info(struct seq_file *m, void *unused)
 			   rpcurup, GT_PM_INTERVAL_TO_US(dev_priv, rpcurup));
 		seq_printf(m, "RP PREV UP: %d (%dus)\n",
 			   rpprevup, GT_PM_INTERVAL_TO_US(dev_priv, rpprevup));
-		seq_printf(m, "Up threshold: %d%%\n", rps->up_threshold);
+		seq_printf(m, "Up threshold: %d%%\n",
+			   rps->power.up_threshold);
 
 		seq_printf(m, "RP CUR DOWN EI: %d (%dus)\n",
 			   rpdownei, GT_PM_INTERVAL_TO_US(dev_priv, rpdownei));
@@ -1137,7 +1138,8 @@ static int i915_frequency_info(struct seq_file *m, void *unused)
 			   rpcurdown, GT_PM_INTERVAL_TO_US(dev_priv, rpcurdown));
 		seq_printf(m, "RP PREV DOWN: %d (%dus)\n",
 			   rpprevdown, GT_PM_INTERVAL_TO_US(dev_priv, rpprevdown));
-		seq_printf(m, "Down threshold: %d%%\n", rps->down_threshold);
+		seq_printf(m, "Down threshold: %d%%\n",
+			   rps->power.down_threshold);
 
 		max_freq = (IS_GEN9_LP(dev_priv) ? rp_state_cap >> 0 :
 			    rp_state_cap >> 16) & 0xff;
@@ -2212,6 +2214,7 @@ static int i915_rps_boost_info(struct seq_file *m, void *data)
 	seq_printf(m, "CPU waiting? %d\n", count_irq_waiters(dev_priv));
 	seq_printf(m, "Boosts outstanding? %d\n",
 		   atomic_read(&rps->num_waiters));
+	seq_printf(m, "Interactive? %d\n", READ_ONCE(rps->power.interactive));
 	seq_printf(m, "Frequency requested %d\n",
 		   intel_gpu_freq(dev_priv, rps->cur_freq));
 	seq_printf(m, "  min hard:%d, soft:%d; max soft:%d, hard:%d\n",
@@ -2255,13 +2258,13 @@ static int i915_rps_boost_info(struct seq_file *m, void *data)
 		intel_uncore_forcewake_put(dev_priv, FORCEWAKE_ALL);
 
 		seq_printf(m, "\nRPS Autotuning (current \"%s\" window):\n",
-			   rps_power_to_str(rps->power));
+			   rps_power_to_str(rps->power.mode));
 		seq_printf(m, "  Avg. up: %d%% [above threshold? %d%%]\n",
 			   rpup && rpupei ? 100 * rpup / rpupei : 0,
-			   rps->up_threshold);
+			   rps->power.up_threshold);
 		seq_printf(m, "  Avg. down: %d%% [below threshold? %d%%]\n",
 			   rpdown && rpdownei ? 100 * rpdown / rpdownei : 0,
-			   rps->down_threshold);
+			   rps->power.down_threshold);
 	} else {
 		seq_puts(m, "\nRPS Autotuning inactive\n");
 	}
@@ -2572,27 +2575,55 @@ DEFINE_SIMPLE_ATTRIBUTE(i915_guc_log_control_fops,
 			i915_guc_log_control_get, i915_guc_log_control_set,
 			"%lld\n");
 
-static const char *psr2_live_status(u32 val)
+static void
+psr_source_status(struct drm_i915_private *dev_priv, struct seq_file *m)
 {
-	static const char * const live_status[] = {
-		"IDLE",
-		"CAPTURE",
-		"CAPTURE_FS",
-		"SLEEP",
-		"BUFON_FW",
-		"ML_UP",
-		"SU_STANDBY",
-		"FAST_SLEEP",
-		"DEEP_SLEEP",
-		"BUF_ON",
-		"TG_ON"
-	};
+	u32 val, psr_status;
 
-	val = (val & EDP_PSR2_STATUS_STATE_MASK) >> EDP_PSR2_STATUS_STATE_SHIFT;
-	if (val < ARRAY_SIZE(live_status))
-		return live_status[val];
+	if (dev_priv->psr.psr2_support) {
+		static const char * const live_status[] = {
+			"IDLE",
+			"CAPTURE",
+			"CAPTURE_FS",
+			"SLEEP",
+			"BUFON_FW",
+			"ML_UP",
+			"SU_STANDBY",
+			"FAST_SLEEP",
+			"DEEP_SLEEP",
+			"BUF_ON",
+			"TG_ON"
+		};
+		psr_status = I915_READ(EDP_PSR2_STATUS_CTL);
+		val = (psr_status & EDP_PSR2_STATUS_STATE_MASK) >>
+			EDP_PSR2_STATUS_STATE_SHIFT;
+		if (val < ARRAY_SIZE(live_status)) {
+			seq_printf(m, "Source PSR status: 0x%x [%s]\n",
+				   psr_status, live_status[val]);
+			return;
+		}
+	} else {
+		static const char * const live_status[] = {
+			"IDLE",
+			"SRDONACK",
+			"SRDENT",
+			"BUFOFF",
+			"BUFON",
+			"AUXACK",
+			"SRDOFFACK",
+			"SRDENT_ON",
+		};
+		psr_status = I915_READ(EDP_PSR_STATUS_CTL);
+		val = (psr_status & EDP_PSR_STATUS_STATE_MASK) >>
+			EDP_PSR_STATUS_STATE_SHIFT;
+		if (val < ARRAY_SIZE(live_status)) {
+			seq_printf(m, "Source PSR status: 0x%x [%s]\n",
+				   psr_status, live_status[val]);
+			return;
+		}
+	}
 
-	return "unknown";
+	seq_printf(m, "Source PSR status: 0x%x [%s]\n", psr_status, "unknown");
 }
 
 static int i915_edp_psr_status(struct seq_file *m, void *data)
@@ -2669,12 +2700,8 @@ static int i915_edp_psr_status(struct seq_file *m, void *data)
 
 		seq_printf(m, "Performance_Counter: %u\n", psrperf);
 	}
-	if (dev_priv->psr.psr2_support) {
-		u32 psr2 = I915_READ(EDP_PSR2_STATUS_CTL);
 
-		seq_printf(m, "EDP_PSR2_STATUS_CTL: %x [%s]\n",
-			   psr2, psr2_live_status(psr2));
-	}
+	psr_source_status(dev_priv, m);
 	mutex_unlock(&dev_priv->psr.lock);
 
 	intel_runtime_pm_put(dev_priv);

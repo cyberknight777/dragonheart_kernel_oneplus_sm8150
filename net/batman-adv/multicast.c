@@ -269,16 +269,12 @@ static void batadv_mcast_mla_list_free(struct hlist_head *mcast_list)
  * translation table except the ones listed in the given mcast_list.
  *
  * If mcast_list is NULL then all are retracted.
- *
- * Do not call outside of the mcast worker! (or cancel mcast worker first)
  */
 static void batadv_mcast_mla_tt_retract(struct batadv_priv *bat_priv,
 					struct hlist_head *mcast_list)
 {
 	struct batadv_hw_addr *mcast_entry;
 	struct hlist_node *tmp;
-
-	WARN_ON(delayed_work_pending(&bat_priv->mcast.work));
 
 	hlist_for_each_entry_safe(mcast_entry, tmp, &bat_priv->mcast.mla_list,
 				  list) {
@@ -303,16 +299,12 @@ static void batadv_mcast_mla_tt_retract(struct batadv_priv *bat_priv,
  *
  * Adds multicast listener announcements from the given mcast_list to the
  * translation table if they have not been added yet.
- *
- * Do not call outside of the mcast worker! (or cancel mcast worker first)
  */
 static void batadv_mcast_mla_tt_add(struct batadv_priv *bat_priv,
 				    struct hlist_head *mcast_list)
 {
 	struct batadv_hw_addr *mcast_entry;
 	struct hlist_node *tmp;
-
-	WARN_ON(delayed_work_pending(&bat_priv->mcast.work));
 
 	if (!mcast_list)
 		return;
@@ -540,8 +532,8 @@ update:
 		bat_priv->mcast.enabled = true;
 	}
 
-	return !(mcast_data.flags &
-		 (BATADV_MCAST_WANT_ALL_IPV4 | BATADV_MCAST_WANT_ALL_IPV6));
+	return !(mcast_data.flags & BATADV_MCAST_WANT_ALL_IPV4 &&
+		 mcast_data.flags & BATADV_MCAST_WANT_ALL_IPV6);
 }
 
 /**
@@ -600,7 +592,10 @@ static void batadv_mcast_mla_update(struct work_struct *work)
 	priv_mcast = container_of(delayed_work, struct batadv_priv_mcast, work);
 	bat_priv = container_of(priv_mcast, struct batadv_priv, mcast);
 
+	spin_lock(&bat_priv->mcast.mla_lock);
 	__batadv_mcast_mla_update(bat_priv);
+	spin_unlock(&bat_priv->mcast.mla_lock);
+
 	batadv_mcast_start_timer(bat_priv);
 }
 
@@ -809,8 +804,8 @@ static struct batadv_orig_node *
 batadv_mcast_forw_tt_node_get(struct batadv_priv *bat_priv,
 			      struct ethhdr *ethhdr)
 {
-	return batadv_transtable_search(bat_priv, ethhdr->h_source,
-					ethhdr->h_dest, BATADV_NO_FLAGS);
+	return batadv_transtable_search(bat_priv, NULL, ethhdr->h_dest,
+					BATADV_NO_FLAGS);
 }
 
 /**

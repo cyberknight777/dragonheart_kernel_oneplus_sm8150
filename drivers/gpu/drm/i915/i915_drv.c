@@ -324,7 +324,7 @@ static int i915_getparam(struct drm_device *dev, void *data,
 		value = i915_modparams.semaphores;
 		break;
 	case I915_PARAM_HAS_SECURE_BATCHES:
-		value = capable(CAP_SYS_ADMIN);
+		value = HAS_SECURE_BATCHES(dev_priv) && capable(CAP_SYS_ADMIN);
 		break;
 	case I915_PARAM_CMD_PARSER_VERSION:
 		value = i915_cmd_parser_get_version(dev_priv);
@@ -888,7 +888,6 @@ static int i915_driver_init_early(struct drm_i915_private *dev_priv,
 
 	spin_lock_init(&dev_priv->mm.object_stat_lock);
 	mutex_init(&dev_priv->sb_lock);
-	mutex_init(&dev_priv->modeset_restore_lock);
 	mutex_init(&dev_priv->av_mutex);
 	mutex_init(&dev_priv->wm.wm_mutex);
 	mutex_init(&dev_priv->pps_mutex);
@@ -1289,7 +1288,8 @@ int i915_driver_load(struct pci_dev *pdev, const struct pci_device_id *ent)
 	int ret;
 
 	/* Enable nuclear pageflip on ILK+ */
-	if (!i915_modparams.nuclear_pageflip && match_info->gen < 5)
+	if ((!i915_modparams.nuclear_pageflip && match_info->gen < 5) ||
+			match_info->platform == INTEL_BROADWELL)
 		driver.driver_features &= ~DRIVER_ATOMIC;
 
 	ret = -ENOMEM;
@@ -1518,11 +1518,6 @@ static int i915_drm_suspend(struct drm_device *dev)
 	pci_power_t opregion_target_state;
 	int error;
 
-	/* ignore lid events during suspend */
-	mutex_lock(&dev_priv->modeset_restore_lock);
-	dev_priv->modeset_restore = MODESET_SUSPENDED;
-	mutex_unlock(&dev_priv->modeset_restore_lock);
-
 	disable_rpm_wakeref_asserts(dev_priv);
 
 	/* We do a lot of poking in a lot of registers, make sure they work
@@ -1706,6 +1701,7 @@ static int i915_drm_resume(struct drm_device *dev)
 	intel_guc_resume(dev_priv);
 
 	intel_modeset_init_hw(dev);
+	intel_init_clock_gating(dev_priv);
 
 	spin_lock_irq(&dev_priv->irq_lock);
 	if (dev_priv->display.hpd_irq_setup)
@@ -1729,10 +1725,6 @@ static int i915_drm_resume(struct drm_device *dev)
 	intel_opregion_register(dev_priv);
 
 	intel_fbdev_set_suspend(dev, FBINFO_STATE_RUNNING, false);
-
-	mutex_lock(&dev_priv->modeset_restore_lock);
-	dev_priv->modeset_restore = MODESET_DONE;
-	mutex_unlock(&dev_priv->modeset_restore_lock);
 
 	intel_opregion_notify_adapter(dev_priv, PCI_D0);
 
@@ -2740,10 +2732,10 @@ static const struct drm_ioctl_desc i915_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(I915_GEM_GET_APERTURE, i915_gem_get_aperture_ioctl, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(I915_GET_PIPE_FROM_CRTC_ID, intel_get_pipe_from_crtc_id, 0),
 	DRM_IOCTL_DEF_DRV(I915_GEM_MADVISE, i915_gem_madvise_ioctl, DRM_RENDER_ALLOW),
-	DRM_IOCTL_DEF_DRV(I915_OVERLAY_PUT_IMAGE, intel_overlay_put_image_ioctl, DRM_MASTER|DRM_CONTROL_ALLOW),
-	DRM_IOCTL_DEF_DRV(I915_OVERLAY_ATTRS, intel_overlay_attrs_ioctl, DRM_MASTER|DRM_CONTROL_ALLOW),
-	DRM_IOCTL_DEF_DRV(I915_SET_SPRITE_COLORKEY, intel_sprite_set_colorkey, DRM_MASTER|DRM_CONTROL_ALLOW),
-	DRM_IOCTL_DEF_DRV(I915_GET_SPRITE_COLORKEY, drm_noop, DRM_MASTER|DRM_CONTROL_ALLOW),
+	DRM_IOCTL_DEF_DRV(I915_OVERLAY_PUT_IMAGE, intel_overlay_put_image_ioctl, DRM_MASTER),
+	DRM_IOCTL_DEF_DRV(I915_OVERLAY_ATTRS, intel_overlay_attrs_ioctl, DRM_MASTER),
+	DRM_IOCTL_DEF_DRV(I915_SET_SPRITE_COLORKEY, intel_sprite_set_colorkey, DRM_MASTER),
+	DRM_IOCTL_DEF_DRV(I915_GET_SPRITE_COLORKEY, drm_noop, DRM_MASTER),
 	DRM_IOCTL_DEF_DRV(I915_GEM_WAIT, i915_gem_wait_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(I915_GEM_CONTEXT_CREATE, i915_gem_context_create_ioctl, DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(I915_GEM_CONTEXT_DESTROY, i915_gem_context_destroy_ioctl, DRM_RENDER_ALLOW),

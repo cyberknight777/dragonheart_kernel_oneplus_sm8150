@@ -126,17 +126,22 @@ static int aafs_show_path(struct seq_file *seq, struct dentry *dentry)
 	return 0;
 }
 
-static void aafs_evict_inode(struct inode *inode)
+static void aafs_i_callback(struct rcu_head *head)
 {
-	truncate_inode_pages_final(&inode->i_data);
-	clear_inode(inode);
+	struct inode *inode = container_of(head, struct inode, i_rcu);
 	if (S_ISLNK(inode->i_mode))
 		kfree(inode->i_link);
+	free_inode_nonrcu(inode);
+}
+
+static void aafs_destroy_inode(struct inode *inode)
+{
+	call_rcu(&inode->i_rcu, aafs_i_callback);
 }
 
 static const struct super_operations aafs_super_ops = {
 	.statfs = simple_statfs,
-	.evict_inode = aafs_evict_inode,
+	.destroy_inode = aafs_destroy_inode,
 	.show_path = aafs_show_path,
 };
 
@@ -1189,9 +1194,7 @@ static int seq_ns_level_show(struct seq_file *seq, void *v)
 static int seq_ns_name_show(struct seq_file *seq, void *v)
 {
 	struct aa_label *label = begin_current_label_crit_section();
-
-	seq_printf(seq, "%s\n", aa_ns_name(labels_ns(label),
-					   labels_ns(label), true));
+	seq_printf(seq, "%s\n", labels_ns(label)->base.name);
 	end_current_label_crit_section(label);
 
 	return 0;
