@@ -44,3 +44,13 @@ config SECURITY_CHROMIUMOS_READONLY_PROC_SELF_MEM
 	  When enabled, attempts to open /proc/self/mem for write access
 	  will always fail.  Write access to this file allows bypassing
 	  of memory map permissions (such as modifying read-only code).
+
+config INIT_STACK_ALL
+	bool "0xAA-init everything on the stack (strongest)"
+	default n
+	help
+	  Initializes everything on the stack with a 0xAA
+	  pattern. This is intended to eliminate all classes
+	  of uninitialized stack variable exploits and information
+	  exposures, even variables that were warned to have been
+	  left uninitialized.
