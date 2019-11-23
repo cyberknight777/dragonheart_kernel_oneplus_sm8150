@@ -762,12 +762,11 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 		return false;
 
 	/*
-	 * We pick the list that has the coldest pages. It's most likely
-	 * the file list because direct reclaim always tries the anon list
-	 * first. If both lists have the same age, we choose the anon list
-	 * because going through fs is usually slower.
+	 * We pick the list that has the coldest pages. If both lists have
+	 * the same age, we choose file list because direct reclaim is not
+	 * allowed to write file pages.
 	 */
-	file[0] = kstaled_ring_span(kstaled, true) >
+	file[0] = kstaled_ring_span(kstaled, true) >=
 		  kstaled_ring_span(kstaled, false);
 	file[1] = !file[0];
 
@@ -1298,6 +1297,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 	int i;
 	bool interrupted;
 	unsigned long isolated = 0;
+	unsigned long reclaimed = 0;
 	struct kstaled_struct *kstaled = kstaled_of_zone(zone);
 
 	VM_BUG_ON(current_is_kswapd());
@@ -1308,9 +1308,15 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 	__count_zid_vm_events(ALLOCSTALL, zone_idx(zone), 1);
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
-		if (kstaled_lru_reclaimable(i) &&
-		    kstaled_reclaim_lru(kstaled, i, gfp_mask, &isolated))
-			return true;
+		if (!kstaled_lru_reclaimable(i))
+			continue;
+
+		reclaimed += kstaled_reclaim_lru(kstaled, i, gfp_mask,
+						 &isolated);
+	}
+
+	if (reclaimed) {
+		return true;
 	}
 
 	if (kstaled_shrink_slab(kstaled, gfp_mask))
