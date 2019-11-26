@@ -2306,7 +2306,8 @@ static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 static int iwl_fill_data_tbs_amsdu(struct iwl_trans *trans, struct sk_buff *skb,
 				   struct iwl_txq *txq, u8 hdr_len,
 				   struct iwl_cmd_meta *out_meta,
-				   struct iwl_device_cmd *dev_cmd, u16 tb1_len)
+				   struct iwl_device_tx_cmd *dev_cmd,
+				   u16 tb1_len)
 {
 	/* No A-MSDU without CONFIG_INET */
 	WARN_ON(1);
