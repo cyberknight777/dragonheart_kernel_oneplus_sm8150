@@ -292,16 +292,14 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		ieee80211_chandef_ht_oper(ht_oper, chandef);
 	} else {
 		/* 40 MHz (and 80 MHz) must be supported for VHT */
-		ret = IEEE80211_STA_DISABLE_VHT |
-		      IEEE80211_STA_DISABLE_HE;
+		ret = IEEE80211_STA_DISABLE_VHT;
 		/* also mark 40 MHz disabled */
 		ret |= IEEE80211_STA_DISABLE_40MHZ;
 		goto out;
 	}
 
 	if (!vht_oper || !sband->vht_cap.vht_supported) {
-		ret = IEEE80211_STA_DISABLE_VHT |
-		      IEEE80211_STA_DISABLE_HE;
+		ret = IEEE80211_STA_DISABLE_VHT;
 		goto out;
 	}
 
@@ -332,8 +330,7 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information is invalid, disable VHT\n");
-		ret = IEEE80211_STA_DISABLE_VHT |
-		      IEEE80211_STA_DISABLE_HE;
+		ret = IEEE80211_STA_DISABLE_VHT;
 		goto out;
 	}
 
@@ -341,8 +338,7 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information is invalid, disable VHT\n");
-		ret = IEEE80211_STA_DISABLE_VHT |
-		      IEEE80211_STA_DISABLE_HE;
+		ret = IEEE80211_STA_DISABLE_VHT;
 		goto out;
 	}
 
@@ -355,8 +351,7 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_VHT))
 			sdata_info(sdata,
 				   "AP VHT information doesn't match HT, disable VHT\n");
-		ret = IEEE80211_STA_DISABLE_VHT |
-		      IEEE80211_STA_DISABLE_HE;
+		ret = IEEE80211_STA_DISABLE_VHT;
 		goto out;
 	}
 
@@ -995,8 +990,7 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 
 	if (WARN_ON_ONCE((ifmgd->flags & IEEE80211_STA_DISABLE_HT) &&
 			 !(ifmgd->flags & IEEE80211_STA_DISABLE_VHT)))
-		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT |
-				IEEE80211_STA_DISABLE_HE;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
 
 	if (!nl80211_is_6ghz(sband->band) &&
 	    !(ifmgd->flags & IEEE80211_STA_DISABLE_HT))
@@ -4870,10 +4864,8 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 	}
 
-	if (!sband->vht_cap.vht_supported && !is_6ghz) {
+	if (!sband->vht_cap.vht_supported && !is_6ghz)
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
-		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
-	}
 
 	if (!ieee80211_get_he_sta_cap(sband))
 		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
@@ -4916,7 +4908,6 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 		vht_cap = ieee80211_bss_get_ie(cbss, WLAN_EID_VHT_CAPABILITY);
 		if (!vht_cap || vht_cap[1] < sizeof(struct ieee80211_vht_cap)) {
 			ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
-			ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 			vht_oper = NULL;
 		}
 	}
@@ -4951,7 +4942,6 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 
 	if (!have_80mhz) {
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
-		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 	}
 
 	ifmgd->flags |= ieee80211_determine_chantype(sdata, sband,
@@ -5495,8 +5485,7 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		memcpy(&assoc_data->ap_vht_cap, vht_ie + 2,
 		       sizeof(struct ieee80211_vht_cap));
 	else if (!is_6ghz)
-		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT |
-				IEEE80211_STA_DISABLE_HE;
+		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
 	rcu_read_unlock();
 
 	if (WARN((sdata->vif.driver_flags & IEEE80211_VIF_SUPPORTS_UAPSD) &&
@@ -5576,7 +5565,6 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 
 	if (req->flags & ASSOC_REQ_DISABLE_VHT) {
 		ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
-		ifmgd->flags |= IEEE80211_STA_DISABLE_HE;
 	}
 
 	err = ieee80211_prep_connection(sdata, req->bss, true, override);
