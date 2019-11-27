@@ -4370,8 +4370,10 @@ static void hci_rx_work(struct work_struct *work)
 			continue;
 		}
 
-		if (!hci_le_splitter_should_allow_bluez_rx(hdev, skb))
+		if (!hci_le_splitter_should_allow_bluez_rx(hdev, skb)) {
+			kfree_skb(skb);
 			continue;
+		}
 
 		if (test_bit(HCI_INIT, &hdev->flags)) {
 			/* Don't process data packets in this states. */
