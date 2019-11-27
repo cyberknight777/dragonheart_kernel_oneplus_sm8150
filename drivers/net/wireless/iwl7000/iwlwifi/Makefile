@@ -9,7 +9,7 @@ iwlwifi-objs		+= iwl-phy-db.o iwl-nvm-parse.o
 iwlwifi-objs		+= iwl-dbg-tlv.o
 iwlwifi-objs		+= iwl-trans.o
 
-iwlwifi-objs		+= fw/notif-wait.o
+iwlwifi-objs		+= fw/img.o fw/notif-wait.o
 iwlwifi-objs		+= fw/dbg.o
 iwlwifi-$(CPTCFG_IWLMVM)	+= fw/paging.o fw/smem.o fw/init.o
 iwlwifi-$(CPTCFG_IWLXVT)	+= fw/init.o
