@@ -1658,7 +1658,8 @@ int hci_dev_do_close(struct hci_dev *hdev)
 
 	BT_DBG("%s %p", hdev->name, hdev);
 
-	hci_le_splitter_deinit(hdev);
+	if (!hci_le_splitter_deinit(hdev))
+		return 0;
 
 	if (!hci_dev_test_flag(hdev, HCI_UNREGISTER) &&
 	    !hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
