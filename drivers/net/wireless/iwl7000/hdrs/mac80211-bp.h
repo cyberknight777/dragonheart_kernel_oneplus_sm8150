@@ -713,6 +713,10 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 #define cfg80211_ap_settings_smps_mode(params) ((params)->smps_mode)
 #endif
 
+#if CFG80211_VERSION <= KERNEL_VERSION(9,9,9)
+#define IEEE80211_CHAN_NO_HE 0
+#endif
+
 #if CFG80211_VERSION < KERNEL_VERSION(3,19,0)
 #define NL80211_FEATURE_MAC_ON_CREATE 0 /* cannot be used */
 
