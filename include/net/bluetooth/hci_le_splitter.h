@@ -31,12 +31,6 @@
 struct hci_dev;
 struct sk_buff;
 
-enum {
-	SPLITTER_STATE_NOT_SET,
-	SPLITTER_STATE_DISABLED,
-	SPLITTER_STATE_ENABLED,
-};
-
 #ifdef CONFIG_BT_HCI_LE_SPLITTER
 
 int hci_le_splitter_sysfs_init(void);
@@ -44,7 +38,6 @@ void hci_le_splitter_init_start(struct hci_dev *hdev);
 int hci_le_splitter_init_done(struct hci_dev *hdev);
 void hci_le_splitter_init_fail(struct hci_dev *hdev);
 void hci_le_splitter_deinit(struct hci_dev *hdev);
-int hci_le_splitter_get_enabled_state(void);
 
 /* return true to let bluez have it */
 bool hci_le_splitter_should_allow_bluez_rx(struct hci_dev *hdev, struct sk_buff *skb);
@@ -88,11 +81,6 @@ static inline void hci_le_splitter_init_start(struct hci_dev *hdev)
 static inline int hci_le_splitter_sysfs_init(void)
 {
 	return 0;
-}
-
-static inline int hci_le_splitter_get_enabled_state(void)
-{
-	return SPLITTER_STATE_DISABLED;
 }
 
 #endif
