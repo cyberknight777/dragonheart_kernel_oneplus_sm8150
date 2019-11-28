@@ -647,7 +647,8 @@ static void kstaled_trim_tail(struct kstaled_struct *kstaled)
 
 		list_for_each_entry_safe_reverse(page, prev,
 						 lruvec->lists + lru, lru) {
-			if (!kstaled_consume_tail(kstaled, page, i))
+			if (kstaled_ring_low(kstaled, i) ||
+			    !kstaled_consume_tail(kstaled, page, i))
 				break;
 		}
 	}
@@ -750,11 +751,11 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 		if (&prev->lru != lruvec->lists + lru)
 			prefetchw(prev);
 
-		if (kstaled_consume_tail(kstaled, page, file))
+		if (kstaled_consume_tail(kstaled, page, file)) {
+			if (kstaled_ring_low(kstaled, file))
+				break;
 			continue;
-
-		if (kstaled_ring_low(kstaled, file))
-			break;
+		}
 
 		scanned++;
 
