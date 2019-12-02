@@ -809,6 +809,7 @@ config MM_METRICS
 
 config KSTALED
 	bool "kstaled: a kswapd alternative"
+	depends on X86_64
 	depends on !NEED_MULTIPLE_NODES && !IDLE_PAGE_TRACKING
 	help
 	  kstaled wakes up every second, checks how fast free pages drop,
