@@ -4953,6 +4953,11 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 
 	rcu_read_unlock();
 
+	if (ifmgd->flags & IEEE80211_STA_DISABLE_HE && is_6ghz) {
+		sdata_info(sdata, "Rejecting non-HE 6/7 GHz connection");
+		return -EINVAL;
+	}
+
 	/* will change later if needed */
 	sdata->smps_mode = IEEE80211_SMPS_OFF;
 
