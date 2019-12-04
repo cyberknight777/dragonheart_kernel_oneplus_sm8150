@@ -1603,7 +1603,6 @@ struct iwl_wowlan_status *iwl_mvm_send_wowlan_get_status(struct iwl_mvm *mvm)
 	notif_ver = iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP,
 					    WOWLAN_GET_STATUSES, 0);
 
-	data_size = ALIGN(le32_to_cpu(v7->wake_packet_bufsize), 4);
 	status_size = sizeof(*status);
 
 	if (notif_ver == IWL_FW_CMD_VER_UNKNOWN || notif_ver < 9)
@@ -1614,6 +1613,7 @@ struct iwl_wowlan_status *iwl_mvm_send_wowlan_get_status(struct iwl_mvm *mvm)
 		status = ERR_PTR(-EIO);
 		goto out_free_resp;
 	}
+	data_size = ALIGN(le32_to_cpu(v7->wake_packet_bufsize), 4);
 
 	if (len != (status_size + data_size)) {
 		IWL_ERR(mvm, "Invalid WoWLAN status response!\n");
