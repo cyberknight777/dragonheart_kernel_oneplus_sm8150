@@ -1626,7 +1626,7 @@ struct iwl_wowlan_status *iwl_mvm_send_wowlan_get_status(struct iwl_mvm *mvm)
 		goto out_free_resp;
 
 	memcpy(status, v7, status_size);
-	memcpy(status->wake_packet, v7 + status_size, data_size);
+	memcpy(status->wake_packet, (u8 *)v7 + status_size, data_size);
 
 out_free_resp:
 	iwl_free_resp(&cmd);
