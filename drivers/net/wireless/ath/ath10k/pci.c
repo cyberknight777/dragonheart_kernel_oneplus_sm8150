@@ -1114,7 +1114,8 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
 		 * Request CE to send caller-supplied data that
 		 * was copied to bounce buffer to Target(!) address.
 		 */
-		ret = ath10k_ce_send(ce_diag, NULL, ce_data_base, nbytes, 0, 0);
+		ret = ath10k_ce_send_nolock(ce_diag, NULL, ce_data_base,
+					    nbytes, 0, 0);
 		if (ret != 0)
 			goto done;
 
