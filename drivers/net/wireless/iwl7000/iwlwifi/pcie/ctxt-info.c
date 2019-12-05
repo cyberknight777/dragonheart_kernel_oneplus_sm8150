@@ -57,6 +57,22 @@
 #include "internal.h"
 #include "iwl-prph.h"
 
+static int iwl_pcie_ctxt_info_alloc_dma(struct iwl_trans *trans,
+					const struct fw_desc *sec,
+					struct iwl_dram_data *dram)
+{
+	dram->block = dma_alloc_coherent(trans->dev, sec->len,
+					 &dram->physical,
+					 GFP_KERNEL);
+	if (!dram->block)
+		return -ENOMEM;
+
+	dram->size = sec->len;
+	memcpy(dram->block, sec->data, sec->len);
+
+	return 0;
+}
+
 void iwl_pcie_ctxt_info_free_paging(struct iwl_trans *trans)
 {
 	struct iwl_self_init_dram *dram = &trans->init_dram;
