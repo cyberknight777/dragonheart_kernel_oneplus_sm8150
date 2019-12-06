@@ -8,7 +8,7 @@
  * Copyright 2008, Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (c) 2016        Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2019 Intel Corporation
  */
 #include <linux/slab.h>
 #include <linux/kernel.h>
@@ -2004,6 +2004,8 @@ struct vif_params *params)
 			sdata->u.mgd.use_4addr = params->use_4addr;
 
 		ndev->features |= local->hw.netdev_features;
+		ndev->hw_features |= ndev->features &
+					MAC80211_SUPPORTED_FEATURES_TX;
 
 		netdev_set_default_ethtool_ops(ndev, &ieee80211_ethtool_ops);
 
