@@ -2619,6 +2619,8 @@ static void *iwl_dbgfs_tx_queue_seq_start(struct seq_file *seq, loff_t *pos)
 		return NULL;
 
 	state = kmalloc(sizeof(*state), GFP_KERNEL);
+	if (!state)
+		return NULL;
 	state->pos = *pos;
 	return state;
 }
