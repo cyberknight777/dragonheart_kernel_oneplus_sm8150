@@ -85,6 +85,7 @@
 #include "iwl-trans.h"
 #include "fw/dbg.h"
 #include "fw/acpi.h"
+#include "fw/img.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ)
 #define XVT_SCU_BASE	(0xe6a00000)
@@ -310,7 +311,7 @@ static int iwl_xvt_set_sw_config(struct iwl_xvt *xvt,
 {
 	struct iwl_xvt_sw_cfg_request *sw_cfg =
 				(struct iwl_xvt_sw_cfg_request *)data_in->data;
-	struct iwl_phy_cfg_cmd *fw_calib_cmd_cfg =
+	struct iwl_phy_cfg_cmd_v3 *fw_calib_cmd_cfg =
 				xvt->sw_stack_cfg.fw_calib_cmd_cfg;
 	__le32 cfg_mask = cpu_to_le32(sw_cfg->cfg_mask),
 	       fw_calib_event, fw_calib_flow,
@@ -370,7 +371,7 @@ static int iwl_xvt_get_sw_config(struct iwl_xvt *xvt,
 {
 	struct iwl_xvt_sw_cfg_request *get_cfg_req;
 	struct iwl_xvt_sw_cfg_request *sw_cfg;
-	struct iwl_phy_cfg_cmd *fw_calib_cmd_cfg =
+	struct iwl_phy_cfg_cmd_v3 *fw_calib_cmd_cfg =
 				xvt->sw_stack_cfg.fw_calib_cmd_cfg;
 	__le32 event_trigger, flow_trigger;
 	int i, u;
@@ -425,9 +426,10 @@ static int iwl_xvt_get_sw_config(struct iwl_xvt *xvt,
 
 static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 {
-	struct iwl_phy_cfg_cmd *calib_cmd_cfg =
+	struct iwl_phy_cfg_cmd_v3 *calib_cmd_cfg =
 		&xvt->sw_stack_cfg.fw_calib_cmd_cfg[ucode_type];
 	int err;
+	size_t cmd_size;
 
 	IWL_DEBUG_INFO(xvt, "Sending Phy CFG command: 0x%x\n",
 		       calib_cmd_cfg->phy_cfg);
@@ -437,10 +439,14 @@ static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 		calib_cmd_cfg->calib_control.event_trigger = 0;
 		calib_cmd_cfg->calib_control.flow_trigger = 0;
 	}
+	cmd_size = iwl_fw_lookup_cmd_ver(xvt->fw, IWL_ALWAYS_LONG_GROUP,
+					 PHY_CONFIGURATION_CMD) == 3 ?
+					    sizeof(struct iwl_phy_cfg_cmd_v3) :
+					    sizeof(struct iwl_phy_cfg_cmd_v1);
 
 	/* Sending calibration configuration control data */
 	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, 0,
-				   sizeof(*calib_cmd_cfg), calib_cmd_cfg);
+				   cmd_size, calib_cmd_cfg);
 	if (err)
 		IWL_ERR(xvt, "Error (%d) running INIT calibrations control\n",
 			err);
