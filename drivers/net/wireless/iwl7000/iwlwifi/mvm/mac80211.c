@@ -5085,7 +5085,7 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 		rinfo->nss = u32_get_bits(rate_n_flags,
 					  RATE_VHT_MCS_NSS_MSK) + 1;
 
-		if (rate_n_flags & RATE_MCS_HE_106T_POS) {
+		if (rate_n_flags & RATE_MCS_HE_106T_MSK) {
 			set_rate_info_bw(rinfo, RATE_INFO_BW_HE_RU);
 			rinfo->he_ru_alloc = NL80211_RATE_INFO_HE_RU_ALLOC_106;
 		}
@@ -5118,7 +5118,7 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 			break;
 		}
 
-		if (rate_n_flags & RATE_HE_DUAL_CARRIER_MODE)
+		if (rate_n_flags & RATE_HE_DUAL_CARRIER_MODE_MSK)
 			rinfo->he_dcm = 1;
 #endif
 	} else {
