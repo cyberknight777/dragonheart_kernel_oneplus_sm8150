@@ -11,6 +11,7 @@
 #include <linux/mmu_notifier.h>
 #include <linux/mmzone.h>
 #include <linux/module.h>
+#include <linux/oom.h>
 #include <linux/pagemap.h>
 #include <linux/rmap.h>
 #include <linux/sched/mm.h>
@@ -553,7 +554,7 @@ static void kstaled_walk_mm(struct kstaled_struct *kstaled)
 	rcu_read_lock();
 
 	list_for_each_entry_rcu(mm, &kstaled->mm_list, mm_list) {
-		if (!mmget_not_zero(mm))
+		if (mm_is_oom_victim(mm) || !mmget_not_zero(mm))
 			continue;
 
 		rcu_read_unlock();
