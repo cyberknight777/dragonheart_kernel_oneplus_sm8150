@@ -728,7 +728,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	hw->wiphy->max_sched_scan_reqs = 1;
 #endif
 	hw->wiphy->max_sched_scan_ssids = PROBE_OPTION_MAX;
-	hw->wiphy->max_match_sets = IWL_SCAN_MAX_PROFILES;
+	hw->wiphy->max_match_sets = iwl_umac_scan_get_max_profiles(mvm->fw);
 	/* we create the 802.11 header and zero length SSID IE. */
 	hw->wiphy->max_sched_scan_ie_len =
 		SCAN_OFFLOAD_PROBE_REQ_SIZE - 24 - 2;
@@ -820,7 +820,8 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		mvm->wowlan.n_patterns = IWL_WOWLAN_MAX_PATTERNS;
 		mvm->wowlan.pattern_min_len = IWL_WOWLAN_MIN_PATTERN_LEN;
 		mvm->wowlan.pattern_max_len = IWL_WOWLAN_MAX_PATTERN_LEN;
-		mvm->wowlan.max_nd_match_sets = IWL_SCAN_MAX_PROFILES;
+		mvm->wowlan.max_nd_match_sets =
+			iwl_umac_scan_get_max_profiles(mvm->fw);
 #if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
 		hw->wiphy->wowlan = &mvm->wowlan;
 #else
@@ -3439,66 +3440,6 @@ static void iwl_mvm_sta_rc_update(struct ieee80211_hw *hw,
 		iwl_mvm_sf_update(mvm, vif, false);
 }
 
-#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
-static void iwl_mvm_limit_wmm_ac(struct iwl_mvm *mvm,
-				 struct ieee80211_vif *vif,
-				 struct ieee80211_tx_queue_params *params,
-				 u16 ac)
-{
-	struct ieee80211_regdomain *rd;
-	struct ieee80211_chanctx_conf *chanctx_conf;
-	const struct ieee80211_wmm_ac *wmm_ac;
-	u16 center_freq = 0;
-	int i;
-
-	rcu_read_lock();
-	chanctx_conf = rcu_dereference(vif->chanctx_conf);
-	if (chanctx_conf)
-		center_freq = chanctx_conf->def.chan->center_freq;
-
-	rcu_read_unlock();
-
-	if (!center_freq || center_freq < 5180 || center_freq > 5720)
-		return;
-
-	if (vif->type != NL80211_IFTYPE_STATION &&
-	    vif->type != NL80211_IFTYPE_AP &&
-	    vif->type != NL80211_IFTYPE_P2P_CLIENT &&
-	    vif->type != NL80211_IFTYPE_P2P_GO)
-		return;
-
-	mutex_lock(&mvm->mutex);
-	if (iwl_mvm_is_lar_supported(mvm))
-		rd = iwl_mvm_get_current_regdomain(mvm, NULL);
-	else
-		rd = NULL;
-	mutex_unlock(&mvm->mutex);
-
-	if (IS_ERR_OR_NULL(rd))
-		return;
-
-	for  (i = 0; i < ARRAY_SIZE(wmm_cc_list); i++) {
-		if (!strncmp(wmm_cc_list[i], rd->alpha2, 2)) {
-			if (vif->type == NL80211_IFTYPE_STATION ||
-			    vif->type == NL80211_IFTYPE_P2P_CLIENT)
-				wmm_ac = &wmm_rules.client[ac];
-			else
-				wmm_ac = &wmm_rules.ap[ac];
-
-			params->txop =
-				min_t(u16, params->txop, wmm_ac->cot / 32);
-			params->cw_min =
-				max_t(u16, params->cw_min, wmm_ac->cw_min);
-			params->cw_max =
-				max_t(u16, params->cw_max, wmm_ac->cw_max);
-			params->aifs =
-				max_t(u8, params->aifs, wmm_ac->aifsn);
-			return;
-		}
-	}
-}
-#endif
-
 static int iwl_mvm_mac_conf_tx(struct ieee80211_hw *hw,
 			       struct ieee80211_vif *vif, u16 ac,
 			       const struct ieee80211_tx_queue_params *params)
@@ -3507,10 +3448,6 @@ static int iwl_mvm_mac_conf_tx(struct ieee80211_hw *hw,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
 	mvmvif->queue_params[ac] = *params;
-
-#if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
-	iwl_mvm_limit_wmm_ac(mvm, vif, &mvmvif->queue_params[ac], ac);
-#endif
 
 	/*
 	 * No need to update right away, we'll get BSS_CHANGED_QOS
