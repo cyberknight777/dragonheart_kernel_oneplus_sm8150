@@ -43,7 +43,7 @@
 	};
 
 	/* The voltage to the MMC card is hardwired at 3.3V */
-	vmmc: regulator-vmmc {
+	vmmc: fixedregulator@0 {
 		compatible = "regulator-fixed";
 		regulator-name = "vmmc";
 		regulator-min-microvolt = <3300000>;
@@ -51,7 +51,7 @@
 		regulator-boot-on;
         };
 
-	veth: regulator-veth {
+	veth: fixedregulator@0 {
 		compatible = "regulator-fixed";
 		regulator-name = "veth";
 		regulator-min-microvolt = <3300000>;
@@ -539,3 +539,4 @@
 		};
 	};
 };
+

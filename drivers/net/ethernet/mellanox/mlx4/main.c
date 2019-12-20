@@ -199,7 +199,7 @@ int mlx4_check_port_params(struct mlx4_dev *dev,
 		for (i = 0; i < dev->caps.num_ports - 1; i++) {
 			if (port_type[i] != port_type[i + 1]) {
 				mlx4_err(dev, "Only same port types supported on this HCA, aborting\n");
-				return -EOPNOTSUPP;
+				return -EINVAL;
 			}
 		}
 	}
@@ -208,7 +208,7 @@ int mlx4_check_port_params(struct mlx4_dev *dev,
 		if (!(port_type[i] & dev->caps.supported_type[i+1])) {
 			mlx4_err(dev, "Requested port type for port %d is not supported on this HCA\n",
 				 i + 1);
-			return -EOPNOTSUPP;
+			return -EINVAL;
 		}
 	}
 	return 0;
@@ -1152,7 +1152,8 @@ static int __set_port_type(struct mlx4_port_info *info,
 		mlx4_err(mdev,
 			 "Requested port type for port %d is not supported on this HCA\n",
 			 info->port);
-		return -EOPNOTSUPP;
+		err = -EINVAL;
+		goto err_sup;
 	}
 
 	mlx4_stop_sense(mdev);
@@ -1174,7 +1175,7 @@ static int __set_port_type(struct mlx4_port_info *info,
 		for (i = 1; i <= mdev->caps.num_ports; i++) {
 			if (mdev->caps.possible_type[i] == MLX4_PORT_TYPE_AUTO) {
 				mdev->caps.possible_type[i] = mdev->caps.port_type[i];
-				err = -EOPNOTSUPP;
+				err = -EINVAL;
 			}
 		}
 	}
@@ -1200,7 +1201,7 @@ static int __set_port_type(struct mlx4_port_info *info,
 out:
 	mlx4_start_sense(mdev);
 	mutex_unlock(&priv->port_mutex);
-
+err_sup:
 	return err;
 }
 

@@ -139,7 +139,7 @@
 	};
 };
 
-&gpio_ao {
+&pinctrl_aobus {
 	gpio-line-names = "UART TX",
 			  "UART RX",
 			  "Blue LED",
@@ -152,7 +152,7 @@
 			  "7J1 Header Pin13";
 };
 
-&gpio {
+&pinctrl_periphs {
 	gpio-line-names = /* Bank GPIOZ */
 			  "", "", "", "", "", "", "",
 			  "", "", "", "", "", "", "",

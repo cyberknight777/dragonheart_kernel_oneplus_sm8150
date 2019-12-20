@@ -112,7 +112,7 @@
 	linux,rc-map-name = "rc-geekbox";
 };
 
-&gpio_ao {
+&pinctrl_aobus {
 	gpio-line-names = "UART TX",
 			  "UART RX",
 			  "Power Key In",
@@ -125,7 +125,7 @@
 			  "SYS LED";
 };
 
-&gpio {
+&pinctrl_periphs {
 	gpio-line-names = /* Bank GPIOZ */
 			  "", "", "", "", "", "", "",
 			  "", "", "", "", "", "", "",

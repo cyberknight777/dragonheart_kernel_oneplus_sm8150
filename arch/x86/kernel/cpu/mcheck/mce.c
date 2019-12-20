@@ -1659,7 +1659,6 @@ static int __mcheck_cpu_apply_quirks(struct cpuinfo_x86 *c)
 		 */
 		if (c->x86 == 0x15 && c->x86_model <= 0xf)
 			mce_flags.overflow_recov = 1;
-
 	}
 
 	if (c->x86_vendor == X86_VENDOR_INTEL) {

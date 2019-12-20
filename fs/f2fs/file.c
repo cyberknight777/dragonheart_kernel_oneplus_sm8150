@@ -2029,7 +2029,7 @@ do_more:
 	}
 
 	ret = f2fs_gc(sbi, range.sync, true, GET_SEGNO(sbi, range.start));
-	range.start += BLKS_PER_SEC(sbi);
+	range.start += sbi->blocks_per_seg;
 	if (range.start <= end)
 		goto do_more;
 out:
