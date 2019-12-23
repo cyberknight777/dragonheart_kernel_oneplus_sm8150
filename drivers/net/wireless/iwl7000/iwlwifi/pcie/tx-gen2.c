@@ -340,7 +340,7 @@ static int iwl_pcie_gen2_set_tb_with_wa(struct iwl_trans *trans,
 	}
 	IWL_WARN(trans,
 		 "TB bug workaround: copied %d bytes from 0x%llx to 0x%llx\n",
-		 len, oldphys, phys);
+		 len, (unsigned long long)oldphys, (unsigned long long)phys);
 
 	ret = 0;
 unmap:
