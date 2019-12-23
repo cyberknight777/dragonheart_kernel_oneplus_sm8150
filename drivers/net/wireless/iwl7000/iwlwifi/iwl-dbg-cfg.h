@@ -283,7 +283,6 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u16, tx_mcs_160)
 	IWL_DBG_CFG_NODEF(u32, secure_boot_cfg)
 	IWL_MOD_PARAM(u32, uapsd_disable)
-	IWL_MOD_PARAM(bool, fw_monitor)
 	IWL_MOD_PARAM(bool, fw_restart)
 	IWL_MOD_PARAM(bool, power_save)
 	IWL_MOD_PARAM(bool, bt_coex_active)

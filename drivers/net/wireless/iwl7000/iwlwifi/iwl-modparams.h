@@ -116,7 +116,6 @@ enum iwl_uapsd_disable {
  * @uapsd_disable: disable U-APSD, see &enum iwl_uapsd_disable, default =
  *	IWL_DISABLE_UAPSD_BSS | IWL_DISABLE_UAPSD_P2P_CLIENT
  * @xvt_default_mode: xVT is the default operation mode, default = false
- * @fw_monitor: allow to use firmware monitor
  * @disable_11ac: disable VHT capabilities, default = false.
  * @disable_msix: disable MSI-X and fall back to MSI on PCIe, default = false.
  * @remove_when_gone: remove an inaccessible device from the PCIe bus.
@@ -140,7 +139,6 @@ struct iwl_mod_params {
 #endif
 	char *nvm_file;
 	u32 uapsd_disable;
-	bool fw_monitor;
 	bool disable_11ac;
 	/**
 	 * @disable_11ax: disable HE capabilities, default = false
