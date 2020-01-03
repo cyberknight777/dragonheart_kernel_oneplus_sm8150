@@ -284,6 +284,9 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	}
 
 	xvt->fw_running = true;
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	iwl_fw_set_dbg_rec_on(&xvt->fwrt);
+#endif
 
 	return 0;
 }
