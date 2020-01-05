@@ -368,7 +368,7 @@ int sde_fence_create(struct sde_fence_context *ctx, uint64_t *val,
 
 	SDE_EVT32(ctx->drm_id, trigger_value, fd);
 
-	if (fd >= 0) {
+	if (unlikely(fd >= 0)) {
 		rc = 0;
 		_sde_fence_trigger(ctx, ktime_get(), false);
 	} else {
