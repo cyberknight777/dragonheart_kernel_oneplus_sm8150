@@ -942,8 +942,14 @@ static void ieee80211_send_assoc(struct ieee80211_sub_if_data *sdata)
 		*pos++ = ieee80211_chandef_max_power(&chanctx_conf->def);
 	}
 
+	/*
+	 * Per spec, we shouldn't include the list of channels if we advertise
+	 * support for extended channel switching, but we've always done that;
+	 * (for now?) apply this restriction only on the (new) 6 GHz band.
+	 */
 	if (capab & WLAN_CAPABILITY_SPECTRUM_MGMT &&
-	    (!ext_capa || ext_capa->datalen < 1 ||
+	    (!nl80211_is_6ghz(sband->band) ||
+	     !ext_capa || ext_capa->datalen < 1 ||
 	     !(ext_capa->data[0] & WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING))) {
 		/* TODO: get this in reg domain format */
 		pos = skb_put(skb, 2 * sband->n_channels + 2);
