@@ -196,21 +196,25 @@ ieee80211_determine_chantype_6ghz(struct ieee80211_sub_if_data *sdata,
 		he_chandef.width = NL80211_CHAN_WIDTH_80;
 		break;
 	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ:
-		/* FIXME: not sure this is right - the spec is weird */
-		if (he_6ghz_oper->ccfs1)
-			he_chandef.width = NL80211_CHAN_WIDTH_80P80;
-		else
+		if (he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0 == 8)
 			he_chandef.width = NL80211_CHAN_WIDTH_160;
+		else
+			he_chandef.width = NL80211_CHAN_WIDTH_80P80;
 		break;
 	}
 
-	he_chandef.center_freq1 =
-		ieee80211_channel_to_frequency(he_6ghz_oper->ccfs0,
-					       NL80211_BAND_6GHZ);
-	he_chandef.center_freq2 =
-		ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
-					       NL80211_BAND_6GHZ);
-
+	if (he_chandef.width == NL80211_CHAN_WIDTH_160) {
+		he_chandef.center_freq1 =
+			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
+						       NL80211_BAND_6GHZ);
+	} else {
+		he_chandef.center_freq1 =
+			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs0,
+						       NL80211_BAND_6GHZ);
+		he_chandef.center_freq2 =
+			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
+						       NL80211_BAND_6GHZ);
+	}
 	if (!cfg80211_chandef_valid(&he_chandef)) {
 		sdata_info(sdata,
 			   "HE 6GHz operation resulted in invalid chandef: %d MHz/%d/%d MHz/%d MHz\n",
