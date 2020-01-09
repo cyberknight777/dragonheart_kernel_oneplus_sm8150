@@ -7,7 +7,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2018-2019 Intel Corporation
+ * Copyright (C) 2018-2020 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -29,7 +29,7 @@
  *
  * Copyright(c) 2013 - 2015 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
- * Copyright (C) 2018-2019 Intel Corporation
+ * Copyright (C) 2018-2020 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -286,7 +286,6 @@ struct iwl_dbg_cfg {
 	IWL_MOD_PARAM(bool, fw_restart)
 	IWL_MOD_PARAM(bool, power_save)
 	IWL_MOD_PARAM(bool, bt_coex_active)
-	IWL_MOD_PARAM(int, antenna_coupling)
 	IWL_MOD_PARAM(int, power_level)
 	IWL_MOD_PARAM(int, led_mode)
 	IWL_MOD_PARAM(int, amsdu_size)
