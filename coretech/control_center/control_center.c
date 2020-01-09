@@ -36,13 +36,13 @@
 		cc_logv("%s: cost: %lldus, max: %lldus\n", __func__, t, tmax); \
 	}\
 }
-static bool cc_time_measure = true;
+static bool cc_time_measure = false;
 module_param_named(time_measure, cc_time_measure, bool, 0644);
 
-static bool cc_cpu_boost_enable = true;
+static bool cc_cpu_boost_enable = false;
 module_param_named(cpu_boost_enable, cc_cpu_boost_enable, bool, 0644);
 
-bool cc_ddr_boost_enable = true;
+bool cc_ddr_boost_enable = false;
 module_param_named(ddr_boost_enable, cc_ddr_boost_enable, bool, 0644);
 
 static bool cc_fps_boost_enable = true;
