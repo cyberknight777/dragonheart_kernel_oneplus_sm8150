@@ -196,7 +196,7 @@ ieee80211_determine_chantype_6ghz(struct ieee80211_sub_if_data *sdata,
 		he_chandef.width = NL80211_CHAN_WIDTH_80;
 		break;
 	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ:
-		if (he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0 == 8)
+		if (abs(he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0) == 8)
 			he_chandef.width = NL80211_CHAN_WIDTH_160;
 		else
 			he_chandef.width = NL80211_CHAN_WIDTH_80P80;
