@@ -2269,10 +2269,6 @@ void cfg80211_send_layer2_update(struct net_device *dev, const u8 *addr)
 }
 
 #define NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 -1
-
-int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
-			      enum ieee80211_vht_chanwidth bw,
-			      int mcs, bool ext_nss_bw_capable);
 #endif /* >= 4.20 */
 
 /*
@@ -2758,4 +2754,11 @@ static inline bool nl80211_is_6ghz(enum nl80211_band band)
 #define ftm_non_trigger_based(peer)	((peer)->ftm.non_trigger_based)
 #define ftm_trigger_based(peer)	((peer)->ftm.trigger_based)
 #define ieee80211_preamble_he() BIT(NL80211_PREAMBLE_HE)
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,6,0)
+int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
+			      enum ieee80211_vht_chanwidth bw,
+			      int mcs, bool ext_nss_bw_capable,
+			      unsigned int max_vht_nss);
 #endif
