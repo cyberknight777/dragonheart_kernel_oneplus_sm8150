@@ -205,9 +205,10 @@ static void iwl_mvm_ftm_cmd_v5(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		eth_broadcast_addr(cmd->range_req_bssid);
 }
 
-static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			    struct iwl_tof_range_req_cmd *cmd,
-			    struct cfg80211_pmsr_request *req)
+static void iwl_mvm_ftm_cmd_common(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif,
+				   struct iwl_tof_range_req_cmd *cmd,
+				   struct cfg80211_pmsr_request *req)
 {
 	int i;
 
@@ -231,13 +232,6 @@ static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		cmd->macaddr_mask[i] = ~req->mac_addr_mask[i];
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-	if (IWL_MVM_FTM_INITIATOR_COMMON_CALIB) {
-		cmd->common_calib =
-			cpu_to_le16(IWL_MVM_FTM_INITIATOR_COMMON_CALIB);
-		cmd->initiator_flags |=
-			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB);
-	}
-
 	if (IWL_MVM_FTM_INITIATOR_FAST_ALGO_DISABLE)
 		cmd->initiator_flags |=
 			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_FAST_ALGO_DISABLED);
@@ -262,6 +256,22 @@ static void iwl_mvm_ftm_cmd(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	/* Don't report AP's TSF */
 	cmd->tsf_mac_id = cpu_to_le32(0xff);
+}
+
+static void iwl_mvm_ftm_cmd_v8(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			       struct iwl_tof_range_req_cmd_v8 *cmd,
+			       struct cfg80211_pmsr_request *req)
+{
+	iwl_mvm_ftm_cmd_common(mvm, vif, (void *)cmd, req);
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (IWL_MVM_FTM_INITIATOR_COMMON_CALIB) {
+		cmd->common_calib =
+			cpu_to_le16(IWL_MVM_FTM_INITIATOR_COMMON_CALIB);
+		cmd->initiator_flags |=
+			cpu_to_le32(IWL_TOF_INITIATOR_FLAGS_COMMON_CALIB);
+	}
+#endif
 }
 
 static int
@@ -444,9 +454,10 @@ iwl_mvm_ftm_put_target_v3(struct iwl_mvm *mvm,
 	return 0;
 }
 
-static int iwl_mvm_ftm_put_target_v4(struct iwl_mvm *mvm,
-				     struct cfg80211_pmsr_request_peer *peer,
-				     struct iwl_tof_range_req_ap_entry *target)
+static int
+iwl_mvm_ftm_put_target(struct iwl_mvm *mvm,
+		       struct cfg80211_pmsr_request_peer *peer,
+		       struct iwl_tof_range_req_ap_entry_v4 *target)
 {
 	int ret;
 
@@ -456,7 +467,7 @@ static int iwl_mvm_ftm_put_target_v4(struct iwl_mvm *mvm,
 	if (ret)
 		return ret;
 
-	iwl_mvm_ftm_put_target_common(mvm, peer, target);
+	iwl_mvm_ftm_put_target_common(mvm, peer, (void *)target);
 
 	return 0;
 }
@@ -518,7 +529,7 @@ static int iwl_mvm_ftm_start_v7(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	 * Versions 7 and 8 has the same structure except from the responders
 	 * list, so iwl_mvm_ftm_cmd() can be used for version 7 too.
 	 */
-	iwl_mvm_ftm_cmd(mvm, vif, (void *)&cmd_v7, req);
+	iwl_mvm_ftm_cmd_v8(mvm, vif, (void *)&cmd_v7, req);
 
 	for (i = 0; i < cmd_v7.num_of_ap; i++) {
 		struct cfg80211_pmsr_request_peer *peer = &req->peers[i];
@@ -534,6 +545,32 @@ static int iwl_mvm_ftm_start_v7(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 static int iwl_mvm_ftm_start_v8(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				struct cfg80211_pmsr_request *req)
 {
+	struct iwl_tof_range_req_cmd_v8 cmd;
+	struct iwl_host_cmd hcmd = {
+		.id = iwl_cmd_id(TOF_RANGE_REQ_CMD, LOCATION_GROUP, 0),
+		.dataflags[0] = IWL_HCMD_DFL_DUP,
+		.data[0] = &cmd,
+		.len[0] = sizeof(cmd),
+	};
+	u8 i;
+	int err;
+
+	iwl_mvm_ftm_cmd_v8(mvm, vif, (void *)&cmd, req);
+
+	for (i = 0; i < cmd.num_of_ap; i++) {
+		struct cfg80211_pmsr_request_peer *peer = &req->peers[i];
+
+		err = iwl_mvm_ftm_put_target(mvm, peer, &cmd.ap[i]);
+		if (err)
+			return err;
+	}
+
+	return iwl_mvm_ftm_send_cmd(mvm, &hcmd);
+}
+
+static int iwl_mvm_ftm_start_v9(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+				struct cfg80211_pmsr_request *req)
+{
 	struct iwl_tof_range_req_cmd cmd;
 	struct iwl_host_cmd hcmd = {
 		.id = iwl_cmd_id(TOF_RANGE_REQ_CMD, LOCATION_GROUP, 0),
@@ -544,14 +581,33 @@ static int iwl_mvm_ftm_start_v8(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	u8 i;
 	int err;
 
-	iwl_mvm_ftm_cmd(mvm, vif, &cmd, req);
+	iwl_mvm_ftm_cmd_common(mvm, vif, &cmd, req);
 
 	for (i = 0; i < cmd.num_of_ap; i++) {
 		struct cfg80211_pmsr_request_peer *peer = &req->peers[i];
 
-		err = iwl_mvm_ftm_put_target_v4(mvm, peer, &cmd.ap[i]);
+		err = iwl_mvm_ftm_put_target(mvm, peer, (void *)&cmd.ap[i]);
 		if (err)
 			return err;
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+		if (IWL_MVM_FTM_INITIATOR_COMMON_CALIB) {
+			struct iwl_tof_range_req_ap_entry *target = &cmd.ap[i];
+			int j;
+
+			/*
+			 * The driver API only supports one calibration value.
+			 * For now, use it for all bandwidths.
+			 * TODO: Add support for per bandwidth calibration
+			 * values.
+			 */
+			for (j = 0; j < IWL_TOF_BW_NUM; j++)
+				target->calib[j] =
+					cpu_to_le16(IWL_MVM_FTM_INITIATOR_COMMON_CALIB);
+
+			FTM_PUT_FLAG(USE_CALIB);
+		}
+#endif
 	}
 
 	return iwl_mvm_ftm_send_cmd(mvm, &hcmd);
@@ -573,11 +629,17 @@ int iwl_mvm_ftm_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LOCATION_GROUP,
 						   TOF_RANGE_REQ_CMD);
 
-		if (cmd_ver == 8)
+		switch (cmd_ver) {
+		case 9:
+			err = iwl_mvm_ftm_start_v9(mvm, vif, req);
+			break;
+		case 8:
 			err = iwl_mvm_ftm_start_v8(mvm, vif, req);
-		else
+			break;
+		default:
 			err = iwl_mvm_ftm_start_v7(mvm, vif, req);
-
+			break;
+		}
 	} else {
 		err = iwl_mvm_ftm_start_v5(mvm, vif, req);
 	}
