@@ -366,7 +366,7 @@ static size_t ramoops_write_kmsg_hdr(struct persistent_ram_zone *prz,
 		record->compressed ? 'C' : 'D');
 	WARN_ON_ONCE(!hdr);
 	len = hdr ? strlen(hdr) : 0;
-	persistent_ram_write(prz, hdr, len);
+	persistent_ram_write_instr(prz, hdr, len);
 	kfree(hdr);
 
 	return len;
