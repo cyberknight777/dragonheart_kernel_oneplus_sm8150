@@ -69,8 +69,8 @@ static void iwl_parse_shared_mem_22000(struct iwl_fw_runtime *fwrt,
 	struct iwl_shared_mem_cfg *mem_cfg = (void *)pkt->data;
 	int i, lmac;
 	int lmac_num = le32_to_cpu(mem_cfg->lmac_num);
-	u8 api_ver = iwl_fw_lookup_notif_ver(fwrt->fw, SHARED_MEM_CFG_CMD,
-					     SYSTEM_GROUP, 0);
+	u8 api_ver = iwl_fw_lookup_notif_ver(fwrt->fw, SYSTEM_GROUP,
+					     SHARED_MEM_CFG_CMD, 0);
 
 	if (WARN_ON(lmac_num > ARRAY_SIZE(mem_cfg->lmac_smem)))
 		return;

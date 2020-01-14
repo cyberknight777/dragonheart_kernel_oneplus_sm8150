@@ -1391,8 +1391,8 @@ static void iwl_ini_get_rxf_data(struct iwl_fw_runtime *fwrt,
 		u8 max_idx;
 
 		fifo_idx = ffs(fid2) - 1;
-		if (iwl_fw_lookup_notif_ver(fwrt->fw, SHARED_MEM_CFG_CMD,
-					    SYSTEM_GROUP, 0) <= 3)
+		if (iwl_fw_lookup_notif_ver(fwrt->fw, SYSTEM_GROUP,
+					    SHARED_MEM_CFG_CMD, 0) <= 3)
 			max_idx = 0;
 		else
 			max_idx = 1;
