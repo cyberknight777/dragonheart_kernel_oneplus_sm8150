@@ -2206,6 +2206,18 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	struct ieee80211_sta *sta;
 	u32 flags;
 	int i;
+	const struct ieee80211_sta_he_cap *own_he_cap = NULL;
+	const struct ieee80211_sband_iftype_data *he_capa;
+	int he_capa_len;
+
+	/* retrieve own HE capabilities */
+	iwl_get_he_capa(&he_capa, &he_capa_len);
+	for (i = 0; i < he_capa_len; i++) {
+		if (he_capa[i].types_mask & BIT(vif->type)) {
+			own_he_cap = &he_capa[i].he_cap;
+			break;
+		}
+	}
 
 	rcu_read_lock();
 
@@ -2391,8 +2403,8 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			(vif->bss_conf.uora_ocw_range >> 3) & 0x7;
 	}
 
-	if (!(sta->he_cap.he_cap_elem.mac_cap_info[2] &
-	      IEEE80211_HE_MAC_CAP2_ACK_EN))
+	if (own_he_cap && !(own_he_cap->he_cap_elem.mac_cap_info[2] &
+			    IEEE80211_HE_MAC_CAP2_ACK_EN))
 		flags |= STA_CTXT_HE_NIC_NOT_ACK_ENABLED;
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
