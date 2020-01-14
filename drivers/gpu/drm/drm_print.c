@@ -192,6 +192,19 @@ void drm_dev_printk(const struct device *dev, const char *level,
 		       level, __builtin_return_address(0), &vaf);
 
 	va_end(args);
+
+	va_start(args, format);
+	vaf.fmt = format;
+	vaf.va = &args;
+
+	if (dev)
+		drm_dev_trace_printf(dev, "[%ps] %pV",
+				     __builtin_return_address(0), &vaf);
+	else
+		drm_trace_printf("[%ps] %pV", __builtin_return_address(0),
+				 &vaf);
+
+	va_end(args);
 }
 EXPORT_SYMBOL(drm_dev_printk);
 
@@ -201,21 +214,34 @@ void drm_dev_dbg(const struct device *dev, unsigned int category,
 	struct va_format vaf;
 	va_list args;
 
-	if (!(drm_debug & category))
-		return;
+	if (drm_debug & category) {
+		va_start(args, format);
+		vaf.fmt = format;
+		vaf.va = &args;
 
-	va_start(args, format);
-	vaf.fmt = format;
-	vaf.va = &args;
+		if (dev)
+			dev_printk(KERN_DEBUG, dev, "[" DRM_NAME ":%ps] %pV",
+				   __builtin_return_address(0), &vaf);
+		else
+			printk(KERN_DEBUG "[" DRM_NAME ":%ps] %pV",
+			       __builtin_return_address(0), &vaf);
 
-	if (dev)
-		dev_printk(KERN_DEBUG, dev, "[" DRM_NAME ":%ps] %pV",
-			   __builtin_return_address(0), &vaf);
-	else
-		printk(KERN_DEBUG "[" DRM_NAME ":%ps] %pV",
-		       __builtin_return_address(0), &vaf);
+		va_end(args);
+	}
+	if (drm_trace_enabled(category)) {
+		va_start(args, format);
+		vaf.fmt = format;
+		vaf.va = &args;
 
-	va_end(args);
+		if (dev)
+			drm_dev_trace_printf(dev, "[%ps] %pV",
+					     __builtin_return_address(0), &vaf);
+		else
+			drm_trace_printf("[%ps] %pV",
+					 __builtin_return_address(0), &vaf);
+
+		va_end(args);
+	}
 }
 EXPORT_SYMBOL(drm_dev_dbg);
 
@@ -224,17 +250,27 @@ void drm_dbg(unsigned int category, const char *format, ...)
 	struct va_format vaf;
 	va_list args;
 
-	if (!(drm_debug & category))
-		return;
+	if (drm_debug & category) {
+		va_start(args, format);
+		vaf.fmt = format;
+		vaf.va = &args;
 
-	va_start(args, format);
-	vaf.fmt = format;
-	vaf.va = &args;
+		printk(KERN_DEBUG "[" DRM_NAME ":%ps] %pV",
+		       __builtin_return_address(0), &vaf);
 
-	printk(KERN_DEBUG "[" DRM_NAME ":%ps] %pV",
-	       __builtin_return_address(0), &vaf);
+		va_end(args);
+	}
 
-	va_end(args);
+	if (drm_trace_enabled(category)) {
+		va_start(args, format);
+		vaf.fmt = format;
+		vaf.va = &args;
+
+		drm_trace_printf("[%ps] %pV", __builtin_return_address(0),
+				 &vaf);
+
+		va_end(args);
+	}
 }
 EXPORT_SYMBOL(drm_dbg);
 
@@ -249,6 +285,15 @@ void drm_err(const char *format, ...)
 
 	printk(KERN_ERR "[" DRM_NAME ":%ps] *ERROR* %pV",
 	       __builtin_return_address(0), &vaf);
+
+	va_end(args);
+
+	va_start(args, format);
+	vaf.fmt = format;
+	vaf.va = &args;
+
+	drm_trace_printf("[%ps] *ERROR* %pV", __builtin_return_address(0),
+			 &vaf);
 
 	va_end(args);
 }
