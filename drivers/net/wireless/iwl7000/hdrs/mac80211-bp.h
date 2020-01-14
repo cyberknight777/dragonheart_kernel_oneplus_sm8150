@@ -2218,10 +2218,16 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 				    WLAN_USER_POSITION_LEN)
 #endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
+#define cfg_he_oper(params) params->he_oper
+#else
+#define cfg_he_oper(params) ((struct ieee80211_he_operation *)NULL)
+#endif /* >= 99.0 */
+
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 #define cfg_he_cap(params) params->he_cap
 #else
-#define cfg_he_cap(params) NULL
+#define cfg_he_cap(params) ((struct ieee80211_he_cap_elem *)NULL)
 
 /* Layer 2 Update frame (802.2 Type 1 LLC XID Update response) */
 struct iapp_layer2_update {
