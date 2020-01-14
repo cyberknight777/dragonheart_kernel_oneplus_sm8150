@@ -708,9 +708,6 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 #define NL80211_FEATURE_DS_PARAM_SET_IE_IN_PROBES 0
 #define NL80211_FEATURE_WFA_TPC_IE_IN_PROBES 0
 #define ASSOC_REQ_USE_RRM 0
-#define cfg80211_ap_settings_smps_mode(params) NL80211_SMPS_OFF
-#else
-#define cfg80211_ap_settings_smps_mode(params) ((params)->smps_mode)
 #endif
 
 #if CFG80211_VERSION <= KERNEL_VERSION(9,9,9)
