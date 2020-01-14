@@ -43,7 +43,8 @@ static void amdgpu_job_timedout(struct drm_sched_job *s_job)
 		  job->base.sched->name, atomic_read(&ring->fence_drv.last_seq),
 		  ring->fence_drv.sync_seq);
 
-	amdgpu_device_gpu_recover(ring->adev, job, false);
+	if (amdgpu_device_should_recover_gpu(ring->adev))
+		amdgpu_device_gpu_recover(ring->adev, job);
 }
 
 int amdgpu_job_alloc(struct amdgpu_device *adev, unsigned num_ibs,
@@ -89,8 +90,6 @@ int amdgpu_job_alloc_with_ib(struct amdgpu_device *adev, unsigned size,
 	r = amdgpu_ib_get(adev, NULL, size, &(*job)->ibs[0]);
 	if (r)
 		kfree(*job);
-	else
-		(*job)->vm_pd_addr = adev->gart.table_addr;
 
 	return r;
 }

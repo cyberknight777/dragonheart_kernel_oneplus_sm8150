@@ -27,6 +27,9 @@
 #include <linux/ctype.h>
 #include <drm/drm_mode_object.h>
 #include <drm/drm_color_mgmt.h>
+#include <drm/drm_rect.h>
+#include <drm/drm_modeset_lock.h>
+#include <drm/drm_util.h>
 
 struct drm_crtc;
 struct drm_printer;
@@ -117,6 +120,13 @@ struct drm_plane_state {
 	 * details.
 	 */
 	u16 alpha;
+
+	/**
+	 * @pixel_blend_mode:
+	 * The alpha blending equation selection, describing how the pixels from
+	 * the current plane are composited with the background. Value can be
+	 * one of DRM_MODE_BLEND_*
+	 */
 	uint16_t pixel_blend_mode;
 
 	/**
