@@ -1,7 +1,7 @@
 /*
  * ChromeOS backport definitions
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2019 Intel Corporation
+ * Copyright (C) 2018-2020 Intel Corporation
  */
 #include <linux/if_ether.h>
 #include <net/cfg80211.h>
@@ -2751,11 +2751,11 @@ static inline bool nl80211_is_6ghz(enum nl80211_band band)
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,4,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(9,9,9)
-#define NL80211_PREAMBLE_HE 4
-
+#define ieee80211_preamble_he() 0
 #define ftm_non_trigger_based(peer)	0
 #define ftm_trigger_based(peer)	0
 #else
 #define ftm_non_trigger_based(peer)	((peer)->ftm.non_trigger_based)
 #define ftm_trigger_based(peer)	((peer)->ftm.trigger_based)
+#define ieee80211_preamble_he() BIT(NL80211_PREAMBLE_HE)
 #endif

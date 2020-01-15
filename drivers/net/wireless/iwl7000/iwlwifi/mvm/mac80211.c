@@ -279,7 +279,7 @@ static const struct cfg80211_pmsr_capabilities iwl_mvm_pmsr_capa = {
 		.preambles = BIT(NL80211_PREAMBLE_LEGACY) |
 			     BIT(NL80211_PREAMBLE_HT) |
 			     BIT(NL80211_PREAMBLE_VHT) |
-			     BIT(NL80211_PREAMBLE_HE),
+			     ieee80211_preamble_he(),
 	},
 };
 #endif
