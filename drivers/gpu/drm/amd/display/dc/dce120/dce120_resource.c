@@ -457,7 +457,7 @@ struct clock_source *dce120_clock_source_create(
 	if (!clk_src)
 		return NULL;
 
-	if (dce110_clk_src_construct(clk_src, ctx, bios, id,
+	if (dce112_clk_src_construct(clk_src, ctx, bios, id,
 				     regs, &cs_shift, &cs_mask)) {
 		clk_src->base.dp_clk_src = dp_clk_src;
 		return &clk_src->base;
@@ -612,7 +612,6 @@ static const struct encoder_feature_support link_enc_feature = {
 		.flags.bits.IS_HBR3_CAPABLE = true,
 		.flags.bits.IS_TPS3_CAPABLE = true,
 		.flags.bits.IS_TPS4_CAPABLE = true,
-		.flags.bits.IS_YCBCR_CAPABLE = true
 };
 
 static struct link_encoder *dce120_link_encoder_create(
