@@ -84,6 +84,7 @@ struct drm_trace_info {
 	struct ring_buffer *buffer;
 	struct dentry *debugfs;
 	struct dentry *debugfs_mask;
+	struct dentry *debugfs_size;
 	u32 category_mask;
 };
 static struct drm_trace_info drm_trace;
@@ -235,6 +236,59 @@ static const struct file_operations drm_trace_fops = {
 	.release = seq_release,
 };
 
+static int drm_trace_size_fop_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t drm_trace_size_fop_read(struct file *filp, char __user *ubuf,
+				       size_t cnt, loff_t *ppos)
+{
+	struct drm_trace_info *info = filp->private_data;
+	unsigned long size;
+	char buf[32];
+	int cpu, len;
+
+	/* All CPUs have the same sized buffer, so just grab the first size */
+	for_each_possible_cpu(cpu) {
+		size = ring_buffer_size(info->buffer, cpu);
+		if (size)
+			break;
+	}
+
+	len = scnprintf(buf, sizeof(buf), "%lu\n", size / 1024);
+	return simple_read_from_buffer(ubuf, cnt, ppos, buf, len);
+}
+
+static ssize_t drm_trace_size_fop_write(struct file *filp,
+					const char __user *ubuf, size_t cnt,
+					loff_t *ppos)
+{
+	struct drm_trace_info *info = filp->private_data;
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint_from_user(ubuf, cnt, 10, &val);
+	if (ret)
+		return ret;
+
+	ret = ring_buffer_resize(info->buffer, val * 1024,
+				 RING_BUFFER_ALL_CPUS);
+	if (ret < 0)
+		return ret;
+
+	*ppos += cnt;
+
+	return cnt;
+}
+
+static const struct file_operations drm_trace_size_fops = {
+	.open = drm_trace_size_fop_open,
+	.read = drm_trace_size_fop_read,
+	.write = drm_trace_size_fop_write,
+};
+
 /**
  * drm_trace_init - initializes tracing for drm core
  * @debugfs_root: the dentry for drm core's debugfs root
@@ -262,6 +316,15 @@ int drm_trace_init(struct dentry *debugfs_root)
 		goto err_debugfs_mask;
 	}
 
+	info->debugfs_size = debugfs_create_file("trace_size_kb",
+						S_IFREG | S_IRUGO | S_IWUSR,
+						debugfs_root, info,
+						&drm_trace_size_fops);
+	if (IS_ERR(info->debugfs_size)) {
+		ret = PTR_ERR(info->debugfs_size);
+		goto err_debugfs_size;
+	}
+
 	info->debugfs = debugfs_create_file("trace", S_IFREG | S_IRUGO,
 					    debugfs_root, info,
 					    &drm_trace_fops);
@@ -273,6 +336,8 @@ int drm_trace_init(struct dentry *debugfs_root)
 	return 0;
 
 err_debugfs:
+	debugfs_remove(info->debugfs_size);
+err_debugfs_size:
 	debugfs_remove(info->debugfs_mask);
 err_debugfs_mask:
 	ring_buffer_free(info->buffer);
@@ -291,6 +356,7 @@ void drm_trace_cleanup()
 
 	debugfs_remove(info->debugfs);
 	debugfs_remove(info->debugfs_mask);
+	debugfs_remove(info->debugfs_size);
 	ring_buffer_free(info->buffer);
 	memset(info, 0, sizeof(*info));
 }
