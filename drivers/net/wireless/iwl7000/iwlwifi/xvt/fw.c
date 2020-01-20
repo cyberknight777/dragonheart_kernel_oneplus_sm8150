@@ -366,6 +366,8 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 	iwl_dbg_tlv_time_point(&xvt->fwrt, IWL_FW_INI_TIME_POINT_AFTER_ALIVE,
 			       NULL);
 
+	iwl_get_shared_mem_conf(&xvt->fwrt);
+
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		ret = iwl_xvt_send_extended_config(xvt);
 		if (ret) {
