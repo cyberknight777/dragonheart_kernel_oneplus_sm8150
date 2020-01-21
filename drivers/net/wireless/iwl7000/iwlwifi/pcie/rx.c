@@ -1471,9 +1471,7 @@ out_err:
 static void iwl_pcie_rx_handle(struct iwl_trans *trans, int queue)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
-#if LINUX_VERSION_IS_GEQ(5,4,0)
 	struct napi_struct *napi;
-#endif
 	struct iwl_rxq *rxq;
 	u32 r, i, count = 0;
 	bool emergency = false;
@@ -1579,18 +1577,18 @@ out:
 	if (unlikely(emergency && count))
 		iwl_pcie_rxq_alloc_rbs(trans, GFP_ATOMIC, rxq);
 
-#if LINUX_VERSION_IS_GEQ(5,4,0)
 	napi = &rxq->napi;
 	if (napi->poll) {
+		napi_gro_flush(napi, false);
+
+#if LINUX_VERSION_IS_GEQ(5,4,0)
 		if (napi->rx_count) {
 			netif_receive_skb_list(&napi->rx_list);
 			INIT_LIST_HEAD(&napi->rx_list);
 			napi->rx_count = 0;
 		}
-
-		napi_gro_flush(napi, false);
-	}
 #endif
+	}
 
 	iwl_pcie_rxq_restock(trans, rxq);
 }
