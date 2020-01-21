@@ -1680,6 +1680,7 @@ static u32 ieee80211_handle_pwr_constr(struct ieee80211_sub_if_data *sdata,
 			max_t(int, 0, chan_pwr - pwr_reduction_80211h);
 	}
 
+	pwr_level_cisco = 0;
 	if (!has_80211h_pwr && !has_cisco_pwr)
 		return 0;
 
