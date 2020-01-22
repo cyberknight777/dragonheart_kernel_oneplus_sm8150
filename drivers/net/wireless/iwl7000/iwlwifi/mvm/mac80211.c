@@ -559,7 +559,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	if (iwlwifi_mod_params.swcrypto)
 		IWL_ERR(mvm,
 			"iwlmvm doesn't allow to disable HW crypto, check swcrypto module parameter\n");
-	if (iwlwifi_mod_params.bt_coex_active)
+	if (!iwlwifi_mod_params.bt_coex_active)
 		IWL_ERR(mvm,
 			"iwlmvm doesn't allow to disable BT Coex, check bt_coex_active module parameter\n");
 
