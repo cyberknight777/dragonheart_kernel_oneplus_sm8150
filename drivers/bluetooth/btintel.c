@@ -386,15 +386,27 @@ void btintel_retry_fw_download(struct hci_dev *hdev)
 {
 	/* Send Intel Reset command. This will result in
 	 * re-enumeration of BT controller.
+	 *
+	 * Intel Reset parameter description:
+	 * reset_param[0] => reset_type : 0x00 (Soft reset),
+					  0x01 (Hard reset)
+	 * reset_param[1] => patch_enable : 0x00 (Do not enable),
+	 *				    0x01 (Enable)
+	 * reset_param[2] => ddc_reload : 0x00 (Do not reload),
+	 *				  0x01 (Reload)
+	 * reset_param[3] => boot_option: 0x00 (Current image),
+					  0x01 (Specified boot address)
+	 * reset_param[4] to reset_param[7] => Boot address
+	 *
 	 */
-	static const u8 reset_param[] = { 0x00, 0x01, 0x00, 0x00,
+	static const u8 reset_param[] = { 0x01, 0x01, 0x01, 0x00,
 					0x00, 0x00, 0x00, 0x00 };
 	struct sk_buff *skb;
 
 	skb = __hci_cmd_sync(hdev, 0xfc01, sizeof(reset_param),
 				reset_param, HCI_INIT_TIMEOUT);
 	if (IS_ERR(skb)) {
-		bt_dev_err(hdev, "Sending Intel Reset failed (%ld)",
+		bt_dev_err(hdev, "FW download error recovery failed (%ld)",
 				PTR_ERR(skb));
 		return;
 	}

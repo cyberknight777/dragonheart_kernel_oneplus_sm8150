@@ -292,6 +292,11 @@ struct kvm_mmu_page {
 	bool unsync;
 	bool lpage_disallowed; /* Can't be replaced by an equiv large page */
 	int root_count;          /* Currently serving as active root */
+#ifdef CONFIG_KSTALED
+	atomic_t ref_count;
+	struct rcu_head rcu_head;
+	struct list_head pgtbl_lh;
+#endif
 	unsigned int unsync_children;
 	struct kvm_rmap_head parent_ptes; /* rmap pointers to parent sptes */
 
@@ -859,6 +864,10 @@ struct kvm_arch {
 	bool x2apic_broadcast_quirk_disabled;
 
 	struct task_struct *nx_lpage_recovery_thread;
+#ifdef CONFIG_KSTALED
+	spinlock_t pgtbl_list_lock;
+	struct list_head pgtbl_list;
+#endif
 };
 
 struct kvm_vm_stat {

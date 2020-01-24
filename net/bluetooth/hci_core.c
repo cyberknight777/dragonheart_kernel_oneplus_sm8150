@@ -34,7 +34,6 @@
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
-#include <net/bluetooth/hci_le_splitter.h>
 #include <net/bluetooth/l2cap.h>
 #include <net/bluetooth/mgmt.h>
 
@@ -803,8 +802,8 @@ static int hci_init4_req(struct hci_request *req, unsigned long opt)
 	if (hdev->le_features[0] & HCI_LE_DATA_LEN_EXT) {
 		struct hci_cp_le_write_def_data_len cp;
 
-		cp.tx_len = hdev->le_max_tx_len;
-		cp.tx_time = hdev->le_max_tx_time;
+		cp.tx_len = cpu_to_le16(hdev->le_max_tx_len);
+		cp.tx_time = cpu_to_le16(hdev->le_max_tx_time);
 		hci_req_add(req, HCI_OP_LE_WRITE_DEF_DATA_LEN, sizeof(cp), &cp);
 	}
 
@@ -1445,8 +1444,6 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 		goto done;
 	}
 
-	hci_le_splitter_init_start(hdev);
-
 	set_bit(HCI_RUNNING, &hdev->flags);
 	hci_sock_dev_event(hdev, HCI_DEV_OPEN);
 
@@ -1524,11 +1521,7 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 	}
 #endif
 
-	if (!ret)
-		ret = hci_le_splitter_init_done(hdev);
-
 	if (!ret) {
-
 		hci_dev_hold(hdev);
 		hci_dev_set_flag(hdev, HCI_RPA_EXPIRED);
 		set_bit(HCI_UP, &hdev->flags);
@@ -1548,8 +1541,6 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 			mgmt_power_on(hdev, ret);
 		}
 	} else {
-		hci_le_splitter_init_fail(hdev);
-
 		/* Init failed, cleanup */
 		flush_work(&hdev->tx_work);
 		flush_work(&hdev->cmd_work);
@@ -1657,8 +1648,6 @@ int hci_dev_do_close(struct hci_dev *hdev)
 	bool auto_off;
 
 	BT_DBG("%s %p", hdev->name, hdev);
-
-	hci_le_splitter_deinit(hdev);
 
 	if (!hci_dev_test_flag(hdev, HCI_UNREGISTER) &&
 	    !hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
@@ -3273,10 +3262,6 @@ int hci_register_dev(struct hci_dev *hdev)
 	hci_sock_dev_event(hdev, HCI_DEV_REG);
 	hci_dev_hold(hdev);
 
-	// Don't try to power on if LE splitter is not yet set up.
-	if (hci_le_splitter_get_enabled_state() == SPLITTER_STATE_NOT_SET)
-		return id;
-
 	queue_work(hdev->req_workqueue, &hdev->power_on);
 
 	return id;
@@ -3507,11 +3492,6 @@ static void hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 	skb_orphan(skb);
 
 	if (!test_bit(HCI_RUNNING, &hdev->flags)) {
-		kfree_skb(skb);
-		return;
-	}
-
-	if (!hci_le_splitter_should_allow_bluez_tx(hdev, skb)) {
 		kfree_skb(skb);
 		return;
 	}
@@ -4369,13 +4349,17 @@ static void hci_rx_work(struct work_struct *work)
 			hci_send_to_sock(hdev, skb);
 		}
 
-		if (hci_dev_test_flag(hdev, HCI_USER_CHANNEL)) {
+		/* If the device has been opened in HCI_USER_CHANNEL,
+		 * the userspace has exclusive access to device.
+		 * When device is HCI_INIT, we still need to process
+		 * the data packets to the driver in order
+		 * to complete its setup().
+		 */
+		if (hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
+		    !test_bit(HCI_INIT, &hdev->flags)) {
 			kfree_skb(skb);
 			continue;
 		}
-
-		if (!hci_le_splitter_should_allow_bluez_rx(hdev, skb))
-			continue;
 
 		if (test_bit(HCI_INIT, &hdev->flags)) {
 			/* Don't process data packets in this states. */

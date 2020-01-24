@@ -333,6 +333,20 @@ int notrace persistent_ram_write(struct persistent_ram_zone *prz,
 	return count;
 }
 
+int notrace persistent_ram_write_instr(struct persistent_ram_zone *prz,
+	const void *s, unsigned int count)
+{
+	if (prz->sig != prz->buffer->sig ||
+	    atomic_read(&prz->buffer->start) >= prz->buffer_size) {
+		pr_info("Corruption in pstore header.  phys addr: %pap\n",
+			&prz->paddr);
+		print_hex_dump_bytes("pstore debug:", DUMP_PREFIX_OFFSET,
+				     prz->buffer, 32);
+	}
+
+	return persistent_ram_write(prz, s, count);
+}
+
 int notrace persistent_ram_write_user(struct persistent_ram_zone *prz,
 	const void __user *s, unsigned int count)
 {
@@ -486,10 +500,11 @@ static int persistent_ram_post_init(struct persistent_ram_zone *prz, u32 sig,
 		return ret;
 
 	sig ^= PERSISTENT_RAM_SIG;
+	prz->sig = sig;
 
 	if (prz->buffer->sig == sig) {
 		if (buffer_size(prz) == 0) {
-			pr_debug("found existing empty buffer\n");
+			pr_info("found existing empty buffer\n");
 			return 0;
 		}
 
@@ -498,13 +513,13 @@ static int persistent_ram_post_init(struct persistent_ram_zone *prz, u32 sig,
 			pr_info("found existing invalid buffer, size %zu, start %zu\n",
 				buffer_size(prz), buffer_start(prz));
 		else {
-			pr_debug("found existing buffer, size %zu, start %zu\n",
+			pr_info("found existing buffer, size %zu, start %zu\n",
 				 buffer_size(prz), buffer_start(prz));
 			persistent_ram_save_old(prz);
 			return 0;
 		}
 	} else {
-		pr_debug("no valid data in buffer (sig = 0x%08x)\n",
+		pr_info("no valid data in buffer (sig = 0x%08x)\n",
 			 prz->buffer->sig);
 	}
 

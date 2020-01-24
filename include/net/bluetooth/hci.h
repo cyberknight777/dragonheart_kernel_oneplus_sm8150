@@ -2004,9 +2004,6 @@ struct hci_ev_si_security {
 	__u8     incoming;
 } __packed;
 
-/* vendor events */
-#define HCI_EV_VENDOR           0xff
-
 /* ---- HCI Packet structures ---- */
 #define HCI_COMMAND_HDR_SIZE 3
 #define HCI_EVENT_HDR_SIZE   2

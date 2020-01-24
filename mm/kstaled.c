@@ -6,11 +6,15 @@
 #include <linux/hugetlb.h>
 #include <linux/kstaled.h>
 #include <linux/kthread.h>
+#include <linux/mm.h>
 #include <linux/mm_inline.h>
 #include <linux/mm_types.h>
+#include <linux/mmu_notifier.h>
+#include <linux/mmzone.h>
 #include <linux/module.h>
 #include <linux/pagemap.h>
 #include <linux/rmap.h>
+#include <linux/sched/mm.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/task_stack.h>
 #include <linux/swap.h>
@@ -19,10 +23,6 @@
 #include "internal.h"
 
 #include <trace/events/vmscan.h>
-
-/* ref counts from page table owner and kstaled */
-#define KSTALED_MAX_REF		2
-#define KSTALED_REF_MASK	GENMASK(PAGE_TYPE_NEXT + ilog2(KSTALED_MAX_REF), PAGE_TYPE_NEXT)
 
 #define kstaled_lru(file)	((file) ? LRU_INACTIVE_FILE : LRU_INACTIVE_ANON)
 #define kstaled_flags(file)	((file) ? BIT(PG_lru) : BIT(PG_lru) | BIT(PG_swapbacked))
@@ -311,260 +311,267 @@ static inline bool kstaled_sort_page(struct kstaled_struct *kstaled,
 	return true;
 }
 
-static inline void kstaled_init_ref(struct page *page)
+struct kstaled_priv {
+	unsigned head;
+	unsigned long hot;
+};
+
+/*
+ * For x86_64, we clear young on huge and non-huge pmd entries. For the
+ * former the reason is obvious; for the latter, it's an optimization:
+ * we clear young on a parent pmd entry after we clear young on all its
+ * child pte entries so next time we can skip all the children if their
+ * parent is not young. If any of the children is accessed, x86_64 also
+ * sets young on their parent.
+ *
+ * This may or may not hold on arm64 v8.1 and later; before v8.1, arm64
+ * doesn't set young at all.
+ *
+ * Note that pmd_young() and pmdp_test_and_clear_young() don't exist or
+ * work when thp is not configured, and if so, we can't do anything even
+ * on x86_64.
+ */
+static bool kstaled_should_skip_pmd(pmd_t pmd)
 {
-	BUILD_BUG_ON(KSTALED_REF_MASK & PAGE_TYPE_BASE);
+	VM_BUG_ON(pmd_trans_huge(pmd));
 
-	VM_BUG_ON_PAGE(~page->page_type >> PAGE_TYPE_NEXT, page);
-
-	page->page_type &= ~BIT(PAGE_TYPE_NEXT);
+#ifdef CONFIG_TRANSPARENT_HUGEPAGE
+	return IS_ENABLED(CONFIG_X86_64) && !pmd_young(pmd);
+#else
+	return false;
+#endif
 }
 
-static inline bool kstaled_has_ref(struct page *page)
+static bool kstaled_should_clear_pmd_young(pmd_t pmd, unsigned long start,
+					   unsigned long end)
 {
-	unsigned cnt;
+	VM_BUG_ON(pmd_trans_huge(pmd));
 
-	cnt = ~page->page_type >> PAGE_TYPE_NEXT;
-
-	VM_BUG_ON_PAGE(cnt > KSTALED_MAX_REF, page);
-
-	return cnt;
+#ifdef CONFIG_TRANSPARENT_HUGEPAGE
+	return IS_ENABLED(CONFIG_X86_64) &&
+	       !(start & ~PMD_MASK) && start + PMD_SIZE <= end;
+#else
+	return false;
+#endif
 }
 
-static inline bool kstaled_get_ref(struct page *page)
+static bool kstaled_vma_reclaimable(struct vm_area_struct *vma)
 {
-	unsigned cnt;
-	unsigned old, new;
+	if (vma->vm_flags & (VM_SPECIAL | VM_LOCKED))
+		return false;
 
-	do {
-		old = READ_ONCE(page->page_type);
-		cnt = ~old >> PAGE_TYPE_NEXT;
-		if (!cnt)
-			break;
+	if (vma == get_gate_vma(vma->vm_mm))
+		return false;
 
-		VM_BUG_ON_PAGE(cnt >= KSTALED_MAX_REF, page);
+	if (is_vm_hugetlb_page(vma))
+		return false;
 
-		new = old & ~KSTALED_REF_MASK;
-		new |= ~(++cnt << PAGE_TYPE_NEXT) & KSTALED_REF_MASK;
-	} while (cmpxchg(&page->page_type, old, new) != old);
+	if (vma_is_dax(vma))
+		return false;
 
-	return cnt;
+	if (vma_is_anonymous(vma))
+		return true;
+
+	return vma->vm_file && vma->vm_file->f_mapping &&
+	       vma->vm_file->f_mapping->a_ops->writepage &&
+	       !mapping_unevictable(vma->vm_file->f_mapping);
 }
 
-static inline bool kstaled_put_ref(struct page *page)
+/*
+ * Gets a reference on the page, which may be a regular or a compound page.
+ * Returns head page if a reference is successfully obtained
+ * Returns NULL if
+ * - The page has already reached 0 ref-count
+ * - kstaled doesn't really care about tracking the page's age
+ */
+struct page *kstaled_get_page_ref(struct page *page)
 {
-	unsigned cnt;
-	unsigned old, new;
+	struct page *head;
 
-	do {
-		old = READ_ONCE(page->page_type);
-		cnt = ~old >> PAGE_TYPE_NEXT;
+start:
+	head = compound_head(page);
 
-		VM_BUG_ON_PAGE(!cnt, page);
-		VM_BUG_ON_PAGE(cnt > KSTALED_MAX_REF, page);
 
-		new = old & ~KSTALED_REF_MASK;
-		new |= ~(--cnt << PAGE_TYPE_NEXT) & KSTALED_REF_MASK;
-	} while (cmpxchg(&page->page_type, old, new) != old);
+	if (!PageLRU(head) || PageUnevictable(head) ||
+	    !get_page_unless_zero(head))
+		return NULL;
 
-	return cnt;
+	/*
+	 * Check if the page is still part of the same compound page, or is a
+	 * non-compound page. If it is a compound page, the reference on the
+	 * head page will prevent it from getting split.
+	 */
+	if (compound_head(page) == head)
+		return head;
+
+	/*
+	 * The page was a compound-tail, but it got split up and is now either a
+	 * non-compound page, or part of a compound page of a different order.
+	 * Let's try again from the start.
+	 */
+	put_page(head);
+	goto start;
+}
+EXPORT_SYMBOL_GPL(kstaled_get_page_ref);
+
+void kstaled_put_page_ref(struct page *page)
+{
+	put_page(page);
+}
+EXPORT_SYMBOL_GPL(kstaled_put_page_ref);
+
+static int kstaled_should_skip_vma(unsigned long start, unsigned long end,
+				   struct mm_walk *walk)
+{
+	return !kstaled_vma_reclaimable(walk->vma);
 }
 
-static int kstaled_check_pte(pte_t *ptep, unsigned head, int *hot)
+static int kstaled_walk_pte(struct vm_area_struct *vma, pte_t *pte,
+			    unsigned long start, unsigned long end,
+			    unsigned head)
 {
 	int i;
-	struct page *page;
-	unsigned long npages;
-	unsigned age;
-	pte_t pte = *ptep;
-	int accessed = 0;
-
-	lockdep_assert_held(ptlock_ptr(virt_to_page(ptep)));
-
-	if (!pte_present(pte) || pte_special(pte) || pte_devmap(pte) ||
-	    !pte_young(pte))
-		return 1;
-
-	VM_BUG_ON(!pfn_valid(pte_pfn(pte)));
-
-	page = compound_head(pte_page(pte));
-	if (!PageLRU(page) && !PageReclaim(page))
-		return 1;
-
-	npages = hpage_nr_pages(page);
-
-	VM_BUG_ON_PAGE(PageHuge(page), page);
-	VM_BUG_ON_PAGE(PageTail(page), page);
-	VM_BUG_ON_PAGE(!page_count(page), page);
-	VM_BUG_ON_PAGE(!page_mapped(page), page);
-	VM_BUG_ON_PAGE(!PageAnon(page) && !page->mapping, page);
-	VM_BUG_ON_PAGE(pte_page(pte) - page >= npages, page);
-
-	npages -= pte_page(pte) - page;
-
-	if (PageUnevictable(page) || PageMlocked(page))
-		return npages;
-
-	if (!PageAnon(page) && mapping_unevictable(page->mapping))
-		return npages;
-
-	for (i = 0; i < npages; i++)
-		accessed += ptep_test_and_clear_young(NULL, 0, ptep + i);
-
-	if (!accessed)
-		return npages;
-
-	age = kstaled_xchg_age(page, head);
-	if (head && age != head && PageLRU(page))
-		*hot += hpage_nr_pages(page);
-
-	return npages;
-}
-
-static int kstaled_scan_ptep(struct page *page, unsigned head)
-{
-	int i = 0;
-	pte_t *ptep = page_address(page);
-	spinlock_t *ptl = ptlock_ptr(page);
 	int hot = 0;
 
-	VM_BUG_ON(!rcu_read_lock_sched_held());
-	VM_BUG_ON_PAGE(!PageTable(page), page);
-	VM_BUG_ON_PAGE(!kstaled_has_ref(page), page);
+	for (i = 0; start != end; i++, start += PAGE_SIZE) {
+		unsigned age;
+		struct page *page;
 
-	spin_lock(ptl);
-	while (i < PTRS_PER_PTE)
-		i += kstaled_check_pte(ptep + i, head, &hot);
-	spin_unlock(ptl);
+		if (!pte_present(pte[i]) || is_zero_pfn(pte_pfn(pte[i])))
+			continue;
 
-	VM_BUG_ON(i != PTRS_PER_PTE);
+		if (!ptep_test_and_clear_young(vma, start, pte + i))
+			continue;
 
-	rcu_read_unlock_sched();
-	cond_resched();
-	rcu_read_lock_sched();
-
-	return hot;
-}
-
-static int kstaled_check_ptep(pmd_t *pmdp, unsigned head)
-{
-	int hot;
-	struct page *page;
-	pmd_t pmd = READ_ONCE(*pmdp);
-
-	VM_BUG_ON(!rcu_read_lock_sched_held());
-
-	if (!pmd_present(pmd) || is_huge_zero_pmd(pmd) || pmd_devmap(pmd) ||
-	    !pmd_young(pmd) || pmd_trans_huge(pmd) || pmd_huge(pmd))
-		return 0;
-
-	VM_BUG_ON(!pfn_valid(pmd_pfn(pmd)));
-
-	page = pmd_page(pmd);
-	if (!kstaled_get_ref(page))
-		return 0;
-
-	hot = kstaled_scan_ptep(page, head);
-	kstaled_put_ptep(page);
-
-	return hot;
-}
-
-static int kstaled_check_pmd(pmd_t *pmdp, unsigned head)
-{
-	struct page *page;
-	unsigned age;
-	pmd_t pmd = *pmdp;
-
-	lockdep_assert_held(ptlock_ptr(virt_to_page(pmdp)));
-
-	if (!pmd_present(pmd) || is_huge_zero_pmd(pmd) || pmd_devmap(pmd) ||
-	    !pmd_young(pmd))
-		return 0;
-
-	VM_BUG_ON(!pfn_valid(pmd_pfn(pmd)));
-
-	if (!pmd_trans_huge(pmd) && !pmd_huge(pmd)) {
-		pmdp_test_and_clear_young(NULL, 0, pmdp);
-		return 0;
+		page = compound_head(pte_page(pte[i]));
+		age = kstaled_xchg_age(page, head);
+		if (head && age != head && PageLRU(page))
+			hot += hpage_nr_pages(page);
 	}
 
-	page = pmd_page(pmd);
-	if (!PageLRU(page) && !PageReclaim(page))
-		return 0;
-
-	VM_BUG_ON_PAGE(PageHuge(page), page);
-	VM_BUG_ON_PAGE(!PageTransHuge(page), page);
-	VM_BUG_ON_PAGE(!page_count(page), page);
-	VM_BUG_ON_PAGE(!page_mapped(page), page);
-	VM_BUG_ON_PAGE(!PageAnon(page) && !page->mapping, page);
-	VM_BUG_ON_PAGE(!PageAnon(page) && !PageSwapBacked(page), page);
-
-	if (PageUnevictable(page) || PageMlocked(page))
-		return 0;
-
-	if (!PageAnon(page) && mapping_unevictable(page->mapping))
-		return 0;
-
-	if (!pmdp_test_and_clear_young(NULL, 0, pmdp))
-		return 0;
-
-	age = kstaled_xchg_age(page, head);
-	if (!head || age == head || !PageLRU(page))
-		return 0;
-
-	return hpage_nr_pages(page);
-}
-
-static int kstaled_scan_pmdp(struct page *page, unsigned head)
-{
-	int i;
-	pmd_t *pmdp = page_address(page);
-	spinlock_t *ptl = ptlock_ptr(page);
-	int hot = 0;
-
-	VM_BUG_ON(!rcu_read_lock_sched_held());
-	VM_BUG_ON_PAGE(!kstaled_has_ref(page), page);
-
-	for (i = 0; i < PTRS_PER_PMD; i++)
-		hot += kstaled_check_ptep(pmdp + i, head);
-
-	spin_lock(ptl);
-	for (i = 0; i < PTRS_PER_PMD; i++)
-		hot += kstaled_check_pmd(pmdp + i, head);
-	spin_unlock(ptl);
-
-	rcu_read_unlock_sched();
-	cond_resched();
-	rcu_read_lock_sched();
-
 	return hot;
 }
 
-static void kstaled_walk_pmdp(struct kstaled_struct *kstaled)
+static int kstaled_walk_pmd(pmd_t *pmd, unsigned long start,
+			    unsigned long end, struct mm_walk *walk)
 {
-	struct page *page;
-	unsigned head = kstaled->head;
+	pte_t *pte;
+	spinlock_t *ptl;
+	struct kstaled_priv *priv = walk->private;
+
+	if (!pmd_present(*pmd) || is_huge_zero_pmd(*pmd) || pmd_trans_huge(*pmd))
+		return 0;
+
+	if (kstaled_should_skip_pmd(*pmd))
+		return 0;
+
+	pte = pte_offset_map_lock(walk->mm, pmd, start, &ptl);
+	priv->hot += kstaled_walk_pte(walk->vma, pte, start, end, priv->head);
+	pte_unmap_unlock(pte, ptl);
+
+	return 0;
+}
+
+static int kstaled_walk_pud(pud_t *pud, unsigned long start,
+			    unsigned long end, struct mm_walk *walk)
+{
+	int i;
+	pmd_t *pmd;
+	spinlock_t *ptl;
+	struct kstaled_priv *priv = walk->private;
+
+	if (!pud_present(*pud) || is_huge_zero_pud(*pud))
+		return 0;
+
+	pmd = pmd_offset(pud, start);
+	ptl = pmd_lock(walk->mm, pmd);
+
+	for (i = 0; start != end; i++, start = pmd_addr_end(start, end)) {
+		unsigned age;
+		struct page *page;
+
+		if (!pmd_present(pmd[i]) || is_huge_zero_pmd(pmd[i]))
+			continue;
+
+		if (!pmd_trans_huge(pmd[i]) &&
+		    !kstaled_should_clear_pmd_young(pmd[i], start, end))
+			continue;
+
+		if (!pmdp_test_and_clear_young(walk->vma, start, pmd + i))
+			continue;
+
+		if (!pmd_trans_huge(pmd[i]))
+			continue;
+
+		page = pmd_page(pmd[i]);
+		age = kstaled_xchg_age(page, priv->head);
+		if (priv->head && age != priv->head && PageLRU(page))
+			priv->hot += hpage_nr_pages(page);
+	}
+
+	spin_unlock(ptl);
+
+	return 0;
+}
+
+static unsigned long kstaled_walk_pgtable(struct mm_struct *mm, unsigned head)
+{
+	struct kstaled_priv priv = {
+		.head = head,
+	};
+	struct mm_walk walk = {
+		.mm = mm,
+		.private = &priv,
+		.test_walk = kstaled_should_skip_vma,
+		.pud_entry_late = kstaled_walk_pud,
+		.pmd_entry = kstaled_walk_pmd,
+	};
+
+	if (!down_read_trylock(&mm->mmap_sem))
+		return 0;
+
+	walk_page_range(FIRST_USER_ADDRESS, mm->highest_vm_end, &walk);
+
+	up_read(&mm->mmap_sem);
+
+	cond_resched();
+
+	return priv.hot;
+}
+
+static void kstaled_walk_mm(struct kstaled_struct *kstaled)
+{
+	struct mm_struct *mm;
+	int delta;
 	unsigned long hot = 0;
+	unsigned long vm_hot = 0;
 	struct pglist_data *node = kstaled_node(kstaled);
 
 	VM_BUG_ON(!current_is_kswapd());
 
-	rcu_read_lock_sched();
+	rcu_read_lock();
 
-	list_for_each_entry_rcu(page, &kstaled->pmdp_list, pmdp_list) {
-		if (!kstaled_get_ref(page))
+	list_for_each_entry_rcu(mm, &kstaled->mm_list, mm_list) {
+		if (!mmget_not_zero(mm))
 			continue;
 
-		hot += kstaled_scan_pmdp(page, head);
-		kstaled_put_pmdp(page);
+		rcu_read_unlock();
+		hot += kstaled_walk_pgtable(mm, kstaled->head);
+		delta = mmu_notifier_update_ages(mm);
+		hot += delta;
+		vm_hot += delta;
+		rcu_read_lock();
+
+		mmput_async(mm);
 	}
 
-	rcu_read_unlock_sched();
+	rcu_read_unlock();
 
 	inc_node_state(node, KSTALED_BACKGROUND_AGING);
 	if (hot)
 		mod_node_page_state(node, KSTALED_BACKGROUND_HOT, hot);
+	if (vm_hot)
+		mod_node_page_state(node, KSTALED_VM_BACKGROUND_HOT, vm_hot);
 
 	trace_kstaled_aging(node->node_id, true, hot);
 }
@@ -640,7 +647,8 @@ static void kstaled_trim_tail(struct kstaled_struct *kstaled)
 
 		list_for_each_entry_safe_reverse(page, prev,
 						 lruvec->lists + lru, lru) {
-			if (!kstaled_consume_tail(kstaled, page, i))
+			if (kstaled_ring_low(kstaled, i) ||
+			    !kstaled_consume_tail(kstaled, page, i))
 				break;
 		}
 	}
@@ -699,13 +707,15 @@ static bool kstaled_lru_reclaimable(bool file)
 
 static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 					 bool file, gfp_t gfp_mask,
-					 unsigned long *attempts)
+					 unsigned long *acc_scanned,
+					 unsigned long *acc_isolated)
 {
 	int i;
 	LIST_HEAD(list);
 	unsigned span;
 	bool clean_only;
 	struct page *page, *prev;
+	unsigned long page_reclaim;
 	unsigned long batch = 0;
 	unsigned long scanned = 0;
 	unsigned long isolated = 0;
@@ -715,6 +725,7 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 	enum lru_list lru = kstaled_lru(file);
 	unsigned long zone_isolated[MAX_NR_ZONES] = {};
 
+	page_reclaim = file ? BIT(PG_reclaim) : 0;
 	clean_only = file ? !current_is_kswapd() : !(gfp_mask & __GFP_IO);
 
 	spin_lock_irq(&node->lru_lock);
@@ -740,11 +751,11 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 		if (&prev->lru != lruvec->lists + lru)
 			prefetchw(prev);
 
-		if (kstaled_consume_tail(kstaled, page, file))
+		if (kstaled_consume_tail(kstaled, page, file)) {
+			if (kstaled_ring_low(kstaled, file))
+				break;
 			continue;
-
-		if (kstaled_ring_low(kstaled, file))
-			break;
+		}
 
 		scanned++;
 
@@ -763,7 +774,7 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 			continue;
 
 		set_mask_bits(&page->flags, KSTALED_AGE_MASK | BIT(PG_lru),
-			      BIT(PG_reclaim));
+			      page_reclaim);
 		list_move(&page->lru, &list);
 		zone_isolated[page_zonenum(page)] += npages;
 		isolated += npages;
@@ -780,9 +791,6 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 unlock:
 	spin_unlock_irq(&node->lru_lock);
 
-	*attempts += batch;
-	if (scanned)
-		atomic_long_add(scanned, &kstaled->scanned);
 	if (isolated)
 		reclaimed = node_shrink_list(node, &list, isolated, file, gfp_mask);
 	if (reclaimed)
@@ -791,11 +799,14 @@ unlock:
 	trace_kstaled_reclaim(node->node_id, file, clean_only, span, scanned,
 			      scanned - batch, isolated, reclaimed);
 
+	*acc_scanned += scanned;
+	*acc_isolated += isolated;
 	return reclaimed;
 }
 
 static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
-				bool file_only, unsigned long *reclaimed)
+				bool file_only, unsigned long *scanned,
+				unsigned long *reclaimed)
 {
 	int i;
 	bool file[KSTALED_LRU_TYPES];
@@ -804,17 +815,16 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 		return false;
 
 	/*
-	 * We pick the list that has the coldest pages. It's most likely
-	 * the file list because direct reclaim always tries the anon list
-	 * first. If both lists have the same age, we choose the anon list
-	 * because going through fs is usually slower.
+	 * We pick the list that has the coldest pages. If both lists have
+	 * the same age, we choose file list because direct reclaim is not
+	 * allowed to write file pages.
 	 */
-	file[0] = kstaled_ring_span(kstaled, true) >
+	file[0] = kstaled_ring_span(kstaled, true) >=
 		  kstaled_ring_span(kstaled, false);
 	file[1] = !file[0];
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
-		unsigned long attempts = 0;
+		unsigned long isolated = 0;
 
 		if (file_only && !file[i])
 			break;
@@ -823,8 +833,8 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 			continue;
 
 		*reclaimed += kstaled_reclaim_lru(kstaled, file[i], GFP_KERNEL,
-						  &attempts);
-		if (attempts)
+						  scanned, &isolated);
+		if (isolated)
 			return true;
 	}
 
@@ -832,43 +842,17 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 }
 
 static unsigned long kstaled_shrink_slab(struct kstaled_struct *kstaled,
-					 gfp_t gfp_mask)
+					 gfp_t gfp_mask, unsigned long scanned)
 {
 	int i;
 	struct pglist_data *node = kstaled_node(kstaled);
-	unsigned long scanned = atomic_long_xchg(&kstaled->scanned, 0);
 	unsigned long total = 0;
-
-	if (!scanned)
-		return 0;
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++)
 		total += node_page_state(node, NR_LRU_BASE + kstaled_lru(i));
 
 	/* we don't age slab pages; use the same heuristic as kswapd */
 	return node_shrink_slab(node, scanned, total, gfp_mask);
-}
-
-static void kstaled_wakeup_kcompactd(struct kstaled_struct *kstaled,
-				     unsigned long reclaimed)
-{
-	int i;
-	int order = 0;
-	struct pglist_data *node = kstaled_node(kstaled);
-
-	for (i = 0; i < MAX_NR_ZONES; i++) {
-		struct zone *zone = node->node_zones + i;
-
-		if (!managed_zone(zone) || !zone->compact_defer_shift)
-			continue;
-
-		order = max(order, zone->compact_order_failed);
-	}
-
-	/* try compaction if we've freed enough pages for migration */
-	order = min(order, MAX_ORDER - 1);
-	if (order && compact_gap(order) < reclaimed)
-		wakeup_kcompactd(node, order, MAX_NR_ZONES);
 }
 
 struct kstaled_context {
@@ -878,7 +862,7 @@ struct kstaled_context {
 	unsigned long hot;
 	unsigned long nr_to_reclaim;
 	unsigned ratio;
-	bool walk_pmdp;
+	bool walk_mm;
 };
 
 static void kstaled_estimate_demands(struct kstaled_struct *kstaled,
@@ -927,35 +911,35 @@ static void kstaled_estimate_demands(struct kstaled_struct *kstaled,
 	 * reclaim was attempted last time, it might be needed again.
 	 */
 	if (!ctx->nr_to_reclaim && free >= high + drop) {
-		ctx->walk_pmdp = false;
+		ctx->walk_mm = false;
 		ctx->nr_to_reclaim = 0;
 		goto done;
 	}
 
 	if (kstaled_ring_empty(kstaled)) {
-		ctx->walk_pmdp = true;
+		ctx->walk_mm = true;
 		ctx->nr_to_reclaim = 0;
 		goto done;
 	}
 
 	/*
-	 * Second, estimate if we need to walk PMD. This is fairly
+	 * Second, estimate if we need to walk mm. This is fairly
 	 * proactive because we can fall back to direct aging as long
 	 * as the ring is not running low.
 	 */
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
 		if (kstaled_ring_low(kstaled, i)) {
-			ctx->walk_pmdp = true;
+			ctx->walk_mm = true;
 			goto may_reclaim;
 		}
 	}
 
 	/*
-	 * We want to pace the PMD walk and avoid consecutive walks
+	 * We want to pace the mm walk and avoid consecutive walks
 	 * between which reclaim wasn't even attempted.
 	 */
-	if (ctx->walk_pmdp && !READ_ONCE(kstaled->peeked)) {
-		ctx->walk_pmdp = false;
+	if (ctx->walk_mm && !READ_ONCE(kstaled->peeked)) {
+		ctx->walk_mm = false;
 		goto may_reclaim;
 	}
 
@@ -966,17 +950,17 @@ static void kstaled_estimate_demands(struct kstaled_struct *kstaled,
 	 */
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
 		if (kstaled_ring_span(kstaled, i) <= ctx->ratio) {
-			ctx->walk_pmdp = true;
+			ctx->walk_mm = true;
 			goto may_reclaim;
 		}
 	}
 
 	if (growth * (ctx->ratio + 1) > total) {
-		ctx->walk_pmdp = true;
+		ctx->walk_mm = true;
 		goto may_reclaim;
 	}
 
-	ctx->walk_pmdp = false;
+	ctx->walk_mm = false;
 may_reclaim:
 	/*
 	 * Finally, estimate if we also need to reclaim. This is least
@@ -998,7 +982,7 @@ done:
 	trace_kstaled_estimate(node->node_id, total, free, drop, growth,
 			       kstaled_ring_span(kstaled, false),
 			       kstaled_ring_span(kstaled, true),
-			       ctx->walk_pmdp, ctx->nr_to_reclaim);
+			       ctx->walk_mm, ctx->nr_to_reclaim);
 }
 
 static int kstaled_node_worker(void *arg)
@@ -1013,6 +997,7 @@ static int kstaled_node_worker(void *arg)
 
 	while (!kthread_should_stop()) {
 		long timeout = HZ;
+		unsigned long scanned = 0;
 		unsigned long reclaimed = 0;
 
 		ctx.ratio = READ_ONCE(kstaled_ratio);
@@ -1034,21 +1019,20 @@ static int kstaled_node_worker(void *arg)
 
 		kstaled_estimate_demands(kstaled, &ctx);
 
-		if (ctx.walk_pmdp) {
-			kstaled_walk_pmdp(kstaled);
+		if (ctx.walk_mm) {
+			kstaled_walk_mm(kstaled);
 			kstaled_advance_head(kstaled);
 			wake_up_all(&kstaled->throttled);
 			ctx.hot = node_page_state(node, KSTALED_DIRECT_HOT);
 		}
 
 		while (kstaled_balance_lru(kstaled,
-		       reclaimed >= ctx.nr_to_reclaim, &reclaimed))
+		       reclaimed >= ctx.nr_to_reclaim, &scanned, &reclaimed))
 			;
 
-		reclaimed += kstaled_shrink_slab(kstaled, GFP_KERNEL);
-
-		if (reclaimed)
-			kstaled_wakeup_kcompactd(kstaled, reclaimed);
+		scanned += atomic_long_xchg(&kstaled->scanned, 0);
+		if (scanned)
+			kstaled_shrink_slab(kstaled, GFP_KERNEL, scanned);
 
 		timeout -= jiffies;
 		if (timeout < 0) {
@@ -1115,8 +1099,8 @@ static int __init kstaled_module_init(void)
 	struct pglist_data *node = NODE_DATA(first_memory_node);
 	struct kstaled_struct *kstaled = &node->kstaled;
 
-	INIT_LIST_HEAD(&kstaled->pmdp_list);
-	spin_lock_init(&kstaled->pmdp_list_lock);
+	INIT_LIST_HEAD(&kstaled->mm_list);
+	spin_lock_init(&kstaled->mm_list_lock);
 	init_waitqueue_head(&kstaled->throttled);
 	kstaled_init_ring(kstaled);
 
@@ -1149,96 +1133,24 @@ inline bool kstaled_ring_inuse(struct pglist_data *node)
 	return !kstaled_ring_empty(&node->kstaled);
 }
 
-static void kstaled_free_ptep(struct rcu_head *rcu)
+inline void kstaled_add_mm(struct mm_struct *mm)
 {
-	struct page *page = container_of(rcu, struct page, rcu_head);
+	struct pglist_data *node = NODE_DATA(first_memory_node);
+	struct kstaled_struct *kstaled = &node->kstaled;
 
-	__free_page(page);
+	spin_lock(&kstaled->mm_list_lock);
+	list_add_tail_rcu(&mm->mm_list, &kstaled->mm_list);
+	spin_unlock(&kstaled->mm_list_lock);
 }
 
-static void kstaled_free_pmdp(struct rcu_head *rcu)
+inline void kstaled_del_mm(struct mm_struct *mm)
 {
-	struct page *page = container_of(rcu, struct page, rcu_head);
+	struct pglist_data *node = NODE_DATA(first_memory_node);
+	struct kstaled_struct *kstaled = &node->kstaled;
 
-	/* clear mapping because it overlaps with pmdp_list */
-	page->mapping = NULL;
-	__free_page(page);
-}
-
-bool kstaled_put_ptep(struct page *page)
-{
-	VM_BUG_ON_PAGE(!PageTable(page), page);
-
-	if (!kstaled_has_ref(page))
-		return false;
-
-	if (kstaled_put_ref(page))
-		return true;
-
-	pgtable_page_dtor(page);
-	call_rcu_sched(&page->rcu_head, kstaled_free_ptep);
-
-	return true;
-}
-
-bool kstaled_put_pmdp(struct page *page)
-{
-	struct kstaled_struct *kstaled;
-
-	if (!kstaled_has_ref(page))
-		return false;
-
-	if (kstaled_put_ref(page))
-		return true;
-
-	kstaled = kstaled_of_page(page);
-	spin_lock(&kstaled->pmdp_list_lock);
-	list_del_rcu(&page->pmdp_list);
-	spin_unlock(&kstaled->pmdp_list_lock);
-
-	pgtable_pmd_page_dtor(page);
-	call_rcu_sched(&page->rcu_head, kstaled_free_pmdp);
-
-	return true;
-}
-
-void kstaled_init_ptep(pmd_t *pmdp, struct page *page)
-{
-	VM_BUG_ON_PAGE(!PageTable(page), page);
-
-	/* ignore temporary pmd_t used during thp split */
-	if (object_is_on_stack(pmdp))
-		return;
-
-	lockdep_assert_held(ptlock_ptr(virt_to_page(pmdp)));
-
-	if (kstaled_has_ref(virt_to_page(pmdp)) && !kstaled_has_ref(page))
-		kstaled_init_ref(page);
-}
-
-void kstaled_init_pmdp(struct mm_struct *mm, pmd_t *pmdp)
-{
-	struct page *page;
-	struct kstaled_struct *kstaled;
-
-	/* ignore static mm_struct like init_mm, etc. */
-	if (core_kernel_data((unsigned long)mm))
-		return;
-
-	lockdep_assert_held(&mm->page_table_lock);
-
-	page = virt_to_page(pmdp);
-	if (kstaled_has_ref(page))
-		return;
-
-	kstaled_init_ref(page);
-
-	VM_BUG_ON_PAGE(page->mapping, page);
-
-	kstaled = kstaled_of_page(page);
-	spin_lock(&kstaled->pmdp_list_lock);
-	list_add_tail_rcu(&page->pmdp_list, &kstaled->pmdp_list);
-	spin_unlock(&kstaled->pmdp_list_lock);
+	spin_lock(&kstaled->mm_list_lock);
+	list_del_rcu(&mm->mm_list);
+	spin_unlock(&kstaled->mm_list_lock);
 }
 
 inline unsigned kstaled_get_age(struct page *page)
@@ -1294,17 +1206,11 @@ inline void kstaled_update_age(struct page *page)
 	unsigned age, head = READ_ONCE(kstaled->head);
 	int npages = hpage_nr_pages(page);
 
-	if (!PageLRU(page) && !PageReclaim(page))
-		return;
-
 	VM_BUG_ON_PAGE(PageHuge(page), page);
 	VM_BUG_ON_PAGE(PageTail(page), page);
 	VM_BUG_ON_PAGE(!page_count(page), page);
 
-	if (PageUnevictable(page) || PageMlocked(page))
-		return;
-
-	if (!PageAnon(page) && mapping_unevictable(page->mapping))
+	if (PageUnevictable(page))
 		return;
 
 	age = kstaled_xchg_age(page, head);
@@ -1312,40 +1218,85 @@ inline void kstaled_update_age(struct page *page)
 		mod_node_page_state(node, KSTALED_DIRECT_HOT, npages);
 }
 
-void kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
+bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 {
-	int i = 0;
+	pte_t *pte;
+	unsigned long start, end;
 	struct kstaled_struct *kstaled = kstaled_of_page(pvmw->page);
 	struct pglist_data *node = kstaled_node(kstaled);
 	unsigned head = READ_ONCE(kstaled->head);
-	struct page *page = virt_to_page(pvmw->pte);
-	pte_t *ptep = page_address(page);
-	pmd_t *pmdp = pvmw->pmd;
-	spinlock_t *ptl = ptlock_ptr(virt_to_page(pmdp));
 	int hot = 0;
 
-	VM_BUG_ON_PAGE(!PageTable(page), page);
-	VM_BUG_ON_PAGE(ptlock_ptr(page) != pvmw->ptl, page);
-	lockdep_assert_held(ptlock_ptr(page));
+	if (!kstaled_vma_reclaimable(pvmw->vma))
+		return false;
 
-	while (i < PTRS_PER_PTE)
-		i += kstaled_check_pte(ptep + i, head, &hot);
+	if (!pvmw->pte) {
+		unsigned age;
 
-	VM_BUG_ON(i != PTRS_PER_PTE);
+		VM_BUG_ON_PAGE(!pmd_trans_huge(*pvmw->pmd), pvmw->page);
+		VM_BUG_ON_PAGE(pvmw->ptl !=
+			       pmd_lockptr(pvmw->vma->vm_mm, pvmw->pmd),
+			       pvmw->page);
+		lockdep_assert_held(pvmw->ptl);
+
+		inc_node_state(node, KSTALED_THP_AGING);
+
+		if (!pmd_trans_huge(*pvmw->pmd) ||
+		    !pmdp_test_and_clear_young(pvmw->vma, pvmw->address,
+					       pvmw->pmd))
+			return false;
+
+		age = kstaled_xchg_age(pvmw->page, head);
+		if (head && age != head && PageLRU(pvmw->page))
+			hot = hpage_nr_pages(pvmw->page);
+
+		page_vma_mapped_walk_done(pvmw);
+
+		mod_node_page_state(node, KSTALED_THP_HOT,
+				    hpage_nr_pages(pvmw->page));
+		goto done;
+	}
+
+	VM_BUG_ON_PAGE(pmd_trans_huge(*pvmw->pmd), pvmw->page);
+	VM_BUG_ON_PAGE(pvmw->ptl !=
+		       pte_lockptr(pvmw->vma->vm_mm, pvmw->pmd), pvmw->page);
+	lockdep_assert_held(pvmw->ptl);
+
+	if (page_mapcount(pvmw->page) > 1)
+		inc_node_state(node, KSTALED_SHARED_AGING);
+
+	if (!pte_young(*pvmw->pte))
+		return false;
+
+	start = pvmw->address & PMD_MASK;
+	end = start + PMD_SIZE;
+	start = max(start, pvmw->vma->vm_start);
+	end = min(end, pvmw->vma->vm_end);
+
+	pte = pte_offset_map(pvmw->pmd, start);
+	hot = kstaled_walk_pte(pvmw->vma, pte, start, end, head);
+	pte_unmap(pte);
 
 	page_vma_mapped_walk_done(pvmw);
 
-	/* we've unlocked the ptep, so it's safe to lock the pmdp */
-	spin_lock(ptl);
-	if (pmd_page(*pmdp) == page)
-		pmdp_test_and_clear_young(NULL, 0, pmdp);
-	spin_unlock(ptl);
+	if (kstaled_should_clear_pmd_young(*pvmw->pmd, start, end)) {
+		spinlock_t *ptl = pmd_lock(pvmw->vma->vm_mm, pvmw->pmd);
 
+		pmdp_test_and_clear_young(pvmw->vma, start, pvmw->pmd);
+		spin_unlock(ptl);
+	}
+
+	if (page_mapcount(pvmw->page) > 1)
+		mod_node_page_state(node, KSTALED_SHARED_HOT,
+				    hpage_nr_pages(pvmw->page));
+done:
 	inc_node_state(node, KSTALED_DIRECT_AGING);
 	if (hot)
 		mod_node_page_state(node, KSTALED_DIRECT_HOT, hot);
 
 	trace_kstaled_aging(node->node_id, false, hot);
+
+	return true;
 }
 
 inline void kstaled_enable_throttle(void)
@@ -1397,7 +1348,9 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 {
 	int i;
 	bool interrupted;
-	unsigned long attempts = 0;
+	unsigned long scanned = 0;
+	unsigned long isolated = 0;
+	unsigned long reclaimed = 0;
 	struct kstaled_struct *kstaled = kstaled_of_zone(zone);
 
 	VM_BUG_ON(current_is_kswapd());
@@ -1408,12 +1361,19 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 	__count_zid_vm_events(ALLOCSTALL, zone_idx(zone), 1);
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
-		if (kstaled_lru_reclaimable(i) &&
-		    kstaled_reclaim_lru(kstaled, i, gfp_mask, &attempts))
-			return true;
+		if (!kstaled_lru_reclaimable(i))
+			continue;
+
+		reclaimed += kstaled_reclaim_lru(kstaled, i, gfp_mask,
+						 &scanned, &isolated);
 	}
 
-	if (kstaled_shrink_slab(kstaled, gfp_mask))
+	if (reclaimed) {
+		atomic_long_add(scanned, &kstaled->scanned);
+		return true;
+	}
+
+	if (kstaled_shrink_slab(kstaled, gfp_mask, scanned))
 		return true;
 
 	/* unlimited retries if the thread has disabled throttle */
@@ -1421,7 +1381,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 		return true;
 
 	/* limited retries in case we are not making any progress */
-	if (attempts)
+	if (isolated)
 		return false;
 
 	/* throttle before retry because cold pages have run out */

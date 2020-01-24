@@ -8416,8 +8416,18 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	u64_stats_init(&tp->rx_stats.syncp);
 	u64_stats_init(&tp->tx_stats.syncp);
 
-	/* Get MAC address */
-	if (tp->mac_version == RTL_GIGA_MAC_VER_35 ||
+	/*
+	 * TODO(crbug/1022098) Figure out why upstream changed which register
+	 * is used as the default for fetching the MAC address. Regardless of
+	 * which is correct, Coreboot isn't setting 0xe0, 0xe4 so let's not use
+	 * them for now when we already have a legitimate MAC address.
+	 */
+	for (i = 0; i < ETH_ALEN; i++)
+		dev->dev_addr[i] = RTL_R8(MAC0 + i);
+
+	/* Get backup MAC address */
+	if (!is_valid_ether_addr(dev->dev_addr) &&
+	    (tp->mac_version == RTL_GIGA_MAC_VER_35 ||
 	    tp->mac_version == RTL_GIGA_MAC_VER_36 ||
 	    tp->mac_version == RTL_GIGA_MAC_VER_37 ||
 	    tp->mac_version == RTL_GIGA_MAC_VER_38 ||
@@ -8432,17 +8442,18 @@ static int rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	    tp->mac_version == RTL_GIGA_MAC_VER_48 ||
 	    tp->mac_version == RTL_GIGA_MAC_VER_49 ||
 	    tp->mac_version == RTL_GIGA_MAC_VER_50 ||
-	    tp->mac_version == RTL_GIGA_MAC_VER_51) {
+	    tp->mac_version == RTL_GIGA_MAC_VER_51)) {
 		u16 mac_addr[3];
 
 		*(u32 *)&mac_addr[0] = rtl_eri_read(tp, 0xe0, ERIAR_EXGMAC);
 		*(u16 *)&mac_addr[2] = rtl_eri_read(tp, 0xe4, ERIAR_EXGMAC);
 
-		if (is_valid_ether_addr((u8 *)mac_addr))
+		if (is_valid_ether_addr((u8 *)mac_addr)) {
 			rtl_rar_set(tp, (u8 *)mac_addr);
+			for (i = 0; i < ETH_ALEN; i++)
+				dev->dev_addr[i] = RTL_R8(MAC0 + i);
+		}
 	}
-	for (i = 0; i < ETH_ALEN; i++)
-		dev->dev_addr[i] = RTL_R8(MAC0 + i);
 
 	dev->ethtool_ops = &rtl8169_ethtool_ops;
 	dev->watchdog_timeo = RTL8169_TX_TIMEOUT;
