@@ -1454,6 +1454,8 @@ static int soc_probe_component(struct snd_soc_card *card,
 	/* see for_each_card_components */
 	list_add(&component->card_list, &card->component_dev_list);
 
+	return 0;
+
 err_probe:
 	if (ret < 0)
 		soc_cleanup_component(component);
