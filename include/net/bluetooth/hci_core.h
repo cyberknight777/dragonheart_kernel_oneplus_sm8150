@@ -91,6 +91,9 @@ struct discovery_state {
 #define SUSPEND_NOTIFIER_TIMEOUT	msecs_to_jiffies(2000) /* 2 seconds */
 
 enum suspend_tasks {
+	SUSPEND_LE_SET_SCAN_ENABLE,
+	SUSPEND_DISCONNECTING,
+
 	SUSPEND_PREPARE_NOTIFIER,
 	__SUSPEND_NUM_TASKS
 };
@@ -420,6 +423,8 @@ struct hci_dev {
 	struct work_struct	suspend_prepare;
 	enum suspended_state	suspend_state_next;
 	enum suspended_state	suspend_state;
+	int			disconnect_counter;
+	bool			freeze_filters;
 
 	wait_queue_head_t	suspend_wait_q;
 	DECLARE_BITMAP(suspend_tasks, __SUSPEND_NUM_TASKS);

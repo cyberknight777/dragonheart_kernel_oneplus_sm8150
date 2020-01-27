@@ -34,6 +34,12 @@
 #define HCI_REQ_PEND	  1
 #define HCI_REQ_CANCELED  2
 
+#define LE_SCAN_FLAG_SUSPEND	0x1
+#define LE_SCAN_FLAG_ALLOW_RPA	0x2
+
+#define LE_SUSPEND_SCAN_WINDOW		0x0012
+#define LE_SUSPEND_SCAN_INTERVAL	0x0060
+
 void hci_req_init(struct hci_request *req, struct hci_dev *hdev)
 {
 	skb_queue_head_init(&req->cmd_q);
@@ -661,6 +667,13 @@ void __hci_req_update_eir(struct hci_request *req)
 void hci_req_add_le_scan_disable(struct hci_request *req)
 {
 	struct hci_cp_le_set_scan_enable cp;
+	struct hci_dev *hdev = req->hdev;
+
+	/* Early exit if we've frozen filters for suspend*/
+	if (hdev->freeze_filters) {
+		BT_DBG("Filters are frozen for suspend");
+		return;
+	}
 
 	memset(&cp, 0, sizeof(cp));
 	cp.enable = LE_SCAN_DISABLE;
@@ -677,23 +690,67 @@ void hci_req_add_le_scan_disable(struct hci_request *req)
 	hci_req_add(req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
 }
 
-static void add_to_white_list(struct hci_request *req,
-			      struct hci_conn_params *params)
+static void del_from_white_list(struct hci_request *req, bdaddr_t *bdaddr,
+				u8 bdaddr_type)
+{
+	struct hci_cp_le_del_from_white_list cp;
+
+	cp.bdaddr_type = bdaddr_type;
+	bacpy(&cp.bdaddr, bdaddr);
+
+	BT_DBG("Remove %pMR (0x%x) from whitelist", &cp.bdaddr, cp.bdaddr_type);
+	hci_req_add(req, HCI_OP_LE_DEL_FROM_WHITE_LIST, sizeof(cp), &cp);
+}
+
+/* Adds connection to white list if needed. On error, returns -1 */
+static int add_to_white_list(struct hci_request *req,
+			     struct hci_conn_params *params, u8 *num_entries,
+			     u8 flags)
 {
 	struct hci_cp_le_add_to_white_list cp;
+	struct hci_dev *hdev = req->hdev;
+	bool allow_rpa = !!(flags & LE_SCAN_FLAG_ALLOW_RPA);
+	bool suspend = !!(flags & LE_SCAN_FLAG_SUSPEND);
 
+	/* Already in white list */
+	if (hci_bdaddr_list_lookup(&hdev->le_white_list, &params->addr,
+				   params->addr_type))
+		return 0;
+
+	/* Select filter policy to accept all advertising */
+	if (*num_entries >= hdev->le_white_list_size)
+		return -1;
+
+	/* White list can not be used with RPAs */
+	if (!allow_rpa &&
+	    hci_find_irk_by_addr(hdev, &params->addr, params->addr_type)) {
+		return -1;
+	}
+
+	/* During suspend, only wakeable devices can be in whitelist */
+	if (suspend && !hci_bdaddr_list_lookup(&hdev->wakeable, &params->addr,
+					       params->addr_type))
+		return 0;
+
+	*num_entries += 1;
 	cp.bdaddr_type = params->addr_type;
 	bacpy(&cp.bdaddr, &params->addr);
 
+	BT_DBG("Add %pMR (0x%x) to whitelist", &cp.bdaddr, cp.bdaddr_type);
 	hci_req_add(req, HCI_OP_LE_ADD_TO_WHITE_LIST, sizeof(cp), &cp);
+
+	return 0;
 }
 
-static u8 update_white_list(struct hci_request *req)
+static u8 update_white_list(struct hci_request *req, u8 flags)
 {
 	struct hci_dev *hdev = req->hdev;
 	struct hci_conn_params *params;
 	struct bdaddr_list *b;
-	uint8_t white_list_entries = 0;
+	u8 white_list_entries = 0;
+	bool allow_rpa = !!(flags & LE_SCAN_FLAG_ALLOW_RPA);
+	bool suspend = !!(flags & LE_SCAN_FLAG_SUSPEND);
+	bool wakeable, pend_conn, pend_report;
 
 	/* Go through the current white list programmed into the
 	 * controller one by one and check if that address is still
@@ -702,26 +759,42 @@ static u8 update_white_list(struct hci_request *req)
 	 * command to remove it from the controller.
 	 */
 	list_for_each_entry(b, &hdev->le_white_list, list) {
-		/* If the device is neither in pend_le_conns nor
-		 * pend_le_reports then remove it from the whitelist.
+		wakeable = !!hci_bdaddr_list_lookup(&hdev->wakeable, &b->bdaddr,
+						    b->bdaddr_type);
+		pend_conn = hci_pend_le_action_lookup(&hdev->pend_le_conns,
+						      &b->bdaddr,
+						      b->bdaddr_type);
+		pend_report = hci_pend_le_action_lookup(&hdev->pend_le_reports,
+							&b->bdaddr,
+							b->bdaddr_type);
+
+		/* During suspend, we remove all non-wakeable devices
+		 * and leave all others alone. Connected devices will be
+		 * disconnected during suspend but may not be in the pending
+		 * list yet.
 		 */
-		if (!hci_pend_le_action_lookup(&hdev->pend_le_conns,
-					       &b->bdaddr, b->bdaddr_type) &&
-		    !hci_pend_le_action_lookup(&hdev->pend_le_reports,
-					       &b->bdaddr, b->bdaddr_type)) {
-			struct hci_cp_le_del_from_white_list cp;
+		if (suspend) {
+			if (!wakeable) {
+				del_from_white_list(req, &b->bdaddr,
+						    b->bdaddr_type);
+				continue;
+			}
+		} else {
+			/* If the device is not likely to connect or report,
+			 * remove it from the whitelist.
+			 */
+			if (!pend_conn && !pend_report) {
+				del_from_white_list(req, &b->bdaddr,
+						    b->bdaddr_type);
+				continue;
+			}
 
-			cp.bdaddr_type = b->bdaddr_type;
-			bacpy(&cp.bdaddr, &b->bdaddr);
-
-			hci_req_add(req, HCI_OP_LE_DEL_FROM_WHITE_LIST,
-				    sizeof(cp), &cp);
-			continue;
-		}
-
-		if (hci_find_irk_by_addr(hdev, &b->bdaddr, b->bdaddr_type)) {
 			/* White list can not be used with RPAs */
-			return 0x00;
+			if (!allow_rpa &&
+			    hci_find_irk_by_addr(hdev, &b->bdaddr,
+						 b->bdaddr_type)) {
+				return 0x00;
+			}
 		}
 
 		white_list_entries++;
@@ -738,47 +811,30 @@ static u8 update_white_list(struct hci_request *req)
 	 * white list.
 	 */
 	list_for_each_entry(params, &hdev->pend_le_conns, action) {
-		if (hci_bdaddr_list_lookup(&hdev->le_white_list,
-					   &params->addr, params->addr_type))
-			continue;
-
-		if (white_list_entries >= hdev->le_white_list_size) {
-			/* Select filter policy to accept all advertising */
+		if (add_to_white_list(req, params, &white_list_entries, flags))
 			return 0x00;
-		}
-
-		if (hci_find_irk_by_addr(hdev, &params->addr,
-					 params->addr_type)) {
-			/* White list can not be used with RPAs */
-			return 0x00;
-		}
-
-		white_list_entries++;
-		add_to_white_list(req, params);
 	}
 
 	/* After adding all new pending connections, walk through
 	 * the list of pending reports and also add these to the
-	 * white list if there is still space.
+	 * white list if there is still space. Abort if space runs out.
 	 */
 	list_for_each_entry(params, &hdev->pend_le_reports, action) {
-		if (hci_bdaddr_list_lookup(&hdev->le_white_list,
-					   &params->addr, params->addr_type))
-			continue;
-
-		if (white_list_entries >= hdev->le_white_list_size) {
-			/* Select filter policy to accept all advertising */
+		if (add_to_white_list(req, params, &white_list_entries, flags))
 			return 0x00;
-		}
+	}
 
-		if (hci_find_irk_by_addr(hdev, &params->addr,
-					 params->addr_type)) {
-			/* White list can not be used with RPAs */
-			return 0x00;
+	/* Currently connected devices will be missing from the white list and
+	 * we need to insert them into the whitelist if they are wakeable. We
+	 * can't insert later because we will have already returned from the
+	 * suspend notifier and would cause a spurious wakeup.
+	 */
+	if (suspend) {
+		list_for_each_entry(params, &hdev->le_conn_params, list) {
+			if (add_to_white_list(req, params, &white_list_entries,
+					      flags))
+				return 0x00;
 		}
-
-		white_list_entries++;
-		add_to_white_list(req, params);
 	}
 
 	/* Select filter policy to use white list */
@@ -790,13 +846,28 @@ static bool scan_use_rpa(struct hci_dev *hdev)
 	return hci_dev_test_flag(hdev, HCI_PRIVACY);
 }
 
-void hci_req_add_le_passive_scan(struct hci_request *req)
+void __hci_req_add_le_passive_scan(struct hci_request *req, u8 flags)
 {
 	struct hci_cp_le_set_scan_param param_cp;
 	struct hci_cp_le_set_scan_enable enable_cp;
 	struct hci_dev *hdev = req->hdev;
 	u8 own_addr_type;
 	u8 filter_policy;
+	u8 window, interval;
+
+	/* We allow whitelisting even with RPAs in suspend. In the worst case,
+	 * we won't be able to wake from devices that use the privacy1.2
+	 * features. Additionally, once we support privacy1.2 and IRK
+	 * offloading, we can update this to also check for those conditions.
+	 */
+	if (flags & LE_SCAN_FLAG_SUSPEND)
+		flags |= LE_SCAN_FLAG_ALLOW_RPA;
+
+	/* Early exit if we've frozen filters for suspend */
+	if (hdev->freeze_filters) {
+		BT_DBG("Filters are frozen for suspend");
+		return;
+	}
 
 	/* Set require_privacy to false since no SCAN_REQ are send
 	 * during passive scanning. Not using an non-resolvable address
@@ -812,7 +883,8 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 	 * happen before enabling scanning. The controller does
 	 * not allow white list modification while scanning.
 	 */
-	filter_policy = update_white_list(req);
+	BT_DBG("Updating white list with flags = %d", flags);
+	filter_policy = update_white_list(req, flags);
 
 	/* When the controller is using random resolvable addresses and
 	 * with that having LE privacy enabled, then controllers with
@@ -827,10 +899,18 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 	    (hdev->le_features[0] & HCI_LE_EXT_SCAN_POLICY))
 		filter_policy |= 0x02;
 
+	if (flags & LE_SCAN_FLAG_SUSPEND) {
+		window = LE_SUSPEND_SCAN_WINDOW;
+		interval = LE_SUSPEND_SCAN_INTERVAL;
+	} else {
+		window = hdev->le_scan_window;
+		interval = hdev->le_scan_interval;
+	}
+
 	memset(&param_cp, 0, sizeof(param_cp));
 	param_cp.type = LE_SCAN_PASSIVE;
-	param_cp.interval = cpu_to_le16(hdev->le_scan_interval);
-	param_cp.window = cpu_to_le16(hdev->le_scan_window);
+	param_cp.interval = cpu_to_le16(interval);
+	param_cp.window = cpu_to_le16(window);
 	param_cp.own_address_type = own_addr_type;
 	param_cp.filter_policy = filter_policy;
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_PARAM, sizeof(param_cp),
@@ -844,6 +924,81 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 		    &enable_cp);
 }
 
+void hci_req_add_le_passive_scan(struct hci_request *req)
+{
+	__hci_req_add_le_passive_scan(req, 0);
+}
+
+static void hci_req_clear_event_filter(struct hci_request *req)
+{
+	struct hci_cp_set_event_filter f;
+
+	memset(&f, 0, sizeof(f));
+	f.flt_type = HCI_FLT_CLEAR_ALL;
+	hci_req_add(req, HCI_OP_SET_EVENT_FLT, 1, &f);
+
+	/* Update page scan state (since we may have modified it when setting
+	 * the event filter).
+	 */
+	__hci_req_update_scan(req);
+}
+
+static void hci_req_set_event_filter(struct hci_request *req)
+{
+	struct bdaddr_list *b;
+	struct hci_cp_set_event_filter f;
+	struct hci_dev *hdev = req->hdev;
+	int filters_updated = 0;
+	u8 scan;
+
+	/* Always clear event filter when starting */
+	hci_req_clear_event_filter(req);
+
+	list_for_each_entry(b, &hdev->wakeable, list) {
+		if (b->bdaddr_type != BDADDR_BREDR)
+			continue;
+
+		memset(&f, 0, sizeof(f));
+		bacpy(&f.addr_conn_flt.bdaddr, &b->bdaddr);
+		f.flt_type = HCI_FLT_CONN_SETUP;
+		f.cond_type = HCI_CONN_SETUP_ALLOW_BDADDR;
+		f.addr_conn_flt.auto_accept = HCI_CONN_SETUP_AUTO_ON;
+
+		BT_DBG("Adding event filters for %pMR", &b->bdaddr);
+		hci_req_add(req, HCI_OP_SET_EVENT_FLT, sizeof(f), &f);
+
+		filters_updated++;
+	}
+
+	scan = filters_updated ? SCAN_PAGE : SCAN_DISABLED;
+	hci_req_add(req, HCI_OP_WRITE_SCAN_ENABLE, 1, &scan);
+}
+
+static void hci_req_enable_le_suspend_scan(struct hci_request *req,
+					   u8 flags)
+{
+	/* Can't change params without disabling first */
+	hci_req_add_le_scan_disable(req);
+
+	/* Configure params and enable scanning */
+	__hci_req_add_le_passive_scan(req, flags);
+
+	/* Block suspend notifier on response */
+	set_bit(SUSPEND_LE_SET_SCAN_ENABLE, req->hdev->suspend_tasks);
+}
+
+static void le_suspend_req_complete(struct hci_dev *hdev, u8 status, u16 opcode)
+{
+	BT_DBG("Request complete opcode=0x%x, status=0x%x", opcode, status);
+
+	/* Expecting LE Set scan to return */
+	if (opcode == HCI_OP_LE_SET_SCAN_ENABLE &&
+	    test_and_clear_bit(SUSPEND_LE_SET_SCAN_ENABLE,
+			       hdev->suspend_tasks)) {
+		wake_up(&hdev->suspend_wait_q);
+	}
+}
+
 /* Call with hci_dev_lock */
 void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 {
@@ -854,6 +1009,44 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 	if (next == hdev->suspend_state) {
 		BT_DBG("Same state before and after: %d", next);
 		goto done;
+	}
+
+	hdev->suspend_state = next;
+
+	hci_req_init(&req, hdev);
+	if (next == BT_SUSPENDED) {
+		/* Enable event filter for existing devices */
+		hci_req_set_event_filter(&req);
+
+		/* Enable passive scan at lower duty cycle */
+		hci_req_enable_le_suspend_scan(&req, LE_SCAN_FLAG_SUSPEND);
+
+		hdev->freeze_filters = true;
+
+		/* Run commands before disconnecting */
+		hci_req_run(&req, le_suspend_req_complete);
+
+		hdev->disconnect_counter = 0;
+		/* Soft disconnect everything (power off)*/
+		list_for_each_entry(conn, &hdev->conn_hash.list, list) {
+			hci_disconnect(conn, HCI_ERROR_REMOTE_POWER_OFF);
+			hdev->disconnect_counter++;
+		}
+
+		if (hdev->disconnect_counter > 0) {
+			BT_DBG("Had %d disconnects. Will wait on them",
+			       hdev->disconnect_counter);
+			set_bit(SUSPEND_DISCONNECTING, hdev->suspend_tasks);
+		}
+	} else {
+		hdev->freeze_filters = false;
+
+		hci_req_clear_event_filter(&req);
+
+		/* Reset passive/background scanning to normal */
+		hci_req_enable_le_suspend_scan(&req, 0);
+
+		hci_req_run(&req, le_suspend_req_complete);
 	}
 
 	hdev->suspend_state = next;
@@ -1568,6 +1761,9 @@ void __hci_req_update_scan(struct hci_request *req)
 		return;
 
 	if (mgmt_powering_down(hdev))
+		return;
+
+	if (hdev->freeze_filters)
 		return;
 
 	if (hci_dev_test_flag(hdev, HCI_CONNECTABLE) ||
