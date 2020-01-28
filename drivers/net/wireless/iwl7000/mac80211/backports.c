@@ -1,6 +1,7 @@
 /*
  * Copyright(c) 2015 - 2017 Intel Deutschland GmbH
  * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2020 Intel Corporation
  *
  * Backport functionality introduced in Linux 4.4.
  *
@@ -117,8 +118,7 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 	case cpu_to_le16(0):
 		if (iftype != NL80211_IFTYPE_ADHOC &&
 		    iftype != NL80211_IFTYPE_STATION &&
-		    !ieee80211_viftype_ocb(iftype) &&
-		    !ieee80211_viftype_nan_data(iftype))
+		    !ieee80211_viftype_ocb(iftype))
 				return -1;
 		break;
 	}

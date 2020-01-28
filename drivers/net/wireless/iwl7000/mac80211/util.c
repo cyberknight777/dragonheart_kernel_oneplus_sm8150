@@ -2438,10 +2438,6 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		case NUM_NL80211_IFTYPES:
 		case NL80211_IFTYPE_P2P_CLIENT:
 		case NL80211_IFTYPE_P2P_GO:
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
-		case NL80211_IFTYPE_NAN_DATA:
-			/* keep code in case of fall-through (spatch generated) */
-#endif
 			WARN_ON(1);
 			break;
 		}

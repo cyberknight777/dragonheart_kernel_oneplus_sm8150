@@ -2169,19 +2169,6 @@ reg_query_regdb_wmm(char *alpha2, int freq, u32 *ptr,
 
 #if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
 /* not yet upstream */
-static inline bool ieee80211_viftype_nan_data(unsigned int iftype)
-{
-	return false;
-}
-
-static inline bool ieee80211_has_nan_data_iftype(unsigned int iftype)
-{
-	return false;
-}
-#endif
-
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
-/* not yet upstream */
 static inline int
 cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
 {

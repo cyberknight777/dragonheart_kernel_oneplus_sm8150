@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * mac80211 - channel management
+ * Copyright 2020 Intel Corporation
  */
 
 #include <linux/nl80211.h>
@@ -291,10 +292,6 @@ ieee80211_get_chanctx_max_required_bw(struct ieee80211_local *local,
 		case NL80211_IFTYPE_MONITOR:
 		case NL80211_IFTYPE_P2P_CLIENT:
 		case NL80211_IFTYPE_P2P_GO:
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
-		case NL80211_IFTYPE_NAN_DATA:
-			/* keep code in case of fall-through (spatch generated) */
-#endif
 			WARN_ON_ONCE(1);
 		}
 		max_bw = max(max_bw, width);
@@ -1004,10 +1001,6 @@ ieee80211_vif_chanctx_reservation_complete(struct ieee80211_sub_if_data *sdata)
 	case NL80211_IFTYPE_P2P_DEVICE:
 #if CFG80211_VERSION >= KERNEL_VERSION(4,4,0)
 	case NL80211_IFTYPE_NAN:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
-	case NL80211_IFTYPE_NAN_DATA:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 	case NUM_NL80211_IFTYPES:
