@@ -762,6 +762,7 @@ static void ieee80211_add_he_6ghz_capa(struct ieee80211_sub_if_data *sdata,
 	const struct ieee80211_sband_iftype_data *data =
 		ieee80211_get_sband_iftype_data(sband, NL80211_IFTYPE_STATION);
 	u8 *pos;
+	u16 cap = le16_to_cpu(data->he_6ghz_capa);
 
 	if (!data)
 		return;
@@ -770,7 +771,28 @@ static void ieee80211_add_he_6ghz_capa(struct ieee80211_sub_if_data *sdata,
 	*pos++ = WLAN_EID_EXTENSION;
 	*pos++ = 1 + sizeof(data->he_6ghz_capa);
 	*pos++ = WLAN_EID_EXT_HE_6GHZ_CAPA;
-	put_unaligned_le16(le16_to_cpu(data->he_6ghz_capa), pos);
+
+	cap &= ~IEEE80211_HE_6GHZ_CAP_SM_PS;
+	switch (sdata->smps_mode) {
+	case IEEE80211_SMPS_AUTOMATIC:
+	case IEEE80211_SMPS_NUM_MODES:
+		WARN_ON(1);
+		/* fall through */
+	case IEEE80211_SMPS_OFF:
+		cap |= WLAN_HT_CAP_SM_PS_DISABLED <<
+			IEEE80211_HE_6GHZ_CAP_SM_PS_SHIFT;
+		break;
+	case IEEE80211_SMPS_STATIC:
+		cap |= WLAN_HT_CAP_SM_PS_STATIC <<
+			IEEE80211_HE_6GHZ_CAP_SM_PS_SHIFT;
+		break;
+	case IEEE80211_SMPS_DYNAMIC:
+		cap |= WLAN_HT_CAP_SM_PS_DYNAMIC <<
+			IEEE80211_HE_6GHZ_CAP_SM_PS_SHIFT;
+		break;
+	}
+
+	put_unaligned_le16(cap, pos);
 #endif
 }
 
