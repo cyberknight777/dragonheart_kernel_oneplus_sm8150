@@ -8,7 +8,7 @@
  * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 - 2019 Intel Corporation
+ * Copyright(c) 2018 - 2020 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 - 2019 Intel Corporation
+ * Copyright(c) 2018 - 2020 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2227,23 +2227,12 @@ irqreturn_t iwl_pcie_irq_msix_handler(int irq, void *dev_id)
 	}
 
 	if (inta_hw & MSIX_HW_INT_CAUSES_REG_WAKEUP) {
-		u32 sleep_notif =
-			le32_to_cpu(trans_pcie->prph_info->sleep_notif);
-		if (sleep_notif == IWL_D3_SLEEP_STATUS_SUSPEND ||
-		    sleep_notif == IWL_D3_SLEEP_STATUS_RESUME) {
-			IWL_DEBUG_ISR(trans,
-				      "Sx interrupt: sleep notification = 0x%x\n",
-				      sleep_notif);
-			trans_pcie->sx_complete = true;
-			wake_up(&trans_pcie->sx_waitq);
-		} else {
-			/* uCode wakes up after power-down sleep */
-			IWL_DEBUG_ISR(trans, "Wakeup interrupt\n");
-			iwl_pcie_rxq_check_wrptr(trans);
-			iwl_pcie_txq_check_wrptrs(trans);
+		/* uCode wakes up after power-down sleep */
+		IWL_DEBUG_ISR(trans, "Wakeup interrupt\n");
+		iwl_pcie_rxq_check_wrptr(trans);
+		iwl_pcie_txq_check_wrptrs(trans);
 
-			isr_stats->wakeup++;
-		}
+		isr_stats->wakeup++;
 	}
 
 	if (inta_hw & MSIX_HW_INT_CAUSES_REG_IML) {

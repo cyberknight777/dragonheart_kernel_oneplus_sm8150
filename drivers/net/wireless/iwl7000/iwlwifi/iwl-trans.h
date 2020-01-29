@@ -8,7 +8,7 @@
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 - 2019 Intel Corporation
+ * Copyright(c) 2018 - 2020 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,7 +31,7 @@
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * Copyright(c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright(c) 2018 - 2019 Intel Corporation
+ * Copyright(c) 2018 - 2020 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -589,7 +589,7 @@ struct iwl_trans_ops {
 	void (*fw_alive)(struct iwl_trans *trans, u32 scd_addr);
 	void (*stop_device)(struct iwl_trans *trans);
 
-	int (*d3_suspend)(struct iwl_trans *trans, bool test, bool reset);
+	void (*d3_suspend)(struct iwl_trans *trans, bool test, bool reset);
 	int (*d3_resume)(struct iwl_trans *trans, enum iwl_d3_status *status,
 			 bool test, bool reset);
 
@@ -993,14 +993,12 @@ static inline void iwl_trans_stop_device(struct iwl_trans *trans)
 	trans->state = IWL_TRANS_NO_FW;
 }
 
-static inline int iwl_trans_d3_suspend(struct iwl_trans *trans, bool test,
-				       bool reset)
+static inline void iwl_trans_d3_suspend(struct iwl_trans *trans, bool test,
+					bool reset)
 {
 	might_sleep();
-	if (!trans->ops->d3_suspend)
-		return 0;
-
-	return trans->ops->d3_suspend(trans, test, reset);
+	if (trans->ops->d3_suspend)
+		trans->ops->d3_suspend(trans, test, reset);
 }
 
 static inline int iwl_trans_d3_resume(struct iwl_trans *trans,
