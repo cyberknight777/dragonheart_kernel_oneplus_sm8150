@@ -358,8 +358,7 @@ const struct iwl_cfg iwl_qu_b0_hr1_b0 = {
 	.num_rbds = IWL_NUM_RBDS_22000_HE,
 };
 
-const struct iwl_cfg iwl_ax201_cfg_qu_hr = {
-	.name = "Intel(R) Wi-Fi 6 AX201 160MHz",
+const struct iwl_cfg iwl_qu_b0_hr2_b0 = {
 	.fw_name_pre = IWL_QU_B_HR_B_FW_PRE,
 	IWL_DEVICE_22500,
 	/*
@@ -384,8 +383,7 @@ const struct iwl_cfg iwl_qu_c0_hr1_b0 = {
 	.num_rbds = IWL_NUM_RBDS_22000_HE,
 };
 
-const struct iwl_cfg iwl_ax201_cfg_qu_c0_hr_b0 = {
-	.name = "Intel(R) Wi-Fi 6 AX201 160MHz",
+const struct iwl_cfg iwl_qu_c0_hr2_b0 = {
 	.fw_name_pre = IWL_QU_C_HR_B_FW_PRE,
 	IWL_DEVICE_22500,
 	/*
@@ -410,8 +408,7 @@ const struct iwl_cfg iwl_quz_a0_hr1_b0 = {
 	.num_rbds = IWL_NUM_RBDS_22000_HE,
 };
 
-const struct iwl_cfg iwl_ax201_cfg_quz_hr = {
-	.name = "Intel(R) Wi-Fi 6 AX201 160MHz",
+const struct iwl_cfg iwl_quz_a0_hr2_b0 = {
 	.fw_name_pre = IWL_QUZ_A_HR_B_FW_PRE,
 	IWL_DEVICE_22500,
 	/*
