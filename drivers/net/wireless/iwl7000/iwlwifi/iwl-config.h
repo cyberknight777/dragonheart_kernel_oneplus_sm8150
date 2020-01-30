@@ -522,27 +522,6 @@ extern const struct iwl_cfg_trans_params iwl_qu_trans_cfg;
 extern const struct iwl_cfg_trans_params iwl_qu_medium_latency_trans_cfg;
 extern const struct iwl_cfg_trans_params iwl_qu_long_latency_trans_cfg;
 extern const struct iwl_cfg_trans_params iwl_ax200_trans_cfg;
-extern const char iwl9162_name[];
-extern const char iwl9260_name[];
-extern const char iwl9260_1_name[];
-extern const char iwl9270_name[];
-extern const char iwl9461_name[];
-extern const char iwl9462_name[];
-extern const char iwl9560_name[];
-extern const char iwl9162_160_name[];
-extern const char iwl9260_160_name[];
-extern const char iwl9270_160_name[];
-extern const char iwl9461_160_name[];
-extern const char iwl9462_160_name[];
-extern const char iwl9560_160_name[];
-extern const char iwl9260_killer_1550_name[];
-extern const char iwl9560_killer_1550i_name[];
-extern const char iwl9560_killer_1550s_name[];
-extern const char iwl_ax200_name[];
-extern const char iwl_ax201_name[];
-extern const char iwl_ax101_name[];
-extern const char iwl_ax200_killer_1650w_name[];
-extern const char iwl_ax200_killer_1650x_name[];
 
 #if IS_ENABLED(CPTCFG_IWLMVM)
 extern const struct iwl_cfg iwl7260_2ac_cfg;

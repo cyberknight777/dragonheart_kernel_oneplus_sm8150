@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018 - 2019 Intel Corporation
+ * Copyright (C) 2018 - 2020 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -20,7 +20,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018 - 2019 Intel Corporation
+ * Copyright (C) 2018 - 2020 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -192,27 +192,6 @@ const struct iwl_cfg_trans_params iwl9560_shared_clk_trans_cfg = {
 	.xtal_latency = 5000,
 	.extra_phy_cfg_flags = FW_PHY_CFG_SHARED_CLK
 };
-
-const char iwl9162_name[] = "Intel(R) Wireless-AC 9162";
-const char iwl9260_name[] = "Intel(R) Wireless-AC 9260";
-const char iwl9260_1_name[] = "Intel(R) Wireless-AC 9260-1";
-const char iwl9270_name[] = "Intel(R) Wireless-AC 9270";
-const char iwl9461_name[] = "Intel(R) Wireless-AC 9461";
-const char iwl9462_name[] = "Intel(R) Wireless-AC 9462";
-const char iwl9560_name[] = "Intel(R) Wireless-AC 9560";
-const char iwl9162_160_name[] = "Intel(R) Wireless-AC 9162 160MHz";
-const char iwl9260_160_name[] = "Intel(R) Wireless-AC 9260 160MHz";
-const char iwl9270_160_name[] = "Intel(R) Wireless-AC 9270 160MHz";
-const char iwl9461_160_name[] = "Intel(R) Wireless-AC 9461 160MHz";
-const char iwl9462_160_name[] = "Intel(R) Wireless-AC 9462 160MHz";
-const char iwl9560_160_name[] = "Intel(R) Wireless-AC 9560 160MHz";
-
-const char iwl9260_killer_1550_name[] =
-	"Killer (R) Wireless-AC 1550 Wireless Network Adapter (9260NGW)";
-const char iwl9560_killer_1550i_name[] =
-	"Killer (R) Wireless-AC 1550i Wireless Network Adapter (9560NGW)";
-const char iwl9560_killer_1550s_name[] =
-	"Killer (R) Wireless-AC 1550s Wireless Network Adapter (9560NGW)";
 
 const struct iwl_cfg iwl9260_2ac_cfg = {
 	.fw_name_pre = IWL9260_FW_PRE,
