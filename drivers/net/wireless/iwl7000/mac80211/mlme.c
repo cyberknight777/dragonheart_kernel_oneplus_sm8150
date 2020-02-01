@@ -762,10 +762,12 @@ static void ieee80211_add_he_6ghz_capa(struct ieee80211_sub_if_data *sdata,
 	const struct ieee80211_sband_iftype_data *data =
 		ieee80211_get_sband_iftype_data(sband, NL80211_IFTYPE_STATION);
 	u8 *pos;
-	u16 cap = le16_to_cpu(data->he_6ghz_capa);
+	u16 cap;
 
 	if (!data)
 		return;
+
+	cap = le16_to_cpu(data->he_6ghz_capa);
 
 	pos = skb_put(skb, 2 + 1 + sizeof(data->he_6ghz_capa));
 	*pos++ = WLAN_EID_EXTENSION;
