@@ -418,6 +418,31 @@ out:
 	rcu_read_unlock();
 }
 
+#if defined(CPTCFG_MAC80211_DEBUGFS) && \
+	defined(CPTCFG_IWLWIFI_DEBUG_HOST_CMD_ENABLED)
+int iwl_rs_dhc_set_ampdu_size(struct ieee80211_sta *sta, u32 ampdu_size)
+{
+	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
+	struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->lq_sta.rs_fw;
+	struct iwl_mvm *mvm = lq_sta->pers.drv;
+
+	int ret = iwl_rs_send_dhc(mvm, lq_sta,
+				  IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM,
+				  ampdu_size);
+	if (!ret)
+		return ret;
+
+	lq_sta->pers.dbg_agg_frame_count_lim = ampdu_size;
+
+	IWL_DEBUG_RATE(mvm, "sta_id ret: %d, %d agg_frame_cmdt_lim %d\n",
+		       ret,
+		       lq_sta->pers.sta_id,
+		       lq_sta->pers.dbg_agg_frame_count_lim);
+
+	return 0;
+}
+#endif /* CPTCFG_MAC80211_DEBUGFS */
+
 u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 {
 	const struct ieee80211_sta_vht_cap *vht_cap = &sta->vht_cap;
@@ -487,7 +512,6 @@ void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	    cfg_cmd.ht_rates[IWL_TLC_NSS_1][IWL_TLC_HT_BW_160] &&
 	    !cfg_cmd.ht_rates[IWL_TLC_NSS_2][IWL_TLC_HT_BW_160])
 		cfg_cmd.ht_rates[IWL_TLC_NSS_2][IWL_TLC_HT_BW_NONE_160] = 0;
-
 #endif
 
 	/*
@@ -500,6 +524,12 @@ void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 				   &cfg_cmd);
 	if (ret)
 		IWL_ERR(mvm, "Failed to send rate scale config (%d)\n", ret);
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.ampdu_limit)
+		iwl_rs_dhc_set_ampdu_size(sta,
+					  mvm->trans->dbg_cfg.ampdu_limit);
+#endif
 }
 
 void iwl_mvm_rs_add_sta(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta)
