@@ -35,6 +35,7 @@
 #include "dsi_drm.h"
 #include "dsi_display.h"
 #include "sde_crtc.h"
+#include "sde_hw_mdss.h"
 #include "sde_rm.h"
 #include "sde_trace.h"
 /**
@@ -737,10 +738,11 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	return rc;
 }
 
-int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
-				enum dsi_cmd_set_type type)
+int __dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+				enum dsi_cmd_set_type type,
+				bool fod_usage)
 {
-	int rc = 0, i = 0;
+	int rc = 0, i = 0, wait_multi = 1000;
 	ssize_t len;
 	struct dsi_cmd_desc *cmds;
 	u32 count;
@@ -776,14 +778,29 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 			pr_err("failed to set cmds(%d), rc=%d\n", type, rc);
 			goto error;
 		}
+
+		if (fod_usage) {
+			if (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)
+				wait_multi = 700;
+			else if (panel->hw_type == DSI_PANEL_SAMSUNG_S6E3FC2X01)
+				wait_multi = 500;
+		}
+
 		if (cmds->post_wait_ms)
-			usleep_range(cmds->post_wait_ms*1000,
-					((cmds->post_wait_ms*1000)+10));
+			usleep_range(cmds->post_wait_ms*wait_multi,
+					((cmds->post_wait_ms*wait_multi)+10));
 		cmds++;
 	}
 error:
 	return rc;
 }
+
+int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+				enum dsi_cmd_set_type type)
+{
+	return __dsi_panel_tx_cmd_set(panel, type, false);
+}
+
 
 static int dsi_panel_pinctrl_deinit(struct dsi_panel *panel)
 {
@@ -951,56 +968,47 @@ error:
 	return rc;
 }
 
-int dsi_panel_op_set_hbm_mode(struct dsi_panel *panel, int level)
+bool hbm_active;
+int hbm_level;
+static void set_hbm_mode(struct work_struct *work)
 {
-	int rc = 0;
-	u32 count;
-    struct dsi_display_mode *mode;
+    struct dsi_panel *panel = get_main_display()->panel;
+    int level = hbm_level;
 
-	if (!panel || !panel->cur_mode) {
-		pr_err("Invalid params\n");
-		return -EINVAL;
-	}
+    mutex_lock(&panel->panel_lock);
 
-	mutex_lock(&panel->panel_lock);
-
-    mode = panel->cur_mode;
     switch (level) {
     case 0:
-        count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_OFF].count;
-        if (!count) {
-            pr_err("This panel does not support HBM mode off.\n");
-            goto error;
-        } else {
-            rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
-			printk(KERN_ERR"When HBM OFF -->hbm_backight = %d panel->bl_config.bl_level =%d\n",panel->hbm_backlight,panel->bl_config.bl_level);
-			rc= dsi_panel_update_backlight(panel,panel->hbm_backlight);
+      if (!HBM_flag) {
+	dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
+	pr_err(
+		 "When HBM OFF -->hbm_backight = %d panel->bl_config.bl_level =%d\n",
+		 panel->hbm_backlight, panel->bl_config.bl_level);
+	dsi_panel_update_backlight(panel, panel->hbm_backlight);
         }
     break;
-
     case 1:
-        count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_ON_5].count;
-        if (!count) {
-            pr_err("This panel does not support HBM mode.\n");
-            goto error;
-        } else {
-            rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
-        }
+        __dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5, true);
     break;
-    default:
-    break;
-
     }
+    mutex_unlock(&panel->panel_lock);
     pr_err("Set HBM Mode = %d\n", level);
-	if(level==5)
-	{
-		pr_err("HBM == 5 for fingerprint\n");
-	}
+}
 
-error:
-	mutex_unlock(&panel->panel_lock);
+DECLARE_WORK(hbm_work, set_hbm_mode);
+/*
+ * This function is used only for "op_friginer_print_hbm".
+ *
+ * As we are triggering hbm_work after dim layer is committed,
+ * remove the call here.
+ */
+int dsi_panel_op_set_hbm_mode(struct dsi_panel *panel, int level)
+{
+	hbm_active = !!level;
 
-	return rc;
+	// queue_work(system_highpri_wq, &hbm_work);
+
+	return 0;
 }
 
 static int dsi_panel_update_pwm_backlight(struct dsi_panel *panel,
@@ -5460,7 +5468,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 			}
 			else {
 				HBM_flag = true;
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
+				__dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5, true);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
 			}
 			break;
@@ -6061,6 +6069,7 @@ int dsi_panel_tx_gamma_cmd_set(struct dsi_panel *panel,
 			pr_err("failed to set cmds(%d), rc=%d\n", type, rc);
 			goto error;
 		}
+
 		if (cmds->post_wait_ms)
 			usleep_range(cmds->post_wait_ms*1000,
 					((cmds->post_wait_ms*1000)+10));
