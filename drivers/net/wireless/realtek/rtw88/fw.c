@@ -144,6 +144,9 @@ void rtw_fw_c2h_cmd_handle(struct rtw_dev *rtwdev, struct sk_buff *skb)
 
 	mutex_lock(&rtwdev->mutex);
 
+	if (!test_bit(RTW_FLAG_RUNNING, rtwdev->flags))
+		goto unlock;
+
 	switch (c2h->id) {
 	case C2H_BT_INFO:
 		rtw_coex_bt_info_notify(rtwdev, c2h->payload, len);
@@ -161,6 +164,7 @@ void rtw_fw_c2h_cmd_handle(struct rtw_dev *rtwdev, struct sk_buff *skb)
 		break;
 	}
 
+unlock:
 	mutex_unlock(&rtwdev->mutex);
 }
 
