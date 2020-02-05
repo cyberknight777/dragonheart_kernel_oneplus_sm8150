@@ -45,6 +45,7 @@
 #include <linux/msi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_cmnd.h>
+#include <scsi/scsi_device.h>
 #include <linux/libata.h>
 #include <linux/ahci-remap.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
@@ -96,6 +97,8 @@ static void ahci_mcp89_apple_enable(struct pci_dev *pdev);
 static bool is_mcp89_apple(struct pci_dev *pdev);
 static int ahci_p5wdh_hardreset(struct ata_link *link, unsigned int *class,
 				unsigned long deadline);
+static int ahci_slave_configure(struct scsi_device *sdev);
+
 #ifdef CONFIG_PM
 static int ahci_pci_device_runtime_suspend(struct device *dev);
 static int ahci_pci_device_runtime_resume(struct device *dev);
@@ -107,6 +110,7 @@ static int ahci_pci_device_resume(struct device *dev);
 
 static struct scsi_host_template ahci_sht = {
 	AHCI_SHT("ahci"),
+	.slave_configure	= ahci_slave_configure,
 };
 
 static struct ata_port_operations ahci_vt8251_ops = {
@@ -1428,6 +1432,27 @@ static void ahci_gtf_filter_workaround(struct ata_host *host)
 static inline void ahci_gtf_filter_workaround(struct ata_host *host)
 {}
 #endif
+
+static int ahci_slave_configure(struct scsi_device *sdev)
+{
+	/*
+	 * Machines cutting power to the SSD during a warm reboot must send
+	 * a STANDBY_IMMEDIATE before to prevent unclean shutdown of the disk.
+	 */
+	static struct dmi_system_id sysids[] = {
+		{
+			/* x86-samus, the Chromebook Pixel 2. */
+			.matches = {
+				DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+				DMI_MATCH(DMI_PRODUCT_NAME, "Samus"),
+			},
+		},
+		{ /* sentinel */ }
+	};
+	if (dmi_check_system(sysids))
+		sdev->send_stop_reboot = 1;
+	return ata_scsi_slave_config(sdev);
+}
 
 /*
  * On the Acer Aspire Switch Alpha 12, sometimes all SATA ports are detected

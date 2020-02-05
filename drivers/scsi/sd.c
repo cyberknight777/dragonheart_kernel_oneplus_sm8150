@@ -3616,8 +3616,9 @@ static void sd_shutdown(struct device *dev)
 		sd_printk(KERN_NOTICE, sdkp, "Synchronizing SCSI cache\n");
 		sd_sync_cache(sdkp, NULL);
 	}
-
-	if (system_state != SYSTEM_RESTART && sdkp->device->manage_start_stop) {
+	if ((sdkp->device->send_stop_reboot ||
+	     system_state != SYSTEM_RESTART) &&
+	    sdkp->device->manage_start_stop) {
 		sd_printk(KERN_NOTICE, sdkp, "Stopping disk\n");
 		sd_start_stop_device(sdkp, 0);
 	}
