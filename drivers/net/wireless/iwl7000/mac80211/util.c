@@ -1669,6 +1669,19 @@ void ieee80211_send_deauth_disassoc(struct ieee80211_sub_if_data *sdata,
 	}
 }
 
+static u8 *ieee80211_ie_build_he_6ghz_cap(u8 *pos, __le16 he_6ghz_capa, u8 *end)
+{
+	if ((end - pos) < 5)
+		return pos;
+
+	*pos++ = WLAN_EID_EXTENSION;
+	*pos++ = 3;
+	*pos++ = WLAN_EID_EXT_HE_6GHZ_CAPA;
+	memcpy(pos, &he_6ghz_capa, sizeof(u16));
+
+	return pos + 2;
+}
+
 static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 					 u8 *buffer, size_t buffer_len,
 					 const u8 *ie, size_t ie_len,
@@ -1854,6 +1867,14 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 		pos = ieee80211_ie_build_he_cap(pos, he_cap, end);
 		if (!pos)
 			goto out_err;
+
+		if (nl80211_is_6ghz(sband->band)) {
+			__le16 he_6ghz_capa =
+				ieee80211_get_he_6ghz_sta_cap(sband);
+
+			pos = ieee80211_ie_build_he_6ghz_cap(pos, he_6ghz_capa,
+							     end);
+		}
 	}
 
 	/*
