@@ -217,10 +217,19 @@ static bool sane_reclaim(struct scan_control *sc)
  */
 unsigned long zone_reclaimable_pages(struct zone *zone)
 {
+	u64 pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
 	unsigned long nr;
 
 	nr = zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_FILE) +
 		zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_FILE);
+
+	pages_min *= zone->managed_pages;
+	do_div(pages_min, totalram_pages);
+	if (nr < pages_min)
+		nr = 0;
+	else
+		nr -= pages_min;
+
 	if (get_nr_swap_pages() > 0)
 		nr += zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_ANON) +
 			zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_ANON);
@@ -230,16 +239,11 @@ unsigned long zone_reclaimable_pages(struct zone *zone)
 
 unsigned long pgdat_reclaimable_pages(struct pglist_data *pgdat)
 {
-	unsigned long pages_min;
 	unsigned long nr;
 
 	nr = node_page_state_snapshot(pgdat, NR_ACTIVE_FILE) +
 	     node_page_state_snapshot(pgdat, NR_INACTIVE_FILE) +
 	     node_page_state_snapshot(pgdat, NR_ISOLATED_FILE);
-
-	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	if (nr < pages_min)
-		nr = 0;
 
 	if (get_nr_swap_pages() > 0)
 		nr += node_page_state_snapshot(pgdat, NR_ACTIVE_ANON) +
