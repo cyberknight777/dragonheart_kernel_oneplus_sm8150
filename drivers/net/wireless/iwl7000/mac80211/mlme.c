@@ -1647,6 +1647,10 @@ ieee80211_find_80211h_pwr_constr(struct ieee80211_sub_if_data *sdata,
 		chan_increment = 1;
 		break;
 	case NL80211_BAND_5GHZ:
+#if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
+	case NL80211_BAND_6GHZ:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		chan_increment = 4;
 		break;
 	}
