@@ -1003,8 +1003,10 @@ static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 
 	err = ieee80211_set_probe_resp(sdata, params->probe_resp,
 				       params->probe_resp_len, csa);
-	if (err < 0)
+	if (err < 0) {
+		kfree(new);
 		return err;
+	}
 	if (err == 0)
 		changed |= BSS_CHANGED_AP_PROBE_RESP;
 
@@ -1017,8 +1019,10 @@ static int ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 							 params->civicloc,
 							 beacon_ftm_len(params, civicloc_len));
 
-		if (err < 0)
+		if (err < 0) {
+			kfree(new);
 			return err;
+		}
 
 		changed |= BSS_CHANGED_FTM_RESPONDER;
 	}
@@ -1044,7 +1048,9 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		      BSS_CHANGED_BEACON |
 		      BSS_CHANGED_SSID |
 		      BSS_CHANGED_P2P_PS |
-		      BSS_CHANGED_TXPOWER;
+		      BSS_CHANGED_TXPOWER |
+		      BSS_CHANGED_TWT |
+		      BSS_CHANGED_HE_OBSS_PD;
 	int err;
 	int prev_beacon_int;
 
@@ -1114,6 +1120,11 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	sdata->vif.bss_conf.dtim_period = params->dtim_period;
 	sdata->vif.bss_conf.enable_beacon = true;
 	sdata->vif.bss_conf.allow_p2p_go_ps = sdata->vif.p2p;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,5,0)
+	sdata->vif.bss_conf.twt_responder = params->twt_responder;
+	memcpy(&sdata->vif.bss_conf.he_obss_pd, &params->he_obss_pd,
+	       sizeof(struct ieee80211_he_obss_pd));
+#endif
 
 	sdata->vif.bss_conf.ssid_len = params->ssid_len;
 	if (params->ssid_len)
@@ -1604,7 +1615,6 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	struct sta_info *sta;
 	struct ieee80211_sub_if_data *sdata;
 	int err;
-	int layer2_update;
 
 	if (params->vlan) {
 		sdata = IEEE80211_DEV_TO_SUB_IF(params->vlan);
@@ -1618,7 +1628,12 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	if (ether_addr_equal(mac, sdata->vif.addr))
 		return -EINVAL;
 
-	if (is_multicast_ether_addr(mac))
+	if (!is_valid_ether_addr(mac))
+		return -EINVAL;
+
+	if (params->sta_flags_set & BIT(NL80211_STA_FLAG_TDLS_PEER) &&
+	    sdata->vif.type == NL80211_IFTYPE_STATION &&
+	    !sdata->u.mgd.associated)
 		return -EINVAL;
 
 	if (params->sta_flags_set & BIT(NL80211_STA_FLAG_TDLS_PEER) &&
@@ -1648,17 +1663,11 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	    test_sta_flag(sta, WLAN_STA_ASSOC))
 		rate_control_rate_init(sta);
 
-	layer2_update = sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
-		sdata->vif.type == NL80211_IFTYPE_AP;
-
 	err = sta_info_insert_rcu(sta);
 	if (err) {
 		rcu_read_unlock();
 		return err;
 	}
-
-	if (layer2_update)
-		cfg80211_send_layer2_update(sta->sdata->dev, sta->sta.addr);
 
 	rcu_read_unlock();
 
@@ -1770,10 +1779,11 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 		sta->sdata = vlansdata;
 		ieee80211_check_fast_xmit(sta);
 
-		if (test_sta_flag(sta, WLAN_STA_AUTHORIZED))
+		if (test_sta_flag(sta, WLAN_STA_AUTHORIZED)) {
 			ieee80211_vif_inc_num_mcast(sta->sdata);
-
-		cfg80211_send_layer2_update(sta->sdata->dev, sta->sta.addr);
+			cfg80211_send_layer2_update(sta->sdata->dev,
+						    sta->sta.addr);
+		}
 	}
 
 	err = sta_apply_parameters(local, sta, params);
@@ -2983,6 +2993,30 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 }
 #endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,5,0)
+static void ieee80211_end_cac(struct wiphy *wiphy,
+			      struct net_device *dev)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_local *local = sdata->local;
+
+	mutex_lock(&local->mtx);
+	list_for_each_entry(sdata, &local->interfaces, list) {
+		/* it might be waiting for the local->mtx, but then
+		 * by the time it gets it, sdata->wdev.cac_started
+		 * will no longer be true
+		 */
+		cancel_delayed_work(&sdata->dfs_cac_timer_work);
+
+		if (wdev_cac_started(&sdata->wdev)) {
+			ieee80211_vif_release_channel(sdata);
+			wdev_cac_started(&sdata->wdev) = false;
+		}
+	}
+	mutex_unlock(&local->mtx);
+}
+#endif
+
 static struct cfg80211_beacon_data *
 cfg80211_beacon_dup(struct cfg80211_beacon_data *beacon)
 {
@@ -3466,7 +3500,7 @@ int ieee80211_attach_ack_skb(struct ieee80211_local *local, struct sk_buff *skb,
 
 	spin_lock_irqsave(&local->ack_status_lock, spin_flags);
 	id = idr_alloc(&local->ack_status_frames, ack_skb,
-		       1, 0x10000, GFP_ATOMIC);
+		       1, 0x40, GFP_ATOMIC);
 	spin_unlock_irqrestore(&local->ack_status_lock, spin_flags);
 
 	if (id < 0) {
@@ -4138,6 +4172,9 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.get_channel = ieee80211_cfg_get_channel,
 #if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
 	.start_radar_detection = ieee80211_start_radar_detection,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,5,0)
+	.end_cac = ieee80211_end_cac,
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(3,12,0)
 	.channel_switch = ieee80211_channel_switch,

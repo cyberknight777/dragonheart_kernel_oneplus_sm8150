@@ -8,6 +8,8 @@
 #define ieee80211_start_tx_ba_cb_irqsafe __iwl7000_ieee80211_start_tx_ba_cb_irqsafe
 #define ieee80211_stop_tx_ba_session __iwl7000_ieee80211_stop_tx_ba_session
 #define ieee80211_stop_tx_ba_cb_irqsafe __iwl7000_ieee80211_stop_tx_ba_cb_irqsafe
+#define ieee80211_calc_rx_airtime __iwl7000_ieee80211_calc_rx_airtime
+#define ieee80211_calc_tx_airtime __iwl7000_ieee80211_calc_tx_airtime
 #define arc4_setkey __iwl7000_arc4_setkey
 #define arc4_crypt __iwl7000_arc4_crypt
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
@@ -139,6 +141,7 @@
 #define ieee80211_tx_dequeue __iwl7000_ieee80211_tx_dequeue
 #define ieee80211_next_txq __iwl7000_ieee80211_next_txq
 #define __ieee80211_schedule_txq __iwl7000___ieee80211_schedule_txq
+#define ieee80211_txq_airtime_check __iwl7000_ieee80211_txq_airtime_check
 #define ieee80211_txq_may_transmit __iwl7000_ieee80211_txq_may_transmit
 #define ieee80211_txq_schedule_start __iwl7000_ieee80211_txq_schedule_start
 #define ieee80211_csa_update_counter __iwl7000_ieee80211_csa_update_counter

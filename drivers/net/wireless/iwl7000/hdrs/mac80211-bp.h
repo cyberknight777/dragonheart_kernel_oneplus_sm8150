@@ -1151,6 +1151,8 @@ struct backport_sinfo {
 	u32 fcs_err_count;
 
 	u32 airtime_link_metric;
+
+	u64 assoc_at;
 };
 
 /* these are constants in nl80211.h, so it's
@@ -1822,6 +1824,7 @@ void iwl7000_cqm_rssi_notify(struct net_device *dev,
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,19,0)
 #define IEEE80211_HE_PPE_THRES_MAX_LEN		25
+#define RATE_INFO_FLAGS_HE_MCS BIT(4)
 
 /**
  * enum nl80211_he_gi - HE guard interval
@@ -1918,6 +1921,66 @@ ieee80211_get_he_6ghz_sta_cap(const struct ieee80211_supported_band *sband)
 	return 0;
 }
 
+#define RATE_INFO_FLAGS_DMG	BIT(3)
+#define RATE_INFO_FLAGS_EDMG	BIT(5)
+/* yes, it really has that number upstream */
+#define NL80211_STA_INFO_ASSOC_AT_BOOTTIME 42
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,5,0)
+struct ieee80211_he_obss_pd {
+	bool enable;
+	u8 min_offset;
+	u8 max_offset;
+};
+
+static inline const struct ieee80211_sta_he_cap *
+ieee80211_get_he_iftype_cap(const struct ieee80211_supported_band *sband,
+			    u8 iftype)
+{
+	return NULL;
+}
+
+static inline bool regulatory_pre_cac_allowed(struct wiphy *wiphy)
+{
+	return false;
+}
+
+static inline void
+cfg80211_tx_mgmt_expired(struct wireless_dev *wdev, u64 cookie,
+			 struct ieee80211_channel *chan, gfp_t gfp)
+{
+}
+
+#define cfg80211_iftype_allowed iwl7000_cfg80211_iftype_allowed
+static inline bool
+cfg80211_iftype_allowed(struct wiphy *wiphy, enum nl80211_iftype iftype,
+			bool is_4addr, u8 check_swif)
+
+{
+	bool is_vlan = iftype == NL80211_IFTYPE_AP_VLAN;
+
+	switch (check_swif) {
+	case 0:
+		if (is_vlan && is_4addr)
+			return wiphy->flags & WIPHY_FLAG_4ADDR_AP;
+		return wiphy->interface_modes & BIT(iftype);
+	case 1:
+		if (!(wiphy->software_iftypes & BIT(iftype)) && is_vlan)
+			return wiphy->flags & WIPHY_FLAG_4ADDR_AP;
+		return wiphy->software_iftypes & BIT(iftype);
+	default:
+		break;
+	}
+
+	return false;
+}
+
+#define NL80211_EXT_FEATURE_AQL -1
+
+#define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L	5000
+#define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_H	12000
+#define IEEE80211_AQL_THRESHOLD			24000
 #endif
 
 #ifndef SHASH_DESC_ON_STACK
@@ -2053,10 +2116,29 @@ static inline void set_rate_info_bw(struct rate_info *ri, int bw)
 		break;
 	}
 }
+
+static inline int get_rate_info_bw(struct rate_info *ri)
+{
+	if (ri->flags & RATE_INFO_FLAGS_40_MHZ_WIDTH)
+		return RATE_INFO_BW_40;
+
+	if (ri->flags & RATE_INFO_FLAGS_80_MHZ_WIDTH)
+		return RATE_INFO_BW_80;
+
+	if (ri->flags & RATE_INFO_FLAGS_160_MHZ_WIDTH)
+		return RATE_INFO_BW_160;
+
+	return RATE_INFO_BW_20;
+}
 #else
 static inline void set_rate_info_bw(struct rate_info *ri, int bw)
 {
 	ri->bw = bw;
+}
+
+static inline int get_rate_info_bw(struct rate_info *ri)
+{
+	return ri->bw;
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,0,0) */
 
@@ -2743,6 +2825,7 @@ static inline void cfg80211_bss_iter(struct wiphy *wiphy,
 	 * leave it empty for now.
 	 */
 }
+#define NL80211_EXT_FEATURE_SAE_OFFLOAD -1
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,4,0)

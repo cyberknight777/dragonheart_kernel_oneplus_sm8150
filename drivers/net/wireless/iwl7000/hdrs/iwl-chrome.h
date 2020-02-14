@@ -4,7 +4,7 @@
  *
  * ChromeOS backport definitions
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2019 Intel Corporation
+ * Copyright (C) 2018-2020 Intel Corporation
  */
 
 #include <linux/version.h>
@@ -251,15 +251,9 @@ static inline bool ether_addr_equal_unaligned(const u8 *addr1, const u8 *addr2)
 }
 #endif
 
-#if LINUX_VERSION_IS_GEQ(5,3,0)
-/*
- * In v5.3, this function was renamed, so rename it here for v5.3+.
- * When we merge v5.3 back from upstream, the opposite should be done
- * (i.e. we will have _boottime_ and need to rename to _boot_ in <
- * v5.3 instead).
-*/
-#define ktime_get_boot_ns ktime_get_boottime_ns
-#endif /* > 5.3.0 */
+#if LINUX_VERSION_IS_LESS(5,3,0)
+#define ktime_get_boottime_ns ktime_get_boot_ns
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0)
 #define kvfree __iwl7000_kvfree
@@ -1047,6 +1041,21 @@ rcu_head_after_call_rcu(struct rcu_head *rhp, void *f)
 
 #if LINUX_VERSION_IS_LESS(5,4,0)
 #include <linux/pci-aspm.h>
+#endif
+
+#if LINUX_VERSION_IS_LESS(5,5,0)
+#include <linux/debugfs.h>
+
+#define debugfs_create_xul iwl7000_debugfs_create_xul
+static inline void debugfs_create_xul(const char *name, umode_t mode,
+				      struct dentry *parent,
+				      unsigned long *value)
+{
+	if (sizeof(*value) == sizeof(u32))
+		debugfs_create_x32(name, mode, parent, (u32 *)value);
+	else
+		debugfs_create_x64(name, mode, parent, (u64 *)value);
+}
 #endif
 
 #endif /* __IWL_CHROME */
