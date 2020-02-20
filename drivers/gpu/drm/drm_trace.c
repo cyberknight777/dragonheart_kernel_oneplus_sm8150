@@ -378,6 +378,8 @@ static int drm_trace_write(const void *data, unsigned int len)
 	struct ring_buffer_event *event;
 	void *event_body;
 
+	if (!info->buffer)
+		return -ENOMEM;
 	event = ring_buffer_lock_reserve(info->buffer, len);
 	if (!event)
 		return -ENOMEM;
