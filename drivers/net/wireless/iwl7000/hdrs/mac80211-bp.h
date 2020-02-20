@@ -2230,12 +2230,6 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 #else
 #define cfg_he_cap(params) ((struct ieee80211_he_cap_elem *)NULL)
 
-#define NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 -1
-#endif /* >= 4.20.0 */
-
-#if CFG80211_VERSION < KERNEL_VERSION(4,19,87) && \
-	!(CFG80211_VERSION >= KERNEL_VERSION(4,14,166) && \
-	  CFG80211_VERSION < KERNEL_VERSION(4,15,0))
 /* Layer 2 Update frame (802.2 Type 1 LLC XID Update response) */
 struct iapp_layer2_update {
 	u8 da[ETH_ALEN];	/* broadcast */
@@ -2280,7 +2274,9 @@ void cfg80211_send_layer2_update(struct net_device *dev, const u8 *addr)
 	memset(skb->cb, 0, sizeof(skb->cb));
 	netif_rx_ni(skb);
 }
-#endif /* < 4,10,87 && !(>= 4,14,166 && < 4,15,0) */
+
+#define NL80211_EXT_FEATURE_CAN_REPLACE_PTK0 -1
+#endif /* >= 4.20 */
 
 /*
  * Upstream this is on 4.16+, but it was backported to chromeos 4.4
