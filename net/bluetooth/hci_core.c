@@ -1753,6 +1753,12 @@ int hci_dev_do_close(struct hci_dev *hdev)
 	clear_bit(HCI_RUNNING, &hdev->flags);
 	hci_sock_dev_event(hdev, HCI_DEV_CLOSE);
 
+	/* Suspend can be blocked on power down. Unblock it. */
+	if (test_and_clear_bit(SUSPEND_POWERING_DOWN,
+			       hdev->suspend_tasks)) {
+		wake_up(&hdev->suspend_wait_q);
+	}
+
 	/* After this point our queues are empty
 	 * and no tasks are scheduled. */
 	hdev->close(hdev);
@@ -3099,6 +3105,12 @@ static int hci_suspend_wait_event(struct hci_dev *hdev)
 	return ret;
 }
 
+static int hci_wait_for_power_down(struct hci_dev *hdev)
+{
+	set_bit(SUSPEND_POWERING_DOWN, hdev->suspend_tasks);
+	return hci_suspend_wait_event(hdev);
+}
+
 static void hci_prepare_suspend(struct work_struct *work)
 {
 	struct hci_dev *hdev =
@@ -3117,7 +3129,19 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 	int ret = 0;
 
 	if (!hdev->enable_suspend_notifier)
-		return NOTIFY_STOP;
+		goto done;
+
+	/* If powering down, wait for completion and exit on failure. */
+	if (mgmt_powering_down(hdev)) {
+		ret = hci_wait_for_power_down(hdev);
+		if (ret)
+			goto done;
+	}
+
+	/* Suspend notifier should only act on events when powered. */
+	if (!hdev_is_powered(hdev))
+		goto done;
+
 
 	if (action == PM_SUSPEND_PREPARE) {
 		hdev->suspend_state_next = BT_SUSPENDED;
@@ -3133,6 +3157,7 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 		ret = hci_suspend_wait_event(hdev);
 	}
 
+done:
 	return ret ? notifier_from_errno(-EBUSY) : NOTIFY_STOP;
 }
 /* Alloc HCI device */
