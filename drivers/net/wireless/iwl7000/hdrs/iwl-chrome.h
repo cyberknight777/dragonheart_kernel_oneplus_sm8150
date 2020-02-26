@@ -1037,6 +1037,12 @@ rcu_head_after_call_rcu(struct rcu_head *rhp, void *f)
 	WARN_ON_ONCE(READ_ONCE(rhp->func) != (void *)~0L);
 	return false;
 }
+
+#define skb_mark_not_on_list iwl7000_skb_mark_not_on_list
+static inline void skb_mark_not_on_list(struct sk_buff *skb)
+{
+	skb->next = NULL;
+}
 #endif /* LINUX_VERSION_IS_LESS(4,20,0) */
 
 #if LINUX_VERSION_IS_LESS(5,4,0)
@@ -1056,6 +1062,12 @@ static inline void debugfs_create_xul(const char *name, umode_t mode,
 	else
 		debugfs_create_x64(name, mode, parent, (u64 *)value);
 }
+#endif
+
+#ifndef skb_list_walk_safe
+#define skb_list_walk_safe(first, skb, next_skb)				\
+	for ((skb) = (first), (next_skb) = (skb) ? (skb)->next : NULL; (skb);	\
+	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
 #endif
 
 #endif /* __IWL_CHROME */
