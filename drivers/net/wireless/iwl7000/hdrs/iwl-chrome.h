@@ -1065,4 +1065,40 @@ static inline void debugfs_create_xul(const char *name, umode_t mode,
 	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,13,0) && \
+	RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
+#include <linux/acpi.h>
+#include <linux/uuid.h>
+
+#define guid_t uuid_le
+#define uuid_t uuid_be
+
+static inline void guid_gen(guid_t *u)
+{
+	return uuid_le_gen(u);
+}
+
+static inline void uuid_gen(uuid_t *u)
+{
+	return uuid_be_gen(u);
+}
+
+static inline void guid_copy(guid_t *dst, const guid_t *src)
+{
+	memcpy(dst, src, sizeof(guid_t));
+}
+
+#define GUID_INIT(a, b, c, d0, d1, d2, d3, d4, d5, d6, d7)	\
+	UUID_LE(a, b, c, d0, d1, d2, d3, d4, d5, d6, d7)
+
+static inline union acpi_object *
+LINUX_BACKPORT(acpi_evaluate_dsm)(acpi_handle handle, const guid_t *guid,
+				  u64 rev, u64 func, union acpi_object *args)
+{
+	return acpi_evaluate_dsm(handle, guid->b, rev, func, args);
+}
+
+#define acpi_evaluate_dsm LINUX_BACKPORT(acpi_evaluate_dsm)
+#endif
+
 #endif /* __IWL_CHROME */

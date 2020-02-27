@@ -77,6 +77,7 @@
 #define ACPI_ECKV_METHOD	"ECKV"
 #define ACPI_PPAG_METHOD	"PPAG"
 #define ACPI_WTAS_METHOD	"WTAS"
+#define ACPI_DSM_METHOD		"_DSM"
 
 #define ACPI_WIFI_DOMAIN	(0x07)
 
@@ -127,11 +128,22 @@ struct iwl_geo_profile {
 	u8 values[ACPI_GEO_TABLE_SIZE];
 };
 
+enum iwl_dsm_funcs_rev_0 {
+	DSM_FUNC_QUERY = 0,
+	DSM_FUNC_DISABLE_SRD = 1,
+	DSM_FUNC_ENABLE_INDONESIA_5G2 = 2,
+};
+
 #ifdef CONFIG_ACPI
 
 struct iwl_fw_runtime;
 
 void *iwl_acpi_get_object(struct device *dev, acpi_string method);
+
+void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
+			      union acpi_object *args);
+
+int iwl_acpi_get_dsm_value(struct device *dev, int rev, int func);
 
 union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 					 union acpi_object *data,
@@ -188,6 +200,18 @@ int iwl_acpi_get_tas(struct iwl_fw_runtime *fwrt, __le32 *black_list_array,
 #else /* CONFIG_ACPI */
 
 static inline void *iwl_acpi_get_object(struct device *dev, acpi_string method)
+{
+	return ERR_PTR(-ENOENT);
+}
+
+static inline void *iwl_acpi_get_dsm_object(struct device *dev, int rev,
+					    int func, union acpi_object *args)
+{
+	return ERR_PTR(-ENOENT);
+}
+
+static inline void *iwl_acpi_get_dsm_value(struct device *dev, int rev,
+					   int func)
 {
 	return ERR_PTR(-ENOENT);
 }

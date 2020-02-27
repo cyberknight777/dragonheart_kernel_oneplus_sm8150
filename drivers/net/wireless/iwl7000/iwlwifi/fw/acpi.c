@@ -58,43 +58,111 @@
  *
  *****************************************************************************/
 
+#include <linux/uuid.h>
 #include "iwl-drv.h"
 #include "iwl-debug.h"
 #include "acpi.h"
 #include "fw/runtime.h"
 
-void *iwl_acpi_get_object(struct device *dev, acpi_string method)
+const static guid_t intel_wifi_guid = GUID_INIT(0xF21202BF, 0x8F78, 0x4DC6,
+						0xA5, 0xB3, 0x1F, 0x73,
+						0x8E, 0x28, 0x5A, 0xDE);
+
+static int iwl_acpi_get_handle(struct device *dev, acpi_string method,
+			       acpi_handle *ret_handle)
 {
 	acpi_handle root_handle;
-	acpi_handle handle;
-	struct acpi_buffer buf = {ACPI_ALLOCATE_BUFFER, NULL};
 	acpi_status status;
 
 	root_handle = ACPI_HANDLE(dev);
 	if (!root_handle) {
 		IWL_DEBUG_DEV_RADIO(dev,
-				    "Could not retrieve root port ACPI handle\n");
-		return ERR_PTR(-ENOENT);
+				    "ACPI: Could not retrieve root port handle\n");
+		return -ENOENT;
 	}
 
-	/* Get the method's handle */
-	status = acpi_get_handle(root_handle, method, &handle);
+	status = acpi_get_handle(root_handle, method, ret_handle);
 	if (ACPI_FAILURE(status)) {
-		IWL_DEBUG_DEV_RADIO(dev, "%s method not found\n", method);
-		return ERR_PTR(-ENOENT);
+		IWL_DEBUG_DEV_RADIO(dev,
+				    "ACPI: %s method not found\n", method);
+		return -ENOENT;
 	}
+	return 0;
+}
+
+void *iwl_acpi_get_object(struct device *dev, acpi_string method)
+{
+	struct acpi_buffer buf = {ACPI_ALLOCATE_BUFFER, NULL};
+	acpi_handle handle;
+	acpi_status status;
+	int ret;
+
+	ret = iwl_acpi_get_handle(dev, method, &handle);
+	if (ret)
+		return ERR_PTR(-ENOENT);
 
 	/* Call the method with no arguments */
 	status = acpi_evaluate_object(handle, NULL, NULL, &buf);
 	if (ACPI_FAILURE(status)) {
-		IWL_DEBUG_DEV_RADIO(dev, "%s invocation failed (0x%x)\n",
+		IWL_DEBUG_DEV_RADIO(dev,
+				    "ACPI: %s method invocation failed (status: 0x%x)\n",
 				    method, status);
 		return ERR_PTR(-ENOENT);
 	}
-
 	return buf.pointer;
 }
 IWL_EXPORT_SYMBOL(iwl_acpi_get_object);
+
+/**
+* Generic function for evaluating a method defined in the device specific
+* method (DSM) interface. The returned acpi object must be freed by calling
+* function.
+*/
+void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
+			      union acpi_object *args)
+{
+	acpi_handle handle;
+	union acpi_object *obj;
+	int ret;
+
+	ret = iwl_acpi_get_handle(dev, ACPI_DSM_METHOD, &handle);
+	if (ret)
+		return ERR_PTR(-ENOENT);
+
+	obj = acpi_evaluate_dsm(handle, &intel_wifi_guid, rev, func, args);
+	if (!obj) {
+		IWL_DEBUG_DEV_RADIO(dev,
+				    "ACPI: DSM method invocation failed (rev: %d, func:%d)\n",
+				    rev, func);
+		return ERR_PTR(-ENOENT);
+	}
+	return obj;
+}
+
+/**
+ * Evaluate a DSM with no arguments and a single int return value, verify and
+ * return that value.
+ */
+int iwl_acpi_get_dsm_value(struct device *dev, int rev, int func)
+{
+	union acpi_object *obj;
+	int ret;
+
+	obj = iwl_acpi_get_dsm_object(dev, rev, func, NULL);
+	if (IS_ERR(obj))
+		return -ENOENT;
+
+	if (obj->type != ACPI_TYPE_INTEGER) {
+		IWL_DEBUG_DEV_RADIO(dev,
+				    "ACPI: DSM method did not return an integer object\n");
+		ACPI_FREE(obj);
+		return -EINVAL;
+	}
+	ret = obj->integer.value;
+	ACPI_FREE(obj);
+	return ret;
+}
+IWL_EXPORT_SYMBOL(iwl_acpi_get_dsm_value);
 
 union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 					 union acpi_object *data,
