@@ -485,11 +485,6 @@ iwl7000_cfg80211_vendor_event_alloc(struct wiphy *wiphy,
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,6,0)
-static inline void page_ref_inc(struct page *page)
-{
-	atomic_inc(&page->_count);
-}
-
 int __must_check kstrtobool(const char *s, bool *res);
 int __must_check kstrtobool_from_user(const char __user *s, size_t count, bool *res);
 #endif /* < 4.6 */
