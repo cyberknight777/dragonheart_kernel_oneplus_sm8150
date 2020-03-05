@@ -101,7 +101,7 @@ struct mgmt_rp_read_index_list {
 #define MGMT_SETTING_PRIVACY		0x00002000
 #define MGMT_SETTING_CONFIGURATION	0x00004000
 #define MGMT_SETTING_STATIC_ADDRESS	0x00008000
-#define MGMT_SETTING_WIDE_BAND_SPEECH	0x00020000
+#define MGMT_SETTING_WIDEBAND_SPEECH	0x00020000
 
 /* Begin Chromium only settings */
 #define MGMT_SETTING_ADVERTISING_INTERVALS	0x10000000
@@ -625,6 +625,8 @@ struct mgmt_cp_set_blocked_keys {
 	struct mgmt_blocked_key_info keys[0];
 } __packed;
 #define MGMT_OP_SET_BLOCKED_KEYS_SIZE 2
+
+#define MGMT_OP_SET_WIDEBAND_SPEECH	0x0047
 
 /*
  * Begin chromium only op_codes
