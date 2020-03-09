@@ -1,5 +1,6 @@
 config IWL7000
 	tristate "Intel Wireless WiFi 7000 series driver (new version)"
+	depends on ARM64 || X86_64
 
 	# normal iwlwifi dependencies
 	depends on PCI && HAS_IOMEM
