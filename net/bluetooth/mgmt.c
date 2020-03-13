@@ -6850,8 +6850,6 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
 						HCI_MGMT_NO_HDEV |
 						HCI_MGMT_UNTRUSTED },
-	{ NULL, 0 },
-	{ NULL, 0 },
 	{ set_wake_capable,	   MGMT_SET_WAKE_CAPABLE_SIZE },
 };
 
