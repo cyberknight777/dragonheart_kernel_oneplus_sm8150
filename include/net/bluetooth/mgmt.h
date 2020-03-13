@@ -605,14 +605,24 @@ struct mgmt_cp_set_appearance {
 } __packed;
 #define MGMT_SET_APPEARANCE_SIZE	2
 
-#define MGMT_OP_SET_ADVERTISING_INTERVALS	0x0044
+#define MGMT_OP_SET_WAKE_CAPABLE			0x0047
+#define MGMT_SET_WAKE_CAPABLE_SIZE			8
+struct mgmt_cp_set_wake_capable {
+	struct mgmt_addr_info addr;
+	u8 wake_capable;
+} __packed;
+
+/*
+ * Begin chromium only op_codes
+ */
+#define MGMT_OP_SET_ADVERTISING_INTERVALS	0x0060
 struct mgmt_cp_set_advertising_intervals {
 	__le16	min_interval;
 	__le16	max_interval;
 } __packed;
 #define MGMT_SET_ADVERTISING_INTERVALS_SIZE	4
 
-#define MGMT_OP_SET_EVENT_MASK			0x0045
+#define MGMT_OP_SET_EVENT_MASK			0x0061
 struct mgmt_cp_set_event_mask {
 	/*
 	 * The mask variable enables modifying a subset of the 'event mask'.
@@ -688,73 +698,27 @@ enum mgmt_set_event_mask_byte_7 {
 	MGMT_EVENT_MASK_LE_META				=  (1 << 6),
 };
 
-#define MGMT_OP_SET_BLOCKED_LTKS			0x0046
+#define MGMT_OP_SET_BLOCKED_LTKS			0x0062
 struct mgmt_cp_set_blocked_ltks {
 	uint8_t	ltks[MAX_BLOCKED_LTKS][LTK_LENGTH];
 } __packed;
 #define MGMT_SET_BLOCKED_LTKS_CP_SIZE  (MAX_BLOCKED_LTKS * LTK_LENGTH)
 
-#define MGMT_OP_READ_SUPPORTED_CAPABILITIES		0x0047
+#define MGMT_OP_READ_SUPPORTED_CAPABILITIES		0x0063
 #define MGMT_READ_SUPPORTED_CAPABILITIES_SIZE		0
 struct mgmt_rp_read_supported_capabilities {
 	__u8 wide_band_speech;
 } __packed;
 
-#define MGMT_OP_SET_KERNEL_DEBUG			0x0048
+#define MGMT_OP_SET_KERNEL_DEBUG			0x0064
 #define MGMT_SET_KERNEL_DEBUG_SIZE			1
 struct mgmt_cp_set_kernel_debug {
 	__u8	enabled;
 } __packed;
 
-#define MGMT_OP_SET_WAKE_CAPABLE			0x004B
-#define MGMT_SET_WAKE_CAPABLE_SIZE			8
-struct mgmt_cp_set_wake_capable {
-	struct mgmt_addr_info addr;
-	u8 wake_capable;
-} __packed;
-
-#define MGMT_OP_GET_PHY_CONFIGURATION	0x0049
-struct mgmt_rp_get_phy_confguration {
-	__le32	supported_phys;
-	__le32	configurable_phys;
-	__le32	selected_phys;
-} __packed;
-#define MGMT_GET_PHY_CONFIGURATION_SIZE	0
-
-#define MGMT_PHY_BR_1M_1SLOT	0x00000001
-#define MGMT_PHY_BR_1M_3SLOT	0x00000002
-#define MGMT_PHY_BR_1M_5SLOT	0x00000004
-#define MGMT_PHY_EDR_2M_1SLOT	0x00000008
-#define MGMT_PHY_EDR_2M_3SLOT	0x00000010
-#define MGMT_PHY_EDR_2M_5SLOT	0x00000020
-#define MGMT_PHY_EDR_3M_1SLOT	0x00000040
-#define MGMT_PHY_EDR_3M_3SLOT	0x00000080
-#define MGMT_PHY_EDR_3M_5SLOT	0x00000100
-#define MGMT_PHY_LE_1M_TX		0x00000200
-#define MGMT_PHY_LE_1M_RX		0x00000400
-#define MGMT_PHY_LE_2M_TX		0x00000800
-#define MGMT_PHY_LE_2M_RX		0x00001000
-#define MGMT_PHY_LE_CODED_TX	0x00002000
-#define MGMT_PHY_LE_CODED_RX	0x00004000
-
-#define MGMT_PHY_BREDR_MASK (MGMT_PHY_BR_1M_1SLOT | MGMT_PHY_BR_1M_3SLOT | \
-			     MGMT_PHY_BR_1M_5SLOT | MGMT_PHY_EDR_2M_1SLOT | \
-			     MGMT_PHY_EDR_2M_3SLOT | MGMT_PHY_EDR_2M_5SLOT | \
-			     MGMT_PHY_EDR_3M_1SLOT | MGMT_PHY_EDR_3M_3SLOT | \
-			     MGMT_PHY_EDR_3M_5SLOT)
-#define MGMT_PHY_LE_MASK (MGMT_PHY_LE_1M_TX | MGMT_PHY_LE_1M_RX | \
-			  MGMT_PHY_LE_2M_TX | MGMT_PHY_LE_2M_RX | \
-			  MGMT_PHY_LE_CODED_TX | MGMT_PHY_LE_CODED_RX)
-#define MGMT_PHY_LE_TX_MASK (MGMT_PHY_LE_1M_TX | MGMT_PHY_LE_2M_TX | \
-			     MGMT_PHY_LE_CODED_TX)
-#define MGMT_PHY_LE_RX_MASK (MGMT_PHY_LE_1M_RX | MGMT_PHY_LE_2M_RX | \
-			     MGMT_PHY_LE_CODED_RX)
-
-#define MGMT_OP_SET_PHY_CONFIGURATION	0x0050
-struct mgmt_cp_set_phy_confguration {
-	__le32	selected_phys;
-} __packed;
-#define MGMT_SET_PHY_CONFIGURATION_SIZE	4
+/*
+ * End chromium only op_codes
+ */
 
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
