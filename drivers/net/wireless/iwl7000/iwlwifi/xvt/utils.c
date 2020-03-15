@@ -95,7 +95,7 @@ static struct {
 	char *name;
 	u8 num;
 } advanced_lookup[] = {
-	{ "USER_TRIGGER", 0x33 },
+	{ "USER_ASSERT", 0x33 },
 	{ "NMI_INTERRUPT_WDG", 0x34 },
 	{ "SYSASSERT", 0x35 },
 	{ "UCODE_VERSION_MISMATCH", 0x37 },
