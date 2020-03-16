@@ -749,19 +749,6 @@ static int long_term_keys_show(struct seq_file *f, void *ptr)
 
 DEFINE_SHOW_ATTRIBUTE(long_term_keys);
 
-static int blocked_ltks_show(struct seq_file *f, void *ptr)
-{
-	struct hci_dev *hdev = f->private;
-	int i;
-
-	for (i = 0; i < MAX_BLOCKED_LTKS; i++)
-		seq_printf(f, "%*phN\n", LTK_LENGTH, hdev->blocked_ltks[i]);
-
-	return 0;
-}
-
-DEFINE_SHOW_ATTRIBUTE(blocked_ltks);
-
 static int conn_min_interval_set(void *data, u64 val)
 {
 	struct hci_dev *hdev = data;
@@ -991,8 +978,6 @@ void hci_debugfs_create_le(struct hci_dev *hdev)
 			    hdev, &identity_resolving_keys_fops);
 	debugfs_create_file("long_term_keys", 0400, hdev->debugfs, hdev,
 			    &long_term_keys_fops);
-	debugfs_create_file("blocked_ltks", 0400, hdev->debugfs, hdev,
-			    &blocked_ltks_fops);
 	debugfs_create_file("conn_min_interval", 0644, hdev->debugfs, hdev,
 			    &conn_min_interval_fops);
 	debugfs_create_file("conn_max_interval", 0644, hdev->debugfs, hdev,

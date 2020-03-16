@@ -110,7 +110,6 @@ static const u16 mgmt_commands[] = {
 	/* Begin Chromium only op codes*/
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
 	MGMT_OP_SET_EVENT_MASK,
-	MGMT_OP_SET_BLOCKED_LTKS,
 	MGMT_OP_READ_SUPPORTED_CAPABILITIES,
 	MGMT_OP_SET_KERNEL_DEBUG,
 	/* End Chromium only op codes */
@@ -4490,19 +4489,6 @@ static int set_wake_capable(struct sock *sk, struct hci_dev *hdev, void *data,
 	return err;
 }
 
-static int set_blocked_ltks(struct sock *sk, struct hci_dev *hdev,
-			    void *data, u16 len)
-{
-	struct mgmt_cp_set_blocked_ltks *cp = data;
-
-	hci_dev_lock(hdev);
-	memcpy(hdev->blocked_ltks, cp->ltks, sizeof(hdev->blocked_ltks));
-	hci_dev_unlock(hdev);
-
-	return mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_BLOCKED_LTKS, 0,
-				 NULL, 0);
-}
-
 static void set_bredr_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 {
 	struct mgmt_pending_cmd *cmd;
@@ -6876,7 +6862,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	/* Begin Chromium only op_codes */
 	{ set_advertising_intervals, MGMT_SET_ADVERTISING_INTERVALS_SIZE },
 	{ set_event_mask,	   MGMT_SET_EVENT_MASK_CP_SIZE },
-	{ set_blocked_ltks,	   MGMT_SET_BLOCKED_LTKS_CP_SIZE },
+	{ NULL }, // 0x0062
 	{ read_supported_capabilities, MGMT_READ_SUPPORTED_CAPABILITIES_SIZE },
 	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
 						HCI_MGMT_NO_HDEV |
