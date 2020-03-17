@@ -533,8 +533,7 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
 					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
 				.mac_cap_info[2] =
-					IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP |
-					IEEE80211_HE_MAC_CAP2_ACK_EN,
+					IEEE80211_HE_MAC_CAP2_32BIT_BA_BITMAP,
 				.mac_cap_info[3] =
 					IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
 					IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
@@ -618,8 +617,7 @@ static struct ieee80211_sband_iftype_data iwl_he_capa[] = {
 					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
 					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
 				.mac_cap_info[2] =
-					IEEE80211_HE_MAC_CAP2_BSR |
-					IEEE80211_HE_MAC_CAP2_ACK_EN,
+					IEEE80211_HE_MAC_CAP2_BSR,
 				.mac_cap_info[3] =
 					IEEE80211_HE_MAC_CAP3_OMI_CONTROL |
 					IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_VHT_2,
@@ -794,10 +792,6 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 			iftype_data->he_cap.he_mcs_nss_supp.tx_mcs_80p80 |=
 				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
 		}
-
-		if (trans->dbg_cfg.no_ack_en & 0x1)
-			iftype_data->he_cap.he_cap_elem.mac_cap_info[2] &=
-				~IEEE80211_HE_MAC_CAP2_ACK_EN;
 
 		if (trans->dbg_cfg.no_ldpc)
 			iftype_data->he_cap.he_cap_elem.phy_cap_info[1] &=
