@@ -1039,6 +1039,10 @@ static int kstaled_node_worker(void *arg)
 			mod_node_page_state(node, KSTALED_TIMEOUT, -timeout);
 			continue;
 		}
+		if (ctx.walk_mm) {
+			schedule_timeout_interruptible(timeout);
+			continue;
+		}
 sleep:
 		prepare_to_wait(&kstaled_wait, &wait, TASK_INTERRUPTIBLE);
 		schedule_timeout(timeout);
@@ -1372,6 +1376,10 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 		atomic_long_add(scanned, &kstaled->scanned);
 		return true;
 	}
+
+	/* it's fine if the check is reordered or races with kstaled */
+	if (waitqueue_active(&kstaled_wait))
+		wake_up_interruptible_all(&kstaled_wait);
 
 	if (kstaled_shrink_slab(kstaled, gfp_mask, scanned))
 		return true;
