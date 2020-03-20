@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0+
 
-#include <linux/backing-dev.h>
 #include <linux/ctype.h>
 #include <linux/freezer.h>
 #include <linux/hugetlb.h>
@@ -447,6 +446,8 @@ static int kstaled_walk_pte(struct vm_area_struct *vma, pte_t *pte,
 		age = kstaled_xchg_age(page, head);
 		if (head && age != head && PageLRU(page))
 			hot += hpage_nr_pages(page);
+		if (pte_dirty(pte[i]) && !PageDirty(page))
+			set_page_dirty(page);
 	}
 
 	return hot;
@@ -674,35 +675,16 @@ static void kstaled_prepare_lru(struct kstaled_struct *kstaled)
 
 static bool kstaled_lru_reclaimable(bool file)
 {
-	struct backing_dev_info *bdi;
-	bool can_writeback = false;
+	if (file)
+		return true;
 
-	if (!file) {
-		if (get_nr_swap_pages() > SWAP_BATCH)
-			return true;
+	if (get_nr_swap_pages() > SWAP_BATCH)
+		return true;
 
-		if (READ_ONCE(total_swap_pages))
-			pr_warn_ratelimited("kstaled: swapfile full\n");
+	if (total_swap_pages)
+		pr_warn_ratelimited("kstaled: swapfile full\n");
 
-		return false;
-	}
-
-	rcu_read_lock();
-
-	list_for_each_entry_rcu(bdi, &bdi_list, bdi_list) {
-		if (bdi->owner && bdi->owner->parent &&
-		    !bdi_write_congested(bdi)) {
-			can_writeback = true;
-			break;
-		}
-	}
-
-	rcu_read_unlock();
-
-	if (!can_writeback)
-		pr_warn_ratelimited("kstaled: writeback congested\n");
-
-	return can_writeback;
+	return false;
 }
 
 static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
@@ -715,7 +697,6 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 	unsigned span;
 	bool clean_only;
 	struct page *page, *prev;
-	unsigned long page_reclaim;
 	unsigned long batch = 0;
 	unsigned long scanned = 0;
 	unsigned long isolated = 0;
@@ -725,7 +706,6 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 	enum lru_list lru = kstaled_lru(file);
 	unsigned long zone_isolated[MAX_NR_ZONES] = {};
 
-	page_reclaim = file ? BIT(PG_reclaim) : 0;
 	clean_only = file ? !current_is_kswapd() : !(gfp_mask & __GFP_IO);
 
 	spin_lock_irq(&node->lru_lock);
@@ -770,11 +750,17 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 		     (!file && PageAnon(page) && !PageSwapCache(page))))
 			break;
 
+		if (file && !PageAnon(page) && !PageReclaim(page) &&
+		    (PageDirty(page) || PageWriteback(page))) {
+			set_mask_bits(&page->flags, KSTALED_AGE_MASK,
+				      BIT(PG_reclaim));
+			continue;
+		}
+
 		if (!get_page_unless_zero(page))
 			continue;
 
-		set_mask_bits(&page->flags, KSTALED_AGE_MASK | BIT(PG_lru),
-			      page_reclaim);
+		set_mask_bits(&page->flags, KSTALED_AGE_MASK | BIT(PG_lru), 0);
 		list_move(&page->lru, &list);
 		zone_isolated[page_zonenum(page)] += npages;
 		isolated += npages;
