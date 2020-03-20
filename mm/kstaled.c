@@ -1376,13 +1376,13 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 	if (kstaled_shrink_slab(kstaled, gfp_mask, scanned))
 		return true;
 
+	/* keep retrying as long as there are cold pages */
+	if (isolated)
+		return true;
+
 	/* unlimited retries if the thread has disabled throttle */
 	if (kstaled_throttle_disabled(current))
 		return true;
-
-	/* limited retries in case we are not making any progress */
-	if (isolated)
-		return false;
 
 	/* throttle before retry because cold pages have run out */
 	interrupted = kstaled_throttle_alloc(zone, order, gfp_mask);
