@@ -543,7 +543,8 @@ extern const char iwl_ax201_name[];
 extern const char iwl_ax101_name[];
 extern const char iwl_ax200_killer_1650w_name[];
 extern const char iwl_ax200_killer_1650x_name[];
-
+extern const char iwl_ax201_killer_1650s_name[];
+extern const char iwl_ax201_killer_1650i_name[];
 #if IS_ENABLED(CPTCFG_IWLMVM)
 extern const struct iwl_cfg iwl7260_2ac_cfg;
 extern const struct iwl_cfg iwl7260_2ac_cfg_high_temp;
@@ -599,6 +600,7 @@ extern const struct iwl_cfg iwlax411_2ax_cfg_so_gf4_a0;
 extern const struct iwl_cfg iwlax411_2ax_cfg_so_gf4_a0_long;
 extern const struct iwl_cfg iwlax411_2ax_cfg_sosnj_gf4_a0;
 extern const struct iwl_cfg iwlax211_cfg_snj_gf_a0;
+extern const struct iwl_cfg iwlax201_cfg_snj_hr_b0;
 #endif /* CPTCFG_IWLMVM || CPTCFG_IWLFMAC */
 
 #endif /* __IWL_CONFIG_H__ */
