@@ -812,7 +812,7 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
 		unsigned long isolated = 0;
 
-		if (file_only && !file[i])
+		if (file_only && (!file[i] || kstaled_ring_low(kstaled, true)))
 			break;
 
 		if (!kstaled_lru_reclaimable(file[i]))
@@ -977,6 +977,7 @@ static int kstaled_node_worker(void *arg)
 	struct kstaled_struct *kstaled = arg;
 	struct pglist_data *node = kstaled_node(kstaled);
 	struct kstaled_context ctx = {};
+	bool need_reclaim = false;
 
 	set_freezable();
 	current->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
@@ -1012,9 +1013,14 @@ static int kstaled_node_worker(void *arg)
 			ctx.hot = node_page_state(node, KSTALED_DIRECT_HOT);
 		}
 
-		while (kstaled_balance_lru(kstaled,
-		       reclaimed >= ctx.nr_to_reclaim, &scanned, &reclaimed))
-			;
+		if (ctx.walk_mm || ctx.nr_to_reclaim || need_reclaim) {
+			while (kstaled_balance_lru(kstaled,
+						   reclaimed >= ctx.nr_to_reclaim,
+						   &scanned, &reclaimed))
+				;
+		}
+
+		need_reclaim = false;
 
 		scanned += atomic_long_xchg(&kstaled->scanned, 0);
 		if (scanned)
@@ -1031,7 +1037,7 @@ static int kstaled_node_worker(void *arg)
 		}
 sleep:
 		prepare_to_wait(&kstaled_wait, &wait, TASK_INTERRUPTIBLE);
-		schedule_timeout(timeout);
+		need_reclaim = schedule_timeout(timeout);
 		finish_wait(&kstaled_wait, &wait);
 	}
 
