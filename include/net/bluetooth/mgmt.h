@@ -711,12 +711,6 @@ enum mgmt_set_event_mask_byte_7 {
 	MGMT_EVENT_MASK_LE_META				=  (1 << 6),
 };
 
-#define MGMT_OP_READ_SUPPORTED_CAPABILITIES		0x0063
-#define MGMT_READ_SUPPORTED_CAPABILITIES_SIZE		0
-struct mgmt_rp_read_supported_capabilities {
-	__u8 wide_band_speech;
-} __packed;
-
 #define MGMT_OP_SET_KERNEL_DEBUG			0x0064
 #define MGMT_SET_KERNEL_DEBUG_SIZE			1
 struct mgmt_cp_set_kernel_debug {
