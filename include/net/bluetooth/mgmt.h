@@ -605,13 +605,6 @@ struct mgmt_cp_set_appearance {
 } __packed;
 #define MGMT_SET_APPEARANCE_SIZE	2
 
-#define MGMT_OP_SET_WAKE_CAPABLE			0x0047
-#define MGMT_SET_WAKE_CAPABLE_SIZE			8
-struct mgmt_cp_set_wake_capable {
-	struct mgmt_addr_info addr;
-	u8 wake_capable;
-} __packed;
-
 /*
  * Begin chromium only op_codes
  */
@@ -708,6 +701,13 @@ struct mgmt_rp_read_supported_capabilities {
 #define MGMT_SET_KERNEL_DEBUG_SIZE			1
 struct mgmt_cp_set_kernel_debug {
 	__u8	enabled;
+} __packed;
+
+#define MGMT_OP_SET_WAKE_CAPABLE			0x0065
+#define MGMT_SET_WAKE_CAPABLE_SIZE			8
+struct mgmt_cp_set_wake_capable {
+	struct mgmt_addr_info addr;
+	u8 wake_capable;
 } __packed;
 
 /*

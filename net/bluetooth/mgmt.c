@@ -108,12 +108,12 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_READ_EXT_INFO,
 	MGMT_OP_SET_APPEARANCE,
 	MGMT_OP_SET_BLOCKED_KEYS,
-	MGMT_OP_SET_WAKE_CAPABLE,
 	/* Begin Chromium only op codes*/
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
 	MGMT_OP_SET_EVENT_MASK,
 	MGMT_OP_READ_SUPPORTED_CAPABILITIES,
 	MGMT_OP_SET_KERNEL_DEBUG,
+	MGMT_OP_SET_WAKE_CAPABLE,
 	/* End Chromium only op codes */
 };
 
@@ -6910,7 +6910,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, // 0x0045
 	{ set_blocked_keys,	   MGMT_OP_SET_BLOCKED_KEYS_SIZE,
 						HCI_MGMT_VAR_LEN },
-	{ set_wake_capable,	   MGMT_SET_WAKE_CAPABLE_SIZE },
+	{ NULL }, // 0x0047
 	{ NULL }, // 0x0048
 	{ NULL }, // 0x0049
 	{ NULL }, // 0x004A
@@ -6943,6 +6943,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
 						HCI_MGMT_NO_HDEV |
 						HCI_MGMT_UNTRUSTED },
+	{ set_wake_capable,	   MGMT_SET_WAKE_CAPABLE_SIZE },
 	/* End Chromium only op_codes */
 };
 
