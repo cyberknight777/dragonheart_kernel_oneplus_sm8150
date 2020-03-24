@@ -608,6 +608,23 @@ struct mgmt_cp_set_appearance {
 } __packed;
 #define MGMT_SET_APPEARANCE_SIZE	2
 
+#define MGMT_OP_SET_BLOCKED_KEYS	0x0046
+
+#define HCI_BLOCKED_KEY_TYPE_LINKKEY	0x00
+#define HCI_BLOCKED_KEY_TYPE_LTK	0x01
+#define HCI_BLOCKED_KEY_TYPE_IRK	0x02
+
+struct mgmt_blocked_key_info {
+	__u8 type;
+	__u8 val[16];
+} __packed;
+
+struct mgmt_cp_set_blocked_keys {
+	__le16 key_count;
+	struct mgmt_blocked_key_info keys[0];
+} __packed;
+#define MGMT_OP_SET_BLOCKED_KEYS_SIZE 2
+
 /*
  * Begin chromium only op_codes
  */
@@ -706,22 +723,16 @@ struct mgmt_cp_set_kernel_debug {
 	__u8	enabled;
 } __packed;
 
-#define MGMT_OP_SET_BLOCKED_KEYS	0x0046
-
-#define HCI_BLOCKED_KEY_TYPE_LINKKEY	0x00
-#define HCI_BLOCKED_KEY_TYPE_LTK	0x01
-#define HCI_BLOCKED_KEY_TYPE_IRK	0x02
-
-struct mgmt_blocked_key_info {
-	__u8 type;
-	__u8 val[16];
+#define MGMT_OP_SET_WAKE_CAPABLE			0x0065
+#define MGMT_SET_WAKE_CAPABLE_SIZE			8
+struct mgmt_cp_set_wake_capable {
+	struct mgmt_addr_info addr;
+	u8 wake_capable;
 } __packed;
 
-struct mgmt_cp_set_blocked_keys {
-	__le16 key_count;
-	struct mgmt_blocked_key_info keys[0];
-} __packed;
-#define MGMT_OP_SET_BLOCKED_KEYS_SIZE 2
+/*
+ * End chromium only op_codes
+ */
 
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
