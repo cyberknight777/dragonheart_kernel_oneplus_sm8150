@@ -1283,12 +1283,6 @@ static int set_discoverable(struct sock *sk, struct hci_dev *hdev, void *data,
 		goto failed;
 	}
 
-	if (hdev->advertising_paused) {
-		err = mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_DISCOVERABLE,
-				      MGMT_STATUS_BUSY);
-		goto failed;
-	}
-
 	if (!hdev_is_powered(hdev)) {
 		bool changed = false;
 
@@ -3547,13 +3541,6 @@ void mgmt_start_discovery_complete(struct hci_dev *hdev, u8 status)
 	}
 
 	hci_dev_unlock(hdev);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_UNPAUSE_DISCOVERY,
-			       hdev->suspend_tasks)) {
-		BT_DBG("Unpaused discovery");
-		wake_up(&hdev->suspend_wait_q);
-	}
 }
 
 static bool discovery_type_is_valid(struct hci_dev *hdev, uint8_t type,
@@ -3611,13 +3598,6 @@ static int start_discovery_internal(struct sock *sk, struct hci_dev *hdev,
 
 	if (!discovery_type_is_valid(hdev, cp->type, &status)) {
 		err = mgmt_cmd_complete(sk, hdev->id, op, status,
-					&cp->type, sizeof(cp->type));
-		goto failed;
-	}
-
-	/* Can't start discovery when it is paused */
-	if (hdev->discovery_paused) {
-		err = mgmt_cmd_complete(sk, hdev->id, op, MGMT_STATUS_BUSY,
 					&cp->type, sizeof(cp->type));
 		goto failed;
 	}
@@ -3789,12 +3769,6 @@ void mgmt_stop_discovery_complete(struct hci_dev *hdev, u8 status)
 	}
 
 	hci_dev_unlock(hdev);
-
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_PAUSE_DISCOVERY, hdev->suspend_tasks)) {
-		BT_DBG("Paused discovery");
-		wake_up(&hdev->suspend_wait_q);
-	}
 }
 
 static int stop_discovery(struct sock *sk, struct hci_dev *hdev, void *data,
@@ -4026,17 +4000,6 @@ static void set_advertising_complete(struct hci_dev *hdev, u8 status,
 	if (match.sk)
 		sock_put(match.sk);
 
-	/* Handle suspend notifier */
-	if (test_and_clear_bit(SUSPEND_PAUSE_ADVERTISING,
-			       hdev->suspend_tasks)) {
-		BT_DBG("Paused advertising");
-		wake_up(&hdev->suspend_wait_q);
-	} else if (test_and_clear_bit(SUSPEND_UNPAUSE_ADVERTISING,
-				      hdev->suspend_tasks)) {
-		BT_DBG("Unpaused advertising");
-		wake_up(&hdev->suspend_wait_q);
-	}
-
 	/* If "Set Advertising" was just disabled and instance advertising was
 	 * set up earlier, then re-enable multi-instance advertising.
 	 */
@@ -4087,10 +4050,6 @@ static int set_advertising(struct sock *sk, struct hci_dev *hdev, void *data,
 	if (cp->val != 0x00 && cp->val != 0x01 && cp->val != 0x02)
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_ADVERTISING,
 				       MGMT_STATUS_INVALID_PARAMS);
-
-	if (hdev->advertising_paused)
-		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_ADVERTISING,
-				       MGMT_STATUS_BUSY);
 
 	hci_dev_lock(hdev);
 
