@@ -3207,6 +3207,9 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 	if (!hdev_is_powered(hdev))
 		goto done;
 
+	if (!hdev->enable_suspend_notifier)
+		return NOTIFY_STOP;
+
 	if (action == PM_SUSPEND_PREPARE) {
 		/* Suspend consists of two actions:
 		 *  - First, disconnect everything and make the controller not
