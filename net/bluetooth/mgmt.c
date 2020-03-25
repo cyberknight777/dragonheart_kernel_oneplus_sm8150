@@ -7325,14 +7325,6 @@ void mgmt_device_disconnected(struct hci_dev *hdev, bdaddr_t *bdaddr,
 
 	mgmt_event(MGMT_EV_DEVICE_DISCONNECTED, hdev, &ev, sizeof(ev), sk);
 
-	if (hdev->disconnect_counter > 0) {
-		hdev->disconnect_counter--;
-		if (hdev->disconnect_counter <= 0) {
-			clear_bit(SUSPEND_DISCONNECTING, hdev->suspend_tasks);
-			wake_up(&hdev->suspend_wait_q);
-		}
-	}
-
 	if (sk)
 		sock_put(sk);
 
