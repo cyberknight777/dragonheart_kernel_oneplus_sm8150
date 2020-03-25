@@ -1927,7 +1927,7 @@ ieee80211_get_he_6ghz_sta_cap(const struct ieee80211_supported_band *sband)
 #define NL80211_STA_INFO_ASSOC_AT_BOOTTIME 42
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,5,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
 struct ieee80211_he_obss_pd {
 	bool enable;
 	u8 min_offset;
@@ -1975,7 +1975,9 @@ cfg80211_iftype_allowed(struct wiphy *wiphy, enum nl80211_iftype iftype,
 
 	return false;
 }
+#endif /* < 5.4.0 */
 
+#if CFG80211_VERSION < KERNEL_VERSION(5,5,0)
 #define NL80211_EXT_FEATURE_AQL -1
 
 #define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L	5000
@@ -1989,7 +1991,7 @@ cfg80211_iftype_allowed(struct wiphy *wiphy, enum nl80211_iftype iftype,
 	       crypto_shash_descsize(ctx)] CRYPTO_MINALIGN_ATTR; \
 	struct shash_desc *shash = (struct shash_desc *)__##shash##_desc
 
-#endif
+#endif /* < 5.5.0 */
 
 #if LINUX_VERSION_IS_LESS(4,11,0)
 static inline void *backport_idr_remove(struct idr *idr, int id)
