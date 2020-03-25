@@ -3183,9 +3183,6 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 		container_of(nb, struct hci_dev, suspend_notifier);
 	int ret = 0;
 
-	if (!hdev->enable_suspend_notifier)
-		return NOTIFY_STOP;
-
 	if (action == PM_SUSPEND_PREPARE) {
 		hdev->suspend_state_next = BT_SUSPENDED;
 		set_bit(SUSPEND_PREPARE_NOTIFIER, hdev->suspend_tasks);
