@@ -1904,7 +1904,7 @@ ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
 
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
 /**
  * ieee80211_get_he_6ghz_sta_cap - return HE 6GHZ capabilities for an sband's
  * STA
@@ -1917,8 +1917,7 @@ ieee80211_get_he_6ghz_sta_cap(const struct ieee80211_supported_band *sband)
 {
 	return 0;
 }
-
-#endif
+#endif /* < 5.8.0 */
 
 #ifndef SHASH_DESC_ON_STACK
 #define SHASH_DESC_ON_STACK(shash, ctx)				 \
