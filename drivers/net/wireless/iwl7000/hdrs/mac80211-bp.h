@@ -1907,7 +1907,7 @@ ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
 
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
 /**
  * ieee80211_get_he_6ghz_sta_cap - return HE 6GHZ capabilities for an sband's
  * STA
@@ -1920,14 +1920,14 @@ ieee80211_get_he_6ghz_sta_cap(const struct ieee80211_supported_band *sband)
 {
 	return 0;
 }
+#endif /* < 5.8.0 */
 
+#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
 #define RATE_INFO_FLAGS_DMG	BIT(3)
 #define RATE_INFO_FLAGS_EDMG	BIT(5)
 /* yes, it really has that number upstream */
 #define NL80211_STA_INFO_ASSOC_AT_BOOTTIME 42
-#endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
 struct ieee80211_he_obss_pd {
 	bool enable;
 	u8 min_offset;
