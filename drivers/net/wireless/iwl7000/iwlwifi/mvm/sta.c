@@ -527,8 +527,6 @@ static int iwl_mvm_free_inactive_queue(struct iwl_mvm *mvm, int queue,
 
 	same_sta = sta_id == new_sta_id;
 
-	same_sta = sta_id == new_sta_id;
-
 	mvmsta = iwl_mvm_sta_from_staid_protected(mvm, sta_id);
 	if (WARN_ON(!mvmsta))
 		return -EINVAL;
