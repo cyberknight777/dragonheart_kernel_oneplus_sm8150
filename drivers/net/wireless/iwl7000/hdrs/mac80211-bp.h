@@ -448,6 +448,10 @@ bp_cfg80211_classify8021d(struct sk_buff *skb,
 #define cfg80211_ibss_joined(dev, bssid, chan, gfp) \
 	cfg80211_ibss_joined(dev, bssid, gfp)
 
+static inline void set_wdev_cac_started(struct wireless_dev *wdev, bool s)
+{
+}
+
 static inline bool wdev_cac_started(struct wireless_dev *wdev)
 {
 	return false;
@@ -460,6 +464,11 @@ cfg80211_cac_event(struct net_device *netdev,
 {
 }
 #else
+static inline void set_wdev_cac_started(struct wireless_dev *wdev, bool s)
+{
+	wdev->cac_started = s;
+}
+
 static inline bool wdev_cac_started(struct wireless_dev *wdev)
 {
 	return wdev->cac_started;

@@ -3024,7 +3024,7 @@ static void ieee80211_end_cac(struct wiphy *wiphy,
 
 		if (wdev_cac_started(&sdata->wdev)) {
 			ieee80211_vif_release_channel(sdata);
-			wdev_cac_started(&sdata->wdev) = false;
+			set_wdev_cac_started(&sdata->wdev, false);
 		}
 	}
 	mutex_unlock(&local->mtx);
