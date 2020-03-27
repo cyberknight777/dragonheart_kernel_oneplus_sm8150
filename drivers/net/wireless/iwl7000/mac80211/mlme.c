@@ -759,7 +759,7 @@ static void ieee80211_add_he_6ghz_capa(struct ieee80211_sub_if_data *sdata,
 				       struct sk_buff *skb,
 				       struct ieee80211_supported_band *sband)
 {
-#if CFG80211_VERSION > KERNEL_VERSION(5,5,0)
+#if CFG80211_VERSION > KERNEL_VERSION(5,8,0)
 	const struct ieee80211_sband_iftype_data *data =
 		ieee80211_get_sband_iftype_data(sband, NL80211_IFTYPE_STATION);
 	u8 *pos;
