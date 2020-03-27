@@ -93,6 +93,7 @@ static const struct iio_info cros_ec_sensors_sync_info = {
 	.read_raw = &cros_ec_sensors_sync_read,
 	.write_raw = &cros_ec_sensors_write,
 	.driver_module = THIS_MODULE,
+	.read_avail = &cros_ec_sensors_core_read_avail,
 };
 
 static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
@@ -114,10 +115,22 @@ static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
 
 	indio_dev->info = &cros_ec_sensors_sync_info;
 	state = iio_priv(indio_dev);
+	/*
+	 * Sync sensor notion of frequencies is either on or off.
+	 * EC reports min and max as 1, that would translate in 1 mHz.
+	 * Force it to 1 (..HZ), more readable.
+	 * For the EC, any frequencies different from 0 means the sync sensor is
+	 * enabled.
+	 */
+	state->core.frequencies[2] = state->core.frequencies[4] = 1;
+	state->core.frequencies[3] = state->core.frequencies[5] = 0;
+
 	channel = state->channels;
 	/* common part */
 	channel->info_mask_separate = BIT(IIO_CHAN_INFO_RAW);
-	channel->info_mask_shared_by_all = BIT(IIO_CHAN_INFO_FREQUENCY);
+	channel->info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SAMP_FREQ);
+	channel->info_mask_shared_by_all_available =
+		BIT(IIO_CHAN_INFO_SAMP_FREQ);
 	channel->scan_type.realbits = CROS_EC_SENSOR_BITS;
 	channel->scan_type.storagebits = CROS_EC_SENSOR_BITS;
 	channel->scan_type.shift = 0;
