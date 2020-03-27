@@ -164,7 +164,6 @@ MODULE_DEVICE_TABLE(platform, cros_ec_sensors_sync_ids);
 static struct platform_driver cros_ec_sensors_sync_platform_driver = {
 	.driver = {
 		.name	= "cros-ec-sync",
-		.pm	= &cros_ec_sensors_pm_ops,
 	},
 	.probe		= cros_ec_sensors_sync_probe,
 	.id_table	= cros_ec_sensors_sync_ids,
