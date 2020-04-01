@@ -77,7 +77,6 @@
 #define ACPI_ECKV_METHOD	"ECKV"
 #define ACPI_PPAG_METHOD	"PPAG"
 #define ACPI_WTAS_METHOD	"WTAS"
-#define ACPI_DSM_METHOD		"_DSM"
 
 #define ACPI_WIFI_DOMAIN	(0x07)
 
@@ -157,7 +156,7 @@ void *iwl_acpi_get_object(struct device *dev, acpi_string method);
 void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
 			      union acpi_object *args);
 
-int iwl_acpi_get_dsm_value(struct device *dev, int rev, int func);
+int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func);
 
 union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 					 union acpi_object *data,
@@ -224,8 +223,7 @@ static inline void *iwl_acpi_get_dsm_object(struct device *dev, int rev,
 	return ERR_PTR(-ENOENT);
 }
 
-static inline void *iwl_acpi_get_dsm_value(struct device *dev, int rev,
-					   int func)
+static inline int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func)
 {
 	return ERR_PTR(-ENOENT);
 }

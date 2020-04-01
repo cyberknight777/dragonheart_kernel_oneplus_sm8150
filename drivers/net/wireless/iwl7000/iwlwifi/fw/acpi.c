@@ -121,15 +121,10 @@ IWL_EXPORT_SYMBOL(iwl_acpi_get_object);
 void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
 			      union acpi_object *args)
 {
-	acpi_handle handle;
 	union acpi_object *obj;
-	int ret;
 
-	ret = iwl_acpi_get_handle(dev, ACPI_DSM_METHOD, &handle);
-	if (ret)
-		return ERR_PTR(-ENOENT);
-
-	obj = acpi_evaluate_dsm(handle, &intel_wifi_guid, rev, func, args);
+	obj = acpi_evaluate_dsm(ACPI_HANDLE(dev), &intel_wifi_guid, rev, func,
+				args);
 	if (!obj) {
 		IWL_DEBUG_DEV_RADIO(dev,
 				    "ACPI: DSM method invocation failed (rev: %d, func:%d)\n",
@@ -140,10 +135,10 @@ void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
 }
 
 /**
- * Evaluate a DSM with no arguments and a single int return value, verify and
- * return that value.
+ * Evaluate a DSM with no arguments and a single u8 return value (inside a
+ * buffer object), verify and return that value.
  */
-int iwl_acpi_get_dsm_value(struct device *dev, int rev, int func)
+int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func)
 {
 	union acpi_object *obj;
 	int ret;
@@ -152,17 +147,31 @@ int iwl_acpi_get_dsm_value(struct device *dev, int rev, int func)
 	if (IS_ERR(obj))
 		return -ENOENT;
 
-	if (obj->type != ACPI_TYPE_INTEGER) {
+	if (obj->type != ACPI_TYPE_BUFFER) {
 		IWL_DEBUG_DEV_RADIO(dev,
-				    "ACPI: DSM method did not return an integer object\n");
-		ACPI_FREE(obj);
-		return -EINVAL;
+				    "ACPI: DSM method did not return a valid object, type=%d\n",
+				    obj->type);
+		ret = -EINVAL;
+		goto out;
 	}
-	ret = obj->integer.value;
+
+	if (obj->buffer.length != sizeof(u8)) {
+		IWL_DEBUG_DEV_RADIO(dev,
+				    "ACPI: DSM method returned invalid buffer, length=%d\n",
+				    obj->buffer.length);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ret = obj->buffer.pointer[0];
+	IWL_DEBUG_DEV_RADIO(dev,
+			    "ACPI: DSM method evaluated: func=%d, ret=%d\n",
+			    func, ret);
+out:
 	ACPI_FREE(obj);
 	return ret;
 }
-IWL_EXPORT_SYMBOL(iwl_acpi_get_dsm_value);
+IWL_EXPORT_SYMBOL(iwl_acpi_get_dsm_u8);
 
 union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 					 union acpi_object *data,
