@@ -735,7 +735,7 @@ static int ieee80211_config_default_mgmt_key(struct wiphy *wiphy,
 	return 0;
 }
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,6,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
 static int ieee80211_config_default_beacon_key(struct wiphy *wiphy,
 					       struct net_device *dev,
 					       u8 key_idx)
@@ -4098,7 +4098,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.get_key = ieee80211_get_key,
 	.set_default_key = ieee80211_config_default_key,
 	.set_default_mgmt_key = ieee80211_config_default_mgmt_key,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,6,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
 	.set_default_beacon_key = ieee80211_config_default_beacon_key,
 #endif
 	.start_ap = ieee80211_start_ap,
