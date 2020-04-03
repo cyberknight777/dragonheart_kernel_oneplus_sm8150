@@ -18,7 +18,7 @@ config DRM_AMD_DC_DCN1_0
 	  RV family for display engine
 
 config DRM_AMD_DC_DCN1_01
-	default n
+	def_bool n
 	help
 	  RV2 family for display engine
 
