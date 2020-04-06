@@ -52,7 +52,6 @@
 #define HCI_NOTIFY_CONN_ADD		1
 #define HCI_NOTIFY_CONN_DEL		2
 #define HCI_NOTIFY_VOICE_SETTING	3
-#define HCI_NOTIFY_AIR_MODE_TRANSP	4
 
 /* HCI bus types */
 #define HCI_VIRTUAL	0
