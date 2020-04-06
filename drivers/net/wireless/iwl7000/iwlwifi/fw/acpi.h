@@ -225,7 +225,7 @@ static inline void *iwl_acpi_get_dsm_object(struct device *dev, int rev,
 
 static inline int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func)
 {
-	return ERR_PTR(-ENOENT);
+	return -ENOENT;
 }
 
 static inline union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
