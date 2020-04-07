@@ -2138,12 +2138,6 @@ static int __init iwl_drv_init(void)
 	if (err)
 		goto cleanup_debugfs;
 
-	err = iwl_virtio_register_driver();
-	if (err) {
-		iwl_pci_unregister_driver();
-		goto cleanup_debugfs;
-	}
-
 	return 0;
 
 cleanup_debugfs:
@@ -2164,7 +2158,6 @@ module_init(iwl_drv_init);
 static void __exit iwl_drv_exit(void)
 {
 	iwl_pci_unregister_driver();
-	iwl_virtio_unregister_driver();
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	debugfs_remove_recursive(iwl_dbgfs_root);
