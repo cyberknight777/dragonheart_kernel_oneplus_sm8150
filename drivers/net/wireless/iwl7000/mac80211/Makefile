@@ -50,13 +50,11 @@ mac80211-$(CPTCFG_MAC80211_MESH) += \
 	mesh_ps.o
 
 mac80211-$(CONFIG_PM) += pm.o
+mac80211-y += arc4.o
 mac80211-y += bucket_locks.o
 mac80211-y += rhashtable.o
 
-CFLAGS_trace.o := -I$(src)
-# Re-enable -Wimplicit-fallthrough after clang/gcc disagreements are resolved.
-# https://crbug.com/997991.
-# subdir-ccflags-y += $(call cc-option,-Wimplicit-fallthrough)
+CFLAGS_trace.o := -I$(srctree)/$(src)
 
 CFLAGS_tx.o += -include "hdrs/iwl-tx.h"
 CFLAGS_debugfs.o += -include "hdrs/net/fq.h"

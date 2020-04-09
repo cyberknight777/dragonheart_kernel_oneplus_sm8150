@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /******************************************************************************
  *
  * This file is provided under a dual BSD/GPLv2 license.  When using or
@@ -5,7 +6,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright (C) 2018 - 2019 Intel Corporation
+ * Copyright(c) 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -25,7 +26,7 @@
  *
  * BSD LICENSE
  *
- * Copyright (C) 2018 - 2019 Intel Corporation
+ * Copyright(c) 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,55 +54,47 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
  *****************************************************************************/
-#ifndef __iwl_dbg_tlv_h__
-#define __iwl_dbg_tlv_h__
 
-#include <linux/device.h>
-#include <linux/types.h>
+#include "img.h"
 
-/**
- * struct iwl_dbg_tlv_node - debug TLV node
- * @list: list of &struct iwl_dbg_tlv_node
- * @tlv: debug TLV
- */
-struct iwl_dbg_tlv_node {
-	struct list_head list;
-	struct iwl_ucode_tlv tlv;
-};
+u8 iwl_fw_lookup_cmd_ver(const struct iwl_fw *fw, u8 grp, u8 cmd)
+{
+	const struct iwl_fw_cmd_version *entry;
+	unsigned int i;
 
-/**
- * union iwl_dbg_tlv_tp_data - data that is given in a time point
- * @fw_pkt: a packet received from the FW
- */
-union iwl_dbg_tlv_tp_data {
-	struct iwl_rx_packet *fw_pkt;
-};
+	if (!fw->ucode_capa.cmd_versions ||
+	    !fw->ucode_capa.n_cmd_versions)
+		return IWL_FW_CMD_VER_UNKNOWN;
 
-/**
- * struct iwl_dbg_tlv_time_point_data
- * @trig_list: list of triggers
- * @active_trig_list: list of active triggers
- * @hcmd_list: list of host commands
- */
-struct iwl_dbg_tlv_time_point_data {
-	struct list_head trig_list;
-	struct list_head active_trig_list;
-	struct list_head hcmd_list;
-};
+	entry = fw->ucode_capa.cmd_versions;
+	for (i = 0; i < fw->ucode_capa.n_cmd_versions; i++, entry++) {
+		if (entry->group == grp && entry->cmd == cmd)
+			return entry->cmd_ver;
+	}
 
-struct iwl_trans;
-struct iwl_fw_runtime;
+	return IWL_FW_CMD_VER_UNKNOWN;
+}
+EXPORT_SYMBOL_GPL(iwl_fw_lookup_cmd_ver);
 
-void iwl_dbg_tlv_load_bin(struct device *dev, struct iwl_trans *trans);
-void iwl_dbg_tlv_free(struct iwl_trans *trans);
-void iwl_dbg_tlv_alloc(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
-		       bool ext);
-void iwl_dbg_tlv_init(struct iwl_trans *trans);
-void iwl_dbg_tlv_time_point(struct iwl_fw_runtime *fwrt,
-			    enum iwl_fw_ini_time_point tp_id,
-			    union iwl_dbg_tlv_tp_data *tp_data);
-void iwl_dbg_tlv_del_timers(struct iwl_trans *trans);
+u8 iwl_fw_lookup_notif_ver(const struct iwl_fw *fw, u8 grp, u8 cmd, u8 def)
+{
+	const struct iwl_fw_cmd_version *entry;
+	unsigned int i;
 
-#endif /* __iwl_dbg_tlv_h__*/
+	if (!fw->ucode_capa.cmd_versions ||
+	    !fw->ucode_capa.n_cmd_versions)
+		return def;
+
+	entry = fw->ucode_capa.cmd_versions;
+	for (i = 0; i < fw->ucode_capa.n_cmd_versions; i++, entry++) {
+		if (entry->group == grp && entry->cmd == cmd) {
+			if (entry->notif_ver == IWL_FW_CMD_VER_UNKNOWN)
+				return def;
+			return entry->notif_ver;
+		}
+	}
+
+	return def;
+}
+EXPORT_SYMBOL_GPL(iwl_fw_lookup_notif_ver);

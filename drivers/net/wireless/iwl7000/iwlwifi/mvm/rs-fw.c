@@ -147,7 +147,11 @@ static u16 rs_fw_get_config_flags(struct iwl_mvm *mvm,
 	     (vht_ena && (vht_cap->cap & IEEE80211_VHT_CAP_RXLDPC))))
 		flags |= IWL_TLC_MNG_CFG_FLAGS_LDPC_MSK;
 
-	/* consider our LDPC support in case of HE */
+	/* consider LDPC support in case of HE */
+	if (he_cap->has_he && (he_cap->he_cap_elem.phy_cap_info[1] &
+	    IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD))
+		flags |= IWL_TLC_MNG_CFG_FLAGS_LDPC_MSK;
+
 	if (ieee80211_sband_get_iftypes_data(sband) && ieee80211_sband_get_iftypes_data(sband)->he_cap.has_he &&
 	    !(ieee80211_sband_get_iftypes_data(sband)->he_cap.he_cap_elem.phy_cap_info[1] &
 	      IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD))
@@ -399,8 +403,7 @@ u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 			return IEEE80211_MAX_MPDU_LEN_VHT_7991;
 		default:
 			return IEEE80211_MAX_MPDU_LEN_VHT_3895;
-	}
-
+		}
 	} else if (ht_cap->ht_supported) {
 		if (ht_cap->cap & IEEE80211_HT_CAP_MAX_AMSDU)
 			/*
@@ -446,12 +449,16 @@ void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	rs_fw_set_supp_rates(sta, sband, &cfg_cmd);
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	/*
-	 * if AP disables mimo on 160bw (cmd->ht_rates[1][1] == 0
+	 * if AP disables mimo on 160bw
+	 * (!cfg_cmd.ht_rates[IWL_TLC_NSS_2][IWL_TLC_HT_BW_160])
+	 * and AP enables siso on 160
+	 * cfg_cmd.ht_rates[IWL_TLC_NSS_1][IWL_TLC_HT_BW_160]
 	 * we disable mimo on 80bw cmd->ht_rates[1][0]
 	 */
 	if (mvm->trans->dbg_cfg.tx_siso_80bw_like_160bw &&
-	    !cfg_cmd.ht_rates[1][1])
-		cfg_cmd.ht_rates[1][0] = 0;
+	    cfg_cmd.ht_rates[IWL_TLC_NSS_1][IWL_TLC_HT_BW_160] &&
+	    !cfg_cmd.ht_rates[IWL_TLC_NSS_2][IWL_TLC_HT_BW_160])
+		cfg_cmd.ht_rates[IWL_TLC_NSS_2][IWL_TLC_HT_BW_NONE_160] = 0;
 
 #endif
 
