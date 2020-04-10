@@ -138,16 +138,7 @@ static int drm_syncobj_fence_get_or_add_callback(struct drm_syncobj *syncobj,
 	return ret;
 }
 
-void drm_syncobj_add_callback(struct drm_syncobj *syncobj,
-			      struct drm_syncobj_cb *cb,
-			      drm_syncobj_func_t func)
-{
-	spin_lock(&syncobj->lock);
-	drm_syncobj_add_callback_locked(syncobj, cb, func);
-	spin_unlock(&syncobj->lock);
-}
-
-void drm_syncobj_remove_callback(struct drm_syncobj *syncobj,
+static void drm_syncobj_remove_callback(struct drm_syncobj *syncobj,
 				 struct drm_syncobj_cb *cb)
 {
 	spin_lock(&syncobj->lock);
