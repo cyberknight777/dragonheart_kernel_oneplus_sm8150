@@ -183,6 +183,7 @@ static const struct iwl_hcmd_names iwl_xvt_system_names[] = {
 };
 
 static const struct iwl_hcmd_names iwl_xvt_xvt_names[] = {
+	HCMD_NAME(MPAPD_EXEC_DONE_NOTIF),
 	HCMD_NAME(RUN_TIME_CALIB_DONE_NOTIF),
 	HCMD_NAME(IQ_CALIB_CONFIG_NOTIF),
 };
