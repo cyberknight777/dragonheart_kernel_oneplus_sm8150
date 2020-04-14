@@ -101,7 +101,8 @@ static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 	if (io)
 		block = io->block;
 
-	DMERR_LIMIT("verification failure occurred: %s failure", message);
+	DMERR_LIMIT("verification failure occurred: %s failure%s", message,
+		    transient ? " (transient)" : "");
 
 	if (error_behavior == DM_VERITY_ERROR_BEHAVIOR_NOTIFY) {
 		error_state.code = status;
@@ -131,8 +132,7 @@ static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 	case DM_VERITY_ERROR_BEHAVIOR_NONE:
 		break;
 	default:
-		if (!transient)
-			goto do_panic;
+		goto do_panic;
 	}
 	return;
 
