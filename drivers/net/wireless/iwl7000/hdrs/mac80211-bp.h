@@ -17,7 +17,8 @@
 
 /* common backward compat code */
 
-#define BACKPORTS_GIT_TRACKED "chromium:" UTS_RELEASE
+#include "version.h"
+
 #define BACKPORTS_BUILD_TSTAMP __DATE__ " " __TIME__
 
 /* Dummy RHEL macros */
