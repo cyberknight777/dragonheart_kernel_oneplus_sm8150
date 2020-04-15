@@ -97,39 +97,8 @@ static ssize_t identity_show(struct device *dev,
 }
 DEVICE_ATTR_RO(identity);
 
-static ssize_t prepare_for_suspend_show(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
-{
-	struct hci_dev *hdev = to_hci_dev(dev);
-	char *state = hdev->enable_suspend_notifier ? "enabled" : "disabled";
-
-	return scnprintf(buf, strlen(state) + 1, "%s", state);
-}
-
-static ssize_t prepare_for_suspend_store(struct device *dev,
-					 struct device_attribute *attr,
-					 const char *buf, size_t count)
-{
-	struct hci_dev *hdev = to_hci_dev(dev);
-
-	if (!buf)
-		return -EINVAL;
-
-	if (strncmp("enabled", buf, 7) == 0)
-		hdev->enable_suspend_notifier = true;
-	else if (strncmp("disabled", buf, 8) == 0)
-		hdev->enable_suspend_notifier = false;
-	else
-		return -EINVAL;
-
-	return count;
-}
-DEVICE_ATTR_RW(prepare_for_suspend);
-
 static struct attribute *bt_host_attrs[] = {
 	&dev_attr_identity.attr,
-	&dev_attr_prepare_for_suspend.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(bt_host);
