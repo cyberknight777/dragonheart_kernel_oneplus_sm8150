@@ -884,21 +884,21 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 #endif
 
 #if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
-	if (cfg == &iwlax210_2ax_cfg_so_hr_a0) {
-		if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_TY) {
-			iwl_trans->cfg = &iwlax210_2ax_cfg_ty_gf_a0;
-		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(iwl_trans->hw_rf_id) ==
+	if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_TY) {
+		iwl_trans->cfg = &iwlax210_2ax_cfg_ty_gf_a0;
+	} else if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_SO ||
+			iwl_trans->hw_rev == CSR_HW_REV_TYPE_SOF) {
+		if (CSR_HW_RF_ID_TYPE_CHIP_ID(iwl_trans->hw_rf_id) ==
 			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_JF)) {
 			iwl_trans->cfg = &iwlax210_2ax_cfg_so_jf_a0;
 		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(iwl_trans->hw_rf_id) ==
 			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_GF)) {
-			iwl_trans->cfg = &iwlax211_2ax_cfg_so_gf_a0;
-		} else if (CSR_HW_RF_ID_TYPE_CHIP_ID(iwl_trans->hw_rf_id) ==
-			   CSR_HW_RF_ID_TYPE_CHIP_ID(CSR_HW_RF_ID_TYPE_GF4)) {
-			iwl_trans->cfg = &iwlax411_2ax_cfg_so_gf4_a0;
+			if (CSR_HW_RF_ID_TYPE_CDB(iwl_trans->hw_rf_id) == 0)
+				iwl_trans->cfg = &iwlax211_2ax_cfg_so_gf_a0;
+			else
+				iwl_trans->cfg = &iwlax411_2ax_cfg_so_gf4_a0;
 		}
 	}
-
 	/*
 	 * The RF_ID is set to zero in blank OTP so read version to
 	 * extract the RF_ID.
