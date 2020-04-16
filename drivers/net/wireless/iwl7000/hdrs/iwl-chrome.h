@@ -1111,4 +1111,8 @@ LINUX_BACKPORT(acpi_evaluate_dsm)(acpi_handle handle, const guid_t *guid,
 #define acpi_evaluate_dsm LINUX_BACKPORT(acpi_evaluate_dsm)
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,18,0)
+#define firmware_request_nowarn(fw, name, device) request_firmware(fw, name, device)
+#endif
+
 #endif /* __IWL_CHROME */
