@@ -874,8 +874,8 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 				     cmd.v5.v3.per_chain_restriction,
 				     prof_a, prof_b);
 
-	/* return on error or if the profile is disabled (positive numeber) */
-	if (!ret)
+	/* return on error or if the profile is disabled (positive number) */
+	if (ret)
 		return ret;
 
 	IWL_DEBUG_RADIO(mvm, "Sending REDUCE_TX_POWER_CMD per chain\n");
