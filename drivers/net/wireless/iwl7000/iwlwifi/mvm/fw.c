@@ -1550,6 +1550,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	if (ret)
 		goto error;
 
+	iwl_mvm_lari_cfg(mvm);
 	/*
 	 * RTNL is not taken during Ct-kill, but we don't need to scan/Tx
 	 * anyway, so don't init MCC.
@@ -1624,7 +1625,6 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		goto error;
 
 	iwl_mvm_tas_init(mvm);
-	iwl_mvm_lari_cfg(mvm);
 	iwl_mvm_leds_sync(mvm);
 
 	iwl_mvm_ftm_initiator_smooth_config(mvm);
