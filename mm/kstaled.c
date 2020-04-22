@@ -17,7 +17,6 @@
 #include <linux/sched/mm.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/task_stack.h>
-#include <linux/shmem_fs.h>
 #include <linux/swap.h>
 #include <linux/compaction.h>
 
@@ -345,7 +344,7 @@ static bool kstaled_pmd_young_equal(pmd_t pmd, bool young)
 
 static bool kstaled_vma_reclaimable(struct vm_area_struct *vma)
 {
-	if (vma->vm_flags & (VM_SPECIAL | VM_LOCKED))
+	if (vma->vm_flags & VM_SPECIAL)
 		return false;
 
 	if (vma == get_gate_vma(vma->vm_mm))
@@ -354,20 +353,7 @@ static bool kstaled_vma_reclaimable(struct vm_area_struct *vma)
 	if (is_vm_hugetlb_page(vma))
 		return false;
 
-	if (vma_is_dax(vma))
-		return false;
-
-	if (vma_is_anonymous(vma))
-		return total_swap_pages;
-
-	if (!vma->vm_file || !vma->vm_file->f_mapping ||
-	    mapping_unevictable(vma->vm_file->f_mapping))
-		return false;
-
-	if (shmem_mapping(vma->vm_file->f_mapping))
-		return total_swap_pages;
-
-	return vma->vm_file->f_mapping->a_ops->writepage;
+	return vma_is_anonymous(vma) || vma->vm_file;
 }
 
 /*
@@ -416,7 +402,19 @@ EXPORT_SYMBOL_GPL(kstaled_put_page_ref);
 static int kstaled_should_skip_vma(unsigned long start, unsigned long end,
 				   struct mm_walk *walk)
 {
-	return !kstaled_vma_reclaimable(walk->vma);
+	struct vm_area_struct *vma = walk->vma;
+
+	if (vma->vm_flags & VM_LOCKED)
+		return true;
+
+	if (!kstaled_vma_reclaimable(vma))
+		return true;
+
+	if (vma_is_shmem(vma))
+		return mapping_unevictable(vma->vm_file->f_mapping) ||
+		       !total_swap_pages;
+
+	return vma_is_anonymous(vma) && !total_swap_pages;
 }
 
 static int kstaled_walk_pte(struct vm_area_struct *vma, pte_t *pte,
@@ -1219,8 +1217,7 @@ bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 	unsigned head = READ_ONCE(kstaled->head);
 	int hot = 0;
 
-	if (!kstaled_vma_reclaimable(pvmw->vma))
-		return false;
+	VM_BUG_ON_VMA(!kstaled_vma_reclaimable(pvmw->vma), pvmw->vma);
 
 	if (!pvmw->pte) {
 		unsigned age;
