@@ -332,25 +332,12 @@ struct kstaled_priv {
  * work when thp is not configured, and if so, we can't do anything even
  * on x86_64.
  */
-static bool kstaled_should_skip_pmd(pmd_t pmd)
+static bool kstaled_pmd_young_equal(pmd_t pmd, bool young)
 {
 	VM_BUG_ON(pmd_trans_huge(pmd));
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
-	return IS_ENABLED(CONFIG_X86_64) && !pmd_young(pmd);
-#else
-	return false;
-#endif
-}
-
-static bool kstaled_should_clear_pmd_young(pmd_t pmd, unsigned long start,
-					   unsigned long end)
-{
-	VM_BUG_ON(pmd_trans_huge(pmd));
-
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-	return IS_ENABLED(CONFIG_X86_64) &&
-	       !(start & ~PMD_MASK) && start + PMD_SIZE <= end;
+	return IS_ENABLED(CONFIG_X86_64) && !!pmd_young(pmd) == young;
 #else
 	return false;
 #endif
@@ -470,7 +457,7 @@ static int kstaled_walk_pmd(pmd_t *pmd, unsigned long start,
 	if (!pmd_present(*pmd) || is_huge_zero_pmd(*pmd) || pmd_trans_huge(*pmd))
 		return 0;
 
-	if (kstaled_should_skip_pmd(*pmd))
+	if (kstaled_pmd_young_equal(*pmd, false))
 		return 0;
 
 	pte = pte_offset_map_lock(walk->mm, pmd, start, &ptl);
@@ -502,7 +489,9 @@ static int kstaled_walk_pud(pud_t *pud, unsigned long start,
 			continue;
 
 		if (!pmd_trans_huge(pmd[i]) &&
-		    !kstaled_should_clear_pmd_young(pmd[i], start, end))
+		    (!kstaled_pmd_young_equal(pmd[i], true) ||
+		     (pmd_addr_end(start, end) == end && walk->vma->vm_next &&
+		      (walk->vma->vm_next->vm_start & PMD_MASK) < end)))
 			continue;
 
 		if (!pmdp_test_and_clear_young(walk->vma, start, pmd + i))
@@ -1271,10 +1260,8 @@ bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 	if (!pte_young(*pvmw->pte))
 		return false;
 
-	start = pvmw->address & PMD_MASK;
-	end = start + PMD_SIZE;
-	start = max(start, pvmw->vma->vm_start);
-	end = min(end, pvmw->vma->vm_end);
+	start = max(pvmw->address & PMD_MASK, pvmw->vma->vm_start);
+	end = pmd_addr_end(pvmw->address, pvmw->vma->vm_end);
 
 	pte = pte_offset_map(pvmw->pmd, start);
 	hot = kstaled_walk_pte(pvmw->vma, pte, start, end, head);
@@ -1282,7 +1269,8 @@ bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 
 	page_vma_mapped_walk_done(pvmw);
 
-	if (kstaled_should_clear_pmd_young(*pvmw->pmd, start, end)) {
+	if (kstaled_pmd_young_equal(*pvmw->pmd, true) &&
+	    start + PMD_SIZE == end) {
 		spinlock_t *ptl = pmd_lock(pvmw->vma->vm_mm, pvmw->pmd);
 
 		pmdp_test_and_clear_young(pvmw->vma, start, pvmw->pmd);
