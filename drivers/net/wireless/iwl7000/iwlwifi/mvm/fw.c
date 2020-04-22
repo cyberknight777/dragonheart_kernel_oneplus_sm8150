@@ -847,11 +847,8 @@ static int iwl_mvm_config_ltr(struct iwl_mvm *mvm)
 
 int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 {
-	union {
-		struct iwl_dev_tx_power_cmd v5;
-		struct iwl_dev_tx_power_cmd_v4 v4;
-	} cmd = {
-		.v5.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
+	struct iwl_dev_tx_power_cmd cmd = {
+		.common.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
 	};
 	int ret;
 	u16 len = 0;
@@ -861,13 +858,14 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 		len = sizeof(cmd.v5);
 	else if (fw_has_capa(&mvm->fw->ucode_capa,
 			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
-		len = sizeof(struct iwl_dev_tx_power_cmd_v4);
+		len = sizeof(cmd.v4);
 	else
-		len = sizeof(cmd.v4.v3);
+		len = sizeof(cmd.v3);
 
+	/* all structs have the same common part, add it */
+	len += sizeof(cmd.common);
 
-	ret = iwl_sar_select_profile(&mvm->fwrt,
-				     cmd.v5.v3.per_chain_restriction,
+	ret = iwl_sar_select_profile(&mvm->fwrt, cmd.v5.per_chain,
 				     prof_a, prof_b);
 
 	/* return on error or if the profile is disabled (positive number) */
@@ -1579,7 +1577,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	/* set_mode must be IWL_TX_POWER_MODE_SET_DEVICE if this was
 	 * ever initialized.
 	 */
-	if (le32_to_cpu(mvm->txp_cmd.v5.v3.set_mode) ==
+	if (le32_to_cpu(mvm->txp_cmd.common.set_mode) ==
 	    IWL_TX_POWER_MODE_SET_DEVICE) {
 		int len;
 
@@ -1590,7 +1588,10 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 				     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
 			len = sizeof(mvm->txp_cmd.v4);
 		else
-			len = sizeof(mvm->txp_cmd.v4.v3);
+			len = sizeof(mvm->txp_cmd.v3);
+
+		/* all structs have the same common part, add it */
+		len += sizeof(mvm->txp_cmd.common);
 
 		if (iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD, 0,
 					 len, &mvm->txp_cmd))

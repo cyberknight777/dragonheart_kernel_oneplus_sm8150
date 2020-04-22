@@ -1135,10 +1135,7 @@ struct iwl_mvm {
 	} tdls_cs;
 
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	union {
-		struct iwl_dev_tx_power_cmd_v4 v4;
-		struct iwl_dev_tx_power_cmd v5;
-	} txp_cmd;
+	struct iwl_dev_tx_power_cmd txp_cmd;
 #endif
 
 #ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA

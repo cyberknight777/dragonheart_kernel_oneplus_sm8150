@@ -849,11 +849,8 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 static int
 iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 {
-	union {
-		struct iwl_dev_tx_power_cmd v5;
-		struct iwl_dev_tx_power_cmd_v4 v4;
-	} cmd = {
-		.v5.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
+	struct iwl_dev_tx_power_cmd cmd = {
+		.common.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
 	};
 	u16 len = 0;
 
@@ -862,11 +859,14 @@ iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 		len = sizeof(cmd.v5);
 	else if (fw_has_capa(&xvt->fw->ucode_capa,
 			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
-		len = sizeof(struct iwl_dev_tx_power_cmd_v4);
+		len = sizeof(cmd.v4);
 	else
-		len = sizeof(cmd.v4.v3);
+		len = sizeof(cmd.v3);
 
-	if (iwl_sar_select_profile(&xvt->fwrt, cmd.v5.v3.per_chain_restriction,
+	/* all structs have the same common part, add it */
+	len += sizeof(cmd.common);
+
+	if (iwl_sar_select_profile(&xvt->fwrt, cmd.v5.per_chain,
 				   prof_a, prof_b))
 		return -ENOENT;
 

@@ -464,17 +464,14 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	union {
-		struct iwl_dev_tx_power_cmd_v4 v4;
-		struct iwl_dev_tx_power_cmd v5;
-	} cmd = {
-		.v5.v3.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_DEVICE),
-		.v5.v3.dev_24 = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
-		.v5.v3.dev_52_low = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
-		.v5.v3.dev_52_high = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
+	struct iwl_dev_tx_power_cmd cmd = {
+		.common.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_DEVICE),
+		.common.dev_24 = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
+		.common.dev_52_low = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
+		.common.dev_52_high = cpu_to_le16(IWL_DEV_MAX_TX_POWER),
 	};
 	struct nlattr **tb;
-	int len = sizeof(cmd);
+	int len;
 	int err;
 
 	tb = iwl_mvm_parse_vendor_data(data, data_len);
@@ -488,7 +485,7 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 			err = -EINVAL;
 			goto free;
 		}
-		cmd.v5.v3.dev_24 = cpu_to_le16(txp);
+		cmd.common.dev_24 = cpu_to_le16(txp);
 	}
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L]) {
@@ -498,7 +495,7 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 			err = -EINVAL;
 			goto free;
 		}
-		cmd.v5.v3.dev_52_low = cpu_to_le16(txp);
+		cmd.common.dev_52_low = cpu_to_le16(txp);
 	}
 
 	if (tb[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H]) {
@@ -508,10 +505,8 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 			err = -EINVAL;
 			goto free;
 		}
-		cmd.v5.v3.dev_52_high = cpu_to_le16(txp);
+		cmd.common.dev_52_high = cpu_to_le16(txp);
 	}
-
-	mvm->txp_cmd.v5 = cmd.v5;
 
 	if (fw_has_api(&mvm->fw->ucode_capa,
 		       IWL_UCODE_TLV_API_REDUCE_TX_POWER))
@@ -520,7 +515,10 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))
 		len = sizeof(mvm->txp_cmd.v4);
 	else
-		len = sizeof(mvm->txp_cmd.v4.v3);
+		len = sizeof(mvm->txp_cmd.v3);
+
+	/* all structs have the same common part, add it */
+	len += sizeof(cmd.common);
 
 	mutex_lock(&mvm->mutex);
 	err = iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD, 0, len, &cmd);
