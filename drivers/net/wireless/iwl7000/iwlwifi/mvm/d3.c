@@ -818,7 +818,7 @@ static int iwl_mvm_wowlan_config_key_params(struct iwl_mvm *mvm,
 			size = sizeof(tkip_cmd);
 			key_data.tkip->sta_id =
 				cpu_to_le32(mvmvif->ap_sta_id);
-		} else if (ver == 1) {
+		} else if (ver == 1 || ver == IWL_FW_CMD_VER_UNKNOWN) {
 			size = sizeof(struct iwl_wowlan_tkip_params_cmd_ver_1);
 		} else {
 			ret =  -EINVAL;
