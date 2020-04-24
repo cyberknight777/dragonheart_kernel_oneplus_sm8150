@@ -2188,7 +2188,7 @@ ieee80211_he_spr_size(const u8 *he_spr_ie)
 {
 	struct ieee80211_he_spr *he_spr = (void *)he_spr_ie;
 	u8 spr_len = sizeof(struct ieee80211_he_spr);
-	u32 he_spr_params;
+	u8 he_spr_params;
 
 	/* Make sure the input is not NULL */
 	if (!he_spr_ie)
