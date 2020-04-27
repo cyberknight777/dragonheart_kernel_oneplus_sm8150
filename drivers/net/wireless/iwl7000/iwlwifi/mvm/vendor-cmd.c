@@ -473,6 +473,8 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 	struct nlattr **tb;
 	int len;
 	int err;
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LEGACY_GROUP,
+					   REDUCE_TX_POWER_CMD);
 
 	tb = iwl_mvm_parse_vendor_data(data, data_len);
 	if (IS_ERR(tb))
@@ -508,8 +510,10 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 		cmd.common.dev_52_high = cpu_to_le16(txp);
 	}
 
-	if (fw_has_api(&mvm->fw->ucode_capa,
-		       IWL_UCODE_TLV_API_REDUCE_TX_POWER))
+	if (cmd_ver == 6)
+		len = sizeof(mvm->txp_cmd.v6);
+	else if (fw_has_api(&mvm->fw->ucode_capa,
+			    IWL_UCODE_TLV_API_REDUCE_TX_POWER))
 		len = sizeof(mvm->txp_cmd.v5);
 	else if (fw_has_capa(&mvm->fw->ucode_capa,
 			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK))

@@ -854,13 +854,19 @@ iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 	};
 	__le16 *per_chain;
 	u16 len = 0;
-
-	if (fw_has_api(&xvt->fw->ucode_capa,
-		       IWL_UCODE_TLV_API_REDUCE_TX_POWER)) {
+	u32 n_subbands;
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, LEGACY_GROUP,
+					   REDUCE_TX_POWER_CMD);
+	if (cmd_ver == 6) {
+		len = sizeof(cmd.v6);
+		n_subbands = IWL_NUM_SUB_BANDS_V2;
+		per_chain = cmd.v6.per_chain[0][0];
+	} else if (fw_has_api(&xvt->fw->ucode_capa,
+			      IWL_UCODE_TLV_API_REDUCE_TX_POWER)) {
 		len = sizeof(cmd.v5);
 		per_chain = cmd.v5.per_chain[0][0];
 	} else if (fw_has_capa(&xvt->fw->ucode_capa,
-			     IWL_UCODE_TLV_CAPA_TX_POWER_ACK)) {
+			       IWL_UCODE_TLV_CAPA_TX_POWER_ACK)) {
 		len = sizeof(cmd.v4);
 		per_chain = cmd.v4.per_chain[0][0];
 	} else {
@@ -873,7 +879,7 @@ iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 
 	if (iwl_sar_select_profile(&xvt->fwrt, per_chain,
 				   ACPI_SAR_NUM_CHAIN_LIMITS,
-				   ACPI_SAR_NUM_SUB_BANDS,
+				   n_subbands,
 				   prof_a, prof_b))
 		return -ENOENT;
 
