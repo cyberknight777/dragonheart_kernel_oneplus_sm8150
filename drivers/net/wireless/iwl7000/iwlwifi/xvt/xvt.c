@@ -813,14 +813,13 @@ void iwl_xvt_txq_disable(struct iwl_xvt *xvt)
 #ifdef CONFIG_ACPI
 static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 {
-	u16 cmd_wide_id =  WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT);
-	union geo_tx_power_profiles_cmd cmd;
+	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
 	int ret;
 
-	cmd.geo_cmd.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
+	/* the table is also at the same position both in v1 and v2 */
+	ret = iwl_sar_geo_init(&xvt->fwrt, cmd.v1.table);
 
-	ret = iwl_sar_geo_init(&xvt->fwrt, cmd.geo_cmd.table);
 	/*
 	 * It is a valid scenario to not support SAR, or miss wgds table,
 	 * but in that case there is no need to send the command.
@@ -828,16 +827,20 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	if (ret)
 		return 0;
 
-	cmd.geo_cmd.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+	/* the ops field is at the same spot for all versions, so set in v1 */
+	cmd.v1.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
 
-	if (!fw_has_api(&xvt->fwrt.fw->ucode_capa,
-			IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
-		len = sizeof(struct iwl_geo_tx_power_profiles_cmd_v1);
+	if (fw_has_api(&xvt->fwrt.fw->ucode_capa,
+		       IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
+		len =  sizeof(cmd.v2);
+		cmd.v2.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
 	} else {
-		len =  sizeof(cmd.geo_cmd);
+		len = sizeof(cmd.v1);
 	}
 
-	return iwl_xvt_send_cmd_pdu(xvt, cmd_wide_id, 0, len, &cmd);
+	return iwl_xvt_send_cmd_pdu(xvt,
+				    WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT),
+				    0, len, &cmd);
 }
 #else /* CONFIG_ACPI */
 static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)

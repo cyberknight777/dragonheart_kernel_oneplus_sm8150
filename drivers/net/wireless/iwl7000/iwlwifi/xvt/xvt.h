@@ -407,11 +407,6 @@ struct iwl_xvt {
 	struct tx_queue_data queue_data[IWL_MAX_HW_QUEUES];
 };
 
-union geo_tx_power_profiles_cmd {
-	struct iwl_geo_tx_power_profiles_cmd geo_cmd;
-	struct iwl_geo_tx_power_profiles_cmd_v1 geo_cmd_v1;
-};
-
 #define IWL_OP_MODE_GET_XVT(_op_mode) \
 	((struct iwl_xvt *)((_op_mode)->op_mode_specific))
 
