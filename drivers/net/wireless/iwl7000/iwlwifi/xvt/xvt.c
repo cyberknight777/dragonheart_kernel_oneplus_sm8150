@@ -816,9 +816,12 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
 	int ret;
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw,
+					   PHY_OPS_GROUP, GEO_TX_POWER_LIMIT);
 
 	/* the table is also at the same position both in v1 and v2 */
-	ret = iwl_sar_geo_init(&xvt->fwrt, cmd.v1.table);
+	ret = iwl_sar_geo_init(&xvt->fwrt, &cmd.v1.table[0][0],
+			       ACPI_WGDS_NUM_BANDS);
 
 	/*
 	 * It is a valid scenario to not support SAR, or miss wgds table,
@@ -830,8 +833,11 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	/* the ops field is at the same spot for all versions, so set in v1 */
 	cmd.v1.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
 
-	if (fw_has_api(&xvt->fwrt.fw->ucode_capa,
-		       IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
+	if (cmd_ver == 3) {
+		len = sizeof(cmd.v3);
+		cmd.v3.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+	} else if (fw_has_api(&xvt->fwrt.fw->ucode_capa,
+			      IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
 		len =  sizeof(cmd.v2);
 		cmd.v2.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
 	} else {
