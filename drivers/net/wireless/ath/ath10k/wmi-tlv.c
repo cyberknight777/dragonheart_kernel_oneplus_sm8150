@@ -3923,6 +3923,7 @@ static struct wmi_pdev_param_map wmi_tlv_pdev_param_map = {
 	.wapi_mbssid_offset = WMI_PDEV_PARAM_UNSUPPORTED,
 	.arp_srcaddr = WMI_PDEV_PARAM_UNSUPPORTED,
 	.arp_dstaddr = WMI_PDEV_PARAM_UNSUPPORTED,
+	.peer_stats_info_enable = WMI_TLV_PDEV_PARAM_PEER_STATS_INFO_ENABLE,
 };
 
 static struct wmi_vdev_param_map wmi_tlv_vdev_param_map = {
