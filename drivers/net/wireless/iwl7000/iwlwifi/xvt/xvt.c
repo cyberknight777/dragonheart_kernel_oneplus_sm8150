@@ -856,8 +856,7 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 }
 #endif /* CONFIG_ACPI */
 
-static int
-iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
+int iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 {
 	struct iwl_dev_tx_power_cmd cmd = {
 		.common.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
