@@ -640,6 +640,7 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 	struct drm_i915_private *dev_priv = connector->base.dev->dev_private;
 	struct intel_digital_port *intel_dig_port = conn_to_dig_port(connector);
 	enum port port = intel_dig_port->base.port;
+	u32 repeater_ctl;
 	int ret;
 
 	I915_WRITE(PORT_HDCP_CONF(port), 0);
@@ -648,6 +649,9 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 		DRM_ERROR("Failed to disable HDCP, timeout clearing status\n");
 		return -ETIMEDOUT;
 	}
+
+	repeater_ctl = intel_hdcp_get_repeater_ctl(intel_dig_port);
+	I915_WRITE(HDCP_REP_CTL, I915_READ(HDCP_REP_CTL) & ~repeater_ctl);
 
 	ret = connector->hdcp_shim->toggle_signalling(intel_dig_port, false);
 	if (ret) {
