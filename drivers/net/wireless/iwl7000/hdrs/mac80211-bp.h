@@ -2868,3 +2868,31 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #if CFG80211_VERSION < KERNEL_VERSION(99,99,0)
 #define NL80211_EXT_FEATURE_PROTECTED_TWT -1
 #endif
+
+static inline size_t cfg80211_rekey_get_kek_len(struct cfg80211_gtk_rekey_data *data)
+{
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
+	return NL80211_KEK_LEN;
+#else
+	return data->kek_len;
+#endif
+}
+
+static inline size_t cfg80211_rekey_get_kck_len(struct cfg80211_gtk_rekey_data *data)
+{
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
+	return NL80211_KCK_LEN;
+#else
+	return data->kck_len;
+#endif
+}
+
+static inline size_t cfg80211_rekey_akm(struct cfg80211_gtk_rekey_data *data)
+{
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
+	/* we dont really use this */
+	return 0;
+#else
+	return data->akm;
+#endif
+}
