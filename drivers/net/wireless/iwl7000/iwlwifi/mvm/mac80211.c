@@ -2460,6 +2460,7 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 						 DATA_PATH_GROUP, 0),
 				 0, size, &sta_ctxt_cmd))
 		IWL_ERR(mvm, "Failed to config FW to work HE!\n");
+
 }
 
 static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
