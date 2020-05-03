@@ -1202,26 +1202,38 @@ static int iwl_mvm_vendor_add_pasn_sta(struct wiphy *wiphy,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-	u8 *addr, *tk, *hltk;
-	u32 tk_len, hltk_len, cipher;
-	int ret;
+	u8 *addr, *tk = NULL, *hltk;
+	u32 tk_len = 0, hltk_len, cipher;
+	int ret = 0;
+	struct ieee80211_sta *sta;
 
 	tb = iwl_mvm_parse_vendor_data(data, data_len);
 	if (IS_ERR(tb))
 		return PTR_ERR(tb);
 
 	if (!tb[IWL_MVM_VENDOR_ATTR_ADDR] ||
-	    !tb[IWL_MVM_VENDOR_ATTR_STA_TK] ||
 	    !tb[IWL_MVM_VENDOR_ATTR_STA_HLTK] ||
 	    !tb[IWL_MVM_VENDOR_ATTR_STA_CIPHER])
 		return -EINVAL;
 
 	addr = nla_data(tb[IWL_MVM_VENDOR_ATTR_ADDR]);
 	cipher = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_STA_CIPHER]);
-	tk = nla_data(tb[IWL_MVM_VENDOR_ATTR_STA_TK]);
-	tk_len = nla_len(tb[IWL_MVM_VENDOR_ATTR_STA_TK]);
 	hltk = nla_data(tb[IWL_MVM_VENDOR_ATTR_STA_HLTK]);
 	hltk_len = nla_len(tb[IWL_MVM_VENDOR_ATTR_STA_HLTK]);
+
+	rcu_read_lock();
+	sta = ieee80211_find_sta(vif, addr);
+	if ((!tb[IWL_MVM_VENDOR_ATTR_STA_TK] && (!sta || !sta->mfp)) ||
+	    (tb[IWL_MVM_VENDOR_ATTR_STA_TK] && sta && sta->mfp))
+		ret = -EINVAL;
+	rcu_read_unlock();
+	if (ret)
+		return ret;
+
+	if (tb[IWL_MVM_VENDOR_ATTR_STA_TK]) {
+		tk = nla_data(tb[IWL_MVM_VENDOR_ATTR_STA_TK]);
+		tk_len = nla_len(tb[IWL_MVM_VENDOR_ATTR_STA_TK]);
+	}
 
 	mutex_lock(&mvm->mutex);
 	ret = iwl_mvm_ftm_respoder_add_pasn_sta(mvm, vif, addr, cipher, tk,
