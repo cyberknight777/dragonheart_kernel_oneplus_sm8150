@@ -886,7 +886,10 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 #if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
 	if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_TY) {
-		iwl_trans->cfg = &iwlax210_2ax_cfg_ty_gf_a0;
+		if (CSR_HW_RF_ID_TYPE_CDB(iwl_trans->hw_rf_id) == 0)
+			iwl_trans->cfg = &iwlax210_2ax_cfg_ty_gf_a0;
+		else
+			iwl_trans->cfg = &iwlax411_2ax_cfg_sosnj_gf4_a0;
 	} else if (iwl_trans->hw_rev == CSR_HW_REV_TYPE_SO ||
 			iwl_trans->hw_rev == CSR_HW_REV_TYPE_SOF) {
 		if (CSR_HW_RF_ID_TYPE_CHIP_ID(iwl_trans->hw_rf_id) ==
