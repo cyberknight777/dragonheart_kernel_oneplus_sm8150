@@ -1236,8 +1236,13 @@ static int iwl_mvm_vendor_add_pasn_sta(struct wiphy *wiphy,
 	}
 
 	mutex_lock(&mvm->mutex);
-	ret = iwl_mvm_ftm_respoder_add_pasn_sta(mvm, vif, addr, cipher, tk,
-						tk_len, hltk, hltk_len);
+	if (vif->bss_conf.ftm_responder)
+		ret = iwl_mvm_ftm_respoder_add_pasn_sta(mvm, vif, addr, cipher,
+							tk, tk_len, hltk,
+							hltk_len);
+	else
+		iwl_mvm_ftm_add_pasn_sta(mvm, vif, addr, cipher, tk, tk_len,
+					 hltk, hltk_len);
 	mutex_unlock(&mvm->mutex);
 	return ret;
 }
