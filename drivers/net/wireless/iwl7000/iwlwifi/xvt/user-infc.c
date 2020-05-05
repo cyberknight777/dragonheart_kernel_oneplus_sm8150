@@ -1095,7 +1095,7 @@ static struct sk_buff *iwl_xvt_set_skb(struct iwl_xvt *xvt,
 	/* copy MAC header into skb */
 	memcpy(skb_put(skb, header_size), hdr, header_size);
 	/* copy frame payload into skb */
-	memcpy(skb_put(skb, payload_length), payload, payload_length);
+	memcpy(skb_put(skb, payload_length), payload->payload, payload_length);
 
 	return skb;
 }
