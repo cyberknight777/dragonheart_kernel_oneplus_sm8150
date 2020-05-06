@@ -153,5 +153,11 @@ config BT_EVE_HACKS
 	  this option will be on for eve and off for every other device
 	  for now. Yes, this is beyond ugly. Accepting patches :)
 
+config BT_FEATURE_DEBUG
+	bool "Enable runtime option for debugging statements"
+	depends on BT && !DYNAMIC_DEBUG
+	help
+	  This provides an option to enable/disable debugging statements
+	  at runtime via the experimental features interface.
 
 source "drivers/bluetooth/Kconfig"

@@ -132,6 +132,12 @@ __printf(1, 2)
 void bt_warn(const char *fmt, ...);
 __printf(1, 2)
 void bt_err(const char *fmt, ...);
+#if IS_ENABLED(CONFIG_BT_FEATURE_DEBUG)
+void bt_dbg_set(bool enable);
+bool bt_dbg_get(void);
+__printf(1, 2)
+void bt_dbg(const char *fmt, ...);
+#endif
 __printf(1, 2)
 void bt_warn_ratelimited(const char *fmt, ...);
 __printf(1, 2)
@@ -150,8 +156,14 @@ static inline const char *basename(const char *path)
 				basename(__FILE__), __func__, ##__VA_ARGS__)
 #define BT_ERR(fmt, ...)	bt_err("%s:%s() " fmt "\n",		\
 				basename(__FILE__), __func__, ##__VA_ARGS__)
+
+#if IS_ENABLED(CONFIG_BT_FEATURE_DEBUG)
+#define BT_DBG(fmt, ...)	bt_dbg("%s:%s() " fmt "\n",		\
+				basename(__FILE__), __func__, ##__VA_ARGS__)
+#else
 #define BT_DBG(fmt, ...)	pr_debug("%s:%s() " fmt "\n",		\
 				basename(__FILE__), __func__, ##__VA_ARGS__)
+#endif
 
 #define BT_ERR_RATELIMITED(fmt, ...) bt_err_ratelimited(fmt "\n", ##__VA_ARGS__)
 
