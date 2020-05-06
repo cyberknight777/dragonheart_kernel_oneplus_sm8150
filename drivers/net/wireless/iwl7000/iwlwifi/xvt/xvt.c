@@ -864,7 +864,7 @@ iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 	__le16 *per_chain;
 	u16 len = 0;
 	u32 n_subbands;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, LEGACY_GROUP,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, LONG_GROUP,
 					   REDUCE_TX_POWER_CMD);
 	if (cmd_ver == 6) {
 		len = sizeof(cmd.v6);

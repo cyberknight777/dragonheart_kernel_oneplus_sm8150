@@ -1437,7 +1437,7 @@ static int iwl_mvm_set_tx_power(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			cpu_to_le32(iwl_mvm_vif_from_mac80211(vif)->id),
 		.common.pwr_restriction = cpu_to_le16(8 * tx_power),
 	};
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LEGACY_GROUP,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
 					   REDUCE_TX_POWER_CMD);
 
 	if (tx_power == IWL_DEFAULT_MAX_TX_POWER)

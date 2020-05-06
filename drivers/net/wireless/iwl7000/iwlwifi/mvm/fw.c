@@ -854,7 +854,7 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 	int ret;
 	u16 len = 0;
 	u32 n_subbands;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LEGACY_GROUP,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
 					   REDUCE_TX_POWER_CMD);
 
 	if (cmd_ver == 6) {
@@ -1617,7 +1617,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	if (le32_to_cpu(mvm->txp_cmd.common.set_mode) ==
 	    IWL_TX_POWER_MODE_SET_DEVICE) {
 		int len;
-		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LEGACY_GROUP,
+		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
 						   REDUCE_TX_POWER_CMD);
 
 		if (cmd_ver == 6)
