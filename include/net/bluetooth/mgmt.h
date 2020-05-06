@@ -630,6 +630,27 @@ struct mgmt_cp_set_blocked_keys {
 
 #define MGMT_OP_SET_WIDEBAND_SPEECH	0x0047
 
+#define MGMT_OP_READ_EXP_FEATURES_INFO	0x0049
+#define MGMT_READ_EXP_FEATURES_INFO_SIZE 0
+struct mgmt_rp_read_exp_features_info {
+	__le16 feature_count;
+	struct {
+		__u8   uuid[16];
+		__le32 flags;
+	} features[];
+} __packed;
+
+#define MGMT_OP_SET_EXP_FEATURE		0x004a
+struct mgmt_cp_set_exp_feature {
+	__u8   uuid[16];
+	__u8   param[];
+} __packed;
+#define MGMT_SET_EXP_FEATURE_SIZE	16
+struct mgmt_rp_set_exp_feature {
+	__u8   uuid[16];
+	__le32 flags;
+} __packed;
+
 #define MGMT_OP_READ_DEF_SYSTEM_CONFIG	0x004b
 #define MGMT_READ_DEF_SYSTEM_CONFIG_SIZE	0
 
@@ -882,4 +903,10 @@ struct mgmt_ev_advertising_removed {
 struct mgmt_ev_ext_info_changed {
 	__le16	eir_len;
 	__u8	eir[0];
+} __packed;
+
+#define MGMT_EV_EXP_FEATURE_CHANGED	0x0027
+struct mgmt_ev_exp_feature_changed {
+	__u8	uuid[16];
+	__le32	flags;
 } __packed;
