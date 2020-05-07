@@ -486,6 +486,7 @@ struct iwl_wowlan_tkip_params_cmd {
 	struct iwl_p1k_cache tx;
 	struct iwl_p1k_cache rx_uni[IWL_NUM_RX_P1K_CACHE];
 	struct iwl_p1k_cache rx_multi[IWL_NUM_RX_P1K_CACHE];
+	u8     reversed[2];
 	__le32 sta_id;
 } __packed; /* WOWLAN_TKIP_SETTING_API_S_VER_2 */
 
