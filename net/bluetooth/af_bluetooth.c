@@ -453,8 +453,6 @@ unsigned int bt_sock_poll(struct file *file, struct socket *sock,
 	struct sock *sk = sock->sk;
 	unsigned int mask = 0;
 
-	BT_DBG("sock %p, sk %p", sock, sk);
-
 	poll_wait(file, sk_sleep(sk), wait);
 
 	if (sk->sk_state == BT_LISTEN)
