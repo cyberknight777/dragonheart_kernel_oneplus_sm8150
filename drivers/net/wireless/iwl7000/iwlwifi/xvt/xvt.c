@@ -816,8 +816,9 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
 	int ret;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw,
-					   PHY_OPS_GROUP, GEO_TX_POWER_LIMIT);
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, PHY_OPS_GROUP,
+					   GEO_TX_POWER_LIMIT,
+					   IWL_FW_CMD_VER_UNKNOWN);
 
 	/* the table is also at the same position both in v1 and v2 */
 	ret = iwl_sar_geo_init(&xvt->fwrt, &cmd.v1.table[0][0],
@@ -865,7 +866,8 @@ iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 	u16 len = 0;
 	u32 n_subbands;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, LONG_GROUP,
-					   REDUCE_TX_POWER_CMD);
+					   REDUCE_TX_POWER_CMD,
+					   IWL_FW_CMD_VER_UNKNOWN);
 	if (cmd_ver == 6) {
 		len = sizeof(cmd.v6);
 		n_subbands = IWL_NUM_SUB_BANDS_V2;
