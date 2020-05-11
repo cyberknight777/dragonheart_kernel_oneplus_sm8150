@@ -262,7 +262,6 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	trans_cfg.bc_table_dword =
 		trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210;
 	trans_cfg.scd_set_active = true;
-	trans->wide_cmd_header = true;
 
 	switch (iwlwifi_mod_params.amsdu_size) {
 	case IWL_AMSDU_DEF:
