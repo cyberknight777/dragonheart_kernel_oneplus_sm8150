@@ -343,6 +343,7 @@ err_debugfs_mask:
 	ring_buffer_free(info->buffer);
 	return ret;
 }
+EXPORT_SYMBOL(drm_trace_init);
 
 /**
  * drm_trace_cleanup - cleans up tracing for drm core
@@ -360,6 +361,7 @@ void drm_trace_cleanup()
 	ring_buffer_free(info->buffer);
 	memset(info, 0, sizeof(*info));
 }
+EXPORT_SYMBOL(drm_trace_cleanup);
 
 /**
  * drm_trace_enabled - check if a debug category has traces enabled
@@ -371,6 +373,7 @@ bool drm_trace_enabled(u32 category)
 {
 	return READ_ONCE(drm_trace.category_mask) & category;
 }
+EXPORT_SYMBOL(drm_trace_enabled);
 
 static int drm_trace_write(const void *data, unsigned int len)
 {
@@ -413,6 +416,7 @@ void drm_trace_printf(const char *format, ...)
 
 	drm_trace_write(buf, ret + 1);
 }
+EXPORT_SYMBOL(drm_trace_printf);
 
 /**
  * drm_dev_trace_printf - adds an entry to the drm trace
@@ -442,3 +446,4 @@ void drm_dev_trace_printf(const struct device *dev, const char *format, ...)
 
 	drm_trace_write(buf, ret + 1);
 }
+EXPORT_SYMBOL(drm_dev_trace_printf);
