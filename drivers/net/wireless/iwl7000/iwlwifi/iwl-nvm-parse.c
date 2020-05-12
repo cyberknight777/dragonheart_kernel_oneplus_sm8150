@@ -852,6 +852,10 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 				cpu_to_le16(IEEE80211_HE_MCS_NOT_SUPPORTED << 2);
 		}
 
+		if (trans->dbg_cfg.ack_en & 0x1)
+			iftype_data->he_cap.he_cap_elem.mac_cap_info[2] |=
+				IEEE80211_HE_MAC_CAP2_ACK_EN;
+
 		if (trans->dbg_cfg.no_ldpc)
 			iftype_data->he_cap.he_cap_elem.phy_cap_info[1] &=
 				~IEEE80211_HE_PHY_CAP1_LDPC_CODING_IN_PAYLOAD;
