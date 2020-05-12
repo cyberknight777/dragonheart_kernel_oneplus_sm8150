@@ -184,9 +184,8 @@ notrace static u64 vread_tsc(void)
 	return last;
 }
 
-notrace static inline u64 vgetsns(int *mode)
+notrace static inline u64 vgetcycles(int *mode)
 {
-	u64 v;
 	cycles_t cycles;
 
 	if (gtod->vclock_mode == VCLOCK_TSC)
@@ -212,8 +211,32 @@ notrace static inline u64 vgetsns(int *mode)
 #endif
 	else
 		return 0;
+
+	return cycles;
+}
+
+notrace static inline u64 vgetsns(int *mode)
+{
+	u64 v;
+	cycles_t cycles = vgetcycles(mode);
+
+	if (cycles == 0)
+		return 0;
+
 	v = (cycles - gtod->cycle_last) & gtod->mask;
 	return v * gtod->mult;
+}
+
+notrace static inline u64 vgetsns_raw(int *mode)
+{
+	u64 v;
+	cycles_t cycles = vgetcycles(mode);
+
+	if (cycles == 0)
+		return 0;
+
+	v = (cycles - gtod->cycle_last) & gtod->mask;
+	return v * gtod->raw_mult;
 }
 
 /* Code size doesn't matter (vdso is 4k anyway) and this is faster. */
@@ -259,7 +282,28 @@ notrace static int __always_inline do_monotonic(struct timespec *ts)
 	return mode;
 }
 
-notrace static void do_realtime_coarse(struct timespec *ts)
+notrace static inline int do_monotonic_raw(struct timespec *ts)
+{
+	unsigned long seq;
+	u64 ns;
+	int mode;
+
+	do {
+		seq = gtod_read_begin(gtod);
+		mode = gtod->vclock_mode;
+		ts->tv_sec = gtod->monotonic_time_raw_sec;
+		ns = gtod->monotonic_time_raw_nsec;
+		ns += vgetsns_raw(&mode);
+		ns >>= gtod->raw_shift;
+	} while (unlikely(gtod_read_retry(gtod, seq)));
+
+	ts->tv_sec += __iter_div_u64_rem(ns, NSEC_PER_SEC, &ns);
+	ts->tv_nsec = ns;
+
+	return mode;
+}
+
+notrace static inline void do_realtime_coarse(struct timespec *ts)
 {
 	unsigned long seq;
 	do {
@@ -288,6 +332,10 @@ notrace int __vdso_clock_gettime(clockid_t clock, struct timespec *ts)
 		break;
 	case CLOCK_MONOTONIC:
 		if (do_monotonic(ts) == VCLOCK_NONE)
+			goto fallback;
+		break;
+	case CLOCK_MONOTONIC_RAW:
+		if (do_monotonic_raw(ts) == VCLOCK_NONE)
 			goto fallback;
 		break;
 	case CLOCK_REALTIME_COARSE:
