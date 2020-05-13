@@ -1315,6 +1315,10 @@ void iwl_txq_dyn_free(struct iwl_trans *trans, int queue)
 
 	iwl_txq_gen2_unmap(trans, queue);
 
+	iwl_txq_gen2_free_memory(trans, trans->txqs.txq[queue]);
+
+	trans->txqs.txq[queue] = NULL;
+
 	IWL_DEBUG_TX_QUEUES(trans, "Deactivate queue %d\n", queue);
 }
 
