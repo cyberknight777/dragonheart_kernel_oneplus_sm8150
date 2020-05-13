@@ -926,7 +926,9 @@ static void iwl_txq_gen2_free_memory(struct iwl_trans *trans,
 	}
 
 	kfree(txq->entries);
-	dma_pool_free(trans->txqs.bc_pool, txq->bc_tbl.addr, txq->bc_tbl.dma);
+	if (txq->bc_tbl.addr)
+		dma_pool_free(trans->txqs.bc_pool,
+			      txq->bc_tbl.addr, txq->bc_tbl.dma);
 	kfree(txq);
 }
 
