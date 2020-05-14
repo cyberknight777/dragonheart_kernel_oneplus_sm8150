@@ -358,7 +358,7 @@ int iwl_mvm_ftm_respoder_add_pasn_sta(struct iwl_mvm *mvm,
 	}
 
 	if (tk && tk_len) {
-		sta = kmalloc(sizeof(*sta), GFP_KERNEL);
+		sta = kzalloc(sizeof(*sta), GFP_KERNEL);
 		if (!sta)
 			return -ENOBUFS;
 
