@@ -116,7 +116,7 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_COUNTRY] = { .type = NLA_STRING, .len = 2 },
 	[IWL_MVM_VENDOR_ATTR_FILTER_ARP_NA] = { .type = NLA_FLAG },
 	[IWL_MVM_VENDOR_ATTR_FILTER_GTK] = { .type = NLA_FLAG },
-	[IWL_MVM_VENDOR_ATTR_ADDR] = { .len = ETH_ALEN },
+	[IWL_MVM_VENDOR_ATTR_ADDR] = { .type = NLA_BINARY, .len = ETH_ALEN },
 	[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_24] = { .type = NLA_U32 },
 	[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L] = { .type = NLA_U32 },
 	[IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H] = { .type = NLA_U32 },
@@ -142,6 +142,8 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM] = { .type = NLA_NESTED },
 	[IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_AES] = { .type = NLA_NESTED },
 	[IWL_MVM_VENDOR_ATTR_STA_CIPHER] = { .type = NLA_U32 },
+	[IWL_MVM_VENDOR_ATTR_STA_HLTK] = { .type = NLA_BINARY },
+	[IWL_MVM_VENDOR_ATTR_STA_TK] = { .type = NLA_BINARY },
 };
 
 static struct nlattr **iwl_mvm_parse_vendor_data(const void *data, int data_len)
