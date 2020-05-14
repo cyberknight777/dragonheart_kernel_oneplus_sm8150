@@ -756,6 +756,9 @@ static void iter(struct ieee80211_hw *hw,
 
 	WARN_ON(!sta->mfp);
 
+	if (WARN_ON(key->keylen > sizeof(target->tk)))
+		return;
+
 	memcpy(target->tk, key->key, key->keylen);
 	target->cipher = iwl_mvm_cipher_to_location_cipher(key->cipher);
 	WARN_ON(target->cipher == IWL_LOCATION_CIPHER_INVALID);
