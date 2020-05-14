@@ -242,6 +242,7 @@ static void iwl_mvm_wowlan_program_keys(struct ieee80211_hw *hw,
 	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
 	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
 		data->kek_kck_cmd->igtk_cipher = cpu_to_le32(STA_KEY_FLG_GCMP);
+		return;
 	case WLAN_CIPHER_SUITE_AES_CMAC:
 		data->kek_kck_cmd->igtk_cipher = cpu_to_le32(STA_KEY_FLG_CCM);
 		/*
