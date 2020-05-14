@@ -1527,6 +1527,8 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 			.vendor_id = INTEL_OUI,
 			.subcmd = IWL_MVM_VENDOR_CMD_ADD_PASN_STA,
 		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = iwl_mvm_vendor_add_pasn_sta,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,
@@ -1540,6 +1542,8 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 			.vendor_id = INTEL_OUI,
 			.subcmd = IWL_MVM_VENDOR_CMD_REMOVE_PASN_STA,
 		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = iwl_mvm_vendor_remove_pasn_sta,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,
