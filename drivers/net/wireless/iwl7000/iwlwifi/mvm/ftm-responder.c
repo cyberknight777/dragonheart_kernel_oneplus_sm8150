@@ -283,8 +283,8 @@ iwl_mvm_ftm_responder_dyn_cfg_v3(struct iwl_mvm *mvm,
 		}
 
 		cmd.cipher = hltk_data->cipher;
-		memcpy(cmd.addr, hltk_data->addr, ETH_ALEN);
-		memcpy(cmd.hltk_buf, hltk_data->hltk, HLTK_11AZ_LEN);
+		memcpy(cmd.addr, hltk_data->addr, sizeof(cmd.addr));
+		memcpy(cmd.hltk_buf, hltk_data->hltk, sizeof(cmd.hltk_buf));
 		cmd.valid_flags |= IWL_RESPONDER_DYN_CFG_VALID_PASN_STA;
 	}
 
