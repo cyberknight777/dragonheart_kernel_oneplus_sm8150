@@ -117,7 +117,7 @@ int iwl_mvm_ftm_add_pasn_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		expected_tk_len = WLAN_KEY_LEN_GCMP_256;
 		break;
 	default:
-		return -EINVAL;
+		goto out;
 	}
 
 	/*
@@ -140,7 +140,7 @@ int iwl_mvm_ftm_add_pasn_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	if (tk_len != expected_tk_len || hltk_len != sizeof(pasn->hltk)) {
 		IWL_ERR(mvm, "Invalid key length: tk_len=%u hltk_len=%u\n",
 			tk_len, hltk_len);
-		return -EINVAL;
+		goto out;
 	}
 
 	memcpy(pasn->addr, addr, sizeof(pasn->addr));
@@ -151,6 +151,9 @@ int iwl_mvm_ftm_add_pasn_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	list_add_tail(&pasn->list, &mvm->ftm_initiator.pasn_list);
 	return 0;
+out:
+	kfree(pasn);
+	return -EINVAL;
 }
 
 void iwl_mvm_ftm_remove_pasn_sta(struct iwl_mvm *mvm, u8 *addr)
