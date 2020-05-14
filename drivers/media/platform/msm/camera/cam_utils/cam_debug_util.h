@@ -49,6 +49,9 @@
 #define CAM_HYP        (1 << 26)
 #define STR_BUFFER_MAX_LENGTH  1024
 
+/* Kill debug logging from camera */
+#define CAM_DEBUG_LOGGING 0
+
 /*
  *  cam_debug_log()
  *
@@ -67,6 +70,7 @@ static inline void cam_debug_log(unsigned int module_id, const char *func,
 {
 }
 
+#if CAM_DEBUG_LOGGING
 /*
  * cam_get_module_name()
  *
@@ -139,4 +143,19 @@ static inline const char *cam_get_module_name(unsigned int module_id)
 #define CAM_ERR_RATE_LIMIT(__module, fmt, args...)                 \
 	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
 
+#else /* CAM_DEBUG_LOGGING */
+#define CAM_ERR(__module, fmt, args...) \
+	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
+#define CAM_WARN(__module, fmt, args...) \
+	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
+#define CAM_INFO(__module, fmt, args...) \
+	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
+#define CAM_INFO_RATE_LIMIT(__module, fmt, args...) \
+	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
+#define CAM_DBG(__module, fmt, args...) \
+	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
+#define CAM_ERR_RATE_LIMIT(__module, fmt, args...) \
+	cam_debug_log(__module, __func__, __LINE__, fmt, ##args)
+
+#endif /* CAM_DEBUG_LOGGING */
 #endif /* _CAM_DEBUG_UTIL_H_ */
