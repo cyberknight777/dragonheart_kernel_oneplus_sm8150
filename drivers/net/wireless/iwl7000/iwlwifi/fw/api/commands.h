@@ -680,6 +680,13 @@ enum iwl_system_subcmd_ids {
  */
 enum iwl_xvt_subcmd_ids {
 	/**
+	 * @DTS_MEASUREMENT_TRIGGER_NOTIF : Notification about
+	 * DTS measurement
+	 * Handled by user space component
+	 */
+	DTS_MEASUREMENT_TRIGGER_NOTIF = 0xFC,
+
+	/**
 	 * @MPAPD_EXEC_DONE_NOTIF : Notification about
 	 * MPAPD execution command finished
 	 * Handled by user space component
