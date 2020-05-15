@@ -3592,16 +3592,6 @@ static void rtw8822c_adaptivity(struct rtw_dev *rtwdev)
 }
 
 static const struct rtw_pwr_seq_cmd trans_carddis_to_cardemu_8822c[] = {
-	{0x0086,
-	 RTW_PWR_CUT_ALL_MSK,
-	 RTW_PWR_INTF_SDIO_MSK,
-	 RTW_PWR_ADDR_SDIO,
-	 RTW_PWR_CMD_WRITE, BIT(0), 0},
-	{0x0086,
-	 RTW_PWR_CUT_ALL_MSK,
-	 RTW_PWR_INTF_SDIO_MSK,
-	 RTW_PWR_ADDR_SDIO,
-	 RTW_PWR_CMD_POLLING, BIT(1), BIT(1)},
 	{0x002E,
 	 RTW_PWR_CUT_ALL_MSK,
 	 RTW_PWR_INTF_ALL_MSK,
@@ -3812,11 +3802,6 @@ static const struct rtw_pwr_seq_cmd trans_act_to_cardemu_8822c[] = {
 };
 
 static const struct rtw_pwr_seq_cmd trans_cardemu_to_carddis_8822c[] = {
-	{0x0005,
-	 RTW_PWR_CUT_ALL_MSK,
-	 RTW_PWR_INTF_SDIO_MSK,
-	 RTW_PWR_ADDR_MAC,
-	 RTW_PWR_CMD_WRITE, BIT(7), BIT(7)},
 	{0x0007,
 	 RTW_PWR_CUT_ALL_MSK,
 	 RTW_PWR_INTF_USB_MSK | RTW_PWR_INTF_SDIO_MSK,
@@ -3862,11 +3847,6 @@ static const struct rtw_pwr_seq_cmd trans_cardemu_to_carddis_8822c[] = {
 	 RTW_PWR_INTF_PCI_MSK,
 	 RTW_PWR_ADDR_MAC,
 	 RTW_PWR_CMD_WRITE, BIT(2), BIT(2)},
-	{0x0086,
-	 RTW_PWR_CUT_ALL_MSK,
-	 RTW_PWR_INTF_SDIO_MSK,
-	 RTW_PWR_ADDR_SDIO,
-	 RTW_PWR_CMD_WRITE, BIT(0), BIT(0)},
 	{0xFFFF,
 	 RTW_PWR_CUT_ALL_MSK,
 	 RTW_PWR_INTF_ALL_MSK,
