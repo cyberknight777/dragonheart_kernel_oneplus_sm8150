@@ -2,6 +2,7 @@
 /* Copyright(c) 2018-2019  Realtek Corporation
  */
 
+#include <linux/module.h>
 #include "main.h"
 #include "coex.h"
 #include "fw.h"
@@ -2548,3 +2549,7 @@ struct rtw_chip_info rtw8822b_hw_spec = {
 EXPORT_SYMBOL(rtw8822b_hw_spec);
 
 MODULE_FIRMWARE("rtw88/rtw8822b_fw.bin");
+
+MODULE_AUTHOR("Realtek Corporation");
+MODULE_DESCRIPTION("Realtek 802.11ac wireless 8822b driver");
+MODULE_LICENSE("Dual BSD/GPL");
