@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Scanning implementation
  *
@@ -9,10 +10,6 @@
  * Copyright 2013-2015  Intel Mobile Communications GmbH
  * Copyright 2016-2017  Intel Deutschland GmbH
  * Copyright (C) 2018-2019 Intel Corporation
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/if_arp.h>
@@ -699,6 +696,16 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 #endif
 
 		local->hw_scan_band = 0;
+#if CFG80211_VERSION > KERNEL_VERSION(9,9,9)
+		local->hw_scan_req->req.n_6ghz_params = req->n_6ghz_params;
+#endif
+#if CFG80211_VERSION > KERNEL_VERSION(9,9,9)
+		local->hw_scan_req->req.scan_6ghz_params =
+			req->scan_6ghz_params;
+#endif
+#if CFG80211_VERSION > KERNEL_VERSION(9,9,9)
+		local->hw_scan_req->req.scan_6ghz = req->scan_6ghz;
+#endif
 
 		/*
 		 * After allocating local->hw_scan_req, we must

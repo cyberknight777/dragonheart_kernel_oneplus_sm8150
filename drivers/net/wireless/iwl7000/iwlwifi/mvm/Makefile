@@ -12,7 +12,7 @@ iwlmvm-$(CPTCFG_IWLWIFI_DEBUGFS) += debugfs.o debugfs-vif.o
 iwlmvm-$(CPTCFG_IWLWIFI_LEDS) += led.o
 iwlmvm-$(CONFIG_PM) += d3.o
 
-ccflags-y += -I$(src)/../
+ccflags-y += -I$(srctree)/$(src)/../
 
 # non-upstream things
 iwlmvm-$(CPTCFG_IWLMVM_VENDOR_CMDS) += vendor-cmd.o

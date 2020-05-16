@@ -74,6 +74,7 @@
 #define ACPI_WRDD_METHOD	"WRDD"
 #define ACPI_SPLC_METHOD	"SPLC"
 #define ACPI_ECKV_METHOD	"ECKV"
+#define ACPI_PPAG_METHOD	"PPAG"
 
 #define ACPI_WIFI_DOMAIN	(0x07)
 
@@ -98,6 +99,17 @@
 #define ACPI_WGDS_NUM_BANDS		2
 #define ACPI_WGDS_TABLE_SIZE		3
 
+#define ACPI_PPAG_NUM_CHAINS		2
+#define ACPI_PPAG_NUM_SUB_BANDS		5
+#define ACPI_PPAG_WIFI_DATA_SIZE	((ACPI_PPAG_NUM_CHAINS * \
+					ACPI_PPAG_NUM_SUB_BANDS) + 3)
+
+/* PPAG gain value bounds in 1/8 dBm */
+#define ACPI_PPAG_MIN_LB -16
+#define ACPI_PPAG_MAX_LB 24
+#define ACPI_PPAG_MIN_HB -16
+#define ACPI_PPAG_MAX_HB 40
+
 struct iwl_sar_profile {
 	bool enabled;
 	u8 table[ACPI_SAR_TABLE_SIZE];
@@ -107,9 +119,9 @@ struct iwl_geo_profile {
 	u8 values[ACPI_GEO_TABLE_SIZE];
 };
 
-struct iwl_fw_runtime;
-
 #ifdef CONFIG_ACPI
+
+struct iwl_fw_runtime;
 
 void *iwl_acpi_get_object(struct device *dev, acpi_string method);
 
@@ -222,7 +234,7 @@ static inline int iwl_sar_get_wgds_table(struct iwl_fw_runtime *fwrt)
 
 static inline bool iwl_sar_geo_support(struct iwl_fw_runtime *fwrt)
 {
-	return 0;
+	return false;
 }
 
 static inline int iwl_validate_sar_geo_profile(struct iwl_fw_runtime *fwrt,
