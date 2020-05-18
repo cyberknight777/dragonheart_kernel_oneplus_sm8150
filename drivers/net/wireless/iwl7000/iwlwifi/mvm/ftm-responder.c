@@ -149,8 +149,7 @@ iwl_mvm_ftm_responder_cmd(struct iwl_mvm *mvm,
 		.sta_id = mvmvif->bcast_sta.sta_id,
 	};
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LOCATION_GROUP,
-					   TOF_RESPONDER_CONFIG_CMD,
-					   IWL_FW_CMD_VER_UNKNOWN);
+					   TOF_RESPONDER_CONFIG_CMD, 6);
 	int err;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -298,8 +297,7 @@ iwl_mvm_ftm_responder_dyn_cfg_cmd(struct iwl_mvm *mvm,
 {
 	int ret;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LOCATION_GROUP,
-					   TOF_RESPONDER_DYN_CONFIG_CMD,
-					   IWL_FW_CMD_VER_UNKNOWN);
+					   TOF_RESPONDER_DYN_CONFIG_CMD, 2);
 
 	switch (cmd_ver) {
 	case 2:
@@ -341,8 +339,7 @@ int iwl_mvm_ftm_respoder_add_pasn_sta(struct iwl_mvm *mvm,
 		.hltk = hltk,
 	};
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LOCATION_GROUP,
-					   TOF_RESPONDER_DYN_CONFIG_CMD,
-					   IWL_FW_CMD_VER_UNKNOWN);
+					   TOF_RESPONDER_DYN_CONFIG_CMD, 2);
 
 	lockdep_assert_held(&mvm->mutex);
 
