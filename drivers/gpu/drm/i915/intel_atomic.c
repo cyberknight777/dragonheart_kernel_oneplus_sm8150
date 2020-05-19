@@ -226,6 +226,7 @@ int intel_atomic_setup_scalers(struct drm_i915_private *dev_priv,
 	struct intel_crtc_scaler_state *scaler_state =
 		&crtc_state->scaler_state;
 	struct drm_atomic_state *drm_state = crtc_state->base.state;
+	int hdisplay = crtc_state->base.adjusted_mode.crtc_hdisplay;
 	int num_scalers_need;
 	int i, j;
 
@@ -247,6 +248,12 @@ int intel_atomic_setup_scalers(struct drm_i915_private *dev_priv,
 	if (num_scalers_need > intel_crtc->num_scalers){
 		DRM_DEBUG_KMS("Too many scaling requests %d > %d\n",
 			num_scalers_need, intel_crtc->num_scalers);
+		return -EINVAL;
+	}
+
+	if (num_scalers_need && hdisplay > 4096) {
+		DRM_DEBUG_KMS("Mode too wide (%d) to use scalers (need %d)\n",
+			      hdisplay, num_scalers_need);
 		return -EINVAL;
 	}
 
