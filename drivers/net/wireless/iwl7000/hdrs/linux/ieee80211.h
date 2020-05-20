@@ -955,6 +955,8 @@ struct ieee80211_mgmt {
 		struct {
 			u8 category;
 			union {
+				/* all have the action_code first */
+				u8 action_code;
 				struct {
 					u8 action_code;
 					u8 dialog_token;
@@ -2660,7 +2662,7 @@ enum ieee80211_category {
 	WLAN_CATEGORY_RADIO_MEASUREMENT = 5,
 	WLAN_CATEGORY_HT = 7,
 	WLAN_CATEGORY_SA_QUERY = 8,
-	WLAN_CATEGORY_PROTECTED_DUAL_OF_ACTION = 9,
+	WLAN_CATEGORY_PROTECTED_DUAL_OF_PUBLIC_ACTION = 9,
 	WLAN_CATEGORY_WNM = 10,
 	WLAN_CATEGORY_WNM_UNPROTECTED = 11,
 	WLAN_CATEGORY_TDLS = 12,
@@ -3271,6 +3273,22 @@ static inline u8 *ieee80211_get_DA(struct ieee80211_hdr *hdr)
 		return hdr->addr3;
 	else
 		return hdr->addr1;
+}
+
+static inline bool ieee80211_public_action_has_protected_dual(u8 action)
+{
+	switch (action) {
+	case WLAN_PUB_ACTION_20_40_BSS_COEX:
+	case WLAN_PUB_ACTION_DSE_REG_LOC_ANN:
+	case WLAN_PUB_ACTION_MSMT_PILOT:
+	case WLAN_PUB_ACTION_TDLS_DISCOVER_RES:
+	case WLAN_PUB_ACTION_LOC_TRACK_NOTI:
+	case WLAN_PUB_ACTION_PUBLIC_KEY:
+		return false;
+	default:
+		/* safe default - yes, should be protected */
+		return true;
+	}
 }
 
 /**
