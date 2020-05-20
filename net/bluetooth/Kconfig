@@ -91,6 +91,13 @@ config BT_LEDS
 	  This option selects a few LED triggers for different
 	  Bluetooth events.
 
+config BT_MSFTEXT
+	bool "Enable Microsoft extensions"
+	depends on BT
+	help
+	  This options enables support for the Microsoft defined HCI
+	  vendor extensions.
+
 config BT_SELFTEST
 	bool "Bluetooth self testing support"
 	depends on BT && DEBUG_KERNEL
@@ -135,13 +142,6 @@ config BT_ENFORCE_CLASSIC_SECURITY
 	  insecure Bluetooth chips, i.e. that doesn't support Read Encryption
 	  Key Size command to prevent BT classic connection with very short
 	  encryption key.
-
-config BT_HCI_LE_SPLITTER
-	bool "Split LE out for separate userspace stack"
-	depends on BT
-	help
-	  Creates a char device to allow a userspace stack to handle LE
-	  comms. Bluez will only see an EDR chip and will act accordingly.
 
 config BT_EVE_HACKS
 	bool "Enable Special kernel hacks for EVE launch (do not ask)"

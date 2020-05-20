@@ -780,6 +780,11 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		break;
 
 	case HID_UP_DIGITIZER:
+		if ((field->application & 0xff) == 0x01) /* Digitizer */
+			__set_bit(INPUT_PROP_POINTER, input->propbit);
+		else if ((field->application & 0xff) == 0x02) /* Pen */
+			__set_bit(INPUT_PROP_DIRECT, input->propbit);
+
 		switch (usage->hid & 0xff) {
 		case 0x00: /* Undefined */
 			goto ignore;
@@ -1128,9 +1133,15 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 	}
 
 mapped:
-	if (device->driver->input_mapped && device->driver->input_mapped(device,
-				hidinput, field, usage, &bit, &max) < 0)
-		goto ignore;
+	if (device->driver->input_mapped &&
+	    device->driver->input_mapped(device, hidinput, field, usage,
+					 &bit, &max) < 0) {
+		/*
+		 * The driver indicated that no further generic handling
+		 * of the usage is desired.
+		 */
+		return;
+	}
 
 	set_bit(usage->type, input->evbit);
 
@@ -1211,9 +1222,11 @@ mapped:
 		set_bit(MSC_SCAN, input->mscbit);
 	}
 
-ignore:
 	return;
 
+ignore:
+	usage->type = 0;
+	usage->code = 0;
 }
 
 static void hidinput_handle_scroll(struct hid_usage *usage,
@@ -1561,52 +1574,71 @@ static int hidinput_uninhibit(struct input_dev *dev)
 	return dev->users ? hid_hw_open(hid) : 0;
 }
 
+static bool __hidinput_change_resolution_multipliers(struct hid_device *hid,
+		struct hid_report *report, bool use_logical_max)
+{
+	struct hid_usage *usage;
+	bool update_needed = false;
+	int i, j;
+
+	if (report->maxfield == 0)
+		return false;
+
+	/*
+	 * If we have more than one feature within this report we
+	 * need to fill in the bits from the others before we can
+	 * overwrite the ones for the Resolution Multiplier.
+	 */
+	if (report->maxfield > 1) {
+		hid_hw_request(hid, report, HID_REQ_GET_REPORT);
+		hid_hw_wait(hid);
+	}
+
+	for (i = 0; i < report->maxfield; i++) {
+		__s32 value = use_logical_max ?
+			      report->field[i]->logical_maximum :
+			      report->field[i]->logical_minimum;
+
+		/* There is no good reason for a Resolution
+		 * Multiplier to have a count other than 1.
+		 * Ignore that case.
+		 */
+		if (report->field[i]->report_count != 1)
+			continue;
+
+		for (j = 0; j < report->field[i]->maxusage; j++) {
+			usage = &report->field[i]->usage[j];
+
+			if (usage->hid != HID_GD_RESOLUTION_MULTIPLIER)
+				continue;
+
+			*report->field[i]->value = value;
+			update_needed = true;
+		}
+	}
+
+	return update_needed;
+}
+
 static void hidinput_change_resolution_multipliers(struct hid_device *hid)
 {
 	struct hid_report_enum *rep_enum;
 	struct hid_report *rep;
-	struct hid_usage *usage;
-	int i, j;
+	int ret;
 
 	rep_enum = &hid->report_enum[HID_FEATURE_REPORT];
 	list_for_each_entry(rep, &rep_enum->report_list, list) {
-		bool update_needed = false;
+		bool update_needed = __hidinput_change_resolution_multipliers(hid,
+								     rep, true);
 
-		if (rep->maxfield == 0)
-			continue;
-
-		/*
-		 * If we have more than one feature within this report we
-		 * need to fill in the bits from the others before we can
-		 * overwrite the ones for the Resolution Multiplier.
-		 */
-		if (rep->maxfield > 1) {
-			hid_hw_request(hid, rep, HID_REQ_GET_REPORT);
-			hid_hw_wait(hid);
-		}
-
-		for (i = 0; i < rep->maxfield; i++) {
-			__s32 logical_max = rep->field[i]->logical_maximum;
-
-			/* There is no good reason for a Resolution
-			 * Multiplier to have a count other than 1.
-			 * Ignore that case.
-			 */
-			if (rep->field[i]->report_count != 1)
-				continue;
-
-			for (j = 0; j < rep->field[i]->maxusage; j++) {
-				usage = &rep->field[i]->usage[j];
-
-				if (usage->hid != HID_GD_RESOLUTION_MULTIPLIER)
-					continue;
-
-				*rep->field[i]->value = logical_max;
-				update_needed = true;
+		if (update_needed) {
+			ret = __hid_request(hid, rep, HID_REQ_SET_REPORT);
+			if (ret) {
+				__hidinput_change_resolution_multipliers(hid,
+								    rep, false);
+				return;
 			}
 		}
-		if (update_needed)
-			hid_hw_request(hid, rep, HID_REQ_SET_REPORT);
 	}
 
 	/* refresh our structs */

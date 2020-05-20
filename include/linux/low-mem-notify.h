@@ -5,6 +5,7 @@
 #include <linux/ratelimit.h>
 #include <linux/stddef.h>
 #include <linux/swap.h>
+#include <linux/kstaled.h>
 
 /* We support up to this many different thresholds. */
 #define LOW_MEM_THRESHOLD_MAX 5
@@ -35,12 +36,8 @@ static inline unsigned long get_available_file_mem(void)
 			global_node_page_state(NR_ACTIVE_FILE) +
 			global_node_page_state(NR_INACTIVE_FILE);
 	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
-#ifdef CONFIG_KSTALED
 	unsigned long min_file_mem = kstaled_is_enabled() ?
 			0 : min_filelist_kbytes >> (PAGE_SHIFT - 10);
-#else
-	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-#endif
 	unsigned long clean_file_mem = file_mem - dirty_mem;
 	/* Conservatively estimate the amount of available_file_mem */
 	unsigned long available_file_mem = (clean_file_mem > min_file_mem) ?

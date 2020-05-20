@@ -27,7 +27,7 @@
 
 #include "vmwgfx_drv.h"
 #include <drm/vmwgfx_drm.h>
-#include <drm/ttm/ttm_object.h>
+#include "ttm_object.h"
 #include <drm/ttm/ttm_placement.h>
 #include <drm/drmP.h>
 #include "vmwgfx_resource_priv.h"

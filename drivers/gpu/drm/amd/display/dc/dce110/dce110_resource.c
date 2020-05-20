@@ -572,8 +572,7 @@ static const struct encoder_feature_support link_enc_feature = {
 		.max_hdmi_deep_color = COLOR_DEPTH_121212,
 		.max_hdmi_pixel_clock = 300000,
 		.flags.bits.IS_HBR2_CAPABLE = true,
-		.flags.bits.IS_TPS3_CAPABLE = true,
-		.flags.bits.IS_YCBCR_CAPABLE = true
+		.flags.bits.IS_TPS3_CAPABLE = true
 };
 
 static struct link_encoder *dce110_link_encoder_create(
@@ -802,6 +801,9 @@ static void get_pixel_clock_parameters(
 	if (stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR420) {
 		pixel_clk_params->requested_pix_clk  = pixel_clk_params->requested_pix_clk / 2;
 	}
+	if (stream->timing.timing_3d_format == TIMING_3D_FORMAT_HW_FRAME_PACKING)
+		pixel_clk_params->requested_pix_clk *= 2;
+
 }
 
 void dce110_resource_build_pipe_hw_param(struct pipe_ctx *pipe_ctx)
@@ -1362,7 +1364,8 @@ static bool construct(
 		pool->base.sw_i2cs[i] = NULL;
 	}
 
-	dc->fbc_compressor = dce110_compressor_create(ctx);
+	if (dc->config.fbc_support)
+		dc->fbc_compressor = dce110_compressor_create(ctx);
 
 	if (!underlay_create(ctx, &pool->base))
 		goto res_create_fail;

@@ -60,6 +60,7 @@ struct persistent_ram_zone {
 
 	char *old_log;
 	size_t old_log_size;
+	uint32_t sig;
 };
 
 struct persistent_ram_zone *persistent_ram_new(phys_addr_t start, size_t size,
@@ -70,6 +71,9 @@ void persistent_ram_zap(struct persistent_ram_zone *prz);
 
 int persistent_ram_write(struct persistent_ram_zone *prz, const void *s,
 			 unsigned int count);
+int persistent_ram_write_instr(struct persistent_ram_zone *prz, const void *s,
+			 unsigned int count);
+
 int persistent_ram_write_user(struct persistent_ram_zone *prz,
 			      const void __user *s, unsigned int count);
 

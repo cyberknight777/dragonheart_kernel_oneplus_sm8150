@@ -22,7 +22,8 @@ struct vsyscall_gtod_data {
 	u64	mask;
 	u32	mult;
 	u32	shift;
-
+	u32	raw_mult;
+	u32	raw_shift;
 	/* open coded 'struct timespec' */
 	u64		wall_time_snsec;
 	gtod_long_t	wall_time_sec;
@@ -32,6 +33,8 @@ struct vsyscall_gtod_data {
 	gtod_long_t	wall_time_coarse_nsec;
 	gtod_long_t	monotonic_time_coarse_sec;
 	gtod_long_t	monotonic_time_coarse_nsec;
+	gtod_long_t	monotonic_time_raw_sec;
+	gtod_long_t	monotonic_time_raw_nsec;
 
 	int		tz_minuteswest;
 	int		tz_dsttime;

@@ -44,6 +44,8 @@ void update_vsyscall(struct timekeeper *tk)
 	vdata->mask		= tk->tkr_mono.mask;
 	vdata->mult		= tk->tkr_mono.mult;
 	vdata->shift		= tk->tkr_mono.shift;
+	vdata->raw_mult		= tk->tkr_raw.mult;
+	vdata->raw_shift	= tk->tkr_raw.shift;
 
 	vdata->wall_time_sec		= tk->xtime_sec;
 	vdata->wall_time_snsec		= tk->tkr_mono.xtime_nsec;
@@ -73,6 +75,9 @@ void update_vsyscall(struct timekeeper *tk)
 		vdata->monotonic_time_coarse_nsec -= NSEC_PER_SEC;
 		vdata->monotonic_time_coarse_sec++;
 	}
+
+	vdata->monotonic_time_raw_sec  = tk->raw_sec;
+	vdata->monotonic_time_raw_nsec = tk->tkr_raw.xtime_nsec;
 
 	gtod_write_end(vdata);
 }

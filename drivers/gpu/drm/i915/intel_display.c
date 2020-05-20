@@ -46,6 +46,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_rect.h>
+#include <drm/drm_atomic_uapi.h>
 #include <linux/dma_remapping.h>
 #include <linux/reservation.h>
 
@@ -2526,6 +2527,7 @@ intel_fill_fb_info(struct drm_i915_private *dev_priv,
 {
 	struct intel_framebuffer *intel_fb = to_intel_framebuffer(fb);
 	struct intel_rotation_info *rot_info = &intel_fb->rot_info;
+	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 	u32 gtt_offset_rotated = 0;
 	unsigned int max_size = 0;
 	int i, num_planes = fb->format->num_planes;
@@ -2590,7 +2592,7 @@ intel_fill_fb_info(struct drm_i915_private *dev_priv,
 		 * fb layout agrees with the fence layout. We already check that the
 		 * fb stride matches the fence stride elsewhere.
 		 */
-		if (i == 0 && i915_gem_object_is_tiled(intel_fb->obj) &&
+		if (i == 0 && i915_gem_object_is_tiled(obj) &&
 		    (x + width) * cpp > fb->pitches[i]) {
 			DRM_DEBUG_KMS("bad fb plane %d offset: 0x%x\n",
 				      i, fb->offsets[i]);
@@ -2675,9 +2677,9 @@ intel_fill_fb_info(struct drm_i915_private *dev_priv,
 		max_size = max(max_size, offset + size);
 	}
 
-	if (max_size * tile_size > intel_fb->obj->base.size) {
+	if (max_size * tile_size > obj->base.size) {
 		DRM_DEBUG_KMS("fb too big for bo (need %u bytes, have %zu bytes)\n",
-			      max_size * tile_size, intel_fb->obj->base.size);
+			      max_size * tile_size, obj->base.size);
 		return -EINVAL;
 	}
 
@@ -3193,6 +3195,10 @@ int skl_check_plane_surface(struct intel_plane_state *plane_state)
 		return -EINVAL;
 	}
 
+	ret = intel_plane_check_stride(plane_state);
+	if (ret)
+		return ret;
+
 	if (!plane_state->base.visible)
 		return 0;
 
@@ -3229,6 +3235,33 @@ int skl_check_plane_surface(struct intel_plane_state *plane_state)
 		return ret;
 
 	return 0;
+}
+
+unsigned int
+i9xx_plane_max_stride(struct intel_plane *plane,
+		      u32 pixel_format, u64 modifier,
+		      unsigned int rotation)
+{
+	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
+
+	if (!HAS_GMCH_DISPLAY(dev_priv)) {
+		return 32*1024;
+	} else if (INTEL_GEN(dev_priv) >= 4) {
+		if (modifier == I915_FORMAT_MOD_X_TILED)
+			return 16*1024;
+		else
+			return 32*1024;
+	} else if (INTEL_GEN(dev_priv) >= 3) {
+		if (modifier == I915_FORMAT_MOD_X_TILED)
+			return 8*1024;
+		else
+			return 16*1024;
+	} else {
+		if (plane->i9xx_plane == PLANE_C)
+			return 4*1024;
+		else
+			return 8*1024;
+	}
 }
 
 static u32 i9xx_plane_ctl(const struct intel_crtc_state *crtc_state,
@@ -3300,6 +3333,11 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 	int src_x = plane_state->base.src.x1 >> 16;
 	int src_y = plane_state->base.src.y1 >> 16;
 	u32 offset;
+	int ret;
+
+	ret = intel_plane_check_stride(plane_state);
+	if (ret)
+		return ret;
 
 	intel_add_fb_offsets(&src_x, &src_y, plane_state, 0);
 
@@ -3326,6 +3364,36 @@ int i9xx_check_plane_surface(struct intel_plane_state *plane_state)
 	plane_state->main.offset = offset;
 	plane_state->main.x = src_x;
 	plane_state->main.y = src_y;
+
+	return 0;
+}
+
+static int
+i9xx_plane_check(struct intel_crtc_state *crtc_state,
+		 struct intel_plane_state *plane_state)
+{
+	int ret;
+
+	ret = drm_atomic_helper_check_plane_state(&plane_state->base,
+						  &crtc_state->base,
+						  DRM_PLANE_HELPER_NO_SCALING,
+						  DRM_PLANE_HELPER_NO_SCALING,
+						  false, true);
+	if (ret)
+		return ret;
+
+	if (!plane_state->base.visible)
+		return 0;
+
+	ret = intel_plane_check_src_coordinates(plane_state);
+	if (ret)
+		return ret;
+
+	ret = i9xx_check_plane_surface(plane_state);
+	if (ret)
+		return ret;
+
+	plane_state->ctl = i9xx_plane_ctl(crtc_state, plane_state);
 
 	return 0;
 }
@@ -9466,6 +9534,11 @@ static int intel_check_cursor(struct intel_crtc_state *crtc_state,
 	u32 offset;
 	int ret;
 
+	if (fb && fb->modifier != DRM_FORMAT_MOD_LINEAR) {
+		DRM_DEBUG_KMS("cursor cannot be tiled\n");
+		return -EINVAL;
+	}
+
 	ret = drm_atomic_helper_check_plane_state(&plane_state->base,
 						  &crtc_state->base,
 						  DRM_PLANE_HELPER_NO_SCALING,
@@ -9474,13 +9547,16 @@ static int intel_check_cursor(struct intel_crtc_state *crtc_state,
 	if (ret)
 		return ret;
 
-	if (!fb)
+	if (!plane_state->base.visible)
 		return 0;
 
-	if (fb->modifier != DRM_FORMAT_MOD_LINEAR) {
-		DRM_DEBUG_KMS("cursor cannot be tiled\n");
-		return -EINVAL;
-	}
+	ret = intel_plane_check_src_coordinates(plane_state);
+	if (ret)
+		return ret;
+
+        ret = intel_plane_check_stride(plane_state);
+        if (ret)
+                return ret;
 
 	src_x = plane_state->base.src_x >> 16;
 	src_y = plane_state->base.src_y >> 16;
@@ -9496,6 +9572,14 @@ static int intel_check_cursor(struct intel_crtc_state *crtc_state,
 	plane_state->main.offset = offset;
 
 	return 0;
+}
+
+static unsigned int
+i845_cursor_max_stride(struct intel_plane *plane,
+		       u32 pixel_format, u64 modifier,
+		       unsigned int rotation)
+{
+	return 2048;
 }
 
 static u32 i845_cursor_ctl(const struct intel_crtc_state *crtc_state,
@@ -9520,8 +9604,7 @@ static bool i845_cursor_size_ok(const struct intel_plane_state *plane_state)
 	return intel_cursor_size_ok(plane_state) && IS_ALIGNED(width, 64);
 }
 
-static int i845_check_cursor(struct intel_plane *plane,
-			     struct intel_crtc_state *crtc_state,
+static int i845_check_cursor(struct intel_crtc_state *crtc_state,
 			     struct intel_plane_state *plane_state)
 {
 	const struct drm_framebuffer *fb = plane_state->base.fb;
@@ -9628,6 +9711,14 @@ static bool i845_cursor_get_hw_state(struct intel_plane *plane)
 	return ret;
 }
 
+static unsigned int
+i9xx_cursor_max_stride(struct intel_plane *plane,
+		       u32 pixel_format, u64 modifier,
+		       unsigned int rotation)
+{
+	return plane->base.dev->mode_config.cursor_width * 4;
+}
+
 static u32 i9xx_cursor_ctl(const struct intel_crtc_state *crtc_state,
 			   const struct intel_plane_state *plane_state)
 {
@@ -9702,10 +9793,10 @@ static bool i9xx_cursor_size_ok(const struct intel_plane_state *plane_state)
 	return true;
 }
 
-static int i9xx_check_cursor(struct intel_plane *plane,
-			     struct intel_crtc_state *crtc_state,
+static int i9xx_check_cursor(struct intel_crtc_state *crtc_state,
 			     struct intel_plane_state *plane_state)
 {
+	struct intel_plane *plane = to_intel_plane(plane_state->base.plane);
 	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
 	const struct drm_framebuffer *fb = plane_state->base.fb;
 	enum pipe pipe = plane->pipe;
@@ -9928,10 +10019,11 @@ mode_fits_in_fbdev(struct drm_device *dev,
 	if (!dev_priv->fbdev->fb)
 		return NULL;
 
-	obj = dev_priv->fbdev->fb->obj;
+	fb = &dev_priv->fbdev->fb->base;
+
+	obj = intel_fb_obj(fb);
 	BUG_ON(!obj);
 
-	fb = &dev_priv->fbdev->fb->base;
 	if (fb->pitches[0] < intel_framebuffer_pitch_for_width(mode->hdisplay,
 							       fb->format->cpp[0] * 8))
 		return NULL;
@@ -12885,18 +12977,16 @@ intel_cleanup_plane_fb(struct drm_plane *plane,
 }
 
 int
-skl_max_scale(struct intel_crtc *intel_crtc,
-	      struct intel_crtc_state *crtc_state,
-	      uint32_t pixel_format)
+skl_max_scale(const struct intel_crtc_state *crtc_state,
+	      u32 pixel_format)
 {
-	struct drm_i915_private *dev_priv;
+	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
+	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
 	int max_scale, mult;
 	int crtc_clock, max_dotclk, tmpclk1, tmpclk2;
 
-	if (!intel_crtc || !crtc_state->base.enable)
+	if (!crtc_state->base.enable)
 		return DRM_PLANE_HELPER_NO_SCALING;
-
-	dev_priv = to_i915(intel_crtc->base.dev);
 
 	crtc_clock = crtc_state->base.adjusted_mode.crtc_clock;
 	max_dotclk = to_intel_atomic_state(crtc_state->base.state)->cdclk.logical.cdclk;
@@ -12919,61 +13009,6 @@ skl_max_scale(struct intel_crtc *intel_crtc,
 	max_scale = min(tmpclk1, tmpclk2);
 
 	return max_scale;
-}
-
-static int
-intel_check_primary_plane(struct intel_plane *plane,
-			  struct intel_crtc_state *crtc_state,
-			  struct intel_plane_state *state)
-{
-	struct drm_i915_private *dev_priv = to_i915(plane->base.dev);
-	struct drm_crtc *crtc = state->base.crtc;
-	int min_scale = DRM_PLANE_HELPER_NO_SCALING;
-	int max_scale = DRM_PLANE_HELPER_NO_SCALING;
-	bool can_position = false;
-	int ret;
-	uint32_t pixel_format = 0;
-
-	if (INTEL_GEN(dev_priv) >= 9) {
-		/* use scaler when colorkey is not required */
-		if (!state->ckey.flags) {
-			min_scale = 1;
-			if (state->base.fb)
-				pixel_format = state->base.fb->format->format;
-			max_scale = skl_max_scale(to_intel_crtc(crtc),
-						  crtc_state, pixel_format);
-		}
-		can_position = true;
-	}
-
-	ret = drm_atomic_helper_check_plane_state(&state->base,
-						  &crtc_state->base,
-						  min_scale, max_scale,
-						  can_position, true);
-	if (ret)
-		return ret;
-
-	if (!state->base.fb)
-		return 0;
-
-	if (INTEL_GEN(dev_priv) >= 9) {
-		ret = skl_check_plane_surface(state);
-		if (ret)
-			return ret;
-
-		state->ctl = skl_plane_ctl(crtc_state, state);
-	} else {
-		ret = i9xx_check_plane_surface(state);
-		if (ret)
-			return ret;
-
-		state->ctl = i9xx_plane_ctl(crtc_state, state);
-	}
-
-	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv))
-		state->color_ctl = glk_plane_color_ctl(crtc_state, state);
-
-	return 0;
 }
 
 static void intel_begin_crtc_commit(struct drm_crtc *crtc,
@@ -13355,7 +13390,6 @@ intel_primary_plane_create(struct drm_i915_private *dev_priv, enum pipe pipe)
 		primary->i9xx_plane = (enum i9xx_plane_id) pipe;
 	primary->id = PLANE_PRIMARY;
 	primary->frontbuffer_bit = INTEL_FRONTBUFFER_PRIMARY(pipe);
-	primary->check_plane = intel_check_primary_plane;
 
 	if (INTEL_GEN(dev_priv) >= 9) {
 		if (skl_plane_has_planar(dev_priv, pipe, PLANE_PRIMARY)) {
@@ -13371,25 +13405,34 @@ intel_primary_plane_create(struct drm_i915_private *dev_priv, enum pipe pipe)
 		else
 			modifiers = skl_format_modifiers_noccs;
 
+		primary->max_stride = skl_plane_max_stride;
 		primary->update_plane = skl_update_plane;
 		primary->disable_plane = skl_disable_plane;
 		primary->get_hw_state = skl_plane_get_hw_state;
+		primary->check_plane = skl_plane_check;
+
 	} else if (INTEL_GEN(dev_priv) >= 4) {
 		intel_primary_formats = i965_primary_formats;
 		num_formats = ARRAY_SIZE(i965_primary_formats);
 		modifiers = i9xx_format_modifiers;
 
+		primary->max_stride = i9xx_plane_max_stride;
 		primary->update_plane = i9xx_update_plane;
 		primary->disable_plane = i9xx_disable_plane;
 		primary->get_hw_state = i9xx_plane_get_hw_state;
+		primary->check_plane = i9xx_plane_check;
+
 	} else {
 		intel_primary_formats = i8xx_primary_formats;
 		num_formats = ARRAY_SIZE(i8xx_primary_formats);
 		modifiers = i9xx_format_modifiers;
 
+		primary->max_stride = i9xx_plane_max_stride;
 		primary->update_plane = i9xx_update_plane;
 		primary->disable_plane = i9xx_disable_plane;
 		primary->get_hw_state = i9xx_plane_get_hw_state;
+		primary->check_plane = i9xx_plane_check;
+
 	}
 
 	if (INTEL_GEN(dev_priv) >= 9)
@@ -13483,11 +13526,13 @@ intel_cursor_plane_create(struct drm_i915_private *dev_priv,
 	cursor->frontbuffer_bit = INTEL_FRONTBUFFER_CURSOR(pipe);
 
 	if (IS_I845G(dev_priv) || IS_I865G(dev_priv)) {
+		cursor->max_stride = i845_cursor_max_stride;
 		cursor->update_plane = i845_update_cursor;
 		cursor->disable_plane = i845_disable_cursor;
 		cursor->get_hw_state = i845_cursor_get_hw_state;
 		cursor->check_plane = i845_check_cursor;
 	} else {
+		cursor->max_stride = i9xx_cursor_max_stride;
 		cursor->update_plane = i9xx_update_cursor;
 		cursor->disable_plane = i9xx_disable_cursor;
 		cursor->get_hw_state = i9xx_cursor_get_hw_state;
@@ -13944,14 +13989,15 @@ static void intel_setup_outputs(struct drm_i915_private *dev_priv)
 static void intel_user_framebuffer_destroy(struct drm_framebuffer *fb)
 {
 	struct intel_framebuffer *intel_fb = to_intel_framebuffer(fb);
+	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 
 	drm_framebuffer_cleanup(fb);
 
-	i915_gem_object_lock(intel_fb->obj);
-	WARN_ON(!intel_fb->obj->framebuffer_references--);
-	i915_gem_object_unlock(intel_fb->obj);
+	i915_gem_object_lock(obj);
+	WARN_ON(!obj->framebuffer_references--);
+	i915_gem_object_unlock(obj);
 
-	i915_gem_object_put(intel_fb->obj);
+	i915_gem_object_put(obj);
 
 	kfree(intel_fb);
 }
@@ -13960,8 +14006,7 @@ static int intel_user_framebuffer_create_handle(struct drm_framebuffer *fb,
 						struct drm_file *file,
 						unsigned int *handle)
 {
-	struct intel_framebuffer *intel_fb = to_intel_framebuffer(fb);
-	struct drm_i915_gem_object *obj = intel_fb->obj;
+	struct drm_i915_gem_object *obj = intel_fb_obj(fb);
 
 	if (obj->userptr.mm) {
 		DRM_DEBUG("attempting to use a userptr for a framebuffer, denied\n");
@@ -14231,9 +14276,9 @@ static int intel_framebuffer_init(struct intel_framebuffer *intel_fb,
 				      i, fb->pitches[i], stride_alignment);
 			goto err;
 		}
-	}
 
-	intel_fb->obj = obj;
+		fb->obj[i] = &obj->base;
+	}
 
 	ret = intel_fill_fb_info(dev_priv, fb);
 	if (ret)
@@ -15223,6 +15268,8 @@ static void intel_modeset_readout_hw_state(struct drm_device *dev)
 		memset(&crtc->base.mode, 0, sizeof(crtc->base.mode));
 		if (crtc_state->base.active) {
 			intel_mode_from_pipe_config(&crtc->base.mode, crtc_state);
+			crtc->base.mode.hdisplay = crtc_state->pipe_src_w;
+			crtc->base.mode.vdisplay = crtc_state->pipe_src_h;
 			intel_mode_from_pipe_config(&crtc_state->base.adjusted_mode, crtc_state);
 			WARN_ON(drm_atomic_set_mode_for_crtc(crtc->base.state, &crtc->base.mode));
 
@@ -15438,7 +15485,6 @@ void intel_connector_unregister(struct drm_connector *connector)
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 
 	intel_backlight_device_unregister(intel_connector);
-	intel_panel_destroy_backlight(connector);
 }
 
 static void intel_hpd_poll_fini(struct drm_device *dev)

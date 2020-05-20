@@ -506,6 +506,9 @@ int drm_dev_init(struct drm_device *dev,
 	dev->dev = get_device(parent);
 	dev->driver = driver;
 
+	/* no per-device feature limits by default */
+	dev->driver_features = ~0u;
+
 	INIT_LIST_HEAD(&dev->filelist);
 	INIT_LIST_HEAD(&dev->filelist_internal);
 	INIT_LIST_HEAD(&dev->clientlist);
@@ -974,6 +977,7 @@ static const struct file_operations drm_stub_fops = {
 static void drm_core_exit(void)
 {
 	unregister_chrdev(DRM_MAJOR, "drm");
+	drm_trace_cleanup();
 	debugfs_remove_recursive(drm_debugfs_root);
 	drm_sysfs_destroy();
 	idr_destroy(&drm_minors_idr);
@@ -1007,6 +1011,8 @@ static int __init drm_core_init(void)
 		DRM_ERROR(
 			  "Cannot create /sys/kernel/debug/dri/drm_master_relax\n");
 	}
+
+	WARN_ON(drm_trace_init(drm_debugfs_root));
 
 	ret = register_chrdev(DRM_MAJOR, "drm", &drm_stub_fops);
 	if (ret < 0)

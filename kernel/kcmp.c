@@ -242,6 +242,8 @@ err_no_task:
 	return -ESRCH;
 }
 
+EXPORT_SYMBOL(sys_kcmp);
+
 static __init int kcmp_cookies_init(void)
 {
 	int i;
