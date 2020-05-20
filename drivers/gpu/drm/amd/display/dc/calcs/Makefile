@@ -24,13 +24,15 @@
 # It calculates Bandwidth and Watermarks values for HW programming
 #
 
-ifneq ($(call cc-option, -mpreferred-stack-boundary=4),)
-	cc_stack_align := -mpreferred-stack-boundary=4
-else ifneq ($(call cc-option, -mstack-alignment=16),)
-	cc_stack_align := -mstack-alignment=16
+calcs_ccflags := -mhard-float -msse
+
+ifneq ($(cc-name),clang)
+calcs_ccflags += -mpreferred-stack-boundary=4
 endif
 
-calcs_ccflags := -mhard-float -msse $(cc_stack_align)
+ifeq ($(cc-name),clang)
+calcs_ccflags += -msse2
+endif
 
 CFLAGS_dcn_calcs.o := $(calcs_ccflags)
 CFLAGS_dcn_calc_auto.o := $(calcs_ccflags)

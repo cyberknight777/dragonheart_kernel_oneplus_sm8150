@@ -332,6 +332,8 @@ struct pp_hwmgr_func {
 	                                bool lock);
 	int (*powergate_mmhub)(struct pp_hwmgr *hwmgr);
 	int (*smus_notify_pwe)(struct pp_hwmgr *hwmgr);
+	int (*powergate_sdma)(struct pp_hwmgr *hwmgr, bool bgate);
+	int (*enable_mgpu_fan_boost)(struct pp_hwmgr *hwmgr);
 };
 
 struct pp_table_func {
@@ -587,6 +589,7 @@ struct phm_ppt_v3_information
 	uint32_t *power_saving_clock_max;
 	uint32_t *power_saving_clock_min;
 
+	uint8_t *od_feature_capabilities;
 	uint32_t *od_settings_max;
 	uint32_t *od_settings_min;
 
@@ -735,7 +738,6 @@ struct pp_hwmgr {
 	void *smu_backend;
 	const struct pp_smumgr_func *smumgr_funcs;
 	bool is_kicker;
-	bool reload_fw;
 
 	enum PP_DAL_POWERLEVEL dal_power_level;
 	struct phm_dynamic_state_info dyn_state;

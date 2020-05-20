@@ -223,6 +223,45 @@ static inline struct drm_printer drm_debug_printer(const char *prefix)
 	return p;
 }
 
+#ifdef CONFIG_DEBUG_FS
+
+int drm_trace_init(struct dentry *debugfs_root);
+bool drm_trace_enabled(u32 category);
+__printf(1, 2)
+void drm_trace_printf(const char *format, ...);
+__printf(2, 3)
+void drm_dev_trace_printf(const struct device *dev, const char *format, ...);
+void drm_trace_cleanup(void);
+
+#else
+
+static inline int drm_trace_init(struct dentry *debugfs_root)
+{
+	return 0;
+}
+
+static inline bool drm_trace_enabled(u32 category)
+{
+	return false;
+}
+
+__printf(1, 2)
+static inline void drm_trace_printf(const char *format, ...)
+{
+}
+
+__printf(2, 3)
+static inline void drm_dev_trace_printf(const struct device *dev,
+					const char *format, ...)
+{
+}
+
+static inline void drm_trace_cleanup(void)
+{
+}
+
+#endif
+
 /*
  * The following categories are defined:
  *
@@ -381,7 +420,7 @@ void drm_err(const char *format, ...);
 
 #define	DRM_DEV_DEBUG_DP(dev, fmt, ...)					\
 	drm_dev_dbg(dev, DRM_UT_DP, fmt, ## __VA_ARGS__)
-#define DRM_DEBUG_DP(dev, fmt, ...)					\
+#define DRM_DEBUG_DP(fmt, ...)						\
 	drm_dbg(DRM_UT_DP, fmt, ## __VA_ARGS__)
 
 #define _DRM_DEV_DEFINE_DEBUG_RATELIMITED(dev, category, fmt, ...)	\

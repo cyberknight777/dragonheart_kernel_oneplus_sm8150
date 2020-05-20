@@ -2,6 +2,8 @@
 #ifndef _INTEL_RINGBUFFER_H_
 #define _INTEL_RINGBUFFER_H_
 
+#include <drm/drm_util.h>
+
 #include <linux/hashtable.h>
 #include "i915_gem_batch_pool.h"
 #include "i915_gem_request.h"

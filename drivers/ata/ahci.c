@@ -45,6 +45,7 @@
 #include <linux/msi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_cmnd.h>
+#include <scsi/scsi_device.h>
 #include <linux/libata.h>
 #include <linux/ahci-remap.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
@@ -88,6 +89,7 @@ enum board_ids {
 
 static int ahci_init_one(struct pci_dev *pdev, const struct pci_device_id *ent);
 static void ahci_remove_one(struct pci_dev *dev);
+static void ahci_shutdown_one(struct pci_dev *dev);
 static int ahci_vt8251_hardreset(struct ata_link *link, unsigned int *class,
 				 unsigned long deadline);
 static int ahci_avn_hardreset(struct ata_link *link, unsigned int *class,
@@ -96,6 +98,8 @@ static void ahci_mcp89_apple_enable(struct pci_dev *pdev);
 static bool is_mcp89_apple(struct pci_dev *pdev);
 static int ahci_p5wdh_hardreset(struct ata_link *link, unsigned int *class,
 				unsigned long deadline);
+static int ahci_slave_configure(struct scsi_device *sdev);
+
 #ifdef CONFIG_PM
 static int ahci_pci_device_runtime_suspend(struct device *dev);
 static int ahci_pci_device_runtime_resume(struct device *dev);
@@ -107,6 +111,7 @@ static int ahci_pci_device_resume(struct device *dev);
 
 static struct scsi_host_template ahci_sht = {
 	AHCI_SHT("ahci"),
+	.slave_configure	= ahci_slave_configure,
 };
 
 static struct ata_port_operations ahci_vt8251_ops = {
@@ -586,6 +591,7 @@ static struct pci_driver ahci_pci_driver = {
 	.id_table		= ahci_pci_tbl,
 	.probe			= ahci_init_one,
 	.remove			= ahci_remove_one,
+	.shutdown		= ahci_shutdown_one,
 	.driver = {
 		.pm		= &ahci_pci_pm_ops,
 	},
@@ -1429,6 +1435,27 @@ static inline void ahci_gtf_filter_workaround(struct ata_host *host)
 {}
 #endif
 
+static int ahci_slave_configure(struct scsi_device *sdev)
+{
+	/*
+	 * Machines cutting power to the SSD during a warm reboot must send
+	 * a STANDBY_IMMEDIATE before to prevent unclean shutdown of the disk.
+	 */
+	static struct dmi_system_id sysids[] = {
+		{
+			/* x86-samus, the Chromebook Pixel 2. */
+			.matches = {
+				DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+				DMI_MATCH(DMI_PRODUCT_NAME, "Samus"),
+			},
+		},
+		{ /* sentinel */ }
+	};
+	if (dmi_check_system(sysids))
+		sdev->send_stop_reboot = 1;
+	return ata_scsi_slave_config(sdev);
+}
+
 /*
  * On the Acer Aspire Switch Alpha 12, sometimes all SATA ports are detected
  * as DUMMY, or detected but eventually get a "link down" and never get up
@@ -1821,6 +1848,11 @@ static int ahci_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	pm_runtime_put_noidle(&pdev->dev);
 	return 0;
+}
+
+static void ahci_shutdown_one(struct pci_dev *pdev)
+{
+	ata_pci_shutdown_one(pdev);
 }
 
 static void ahci_remove_one(struct pci_dev *pdev)

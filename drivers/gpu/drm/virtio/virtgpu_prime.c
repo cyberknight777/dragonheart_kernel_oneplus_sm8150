@@ -33,24 +33,20 @@ struct sg_table *virtgpu_gem_prime_get_sg_table(struct drm_gem_object *gobj)
 	return drm_prime_pages_to_sg(obj->tbo.ttm->pages, npages);
 }
 
-void *virtgpu_gem_prime_vmap(struct drm_gem_object *gobj)
+void *virtgpu_gem_prime_vmap(struct drm_gem_object *obj)
 {
-	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
+	struct virtio_gpu_object *bo = gem_to_virtio_gpu_obj(obj);
 	int ret;
 
-	ret = ttm_bo_kmap(&obj->tbo, 0, obj->tbo.num_pages,
-			  &obj->dma_buf_vmap);
+	ret = virtio_gpu_object_kmap(bo);
 	if (ret)
-		return ERR_PTR(ret);
-
-	return obj->dma_buf_vmap.virtual;
+		return NULL;
+	return bo->vmap;
 }
 
-void virtgpu_gem_prime_vunmap(struct drm_gem_object *gobj, void *vaddr)
+void virtgpu_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
 {
-	struct virtio_gpu_object *obj = gem_to_virtio_gpu_obj(gobj);
-
-	ttm_bo_kunmap(&obj->dma_buf_vmap);
+	virtio_gpu_object_kunmap(gem_to_virtio_gpu_obj(obj));
 }
 
 int virtgpu_gem_prime_mmap(struct drm_gem_object *gobj,

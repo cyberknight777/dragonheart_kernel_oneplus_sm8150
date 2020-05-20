@@ -32,7 +32,6 @@
 #include <asm/ioctls.h>
 
 #include <net/bluetooth/bluetooth.h>
-#include <net/bluetooth/hci_le_splitter.h>
 #include <linux/proc_fs.h>
 
 #include "leds.h"
@@ -454,8 +453,6 @@ unsigned int bt_sock_poll(struct file *file, struct socket *sock,
 	struct sock *sk = sock->sk;
 	unsigned int mask = 0;
 
-	BT_DBG("sock %p, sk %p", sock, sk);
-
 	poll_wait(file, sk_sleep(sk), wait);
 
 	if (sk->sk_state == BT_LISTEN)
@@ -783,10 +780,6 @@ static int __init bt_init(void)
 	}
 
 	BT_INFO("HCI device and connection manager initialized");
-
-	err = hci_le_splitter_sysfs_init();
-	if (err < 0)
-		goto error;
 
 	err = hci_sock_init();
 	if (err < 0)

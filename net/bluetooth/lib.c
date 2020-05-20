@@ -204,6 +204,22 @@ void bt_dbg(const char *format, ...)
 }
 EXPORT_SYMBOL(bt_dbg);
 
+void bt_warn_ratelimited(const char *format, ...)
+{
+	struct va_format vaf;
+	va_list args;
+
+	va_start(args, format);
+
+	vaf.fmt = format;
+	vaf.va = &args;
+
+	pr_warn_ratelimited("%pV", &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(bt_warn_ratelimited);
+
 void bt_err_ratelimited(const char *format, ...)
 {
 	struct va_format vaf;

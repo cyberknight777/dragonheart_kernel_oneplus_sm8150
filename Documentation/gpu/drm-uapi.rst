@@ -290,6 +290,15 @@ Debugfs Support
 .. kernel-doc:: drivers/gpu/drm/drm_debugfs.c
    :export:
 
+DRM Tracing
+---------------
+
+.. kernel-doc:: drivers/gpu/drm/drm_trace.c
+   :doc: DRM Tracing
+
+.. kernel-doc:: drivers/gpu/drm/drm_trace.c
+   :internal:
+
 Sysfs Support
 =============
 

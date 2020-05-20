@@ -292,6 +292,11 @@ struct kvm_mmu_page {
 	bool unsync;
 	bool lpage_disallowed; /* Can't be replaced by an equiv large page */
 	int root_count;          /* Currently serving as active root */
+#ifdef CONFIG_KSTALED
+	atomic_t ref_count;
+	struct rcu_head rcu_head;
+	struct list_head pgtbl_lh;
+#endif
 	unsigned int unsync_children;
 	struct kvm_rmap_head parent_ptes; /* rmap pointers to parent sptes */
 
@@ -859,6 +864,10 @@ struct kvm_arch {
 	bool x2apic_broadcast_quirk_disabled;
 
 	struct task_struct *nx_lpage_recovery_thread;
+#ifdef CONFIG_KSTALED
+	spinlock_t pgtbl_list_lock;
+	struct list_head pgtbl_list;
+#endif
 };
 
 struct kvm_vm_stat {
@@ -1006,7 +1015,7 @@ struct kvm_x86_ops {
 	void (*load_eoi_exitmap)(struct kvm_vcpu *vcpu, u64 *eoi_exit_bitmap);
 	void (*set_virtual_apic_mode)(struct kvm_vcpu *vcpu);
 	void (*set_apic_access_page_addr)(struct kvm_vcpu *vcpu, hpa_t hpa);
-	void (*deliver_posted_interrupt)(struct kvm_vcpu *vcpu, int vector);
+	int (*deliver_posted_interrupt)(struct kvm_vcpu *vcpu, int vector);
 	int (*sync_pir_to_irr)(struct kvm_vcpu *vcpu);
 	int (*set_tss_addr)(struct kvm *kvm, unsigned int addr);
 	int (*get_tdp_level)(struct kvm_vcpu *vcpu);
@@ -1032,7 +1041,7 @@ struct kvm_x86_ops {
 	bool (*mpx_supported)(void);
 	bool (*xsaves_supported)(void);
 
-	int (*check_nested_events)(struct kvm_vcpu *vcpu, bool external_intr);
+	int (*check_nested_events)(struct kvm_vcpu *vcpu);
 
 	void (*sched_in)(struct kvm_vcpu *kvm, int cpu);
 

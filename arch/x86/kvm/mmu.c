@@ -1165,12 +1165,12 @@ static bool mmu_gfn_lpage_is_disallowed(struct kvm_vcpu *vcpu, gfn_t gfn,
 	return __mmu_gfn_lpage_is_disallowed(gfn, level, slot);
 }
 
-static int host_mapping_level(struct kvm *kvm, gfn_t gfn)
+static int host_mapping_level(struct kvm_vcpu *vcpu, gfn_t gfn)
 {
 	unsigned long page_size;
 	int i, ret = 0;
 
-	page_size = kvm_host_page_size(kvm, gfn);
+	page_size = kvm_host_page_size(vcpu, gfn);
 
 	for (i = PT_PAGE_TABLE_LEVEL; i <= PT_MAX_HUGEPAGE_LEVEL; ++i) {
 		if (page_size >= KVM_HPAGE_SIZE(i))
@@ -1220,7 +1220,7 @@ static int mapping_level(struct kvm_vcpu *vcpu, gfn_t large_gfn,
 	if (unlikely(*force_pt_level))
 		return PT_PAGE_TABLE_LEVEL;
 
-	host_level = host_mapping_level(vcpu->kvm, large_gfn);
+	host_level = host_mapping_level(vcpu, large_gfn);
 
 	if (host_level == PT_PAGE_TABLE_LEVEL)
 		return host_level;
@@ -2002,15 +2002,56 @@ static inline void kvm_mod_used_mmu_pages(struct kvm *kvm, int nr)
 	percpu_counter_add(&kvm_total_used_mmu_pages, nr);
 }
 
-static void kvm_mmu_free_page(struct kvm_mmu_page *sp)
+
+static void __kvm_mmu_free_page(struct kvm_mmu_page *sp)
 {
-	MMU_WARN_ON(!is_empty_shadow_page(sp->spt));
-	hlist_del(&sp->hash_link);
-	list_del(&sp->link);
 	free_page((unsigned long)sp->spt);
 	if (!sp->role.direct)
 		free_page((unsigned long)sp->gfns);
 	kmem_cache_free(mmu_page_header_cache, sp);
+}
+
+#ifdef CONFIG_KSTALED
+static void kvm_mmu_free_page_rcu(struct rcu_head *rcu_head)
+{
+	struct kvm_mmu_page *sp = container_of(rcu_head, struct kvm_mmu_page,
+					       rcu_head);
+	__kvm_mmu_free_page(sp);
+
+}
+
+static bool kvm_mmu_dec_page_ref(struct kvm *kvm, struct kvm_mmu_page *sp)
+{
+	if (!atomic_dec_and_test(&sp->ref_count))
+		return false;
+
+	if (sp->role.level <= PT_DIRECTORY_LEVEL) {
+		spin_lock(&kvm->arch.pgtbl_list_lock);
+		list_del_rcu(&sp->pgtbl_lh);
+		spin_unlock(&kvm->arch.pgtbl_list_lock);
+	}
+
+	call_rcu(&sp->rcu_head, kvm_mmu_free_page_rcu);
+
+	return true;
+}
+
+static bool mmu_hold_pgtbl(struct kvm *kvm, struct kvm_mmu_page *sp)
+{
+	return atomic_inc_not_zero(&sp->ref_count);
+}
+#endif
+
+static void kvm_mmu_free_page(struct kvm *kvm, struct kvm_mmu_page *sp)
+{
+	MMU_WARN_ON(!is_empty_shadow_page(sp->spt));
+	hlist_del(&sp->hash_link);
+	list_del(&sp->link);
+#ifdef CONFIG_KSTALED
+	kvm_mmu_dec_page_ref(kvm, sp);
+#else
+	__kvm_mmu_free_page(sp);
+#endif
 }
 
 static unsigned kvm_page_table_hashfn(gfn_t gfn)
@@ -2056,6 +2097,9 @@ static struct kvm_mmu_page *kvm_mmu_alloc_page(struct kvm_vcpu *vcpu, int direct
 	 * this feature. See the comments in kvm_zap_obsolete_pages().
 	 */
 	list_add(&sp->link, &vcpu->kvm->arch.active_mmu_pages);
+#ifdef CONFIG_KSTALED
+	atomic_set(&sp->ref_count, 1);
+#endif
 	kvm_mod_used_mmu_pages(vcpu->kvm, +1);
 	return sp;
 }
@@ -2470,6 +2514,15 @@ static struct kvm_mmu_page *kvm_mmu_get_page(struct kvm_vcpu *vcpu,
 
 	sp->gfn = gfn;
 	sp->role = role;
+
+#ifdef CONFIG_KSTALED
+	if (role.level <= PT_DIRECTORY_LEVEL) {
+		spin_lock(&vcpu->kvm->arch.pgtbl_list_lock);
+		list_add_tail_rcu(&sp->pgtbl_lh, &vcpu->kvm->arch.pgtbl_list);
+		spin_unlock(&vcpu->kvm->arch.pgtbl_list_lock);
+	}
+#endif
+
 	hlist_add_head(&sp->hash_link,
 		&vcpu->kvm->arch.mmu_page_hash[kvm_page_table_hashfn(gfn)]);
 	if (!direct) {
@@ -2718,7 +2771,7 @@ static void kvm_mmu_commit_zap_page(struct kvm *kvm,
 
 	list_for_each_entry_safe(sp, nsp, invalid_list, link) {
 		WARN_ON(!sp->role.invalid || sp->root_count);
-		kvm_mmu_free_page(sp);
+		kvm_mmu_free_page(kvm, sp);
 	}
 }
 
@@ -3177,7 +3230,7 @@ static void transparent_hugepage_adjust(struct kvm_vcpu *vcpu,
 	 * here.
 	 */
 	if (!is_error_noslot_pfn(pfn) && !kvm_is_reserved_pfn(pfn) &&
-	    level == PT_PAGE_TABLE_LEVEL &&
+	    !kvm_is_zone_device_pfn(pfn) && level == PT_PAGE_TABLE_LEVEL &&
 	    PageTransCompoundMap(pfn_to_page(pfn)) &&
 	    !mmu_gfn_lpage_is_disallowed(vcpu, gfn, PT_DIRECTORY_LEVEL)) {
 		unsigned long mask;
@@ -5181,6 +5234,10 @@ void kvm_mmu_init_vm(struct kvm *kvm)
 	node->track_write = kvm_mmu_pte_write;
 	node->track_flush_slot = kvm_mmu_invalidate_zap_pages_in_memslot;
 	kvm_page_track_register_notifier(kvm, node);
+#ifdef CONFIG_KSTALED
+	spin_lock_init(&kvm->arch.pgtbl_list_lock);
+	INIT_LIST_HEAD(&kvm->arch.pgtbl_list);
+#endif
 }
 
 void kvm_mmu_uninit_vm(struct kvm *kvm)
@@ -5344,9 +5401,9 @@ restart:
 		 * the guest, and the guest page table is using 4K page size
 		 * mapping if the indirect sp has level = 1.
 		 */
-		if (sp->role.direct &&
-			!kvm_is_reserved_pfn(pfn) &&
-			PageTransCompoundMap(pfn_to_page(pfn))) {
+		if (sp->role.direct && !kvm_is_reserved_pfn(pfn) &&
+		    !kvm_is_zone_device_pfn(pfn) &&
+		    PageTransCompoundMap(pfn_to_page(pfn))) {
 			drop_spte(kvm, sptep);
 			need_tlb_flush = 1;
 			goto restart;
@@ -5721,6 +5778,136 @@ unsigned int kvm_mmu_calculate_mmu_pages(struct kvm *kvm)
 
 	return nr_mmu_pages;
 }
+
+#ifdef CONFIG_KSTALED
+static bool test_and_reset_access_lockless(struct kvm *kvm, u64 *ptep,
+					   u64 old_pte,
+					   int level, bool ad_enabled,
+					   int *hot)
+{
+	bool succeeded;
+	u64 new_pte = old_pte;
+	bool accessed = false;
+	kvm_pfn_t pfn;
+	bool huge;
+	struct page *page;
+	struct page *head_page;
+
+	pfn = spte_to_pfn(old_pte);
+	huge = is_large_pte(old_pte);
+
+	if ((level > PT_PAGE_TABLE_LEVEL && !huge) ||
+	     kvm_is_reserved_pfn(pfn))
+		return true;
+
+	if (ad_enabled) {
+		if (old_pte & shadow_accessed_mask) {
+			new_pte &= ~shadow_accessed_mask;
+			accessed = true;
+		}
+	} else {
+		MMU_WARN_ON(shadow_acc_track_mask == 0);
+
+		if (!is_access_track_spte(old_pte)) {
+			new_pte = mark_spte_for_access_track(old_pte);
+			accessed = true;
+		}
+	}
+
+	if (!accessed)
+		return true;
+
+	page = pfn_to_page(pfn);
+
+	/*
+	 * We need to get a page ref to ensure that it doesn't get
+	 * freed/reused during the execution of
+	 * kstaled_update_age() below. We could also just acquire
+	 * the kvm mmu lock at the start of mmu_scan_accessed(),
+	 * which might well be cheaper in some cases. But getting a page
+	 * ref instead does have the benefit that it won't block vcpu
+	 * threads.
+	 */
+	head_page = kstaled_get_page_ref(page);
+
+	if (!head_page)
+		return true;
+
+	BUG_ON(new_pte == old_pte);
+
+	succeeded = cmpxchg64(ptep, old_pte, new_pte) == old_pte;
+	if (succeeded) {
+		kstaled_update_age(head_page);
+		(*hot)++;
+	}
+
+	kstaled_put_page_ref(head_page);
+
+	return succeeded;
+}
+
+static int spte_test_and_reset_access_lockless(struct kvm *kvm,
+						u64 *sptep, uint level)
+{
+	bool succeeded;
+	uint retry_count = 0;
+	int hot = 0;
+
+	do {
+		u64 old_spte = mmu_spte_get_lockless(sptep);
+
+		if (!is_shadow_present_pte(old_spte))
+			return 0;
+
+		succeeded = test_and_reset_access_lockless(kvm, sptep,
+				old_spte, level,
+				spte_ad_enabled(old_spte), &hot);
+	} while (!succeeded && retry_count++ < 2);
+
+	return hot;
+}
+/*
+ * Expects to be called with rcu_read_lock held.
+ */
+static int mmu_scan_accessed(struct kvm *kvm,
+			     struct kvm_mmu_page *sp)
+{
+	int i;
+	int hot = 0;
+
+	if (!mmu_hold_pgtbl(kvm, sp))
+		return 0;
+
+	if (sp->role.invalid)
+		goto out;
+
+	for (i = 0; i < PT64_ENT_PER_PAGE; i++)
+		hot += spte_test_and_reset_access_lockless(kvm,
+							&sp->spt[i],
+							sp->role.level);
+
+	rcu_read_unlock();
+	cond_resched();
+	rcu_read_lock();
+out:
+	kvm_mmu_dec_page_ref(kvm, sp);
+	return hot;
+}
+
+int kvm_arch_mmu_update_ages(struct kvm *kvm)
+{
+	struct kvm_mmu_page *mmu_page;
+	int hot;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(mmu_page, &kvm->arch.pgtbl_list, pgtbl_lh) {
+		hot += mmu_scan_accessed(kvm, mmu_page);
+	}
+	rcu_read_unlock();
+
+	return hot;
+}
+#endif
 
 void kvm_mmu_destroy(struct kvm_vcpu *vcpu)
 {
