@@ -199,15 +199,17 @@ struct iwl_phy_context_cmd_v1 {
  * @ci: channel info
  * @rxchain_info: ???
  * @dsp_cfg_flags: set to 0
+ * @reserved: reserved to align to 64 bit
  */
 struct iwl_phy_context_cmd {
 	/* COMMON_INDEX_HDR_API_S_VER_1 */
 	__le32 id_and_color;
 	__le32 action;
 	/* PHY_CONTEXT_DATA_API_S_VER_3 */
-	__le32 lmac_id;
 	struct iwl_fw_channel_info ci;
+	__le32 lmac_id;
 	__le32 rxchain_info;
 	__le32 dsp_cfg_flags;
+	__le32 reserved;
 } __packed; /* PHY_CONTEXT_CMD_API_VER_3 */
 #endif /* __iwl_fw_api_phy_ctxt_h__ */
