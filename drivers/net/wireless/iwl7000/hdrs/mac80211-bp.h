@@ -1423,8 +1423,6 @@ static inline bool ieee80211_has_nan_iftype(unsigned int iftype)
 struct cfg80211_nan_conf {
 	u8 master_pref;
 	u8 bands;
-	u8 cdw_2g;
-	u8 cdw_5g;
 };
 
 enum nl80211_nan_function_type {
@@ -1513,14 +1511,6 @@ bool ieee80211_has_nan_iftype(unsigned int iftype)
 	return iftype & BIT(NL80211_IFTYPE_NAN);
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(4,9,0) */
-
-#if CFG80211_VERSION < KERNEL_VERSION(99,0,0)
-#define nan_conf_cdw_2g(conf) 1
-#define nan_conf_cdw_5g(conf) 1
-#else
-#define nan_conf_cdw_2g(conf) ((conf)->cdw_2g)
-#define nan_conf_cdw_5g(conf) ((conf)->cdw_5g)
-#endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
 #define beacon_ftm_len(beacon, m) 0
