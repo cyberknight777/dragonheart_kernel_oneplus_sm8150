@@ -2892,3 +2892,103 @@ static inline size_t cfg80211_rekey_akm(struct cfg80211_gtk_rekey_data *data)
 	return data->akm;
 #endif
 }
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
+/**
+ * struct cfg80211_he_bss_color - AP settings for BSS coloring
+ *
+ * @color: the current color.
+ * @disabled: is the feature disabled.
+ * @partial: define the AID equation.
+ */
+struct cfg80211_he_bss_color {
+	u8 color;
+	bool disabled;
+	bool partial;
+};
+
+/**
+ * struct ieee80211_he_bss_color - AP settings for BSS coloring
+ *
+ * @color: the current color.
+ * @disabled: is the feature disabled.
+ * @partial: define the AID equation.
+ */
+struct ieee80211_he_bss_color {
+	u8 color;
+	bool disabled;
+	bool partial;
+};
+
+/**
+ * enum nl80211_tid_config - TID config state
+ * @NL80211_TID_CONFIG_ENABLE: Enable config for the TID
+ * @NL80211_TID_CONFIG_DISABLE: Disable config for the TID
+ */
+enum nl80211_tid_config {
+	NL80211_TID_CONFIG_ENABLE,
+	NL80211_TID_CONFIG_DISABLE,
+};
+
+/**
+ * struct cfg80211_tid_cfg - TID specific configuration
+ * @config_override: Flag to notify driver to reset TID configuration
+ *	of the peer.
+ * @tids: bitmap of TIDs to modify
+ * @mask: bitmap of attributes indicating which parameter changed,
+ *	similar to &nl80211_tid_config_supp.
+ * @noack: noack configuration value for the TID
+ * @retry_long: retry count value
+ * @retry_short: retry count value
+ * @ampdu: Enable/Disable aggregation
+ * @rtscts: Enable/Disable RTS/CTS
+ */
+struct cfg80211_tid_cfg {
+	bool config_override;
+	u8 tids;
+	u32 mask;
+	enum nl80211_tid_config noack;
+	u8 retry_long, retry_short;
+	enum nl80211_tid_config ampdu;
+	enum nl80211_tid_config rtscts;
+};
+
+/**
+ * struct cfg80211_tid_config - TID configuration
+ * @peer: Station's MAC address
+ * @n_tid_conf: Number of TID specific configurations to be applied
+ * @tid_conf: Configuration change info
+ */
+struct cfg80211_tid_config {
+	const u8 *peer;
+	u32 n_tid_conf;
+	struct cfg80211_tid_cfg tid_conf[];
+};
+
+#define NL80211_EXT_FEATURE_CONTROL_PORT_NO_PREAUTH -1
+#define NL80211_EXT_FEATURE_DEL_IBSS_STA -1
+
+static inline bool
+cfg80211_crypto_control_port_no_preauth(struct cfg80211_crypto_settings *crypto)
+{
+	return false;
+}
+
+static inline unsigned long
+cfg80211_wiphy_tx_queue_len(struct wiphy *wiphy)
+{
+	return 0;
+}
+#else /* < 5.7 */
+static inline bool
+cfg80211_crypto_control_port_no_preauth(struct cfg80211_crypto_settings *crypto)
+{
+	return crypto->control_port_no_preauth;
+}
+
+static inline unsigned long
+cfg80211_wiphy_tx_queue_len(struct wiphy *wiphy)
+{
+	return wiphy->tx_queue_len;
+}
+#endif /* < 5.7 */

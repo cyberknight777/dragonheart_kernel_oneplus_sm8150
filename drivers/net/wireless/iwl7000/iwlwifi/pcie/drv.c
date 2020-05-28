@@ -836,6 +836,8 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	iwl_trans->hw_rf_id = iwl_read32(iwl_trans, CSR_HW_RF_ID);
 
+	iwl_trans->hw_rf_id = iwl_read32(iwl_trans, CSR_HW_RF_ID);
+
 	for (i = 0; i < ARRAY_SIZE(iwl_dev_info_table); i++) {
 		const struct iwl_dev_info *dev_info = &iwl_dev_info_table[i];
 		if ((dev_info->device == (u16)IWL_CFG_ANY ||

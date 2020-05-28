@@ -1056,7 +1056,8 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		      BSS_CHANGED_P2P_PS |
 		      BSS_CHANGED_TXPOWER |
 		      BSS_CHANGED_TWT |
-		      BSS_CHANGED_HE_OBSS_PD;
+		      BSS_CHANGED_HE_OBSS_PD |
+		      BSS_CHANGED_HE_BSS_COLOR;
 	int err;
 	int prev_beacon_int;
 
@@ -1076,9 +1077,6 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 	if (cfg_he_cap(params) && cfg_he_oper(params)) {
 		sdata->vif.bss_conf.he_support = true;
-		sdata->vif.bss_conf.bss_color =
-			le32_get_bits(cfg_he_oper(params)->he_oper_params,
-				      IEEE80211_HE_OPERATION_BSS_COLOR_MASK);
 		sdata->vif.bss_conf.htc_trig_based_pkt_ext =
 			le32_get_bits(cfg_he_oper(params)->he_oper_params,
 				      IEEE80211_HE_OPERATION_DFLT_PE_DURATION_MASK);
@@ -1106,6 +1104,8 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	sdata->control_port_no_encrypt = params->crypto.control_port_no_encrypt;
 	sdata->control_port_over_nl80211 =
 				cfg_control_port_over_nl80211(&params->crypto);
+	sdata->control_port_no_preauth =
+				cfg80211_crypto_control_port_no_preauth(&params->crypto);
 	sdata->encrypt_headroom = ieee80211_cs_headroom(sdata->local,
 							&params->crypto,
 							sdata->vif.type);
@@ -1117,6 +1117,8 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 			params->crypto.control_port_no_encrypt;
 		vlan->control_port_over_nl80211 =
 			cfg_control_port_over_nl80211(&params->crypto);
+		vlan->control_port_no_preauth =
+			cfg80211_crypto_control_port_no_preauth(&params->crypto);
 		vlan->encrypt_headroom =
 			ieee80211_cs_headroom(sdata->local,
 					      &params->crypto,
@@ -1130,6 +1132,10 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	sdata->vif.bss_conf.twt_responder = params->twt_responder;
 	memcpy(&sdata->vif.bss_conf.he_obss_pd, &params->he_obss_pd,
 	       sizeof(struct ieee80211_he_obss_pd));
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
+	memcpy(&sdata->vif.bss_conf.he_bss_color, &params->he_bss_color,
+	       sizeof(struct ieee80211_he_bss_color));
 #endif
 
 	sdata->vif.bss_conf.ssid_len = params->ssid_len;
@@ -4054,6 +4060,64 @@ ieee80211_abort_pmsr(struct wiphy *wiphy, struct wireless_dev *dev,
 }
 #endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
+static int ieee80211_set_tid_config(struct wiphy *wiphy,
+				    struct net_device *dev,
+				    struct cfg80211_tid_config *tid_conf)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct sta_info *sta;
+	int ret;
+
+	if (!sdata->local->ops->set_tid_config)
+		return -EOPNOTSUPP;
+
+	if (!tid_conf->peer)
+		return drv_set_tid_config(sdata->local, sdata, NULL, tid_conf);
+
+	mutex_lock(&sdata->local->sta_mtx);
+	sta = sta_info_get_bss(sdata, tid_conf->peer);
+	if (!sta) {
+		mutex_unlock(&sdata->local->sta_mtx);
+		return -ENOENT;
+	}
+
+	ret = drv_set_tid_config(sdata->local, sdata, &sta->sta, tid_conf);
+	mutex_unlock(&sdata->local->sta_mtx);
+
+	return ret;
+}
+#endif
+
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
+static int ieee80211_reset_tid_config(struct wiphy *wiphy,
+				      struct net_device *dev,
+				      const u8 *peer, u8 tid)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct sta_info *sta;
+	int ret;
+
+	if (!sdata->local->ops->reset_tid_config)
+		return -EOPNOTSUPP;
+
+	if (!peer)
+		return drv_reset_tid_config(sdata->local, sdata, NULL, tid);
+
+	mutex_lock(&sdata->local->sta_mtx);
+	sta = sta_info_get_bss(sdata, peer);
+	if (!sta) {
+		mutex_unlock(&sdata->local->sta_mtx);
+		return -ENOENT;
+	}
+
+	ret = drv_reset_tid_config(sdata->local, sdata, &sta->sta, tid);
+	mutex_unlock(&sdata->local->sta_mtx);
+
+	return ret;
+}
+#endif
+
 #if CFG80211_VERSION < KERNEL_VERSION(3,14,0)
 static int _wrap_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 			 struct ieee80211_channel *chan, bool offchan,
@@ -4229,5 +4293,11 @@ const struct cfg80211_ops mac80211_config_ops = {
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
 	.probe_mesh_link = ieee80211_probe_mesh_link,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
+	.set_tid_config = ieee80211_set_tid_config,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
+	.reset_tid_config = ieee80211_reset_tid_config,
 #endif
 };
