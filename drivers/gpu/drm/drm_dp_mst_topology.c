@@ -2497,10 +2497,18 @@ enum drm_connector_status drm_dp_mst_detect_port(struct drm_connector *connector
 {
 	enum drm_connector_status status = connector_status_disconnected;
 
+	/*
+	 * Take the destroy_connector_lock to avoid freeing the port/connector
+	 * while we do our EDID read.
+	 */
+	mutex_lock(&mgr->destroy_connector_lock);
+
 	/* we need to search for the port in the mgr in case its gone */
 	port = drm_dp_get_validated_port_ref(mgr, port);
-	if (!port)
+	if (!port) {
+		mutex_unlock(&mgr->destroy_connector_lock);
 		return connector_status_disconnected;
+	}
 
 	if (!port->ddps)
 		goto out;
@@ -2524,6 +2532,7 @@ enum drm_connector_status drm_dp_mst_detect_port(struct drm_connector *connector
 	}
 out:
 	drm_dp_put_port(port);
+	mutex_unlock(&mgr->destroy_connector_lock);
 	return status;
 }
 EXPORT_SYMBOL(drm_dp_mst_detect_port);
@@ -3091,9 +3100,13 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 			break;
 		}
 		list_del(&port->next);
-		mutex_unlock(&mgr->destroy_connector_lock);
 
-		kref_init(&port->kref);
+		/*
+		 * If you are here, you're experiencing a race where something
+		 * else is using this port. Try wrapping the racing code with
+		 * destroy_connector_lock like we did in drm_dp_mst_detect_port
+		 */
+		WARN_ON(kref_read(&port->kref) != 1);
 		INIT_LIST_HEAD(&port->next);
 
 		mgr->cbs->destroy_connector(mgr, port->connector);
@@ -3109,6 +3122,7 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 
 		kref_put(&port->kref, drm_dp_free_mst_port);
 		send_hotplug = true;
+		mutex_unlock(&mgr->destroy_connector_lock);
 	}
 	if (send_hotplug)
 		(*mgr->cbs->hotplug)(mgr);
