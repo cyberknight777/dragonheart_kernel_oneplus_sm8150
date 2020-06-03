@@ -3153,7 +3153,6 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 	struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *) rx->skb->data;
 	struct ieee80211_rx_status *status = IEEE80211_SKB_RXCB(rx->skb);
 	int len = rx->skb->len;
-	u8 action_code;
 
 	if (!ieee80211_is_action(mgmt->frame_control))
 		return RX_CONTINUE;
@@ -3270,16 +3269,6 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 
 		break;
 	case WLAN_CATEGORY_PUBLIC:
-		if (len < IEEE80211_MIN_ACTION_SIZE + 1)
-			goto invalid;
-		action_code = mgmt->u.action.u.action_code;
-		if (rx->sta && test_sta_flag(rx->sta, WLAN_STA_MFP) &&
-		    ieee80211_public_action_has_protected_dual(action_code)) {
-			/* FIXME: let userspace say it's OK with these */
-			goto invalid;
-		}
-		/* fall through */
-	case WLAN_CATEGORY_PROTECTED_DUAL_OF_PUBLIC_ACTION:
 		if (len < IEEE80211_MIN_ACTION_SIZE + 1)
 			goto invalid;
 		if (sdata->vif.type != NL80211_IFTYPE_STATION)
