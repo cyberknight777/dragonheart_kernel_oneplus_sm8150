@@ -2238,59 +2238,6 @@ static int iwl_trans_pcie_read_config32(struct iwl_trans *trans, u32 ofs,
 				     ofs, val);
 }
 
-static void iwl_trans_pcie_freeze_txq_timer(struct iwl_trans *trans,
-					    unsigned long txqs,
-					    bool freeze)
-{
-	int queue;
-
-	for_each_set_bit(queue, &txqs, BITS_PER_LONG) {
-		struct iwl_txq *txq = trans->txqs.txq[queue];
-		unsigned long now;
-
-		spin_lock_bh(&txq->lock);
-
-		now = jiffies;
-
-		if (txq->frozen == freeze)
-			goto next_queue;
-
-		IWL_DEBUG_TX_QUEUES(trans, "%s TXQ %d\n",
-				    freeze ? "Freezing" : "Waking", queue);
-
-		txq->frozen = freeze;
-
-		if (txq->read_ptr == txq->write_ptr)
-			goto next_queue;
-
-		if (freeze) {
-			if (unlikely(time_after(now,
-						txq->stuck_timer.expires))) {
-				/*
-				 * The timer should have fired, maybe it is
-				 * spinning right now on the lock.
-				 */
-				goto next_queue;
-			}
-			/* remember how long until the timer fires */
-			txq->frozen_expiry_remainder =
-				txq->stuck_timer.expires - now;
-			del_timer(&txq->stuck_timer);
-			goto next_queue;
-		}
-
-		/*
-		 * Wake a non-empty queue -> arm timer with the
-		 * remainder before it froze
-		 */
-		mod_timer(&txq->stuck_timer,
-			  now + txq->frozen_expiry_remainder);
-
-next_queue:
-		spin_unlock_bh(&txq->lock);
-	}
-}
-
 static void iwl_trans_pcie_block_txq_ptrs(struct iwl_trans *trans, bool block)
 {
 	int i;
@@ -3466,7 +3413,7 @@ static const struct iwl_trans_ops trans_ops_pcie = {
 	.send_cmd = iwl_trans_pcie_send_hcmd,
 
 	.tx = iwl_trans_pcie_tx,
-	.reclaim = iwl_trans_pcie_reclaim,
+	.reclaim = iwl_txq_reclaim,
 
 	.txq_disable = iwl_trans_pcie_txq_disable,
 	.txq_enable = iwl_trans_pcie_txq_enable,
@@ -3475,7 +3422,7 @@ static const struct iwl_trans_ops trans_ops_pcie = {
 
 	.wait_tx_queues_empty = iwl_trans_pcie_wait_txqs_empty,
 
-	.freeze_txq_timer = iwl_trans_pcie_freeze_txq_timer,
+	.freeze_txq_timer = iwl_trans_txq_freeze_timer,
 	.block_txq_ptrs = iwl_trans_pcie_block_txq_ptrs,
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	.debugfs_cleanup = iwl_trans_pcie_debugfs_cleanup,
@@ -3493,9 +3440,9 @@ static const struct iwl_trans_ops trans_ops_pcie_gen2 = {
 	.send_cmd = iwl_trans_pcie_gen2_send_hcmd,
 
 	.tx = iwl_txq_gen2_tx,
-	.reclaim = iwl_trans_pcie_reclaim,
+	.reclaim = iwl_txq_reclaim,
 
-	.set_q_ptrs = iwl_trans_pcie_set_q_ptrs,
+	.set_q_ptrs = iwl_txq_set_q_ptrs,
 
 	.txq_alloc = iwl_txq_dyn_alloc,
 	.txq_free = iwl_txq_dyn_free,
