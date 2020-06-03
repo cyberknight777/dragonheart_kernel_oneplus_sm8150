@@ -1417,10 +1417,7 @@ void iwl_trans_pcie_dyn_txq_free(struct iwl_trans *trans, int queue)
 		return;
 	}
 
-	iwl_pcie_gen2_txq_unmap(trans, queue);
-
-	iwl_pcie_gen2_txq_free_memory(trans, trans->txqs.txq[queue]);
-	trans->txqs.txq[queue] = NULL;
+	iwl_pcie_gen2_txq_free(trans, queue);
 
 	IWL_DEBUG_TX_QUEUES(trans, "Deactivate queue %d\n", queue);
 }
