@@ -370,6 +370,26 @@ void dev_coredumpsg(struct device *dev, struct scatterlist *table,
 #endif /* < 4.7 */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0)
+static inline bool backport_napi_complete_done(struct napi_struct *n, int work_done)
+{
+	if (unlikely(test_bit(NAPI_STATE_NPSVC, &n->state)))
+		return false;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
+	napi_complete(n);
+#else
+	napi_complete_done(n, work_done);
+#endif /* < 3.19 */
+	return true;
+}
+
+static inline bool backport_napi_complete(struct napi_struct *n)
+{
+	return backport_napi_complete_done(n, 0);
+}
+#define napi_complete_done LINUX_BACKPORT(napi_complete_done)
+#define napi_complete LINUX_BACKPORT(napi_complete)
+
 /* on earlier kernels, genl_unregister_family() modifies the struct */
 #define __genl_ro_after_init
 #else

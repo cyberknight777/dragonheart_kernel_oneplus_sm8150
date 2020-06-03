@@ -417,8 +417,7 @@ IWL_TRANS_GET_PCIE_TRANS(struct iwl_trans *trans)
 	return (void *)trans->trans_specific;
 }
 
-static inline void iwl_pcie_clear_irq(struct iwl_trans *trans,
-				      struct msix_entry *entry)
+static inline void iwl_pcie_clear_irq(struct iwl_trans *trans, int queue)
 {
 	/*
 	 * Before sending the interrupt the HW disables it to prevent
@@ -428,7 +427,7 @@ static inline void iwl_pcie_clear_irq(struct iwl_trans *trans,
 	 * write 1 clear (W1C) register, meaning that it's being clear
 	 * by writing 1 to the bit.
 	 */
-	iwl_write32(trans, CSR_MSIX_AUTOMASK_ST_AD, BIT(entry->entry));
+	iwl_write32(trans, CSR_MSIX_AUTOMASK_ST_AD, BIT(queue));
 }
 
 static inline struct iwl_trans *
@@ -461,7 +460,6 @@ int iwl_pcie_rx_stop(struct iwl_trans *trans);
 void iwl_pcie_rx_free(struct iwl_trans *trans);
 void iwl_pcie_free_rbs_pool(struct iwl_trans *trans);
 void iwl_pcie_rx_init_rxb_lists(struct iwl_rxq *rxq);
-int iwl_pcie_dummy_napi_poll(struct napi_struct *napi, int budget);
 void iwl_pcie_rxq_alloc_rbs(struct iwl_trans *trans, gfp_t priority,
 			    struct iwl_rxq *rxq);
 
