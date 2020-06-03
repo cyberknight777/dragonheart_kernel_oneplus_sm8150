@@ -100,8 +100,8 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		container_of(notif_wait, struct iwl_xvt, notif_wait);
 	struct iwl_xvt_alive_data *alive_data = data;
 	struct xvt_alive_resp_ver2 *palive2;
-	struct mvm_alive_resp_v3 *palive3;
-	struct mvm_alive_resp *palive4;
+	struct iwl_alive_ntf_v3 *palive3;
+	struct iwl_alive_ntf_v4 *palive4;
 	struct iwl_lmac_alive *lmac1, *lmac2;
 	struct iwl_umac_alive *umac;
 	u32 rx_packet_payload_size = iwl_rx_packet_payload_len(pkt);
@@ -141,7 +141,11 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 			umac = &palive3->umac_data;
 
 			IWL_DEBUG_FW(xvt, "Alive VER3\n");
-		} else if (rx_packet_payload_size == sizeof(*palive4)) {
+		} else if (rx_packet_payload_size == sizeof(*palive4) ||
+			   /* we don't use the SKU ID yet, so handle it as v4 */
+			   iwl_fw_lookup_notif_ver(xvt->fw,
+						   LONG_GROUP,
+						   UCODE_ALIVE_NTFY, 0) == 5) {
 			__le32 lmac2_err_ptr;
 
 			palive4 = (void *)pkt->data;
@@ -154,7 +158,7 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 			xvt->trans->dbg.lmac_error_event_table[1] =
 				le32_to_cpu(lmac2_err_ptr);
 
-			IWL_DEBUG_FW(xvt, "Alive VER4 CDB\n");
+			IWL_DEBUG_FW(xvt, "Alive VER4 or VER5 CDB\n");
 		} else {
 			IWL_ERR(xvt, "unrecognized alive notificatio\n");
 			return false;
@@ -195,7 +199,7 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	const struct fw_img *fw;
 	int ret;
 	enum iwl_ucode_type old_type = xvt->fwrt.cur_fw_img;
-	static const u16 alive_cmd[] = { MVM_ALIVE };
+	static const u16 alive_cmd[] = { UCODE_ALIVE_NTFY };
 	struct iwl_scd_txq_cfg_cmd cmd = {
 				.scd_queue = IWL_XVT_DEFAULT_TX_QUEUE,
 				.action = SCD_CFG_ENABLE_QUEUE,

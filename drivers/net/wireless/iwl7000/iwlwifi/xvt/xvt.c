@@ -105,7 +105,7 @@ module_exit(iwl_xvt_exit);
  * A warning will be triggered on violation.
  */
 static const struct iwl_hcmd_names iwl_xvt_cmd_names[] = {
-	HCMD_NAME(MVM_ALIVE),
+	HCMD_NAME(UCODE_ALIVE_NTFY),
 	HCMD_NAME(INIT_COMPLETE_NOTIF),
 	HCMD_NAME(TX_CMD),
 	HCMD_NAME(SCD_QUEUE_CFG),
