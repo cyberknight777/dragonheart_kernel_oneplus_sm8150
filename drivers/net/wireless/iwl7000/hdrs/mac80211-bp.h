@@ -2827,6 +2827,8 @@ static inline void cfg80211_bss_iter(struct wiphy *wiphy,
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
+#define NL80211_BAND_6GHZ 3
+
 static inline bool nl80211_is_6ghz(enum nl80211_band band)
 {
 	return false;
