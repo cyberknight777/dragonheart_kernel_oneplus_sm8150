@@ -144,7 +144,7 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		} else if (rx_packet_payload_size == sizeof(*palive4) ||
 			   /* we don't use the SKU ID yet, so handle it as v4 */
 			   iwl_fw_lookup_notif_ver(xvt->fw,
-						   LONG_GROUP,
+						   LEGACY_GROUP,
 						   UCODE_ALIVE_NTFY, 0) == 5) {
 			__le32 lmac2_err_ptr;
 
