@@ -1484,37 +1484,6 @@ unlock:
 	hci_dev_unlock(hdev);
 }
 
-static void hci_cc_set_event_mask(struct hci_dev *hdev, struct sk_buff *skb)
-{
-	u8 status = *((u8 *)skb->data);
-	u8 *events;
-
-	BT_DBG("%s status 0x%2.2x", hdev->name, status);
-
-	if (status) {
-		BT_ERR("Set Event mask failed! status %d", status);
-		return;
-	}
-
-	hci_dev_lock(hdev);
-	events = hci_sent_cmd_data(hdev, HCI_OP_SET_EVENT_MASK);
-	if (events)
-		memcpy(hdev->event_mask, events, sizeof(hdev->event_mask));
-	else
-		BT_ERR("Set Event mask failed! events is NULL");
-
-	BT_DBG("Event mask byte 0: 0x%02x  byte 1: 0x%02x",
-	       hdev->event_mask[0], hdev->event_mask[1]);
-	BT_DBG("Event mask byte 2: 0x%02x  byte 3: 0x%02x",
-	       hdev->event_mask[2], hdev->event_mask[3]);
-	BT_DBG("Event mask byte 4: 0x%02x  byte 5: 0x%02x",
-	       hdev->event_mask[4], hdev->event_mask[5]);
-	BT_DBG("Event mask byte 6: 0x%02x  byte 7: 0x%02x",
-	       hdev->event_mask[6], hdev->event_mask[7]);
-
-	hci_dev_unlock(hdev);
-}
-
 static void hci_cc_write_ssp_debug_mode(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	u8 status = *((u8 *) skb->data);
@@ -3206,10 +3175,6 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 
 	case HCI_OP_WRITE_SSP_DEBUG_MODE:
 		hci_cc_write_ssp_debug_mode(hdev, skb);
-		break;
-
-	case HCI_OP_SET_EVENT_MASK:
-		hci_cc_set_event_mask(hdev, skb);
 		break;
 
 	default:
