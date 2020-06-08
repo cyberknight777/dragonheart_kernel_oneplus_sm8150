@@ -1066,9 +1066,10 @@ struct iwl_dump_ini_region_data {
 	struct iwl_fwrt_dump_data *dump_data;
 };
 
-static int iwl_dump_ini_prph_iter(struct iwl_fw_runtime *fwrt,
-				  struct iwl_dump_ini_region_data *reg_data,
-				  void *range_ptr, int idx)
+static int
+iwl_dump_ini_prph_mac_iter(struct iwl_fw_runtime *fwrt,
+			   struct iwl_dump_ini_region_data *reg_data,
+			   void *range_ptr, int idx)
 {
 	struct iwl_fw_ini_region_tlv *reg = (void *)reg_data->reg_tlv->data;
 	struct iwl_fw_ini_error_dump_range *range = range_ptr;
@@ -1087,6 +1088,45 @@ static int iwl_dump_ini_prph_iter(struct iwl_fw_runtime *fwrt,
 		*val++ = cpu_to_le32(prph_val);
 	}
 
+	return sizeof(*range) + le32_to_cpu(range->range_data_size);
+}
+
+static int
+iwl_dump_ini_prph_phy_iter(struct iwl_fw_runtime *fwrt,
+			   struct iwl_dump_ini_region_data *reg_data,
+			   void *range_ptr, int idx)
+{
+	struct iwl_fw_ini_region_tlv *reg = (void *)reg_data->reg_tlv->data;
+	struct iwl_fw_ini_error_dump_range *range = range_ptr;
+	__le32 *val = range->data;
+	u32 indirect_wr_addr = WMAL_INDRCT_RD_CMD1;
+	u32 indirect_rd_addr = WMAL_MRSPF_1;
+	u32 prph_val;
+	u32 addr = le32_to_cpu(reg->addrs[idx]);
+	unsigned long flags;
+	int i;
+
+	range->internal_base_addr = cpu_to_le32(addr);
+	range->range_data_size = reg->dev_addr.size;
+
+	if (fwrt->trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210)
+		indirect_wr_addr = WMAL_INDRCT_CMD1;
+
+	indirect_wr_addr += le32_to_cpu(reg->dev_addr.offset);
+	indirect_rd_addr += le32_to_cpu(reg->dev_addr.offset);
+
+	if (!iwl_trans_grab_nic_access(fwrt->trans, &flags))
+		return -EBUSY;
+
+	for (i = 0; i < le32_to_cpu(reg->dev_addr.size); i += 4) {
+		iwl_write_prph_no_grab(fwrt->trans, indirect_wr_addr,
+				       WMAL_INDRCT_CMD(addr + i));
+		prph_val = iwl_read_prph_no_grab(fwrt->trans,
+						 indirect_rd_addr);
+		*val++ = cpu_to_le32(prph_val);
+	}
+
+	iwl_trans_release_nic_access(fwrt->trans, &flags);
 	return sizeof(*range) + le32_to_cpu(range->range_data_size);
 }
 
@@ -2152,9 +2192,14 @@ static const struct iwl_dump_ini_mem_ops iwl_dump_ini_region_ops[] = {
 		.get_num_of_ranges = iwl_dump_ini_mem_ranges,
 		.get_size = iwl_dump_ini_mem_get_size,
 		.fill_mem_hdr = iwl_dump_ini_mem_fill_header,
-		.fill_range = iwl_dump_ini_prph_iter,
+		.fill_range = iwl_dump_ini_prph_mac_iter,
 	},
-	[IWL_FW_INI_REGION_PERIPHERY_PHY] = {},
+	[IWL_FW_INI_REGION_PERIPHERY_PHY] = {
+		.get_num_of_ranges = iwl_dump_ini_mem_ranges,
+		.get_size = iwl_dump_ini_mem_get_size,
+		.fill_mem_hdr = iwl_dump_ini_mem_fill_header,
+		.fill_range = iwl_dump_ini_prph_phy_iter,
+	},
 	[IWL_FW_INI_REGION_PERIPHERY_AUX] = {},
 	[IWL_FW_INI_REGION_PAGING] = {
 		.fill_mem_hdr = iwl_dump_ini_mem_fill_header,
