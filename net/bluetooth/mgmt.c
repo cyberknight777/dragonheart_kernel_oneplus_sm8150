@@ -36,6 +36,8 @@
 #include "hci_request.h"
 #include "smp.h"
 #include "mgmt_util.h"
+#include "mgmt_config.h"
+
 #include "overflow.h"
 
 #define MGMT_VERSION	1
@@ -109,6 +111,8 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_SET_APPEARANCE,
 	MGMT_OP_SET_BLOCKED_KEYS,
 	MGMT_OP_SET_WIDEBAND_SPEECH,
+	MGMT_OP_READ_DEF_SYSTEM_CONFIG,
+	MGMT_OP_SET_DEF_SYSTEM_CONFIG,
 	/* Begin Chromium only op codes*/
 	MGMT_OP_SET_ADVERTISING_INTERVALS,
 	MGMT_OP_SET_KERNEL_DEBUG,
@@ -161,6 +165,7 @@ static const u16 mgmt_untrusted_commands[] = {
 	MGMT_OP_READ_CONFIG_INFO,
 	MGMT_OP_READ_EXT_INDEX_LIST,
 	MGMT_OP_READ_EXT_INFO,
+	MGMT_OP_READ_DEF_SYSTEM_CONFIG,
 };
 
 static const u16 mgmt_untrusted_events[] = {
@@ -6906,8 +6911,10 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, // 0x0048
 	{ NULL }, // 0x0049
 	{ NULL }, // 0x004A
-	{ NULL }, // 0x0048
-	{ NULL }, // 0x004C
+	{ read_def_system_config,  MGMT_READ_DEF_SYSTEM_CONFIG_SIZE,
+						HCI_MGMT_UNTRUSTED },
+	{ set_def_system_config,   MGMT_SET_DEF_SYSTEM_CONFIG_SIZE,
+						HCI_MGMT_VAR_LEN },
 	{ NULL }, // 0x004D
 	{ NULL }, // 0x004E
 	{ NULL }, // 0x004F
