@@ -131,6 +131,8 @@ void bt_err(const char *fmt, ...);
 __printf(1, 2)
 void bt_dbg(const char *fmt, ...);
 __printf(1, 2)
+void bt_warn_ratelimited(const char *fmt, ...);
+__printf(1, 2)
 void bt_err_ratelimited(const char *fmt, ...);
 
 void bt_set_debug(bool enabled);
@@ -162,6 +164,8 @@ static inline const char *basename(const char *path)
 #define bt_dev_dbg(hdev, fmt, ...)				\
 	BT_DBG("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 
+#define bt_dev_warn_ratelimited(hdev, fmt, ...)			\
+	bt_warn_ratelimited("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 #define bt_dev_err_ratelimited(hdev, fmt, ...)			\
 	BT_ERR_RATELIMITED("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 

@@ -307,7 +307,7 @@ const struct file_operations cros_ec_pdinfo_fops = {
 	.llseek = default_llseek,
 };
 
-const struct file_operations cros_ec_uptime_fops = {
+static const struct file_operations cros_ec_uptime_fops = {
 	.owner = THIS_MODULE,
 	.open = simple_open,
 	.read = cros_ec_uptime_read,

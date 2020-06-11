@@ -52,7 +52,9 @@
 #define HCI_NOTIFY_CONN_ADD		1
 #define HCI_NOTIFY_CONN_DEL		2
 #define HCI_NOTIFY_VOICE_SETTING	3
-#define HCI_NOTIFY_AIR_MODE_TRANSP	4
+#define HCI_NOTIFY_ENABLE_SCO_CVSD	4
+#define HCI_NOTIFY_ENABLE_SCO_TRANSP	5
+#define HCI_NOTIFY_DISABLE_SCO		6
 
 /* HCI bus types */
 #define HCI_VIRTUAL	0
@@ -193,6 +195,24 @@ enum {
 	 *
 	 */
 	HCI_QUIRK_NON_PERSISTENT_SETUP,
+
+	/* When this quirk is set, wide band speech is supported by
+	 * the driver since no reliable mechanism exist to report
+	 * this from the hardware, a driver flag is use to convey
+	 * this support
+	 *
+	 * This quirk must be set before hci_register_dev is called.
+	 */
+	HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED,
+
+	/* When this quirk is set, the controller has validated that
+	 * LE states reported through the HCI_LE_READ_SUPPORTED_STATES are
+	 * valid.  This mechanism is necessary as many controllers have
+	 * been seen has having trouble initiating a connectable
+	 * advertisement despite the state combination being reported as
+	 * supported.
+	 */
+	HCI_QUIRK_VALID_LE_STATES,
 };
 
 /* HCI device flags */
@@ -268,6 +288,7 @@ enum {
 	HCI_FAST_CONNECTABLE,
 	HCI_BREDR_ENABLED,
 	HCI_LE_SCAN_INTERRUPTED,
+	HCI_WIDEBAND_SPEECH_ENABLED,
 
 	HCI_DUT_MODE,
 	HCI_VENDOR_DIAG,
@@ -887,15 +908,18 @@ struct hci_cp_sniff_subrate {
 } __packed;
 
 #define HCI_OP_SET_EVENT_MASK		0x0c01
-#define HCI_SET_EVENT_MASK_SIZE         8
 
 #define HCI_OP_RESET			0x0c03
 
 #define HCI_OP_SET_EVENT_FLT		0x0c05
-struct hci_cp_set_event_flt {
-	__u8     flt_type;
-	__u8     cond_type;
-	__u8     condition[0];
+#define HCI_SET_EVENT_FLT_SIZE		9
+struct hci_cp_set_event_filter {
+	__u8		flt_type;
+	__u8		cond_type;
+	struct {
+		bdaddr_t bdaddr;
+		__u8 auto_accept;
+	} __packed	addr_conn_flt;
 } __packed;
 
 /* Filter types */
@@ -909,8 +933,9 @@ struct hci_cp_set_event_flt {
 #define HCI_CONN_SETUP_ALLOW_BDADDR	0x02
 
 /* CONN_SETUP Conditions */
-#define HCI_CONN_SETUP_AUTO_OFF	0x01
-#define HCI_CONN_SETUP_AUTO_ON	0x02
+#define HCI_CONN_SETUP_AUTO_OFF		0x01
+#define HCI_CONN_SETUP_AUTO_ON		0x02
+#define HCI_CONN_SETUP_AUTO_ON_WITH_RS	0x03
 
 #define HCI_OP_READ_STORED_LINK_KEY	0x0c0d
 struct hci_cp_read_stored_link_key {
@@ -1046,9 +1071,17 @@ struct hci_rp_read_inq_rsp_tx_power {
 	__s8     tx_power;
 } __packed;
 
-#define HCI_OP_WRITE_ERR_DATA_REPORT    0x0c5b
-struct hci_cp_write_err_data_report {
-	__u8     enable;
+#define HCI_OP_READ_DEF_ERR_DATA_REPORTING	0x0c5a
+	#define ERR_DATA_REPORTING_DISABLED	0x00
+	#define ERR_DATA_REPORTING_ENABLED	0x01
+struct hci_rp_read_def_err_data_reporting {
+	__u8     status;
+	__u8     err_data_reporting;
+} __packed;
+
+#define HCI_OP_WRITE_DEF_ERR_DATA_REPORTING	0x0c5b
+struct hci_cp_write_def_err_data_reporting {
+	__u8     err_data_reporting;
 } __packed;
 
 #define HCI_OP_SET_EVENT_MASK_PAGE_2	0x0c63
@@ -2003,9 +2036,6 @@ struct hci_ev_si_security {
 	__u16    subproto;
 	__u8     incoming;
 } __packed;
-
-/* vendor events */
-#define HCI_EV_VENDOR           0xff
 
 /* ---- HCI Packet structures ---- */
 #define HCI_COMMAND_HDR_SIZE 3

@@ -217,10 +217,19 @@ static bool sane_reclaim(struct scan_control *sc)
  */
 unsigned long zone_reclaimable_pages(struct zone *zone)
 {
+	u64 pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
 	unsigned long nr;
 
 	nr = zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_FILE) +
 		zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_FILE);
+
+	pages_min *= zone->managed_pages;
+	do_div(pages_min, totalram_pages);
+	if (nr < pages_min)
+		nr = 0;
+	else
+		nr -= pages_min;
+
 	if (get_nr_swap_pages() > 0)
 		nr += zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_ANON) +
 			zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_ANON);
@@ -230,16 +239,11 @@ unsigned long zone_reclaimable_pages(struct zone *zone)
 
 unsigned long pgdat_reclaimable_pages(struct pglist_data *pgdat)
 {
-	unsigned long pages_min;
 	unsigned long nr;
 
 	nr = node_page_state_snapshot(pgdat, NR_ACTIVE_FILE) +
 	     node_page_state_snapshot(pgdat, NR_INACTIVE_FILE) +
 	     node_page_state_snapshot(pgdat, NR_ISOLATED_FILE);
-
-	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	if (nr < pages_min)
-		nr = 0;
 
 	if (get_nr_swap_pages() > 0)
 		nr += node_page_state_snapshot(pgdat, NR_ACTIVE_ANON) +
@@ -886,8 +890,17 @@ static enum page_references page_check_references(struct page *page,
 	int referenced_ptes, referenced_page;
 	unsigned long vm_flags;
 
+	if (kstaled_is_enabled()) {
+		if (kstaled_get_age(page))
+			return PAGEREF_KEEP;
+		if (!PageTransHuge(page) && page_mapcount(page) <= 1)
+			return PAGEREF_RECLAIM;
+	}
 	referenced_ptes = page_referenced(page, 1, sc->target_mem_cgroup,
 					  &vm_flags);
+	if (kstaled_is_enabled())
+		return referenced_ptes ? PAGEREF_KEEP : PAGEREF_RECLAIM;
+
 	referenced_page = TestClearPageReferenced(page);
 
 	/*
@@ -1138,9 +1151,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 
 		if (!skip_reference_check)
 			references = page_check_references(page, sc);
-		else if (kstaled_is_enabled())
-			references = kstaled_get_age(page) ?
-				     PAGEREF_ACTIVATE : PAGEREF_RECLAIM;
 
 		switch (references) {
 		case PAGEREF_ACTIVATE:
@@ -1201,6 +1211,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto keep_locked;
 		}
 
+		/* split_huge_page_to_list() might have split a young pmd */
 		if (kstaled_is_enabled() && kstaled_get_age(page))
 			goto activate_locked;
 
@@ -1218,9 +1229,6 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				goto activate_locked;
 			}
 		}
-
-		if (kstaled_is_enabled() && kstaled_get_age(page))
-			goto activate_locked;
 
 		if (PageDirty(page)) {
 			/*
@@ -1857,7 +1865,7 @@ unsigned long node_shrink_list(struct pglist_data *node, struct list_head *list,
 	}
 
 	blk_start_plug(&plug);
-	reclaimed = shrink_page_list(list, node, &sc, 0, NULL, true);
+	reclaimed = shrink_page_list(list, node, &sc, 0, NULL, false);
 	blk_finish_plug(&plug);
 
 	spin_lock_irq(&node->lru_lock);
@@ -2534,10 +2542,13 @@ out:
 			/*
 			 * Scan types proportional to swappiness and
 			 * their relative recent reclaim efficiency.
-			 * Make sure we don't miss the last page
-			 * because of a round-off error.
+			 * Make sure we don't miss the last page on
+			 * the offlined memory cgroups because of a
+			 * round-off error.
 			 */
-			scan = DIV64_U64_ROUND_UP(scan * fraction[file],
+			scan = mem_cgroup_online(memcg) ?
+			       div64_u64(scan * fraction[file], denominator) :
+			       DIV64_U64_ROUND_UP(scan * fraction[file],
 						  denominator);
 			break;
 		case SCAN_FILE:

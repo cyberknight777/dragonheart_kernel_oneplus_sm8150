@@ -57,6 +57,11 @@ static int drm_dp_send_dpcd_write(struct drm_dp_mst_topology_mgr *mgr,
 
 static void drm_dp_send_link_address(struct drm_dp_mst_topology_mgr *mgr,
 				     struct drm_dp_mst_branch *mstb);
+
+static void
+drm_dp_send_clear_payload_id_table(struct drm_dp_mst_topology_mgr *mgr,
+				   struct drm_dp_mst_branch *mstb);
+
 static int drm_dp_send_enum_path_resources(struct drm_dp_mst_topology_mgr *mgr,
 					   struct drm_dp_mst_branch *mstb,
 					   struct drm_dp_mst_port *port);
@@ -274,7 +279,7 @@ static void drm_dp_encode_sideband_req(struct drm_dp_sideband_msg_req_body *req,
 			memcpy(&buf[idx], req->u.i2c_read.transactions[i].bytes, req->u.i2c_read.transactions[i].num_bytes);
 			idx += req->u.i2c_read.transactions[i].num_bytes;
 
-			buf[idx] = (req->u.i2c_read.transactions[i].no_stop_bit & 0x1) << 5;
+			buf[idx] = (req->u.i2c_read.transactions[i].no_stop_bit & 0x1) << 4;
 			buf[idx] |= (req->u.i2c_read.transactions[i].i2c_transaction_delay & 0xf);
 			idx++;
 		}
@@ -439,6 +444,7 @@ static bool drm_dp_sideband_parse_remote_dpcd_read(struct drm_dp_sideband_msg_rx
 	if (idx > raw->curlen)
 		goto fail_len;
 	repmsg->u.remote_dpcd_read_ack.num_bytes = raw->msg[idx];
+	idx++;
 	if (idx > raw->curlen)
 		goto fail_len;
 
@@ -591,6 +597,8 @@ static bool drm_dp_sideband_parse_reply(struct drm_dp_sideband_msg_rx *raw,
 	case DP_POWER_DOWN_PHY:
 	case DP_POWER_UP_PHY:
 		return drm_dp_sideband_parse_power_updown_phy_ack(raw, msg);
+	case DP_CLEAR_PAYLOAD_ID_TABLE:
+		return true; /* since there's nothing to parse */
 	default:
 		DRM_ERROR("Got unknown reply 0x%02x\n", msg->req_type);
 		return false;
@@ -683,6 +691,15 @@ static int build_link_address(struct drm_dp_sideband_msg_tx *msg)
 	struct drm_dp_sideband_msg_req_body req;
 
 	req.req_type = DP_LINK_ADDRESS;
+	drm_dp_encode_sideband_req(&req, msg);
+	return 0;
+}
+
+static int build_clear_payload_id_table(struct drm_dp_sideband_msg_tx *msg)
+{
+	struct drm_dp_sideband_msg_req_body req;
+
+	req.req_type = DP_CLEAR_PAYLOAD_ID_TABLE;
 	drm_dp_encode_sideband_req(&req, msg);
 	return 0;
 }
@@ -1373,17 +1390,35 @@ static void drm_dp_mst_link_probe_work(struct work_struct *work)
 {
 	struct drm_dp_mst_topology_mgr *mgr = container_of(work, struct drm_dp_mst_topology_mgr, work);
 	struct drm_dp_mst_branch *mstb;
+	bool clear_payload_id_table;
 
 	mutex_lock(&mgr->lock);
+	clear_payload_id_table = !mgr->payload_id_table_cleared;
+	mgr->payload_id_table_cleared = true;
+
 	mstb = mgr->mst_primary;
 	if (mstb) {
 		kref_get(&mstb->kref);
 	}
 	mutex_unlock(&mgr->lock);
-	if (mstb) {
-		drm_dp_check_and_send_link_address(mgr, mstb);
-		drm_dp_put_mst_branch_device(mstb);
+	if (!mstb)
+		return;
+
+	/*
+	 * Certain branch devices seem to incorrectly report an available_pbn
+	 * of 0 on downstream sinks, even after clearing the
+	 * DP_PAYLOAD_ALLOCATE_* registers in
+	 * drm_dp_mst_topology_mgr_set_mst(). Namely, the CableMatters USB-C
+	 * 2x DP hub. Sending a CLEAR_PAYLOAD_ID_TABLE message seems to make
+	 * things work again.
+	 */
+	if (clear_payload_id_table) {
+		DRM_DEBUG_KMS("Clearing payload ID table\n");
+		drm_dp_send_clear_payload_id_table(mgr, mstb);
 	}
+
+	drm_dp_check_and_send_link_address(mgr, mstb);
+	drm_dp_put_mst_branch_device(mstb);
 }
 
 static bool drm_dp_validate_guid(struct drm_dp_mst_topology_mgr *mgr,
@@ -1582,7 +1617,11 @@ static void process_single_up_tx_qlock(struct drm_dp_mst_topology_mgr *mgr,
 	if (ret != 1)
 		DRM_DEBUG_KMS("failed to send msg in q %d\n", ret);
 
-	txmsg->dst->tx_slots[txmsg->seqno] = NULL;
+	if (txmsg->seqno != -1) {
+		WARN_ON((unsigned int)txmsg->seqno >
+			ARRAY_SIZE(txmsg->dst->tx_slots));
+		txmsg->dst->tx_slots[txmsg->seqno] = NULL;
+	}
 }
 
 static void drm_dp_queue_down_tx(struct drm_dp_mst_topology_mgr *mgr,
@@ -1644,6 +1683,28 @@ static void drm_dp_send_link_address(struct drm_dp_mst_topology_mgr *mgr,
 		mstb->link_address_sent = false;
 		DRM_DEBUG_KMS("link address failed %d\n", ret);
 	}
+
+	kfree(txmsg);
+}
+
+void drm_dp_send_clear_payload_id_table(struct drm_dp_mst_topology_mgr *mgr,
+					struct drm_dp_mst_branch *mstb)
+{
+	struct drm_dp_sideband_msg_tx *txmsg;
+	int len, ret;
+
+	txmsg = kzalloc(sizeof(*txmsg), GFP_KERNEL);
+	if (!txmsg)
+		return;
+
+	txmsg->dst = mstb;
+	len = build_clear_payload_id_table(txmsg);
+
+	drm_dp_queue_down_tx(mgr, txmsg);
+
+	ret = drm_dp_mst_wait_tx_reply(mstb, txmsg);
+	if (ret > 0 && txmsg->reply.reply_type == 1)
+		DRM_DEBUG_KMS("clear payload table id nak received\n");
 
 	kfree(txmsg);
 }
@@ -2112,6 +2173,7 @@ int drm_dp_mst_topology_mgr_set_mst(struct drm_dp_mst_topology_mgr *mgr, bool ms
 	int ret = 0;
 	struct drm_dp_mst_branch *mstb = NULL;
 
+	mutex_lock(&mgr->payload_lock);
 	mutex_lock(&mgr->lock);
 	if (mst_state == mgr->mst_state)
 		goto out_unlock;
@@ -2170,14 +2232,19 @@ int drm_dp_mst_topology_mgr_set_mst(struct drm_dp_mst_topology_mgr *mgr, bool ms
 		/* this can fail if the device is gone */
 		drm_dp_dpcd_writeb(mgr->aux, DP_MSTM_CTRL, 0);
 		ret = 0;
-		memset(mgr->payloads, 0, mgr->max_payloads * sizeof(struct drm_dp_payload));
+		memset(mgr->payloads, 0,
+		       mgr->max_payloads * sizeof(mgr->payloads[0]));
+		memset(mgr->proposed_vcpis, 0,
+		       mgr->max_payloads * sizeof(mgr->proposed_vcpis[0]));
 		mgr->payload_mask = 0;
 		set_bit(0, &mgr->payload_mask);
 		mgr->vcpi_mask = 0;
+		mgr->payload_id_table_cleared = false;
 	}
 
 out_unlock:
 	mutex_unlock(&mgr->lock);
+	mutex_unlock(&mgr->payload_lock);
 	if (mstb)
 		drm_dp_put_mst_branch_device(mstb);
 	return ret;
@@ -2487,10 +2554,18 @@ enum drm_connector_status drm_dp_mst_detect_port(struct drm_connector *connector
 {
 	enum drm_connector_status status = connector_status_disconnected;
 
+	/*
+	 * Take the destroy_connector_lock to avoid freeing the port/connector
+	 * while we do our EDID read.
+	 */
+	mutex_lock(&mgr->destroy_connector_lock);
+
 	/* we need to search for the port in the mgr in case its gone */
 	port = drm_dp_get_validated_port_ref(mgr, port);
-	if (!port)
+	if (!port) {
+		mutex_unlock(&mgr->destroy_connector_lock);
 		return connector_status_disconnected;
+	}
 
 	if (!port->ddps)
 		goto out;
@@ -2514,6 +2589,7 @@ enum drm_connector_status drm_dp_mst_detect_port(struct drm_connector *connector
 	}
 out:
 	drm_dp_put_port(port);
+	mutex_unlock(&mgr->destroy_connector_lock);
 	return status;
 }
 EXPORT_SYMBOL(drm_dp_mst_detect_port);
@@ -3081,9 +3157,13 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 			break;
 		}
 		list_del(&port->next);
-		mutex_unlock(&mgr->destroy_connector_lock);
 
-		kref_init(&port->kref);
+		/*
+		 * If you are here, you're experiencing a race where something
+		 * else is using this port. Try wrapping the racing code with
+		 * destroy_connector_lock like we did in drm_dp_mst_detect_port
+		 */
+		WARN_ON(kref_read(&port->kref) != 1);
 		INIT_LIST_HEAD(&port->next);
 
 		mgr->cbs->destroy_connector(mgr, port->connector);
@@ -3099,6 +3179,7 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 
 		kref_put(&port->kref, drm_dp_free_mst_port);
 		send_hotplug = true;
+		mutex_unlock(&mgr->destroy_connector_lock);
 	}
 	if (send_hotplug)
 		(*mgr->cbs->hotplug)(mgr);

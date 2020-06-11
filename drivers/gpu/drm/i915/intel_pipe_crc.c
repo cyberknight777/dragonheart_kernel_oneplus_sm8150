@@ -914,8 +914,7 @@ int intel_pipe_crc_create(struct drm_minor *minor)
 	return 0;
 }
 
-int intel_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name,
-			      size_t *values_cnt)
+int intel_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name)
 {
 	struct drm_i915_private *dev_priv = crtc->dev->dev_private;
 	struct intel_pipe_crc *pipe_crc = &dev_priv->pipe_crc[crtc->index];
@@ -953,7 +952,6 @@ int intel_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name,
 	}
 
 	pipe_crc->skipped = 0;
-	*values_cnt = 5;
 
 out:
 	intel_display_power_put(dev_priv, power_domain);

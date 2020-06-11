@@ -239,6 +239,8 @@ void dml1_extract_rq_regs(
 	extract_rq_sizing_regs(mode_lib, &(rq_regs->rq_regs_l), rq_param.sizing.rq_l);
 	if (rq_param.yuv420)
 		extract_rq_sizing_regs(mode_lib, &(rq_regs->rq_regs_c), rq_param.sizing.rq_c);
+	else
+		memset(&(rq_regs->rq_regs_c), 0, sizeof(rq_regs->rq_regs_c));
 
 	rq_regs->rq_regs_l.swath_height = dml_log2(rq_param.dlg.rq_l.swath_height);
 	rq_regs->rq_regs_c.swath_height = dml_log2(rq_param.dlg.rq_c.swath_height);
@@ -881,7 +883,7 @@ static void get_surf_rq_param(
 	/* the dpte_group_bytes is reduced for the specific case of vertical
 	 * access of a tile surface that has dpte request of 8x1 ptes.
 	 */
-	if (!surf_linear & (log2_dpte_req_height_ptes == 0) & surf_vert) /*reduced, in this case, will have page fault within a group */
+	if (!surf_linear && (log2_dpte_req_height_ptes == 0) && surf_vert) /*reduced, in this case, will have page fault within a group */
 		rq_sizing_param->dpte_group_bytes = 512;
 	else
 		/*full size */

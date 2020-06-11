@@ -772,6 +772,10 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 		}
 
 		if (pvmw.pte) {
+			if (kstaled_is_enabled() && kstaled_direct_aging(&pvmw)) {
+				pra->referenced++;
+				return false;
+			}
 			if (ptep_clear_flush_young_notify(vma, address,
 						pvmw.pte)) {
 				/*
@@ -786,6 +790,10 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 					referenced++;
 			}
 		} else if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE)) {
+			if (kstaled_is_enabled() && kstaled_direct_aging(&pvmw)) {
+				pra->referenced++;
+				return false;
+			}
 			if (pmdp_clear_flush_young_notify(vma, address,
 						pvmw.pmd))
 				referenced++;
@@ -1356,6 +1364,11 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 	if (flags & TTU_SPLIT_HUGE_PMD) {
 		split_huge_pmd_address(vma, address,
 				flags & TTU_SPLIT_FREEZE, page);
+
+		/* split_huge_pmd_address() might have split a young pmd */
+		if (!(flags & TTU_IGNORE_ACCESS) &&
+		    kstaled_is_enabled() && kstaled_get_age(page))
+			return false;
 	}
 
 	/*
@@ -1468,8 +1481,7 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 		}
 
 		if (!(flags & TTU_IGNORE_ACCESS)) {
-			if (kstaled_is_enabled() && pte_young(*pvmw.pte)) {
-				kstaled_direct_aging(&pvmw);
+			if (kstaled_is_enabled() && kstaled_direct_aging(&pvmw)) {
 				ret = false;
 				break;
 			}

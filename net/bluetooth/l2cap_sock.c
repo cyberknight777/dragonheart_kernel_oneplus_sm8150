@@ -1040,7 +1040,7 @@ done:
 }
 
 /* Kill socket (only if zapped and orphan)
- * Must be called on unlocked socket.
+ * Must be called on unlocked socket, with l2cap channel lock.
  */
 static void l2cap_sock_kill(struct sock *sk)
 {
@@ -1108,14 +1108,21 @@ static int l2cap_sock_shutdown(struct socket *sock, int how)
 	struct l2cap_conn *conn;
 	int err = 0;
 
-	BT_DBG("sock %p, sk %p", sock, sk);
+	BT_DBG("sock %p, sk %p, how %d", sock, sk, how);
+
+	/* 'how' parameter is mapped to sk_shutdown as follows:
+	 * SHUT_RD   (0) --> RCV_SHUTDOWN  (1)
+	 * SHUT_WR   (1) --> SEND_SHUTDOWN (2)
+	 * SHUT_RDWR (2) --> SHUTDOWN_MASK (3)
+	 */
+	how++;
 
 	if (!sk)
 		return 0;
 
 	lock_sock(sk);
 
-	if (sk->sk_shutdown)
+	if ((sk->sk_shutdown & how) == how)
 		goto shutdown_already;
 
 	BT_DBG("Handling sock shutdown");
@@ -1138,11 +1145,20 @@ static int l2cap_sock_shutdown(struct socket *sock, int how)
 		 * has already been actioned to close the L2CAP
 		 * link such as by l2cap_disconnection_req().
 		 */
-		if (sk->sk_shutdown)
-			goto has_shutdown;
+		if ((sk->sk_shutdown & how) == how)
+			goto shutdown_matched;
 	}
 
-	sk->sk_shutdown = SHUTDOWN_MASK;
+	/* Try setting the RCV_SHUTDOWN bit, return early if SEND_SHUTDOWN
+	 * is already set
+	 */
+	if ((how & RCV_SHUTDOWN) && !(sk->sk_shutdown & RCV_SHUTDOWN)) {
+		sk->sk_shutdown |= RCV_SHUTDOWN;
+		if ((sk->sk_shutdown & how) == how)
+			goto shutdown_matched;
+	}
+
+	sk->sk_shutdown |= SEND_SHUTDOWN;
 	release_sock(sk);
 
 	l2cap_chan_lock(chan);
@@ -1172,7 +1188,7 @@ static int l2cap_sock_shutdown(struct socket *sock, int how)
 		err = bt_sock_wait_state(sk, BT_CLOSED,
 					 sk->sk_lingertime);
 
-has_shutdown:
+shutdown_matched:
 	l2cap_chan_put(chan);
 	sock_put(sk);
 
@@ -1191,6 +1207,7 @@ static int l2cap_sock_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 	int err;
+	struct l2cap_chan *chan;
 
 	BT_DBG("sock %p, sk %p", sock, sk);
 
@@ -1199,10 +1216,18 @@ static int l2cap_sock_release(struct socket *sock)
 
 	bt_sock_unlink(&l2cap_sk_list, sk);
 
-	err = l2cap_sock_shutdown(sock, 2);
+	err = l2cap_sock_shutdown(sock, SHUT_RDWR);
+	chan = l2cap_pi(sk)->chan;
+
+	l2cap_chan_hold(chan);
+	l2cap_chan_lock(chan);
 
 	sock_orphan(sk);
 	l2cap_sock_kill(sk);
+
+	l2cap_chan_unlock(chan);
+	l2cap_chan_put(chan);
+
 	return err;
 }
 
@@ -1220,12 +1245,15 @@ static void l2cap_sock_cleanup_listen(struct sock *parent)
 		BT_DBG("child chan %p state %s", chan,
 		       state_to_string(chan->state));
 
+		l2cap_chan_hold(chan);
 		l2cap_chan_lock(chan);
+
 		__clear_chan_timer(chan);
 		l2cap_chan_close(chan, ECONNRESET);
-		l2cap_chan_unlock(chan);
-
 		l2cap_sock_kill(sk);
+
+		l2cap_chan_unlock(chan);
+		l2cap_chan_put(chan);
 	}
 }
 

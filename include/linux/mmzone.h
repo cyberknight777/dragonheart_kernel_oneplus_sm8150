@@ -18,9 +18,8 @@
 #include <linux/pageblock-flags.h>
 #include <linux/page-flags-layout.h>
 #include <linux/atomic.h>
-#ifdef CONFIG_KSTALED
+#include <linux/mm_types.h>
 #include <linux/kstaled.h>
-#endif
 #include <asm/page.h>
 
 /* Free memory management - zoned buddy allocator.  */
@@ -190,8 +189,13 @@ enum node_stat_item {
 	KSTALED_RECLAIM_STALLS,
 	KSTALED_BACKGROUND_AGING,
 	KSTALED_BACKGROUND_HOT,
+	KSTALED_VM_BACKGROUND_HOT,
 	KSTALED_DIRECT_AGING,
 	KSTALED_DIRECT_HOT,
+	KSTALED_SHARED_AGING,
+	KSTALED_SHARED_HOT,
+	KSTALED_THP_AGING,
+	KSTALED_THP_HOT,
 #endif
 	NR_VM_NODE_STAT_ITEMS
 };
@@ -624,6 +628,24 @@ struct zonelist {
 extern struct page *mem_map;
 #endif
 
+struct kstaled_struct {
+#ifdef CONFIG_KSTALED
+	/* mm_struct list protected by spin lock */
+	struct list_head mm_list;
+	spinlock_t mm_list_lock;
+	/* pages scanned: slab pressure numerator */
+	atomic_long_t scanned;
+	/* wait queue for cold pages when depleted */
+	wait_queue_head_t throttled;
+	/* ring of buckets for pages of cyclic ages */
+	struct page ring[KSTALED_LRU_TYPES][KSTALED_MAX_AGE];
+	unsigned tail[KSTALED_LRU_TYPES];
+	unsigned head;
+	/* true if reclaim has tried to use the ring */
+	bool peeked;
+#endif
+};
+
 /*
  * On NUMA machines, each NUMA node would have a pg_data_t to describe
  * it's memory layout. On UMA machines there is a single pglist_data which
@@ -734,17 +756,13 @@ typedef struct pglist_data {
 
 	unsigned long		flags;
 
+	struct kstaled_struct	kstaled;
+
 	ZONE_PADDING(_pad2_)
 
 	/* Per-node vmstats */
 	struct per_cpu_nodestat __percpu *per_cpu_nodestats;
 	atomic_long_t		vm_stat[NR_VM_NODE_STAT_ITEMS];
-
-#ifdef CONFIG_KSTALED
-	ZONE_PADDING(_pad3_)
-
-	struct kstaled_struct	kstaled;
-#endif
 } pg_data_t;
 
 #define node_present_pages(nid)	(NODE_DATA(nid)->node_present_pages)

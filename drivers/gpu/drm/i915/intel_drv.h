@@ -186,7 +186,6 @@ enum intel_output_type {
 
 struct intel_framebuffer {
 	struct drm_framebuffer base;
-	struct drm_i915_gem_object *obj;
 	struct intel_rotation_info rot_info;
 
 	/* for each plane in the normal GTT view */
@@ -365,6 +364,10 @@ struct intel_hdcp_shim {
 
 	/* Ensures the link is still protected */
 	bool (*check_link)(struct intel_digital_port *intel_dig_port);
+
+	/* Detects panel's hdcp capability. This is optional for HDMI. */
+	int (*hdcp_capable)(struct intel_digital_port *intel_dig_port,
+			    bool *hdcp_capable);
 };
 
 struct intel_connector {
@@ -943,15 +946,17 @@ struct intel_plane {
 	 * the intel_plane_state structure and accessed via plane_state.
 	 */
 
+	unsigned int (*max_stride)(struct intel_plane *plane,
+				   u32 pixel_format, u64 modifier,
+				   unsigned int rotation);
 	void (*update_plane)(struct intel_plane *plane,
 			     const struct intel_crtc_state *crtc_state,
 			     const struct intel_plane_state *plane_state);
 	void (*disable_plane)(struct intel_plane *plane,
 			      struct intel_crtc *crtc);
 	bool (*get_hw_state)(struct intel_plane *plane);
-	int (*check_plane)(struct intel_plane *plane,
-			   struct intel_crtc_state *crtc_state,
-			   struct intel_plane_state *state);
+	int (*check_plane)(struct intel_crtc_state *crtc_state,
+			   struct intel_plane_state *plane_state);
 };
 
 struct intel_watermark_params {
@@ -981,7 +986,7 @@ struct cxsr_latency {
 #define to_intel_framebuffer(x) container_of(x, struct intel_framebuffer, base)
 #define to_intel_plane(x) container_of(x, struct intel_plane, base)
 #define to_intel_plane_state(x) container_of(x, struct intel_plane_state, base)
-#define intel_fb_obj(x) (x ? to_intel_framebuffer(x)->obj : NULL)
+#define intel_fb_obj(x) ((x) ? to_intel_bo((x)->obj[0]) : NULL)
 
 struct intel_hdmi {
 	i915_reg_t hdmi_reg;
@@ -1576,8 +1581,8 @@ void intel_mode_from_pipe_config(struct drm_display_mode *mode,
 				 struct intel_crtc_state *pipe_config);
 
 int skl_update_scaler_crtc(struct intel_crtc_state *crtc_state);
-int skl_max_scale(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state,
-		  uint32_t pixel_format);
+int skl_max_scale(const struct intel_crtc_state *crtc_state,
+		  u32 pixel_format);
 
 static inline u32 intel_plane_ggtt_offset(const struct intel_plane_state *state)
 {
@@ -1594,6 +1599,9 @@ u32 skl_plane_stride(const struct drm_framebuffer *fb, int plane,
 int skl_check_plane_surface(struct intel_plane_state *plane_state);
 int i9xx_check_plane_surface(struct intel_plane_state *plane_state);
 int skl_format_to_fourcc(int format, bool rgb_order, bool alpha);
+unsigned int i9xx_plane_max_stride(struct intel_plane *plane,
+				   u32 pixel_format, u64 modifier,
+				   unsigned int rotation);
 
 /* intel_csr.c */
 void intel_csr_ucode_init(struct drm_i915_private *);
@@ -1821,7 +1829,6 @@ int intel_panel_setup_backlight(struct drm_connector *connector,
 void intel_panel_enable_backlight(const struct intel_crtc_state *crtc_state,
 				  const struct drm_connector_state *conn_state);
 void intel_panel_disable_backlight(const struct drm_connector_state *old_conn_state);
-void intel_panel_destroy_backlight(struct drm_connector *connector);
 enum drm_connector_status intel_panel_detect(struct drm_i915_private *dev_priv);
 extern struct drm_display_mode *intel_find_panel_downclock(
 				struct drm_i915_private *dev_priv,
@@ -2034,6 +2041,13 @@ bool skl_plane_has_ccs(struct drm_i915_private *dev_priv,
 bool intel_format_is_yuv(uint32_t format);
 bool skl_plane_has_planar(struct drm_i915_private *dev_priv,
 			  enum pipe pipe, enum plane_id plane_id);
+unsigned int skl_plane_max_stride(struct intel_plane *plane,
+				  u32 pixel_format, u64 modifier,
+				  unsigned int rotation);
+int skl_plane_check(struct intel_crtc_state *crtc_state,
+		    struct intel_plane_state *plane_state);
+int intel_plane_check_stride(const struct intel_plane_state *plane_state);
+int intel_plane_check_src_coordinates(struct intel_plane_state *plane_state);
 
 /* intel_tv.c */
 void intel_tv_init(struct drm_i915_private *dev_priv);
@@ -2124,8 +2138,7 @@ void lspcon_wait_pcon_mode(struct intel_lspcon *lspcon);
 /* intel_pipe_crc.c */
 int intel_pipe_crc_create(struct drm_minor *minor);
 #ifdef CONFIG_DEBUG_FS
-int intel_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name,
-			      size_t *values_cnt);
+int intel_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name);
 #else
 #define intel_crtc_set_crc_source NULL
 #endif

@@ -4194,6 +4194,8 @@ out:
 	if (!device_may_wakeup(dev))
 		mxt_power_off(data);
 
+	disable_irq(data->irq);
+
 	return 0;
 }
 
@@ -4230,6 +4232,8 @@ static int __maybe_unused mxt_resume(struct device *dev)
 	input_dev = data->input_dev;
 	if (!input_dev)
 		goto out;
+
+	enable_irq(data->irq);
 
 	mutex_lock(&input_dev->mutex);
 

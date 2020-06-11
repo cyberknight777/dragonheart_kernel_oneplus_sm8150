@@ -279,8 +279,8 @@ static ssize_t msm_gpu_devcoredump_read(char *buffer, loff_t offset,
 	drm_printf(&p, "---\n");
 	drm_printf(&p, "kernel: " UTS_RELEASE "\n");
 	drm_printf(&p, "module: " KBUILD_MODNAME "\n");
-	drm_printf(&p, "time: %ld.%ld\n",
-		state->time.tv_sec, state->time.tv_usec);
+	drm_printf(&p, "time: %lld.%09ld\n",
+		(unsigned long long)state->time.tv_sec, state->time.tv_nsec);
 	if (state->comm)
 		drm_printf(&p, "comm: %s\n", state->comm);
 	if (state->cmd)
@@ -367,8 +367,8 @@ static void msm_gpu_crashstate_capture(struct msm_gpu *gpu,
 		msm_gpu_devcoredump_read, msm_gpu_devcoredump_free);
 }
 #else
-static void msm_gpu_crashstate_capture(struct msm_gpu *gpu, char *comm,
-		char *cmd)
+static void msm_gpu_crashstate_capture(struct msm_gpu *gpu,
+		struct msm_gem_submit *submit, char *comm, char *cmd)
 {
 }
 #endif
