@@ -864,6 +864,9 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 				IEEE80211_HE_PHY_CAP2_UL_MU_PARTIAL_MU_MIMO;
 		}
 
+		if (trans->dbg_cfg.smps_disabled)
+			iftype_data->he_cap.he_cap_elem.mac_cap_info[5] &=
+				~IEEE80211_HE_MAC_CAP5_HE_DYNAMIC_SM_PS;
 	}
 }
 #endif

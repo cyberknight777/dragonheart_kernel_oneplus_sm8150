@@ -220,6 +220,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, no_ack_en)
 	IWL_DBG_CFG_NODEF(u32, ack_en)
 	IWL_DBG_CFG_NODEF(bool, no_ldpc)
+	IWL_DBG_CFG_NODEF(bool, smps_disabled)
 	IWL_DBG_CFG_NODEF(u16, rx_agg_subframes)
 	IWL_DBG_CFG_NODEF(bool, tx_siso_80bw_like_160bw)
 	IWL_DBG_CFG_NODEF(u16, ampdu_limit)

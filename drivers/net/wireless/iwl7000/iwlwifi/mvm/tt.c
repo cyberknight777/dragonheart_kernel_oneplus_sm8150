@@ -397,7 +397,11 @@ void iwl_mvm_tt_handler(struct iwl_mvm *mvm)
 		return;
 	}
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (params->support_dynamic_smps && !mvm->trans->dbg_cfg.smps_disabled) {
+#else
 	if (params->support_dynamic_smps) {
+#endif
 		if (!tt->dynamic_smps &&
 		    temperature >= params->dynamic_smps_entry) {
 			IWL_DEBUG_TEMP(mvm, "Enable dynamic SMPS\n");
