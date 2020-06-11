@@ -9,7 +9,7 @@ config IWL7000
 	depends on CFG80211
 
 	# we don't support or test on non-x86 platforms
-	depends on X86
+	depends on X86_64
 
 	# things mac80211 selects
 	select CRYPTO
