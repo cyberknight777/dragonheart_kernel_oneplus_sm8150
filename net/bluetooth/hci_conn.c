@@ -794,11 +794,8 @@ static void hci_req_add_le_create_conn(struct hci_request *req,
 
 	memset(&cp, 0, sizeof(cp));
 
-	/* Set window to be the same value as the interval to enable
-	 * continuous scanning.
-	 */
-	cp.scan_interval = cpu_to_le16(hdev->le_scan_interval);
-	cp.scan_window = cp.scan_interval;
+	cp.scan_interval = cpu_to_le16(hdev->le_scan_int_connect);
+	cp.scan_window = cpu_to_le16(hdev->le_scan_window_connect);
 
 	bacpy(&cp.peer_addr, &conn->dst);
 	cp.peer_addr_type = conn->dst_type;
