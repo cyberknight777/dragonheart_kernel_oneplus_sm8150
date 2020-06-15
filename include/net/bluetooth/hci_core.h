@@ -215,8 +215,8 @@ struct adv_info {
  * - the default min/max intervals, and
  * - the valid range of min/max intervals.
  */
-#define HCI_DEFAULT_LE_ADV_MIN_INTERVAL	0x0122
-#define HCI_DEFAULT_LE_ADV_MAX_INTERVAL	0x0122
+#define HCI_DEFAULT_LE_ADV_MIN_INTERVAL	0x0800
+#define HCI_DEFAULT_LE_ADV_MAX_INTERVAL	0x0800
 #define HCI_VALID_LE_ADV_MIN_INTERVAL	0x0020
 #define HCI_VALID_LE_ADV_MAX_INTERVAL	0x4000
 #define ADV_DURATION_MIN_GRACE_PERIOD	5
