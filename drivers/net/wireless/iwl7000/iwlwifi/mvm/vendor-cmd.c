@@ -268,29 +268,6 @@ free:
 	return retval;
 }
 
-static int iwl_vendor_frame_filter_cmd(struct wiphy *wiphy,
-				       struct wireless_dev *wdev,
-				       const void *data, int data_len)
-{
-	struct nlattr **tb;
-	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-
-	if (!vif)
-		return -EINVAL;
-
-	tb = iwl_mvm_parse_vendor_data(data, data_len);
-	if (IS_ERR(tb))
-		return PTR_ERR(tb);
-
-	vif->filter_grat_arp_unsol_na =
-		tb[IWL_MVM_VENDOR_ATTR_FILTER_ARP_NA];
-	vif->filter_gtk = tb[IWL_MVM_VENDOR_ATTR_FILTER_GTK];
-
-	kfree(tb);
-
-	return 0;
-}
-
 #ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
 static int iwl_vendor_tdls_peer_cache_add(struct wiphy *wiphy,
 					  struct wireless_dev *wdev,
@@ -1320,21 +1297,6 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 		.flags = WIPHY_VENDOR_CMD_NEED_NETDEV |
 			 WIPHY_VENDOR_CMD_NEED_RUNNING,
 		.doit = iwl_mvm_set_country,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-		.policy = iwl_mvm_vendor_attr_policy,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
-#endif
-	},
-	{
-		.info = {
-			.vendor_id = INTEL_OUI,
-			.subcmd = IWL_MVM_VENDOR_CMD_PROXY_FRAME_FILTERING,
-		},
-		.flags = WIPHY_VENDOR_CMD_NEED_NETDEV |
-			 WIPHY_VENDOR_CMD_NEED_RUNNING,
-		.doit = iwl_vendor_frame_filter_cmd,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,
 #endif

@@ -23,9 +23,6 @@
 #include <asm/unaligned.h>
 
 #include "ieee80211_i.h"
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-#include "packet_filtering.h"
-#endif
 #include "driver-ops.h"
 #include "led.h"
 #include "mesh.h"
@@ -2564,23 +2561,6 @@ ieee80211_deliver_skb(struct ieee80211_rx_data *rx)
 	skb = rx->skb;
 	xmit_skb = NULL;
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	/*
-	 * Filter packets in case that configured to do so by user space,
-	 * and we are associated to an Hotspot AP and have an IP address.
-	 */
-	if (sdata->vif.filter_grat_arp_unsol_na &&
-	    sdata->vif.bss_conf.arp_addr_cnt &&
-	    ieee80211_is_gratuitous_arp_unsolicited_na(skb)) {
-		dev_kfree_skb(skb);
-		return;
-	}
-	if (sdata->vif.filter_gtk && sdata->vif.bss_conf.arp_addr_cnt &&
-	    ieee80211_is_shared_gtk(skb)) {
-		dev_kfree_skb(skb);
-		return;
-	}
-#endif
 	ieee80211_rx_stats(dev, skb->len);
 
 	if (rx->sta) {
@@ -4190,12 +4170,6 @@ void ieee80211_check_fast_rx(struct sta_info *sta)
 		fastrx.icv_len = key->conf.icv_len;
 	}
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	if (sdata->vif.filter_grat_arp_unsol_na &&
-	    sdata->vif.bss_conf.arp_addr_cnt)
-		fastrx.drop_grat_arp_unsol_na = true;
-#endif
-
 	assign = true;
  clear_rcu:
 	rcu_read_unlock();
@@ -4404,12 +4378,6 @@ static bool ieee80211_invoke_fast_rx(struct ieee80211_rx_data *rx,
 	memcpy(skb_push(skb, sizeof(addrs)), &addrs, sizeof(addrs));
 
 	skb->dev = fast_rx->dev;
-
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	if (fast_rx->drop_grat_arp_unsol_na &&
-	    ieee80211_is_gratuitous_arp_unsolicited_na(skb))
-		goto drop;
-#endif
 
 	ieee80211_rx_stats(fast_rx->dev, skb->len);
 

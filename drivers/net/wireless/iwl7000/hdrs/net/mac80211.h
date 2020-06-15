@@ -1650,11 +1650,6 @@ struct ieee80211_vif {
 
 	u32 driver_flags;
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	bool filter_grat_arp_unsol_na;
-	bool filter_gtk;
-#endif
-
 #ifdef CPTCFG_MAC80211_DEBUGFS
 	struct dentry *debugfs_dir;
 #endif
