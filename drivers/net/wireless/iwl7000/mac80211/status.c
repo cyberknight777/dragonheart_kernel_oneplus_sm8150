@@ -1031,7 +1031,6 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
 
 		if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS)) {
 			if (acked) {
-
 				if (sta->status_stats.lost_packets)
 					sta->status_stats.lost_packets = 0;
 
@@ -1045,7 +1044,6 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
 				ieee80211_lost_packet(sta, info);
 			}
 		}
-
 	}
 
 	/* SNMP counters
