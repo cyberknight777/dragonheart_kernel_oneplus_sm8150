@@ -2371,10 +2371,7 @@ static void start_discovery(struct hci_dev *hdev, u8 *status)
 		break;
 	case DISCOV_TYPE_LE:
 		timeout = msecs_to_jiffies(DISCOV_LE_TIMEOUT);
-		/* Reduce the LE active scan duty cycle to 50% by increasing
-		 * the scan interval from 11.25ms to 22.5ms
-		 */
-		hci_req_sync(hdev, active_scan, DISCOV_LE_SCAN_INT * 2,
+		hci_req_sync(hdev, active_scan, DISCOV_LE_SCAN_INT,
 			     HCI_CMD_TIMEOUT, status);
 		break;
 	default:
