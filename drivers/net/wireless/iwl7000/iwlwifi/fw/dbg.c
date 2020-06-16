@@ -1103,6 +1103,8 @@ iwl_dump_ini_prph_phy_iter(struct iwl_fw_runtime *fwrt,
 	u32 indirect_rd_addr = WMAL_MRSPF_1;
 	u32 prph_val;
 	u32 addr = le32_to_cpu(reg->addrs[idx]);
+	u32 dphy_state;
+	u32 dphy_addr;
 	unsigned long flags;
 	int i;
 
@@ -1118,7 +1120,18 @@ iwl_dump_ini_prph_phy_iter(struct iwl_fw_runtime *fwrt,
 	if (!iwl_trans_grab_nic_access(fwrt->trans, &flags))
 		return -EBUSY;
 
+	dphy_addr = (reg->dev_addr.offset) ? WFPM_LMAC2_PS_CTL_RW :
+					     WFPM_LMAC1_PS_CTL_RW;
+	dphy_state = iwl_read_umac_prph_no_grab(fwrt->trans, dphy_addr);
+
 	for (i = 0; i < le32_to_cpu(reg->dev_addr.size); i += 4) {
+		if (dphy_state == HBUS_TIMEOUT ||
+		    (dphy_state & WFPM_PS_CTL_RW_PHYRF_PD_FSM_CURSTATE_MSK) !=
+		    WFPM_PHYRF_STATE_ON) {
+			*val++ = cpu_to_le32(WFPM_DPHY_OFF);
+			continue;
+		}
+
 		iwl_write_prph_no_grab(fwrt->trans, indirect_wr_addr,
 				       WMAL_INDRCT_CMD(addr + i));
 		prph_val = iwl_read_prph_no_grab(fwrt->trans,
@@ -2238,6 +2251,7 @@ static u32 iwl_dump_ini_trigger(struct iwl_fw_runtime *fwrt,
 				struct list_head *list)
 {
 	struct iwl_fw_ini_trigger_tlv *trigger = dump_data->trig;
+	enum iwl_fw_ini_time_point tp_id = le32_to_cpu(trigger->time_point);
 	struct iwl_dump_ini_region_data reg_data = {
 		.dump_data = dump_data,
 	};
@@ -2267,6 +2281,14 @@ static u32 iwl_dump_ini_trigger(struct iwl_fw_runtime *fwrt,
 		reg_type = le32_to_cpu(reg->type);
 		if (reg_type >= ARRAY_SIZE(iwl_dump_ini_region_ops))
 			continue;
+
+		if (reg_type == IWL_FW_INI_REGION_PERIPHERY_PHY &&
+		    tp_id != IWL_FW_INI_TIME_POINT_FW_ASSERT) {
+			IWL_WARN(fwrt,
+				 "WRT: trying to collect phy prph at time point: %d, skipping\n",
+				 tp_id);
+			continue;
+		}
 
 		size += iwl_dump_ini_mem(fwrt, list, &reg_data,
 					 &iwl_dump_ini_region_ops[reg_type]);
