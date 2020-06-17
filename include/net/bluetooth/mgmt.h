@@ -108,7 +108,6 @@ struct mgmt_rp_read_index_list {
 #define MGMT_SETTING_CONFIGURATION	0x00004000
 #define MGMT_SETTING_STATIC_ADDRESS	0x00008000
 #define MGMT_SETTING_WIDEBAND_SPEECH	0x00020000
-#define MGMT_SETTING_ADVERTISING_INTERVALS	0x00010000
 
 #define MGMT_OP_READ_INFO		0x0004
 #define MGMT_READ_INFO_SIZE		0
@@ -646,12 +645,6 @@ struct mgmt_cp_set_blocked_keys {
 /*
  * Begin chromium only op_codes
  */
-#define MGMT_OP_SET_ADVERTISING_INTERVALS	0x0060
-struct mgmt_cp_set_advertising_intervals {
-	__le16	min_interval;
-	__le16	max_interval;
-} __packed;
-#define MGMT_SET_ADVERTISING_INTERVALS_SIZE	4
 
 #define MGMT_OP_SET_KERNEL_DEBUG			0x0064
 #define MGMT_SET_KERNEL_DEBUG_SIZE			1
