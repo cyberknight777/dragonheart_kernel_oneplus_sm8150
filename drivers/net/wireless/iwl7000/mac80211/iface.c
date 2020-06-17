@@ -8,7 +8,7 @@
  * Copyright 2008, Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
  * Copyright (c) 2016        Intel Deutschland GmbH
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018-2020 Intel Corporation
  */
 #include <linux/slab.h>
 #include <linux/kernel.h>
@@ -553,10 +553,6 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NUM_NL80211_IFTYPES:
 	case NL80211_IFTYPE_P2P_CLIENT:
 	case NL80211_IFTYPE_P2P_GO:
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
-	case NL80211_IFTYPE_NAN_DATA:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		/* cannot happen */
 		WARN_ON(1);
 		break;
@@ -839,9 +835,6 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 		break;
 	case NL80211_IFTYPE_ADHOC:
 		ieee80211_ibss_stop(sdata);
-		break;
-	case NL80211_IFTYPE_AP:
-		cancel_work_sync(&sdata->u.ap.request_smps_work);
 		break;
 	case NL80211_IFTYPE_MONITOR:
 		if (sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES)
@@ -1539,10 +1532,7 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 	case NL80211_IFTYPE_AP:
 		skb_queue_head_init(&sdata->u.ap.ps.bc_buf);
 		INIT_LIST_HEAD(&sdata->u.ap.vlans);
-		INIT_WORK(&sdata->u.ap.request_smps_work,
-			  ieee80211_request_smps_ap_work);
 		sdata->vif.bss_conf.bssid = sdata->vif.addr;
-		sdata->u.ap.req_smps = IEEE80211_SMPS_OFF;
 		break;
 	case NL80211_IFTYPE_P2P_CLIENT:
 		type = NL80211_IFTYPE_STATION;
@@ -1591,10 +1581,6 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
 	case NUM_NL80211_IFTYPES:
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
-	case NL80211_IFTYPE_NAN_DATA:
-		/* keep code in case of fall-through (spatch generated) */
-#endif
 		WARN_ON(1);
 		break;
 	}
@@ -2003,6 +1989,8 @@ struct vif_params *params)
 			sdata->u.mgd.use_4addr = params->use_4addr;
 
 		ndev->features |= local->hw.netdev_features;
+		ndev->hw_features |= ndev->features &
+					MAC80211_SUPPORTED_FEATURES_TX;
 
 		netdev_set_default_ethtool_ops(ndev, &ieee80211_ethtool_ops);
 

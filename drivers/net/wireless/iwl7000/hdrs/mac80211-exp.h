@@ -48,7 +48,7 @@
 #define ieee80211_ie_split_ric __iwl7000_ieee80211_ie_split_ric
 #define ieee80211_ie_split __iwl7000_ieee80211_ie_split
 #endif
-#if CFG80211_VERSION < KERNEL_VERSION(4,20,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,6,0)
 #define ieee80211_get_vht_max_nss __iwl7000_ieee80211_get_vht_max_nss
 #endif
 #define ieee80211_csa_finish __iwl7000_ieee80211_csa_finish
