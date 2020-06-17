@@ -123,6 +123,7 @@ int iwl_mvm_sta_send_to_fw(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	int ret;
 	u32 status;
 	u32 agg_size = 0, mpdu_dens = 0;
+	u8 he_exp = 0;
 
 	if (fw_has_api(&mvm->fw->ucode_capa, IWL_UCODE_TLV_API_STA_TYPE))
 		add_sta_cmd.station_type = mvm_sta->sta_type;
@@ -196,6 +197,20 @@ int iwl_mvm_sta_send_to_fw(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 		mpdu_dens = sta->ht_cap.ampdu_density;
 	}
 
+	/* 26.6.1 A-MPDU operation in an HE PPDU
+	 * If a VHT Capabilities element is received from the recipient STA,
+	 * then the maximum A-MPDU length capability is derived from the
+	 * Maximum A-MPDU Length Exponent Extension subfield in the HE
+	 * Capabilities and the Maximum A-MPDU Length Exponent subfield in the
+	 * VHT Capabilities element. Otherwise the maximum A-MPDU length
+	 * capability is derived from the Maximum A-MPDU Length Exponent
+	 * subfields in the HE Capabilities element and the Maximum A-MPDU
+	 * Length Exponent subfield in the HT Capabilities element
+	 */
+	if (sta->he_cap.has_he)
+		he_exp =  u8_get_bits(sta->he_cap.he_cap_elem.mac_cap_info[3],
+				      IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_MASK);
+
 	if (sta->vht_cap.vht_supported) {
 		agg_size = sta->vht_cap.cap &
 			IEEE80211_VHT_CAP_MAX_A_MPDU_LENGTH_EXPONENT_MASK;
@@ -204,6 +219,8 @@ int iwl_mvm_sta_send_to_fw(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 	} else if (sta->ht_cap.ht_supported) {
 		agg_size = sta->ht_cap.ampdu_factor;
 	}
+
+	agg_size += he_exp;
 
 	add_sta_cmd.station_flags |=
 		cpu_to_le32(agg_size << STA_FLG_MAX_AGG_SIZE_SHIFT);
