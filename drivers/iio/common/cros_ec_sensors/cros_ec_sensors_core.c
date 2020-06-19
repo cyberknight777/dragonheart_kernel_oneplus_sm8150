@@ -770,6 +770,7 @@ int cros_ec_sensors_core_read(struct cros_ec_sensors_core_state *st,
 		ret = IIO_VAL_INT_PLUS_MICRO;
 		break;
 	default:
+		ret = -EINVAL;
 		break;
 	}
 
