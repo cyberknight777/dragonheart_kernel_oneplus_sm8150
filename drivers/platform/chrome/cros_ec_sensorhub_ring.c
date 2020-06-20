@@ -47,7 +47,7 @@ cros_sensorhub_send_sample(struct cros_ec_sensorhub *sensorhub,
 	int id = sample->sensor_id;
 	struct iio_dev *indio_dev;
 
-	if (id > sensorhub->sensor_num)
+	if (id >= sensorhub->sensor_num)
 		return -EINVAL;
 
 	indio_dev = sensorhub->push_data[sensorhub->sensor_num].indio_dev;
