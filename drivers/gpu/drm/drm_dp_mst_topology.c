@@ -3152,26 +3152,33 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 	struct drm_dp_mst_topology_mgr *mgr = container_of(work, struct drm_dp_mst_topology_mgr, destroy_connector_work);
 	struct drm_dp_mst_port *port;
 	bool send_hotplug = false;
+
+	mutex_lock(&mgr->destroy_connector_lock);
+	/*
+	* At this point, the port reference count should be zero for all
+	* ports in the destroy list.
+	*
+	* In the deletion loop below, we need references to be valid when
+	* calling update_payload_part1 for all ports within the manager. So loop
+	* through the ports slated for destruction and re-initialize their
+	* refcounts for use below.
+	*/
+	list_for_each_entry(port, &mgr->destroy_connector_list, next) {
+		WARN_ON(kref_read(&port->kref) != 0);
+		kref_init(&port->kref);
+	}
+
 	/*
 	 * Not a regular list traverse as we have to drop the destroy
 	 * connector lock before destroying the connector, to avoid AB->BA
 	 * ordering between this lock and the config mutex.
 	 */
 	for (;;) {
-		mutex_lock(&mgr->destroy_connector_lock);
 		port = list_first_entry_or_null(&mgr->destroy_connector_list, struct drm_dp_mst_port, next);
-		if (!port) {
-			mutex_unlock(&mgr->destroy_connector_lock);
+		if (!port)
 			break;
-		}
 		list_del(&port->next);
 
-		/*
-		 * If you are here, you're experiencing a race where something
-		 * else is using this port. Try wrapping the racing code with
-		 * destroy_connector_lock like we did in drm_dp_mst_detect_port
-		 */
-		WARN_ON(kref_read(&port->kref) != 1);
 		INIT_LIST_HEAD(&port->next);
 
 		mgr->cbs->destroy_connector(mgr, port->connector);
@@ -3185,10 +3192,16 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 			drm_dp_mst_put_payload_id(mgr, port->vcpi.vcpi);
 		}
 
+		/*
+		 * This warning ensures that everything between the kref re-init
+		 * loop above and here is not leaking references.
+		 */
+		WARN_ON(kref_read(&port->kref) != 1);
+
 		kref_put(&port->kref, drm_dp_free_mst_port);
 		send_hotplug = true;
-		mutex_unlock(&mgr->destroy_connector_lock);
 	}
+	mutex_unlock(&mgr->destroy_connector_lock);
 	if (send_hotplug)
 		(*mgr->cbs->hotplug)(mgr);
 }
