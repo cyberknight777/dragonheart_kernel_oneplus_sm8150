@@ -451,7 +451,6 @@ static const struct dmi_system_id btusb_needs_reset_resume_table[] = {
 #define BTUSB_DIAG_RUNNING	10
 #define BTUSB_OOB_WAKE_ENABLED	11
 #define BTUSB_HW_RESET_ACTIVE	12
-#define BTUSB_SUSPEND_REMOTE_WAKE	13
 
 struct btusb_data {
 	struct hci_dev       *hdev;
@@ -3468,15 +3467,11 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->shutdown = btrtl_shutdown_realtek;
 		hdev->cmd_timeout = btusb_rtl_cmd_timeout;
 
-		/* Realtek devices lose their updated firmware over global
-		 * suspend, which happens when host doesn't send SET_FEATURE
-		 * (DEVICE_REMOTE_WAKEUP). Set the remote wake flag so suspend
-		 * will set the REMOTE_WAKEUP correctly (or reset_resume). Set
-		 * the HCI quirk so setup will be called every time open is
-		 * called (firmware is restored or no-op if unnecessary).
+		/* Realtek devices lose their updated firmware over suspend,
+		 * but the USB hub doesn't notice any status change.
+		 * Explicitly request a device reset on resume.
 		 */
-		set_bit(BTUSB_SUSPEND_REMOTE_WAKE, &data->flags);
-		set_bit(HCI_QUIRK_NON_PERSISTENT_SETUP, &hdev->quirks);
+		interface_to_usbdev(intf)->quirks |= USB_QUIRK_RESET_RESUME;
 	}
 
 	if (id->driver_info & BTUSB_AMP) {
@@ -3652,17 +3647,6 @@ static int btusb_suspend(struct usb_interface *intf, pm_message_t message)
 		set_bit(BTUSB_OOB_WAKE_ENABLED, &data->flags);
 		enable_irq_wake(data->oob_wake_irq);
 		enable_irq(data->oob_wake_irq);
-	}
-
-	/* This flag indicates that the bluetooth firmware requires remote-wake
-	 * on suspend or it will lose firmware. Set the remote_wakeup feature
-	 * only if the device is configured for wakeup.
-	 */
-	if (test_bit(BTUSB_SUSPEND_REMOTE_WAKE, &data->flags)) {
-		if (device_may_wakeup(&data->udev->dev))
-			data->udev->do_remote_wakeup = 1;
-		else
-			data->udev->reset_resume = 1;
 	}
 
 	return 0;
