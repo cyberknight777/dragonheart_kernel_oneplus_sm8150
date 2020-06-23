@@ -1283,7 +1283,6 @@ static void azx_vs_set_state(struct pci_dev *pci,
 					 "Cannot lock devices!\n");
 		} else {
 			snd_hda_unlock_devices(&chip->bus);
-			pm_runtime_get_noresume(card->dev);
 			chip->disabled = false;
 			pm_runtime_enable(card->dev);
 			list_for_each_codec(codec, &chip->bus) {
