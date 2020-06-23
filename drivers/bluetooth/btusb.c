@@ -3471,10 +3471,12 @@ static int btusb_probe(struct usb_interface *intf,
 		/* Realtek devices lose their updated firmware over global
 		 * suspend, which happens when host doesn't send SET_FEATURE
 		 * (DEVICE_REMOTE_WAKEUP). Set the remote wake flag so suspend
-		 * will set the REMOTE_WAKEUP correctly in suspend. This
-		 * prevents global suspend entirely.
+		 * will set the REMOTE_WAKEUP correctly (or reset_resume). Set
+		 * the HCI quirk so setup will be called every time open is
+		 * called (firmware is restored or no-op if unnecessary).
 		 */
 		set_bit(BTUSB_SUSPEND_REMOTE_WAKE, &data->flags);
+		set_bit(HCI_QUIRK_NON_PERSISTENT_SETUP, &hdev->quirks);
 	}
 
 	if (id->driver_info & BTUSB_AMP) {
@@ -3654,10 +3656,13 @@ static int btusb_suspend(struct usb_interface *intf, pm_message_t message)
 
 	/* This flag indicates that the bluetooth firmware requires remote-wake
 	 * on suspend or it will lose firmware. Set the remote_wakeup feature
-	 * always so it never loses its firmware.
+	 * only if the device is configured for wakeup.
 	 */
 	if (test_bit(BTUSB_SUSPEND_REMOTE_WAKE, &data->flags)) {
-		data->udev->do_remote_wakeup = 1;
+		if (device_may_wakeup(&data->udev->dev))
+			data->udev->do_remote_wakeup = 1;
+		else
+			data->udev->reset_resume = 1;
 	}
 
 	return 0;
