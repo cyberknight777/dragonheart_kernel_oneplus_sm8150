@@ -2199,6 +2199,11 @@ static int le_scan_restart(struct hci_request *req, unsigned long opt)
 		return 0;
 
 	BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:le_scan_restart\n");
+	if (hdev->scanning_paused) {
+		bt_dev_dbg(hdev, "Scanning is paused for suspend");
+		return 0;
+	}
+
 	hci_req_add_le_scan_disable(req);
 
 	memset(&cp, 0, sizeof(cp));
