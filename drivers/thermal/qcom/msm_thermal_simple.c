@@ -24,6 +24,7 @@
 
 struct thermal_zone {
 	u32 gold_khz;
+	u32 prime_khz;
 	u32 silver_khz;
 	s32 trip_deg;
 };
@@ -49,6 +50,8 @@ static void update_online_cpu_policy(void)
 			if (cpumask_intersects(cpumask_of(cpu), cpu_lp_mask))
 				cpufreq_update_policy(cpu);
 			if (cpumask_intersects(cpumask_of(cpu), cpu_perf_mask))
+				cpufreq_update_policy(cpu);
+			if (cpumask_intersects(cpumask_of(cpu), cpu_perfp_mask))
 				cpufreq_update_policy(cpu);
 		}
 	}
@@ -120,8 +123,10 @@ static u32 get_throttle_freq(struct thermal_zone *zone, u32 cpu)
 {
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
 		return zone->silver_khz;
+	else if (cpumask_test_cpu(cpu, cpu_perf_mask))
+		return zone->gold_khz;
 
-	return zone->gold_khz;
+	return zone->prime_khz;
 }
 
 static int cpu_notifier_cb(struct notifier_block *nb, unsigned long val,
@@ -190,6 +195,10 @@ static int msm_thermal_simple_parse_dt(struct platform_device *pdev,
 			goto free_zones;
 
 		ret = OF_READ_U32(child, "qcom,gold-khz", zone->gold_khz);
+		if (ret)
+			goto free_zones;
+
+		ret = OF_READ_U32(child, "qcom,prime-khz", zone->prime_khz);
 		if (ret)
 			goto free_zones;
 
