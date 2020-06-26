@@ -41,20 +41,20 @@ static inline int
 cros_sensorhub_send_sample(struct cros_ec_sensorhub *sensorhub,
 			   struct cros_ec_sensors_ring_sample *sample)
 {
-	cros_ec_sensorhub_push_samples_cb_t cb =
-		(cros_ec_sensorhub_push_samples_cb_t)
-		sensorhub->push_data[sensorhub->sensor_num].push_data_cb;
+	cros_ec_sensorhub_push_data_cb_t cb;
 	int id = sample->sensor_id;
 	struct iio_dev *indio_dev;
 
 	if (id >= sensorhub->sensor_num)
 		return -EINVAL;
 
+	cb = sensorhub->push_data[sensorhub->sensor_num].push_data_cb;
+
 	indio_dev = sensorhub->push_data[sensorhub->sensor_num].indio_dev;
 	if (!indio_dev)
 		return 0;
 
-	return cb(indio_dev, sample);
+	return cb(indio_dev, (s16 *)sample, 0);
 }
 #else
 static inline int
@@ -116,29 +116,6 @@ void cros_ec_sensorhub_unregister_push_data(struct cros_ec_sensorhub *sensorhub,
 	sensorhub->push_data[sensor_num].push_data_cb = NULL;
 }
 EXPORT_SYMBOL_GPL(cros_ec_sensorhub_unregister_push_data);
-
-#if IS_ENABLED(CONFIG_IIO_CROS_EC_SENSORS_RING)
-int cros_ec_sensorhub_register_push_sample(
-		struct cros_ec_sensorhub *sensorhub,
-		struct iio_dev *indio_dev,
-		cros_ec_sensorhub_push_samples_cb_t cb)
-{
-	return cros_ec_sensorhub_register_push_data(
-			sensorhub,
-			sensorhub->sensor_num,
-			indio_dev,
-			(cros_ec_sensorhub_push_data_cb_t)cb);
-}
-EXPORT_SYMBOL_GPL(cros_ec_sensorhub_register_push_sample);
-
-void cros_ec_sensorhub_unregister_push_sample(
-		struct cros_ec_sensorhub *sensorhub)
-{
-	cros_ec_sensorhub_unregister_push_data(sensorhub,
-			sensorhub->sensor_num);
-}
-EXPORT_SYMBOL_GPL(cros_ec_sensorhub_unregister_push_sample);
-#endif
 
 /**
  * cros_ec_sensorhub_ring_fifo_enable() - Enable or disable interrupt generation

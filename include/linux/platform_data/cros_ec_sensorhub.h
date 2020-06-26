@@ -185,20 +185,6 @@ int cros_ec_sensorhub_register_push_data(struct cros_ec_sensorhub *sensorhub,
 void cros_ec_sensorhub_unregister_push_data(struct cros_ec_sensorhub *sensorhub,
 					    u8 sensor_num);
 
-#if IS_ENABLED(CONFIG_IIO_CROS_EC_SENSORS_RING)
-#define CROS_EC_SENSOR_BROADCAST (CROS_EC_SENSOR_PDEV_MAX - 1)
-typedef int (*cros_ec_sensorhub_push_samples_cb_t)(
-		struct iio_dev *indio_dev,
-		struct cros_ec_sensors_ring_sample *sample);
-
-int cros_ec_sensorhub_register_push_sample(
-		struct cros_ec_sensorhub *sensor_hub,
-		struct iio_dev *indio_dev,
-		cros_ec_sensorhub_push_samples_cb_t cb);
-void cros_ec_sensorhub_unregister_push_sample(
-		struct cros_ec_sensorhub *sensor_hub);
-#endif
-
 int cros_ec_sensorhub_ring_add(struct cros_ec_sensorhub *sensorhub);
 void cros_ec_sensorhub_ring_remove(void *arg);
 int cros_ec_sensorhub_ring_fifo_enable(struct cros_ec_sensorhub *sensorhub,
