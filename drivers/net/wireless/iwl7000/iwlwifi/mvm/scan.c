@@ -1298,11 +1298,16 @@ int iwl_mvm_config_scan(struct iwl_mvm *mvm)
 
 	memset(&cfg, 0, sizeof(cfg));
 
-	/* This function should not be called when using ADD_STA ver >=12 */
-	WARN_ON_ONCE(iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
-					   ADD_STA, 0) >= 12);
+	if (iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
+				  ADD_STA, 0) < 12)
+		cfg.bcast_sta_id = mvm->aux_sta.sta_id;
+	/*
+	 * Fw doesn't use this sta anymore, pending deprecation via HOST API
+	 * change.
+	 */
+	else
+		cfg.bcast_sta_id = 0xff;
 
-	cfg.bcast_sta_id = mvm->aux_sta.sta_id;
 	cfg.tx_chains = cpu_to_le32(iwl_mvm_get_valid_tx_ant(mvm));
 	cfg.rx_chains = cpu_to_le32(iwl_mvm_scan_rx_ant(mvm));
 
