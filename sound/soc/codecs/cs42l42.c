@@ -1806,8 +1806,7 @@ static int cs42l42_handle_device_data(struct device *dev,
 
 	ret = device_property_read_u32(dev, "cirrus,btn-det-init-dbnce", &val);
 	if (!ret) {
-		if ((val >= CS42L42_BTN_DET_INIT_DBNCE_MIN) &&
-			(val <= CS42L42_BTN_DET_INIT_DBNCE_MAX))
+		if (val <= CS42L42_BTN_DET_INIT_DBNCE_MAX)
 			cs42l42->btn_det_init_dbnce = val;
 		else {
 			dev_err(dev,
@@ -1823,8 +1822,7 @@ static int cs42l42_handle_device_data(struct device *dev,
 
 	ret = device_property_read_u32(dev, "cirrus,btn-det-event-dbnce", &val);
 	if (!ret) {
-		if ((val >= CS42L42_BTN_DET_EVENT_DBNCE_MIN) &&
-			(val <= CS42L42_BTN_DET_EVENT_DBNCE_MAX))
+		if (val <= CS42L42_BTN_DET_EVENT_DBNCE_MAX)
 			cs42l42->btn_det_event_dbnce = val;
 		else {
 			dev_err(dev,
@@ -1841,8 +1839,7 @@ static int cs42l42_handle_device_data(struct device *dev,
 					     thresholds, ARRAY_SIZE(thresholds));
 	if (!ret) {
 		for (i = 0; i < CS42L42_NUM_BIASES; i++) {
-			if ((thresholds[i] >= CS42L42_HS_DET_LEVEL_MIN) &&
-				(thresholds[i] <= CS42L42_HS_DET_LEVEL_MAX))
+			if (thresholds[i] <= CS42L42_HS_DET_LEVEL_MAX)
 				cs42l42->bias_thresholds[i] = thresholds[i];
 			else {
 				dev_err(dev,
