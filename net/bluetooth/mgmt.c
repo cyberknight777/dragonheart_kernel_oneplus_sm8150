@@ -117,7 +117,6 @@ static const u16 mgmt_commands[] = {
 	MGMT_OP_READ_DEF_RUNTIME_CONFIG,
 	MGMT_OP_SET_DEF_RUNTIME_CONFIG,
 	/* Begin Chromium only op codes*/
-	MGMT_OP_SET_KERNEL_DEBUG,
 	MGMT_OP_SET_WAKE_CAPABLE,
 	/* End Chromium only op codes */
 };
@@ -6776,17 +6775,6 @@ static int get_adv_size_info(struct sock *sk, struct hci_dev *hdev,
 	return err;
 }
 
-static int set_kernel_debug(struct sock *sk, struct hci_dev *hdev,
-			    void *data, u16 data_len)
-{
-	struct mgmt_cp_set_kernel_debug *cp = data;
-
-	bt_set_debug(cp->enabled);
-
-	return mgmt_cmd_complete(sk, MGMT_INDEX_NONE, MGMT_OP_SET_KERNEL_DEBUG,
-				 MGMT_STATUS_SUCCESS, NULL, 0);
-}
-
 static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, /* 0x0000 (no command) */
 	{ read_version,            MGMT_READ_VERSION_SIZE,
@@ -6921,9 +6909,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, // 0x0061
 	{ NULL }, // 0x0062
 	{ NULL }, // 0x0063
-	{ set_kernel_debug,	   MGMT_SET_KERNEL_DEBUG_SIZE,
-						HCI_MGMT_NO_HDEV |
-						HCI_MGMT_UNTRUSTED },
+	{ NULL }, // 0x0064
 	{ set_wake_capable,		MGMT_SET_WAKE_CAPABLE_SIZE },
 	/* End Chromium only op_codes */
 };

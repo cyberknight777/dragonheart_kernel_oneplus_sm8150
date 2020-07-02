@@ -667,12 +667,6 @@ struct mgmt_rp_set_exp_feature {
  * Begin chromium only op_codes
  */
 
-#define MGMT_OP_SET_KERNEL_DEBUG			0x0064
-#define MGMT_SET_KERNEL_DEBUG_SIZE			1
-struct mgmt_cp_set_kernel_debug {
-	__u8	enabled;
-} __packed;
-
 #define MGMT_OP_SET_WAKE_CAPABLE			0x0065
 #define MGMT_SET_WAKE_CAPABLE_SIZE			8
 struct mgmt_cp_set_wake_capable {
