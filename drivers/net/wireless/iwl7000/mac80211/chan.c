@@ -540,6 +540,8 @@ static void ieee80211_del_chanctx(struct ieee80211_local *local,
 		struct cfg80211_chan_def *chandef = &local->_oper_chandef;
 		chandef->width = NL80211_CHAN_WIDTH_20_NOHT;
 		chandef->center_freq1 = chandef->chan->center_freq;
+		cfg80211_chandef_freq1_offset_set(chandef,
+						  cfg80211_chan_freq_offset(chandef->chan));
 		chandef->center_freq2 = 0;
 
 		/* NOTE: Disabling radar is only valid here for

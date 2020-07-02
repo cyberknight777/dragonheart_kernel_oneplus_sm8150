@@ -662,10 +662,17 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 						      GFP_ATOMIC);
 #endif
 			}
-			else
+			else if (ieee80211_is_mgmt(hdr->frame_control))
 				cfg80211_mgmt_tx_status(&sdata->wdev, cookie,
 							skb->data, skb->len,
 							acked, GFP_ATOMIC);
+			else
+				cfg80211_control_port_tx_status(&sdata->wdev,
+								cookie,
+								skb->data,
+								skb->len,
+								acked,
+								GFP_ATOMIC);
 		}
 		rcu_read_unlock();
 

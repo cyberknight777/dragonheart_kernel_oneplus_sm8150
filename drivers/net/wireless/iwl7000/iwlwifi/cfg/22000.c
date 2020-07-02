@@ -524,6 +524,8 @@ const struct iwl_cfg iwlax211_2ax_cfg_so_gf_a0 = {
 	.uhb_supported = true,
 	IWL_DEVICE_AX210,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
+	.trans.xtal_latency = 12000,
+	.trans.low_latency_xtal = true,
 };
 
 const struct iwl_cfg iwlax211_2ax_cfg_so_gf_a0_long = {

@@ -1715,6 +1715,7 @@ static inline void cfg80211_abandon_assoc(struct net_device *dev,
 
 #if CFG80211_VERSION < KERNEL_VERSION(4,10,0)
 #define NL80211_EXT_FEATURE_FILS_STA -1
+#define NL80211_EXT_FEATURE_BEACON_RATE_LEGACY -1
 
 static inline bool wdev_running(struct wireless_dev *wdev)
 {
@@ -2729,6 +2730,13 @@ ieee80211_sband_get_iftypes_data_entry(struct ieee80211_supported_band *sband,
 		  "Tried to use unsupported sband iftype data\n");
 	return NULL;
 }
+
+static inline const struct ieee80211_sband_iftype_data *
+ieee80211_get_sband_iftype_data(const struct ieee80211_supported_band *sband,
+				u8 iftype)
+{
+	return NULL;
+}
 #else  /* CFG80211_VERSION < KERNEL_VERSION(4,19,0) */
 static inline void
 ieee80211_sband_set_num_iftypes_data(struct ieee80211_supported_band *sband,
@@ -2992,3 +3000,114 @@ cfg80211_wiphy_tx_queue_len(struct wiphy *wiphy)
 	return wiphy->tx_queue_len;
 }
 #endif /* < 5.7 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
+#define NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211_TX_STATUS -1
+#define NL80211_EXT_FEATURE_SCAN_FREQ_KHZ -1
+
+static inline int
+cfg80211_chan_freq_offset(struct ieee80211_channel *chan)
+{
+	return 0;
+}
+
+static inline void
+cfg80211_chandef_freq1_offset_set(struct cfg80211_chan_def *chandef, u16 e)
+{
+}
+
+static inline u16
+cfg80211_chandef_freq1_offset(struct cfg80211_chan_def *chandef)
+{
+	return 0;
+}
+
+static inline void
+cfg80211_control_port_tx_status(struct wireless_dev *wdev, u64 cookie,
+				const u8 *buf, size_t len, bool ack,
+				gfp_t gfp)
+{
+}
+
+static inline __le16
+ieee80211_get_he_6ghz_capa(const struct ieee80211_supported_band *sband,
+			   enum nl80211_iftype iftype)
+{
+	return 0;
+}
+void ieee80211_mgmt_frame_register(struct wiphy *wiphy,
+				   struct wireless_dev *wdev,
+				   u16 frame_type, bool reg);
+static inline __le16
+cfg80211_iftd_he_6ghz_capa(const struct ieee80211_sband_iftype_data *iftd)
+{
+	return 0;
+}
+
+int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
+			      const u8 *buf, size_t len,
+			      const u8 *dest, __be16 proto, bool unencrypted,
+			      u64 *cookie);
+static inline int
+bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
+			     const u8 *buf, size_t len,
+			     const u8 *dest, __be16 proto, bool unencrypted)
+{
+	return ieee80211_tx_control_port(wiphy, dev, buf, len, dest, proto,
+					 unencrypted, NULL);
+}
+#else /* < 5.8 */
+static inline int
+cfg80211_chan_freq_offset(struct ieee80211_channel *chan)
+{
+	return chan->freq_offset;
+}
+
+static inline void
+cfg80211_chandef_freq1_offset_set(struct cfg80211_chan_def *chandef, u16 e)
+{
+	chandef->freq1_offset = e;
+}
+
+static inline u16
+cfg80211_chandef_freq1_offset(struct cfg80211_chan_def *chandef)
+{
+	return chandef->freq1_offset;
+}
+
+static inline __le16
+cfg80211_iftd_he_6ghz_capa(const struct ieee80211_sband_iftype_data *iftd)
+{
+	return iftd->he_6ghz_capa.capa;
+}
+#endif /* < 5.8 */
+
+#if LINUX_VERSION_IS_GEQ(4,20,0)
+#include <linux/compiler_attributes.h>
+#endif
+
+#ifndef __has_attribute
+# define __has_attribute(x) __GCC4_has_attribute_##x
+#endif
+
+#ifndef __GCC4_has_attribute___fallthrough__
+# define __GCC4_has_attribute___fallthrough__         0
+#endif /* __GCC4_has_attribute___fallthrough__ */
+
+#ifndef fallthrough
+/*
+ * Add the pseudo keyword 'fallthrough' so case statement blocks
+ * must end with any of these keywords:
+ *   break;
+ *   fallthrough;
+ *   goto <label>;
+ *   return [expression];
+ *
+ *  gcc: https://gcc.gnu.org/onlinedocs/gcc/Statement-Attributes.html#Statement-Attributes
+ */
+#if __has_attribute(__fallthrough__)
+# define fallthrough                    __attribute__((__fallthrough__))
+#else
+# define fallthrough                    do {} while (0)  /* fallthrough */
+#endif
+#endif /* fallthrough */

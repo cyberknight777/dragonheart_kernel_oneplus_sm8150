@@ -931,14 +931,14 @@ static void ieee80211_parse_extension_element(u32 *crc,
 		if (len == sizeof(*elems->mbssid_config_ie))
 			elems->mbssid_config_ie = data;
 		break;
-	case WLAN_EID_EXT_HE_6GHZ_CAPA:
-		if (len == sizeof(*elems->he_6ghz_capa))
-			elems->he_6ghz_capa = data;
-		break;
 	case WLAN_EID_EXT_HE_SPR:
 		if (len >= sizeof(*elems->he_spr) &&
 		    len >= ieee80211_he_spr_size(data))
 			elems->he_spr = data;
+		break;
+	case WLAN_EID_EXT_HE_6GHZ_CAPA:
+		if (len == sizeof(*elems->he_6ghz_capa))
+			elems->he_6ghz_capa = data;
 		break;
 	}
 }
@@ -1683,20 +1683,20 @@ void ieee80211_send_deauth_disassoc(struct ieee80211_sub_if_data *sdata,
 	}
 }
 
-static u8 *ieee80211_ie_build_he_6ghz_cap(u8 *pos, __le16 he_6ghz_capa, u8 *end)
+static u8 *ieee80211_write_he_6ghz_cap(u8 *pos, __le16 cap, u8 *end)
 {
 	if ((end - pos) < 5)
 		return pos;
 
 	*pos++ = WLAN_EID_EXTENSION;
-	*pos++ = 3;
+	*pos++ = 1 + sizeof(cap);
 	*pos++ = WLAN_EID_EXT_HE_6GHZ_CAPA;
-	memcpy(pos, &he_6ghz_capa, sizeof(u16));
+	memcpy(pos, &cap, sizeof(cap));
 
 	return pos + 2;
 }
 
-static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
+static int ieee80211_build_preq_ies_band(struct ieee80211_sub_if_data *sdata,
 					 u8 *buffer, size_t buffer_len,
 					 const u8 *ie, size_t ie_len,
 					 enum nl80211_band band,
@@ -1704,6 +1704,7 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 					 struct cfg80211_chan_def *chandef,
 					 size_t *offset, u32 flags)
 {
+	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_supported_band *sband;
 	const struct ieee80211_sta_he_cap *he_cap;
 	u8 *pos = buffer, *end = buffer + buffer_len;
@@ -1883,11 +1884,11 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 			goto out_err;
 
 		if (nl80211_is_6ghz(sband->band)) {
-			__le16 he_6ghz_capa =
-				ieee80211_get_he_6ghz_sta_cap(sband);
+			enum nl80211_iftype iftype =
+				ieee80211_vif_type_p2p(&sdata->vif);
+			__le16 cap = ieee80211_get_he_6ghz_capa(sband, iftype);
 
-			pos = ieee80211_ie_build_he_6ghz_cap(pos, he_6ghz_capa,
-							     end);
+			pos = ieee80211_write_he_6ghz_cap(pos, cap, end);
 		}
 	}
 
@@ -1903,7 +1904,7 @@ static int ieee80211_build_preq_ies_band(struct ieee80211_local *local,
 	return pos - buffer;
 }
 
-int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
+int ieee80211_build_preq_ies(struct ieee80211_sub_if_data *sdata, u8 *buffer,
 			     size_t buffer_len,
 			     struct ieee80211_scan_ies *ie_desc,
 			     const u8 *ie, size_t ie_len,
@@ -1918,7 +1919,7 @@ int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
 
 	for (i = 0; i < NUM_NL80211_BANDS; i++) {
 		if (bands_used & BIT(i)) {
-			pos += ieee80211_build_preq_ies_band(local,
+			pos += ieee80211_build_preq_ies_band(sdata,
 							     buffer + pos,
 							     buffer_len - pos,
 							     ie, ie_len, i,
@@ -1980,7 +1981,7 @@ struct sk_buff *ieee80211_build_probe_req(struct ieee80211_sub_if_data *sdata,
 		return NULL;
 
 	rate_masks[chan->band] = ratemask;
-	ies_len = ieee80211_build_preq_ies(local, skb_tail_pointer(skb),
+	ies_len = ieee80211_build_preq_ies(sdata, skb_tail_pointer(skb),
 					   skb_tailroom(skb), &dummy_ie_desc,
 					   ie, ie_len, BIT(chan->band),
 					   rate_masks, &chandef, flags);
@@ -2897,6 +2898,50 @@ end:
 	return pos;
 }
 
+void ieee80211_ie_build_he_6ghz_cap(struct ieee80211_sub_if_data *sdata,
+				    struct sk_buff *skb)
+{
+	struct ieee80211_supported_band *sband;
+	const struct ieee80211_sband_iftype_data *iftd;
+	enum nl80211_iftype iftype = ieee80211_vif_type_p2p(&sdata->vif);
+	u8 *pos;
+	u16 cap;
+
+	sband = ieee80211_get_sband(sdata);
+	if (!sband)
+		return;
+
+	iftd = ieee80211_get_sband_iftype_data(sband, iftype);
+	if (WARN_ON(!iftd))
+		return;
+
+	cap = le16_to_cpu(cfg80211_iftd_he_6ghz_capa(iftd));
+	cap &= ~IEEE80211_HE_6GHZ_CAP_SM_PS;
+
+	switch (sdata->smps_mode) {
+	case IEEE80211_SMPS_AUTOMATIC:
+	case IEEE80211_SMPS_NUM_MODES:
+		WARN_ON(1);
+		/* fall through */
+	case IEEE80211_SMPS_OFF:
+		cap |= u16_encode_bits(WLAN_HT_CAP_SM_PS_DISABLED,
+				       IEEE80211_HE_6GHZ_CAP_SM_PS);
+		break;
+	case IEEE80211_SMPS_STATIC:
+		cap |= u16_encode_bits(WLAN_HT_CAP_SM_PS_STATIC,
+				       IEEE80211_HE_6GHZ_CAP_SM_PS);
+		break;
+	case IEEE80211_SMPS_DYNAMIC:
+		cap |= u16_encode_bits(WLAN_HT_CAP_SM_PS_DYNAMIC,
+				       IEEE80211_HE_6GHZ_CAP_SM_PS);
+		break;
+	}
+
+	pos = skb_put(skb, 2 + 1 + sizeof(cap));
+	ieee80211_write_he_6ghz_cap(pos, cpu_to_le16(cap),
+				    pos + 2 + 1 + sizeof(cap));
+}
+
 u8 *ieee80211_ie_build_ht_oper(u8 *pos, struct ieee80211_sta_ht_cap *ht_cap,
 			       const struct cfg80211_chan_def *chandef,
 			       u16 prot_mode, bool rifs_mode)
@@ -3020,13 +3065,18 @@ u8 *ieee80211_ie_build_vht_oper(u8 *pos, struct ieee80211_sta_vht_cap *vht_cap,
 	return pos + sizeof(struct ieee80211_vht_operation);
 }
 
-u8 *ieee80211_ie_build_he_oper(u8 *pos)
+u8 *ieee80211_ie_build_he_oper(u8 *pos, struct cfg80211_chan_def *chandef)
 {
 	struct ieee80211_he_operation *he_oper;
+	struct ieee80211_he_6ghz_oper *he_6ghz_op;
 	u32 he_oper_params;
+	u8 ie_len = 1 + sizeof(struct ieee80211_he_operation);
+
+	if (nl80211_is_6ghz(chandef->chan->band))
+		ie_len += sizeof(struct ieee80211_he_6ghz_oper);
 
 	*pos++ = WLAN_EID_EXTENSION;
-	*pos++ = 1 + sizeof(struct ieee80211_he_operation);
+	*pos++ = ie_len;
 	*pos++ = WLAN_EID_EXT_HE_OPERATION;
 
 	he_oper_params = 0;
@@ -3036,16 +3086,68 @@ u8 *ieee80211_ie_build_he_oper(u8 *pos)
 				IEEE80211_HE_OPERATION_ER_SU_DISABLE);
 	he_oper_params |= u32_encode_bits(1,
 				IEEE80211_HE_OPERATION_BSS_COLOR_DISABLED);
+	if (nl80211_is_6ghz(chandef->chan->band))
+		he_oper_params |= u32_encode_bits(1,
+				IEEE80211_HE_OPERATION_6GHZ_OP_INFO);
 
 	he_oper = (struct ieee80211_he_operation *)pos;
 	he_oper->he_oper_params = cpu_to_le32(he_oper_params);
 
 	/* don't require special HE peer rates */
 	he_oper->he_mcs_nss_set = cpu_to_le16(0xffff);
+	pos += sizeof(struct ieee80211_he_operation);
 
-	/* TODO add VHT operational and 6GHz operational subelement? */
+	if (!nl80211_is_6ghz(chandef->chan->band))
+		goto out;
 
-	return pos + sizeof(struct ieee80211_vht_operation);
+	/* TODO add VHT operational */
+	he_6ghz_op = (struct ieee80211_he_6ghz_oper *)pos;
+	he_6ghz_op->minrate = 6; /* 6 Mbps */
+	he_6ghz_op->primary =
+		ieee80211_frequency_to_channel(chandef->chan->center_freq);
+	he_6ghz_op->ccfs0 =
+		ieee80211_frequency_to_channel(chandef->center_freq1);
+	if (chandef->center_freq2)
+		he_6ghz_op->ccfs1 =
+			ieee80211_frequency_to_channel(chandef->center_freq2);
+	else
+		he_6ghz_op->ccfs1 = 0;
+
+	switch (chandef->width) {
+	case NL80211_CHAN_WIDTH_160:
+		/* Convert 160 MHz channel width to new style as interop
+		 * workaround.
+		 */
+		he_6ghz_op->control =
+			IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ;
+		he_6ghz_op->ccfs1 = he_6ghz_op->ccfs0;
+		if (chandef->chan->center_freq < chandef->center_freq1)
+			he_6ghz_op->ccfs0 -= 8;
+		else
+			he_6ghz_op->ccfs0 += 8;
+		fallthrough;
+	case NL80211_CHAN_WIDTH_80P80:
+		he_6ghz_op->control =
+			IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ;
+		break;
+	case NL80211_CHAN_WIDTH_80:
+		he_6ghz_op->control =
+			IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_80MHZ;
+		break;
+	case NL80211_CHAN_WIDTH_40:
+		he_6ghz_op->control =
+			IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_40MHZ;
+		break;
+	default:
+		he_6ghz_op->control =
+			IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_20MHZ;
+		break;
+	}
+
+	pos += sizeof(struct ieee80211_he_6ghz_oper);
+
+out:
+	return pos;
 }
 
 bool ieee80211_chandef_ht_oper(const struct ieee80211_ht_operation *ht_oper,
@@ -3198,6 +3300,120 @@ bool ieee80211_chandef_vht_oper(struct ieee80211_hw *hw, u32 vht_cap_info,
 	*chandef = new;
 	return true;
 }
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
+bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
+				    const struct ieee80211_he_operation *he_oper,
+				    struct cfg80211_chan_def *chandef){
+	return true;
+}
+#else
+bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
+				    const struct ieee80211_he_operation *he_oper,
+				    struct cfg80211_chan_def *chandef)
+{
+	struct ieee80211_local *local = sdata->local;
+	struct ieee80211_supported_band *sband;
+	enum nl80211_iftype iftype = ieee80211_vif_type_p2p(&sdata->vif);
+	const struct ieee80211_sta_he_cap *he_cap;
+	struct cfg80211_chan_def he_chandef = *chandef;
+	const struct ieee80211_he_6ghz_oper *he_6ghz_oper;
+	bool support_80_80, support_160;
+	u8 he_phy_cap;
+	u32 freq;
+
+	if (!nl80211_is_6ghz(chandef->chan->band))
+		return true;
+
+	sband = local->hw.wiphy->bands[NL80211_BAND_6GHZ];
+
+	he_cap = ieee80211_get_he_iftype_cap(sband, iftype);
+	if (!he_cap) {
+		sdata_info(sdata, "Missing iftype sband data/HE cap");
+		return false;
+	}
+
+	he_phy_cap = he_cap->he_cap_elem.phy_cap_info[0];
+	support_160 =
+		he_phy_cap &
+		IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G;
+	support_80_80 =
+		he_phy_cap &
+		IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G;
+
+	if (!he_oper) {
+		sdata_info(sdata,
+			   "HE is not advertised on (on %d MHz), expect issues\n",
+			   chandef->chan->center_freq);
+		return false;
+	}
+
+	he_6ghz_oper = ieee80211_he_6ghz_oper(he_oper);
+
+	if (!he_6ghz_oper) {
+		sdata_info(sdata,
+			   "HE 6GHz operation missing (on %d MHz), expect issues\n",
+			   chandef->chan->center_freq);
+		return false;
+	}
+
+	freq = ieee80211_channel_to_frequency(he_6ghz_oper->primary,
+					      NL80211_BAND_6GHZ);
+	he_chandef.chan = ieee80211_get_channel(sdata->local->hw.wiphy, freq);
+
+	switch (u8_get_bits(he_6ghz_oper->control,
+			    IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH)) {
+	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_20MHZ:
+		he_chandef.width = NL80211_CHAN_WIDTH_20;
+		break;
+	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_40MHZ:
+		he_chandef.width = NL80211_CHAN_WIDTH_40;
+		break;
+	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_80MHZ:
+		he_chandef.width = NL80211_CHAN_WIDTH_80;
+		break;
+	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ:
+		he_chandef.width = NL80211_CHAN_WIDTH_80;
+		if (!he_6ghz_oper->ccfs1)
+			break;
+		if (abs(he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0) == 8) {
+			if (support_160)
+				he_chandef.width = NL80211_CHAN_WIDTH_160;
+		} else {
+			if (support_80_80)
+				he_chandef.width = NL80211_CHAN_WIDTH_80P80;
+		}
+		break;
+	}
+
+	if (he_chandef.width == NL80211_CHAN_WIDTH_160) {
+		he_chandef.center_freq1 =
+			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
+						       NL80211_BAND_6GHZ);
+	} else {
+		he_chandef.center_freq1 =
+			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs0,
+						       NL80211_BAND_6GHZ);
+		he_chandef.center_freq2 =
+			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
+						       NL80211_BAND_6GHZ);
+	}
+
+	if (!cfg80211_chandef_valid(&he_chandef)) {
+		sdata_info(sdata,
+			   "HE 6GHz operation resulted in invalid chandef: %d MHz/%d/%d MHz/%d MHz\n",
+			   he_chandef.chan ? he_chandef.chan->center_freq : 0,
+			   he_chandef.width,
+			   he_chandef.center_freq1,
+			   he_chandef.center_freq2);
+		return false;
+	}
+
+	*chandef = he_chandef;
+
+	return true;
+}
+#endif
 
 int ieee80211_parse_bitrates(struct cfg80211_chan_def *chandef,
 			     const struct ieee80211_supported_band *sband,
