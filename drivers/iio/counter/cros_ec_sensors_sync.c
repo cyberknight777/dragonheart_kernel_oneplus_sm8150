@@ -93,6 +93,7 @@ static const struct iio_info cros_ec_sensors_sync_info = {
 	.read_raw = &cros_ec_sensors_sync_read,
 	.write_raw = &cros_ec_sensors_write,
 	.driver_module = THIS_MODULE,
+	.read_avail = &cros_ec_sensors_core_read_avail,
 };
 
 static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
@@ -107,16 +108,29 @@ static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
 	if (!indio_dev)
 		return -ENOMEM;
 
-	ret = cros_ec_sensors_core_init(pdev, indio_dev, true);
+	ret = cros_ec_sensors_core_init(pdev, indio_dev, true,
+			cros_ec_sensors_capture, cros_ec_sensors_push_data);
 	if (ret)
 		return ret;
 
 	indio_dev->info = &cros_ec_sensors_sync_info;
 	state = iio_priv(indio_dev);
+	/*
+	 * Sync sensor notion of frequencies is either on or off.
+	 * EC reports min and max as 1, that would translate in 1 mHz.
+	 * Force it to 1 (..HZ), more readable.
+	 * For the EC, any frequencies different from 0 means the sync sensor is
+	 * enabled.
+	 */
+	state->core.frequencies[2] = state->core.frequencies[4] = 1;
+	state->core.frequencies[3] = state->core.frequencies[5] = 0;
+
 	channel = state->channels;
 	/* common part */
 	channel->info_mask_separate = BIT(IIO_CHAN_INFO_RAW);
-	channel->info_mask_shared_by_all = BIT(IIO_CHAN_INFO_FREQUENCY);
+	channel->info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SAMP_FREQ);
+	channel->info_mask_shared_by_all_available =
+		BIT(IIO_CHAN_INFO_SAMP_FREQ);
 	channel->scan_type.realbits = CROS_EC_SENSOR_BITS;
 	channel->scan_type.storagebits = CROS_EC_SENSOR_BITS;
 	channel->scan_type.shift = 0;
@@ -149,11 +163,6 @@ static int cros_ec_sensors_sync_probe(struct platform_device *pdev)
 
 	state->core.read_ec_sensors_data = cros_ec_sensors_read_cmd;
 
-	ret = devm_iio_triggered_buffer_setup(dev, indio_dev, NULL,
-			cros_ec_sensors_capture, NULL);
-	if (ret)
-		return ret;
-
 	return devm_iio_device_register(dev, indio_dev);
 }
 
@@ -168,7 +177,6 @@ MODULE_DEVICE_TABLE(platform, cros_ec_sensors_sync_ids);
 static struct platform_driver cros_ec_sensors_sync_platform_driver = {
 	.driver = {
 		.name	= "cros-ec-sync",
-		.pm	= &cros_ec_sensors_pm_ops,
 	},
 	.probe		= cros_ec_sensors_sync_probe,
 	.id_table	= cros_ec_sensors_sync_ids,

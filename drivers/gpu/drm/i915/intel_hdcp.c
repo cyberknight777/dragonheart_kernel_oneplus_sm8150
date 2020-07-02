@@ -219,8 +219,10 @@ int intel_hdcp_validate_v_prime(struct intel_digital_port *intel_dig_port,
 
 		/* Fill up the empty slots in sha_text and write it out */
 		sha_empty = sizeof(sha_text) - sha_leftovers;
-		for (j = 0; j < sha_empty; j++)
-			sha_text |= ksv[j] << ((sizeof(sha_text) - j - 1) * 8);
+		for (j = 0; j < sha_empty; j++) {
+			u8 off = ((sizeof(sha_text) - j - 1 - sha_leftovers) * 8);
+			sha_text |= ksv[j] << off;
+		}
 
 		ret = intel_write_sha_text(dev_priv, sha_text);
 		if (ret < 0)
@@ -310,7 +312,7 @@ int intel_hdcp_validate_v_prime(struct intel_digital_port *intel_dig_port,
 	} else if (sha_leftovers == 2) {
 		/* Write 32 bits of text */
 		I915_WRITE(HDCP_REP_CTL, rep_ctl | HDCP_SHA1_TEXT_32);
-		sha_text |= bstatus[0] << 24 | bstatus[1] << 16;
+		sha_text |= bstatus[0] << 8 | bstatus[1];
 		ret = intel_write_sha_text(dev_priv, sha_text);
 		if (ret < 0)
 			return ret;
@@ -324,16 +326,27 @@ int intel_hdcp_validate_v_prime(struct intel_digital_port *intel_dig_port,
 				return ret;
 			sha_idx += sizeof(sha_text);
 		}
-	} else if (sha_leftovers == 3) {
-		/* Write 32 bits of text */
+
+		/*
+		 * Terminate the SHA-1 stream by hand. For the other leftover
+		 * cases this is appended by the hardware.
+		 */
 		I915_WRITE(HDCP_REP_CTL, rep_ctl | HDCP_SHA1_TEXT_32);
-		sha_text |= bstatus[0] << 24;
+		sha_text = DRM_HDCP_SHA1_TERMINATOR << 24;
+		ret = intel_write_sha_text(dev_priv, sha_text);
+		if (ret < 0)
+			return ret;
+		sha_idx += sizeof(sha_text);
+	} else if (sha_leftovers == 3) {
+		/* Write 32 bits of text (filled from LSB) */
+		I915_WRITE(HDCP_REP_CTL, rep_ctl | HDCP_SHA1_TEXT_32);
+		sha_text |= bstatus[0];
 		ret = intel_write_sha_text(dev_priv, sha_text);
 		if (ret < 0)
 			return ret;
 		sha_idx += sizeof(sha_text);
 
-		/* Write 8 bits of text, 24 bits of M0 */
+		/* Write 8 bits of text (filled from LSB), 24 bits of M0 */
 		I915_WRITE(HDCP_REP_CTL, rep_ctl | HDCP_SHA1_TEXT_8);
 		ret = intel_write_sha_text(dev_priv, bstatus[1]);
 		if (ret < 0)
@@ -627,6 +640,7 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 	struct drm_i915_private *dev_priv = connector->base.dev->dev_private;
 	struct intel_digital_port *intel_dig_port = conn_to_dig_port(connector);
 	enum port port = intel_dig_port->base.port;
+	u32 repeater_ctl;
 	int ret;
 
 	I915_WRITE(PORT_HDCP_CONF(port), 0);
@@ -635,6 +649,9 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 		DRM_ERROR("Failed to disable HDCP, timeout clearing status\n");
 		return -ETIMEDOUT;
 	}
+
+	repeater_ctl = intel_hdcp_get_repeater_ctl(intel_dig_port);
+	I915_WRITE(HDCP_REP_CTL, I915_READ(HDCP_REP_CTL) & ~repeater_ctl);
 
 	ret = connector->hdcp_shim->toggle_signalling(intel_dig_port, false);
 	if (ret) {
@@ -804,12 +821,16 @@ void intel_hdcp_atomic_check(struct drm_connector *connector,
 	}
 
 	/*
-	 * Nothing to do if the state didn't change, or HDCP was activated since
-	 * the last commit
+	 * Nothing to do if content type is unchanged and one of:
+	 *  - state didn't change
+	 *  - HDCP was activated since the last commit
+	 *  - attempting to set to desired while already enabled
 	 */
 	if (old_cp == new_cp ||
 	    (old_cp == DRM_MODE_CONTENT_PROTECTION_DESIRED &&
-	     new_cp == DRM_MODE_CONTENT_PROTECTION_ENABLED))
+	     new_cp == DRM_MODE_CONTENT_PROTECTION_ENABLED) ||
+	    (old_cp == DRM_MODE_CONTENT_PROTECTION_ENABLED &&
+	     new_cp == DRM_MODE_CONTENT_PROTECTION_DESIRED))
 		return;
 
 	crtc_state = drm_atomic_get_new_crtc_state(new_state->state,

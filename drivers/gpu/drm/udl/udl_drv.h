@@ -72,6 +72,7 @@ struct udl_device {
 	atomic_t cpu_kcycles_used; /* transpired during pixel processing */
 
 	struct udl_flip_queue *flip_queue;
+	struct mutex transfer_lock; /* to serialize transfers */
 };
 
 #define to_udl(x) container_of(x, struct udl_device, drm)

@@ -320,6 +320,8 @@ int udl_init(struct udl_device *udl)
 
 	DRM_DEBUG("\n");
 
+	mutex_init(&udl->transfer_lock);
+
 	if (!udl_parse_vendor_descriptor(dev, udl->udev)) {
 		ret = -ENODEV;
 		DRM_ERROR("firmware not recognized. Assume incompatible device\n");
@@ -384,4 +386,5 @@ void udl_fini(struct drm_device *dev)
 		udl_cursor_free(udl->cursor);
 
 	udl_fbdev_cleanup(dev);
+	mutex_destroy(&udl->transfer_lock);
 }

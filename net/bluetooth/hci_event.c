@@ -1484,37 +1484,6 @@ unlock:
 	hci_dev_unlock(hdev);
 }
 
-static void hci_cc_set_event_mask(struct hci_dev *hdev, struct sk_buff *skb)
-{
-	u8 status = *((u8 *)skb->data);
-	u8 *events;
-
-	BT_DBG("%s status 0x%2.2x", hdev->name, status);
-
-	if (status) {
-		BT_ERR("Set Event mask failed! status %d", status);
-		return;
-	}
-
-	hci_dev_lock(hdev);
-	events = hci_sent_cmd_data(hdev, HCI_OP_SET_EVENT_MASK);
-	if (events)
-		memcpy(hdev->event_mask, events, sizeof(hdev->event_mask));
-	else
-		BT_ERR("Set Event mask failed! events is NULL");
-
-	BT_DBG("Event mask byte 0: 0x%02x  byte 1: 0x%02x",
-	       hdev->event_mask[0], hdev->event_mask[1]);
-	BT_DBG("Event mask byte 2: 0x%02x  byte 3: 0x%02x",
-	       hdev->event_mask[2], hdev->event_mask[3]);
-	BT_DBG("Event mask byte 4: 0x%02x  byte 5: 0x%02x",
-	       hdev->event_mask[4], hdev->event_mask[5]);
-	BT_DBG("Event mask byte 6: 0x%02x  byte 7: 0x%02x",
-	       hdev->event_mask[6], hdev->event_mask[7]);
-
-	hci_dev_unlock(hdev);
-}
-
 static void hci_cc_write_ssp_debug_mode(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	u8 status = *((u8 *) skb->data);
@@ -3208,10 +3177,6 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 		hci_cc_write_ssp_debug_mode(hdev, skb);
 		break;
 
-	case HCI_OP_SET_EVENT_MASK:
-		hci_cc_set_event_mask(hdev, skb);
-		break;
-
 	default:
 		BT_DBG("%s opcode 0x%4.4x", hdev->name, *opcode);
 		break;
@@ -3993,6 +3958,7 @@ static void hci_sync_conn_complete_evt(struct hci_dev *hdev,
 	case 0x11:	/* Unsupported Feature or Parameter Value */
 	case 0x1c:	/* SCO interval rejected */
 	case 0x1a:	/* Unsupported Remote Feature */
+	case 0x1e:	/* Invalid LMP Parameters */
 	case 0x1f:	/* Unspecified error */
 	case 0x20:	/* Unsupported LMP Parameter value */
 		if (conn->out) {
@@ -4904,7 +4870,9 @@ static struct hci_conn *check_pending_le_conn(struct hci_dev *hdev,
 	/* Most controller will fail if we try to create new connections
 	 * while we have an existing one in slave role.
 	 */
-	if (hdev->conn_hash.le_num_slave > 0)
+	if (hdev->conn_hash.le_num_slave > 0 &&
+	    (!test_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks) ||
+	     !(hdev->le_states[3] & 0x10)))
 		return NULL;
 
 	/* If we're not connectable only connect devices that we have in
@@ -4939,7 +4907,7 @@ static struct hci_conn *check_pending_le_conn(struct hci_dev *hdev,
 	}
 
 	conn = hci_connect_le(hdev, addr, addr_type, BT_SECURITY_LOW,
-			      HCI_LE_AUTOCONN_TIMEOUT, HCI_ROLE_MASTER,
+			      hdev->def_le_autoconnect_timeout, HCI_ROLE_MASTER,
 			      direct_rpa);
 	if (!IS_ERR(conn)) {
 		/* If HCI_AUTO_CONN_EXPLICIT is set, conn is already owned
