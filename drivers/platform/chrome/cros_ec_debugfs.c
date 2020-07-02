@@ -506,6 +506,7 @@ void cros_ec_debugfs_remove(struct cros_ec_dev *ec)
 
 	debugfs_remove_recursive(ec->debug_info->dir);
 	cros_ec_cleanup_console_log(ec->debug_info);
+	ec->debug_info = NULL;
 }
 EXPORT_SYMBOL(cros_ec_debugfs_remove);
 
