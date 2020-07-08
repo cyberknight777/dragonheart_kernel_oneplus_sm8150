@@ -908,6 +908,10 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	    !CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id)) {
 		unsigned long flags;
 
+		ret = iwl_finish_nic_init(iwl_trans, trans);
+		if (ret)
+			goto out_free_trans;
+
 		if (iwl_trans_grab_nic_access(iwl_trans, &flags)) {
 			u32 val;
 
