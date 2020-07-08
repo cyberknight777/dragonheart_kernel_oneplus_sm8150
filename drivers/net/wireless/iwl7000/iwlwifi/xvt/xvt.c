@@ -815,14 +815,39 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 {
 	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
+	u32 n_bands;
 	int ret;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, PHY_OPS_GROUP,
 					   GEO_TX_POWER_LIMIT,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
-	/* the table is also at the same position both in v1 and v2 */
-	ret = iwl_sar_geo_init(&xvt->fwrt, &cmd.v1.table[0][0],
-			       ACPI_WGDS_NUM_BANDS);
+	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, ops) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, ops) ||
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, ops) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, ops));
+	/* the ops field is at the same spot for all versions, so set in v1 */
+	cmd.v1.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
+
+	if (cmd_ver == 3) {
+		len = sizeof(cmd.v3);
+		n_bands = ARRAY_SIZE(cmd.v3.table[0]);
+		cmd.v3.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+	} else if (fw_has_api(&xvt->fwrt.fw->ucode_capa,
+			      IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
+		len =  sizeof(cmd.v2);
+		n_bands = ARRAY_SIZE(cmd.v2.table[0]);
+		cmd.v2.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+	} else {
+		len = sizeof(cmd.v1);
+		n_bands = ARRAY_SIZE(cmd.v1.table[0]);
+	}
+
+	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, table) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, table) ||
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, table) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, table));
+	/* the table is at the same position for all versions, so set use v1 */
+	ret = iwl_sar_geo_init(&xvt->fwrt, &cmd.v1.table[0][0], n_bands);
 
 	/*
 	 * It is a valid scenario to not support SAR, or miss wgds table,
@@ -830,20 +855,6 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	 */
 	if (ret)
 		return 0;
-
-	/* the ops field is at the same spot for all versions, so set in v1 */
-	cmd.v1.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
-
-	if (cmd_ver == 3) {
-		len = sizeof(cmd.v3);
-		cmd.v3.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
-	} else if (fw_has_api(&xvt->fwrt.fw->ucode_capa,
-			      IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
-		len =  sizeof(cmd.v2);
-		cmd.v2.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
-	} else {
-		len = sizeof(cmd.v1);
-	}
 
 	return iwl_xvt_send_cmd_pdu(xvt,
 				    WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT),
