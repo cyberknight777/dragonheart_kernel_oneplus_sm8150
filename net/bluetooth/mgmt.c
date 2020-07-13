@@ -6963,9 +6963,6 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	{ NULL }, // 0x005E
 	{ NULL }, // 0x005F
 	/* Begin Chromium only op_codes */
-	{ NULL }, // 0x0060
-	{ NULL }, // 0x0061
-	{ NULL }, // 0x0062
 	/* End Chromium only op_codes */
 };
 
