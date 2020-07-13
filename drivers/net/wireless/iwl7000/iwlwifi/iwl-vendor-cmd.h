@@ -743,9 +743,9 @@ enum iwl_vendor_fips_test_vector_hw {
  * @IWL_MVM_VENDOR_ATTR_GSCAN_MAX_NUM_EPNO_NETWORKS: max number of epno entries
  * @IWL_MVM_VENDOR_ATTR_GSCAN_MAX_NUM_EPNO_NETWORKS_BY_SSID: max number of epno
  *	entries if ssid is specified
- * @IWL_MVM_VENDOR_ATTR_GSCAN_MAX_NUM_WHITE_LISTED_SSID: max number of white
+ * @IWL_MVM_VENDOR_ATTR_GSCAN_MAX_NUM_WHITE_LISTED_SSID: max number of pass
  *	listed SSIDs
- * @IWL_MVM_VENDOR_ATTR_GSCAN_MAX_NUM_BLACK_LISTED_SSID: max number of black
+ * @IWL_MVM_VENDOR_ATTR_GSCAN_MAX_NUM_BLACK_LISTED_SSID: max number of block
  *	listed SSIDs
  *
  * @NUM_IWL_MVM_VENDOR_ATTR: number of vendor attributes
@@ -800,11 +800,11 @@ enum iwl_vendor_fips_test_vector_hw {
  * @IWL_MVM_VENDOR_ATTR_FIPS_TEST_VECTOR_HW_GCM: data vector for FIPS GCM HW
  *	test. &enum iwl_vendor_fips_test_vector_hw.
  * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST: an array of BSSIDs to
- *	blacklist. The device shall not try to connect to blacklisted BSSIDs.
+ *	blocklist. The device shall not try to connect to blocklisted BSSIDs.
  *	This attribute shall not be set if
  *	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST is set.
  * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_WHITELIST: an array of BSSIDs to
- *	whitelist. The device shall only try to connect to BSSIDs from the list.
+ *	passlist. The device shall only try to connect to BSSIDs from the list.
  *	This attribute shall not be set if
  *	IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_BLACKLIST is set.
  * @IWL_MVM_VENDOR_ATTR_FMAC_CONNECT_PARAMS_MAX_RETRIES: number of APs to try
