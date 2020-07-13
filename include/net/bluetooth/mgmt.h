@@ -663,13 +663,6 @@ struct mgmt_rp_set_exp_feature {
 #define MGMT_OP_SET_DEF_RUNTIME_CONFIG	0x004e
 #define MGMT_SET_DEF_RUNTIME_CONFIG_SIZE	0
 
-/*
- * Begin chromium only op_codes
- */
-/*
- * End chromium only op_codes
- */
-
 #define MGMT_EV_CMD_COMPLETE		0x0001
 struct mgmt_ev_cmd_complete {
 	__le16	opcode;
