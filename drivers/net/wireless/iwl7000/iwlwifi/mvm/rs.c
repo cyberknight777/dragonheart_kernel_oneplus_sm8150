@@ -830,6 +830,12 @@ static u32 ucode_rate_from_rs_rate(struct iwl_mvm *mvm,
 		return ucode_rate;
 	}
 
+	/* set RTS protection for all non legacy rates
+	 * This helps with congested environments reducing the conflict cost to
+	 * RTS retries only, instead of the entire BA packet.
+	 */
+	ucode_rate |= RATE_MCS_RTS_REQUIRED_MSK;
+
 	if (is_ht(rate)) {
 		if (index < IWL_FIRST_HT_RATE || index > IWL_LAST_HT_RATE) {
 			IWL_ERR(mvm, "Invalid HT rate index %d\n", index);
@@ -3665,7 +3671,7 @@ static void rs_fill_lq_cmd(struct iwl_mvm *mvm,
 			cpu_to_le16(iwl_mvm_coex_agg_time_limit(mvm, sta));
 }
 
-static void *rs_alloc(struct ieee80211_hw *hw, struct dentry *debugfsdir)
+static void *rs_alloc(struct ieee80211_hw *hw)
 {
 	return hw->priv;
 }
