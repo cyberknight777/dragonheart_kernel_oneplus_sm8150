@@ -698,6 +698,9 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 		 * associated, or we do not have dtim period information.
 		 */
 		cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_BEACON);
+		if (mvm->nvm_data->sku_cap_11ax_enable && !vif->p2p &&
+		    !iwlwifi_mod_params.disable_11ax)
+			cmd.filter_flags |= cpu_to_le32(MAC_FILTER_IN_11AX);
 	}
 
 	ctxt_sta->bi = cpu_to_le32(vif->bss_conf.beacon_int);
