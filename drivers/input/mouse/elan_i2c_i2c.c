@@ -287,7 +287,7 @@ static int elan_i2c_get_version(struct i2c_client *client,
 		return error;
 	}
 
-	if (pattern_ver == 0x01)
+	if (pattern_ver >= 0x01)
 		*version = iap ? val[1] : val[0];
 	else
 		*version = val[0];
@@ -308,7 +308,7 @@ static int elan_i2c_get_sm_version(struct i2c_client *client,
 		return error;
 	}
 
-	if (pattern_ver == 0x01) {
+	if (pattern_ver >= 0x01) {
 		error = elan_i2c_read_cmd(client, ETP_I2C_IC_TYPE_CMD, val);
 		if (error) {
 			dev_err(&client->dev, "failed to get ic type: %d\n",
