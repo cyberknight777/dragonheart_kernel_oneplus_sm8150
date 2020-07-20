@@ -1206,20 +1206,7 @@ bp_ieee80211_get_stats64(struct net_device *dev,
 }
 #endif
 
-#if LINUX_VERSION_IS_LESS(4,10,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
-static int __change_mtu(struct net_device *ndev, int new_mtu){
-	if (new_mtu < 256 || new_mtu > IEEE80211_MAX_DATA_LEN)
-		return -EINVAL;
-	ndev->mtu = new_mtu;
-	return 0;
-}
-#endif
-
 static const struct net_device_ops ieee80211_dataif_ops = {
-#if LINUX_VERSION_IS_LESS(4,10,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
-	.ndo_change_mtu = __change_mtu,
-#endif
-
 	.ndo_open		= ieee80211_open,
 	.ndo_stop		= ieee80211_stop,
 	.ndo_uninit		= ieee80211_uninit,
@@ -1278,10 +1265,6 @@ static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 }
 
 static const struct net_device_ops ieee80211_monitorif_ops = {
-#if LINUX_VERSION_IS_LESS(4,10,0) && RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(7,6)
-	.ndo_change_mtu = __change_mtu,
-#endif
-
 	.ndo_open		= ieee80211_open,
 	.ndo_stop		= ieee80211_stop,
 	.ndo_uninit		= ieee80211_uninit,
@@ -1999,7 +1982,7 @@ struct vif_params *params)
 		ndev->min_mtu = 256;
 #endif
 #if LINUX_VERSION_IS_GEQ(4,10,0)
-		ndev->max_mtu = IEEE80211_MAX_DATA_LEN;
+		ndev->max_mtu = local->hw.max_mtu;
 #endif
 
 		ret = register_netdevice(ndev);
