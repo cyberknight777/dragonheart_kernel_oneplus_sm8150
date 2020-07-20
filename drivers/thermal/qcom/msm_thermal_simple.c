@@ -81,23 +81,18 @@ static void thermal_throttle_worker(struct work_struct *work)
 	thermal_zone_get_temp(thermal_zone_get_zone_by_name("battery"), &temp_batt);
 
 	/* HQ autism coming up */
-	if (temp_batt <= 29000) {
-		/* Battery is cool-ish, bias the temp towards it */
+	if (temp_batt <= 29000)
 		temp_avg = (temp_cpus_avg * 2 + temp_batt * 3) / 5;
-		pr_debug("temp_avg1: %i", temp_avg);
-	} else if (temp_batt > 29000 && temp_batt <= 36000) {
-		/* Getting warmer, start biasing towards CPU temps */
+	else if (temp_batt > 30000 && temp_batt <= 37000)
 		temp_avg = (temp_cpus_avg * 3 + temp_batt * 2) / 5;
-		pr_debug("temp_avg2: %i", temp_avg);
-	} else if (temp_batt > 36000) {
-		/* Pretty hot, bias towards CPU temp */
-		temp_avg = (temp_cpus_avg * 3 + temp_batt) / 4;
-		pr_debug("temp_avg3: %i", temp_avg);
-	}
+	else if (temp_batt > 37000 && temp_batt <= 43000)
+		temp_avg = (temp_cpus_avg * 4 + temp_batt) / 5;
+	else if (temp_batt > 43000)
+		temp_avg = (temp_cpus_avg * 5 + temp_batt) / 6;
 
 	/* Emergency case */
 	if (temp_cpus_avg > 90000)
-		temp_avg = temp_cpus_avg;
+		temp_avg = (temp_cpus_avg * 6 + temp_batt) / 7;
 
 	old_zone = t->curr_zone;
 	new_zone = NULL;
