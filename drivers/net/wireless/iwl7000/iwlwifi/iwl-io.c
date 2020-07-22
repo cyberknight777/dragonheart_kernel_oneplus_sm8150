@@ -5,9 +5,8 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
- * Copyright(C) 2018 - 2019 Intel Corporation
+ * Copyright(C) 2003 - 2014, 2018 - 2020 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -27,9 +26,8 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
- * Copyright (C) 2018 - 2019 Intel Corporation
+ * Copyright(C) 2003 - 2014, 2018 - 2020 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -106,14 +104,13 @@ IWL_EXPORT_SYMBOL(iwl_read32);
 int iwl_poll_bit(struct iwl_trans *trans, u32 addr,
 		 u32 bits, u32 mask, int timeout)
 {
-	int t = 0;
+	unsigned long jiffies_timeout = jiffies + usecs_to_jiffies(timeout);
 
 	do {
 		if ((iwl_read32(trans, addr) & mask) == (bits & mask))
-			return t;
+			return 0;
 		udelay(IWL_POLL_INTERVAL);
-		t += IWL_POLL_INTERVAL;
-	} while (t < timeout);
+	} while (!time_after(jiffies, jiffies_timeout));
 
 	return -ETIMEDOUT;
 }
