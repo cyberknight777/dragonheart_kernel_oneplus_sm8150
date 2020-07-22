@@ -342,6 +342,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	return op_mode;
 
 out_free:
+	iwl_fw_runtime_free(&xvt->fwrt);
 	kfree(op_mode);
 
 	return NULL;
@@ -369,6 +370,9 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 		buffer = &xvt->reorder_bufs[i];
 		iwl_xvt_destroy_reorder_buffer(xvt, buffer);
 	}
+
+	iwl_fw_flush_dumps(&xvt->fwrt);
+	iwl_fw_runtime_free(&xvt->fwrt);
 
 	iwl_phy_db_free(xvt->phy_db);
 	xvt->phy_db = NULL;
