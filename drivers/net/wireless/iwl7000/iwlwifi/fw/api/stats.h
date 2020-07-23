@@ -466,13 +466,6 @@ struct iwl_statistics_cmd {
 
 #define MAX_BCAST_FILTER_NUM		8
 
-#define STATISTICS_FLG_PHY_MSK		BIT(16)
-#define STATISTICS_FLG_MAC_MSK		BIT(17)
-#define STATISTICS_FLG_TX_MSK		BIT(18)
-#define STATISTICS_FLG_RX_MSK		BIT(19)
-#define STATISTICS_FLG_HE_MSK		BIT(20)
-#define STATISTICS_FLG_DURATION_MSK	BIT(21)
-
 /**
  * enum iwl_fw_statistics_type
  *
