@@ -901,13 +901,12 @@ static void iwl_init_he_override(struct iwl_trans *trans,
 				       trans->dbg_cfg.he_phy_cap.data,
 				       trans->dbg_cfg.he_phy_cap.len);
 			}
-		}
-
-		if (iftype_data->types_mask == BIT(NL80211_IFTYPE_STATION) &&
-		    trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210)
+		} else if (iftype_data->types_mask == BIT(NL80211_IFTYPE_STATION) &&
+		    trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
 			iftype_data->he_cap.he_cap_elem.phy_cap_info[2] |=
 				IEEE80211_HE_PHY_CAP2_UL_MU_FULL_MU_MIMO |
 				IEEE80211_HE_PHY_CAP2_UL_MU_PARTIAL_MU_MIMO;
+		}
 
 	}
 }
