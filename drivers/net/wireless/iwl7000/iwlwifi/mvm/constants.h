@@ -106,7 +106,6 @@
 #define IWL_MVM_RS_RSSI_BASED_INIT_RATE         0
 #define IWL_MVM_RS_80_20_FAR_RANGE_TWEAK	1
 #define IWL_MVM_TOF_IS_RESPONDER		0
-#define IWL_MVM_SW_TX_CSUM_OFFLOAD		0
 #define IWL_MVM_HW_CSUM_DISABLE			0
 #define IWL_MVM_PARSE_NVM			0
 #define IWL_MVM_ADWELL_ENABLE			1
@@ -198,7 +197,6 @@
 #define IWL_MVM_FW_MCAST_FILTER_PASS_ALL	(mvm->trans->dbg_cfg.MVM_FW_MCAST_FILTER_PASS_ALL)
 #define IWL_MVM_FW_BCAST_FILTER_PASS_ALL	(mvm->trans->dbg_cfg.MVM_FW_BCAST_FILTER_PASS_ALL)
 #define IWL_MVM_TOF_IS_RESPONDER		(mvm->trans->dbg_cfg.MVM_TOF_IS_RESPONDER)
-#define IWL_MVM_SW_TX_CSUM_OFFLOAD		(mvm->trans->dbg_cfg.MVM_SW_TX_CSUM_OFFLOAD)
 #define IWL_MVM_HW_CSUM_DISABLE			(mvm->trans->dbg_cfg.MVM_HW_CSUM_DISABLE)
 #define IWL_MVM_PARSE_NVM			(mvm->trans->dbg_cfg.MVM_PARSE_NVM)
 #define IWL_MVM_ADWELL_ENABLE			(mvm->trans->dbg_cfg.MVM_ADWELL_ENABLE)
