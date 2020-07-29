@@ -481,7 +481,7 @@ static void execlists_submit_ports(struct intel_engine_cs *engine)
 
 			GEM_TRACE("%s in[%d]:  ctx=%d.%d, seqno=%x\n",
 				  engine->name, n,
-				  rq->ctx->hw_id, count,
+				  port[n].context_id, count,
 				  rq->global_seqno);
 		} else {
 			GEM_BUG_ON(!n);
@@ -898,7 +898,7 @@ static void intel_lrc_irq_handler(unsigned long data)
 			 */
 
 			status = READ_ONCE(buf[2 * head]); /* maybe mmio! */
-			GEM_TRACE("%s csb[%dd]: status=0x%08x:0x%08x\n",
+			GEM_TRACE("%s csb[%d]: status=0x%08x:0x%08x\n",
 				  engine->name, head,
 				  status, buf[2*head + 1]);
 
@@ -939,7 +939,7 @@ static void intel_lrc_irq_handler(unsigned long data)
 			rq = port_unpack(port, &count);
 			GEM_TRACE("%s out[0]: ctx=%d.%d, seqno=%x\n",
 				  engine->name,
-				  rq->ctx->hw_id, count,
+				  port->context_id, count,
 				  rq->global_seqno);
 			GEM_BUG_ON(count == 0);
 			if (--count == 0) {
