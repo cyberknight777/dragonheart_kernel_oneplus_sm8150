@@ -236,6 +236,9 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	trans_cfg.cb_data_offs = offsetof(struct iwl_xvt_skb_info, trans);
 
+	trans_cfg.fw_reset_handshake = fw_has_capa(&xvt->fw->ucode_capa,
+						   IWL_UCODE_TLV_CAPA_FW_RESET_HANDSHAKE);
+
 	/* Configure transport layer */
 	iwl_trans_configure(xvt->trans, &trans_cfg);
 	trans->command_groups = trans_cfg.command_groups;
