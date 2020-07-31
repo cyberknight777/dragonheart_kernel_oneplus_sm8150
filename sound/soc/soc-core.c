@@ -3111,7 +3111,7 @@ static int snd_soc_component_set_bias_level(struct snd_soc_dapm_context *dapm,
 	return component->driver->set_bias_level(component, level);
 }
 
-static int snd_soc_component_initialize(struct snd_soc_component *component,
+int snd_soc_component_initialize(struct snd_soc_component *component,
 	const struct snd_soc_component_driver *driver, struct device *dev)
 {
 	struct snd_soc_dapm_context *dapm;
@@ -3143,6 +3143,7 @@ static int snd_soc_component_initialize(struct snd_soc_component *component,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(snd_soc_component_initialize);
 
 static void snd_soc_component_setup_regmap(struct snd_soc_component *component)
 {
