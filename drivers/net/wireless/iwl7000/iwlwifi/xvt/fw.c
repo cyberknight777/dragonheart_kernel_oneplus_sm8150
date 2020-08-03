@@ -67,9 +67,9 @@
 #include "fw/dbg.h"
 #include "fw/testmode.h"
 #include "fw/api/power.h"
+#include "fw/pnvm.h"
 
 #define XVT_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
-#define XVT_UCODE_PNVM_TIMEOUT	(HZ / 10 * CPTCFG_IWL_TIMEOUT_FACTOR)
 
 struct iwl_xvt_alive_data {
 	bool valid;
@@ -212,49 +212,6 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 	return true;
 }
 
-static bool iwl_pnvm_complete_fn(struct iwl_notif_wait_data *notif_wait,
-				 struct iwl_rx_packet *pkt, void *data)
-{
-	struct iwl_xvt *xvt =
-		container_of(notif_wait, struct iwl_xvt, notif_wait);
-	struct iwl_pnvm_init_complete_ntfy *pnvm_ntf = (void *)pkt->data;
-
-	IWL_DEBUG_FW(xvt,
-		     "PNVM complete notification received with status %d\n",
-		     le32_to_cpu(pnvm_ntf->status));
-
-	return true;
-}
-
-static int iwl_xvt_load_pnvm(struct iwl_xvt *xvt)
-{
-	struct iwl_notification_wait pnvm_wait;
-	static const u16 ntf_cmds[] = { WIDE_ID(REGULATORY_AND_NVM_GROUP,
-						PNVM_INIT_COMPLETE_NTFY) };
-
-	/* if the SKU_ID is empty, there's nothing to do */
-	if (!xvt->trans->sku_id[0] &&
-	    !xvt->trans->sku_id[1] &&
-	    !xvt->trans->sku_id[2])
-		return 0;
-
-	/*
-	 * TODO: phase 2: load the pnvm file, find the right section,
-	 * load it and set the right DMA pointer.
-	 */
-
-	iwl_init_notification_wait(&xvt->notif_wait, &pnvm_wait,
-				   ntf_cmds, ARRAY_SIZE(ntf_cmds),
-				   iwl_pnvm_complete_fn, NULL);
-
-	/* kick the doorbell */
-	iwl_write_umac_prph(xvt->trans, UREG_DOORBELL_TO_ISR6,
-			    UREG_DOORBELL_TO_ISR6_PNVM);
-
-	return iwl_wait_notification(&xvt->notif_wait, &pnvm_wait,
-				     XVT_UCODE_PNVM_TIMEOUT);
-}
-
 static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 					 enum iwl_ucode_type ucode_type)
 {
@@ -315,7 +272,7 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	/* fresh firmware was loaded */
 	xvt->fw_error = false;
 
-	ret = iwl_xvt_load_pnvm(xvt);
+	ret = iwl_pnvm_load(xvt->trans, &xvt->notif_wait);
 	if (ret) {
 		IWL_ERR(xvt, "Timeout waiting for PNVM load!\n");
 		iwl_fw_set_current_image(&xvt->fwrt, old_type);
