@@ -3266,11 +3266,18 @@ AU0828_DEVICE(0x2040, 0x7270, "Hauppauge", "HVR-950Q"),
 	}
 },
 
+/*
+ * The original product_name is "USB Sound Device", however this name
+ * is also used by the CM106 based cards, so make it unique.
+ */
 {
-	/*
-	 * The original product_name is "USB Sound Device", however this name
-	 * is also used by the CM106 based cards, so make it unique.
-	 */
+	USB_DEVICE(0x0d8c, 0x0102),
+	.driver_info = (unsigned long) &(const struct snd_usb_audio_quirk) {
+		.product_name = "ICUSBAUDIO7D",
+		.ifnum = QUIRK_NO_INTERFACE
+	}
+},
+{
 	USB_DEVICE(0x0d8c, 0x0103),
 	.driver_info = (unsigned long) &(const struct snd_usb_audio_quirk) {
 		.product_name = "Audio Advantage MicroII",
