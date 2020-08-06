@@ -29,9 +29,6 @@
 #define netdev_tstats(dev)	dev->tstats
 #define netdev_assign_tstats(dev, e)	dev->tstats = (e);
 
-/* not supported now */
-#define WIPHY_FLAG_HAS_CHANNEL_SWITCH 0
-
 static inline unsigned int
 csa_n_counter_offsets_beacon(struct cfg80211_csa_settings *s)
 {
