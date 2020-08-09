@@ -81,6 +81,7 @@
 #include "fw/api/tx.h"
 #include "internal.h"
 #include "iwl-fh.h"
+#include "iwl-context-info-gen3.h"
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
 #endif
@@ -3464,6 +3465,7 @@ static const struct iwl_trans_ops trans_ops_pcie_gen2 = {
 	.txq_free = iwl_txq_dyn_free,
 	.wait_txq_empty = iwl_trans_pcie_wait_txq_empty,
 	.rxq_dma_data = iwl_trans_pcie_rxq_dma_data,
+	.set_pnvm = iwl_trans_pcie_ctx_info_gen3_set_pnvm,
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	.debugfs_cleanup = iwl_trans_pcie_debugfs_cleanup,
 #endif
