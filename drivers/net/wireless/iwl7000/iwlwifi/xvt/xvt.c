@@ -396,6 +396,49 @@ verify:
 	return &xvt->tx_meta_data[lmac_id];
 }
 
+static void iwl_xvt_txpath_flush(struct iwl_xvt *xvt,
+				 struct iwl_rx_packet *resp_pkt)
+{
+	int i;
+	int num_flushed_queues;
+	struct iwl_tx_path_flush_cmd_rsp *rsp;
+
+	if (iwl_fw_lookup_notif_ver(xvt->fw, LONG_GROUP, TXPATH_FLUSH, 0) == 0)
+		return;
+
+	if (WARN_ON_ONCE(iwl_rx_packet_payload_len(resp_pkt) != sizeof(*rsp)))
+		return;
+
+	rsp = (void *)resp_pkt->data;
+
+	num_flushed_queues = le16_to_cpu(rsp->num_flushed_queues);
+	if (WARN_ONCE(num_flushed_queues > IWL_TX_FLUSH_QUEUE_RSP,
+		      "num_flushed_queues %d", num_flushed_queues))
+		return;
+
+	for (i = 0; i < num_flushed_queues; i++) {
+		struct iwl_flush_queue_info *queue_info = &rsp->queues[i];
+		struct tx_meta_data *tx_data;
+		int tid = le16_to_cpu(queue_info->tid);
+		int read_before = le16_to_cpu(queue_info->read_before_flush);
+		int read_after = le16_to_cpu(queue_info->read_after_flush);
+		int queue_num = le16_to_cpu(queue_info->queue_num);
+
+		if (tid == IWL_MGMT_TID)
+			tid = IWL_MAX_TID_COUNT;
+
+		tx_data = iwl_xvt_rx_get_tx_meta_data(xvt, queue_num);
+		if (!tx_data)
+			continue;
+
+		IWL_DEBUG_TX_QUEUES(xvt,
+				    "tid %d queue_id %d read-before %d read-after %d\n",
+				    tid, queue_num, read_before, read_after);
+
+		iwl_xvt_reclaim_and_free(xvt, tx_data, queue_num, read_after);
+	}
+}
+
 static void iwl_xvt_rx_tx_cmd_single(struct iwl_xvt *xvt,
 				     struct iwl_rx_packet *pkt)
 {
@@ -518,6 +561,9 @@ static void iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
 		break;
 	case REPLY_RX_MPDU_CMD:
 		iwl_xvt_reorder(xvt, pkt);
+		break;
+	case TXPATH_FLUSH:
+		iwl_xvt_txpath_flush(xvt, pkt);
 		break;
 	case FRAME_RELEASE:
 		iwl_xvt_rx_frame_release(xvt, pkt);
