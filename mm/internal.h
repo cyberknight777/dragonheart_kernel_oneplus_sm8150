@@ -221,6 +221,7 @@ struct compact_control {
 	bool ignore_skip_hint;		/* Scan blocks even if marked skip */
 	bool ignore_block_suitable;	/* Scan blocks considered unsuitable */
 	bool direct_compaction;		/* False from kcompactd or /proc/... */
+        bool proactive_compaction;      /* kcompactd proactive compaction */
 	bool whole_zone;		/* Whole zone should/has been scanned */
 	bool contended;			/* Signal lock or sched contention */
 	bool finishing_block;		/* Finishing current pageblock */
