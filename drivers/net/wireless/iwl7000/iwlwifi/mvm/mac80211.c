@@ -5402,7 +5402,7 @@ void iwl_mvm_sync_rx_queues_internal(struct iwl_mvm *mvm,
 	if (notif->sync) {
 		lockdep_assert_held(&mvm->mutex);
 		ret = wait_event_timeout(mvm->rx_sync_waitq,
-					 mvm->queue_sync_state == 0 ||
+					 READ_ONCE(mvm->queue_sync_state) == 0 ||
 					 iwl_mvm_is_radio_killed(mvm),
 					 SYNC_RX_QUEUE_TIMEOUT);
 		WARN_ONCE(!ret && !iwl_mvm_is_radio_killed(mvm),
