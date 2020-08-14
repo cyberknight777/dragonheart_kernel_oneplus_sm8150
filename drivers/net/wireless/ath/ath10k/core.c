@@ -308,6 +308,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = true,
 		.tx_sk_pacing_shift = SK_PACING_SHIFT_6174,
+		.supports_peer_stats_info = true,
 	},
 	{
 		.id = QCA99X0_HW_2_0_DEV_VERSION,
