@@ -977,7 +977,7 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	};
 	struct iwl_host_cmd d3_cfg_cmd = {
 		.id = D3_CONFIG_CMD,
-		.flags = CMD_WANT_SKB,
+		.flags = CMD_WANT_SKB | CMD_SEND_IN_D3,
 		.data[0] = &d3_cfg_cmd_data,
 		.len[0] = sizeof(d3_cfg_cmd_data),
 	};
@@ -1069,6 +1069,8 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	if (mvm->trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_9000)
 		iwl_fw_dbg_stop_restart_recording(&mvm->fwrt, NULL, true);
 
+	mvm->trans->system_pm_mode = IWL_PLAT_PM_MODE_D3;
+
 	/* must be last -- this switches firmware state */
 	ret = iwl_mvm_send_cmd(mvm, &d3_cfg_cmd);
 	if (ret)
@@ -1107,13 +1109,10 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 int iwl_mvm_suspend(struct ieee80211_hw *hw, struct cfg80211_wowlan *wowlan)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct iwl_trans *trans = mvm->trans;
 
 	iwl_mvm_pause_tcm(mvm, true);
 
 	iwl_fw_runtime_suspend(&mvm->fwrt);
-
-	trans->system_pm_mode = IWL_PLAT_PM_MODE_D3;
 
 	return __iwl_mvm_suspend(hw, wowlan, false);
 }
@@ -2066,7 +2065,7 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	if (d0i3_first) {
 		struct iwl_host_cmd cmd = {
 			.id = D0I3_END_CMD,
-			.flags = CMD_WANT_SKB,
+			.flags = CMD_WANT_SKB | CMD_SEND_IN_D3,
 		};
 		int len;
 
@@ -2098,6 +2097,8 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 			WARN_ON(1);
 		}
 	}
+
+	mvm->trans->system_pm_mode = IWL_PLAT_PM_MODE_DISABLED;
 
 	/*
 	 * Query the current location and source from the D3 firmware so we
@@ -2180,8 +2181,6 @@ int iwl_mvm_resume(struct ieee80211_hw *hw)
 
 	ret = iwl_mvm_resume_d3(mvm);
 
-	mvm->trans->system_pm_mode = IWL_PLAT_PM_MODE_DISABLED;
-
 	iwl_mvm_resume_tcm(mvm);
 
 	iwl_fw_runtime_resume(&mvm->fwrt);
@@ -2206,10 +2205,6 @@ static int iwl_mvm_d3_test_open(struct inode *inode, struct file *file)
 		return -EBUSY;
 
 	file->private_data = inode->i_private;
-
-	synchronize_net();
-
-	mvm->trans->system_pm_mode = IWL_PLAT_PM_MODE_D3;
 
 	iwl_mvm_pause_tcm(mvm, true);
 
@@ -2279,8 +2274,6 @@ static int iwl_mvm_d3_test_release(struct inode *inode, struct file *file)
 	iwl_mvm_resume_tcm(mvm);
 
 	iwl_fw_runtime_resume(&mvm->fwrt);
-
-	mvm->trans->system_pm_mode = IWL_PLAT_PM_MODE_DISABLED;
 
 	iwl_abort_notification_waits(&mvm->notif_wait);
 	if (!unified_image) {
