@@ -112,6 +112,11 @@ enum {
 	IWL_XVT_CMD_MOD_TX_STOP,
 	IWL_XVT_CMD_TX_QUEUE_CFG,
 	IWL_XVT_CMD_DRIVER_CMD,
+	IWL_XVT_CMD_SET_INDICATION_CHANNEL,
+	IWL_XVT_CMD_MOD_TX_GET_COUNTERS,
+	IWL_XVT_CMD_TRIGGER_NMI,
+	IWL_XVT_CMD_FW_TLV_GET_LEN,
+	IWL_XVT_CMD_FW_TLV_GET_DATA,
 
 	/* Driver notifications */
 	IWL_XVT_CMD_SEND_REPLY_ALIVE = XVT_CMD_NOTIF_BASE,
@@ -775,6 +780,56 @@ struct iwl_xvt_get_rx_agg_stats_resp {
 struct iwl_xvt_config_rx_mpdu_req {
 	u8 enable;
 	u8 reserved[3];
+} __packed __aligned(4);
+
+/**
+ * enum for FW image type
+ * @IWL_XVT_FW_IMG_TYPE_LMAC_D0: LMAC D0
+ * @IWL_XVT_FW_IMG_TYPE_UMAC: UMAC
+*/
+enum iwl_xvt_fw_img_type {
+	IWL_XVT_FW_IMG_TYPE_LMAC_D0 = 0,
+	IWL_XVT_FW_IMG_TYPE_UMAC
+};
+
+/**
+ * struct iwl_xvt_get_fw_tlv_len_request - fw TLV len request
+ * @fw_img_type: fw image type - &enum iwl_xvt_fw_img_type
+ * @tlv_type_id: fw TLV type ID
+*/
+struct iwl_xvt_get_fw_tlv_len_request {
+	u32 fw_img_type;
+	u32 tlv_type_id;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_fw_tlv_len_response - fw TLV len response
+ * @bytes_len: TLV bytes length
+*/
+struct iwl_xvt_fw_tlv_len_response {
+	u32 bytes_len;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_get_fw_tlv_data_request - fw TLV data response
+ * @fw_img_type: fw image type - &enum iwl_xvt_fw_img_type
+ * @tlv_type_id: fw TLV type ID
+ * @resp_max_bytes_len: max buffer size
+*/
+struct iwl_xvt_get_fw_tlv_data_request {
+	u32 fw_img_type;
+	u32 tlv_type_id;
+	u32 resp_max_bytes_len;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_fw_tlv_data_response - fw TLV data response
+ * @bytes_len: TLV bytes length
+ * @data: TLV data
+*/
+struct iwl_xvt_fw_tlv_data_response {
+	u32 bytes_len;
+	u8 data[0];
 } __packed __aligned(4);
 
 #endif

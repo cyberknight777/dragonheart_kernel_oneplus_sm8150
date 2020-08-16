@@ -2004,6 +2004,99 @@ out_free:
 	return err;
 }
 
+static int iwl_xvt_get_fw_tlv(struct iwl_xvt *xvt,
+			      u32 img_id,
+			      u32 tlv_id,
+			      const u8 **out_tlv_data,
+			      u32 *out_tlv_len)
+{
+	int err = 0;
+
+	switch (tlv_id) {
+	case IWL_UCODE_TLV_CMD_VERSIONS:
+		*out_tlv_data = (const u8 *)xvt->fw->ucode_capa.cmd_versions;
+		*out_tlv_len = xvt->fw->ucode_capa.n_cmd_versions *
+			sizeof(struct iwl_fw_cmd_version);
+		break;
+
+	case IWL_UCODE_TLV_PHY_INTEGRATION_VERSION:
+		*out_tlv_data = xvt->fw->phy_integration_ver;
+		*out_tlv_len = xvt->fw->phy_integration_ver_len;
+		break;
+
+	default:
+		IWL_ERR(xvt, "TLV type not supported, type = %u\n", tlv_id);
+
+		*out_tlv_data = NULL;
+		*out_tlv_len = 0;
+		err = -EOPNOTSUPP;
+	}
+
+	return err;
+}
+
+static int iwl_xvt_handle_get_fw_tlv_len(struct iwl_xvt *xvt,
+					 struct iwl_tm_data *data_in,
+					 struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_get_fw_tlv_len_request *req = data_in->data;
+	struct iwl_xvt_fw_tlv_len_response *resp;
+	const u8 *tlv_data;
+	u32 tlv_len;
+	int err = 0;
+
+	IWL_DEBUG_INFO(xvt, "handle get fw tlv len, type = %u\n",
+		       req->tlv_type_id);
+
+	err = iwl_xvt_get_fw_tlv(xvt, req->fw_img_type, req->tlv_type_id,
+				 &tlv_data, &tlv_len);
+	if (err)
+		return err;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp)
+		return -ENOMEM;
+
+	resp->bytes_len = tlv_len;
+
+	data_out->len = sizeof(*resp);
+	data_out->data = resp;
+
+	return 0;
+}
+
+static int iwl_xvt_handle_get_fw_tlv_data(struct iwl_xvt *xvt,
+					  struct iwl_tm_data *data_in,
+					  struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_get_fw_tlv_data_request *req = data_in->data;
+	struct iwl_xvt_fw_tlv_data_response *resp;
+	const u8 *tlv_data;
+	u32 tlv_len;
+	int err;
+
+	IWL_DEBUG_INFO(xvt, "handle get fw tlv data, type = %u\n",
+		       req->tlv_type_id);
+
+	err = iwl_xvt_get_fw_tlv(xvt, req->fw_img_type, req->tlv_type_id,
+				 &tlv_data, &tlv_len);
+	if (err)
+		return err;
+
+	data_out->len = sizeof(*resp) + tlv_len;
+	resp = kzalloc(data_out->len, GFP_KERNEL);
+	if (!resp)
+		return -ENOMEM;
+
+	resp->bytes_len = tlv_len;
+	if (tlv_data)
+		memcpy(resp->data, tlv_data, tlv_len);
+
+	data_out->data = resp;
+
+	return 0;
+}
+
 int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out, bool *supported_cmd)
@@ -2096,6 +2189,14 @@ int iwl_xvt_user_cmd_execute(struct iwl_testmode *testmode, u32 cmd,
 		break;
 	case IWL_XVT_CMD_DRIVER_CMD:
 		ret = iwl_xvt_handle_driver_cmd(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_FW_TLV_GET_LEN:
+		ret = iwl_xvt_handle_get_fw_tlv_len(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_FW_TLV_GET_DATA:
+		ret = iwl_xvt_handle_get_fw_tlv_data(xvt, data_in, data_out);
 		break;
 
 	default:
