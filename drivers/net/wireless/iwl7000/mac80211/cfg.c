@@ -1133,8 +1133,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	       sizeof(struct ieee80211_he_obss_pd));
 #endif
 #if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
-	memcpy(&sdata->vif.bss_conf.he_bss_color, &params->he_bss_color,
-	       sizeof(struct ieee80211_he_bss_color));
+	sdata->vif.bss_conf.he_bss_color = params->he_bss_color;
 #endif
 
 	sdata->vif.bss_conf.ssid_len = params->ssid_len;

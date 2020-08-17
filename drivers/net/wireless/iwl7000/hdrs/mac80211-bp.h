@@ -2167,19 +2167,6 @@ struct cfg80211_he_bss_color {
 };
 
 /**
- * struct ieee80211_he_bss_color - AP settings for BSS coloring
- *
- * @color: the current color.
- * @disabled: is the feature disabled.
- * @partial: define the AID equation.
- */
-struct ieee80211_he_bss_color {
-	u8 color;
-	bool disabled;
-	bool partial;
-};
-
-/**
  * enum nl80211_tid_config - TID config state
  * @NL80211_TID_CONFIG_ENABLE: Enable config for the TID
  * @NL80211_TID_CONFIG_DISABLE: Disable config for the TID
