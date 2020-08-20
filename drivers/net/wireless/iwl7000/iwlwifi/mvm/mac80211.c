@@ -786,11 +786,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		mvm->wowlan.pattern_max_len = IWL_WOWLAN_MAX_PATTERN_LEN;
 		mvm->wowlan.max_nd_match_sets =
 			iwl_umac_scan_get_max_profiles(mvm->fw);
-#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
 		hw->wiphy->wowlan = &mvm->wowlan;
-#else
-		hw->wiphy->wowlan = mvm->wowlan;
-#endif
 	}
 #endif
 

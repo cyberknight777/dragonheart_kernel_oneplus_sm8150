@@ -613,13 +613,8 @@ send:
 }
 
 #ifdef CONFIG_THERMAL
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
-static int iwl_mvm_tzone_get_temp(struct thermal_zone_device *device,
-				  unsigned long *temperature)
-#else
 static int iwl_mvm_tzone_get_temp(struct thermal_zone_device *device,
 				  int *temperature)
-#endif
 {
 	struct iwl_mvm *mvm = (struct iwl_mvm *)device->devdata;
 	int ret;
@@ -644,13 +639,8 @@ out:
 	return ret;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
-static int iwl_mvm_tzone_get_trip_temp(struct thermal_zone_device *device,
-				       int trip, unsigned long *temp)
-#else
 static int iwl_mvm_tzone_get_trip_temp(struct thermal_zone_device *device,
 				       int trip, int *temp)
-#endif
 {
 	struct iwl_mvm *mvm = (struct iwl_mvm *)device->devdata;
 
@@ -673,13 +663,8 @@ static int iwl_mvm_tzone_get_trip_type(struct thermal_zone_device *device,
 	return 0;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
-static int iwl_mvm_tzone_set_trip_temp(struct thermal_zone_device *device,
-				       int trip, unsigned long temp)
-#else
 static int iwl_mvm_tzone_set_trip_temp(struct thermal_zone_device *device,
 				       int trip, int temp)
-#endif
 {
 	struct iwl_mvm *mvm = (struct iwl_mvm *)device->devdata;
 	struct iwl_mvm_thermal_device *tzone;

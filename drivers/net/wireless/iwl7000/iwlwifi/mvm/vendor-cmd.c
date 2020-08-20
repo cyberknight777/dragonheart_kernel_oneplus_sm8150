@@ -4,8 +4,6 @@
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
-#if CFG80211_VERSION > KERNEL_VERSION(3, 14, 0)
-
 #include <linux/etherdevice.h>
 #include <net/netlink.h>
 #include <net/mac80211.h>
@@ -1736,10 +1734,3 @@ void iwl_mvm_rx_csi_chunk(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 	if (num == idx)
 		iwl_mvm_csi_complete(mvm);
 }
-
-#else /* CFG80211_VERSION > KERNEL_VERSION(3, 14, 0) */
-#include "mvm.h"
-
-void iwl_mvm_send_tcm_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
-{}
-#endif /* CFG80211_VERSION > KERNEL_VERSION(3, 14, 0) */

@@ -813,8 +813,7 @@ static int ieee80211_dump_survey(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int ieee80211_get_station(struct wiphy *wiphy, struct net_device *dev,
-				 const_since_3_16 u8 *mac,
-				 cfg_station_info_t *cfginfo)
+				 const u8 *mac, cfg_station_info_t *cfginfo)
 {
 	struct station_info _sinfo = {}, *sinfo = &_sinfo;
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -1275,7 +1274,7 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 	clear_bit(SDATA_STATE_OFFCHANNEL_BEACON_STOPPED, &sdata->state);
 	ieee80211_bss_info_change_notify(sdata, BSS_CHANGED_BEACON_ENABLED);
 
-	if (wdev_cac_started(&sdata->wdev)) {
+	if (sdata->wdev.cac_started) {
 		chandef = sdata->vif.bss_conf.chandef;
 		cancel_delayed_work_sync(&sdata->dfs_cac_timer_work);
 		cfg80211_cac_event(sdata->dev, &chandef,
@@ -1601,7 +1600,6 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 						  sta);
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
 	if (params->opmode_notif_used) {
 		/* returned value is only needed for rc update, but the
 		 * rc isn't initialized here yet, so ignore it
@@ -1609,7 +1607,6 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 		__ieee80211_vht_handle_opmode(sdata, sta, params->opmode_notif,
 					      sband->band);
 	}
-#endif
 
 	if (cfg80211_sta_support_p2p_ps(params, sdata->vif.p2p) >= 0)
 		sta->sta.support_p2p_ps = cfg80211_sta_support_p2p_ps(params,
@@ -1634,7 +1631,7 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 }
 
 static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
-				 const_since_3_16 u8 *mac,
+				 const u8 *mac,
 				 struct station_parameters *params)
 {
 	struct ieee80211_local *local = wiphy_priv(wiphy);
@@ -1701,20 +1698,8 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
-/* upstream from 3.19, but backported to ChromeOS 3.18 */
-#if CFG80211_VERSION >= KERNEL_VERSION(3,18,0)
 				 struct station_del_parameters *params)
-#else
-				 u8 *mac)
-#endif
 {
-#if CFG80211_VERSION < KERNEL_VERSION(3,18,0)
-	struct {
-		const_since_3_16 u8 *mac;
-	} _params = {
-		.mac = mac,
-	}, *params = &_params;
-#endif
 	struct ieee80211_sub_if_data *sdata;
 
 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -1727,8 +1712,7 @@ static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 }
 
 static int ieee80211_change_station(struct wiphy *wiphy,
-				    struct net_device *dev,
-				    const_since_3_16 u8 *mac,
+				    struct net_device *dev, const u8 *mac,
 				    struct station_parameters *params)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -2967,13 +2951,11 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 		int j;
 
 		sdata->rc_rateidx_mask[i] = mask->control[i].legacy;
-#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
 		memcpy(sdata->rc_rateidx_mcs_mask[i], mask->control[i].ht_mcs,
 		       sizeof(mask->control[i].ht_mcs));
 		memcpy(sdata->rc_rateidx_vht_mcs_mask[i],
 		       mask->control[i].vht_mcs,
 		       sizeof(mask->control[i].vht_mcs));
-#endif
 
 		sdata->rc_has_mcs_mask[i] = false;
 		sdata->rc_has_vht_mcs_mask[i] = false;
@@ -3048,9 +3030,9 @@ static void ieee80211_end_cac(struct wiphy *wiphy,
 		 */
 		cancel_delayed_work(&sdata->dfs_cac_timer_work);
 
-		if (wdev_cac_started(&sdata->wdev)) {
+		if (sdata->wdev.cac_started) {
 			ieee80211_vif_release_channel(sdata);
-			set_wdev_cac_started(&sdata->wdev, false);
+			sdata->wdev.cac_started = false;
 		}
 	}
 	mutex_unlock(&local->mtx);
@@ -3426,7 +3408,7 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	if (!list_empty(&local->roc_list) || local->scanning)
 		return -EBUSY;
 
-	if (wdev_cac_started(&sdata->wdev))
+	if (sdata->wdev.cac_started)
 		return -EBUSY;
 
 	if (cfg80211_chandef_identical(&params->chandef,

@@ -898,7 +898,6 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 
 	data = skb_put_data(skb, params->buf, params->len);
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 	/* Update CSA counters */
 	if (sdata->vif.csa_active &&
 	    (sdata->vif.type == NL80211_IFTYPE_AP ||
@@ -924,7 +923,6 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 
 		rcu_read_unlock();
 	}
-#endif
 
 	IEEE80211_SKB_CB(skb)->flags = flags;
 

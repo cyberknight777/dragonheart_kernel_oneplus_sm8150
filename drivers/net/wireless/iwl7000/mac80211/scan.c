@@ -368,7 +368,7 @@ static bool ieee80211_prep_hw_scan(struct ieee80211_sub_if_data *sdata)
 	}
 
 	local->hw_scan_req->req.n_channels = n_chans;
-	ieee80211_prepare_scan_chandef(&chandef, cfg_scan_req_width(req));
+	ieee80211_prepare_scan_chandef(&chandef, req->scan_width);
 
 	if (req->flags & NL80211_SCAN_FLAG_MIN_PREQ_CONTENT)
 		flags |= IEEE80211_PROBE_FLAG_MIN_CONTENT;
@@ -554,7 +554,7 @@ static bool __ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata)
 
 	mutex_lock(&local->iflist_mtx);
 	list_for_each_entry(sdata_iter, &local->interfaces, list) {
-		if (wdev_cac_started(&sdata_iter->wdev)) {
+		if (sdata_iter->wdev.cac_started) {
 			mutex_unlock(&local->iflist_mtx);
 			return false;
 		}
@@ -937,7 +937,7 @@ static void ieee80211_scan_state_set_channel(struct ieee80211_local *local,
 	cfg80211_chandef_freq1_offset_set(&local->scan_chandef,
 					  cfg80211_chan_freq_offset(chan));
 	local->scan_chandef.center_freq2 = 0;
-	switch (cfg_scan_req_width(scan_req)) {
+	switch (scan_req->scan_width) {
 	case NL80211_BSS_CHAN_WIDTH_5:
 		local->scan_chandef.width = NL80211_CHAN_WIDTH_5;
 		break;
@@ -951,7 +951,7 @@ static void ieee80211_scan_state_set_channel(struct ieee80211_local *local,
 		oper_scan_width = cfg80211_chandef_to_scan_width(
 					&local->_oper_chandef);
 		if (chan == local->_oper_chandef.chan &&
-		    oper_scan_width == cfg_scan_req_width(scan_req))
+		    oper_scan_width == scan_req->scan_width)
 			local->scan_chandef = local->_oper_chandef;
 		else
 			local->scan_chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
@@ -1195,9 +1195,7 @@ int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 
 	local->int_scan_req->ssids = &local->scan_ssid;
 	local->int_scan_req->n_ssids = 1;
-#if CFG80211_VERSION >= KERNEL_VERSION(3,12,0)
 	local->int_scan_req->scan_width = scan_width;
-#endif
 	memcpy(local->int_scan_req->ssids[0].ssid, ssid, IEEE80211_MAX_SSID_LEN);
 	local->int_scan_req->ssids[0].ssid_len = ssid_len;
 
@@ -1307,7 +1305,7 @@ int __ieee80211_request_sched_scan_start(struct ieee80211_sub_if_data *sdata,
 		goto out;
 	}
 
-	ieee80211_prepare_scan_chandef(&chandef, cfg_scan_req_width(req));
+	ieee80211_prepare_scan_chandef(&chandef, req->scan_width);
 
 	ieee80211_build_preq_ies(sdata, ie, num_bands * iebufsz,
 				 &sched_scan_ies, req->ie,

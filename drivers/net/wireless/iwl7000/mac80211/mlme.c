@@ -2028,7 +2028,7 @@ void ieee80211_dfs_cac_timer_work(struct work_struct *work)
 	struct cfg80211_chan_def chandef = sdata->vif.bss_conf.chandef;
 
 	mutex_lock(&sdata->local->mtx);
-	if (wdev_cac_started(&sdata->wdev)) {
+	if (sdata->wdev.cac_started) {
 		ieee80211_vif_release_channel(sdata);
 		cfg80211_cac_event(sdata->dev, &chandef,
 				   NL80211_RADAR_CAC_FINISHED,
@@ -5621,11 +5621,9 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 	memcpy(&ifmgd->ht_capa_mask, &req->ht_capa_mask,
 	       sizeof(ifmgd->ht_capa_mask));
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,10,0)
 	memcpy(&ifmgd->vht_capa, &req->vht_capa, sizeof(ifmgd->vht_capa));
 	memcpy(&ifmgd->vht_capa_mask, &req->vht_capa_mask,
 	       sizeof(ifmgd->vht_capa_mask));
-#endif
 
 	if (req->ie && req->ie_len) {
 		memcpy(assoc_data->ie, req->ie, req->ie_len);

@@ -2301,18 +2301,12 @@ void intel_regulatory_register(struct ieee80211_local *local);
 
 /* TDLS */
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
-			u16 status_code,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
-			u32 peer_capability,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,17,0)
-			bool initiator,
-#endif
-			const u8 *extra_ies,
+			const u8 *peer, u8 action_code, u8 dialog_token,
+			u16 status_code, u32 peer_capability,
+			bool initiator, const u8 *extra_ies,
 			size_t extra_ies_len);
 int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, enum nl80211_tdls_operation oper);
+			const u8 *peer, enum nl80211_tdls_operation oper);
 void ieee80211_tdls_peer_del_work(struct work_struct *wk);
 int ieee80211_tdls_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 				  const u8 *addr, u8 oper_class,

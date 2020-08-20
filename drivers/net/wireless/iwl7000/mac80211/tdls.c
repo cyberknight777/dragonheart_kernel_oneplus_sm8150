@@ -1066,7 +1066,7 @@ fail:
 
 static int
 ieee80211_tdls_mgmt_setup(struct wiphy *wiphy, struct net_device *dev,
-			  const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
+			  const u8 *peer, u8 action_code, u8 dialog_token,
 			  u16 status_code, u32 peer_capability, bool initiator,
 			  const u8 *extra_ies, size_t extra_ies_len)
 {
@@ -1184,23 +1184,12 @@ ieee80211_tdls_mgmt_teardown(struct wiphy *wiphy, struct net_device *dev,
 }
 
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
-			u16 status_code,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
-			u32 peer_capability,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,17,0)
-			bool initiator,
-#endif
-			const u8 *extra_ies, size_t extra_ies_len)
+			const u8 *peer, u8 action_code, u8 dialog_token,
+			u16 status_code, u32 peer_capability,
+			bool initiator, const u8 *extra_ies,
+			size_t extra_ies_len)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
-#if CFG80211_VERSION < KERNEL_VERSION(3,15,0)
-	u32 peer_capability = 0;
-#endif
-#if CFG80211_VERSION < KERNEL_VERSION(3,17,0)
-	bool initiator = false;
-#endif
 	int ret;
 
 	if (!(wiphy->flags & WIPHY_FLAG_SUPPORTS_TDLS))
@@ -1350,7 +1339,7 @@ iee80211_tdls_recalc_ht_protection(struct ieee80211_sub_if_data *sdata,
 }
 
 int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, enum nl80211_tdls_operation oper)
+			const u8 *peer, enum nl80211_tdls_operation oper)
 {
 	struct sta_info *sta;
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);

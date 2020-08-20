@@ -673,9 +673,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	local->hw.max_mtu = IEEE80211_MAX_DATA_LEN;
 	local->user_power_level = IEEE80211_UNSET_POWER_LEVEL;
 	wiphy->ht_capa_mod_mask = &mac80211_ht_capa_mod_mask;
-#if CFG80211_VERSION >= KERNEL_VERSION(3,10,0)
 	wiphy->vht_capa_mod_mask = &mac80211_vht_capa_mod_mask;
-#endif
 
 	local->ext_capa[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF;
 
@@ -937,11 +935,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		return -EINVAL;
 
 #ifdef CONFIG_PM
-	if (
-#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
-	    hw->wiphy->wowlan &&
-#endif
-	    (!local->ops->suspend || !local->ops->resume))
+	if (hw->wiphy->wowlan && (!local->ops->suspend || !local->ops->resume))
 		return -EINVAL;
 #endif
 
@@ -969,11 +963,9 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 
 			comb = &local->hw.wiphy->iface_combinations[i];
 
-#if CFG80211_VERSION > KERNEL_VERSION(3,9,0)
 			if (comb->radar_detect_widths &&
 			    comb->num_different_channels > 1)
 				return -EINVAL;
-#endif
 		}
 	}
 
@@ -1192,9 +1184,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	}
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 	local->hw.wiphy->max_num_csa_counters = IEEE80211_MAX_CSA_COUNTERS_NUM;
-#endif
 
 	/*
 	 * We use the number of queues for feature tests (QoS, HT) internally

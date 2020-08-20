@@ -3677,7 +3677,7 @@ void ieee80211_dfs_cac_cancel(struct ieee80211_local *local)
 		 */
 		cancel_delayed_work(&sdata->dfs_cac_timer_work);
 
-		if (wdev_cac_started(&sdata->wdev)) {
+		if (sdata->wdev.cac_started) {
 			chandef = sdata->vif.bss_conf.chandef;
 			ieee80211_vif_release_channel(sdata);
 			cfg80211_cac_event(sdata->dev,
