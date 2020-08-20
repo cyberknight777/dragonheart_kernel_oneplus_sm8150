@@ -363,6 +363,9 @@ static int cmdq_mbox_send_data(struct mbox_chan *chan, void *data)
 	WARN_ON(cmdq->suspended);
 
 	task = kzalloc(sizeof(*task), GFP_ATOMIC);
+	if (!task)
+		return -ENOMEM;
+
 	task->cmdq = cmdq;
 	INIT_LIST_HEAD(&task->list_entry);
 	task->pa_base = pkt->pa_base;
@@ -567,3 +570,5 @@ static void __exit cmdq_drv_exit(void)
 
 subsys_initcall(cmdq_drv_init);
 module_exit(cmdq_drv_exit);
+
+MODULE_LICENSE("GPL v2");

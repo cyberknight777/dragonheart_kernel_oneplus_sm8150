@@ -153,5 +153,22 @@ config BT_EVE_HACKS
 	  this option will be on for eve and off for every other device
 	  for now. Yes, this is beyond ugly. Accepting patches :)
 
+config BT_FEATURE_DEBUG
+	bool "Enable runtime option for debugging statements"
+	depends on BT && !DYNAMIC_DEBUG
+	help
+	  This provides an option to enable/disable debugging statements
+	  at runtime via the experimental features interface.
+
+config BT_FEATURE_DEBUG_FUNC_NAMES
+	bool "Include function names in debugging statements"
+	depends on BT_FEATURE_DEBUG
+	default n
+	help
+	  Provides an option to include function names in debugging
+	  statements.
+
+	  When enabled, trace statements will include the function name as a
+	  prefix which may help identify the source code references.
 
 source "drivers/bluetooth/Kconfig"

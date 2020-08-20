@@ -20,6 +20,7 @@
 #include <linux/irqreturn.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/platform_device.h>
+#include <linux/platform_data/cros_ec_sensorhub.h>
 
 enum {
 	CROS_EC_SENSOR_X,
@@ -37,8 +38,7 @@ enum {
  */
 #define CROS_EC_SAMPLE_SIZE  (sizeof(s64) * 2)
 
-/* Minimum sampling period to use when device is suspending */
-#define CROS_EC_MIN_SUSPEND_SAMPLING_FREQUENCY 1000  /* 1 second */
+typedef irqreturn_t (*cros_ec_sensors_capture_t)(int irq, void *p);
 
 /**
  * struct cros_ec_sensors_core_state - state data for EC sensors IIO driver
@@ -58,12 +58,13 @@ enum {
  *				the timestamp. The timestamp is always last and
  *				is always 8-byte aligned.
  * @read_ec_sensors_data:	function used for accessing sensors values
- * @cuur_sampl_freq:		current sampling period
+ * @fifo_max_event_count:	Size of the EC sensor FIFO
+ * @frequencies:		Table of known available frequencies:
+ *				0, Min and Max in mHz
  */
 struct cros_ec_sensors_core_state {
 	struct cros_ec_device *ec;
 	struct mutex cmd_lock;
-	struct iio_dev *indio_dev;
 
 	struct cros_ec_command *msg;
 	struct ec_params_motion_sense param;
@@ -73,20 +74,14 @@ struct cros_ec_sensors_core_state {
 	enum motionsensor_location loc;
 
 	s16 calib[CROS_EC_SENSOR_MAX_AXIS];
-
+	s8 sign[CROS_EC_SENSOR_MAX_AXIS];
 	u8 samples[CROS_EC_SAMPLE_SIZE];
 
 	int (*read_ec_sensors_data)(struct iio_dev *indio_dev,
 				    unsigned long scan_mask, s16 *data);
 
-	int curr_sampl_freq;
-
-	/* Min and Max Sampling Frequency in mHz */
-	u32 min_freq;
-	u32 max_freq;
-
-	/* event fifo size represented in number of events */
 	u32 fifo_max_event_count;
+	int frequencies[6];
 };
 
 /**
@@ -123,7 +118,9 @@ int cros_ec_sensors_read_cmd(struct iio_dev *indio_dev, unsigned long scan_mask,
  * Return: 0 on success, -errno on failure.
  */
 int cros_ec_sensors_core_init(struct platform_device *pdev,
-			      struct iio_dev *indio_dev, bool physical_device);
+			      struct iio_dev *indio_dev, bool physical_device,
+			      cros_ec_sensors_capture_t trigger_capture,
+			      cros_ec_sensorhub_push_data_cb_t push_data);
 
 /**
  * cros_ec_sensors_capture() - the trigger handler function
@@ -138,6 +135,9 @@ int cros_ec_sensors_core_init(struct platform_device *pdev,
  * Return: IRQ_HANDLED
  */
 irqreturn_t cros_ec_sensors_capture(int irq, void *p);
+int cros_ec_sensors_push_data(struct iio_dev *indio_dev,
+			      s16 *data,
+			      s64 timestamp);
 
 /**
  * cros_ec_motion_send_host_cmd() - send motion sense host command
@@ -167,6 +167,24 @@ int cros_ec_sensors_core_read(struct cros_ec_sensors_core_state *st,
 			      int *val, int *val2, long mask);
 
 /**
+ * cros_ec_sensors_core_read_avail() - get available values
+ * @indio_dev:		pointer to state information for device
+ * @chan:	channel specification structure table
+ * @vals:	list of available values
+ * @type:	type of data returned
+ * @length:	number of data returned in the array
+ * @mask:	specifies which values to be requested
+ *
+ * Return:	an error code, IIO_AVAIL_RANGE or IIO_AVAIL_LIST
+ */
+int cros_ec_sensors_core_read_avail(struct iio_dev *indio_dev,
+				    struct iio_chan_spec const *chan,
+				    const int **vals,
+				    int *type,
+				    int *length,
+				    long mask);
+
+/**
  * cros_ec_sensors_core_write() - function to write a value to the sensor
  * @st:		pointer to state information for device
  * @chan:	channel specification structure table
@@ -180,10 +198,9 @@ int cros_ec_sensors_core_write(struct cros_ec_sensors_core_state *st,
 			       struct iio_chan_spec const *chan,
 			       int val, int val2, long mask);
 
-extern const struct dev_pm_ops cros_ec_sensors_pm_ops;
-
 /* List of extended channel specification for all sensors */
 extern const struct iio_chan_spec_ext_info cros_ec_sensors_ext_info[];
 extern const struct iio_chan_spec_ext_info cros_ec_sensors_limited_info[];
+extern const struct attribute *cros_ec_sensor_fifo_attributes[];
 
 #endif  /* __CROS_EC_SENSORS_CORE_H */

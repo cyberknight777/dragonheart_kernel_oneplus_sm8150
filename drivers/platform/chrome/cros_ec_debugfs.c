@@ -307,7 +307,7 @@ const struct file_operations cros_ec_pdinfo_fops = {
 	.llseek = default_llseek,
 };
 
-const struct file_operations cros_ec_uptime_fops = {
+static const struct file_operations cros_ec_uptime_fops = {
 	.owner = THIS_MODULE,
 	.open = simple_open,
 	.read = cros_ec_uptime_read,
@@ -506,6 +506,7 @@ void cros_ec_debugfs_remove(struct cros_ec_dev *ec)
 
 	debugfs_remove_recursive(ec->debug_info->dir);
 	cros_ec_cleanup_console_log(ec->debug_info);
+	ec->debug_info = NULL;
 }
 EXPORT_SYMBOL(cros_ec_debugfs_remove);
 

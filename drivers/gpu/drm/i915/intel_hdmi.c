@@ -928,8 +928,12 @@ static int intel_hdmi_hdcp_write(struct intel_digital_port *intel_dig_port,
 
 	ret = i2c_transfer(adapter, &msg, 1);
 	if (ret == 1)
-		return 0;
-	return ret >= 0 ? -EIO : ret;
+		ret = 0;
+	else if (ret >= 0)
+		ret = -EIO;
+
+	kfree(write_buf);
+	return ret;
 }
 
 static
@@ -1074,7 +1078,7 @@ int intel_hdmi_hdcp_toggle_signalling(struct intel_digital_port *intel_dig_port,
 }
 
 static
-bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port)
+bool intel_hdmi_hdcp_check_link_once(struct intel_digital_port *intel_dig_port)
 {
 	struct drm_i915_private *dev_priv =
 		intel_dig_port->base.base.dev->dev_private;
@@ -1099,6 +1103,19 @@ bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port)
 		return false;
 	}
 	return true;
+}
+
+static
+bool intel_hdmi_hdcp_check_link(struct intel_digital_port *intel_dig_port)
+{
+	int retry;
+
+	for (retry = 0; retry < 3; retry++)
+		if (intel_hdmi_hdcp_check_link_once(intel_dig_port))
+			return true;
+
+	DRM_ERROR("Link check failed\n");
+	return false;
 }
 
 static const struct intel_hdcp_shim intel_hdmi_hdcp_shim = {
