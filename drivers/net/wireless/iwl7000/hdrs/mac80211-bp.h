@@ -3111,3 +3111,14 @@ cfg80211_iftd_he_6ghz_capa(const struct ieee80211_sband_iftype_data *iftd)
 # define fallthrough                    do {} while (0)  /* fallthrough */
 #endif
 #endif /* fallthrough */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,10,0)
+static inline void
+LINUX_BACKPORT(cfg80211_ch_switch_started_notify)(struct net_device *dev,
+						  struct cfg80211_chan_def *chandef,
+						  u8 count, bool quiet)
+{
+	cfg80211_ch_switch_started_notify(dev, chandef, count);
+}
+#define cfg80211_ch_switch_started_notify LINUX_BACKPORT(cfg80211_ch_switch_started_notify)
+#endif /* < 5.10 */
