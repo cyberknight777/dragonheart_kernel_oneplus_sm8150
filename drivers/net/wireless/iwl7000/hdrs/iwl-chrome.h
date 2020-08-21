@@ -1115,6 +1115,8 @@ LINUX_BACKPORT(acpi_evaluate_dsm)(acpi_handle handle, const guid_t *guid,
 #define firmware_request_nowarn(fw, name, device) request_firmware(fw, name, device)
 #endif
 
+#endif /* __IWL_CHROME */
+
 #if LINUX_VERSION_IS_LESS(5,4,0)
 
 /**
@@ -1134,5 +1136,3 @@ LINUX_BACKPORT(acpi_evaluate_dsm)(acpi_handle handle, const guid_t *guid,
 		&pos->member != (head); \
 		pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
 #endif /* < 5.4 */
-
-#endif /* __IWL_CHROME */
