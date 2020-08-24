@@ -2161,11 +2161,7 @@ static int iwl_trans_pcie_read_mem(struct iwl_trans *trans, u32 addr,
 							HBUS_TARG_MEM_RDAT);
 				offs++;
 
-				/*
-				 * check every 100 reads, and break out of the
-				 * inner loop if we exceeded our latency target
-				 */
-				if (offs % 100 == 0 && time_after(jiffies, end))
+				if (time_after(jiffies, end))
 					break;
 			}
 			iwl_trans_release_nic_access(trans, &flags);
