@@ -4902,7 +4902,7 @@ static void iwl_mvm_channel_switch_rx_beacon(struct ieee80211_hw *hw,
 			iwl_mvm_abort_channel_switch(hw, vif);
 			ieee80211_chswitch_done(vif, false);
 			mvmvif->csa_misbehave = false;
-			return;
+			goto out_unlock;
 		}
 		mvmvif->csa_misbehave = true;
 	}
