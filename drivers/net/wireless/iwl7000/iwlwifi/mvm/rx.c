@@ -705,9 +705,9 @@ iwl_mvm_handle_rx_statistics_tlv(struct iwl_mvm *mvm,
 	int i;
 
 	expected_size = sizeof(*stats);
-	if (WARN_ONCE(iwl_rx_packet_payload_len(pkt) >= expected_size,
-		      "received invalid statistics size (%d)!\n",
-		      iwl_rx_packet_payload_len(pkt)))
+	if (WARN_ONCE(iwl_rx_packet_payload_len(pkt) < expected_size,
+		      "received invalid statistics size (%d)!, expected_size: %d\n",
+		      iwl_rx_packet_payload_len(pkt), expected_size))
 		return;
 
 	stats = (void *)&pkt->data;
