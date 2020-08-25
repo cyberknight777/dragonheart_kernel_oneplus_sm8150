@@ -1545,7 +1545,6 @@ static int eb_copy_relocations(const struct i915_execbuffer *eb)
 			if (__copy_from_user((char *)relocs + copied,
 					     (char __user *)urelocs + copied,
 					     len)) {
-access_err:
 				kvfree(relocs);
 				err = -EFAULT;
 				goto err;
@@ -1564,9 +1563,9 @@ access_err:
 		 * happened we would make the mistake of assuming that the
 		 * relocations were valid.
 		 */
-		if (!access_ok(VERIFY_WRITE, urelocs, size))
-			goto access_err;
-		user_access_begin();
+		if (!user_access_begin(VERIFY_WRITE, urelocs, size))
+			goto end_user;
+
 		for (copied = 0; copied < nreloc; copied++)
 			unsafe_put_user(-1,
 					&urelocs[copied].presumed_offset,
@@ -2609,6 +2608,7 @@ i915_gem_execbuffer2(struct drm_device *dev, void *data,
 	struct drm_i915_gem_execbuffer2 *args = data;
 	struct drm_i915_gem_exec_object2 *exec2_list;
 	struct drm_syncobj **fences = NULL;
+	const size_t count = args->buffer_count;
 	int err;
 
 	if (args->buffer_count < 1 || args->buffer_count > SIZE_MAX / sz - 1) {
@@ -2664,12 +2664,10 @@ i915_gem_execbuffer2(struct drm_device *dev, void *data,
 		 * And this range already got effectively checked earlier
 		 * when we did the "copy_from_user()" above.
 		 */
-		if (!access_ok(VERIFY_WRITE,
-			       user_exec_list,
-			       args->buffer_count * sizeof(*user_exec_list)))
+		if (!user_access_begin(VERIFY_WRITE, user_exec_list,
+				       count * sizeof(*user_exec_list)))
 			goto end_user;
 
-		user_access_begin();
 		for (i = 0; i < args->buffer_count; i++) {
 			if (!(exec2_list[i].offset & UPDATE))
 				continue;

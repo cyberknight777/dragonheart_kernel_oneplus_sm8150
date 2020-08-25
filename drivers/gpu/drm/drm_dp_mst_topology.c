@@ -29,6 +29,7 @@
 #include <linux/i2c.h>
 #include <drm/drm_dp_mst_helper.h>
 #include <drm/drmP.h>
+#include <linux/iopoll.h>
 
 #include <drm/drm_fixed.h>
 #include <drm/drm_atomic.h>
@@ -57,6 +58,11 @@ static int drm_dp_send_dpcd_write(struct drm_dp_mst_topology_mgr *mgr,
 
 static void drm_dp_send_link_address(struct drm_dp_mst_topology_mgr *mgr,
 				     struct drm_dp_mst_branch *mstb);
+
+static void
+drm_dp_send_clear_payload_id_table(struct drm_dp_mst_topology_mgr *mgr,
+				   struct drm_dp_mst_branch *mstb);
+
 static int drm_dp_send_enum_path_resources(struct drm_dp_mst_topology_mgr *mgr,
 					   struct drm_dp_mst_branch *mstb,
 					   struct drm_dp_mst_port *port);
@@ -592,6 +598,8 @@ static bool drm_dp_sideband_parse_reply(struct drm_dp_sideband_msg_rx *raw,
 	case DP_POWER_DOWN_PHY:
 	case DP_POWER_UP_PHY:
 		return drm_dp_sideband_parse_power_updown_phy_ack(raw, msg);
+	case DP_CLEAR_PAYLOAD_ID_TABLE:
+		return true; /* since there's nothing to parse */
 	default:
 		DRM_ERROR("Got unknown reply 0x%02x\n", msg->req_type);
 		return false;
@@ -684,6 +692,15 @@ static int build_link_address(struct drm_dp_sideband_msg_tx *msg)
 	struct drm_dp_sideband_msg_req_body req;
 
 	req.req_type = DP_LINK_ADDRESS;
+	drm_dp_encode_sideband_req(&req, msg);
+	return 0;
+}
+
+static int build_clear_payload_id_table(struct drm_dp_sideband_msg_tx *msg)
+{
+	struct drm_dp_sideband_msg_req_body req;
+
+	req.req_type = DP_CLEAR_PAYLOAD_ID_TABLE;
 	drm_dp_encode_sideband_req(&req, msg);
 	return 0;
 }
@@ -868,8 +885,9 @@ static void drm_dp_free_mst_branch_device(struct kref *kref)
 static void drm_dp_destroy_mst_branch_device(struct kref *kref)
 {
 	struct drm_dp_mst_branch *mstb = container_of(kref, struct drm_dp_mst_branch, kref);
+	struct drm_dp_mst_topology_mgr *mgr = mstb->mgr;
 	struct drm_dp_mst_port *port, *tmp;
-	bool wake_tx = false;
+	bool wake_tx = false, schedule_destroy = false;
 
 	/*
 	 * init kref again to be used by ports to remove mst branch when it is
@@ -888,7 +906,18 @@ static void drm_dp_destroy_mst_branch_device(struct kref *kref)
 	list_for_each_entry_safe(port, tmp, &mstb->ports, next) {
 		list_del(&port->next);
 		drm_dp_put_port(port);
+		schedule_destroy = true;
 	}
+
+	/*
+	 * We defer the destroy schedule until all ports from this branch device
+	 * have had a chance to add themselves to the destroy_connector_list.
+	 * This will ensure that all ports for a given branch device are
+	 * atomically marked for destruction with respect to the destroy worker.
+	 * See the comment in drm_dp_destroy_connector_work() for details.
+	 */
+	if (schedule_destroy)
+		schedule_work(&mgr->destroy_connector_work);
 
 	/* drop any tx slots msg */
 	mutex_lock(&mstb->mgr->qlock);
@@ -953,12 +982,25 @@ static void drm_dp_destroy_port(struct kref *kref)
 			/* we can't destroy the connector here, as
 			 * we might be holding the mode_config.mutex
 			 * from an EDID retrieval */
-
 			mutex_lock(&mgr->destroy_connector_lock);
 			kref_get(&port->parent->kref);
+
+			/*
+			* Re-initialize the port's refcount so it can be used
+			* in the destroy worker. See the comment in
+			* drm_dp_destroy_connector_work() for details.
+			*
+			* Note that this should be called while under
+			* mode_config.mutex for ports under the top-level
+			* branch, so from all other drm callbacks' perspective
+			* the refcount never appears to be zero. This will
+			* prevent us from having issues with double-frees on the
+			* port.
+			*/
+			kref_init(&port->kref);
+
 			list_add(&port->next, &mgr->destroy_connector_list);
 			mutex_unlock(&mgr->destroy_connector_lock);
-			schedule_work(&mgr->destroy_connector_work);
 			return;
 		}
 		/* no need to clean up vcpi
@@ -1374,17 +1416,35 @@ static void drm_dp_mst_link_probe_work(struct work_struct *work)
 {
 	struct drm_dp_mst_topology_mgr *mgr = container_of(work, struct drm_dp_mst_topology_mgr, work);
 	struct drm_dp_mst_branch *mstb;
+	bool clear_payload_id_table;
 
 	mutex_lock(&mgr->lock);
+	clear_payload_id_table = !mgr->payload_id_table_cleared;
+	mgr->payload_id_table_cleared = true;
+
 	mstb = mgr->mst_primary;
 	if (mstb) {
 		kref_get(&mstb->kref);
 	}
 	mutex_unlock(&mgr->lock);
-	if (mstb) {
-		drm_dp_check_and_send_link_address(mgr, mstb);
-		drm_dp_put_mst_branch_device(mstb);
+	if (!mstb)
+		return;
+
+	/*
+	 * Certain branch devices seem to incorrectly report an available_pbn
+	 * of 0 on downstream sinks, even after clearing the
+	 * DP_PAYLOAD_ALLOCATE_* registers in
+	 * drm_dp_mst_topology_mgr_set_mst(). Namely, the CableMatters USB-C
+	 * 2x DP hub. Sending a CLEAR_PAYLOAD_ID_TABLE message seems to make
+	 * things work again.
+	 */
+	if (clear_payload_id_table) {
+		DRM_DEBUG_KMS("Clearing payload ID table\n");
+		drm_dp_send_clear_payload_id_table(mgr, mstb);
 	}
+
+	drm_dp_check_and_send_link_address(mgr, mstb);
+	drm_dp_put_mst_branch_device(mstb);
 }
 
 static bool drm_dp_validate_guid(struct drm_dp_mst_topology_mgr *mgr,
@@ -1649,6 +1709,28 @@ static void drm_dp_send_link_address(struct drm_dp_mst_topology_mgr *mgr,
 		mstb->link_address_sent = false;
 		DRM_DEBUG_KMS("link address failed %d\n", ret);
 	}
+
+	kfree(txmsg);
+}
+
+void drm_dp_send_clear_payload_id_table(struct drm_dp_mst_topology_mgr *mgr,
+					struct drm_dp_mst_branch *mstb)
+{
+	struct drm_dp_sideband_msg_tx *txmsg;
+	int len, ret;
+
+	txmsg = kzalloc(sizeof(*txmsg), GFP_KERNEL);
+	if (!txmsg)
+		return;
+
+	txmsg->dst = mstb;
+	len = build_clear_payload_id_table(txmsg);
+
+	drm_dp_queue_down_tx(mgr, txmsg);
+
+	ret = drm_dp_mst_wait_tx_reply(mstb, txmsg);
+	if (ret > 0 && txmsg->reply.reply_type == 1)
+		DRM_DEBUG_KMS("clear payload table id nak received\n");
 
 	kfree(txmsg);
 }
@@ -2183,6 +2265,7 @@ int drm_dp_mst_topology_mgr_set_mst(struct drm_dp_mst_topology_mgr *mgr, bool ms
 		mgr->payload_mask = 0;
 		set_bit(0, &mgr->payload_mask);
 		mgr->vcpi_mask = 0;
+		mgr->payload_id_table_cleared = false;
 	}
 
 out_unlock:
@@ -2497,10 +2580,18 @@ enum drm_connector_status drm_dp_mst_detect_port(struct drm_connector *connector
 {
 	enum drm_connector_status status = connector_status_disconnected;
 
+	/*
+	 * Take the destroy_connector_lock to avoid freeing the port/connector
+	 * while we do our EDID read.
+	 */
+	mutex_lock(&mgr->destroy_connector_lock);
+
 	/* we need to search for the port in the mgr in case its gone */
 	port = drm_dp_get_validated_port_ref(mgr, port);
-	if (!port)
+	if (!port) {
+		mutex_unlock(&mgr->destroy_connector_lock);
 		return connector_status_disconnected;
+	}
 
 	if (!port->ddps)
 		goto out;
@@ -2523,6 +2614,7 @@ enum drm_connector_status drm_dp_mst_detect_port(struct drm_connector *connector
 		break;
 	}
 out:
+	mutex_unlock(&mgr->destroy_connector_lock);
 	drm_dp_put_port(port);
 	return status;
 }
@@ -2828,6 +2920,17 @@ fail:
 	return ret;
 }
 
+static int do_get_act_status(struct drm_dp_aux *aux)
+{
+	int ret;
+	u8 status;
+
+	ret = drm_dp_dpcd_readb(aux, DP_PAYLOAD_TABLE_UPDATE_STATUS, &status);
+	if (ret < 0)
+		return ret;
+
+	return status;
+}
 
 /**
  * drm_dp_check_act_status() - Check ACT handled status.
@@ -2837,33 +2940,29 @@ fail:
  */
 int drm_dp_check_act_status(struct drm_dp_mst_topology_mgr *mgr)
 {
-	u8 status;
-	int ret;
-	int count = 0;
+	/*
+	 * There doesn't seem to be any recommended retry count or timeout in
+	 * the MST specification. Since some hubs have been observed to take
+	 * over 1 second to update their payload allocations under certain
+	 * conditions, we use a rather large timeout value.
+	 */
+	const int timeout_ms = 3000;
+	int ret, status;
 
-	do {
-		ret = drm_dp_dpcd_readb(mgr->aux, DP_PAYLOAD_TABLE_UPDATE_STATUS, &status);
-
-		if (ret < 0) {
-			DRM_DEBUG_KMS("failed to read payload table status %d\n", ret);
-			goto fail;
-		}
-
-		if (status & DP_PAYLOAD_ACT_HANDLED)
-			break;
-		count++;
-		udelay(100);
-
-	} while (count < 30);
-
-	if (!(status & DP_PAYLOAD_ACT_HANDLED)) {
-		DRM_DEBUG_KMS("failed to get ACT bit %d after %d retries\n", status, count);
-		ret = -EINVAL;
-		goto fail;
+	ret = readx_poll_timeout(do_get_act_status, mgr->aux, status,
+				 status & DP_PAYLOAD_ACT_HANDLED || status < 0,
+				 200, timeout_ms * USEC_PER_MSEC);
+	if (ret < 0 && status >= 0) {
+		DRM_DEBUG_KMS("Failed to get ACT after %dms, last status: %02x\n",
+			      timeout_ms, status);
+		return -EINVAL;
+	} else if (status < 0) {
+		DRM_DEBUG_KMS("Failed to read payload table status: %d\n",
+			      status);
+		return status;
 	}
+
 	return 0;
-fail:
-	return ret;
 }
 EXPORT_SYMBOL(drm_dp_check_act_status);
 
@@ -3078,10 +3177,88 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 	struct drm_dp_mst_topology_mgr *mgr = container_of(work, struct drm_dp_mst_topology_mgr, destroy_connector_work);
 	struct drm_dp_mst_port *port;
 	bool send_hotplug = false;
+
 	/*
-	 * Not a regular list traverse as we have to drop the destroy
-	 * connector lock before destroying the connector, to avoid AB->BA
-	 * ordering between this lock and the config mutex.
+	 * I'll try to summarize my understanding of this function here.
+	 *
+	 * Assume the following topology:
+	 * 	- branch device 1 		(BD1)
+	 * 		- port A 		(PA)
+	 * 		- port B 		(PB)
+	 * 		- branch device 2 	(BD2)
+	 * 			- port X 	(PX)
+	 * 			- port Y 	(PY)
+	 *
+	 * Assume time is measured in T0,T1,T2,etc
+	 *
+	 * Assume at T0 that BD1 is disconnected.
+	 *
+	 * This will cause the drive to realize the port is no longer in MST
+	 * mode. The driver calls drm_dp_mst_topology_mgr_set_mst() which will
+	 * give up the last reference on BD1 causing a call to
+	 * drm_dp_destroy_mst_branch_device() which in turn gives up the final
+	 * references on PA and PB.
+	 *
+	 * When the PA reaches 0 refcount at T1, it will add itself to the
+	 * destroy_connector_list and schedule this worker. PB will also reach
+	 * refcount 0 and do the same at T4.
+	 *
+	 * There are 2 possible times when this worker can run, at T2 or T5 (ie:
+	 * before or after PB is marked for destruction).
+	 *
+	 * Case 1 - worker runs at T5, both PA and PB marked for destruction
+	 *   This worker will destroy PA and PB and give up the last references
+	 *   on BD2 which will give up the last refs on PX and PY causing this
+	 *   worker to be recursively scheduled again to clean up the BD2 ports.
+	 *
+	 * Case 2 - worker runs at T2, only PA marked for destruction
+	 *   This worker will destroy PA. On its face, this doesn't seem like a
+	 *   problem since the worker would just run again for PB and again for
+	 *   BD2. However when PA is destroyed, it updates the payloads on BD1
+	 *   and children including PB. If the payload update occurs at T3,
+	 *   everything operates as normal. However if the payload update occurs
+	 *   at T5 when PB refcount is already 0, we'll end up marking PB for
+	 *   destruction twice since the payload update will increase the
+	 *   refcount from 0->1 and then back down to 0 (triggering another PB
+	 *   port destruction). This is what was happening in
+	 *     https://b.corp.google.com/issues/144866969#comment10
+	 *
+	 * Repeat the above scenarios for each branch device in the tree.
+	 *
+	 * To fix Case 2, we serialized port destroy and this worker such that
+	 * port destruction could not interfere with this worker. Unfortunately
+	 * it is not that easy. If BD2 exists, it will lose its last reference
+	 * on the worker's stack which causes it to mark PX and PY for
+	 * destruction. As mentioned above, port destruction requires the
+	 * destroy_connector_lock which will result in deadlock if this worker
+	 * is already holding it. This is what's happening in
+	 *    https://b.corp.google.com/issues/144866969#comment97 (Case 3)
+	 *
+	 * So for any port we need to:
+	 *   1- ensure that all sibling ports have valid refcounts when updating
+	 *      payloads
+	 *   2- ensure that we can mark ports for destruction without
+	 *      serialization between this worker and port destruction
+	 *
+	 * To achieve this, we'll force Case 1 by only scheduling this worker
+	 * after all ports for a branch device have been marked for deletion (in
+	 * drm_dp_destroy_mst_branch_device()). This ensures that every
+	 * invocation of this function we are guaranteed to have all ports for
+	 * the top-level branch (BD1) in the destroy_connector_list avoiding
+	 * Case 2. This allows us to re-initialize a port's reference count in
+	 * drm_dp_destroy_port() so for any port in the destroy list it is also
+	 * guaranteed that all sibling ports have valid refcounts.
+	 *
+	 * Further, since BD2 and all other child branch devices are destroyed
+	 * on this stack (via drm_dp_port_teardown_pdt()), we are similarly
+	 * guaranteed that on each iteration of the below loop all ports from
+	 * BD2 and children are in the destroy_connector_list and have valid
+	 * reference counts.
+	 */
+
+	/*
+	 * This loop is indeterminate since we may be adding to
+	 * destroy_connector_list as we iterate.
 	 */
 	for (;;) {
 		mutex_lock(&mgr->destroy_connector_lock);
@@ -3091,16 +3268,37 @@ static void drm_dp_destroy_connector_work(struct work_struct *work)
 			break;
 		}
 		list_del(&port->next);
+
 		mutex_unlock(&mgr->destroy_connector_lock);
 
-		kref_init(&port->kref);
 		INIT_LIST_HEAD(&port->next);
 
 		mgr->cbs->destroy_connector(mgr, port->connector);
 
+		/*
+		 * It's Ok if refcount is not 1 here. That means that something
+		 * come in between drm_dp_destroy_port and our loop. In this
+		 * case, we'll end up freeing the memory from
+		 * drm_dp_destroy_port. Crucially, we will have unregistered the
+		 * connector here and when the reference is actually dropped, we
+		 * won't come back through this loop.
+		 *
+		 * This warning is here as a bit of a sentinel to let us know if
+		 * is happening on a more widespread basis than we expect.
+		 */
+		WARN_ON(kref_read(&port->kref) != 1);
+
+		/*
+		 * This function will cause any child branch devices to be
+		 * destroyed and their ports to be marked destroyed (thus
+		 * adding them to the destroy_connector_list).
+		 */
 		drm_dp_port_teardown_pdt(port, port->pdt);
 		port->pdt = DP_PEER_DEVICE_NONE;
 
+		/*
+		 * We need valid port refcounts for this block.
+		 */
 		if (!port->input && port->vcpi.vcpi > 0) {
 			drm_dp_mst_reset_vcpi_slots(mgr, port);
 			drm_dp_update_payload_part1(mgr);

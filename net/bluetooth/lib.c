@@ -30,8 +30,6 @@
 
 #include <net/bluetooth/bluetooth.h>
 
-static bool debug_enabled;
-
 void baswap(bdaddr_t *dst, const bdaddr_t *src)
 {
 	const unsigned char *s = (const unsigned char *)src;
@@ -185,12 +183,25 @@ void bt_err(const char *format, ...)
 }
 EXPORT_SYMBOL(bt_err);
 
+#ifdef CONFIG_BT_FEATURE_DEBUG
+static bool debug_enable;
+
+void bt_dbg_set(bool enable)
+{
+	debug_enable = enable;
+}
+
+bool bt_dbg_get(void)
+{
+	return debug_enable;
+}
+
 void bt_dbg(const char *format, ...)
 {
 	struct va_format vaf;
 	va_list args;
 
-	if (likely(!debug_enabled))
+	if (likely(!debug_enable))
 		return;
 
 	va_start(args, format);
@@ -203,6 +214,7 @@ void bt_dbg(const char *format, ...)
 	va_end(args);
 }
 EXPORT_SYMBOL(bt_dbg);
+#endif
 
 void bt_warn_ratelimited(const char *format, ...)
 {
@@ -235,13 +247,3 @@ void bt_err_ratelimited(const char *format, ...)
 	va_end(args);
 }
 EXPORT_SYMBOL(bt_err_ratelimited);
-
-void bt_set_debug(bool enabled)
-{
-	if (debug_enabled == enabled)
-		return;
-
-	bt_info("Kernel log level is set to %d", enabled);
-	debug_enabled = enabled;
-}
-EXPORT_SYMBOL(bt_set_debug);

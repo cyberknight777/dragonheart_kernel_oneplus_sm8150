@@ -212,7 +212,8 @@ core_pattern is used to specify a core dumpfile pattern name.
 	%s	signal number
 	%t	UNIX time of dump
 	%h	hostname
-	%e	executable filename (may be shortened)
+	%e      executable filename (may be shortened, could be changed by prctl etc)
+	%f      executable filename
 	%E	executable path
 	%<OTHER> both are dropped
 . If the first character of the pattern is a '|', the kernel will treat

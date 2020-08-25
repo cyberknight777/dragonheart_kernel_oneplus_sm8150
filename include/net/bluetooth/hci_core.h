@@ -25,6 +25,7 @@
 #ifndef __HCI_CORE_H
 #define __HCI_CORE_H
 
+#include <linux/idr.h>
 #include <linux/leds.h>
 #include <linux/rculist.h>
 
@@ -128,6 +129,23 @@ struct bdaddr_list {
 	u8 bdaddr_type;
 };
 
+struct bdaddr_list_with_flags {
+	struct list_head list;
+	bdaddr_t bdaddr;
+	u8 bdaddr_type;
+	u32 current_flags;
+};
+
+enum hci_conn_flags {
+	HCI_CONN_FLAG_REMOTE_WAKEUP,
+	HCI_CONN_FLAG_MAX
+};
+
+#define hci_conn_test_flag(nr, flags) ((flags) & (1U << nr))
+
+/* Make sure number of flags doesn't exceed sizeof(current_flags) */
+static_assert(HCI_CONN_FLAG_MAX < 32);
+
 struct bt_uuid {
 	struct list_head list;
 	u8 uuid[16];
@@ -209,27 +227,23 @@ struct adv_info {
 #define HCI_MAX_ADV_INSTANCES		5
 #define HCI_DEFAULT_ADV_DURATION	2000
 
-/*
- * Refer to BLUETOOTH SPECIFICATION Version 4.2 [Vol 2, Part E]
- * Section 7.8.5 about
- * - the default min/max intervals, and
- * - the valid range of min/max intervals.
- */
-#define HCI_DEFAULT_LE_ADV_MIN_INTERVAL	0x0122
-#define HCI_DEFAULT_LE_ADV_MAX_INTERVAL	0x0122
-#define HCI_VALID_LE_ADV_MIN_INTERVAL	0x0020
-#define HCI_VALID_LE_ADV_MAX_INTERVAL	0x4000
-#define ADV_DURATION_MIN_GRACE_PERIOD	5
+struct adv_pattern {
+	struct list_head list;
+	__u8 ad_type;
+	__u8 offset;
+	__u8 length;
+	__u8 value[HCI_MAX_AD_LENGTH];
+};
 
-/* Multiply m by 0.625 (or 5 / 8) to derive time in ms. */
-#define CONVERT_TO_ADV_INTERVAL_MS(m) ((m * 5) >> 3)
+struct adv_monitor {
+	struct list_head patterns;
+	bool		active;
+	__u16		handle;
+};
 
-/*
- * We want to multiply the duration (d) by a factor near 0.1
- * to derive a grace period in ms. This is done by multiplying
- * d by 0.109375 (or 7 / 64)
- */
-#define ADV_DURATION_GRACE_PERIOD(d) ((d * 7) >> 6)
+#define HCI_MIN_ADV_MONITOR_HANDLE		1
+#define HCI_MAX_ADV_MONITOR_NUM_HANDLES	32
+#define HCI_MAX_ADV_MONITOR_NUM_PATTERNS	16
 
 #define HCI_MAX_SHORT_NAME_LENGTH	10
 
@@ -271,7 +285,7 @@ struct hci_dev {
 	__u8		dev_name[HCI_MAX_NAME_LENGTH];
 	__u8		short_name[HCI_MAX_SHORT_NAME_LENGTH];
 	__u8		eir[HCI_MAX_EIR_LENGTH];
-	__u8		event_mask[HCI_SET_EVENT_MASK_SIZE];
+	__u16		eir_max_name_len;
 	__u16		appearance;
 	__u8		dev_class[3];
 	__u8		major_class;
@@ -301,10 +315,17 @@ struct hci_dev {
 	__u16		le_adv_min_interval;
 	__u16		le_adv_max_interval;
 	__u16		le_adv_duration;
-	__u8		le_adv_param_changed;
 	__u8		le_scan_type;
 	__u16		le_scan_interval;
 	__u16		le_scan_window;
+	__u16		le_scan_int_suspend;
+	__u16		le_scan_window_suspend;
+	__u16		le_scan_int_discovery;
+	__u16		le_scan_window_discovery;
+	__u16		le_scan_int_adv_monitor;
+	__u16		le_scan_window_adv_monitor;
+	__u16		le_scan_int_connect;
+	__u16		le_scan_window_connect;
 	__u16		le_conn_min_interval;
 	__u16		le_conn_max_interval;
 	__u16		le_conn_latency;
@@ -326,6 +347,17 @@ struct hci_dev {
 	__u16		devid_vendor;
 	__u16		devid_product;
 	__u16		devid_version;
+
+	__u8		def_page_scan_type;
+	__u16		def_page_scan_int;
+	__u16		def_page_scan_window;
+	__u8		def_inq_scan_type;
+	__u16		def_inq_scan_int;
+	__u16		def_inq_scan_window;
+	__u16		def_br_lsto;
+	__u16		def_page_timeout;
+	__u16		def_multi_adv_rotation_duration;
+	__u16		def_le_autoconnect_timeout;
 
 	__u16		pkt_type;
 	__u16		esco_type;
@@ -443,7 +475,6 @@ struct hci_dev {
 	struct list_head	mgmt_pending;
 	struct list_head	blacklist;
 	struct list_head	whitelist;
-	struct list_head	wakeable;
 	struct list_head	uuids;
 	struct list_head	link_keys;
 	struct list_head	long_term_keys;
@@ -480,6 +511,9 @@ struct hci_dev {
 	__u8			cur_adv_instance;
 	__u16			adv_instance_timeout;
 	struct delayed_work	adv_instance_expire;
+
+	struct idr		adv_monitors_idr;
+	unsigned int		adv_monitors_cnt;
 
 	__u8			irk[16];
 	__u32			rpa_timeout;
@@ -627,7 +661,7 @@ struct hci_conn_params {
 
 	struct hci_conn *conn;
 	bool explicit_connect;
-	bool wakeable;
+	u32 current_flags;
 };
 
 extern struct list_head hci_dev_list;
@@ -1148,8 +1182,15 @@ int hci_inquiry(void __user *arg);
 
 struct bdaddr_list *hci_bdaddr_list_lookup(struct list_head *list,
 					   bdaddr_t *bdaddr, u8 type);
+struct bdaddr_list_with_flags *
+hci_bdaddr_list_lookup_with_flags(struct list_head *list, bdaddr_t *bdaddr,
+				  u8 type);
 int hci_bdaddr_list_add(struct list_head *list, bdaddr_t *bdaddr, u8 type);
+int hci_bdaddr_list_add_with_flags(struct list_head *list, bdaddr_t *bdaddr,
+				   u8 type, u32 flags);
 int hci_bdaddr_list_del(struct list_head *list, bdaddr_t *bdaddr, u8 type);
+int hci_bdaddr_list_del_with_flags(struct list_head *list, bdaddr_t *bdaddr,
+				   u8 type);
 void hci_bdaddr_list_clear(struct list_head *list);
 
 struct hci_conn_params *hci_conn_params_lookup(struct hci_dev *hdev,
@@ -1208,6 +1249,12 @@ int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 			 u16 scan_rsp_len, u8 *scan_rsp_data,
 			 u16 timeout, u16 duration);
 int hci_remove_adv_instance(struct hci_dev *hdev, u8 instance);
+
+void hci_adv_monitors_clear(struct hci_dev *hdev);
+void hci_free_adv_monitor(struct adv_monitor *monitor);
+int hci_add_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor);
+int hci_remove_adv_monitor(struct hci_dev *hdev, u16 handle);
+bool hci_is_adv_monitoring(struct hci_dev *hdev);
 
 void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb);
 
@@ -1523,6 +1570,7 @@ void hci_sock_dev_event(struct hci_dev *hdev, int event);
 #define HCI_MGMT_NO_HDEV	BIT(1)
 #define HCI_MGMT_UNTRUSTED	BIT(2)
 #define HCI_MGMT_UNCONFIGURED	BIT(3)
+#define HCI_MGMT_HDEV_OPTIONAL	BIT(4)
 
 struct hci_mgmt_handler {
 	int (*func) (struct sock *sk, struct hci_dev *hdev, void *data,

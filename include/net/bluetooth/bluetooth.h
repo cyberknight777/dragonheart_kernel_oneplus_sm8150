@@ -122,38 +122,51 @@ struct bt_voice {
 #define BT_SNDMTU		12
 #define BT_RCVMTU		13
 
+#define BT_PKT_STATUS          16
+
+#define BT_SCM_PKT_STATUS	0x03
+
 __printf(1, 2)
 void bt_info(const char *fmt, ...);
 __printf(1, 2)
 void bt_warn(const char *fmt, ...);
 __printf(1, 2)
 void bt_err(const char *fmt, ...);
+#if IS_ENABLED(CONFIG_BT_FEATURE_DEBUG)
+void bt_dbg_set(bool enable);
+bool bt_dbg_get(void);
 __printf(1, 2)
 void bt_dbg(const char *fmt, ...);
+#define BT_DBG_INT	bt_dbg
+#else
+#define BT_DBG_INT	pr_debug
+#endif
 __printf(1, 2)
 void bt_warn_ratelimited(const char *fmt, ...);
 __printf(1, 2)
 void bt_err_ratelimited(const char *fmt, ...);
 
-void bt_set_debug(bool enabled);
+#if IS_ENABLED(CONFIG_BT_FEATURE_DEBUG_FUNC_NAMES)
+#define BT_PREFIX "%s() "
+#define BT_PREFIX_PARAM ,__func__
+#define BT_DBG(fmt, ...)	\
+	BT_DBG_INT(BT_PREFIX fmt "\n", __func__, ##__VA_ARGS__)
+#else
+#define BT_PREFIX
+#define BT_PREFIX_PARAM
+#define BT_DBG(fmt, ...)	\
+	BT_DBG_INT(fmt "\n", ##__VA_ARGS__)
+#endif
 
-static inline const char *basename(const char *path)
-{
-	const char *str = strrchr(path, '/');
+#define BT_INFO(fmt, ...)	\
+	bt_info(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
+#define BT_WARN(fmt, ...)	\
+	bt_warn(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
+#define BT_ERR(fmt, ...)	\
+	bt_err(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
 
-	return str ? (str + 1) : path;
-}
-
-#define BT_INFO(fmt, ...)	bt_info("%s:%s() " fmt "\n",		\
-				basename(__FILE__), __func__, ##__VA_ARGS__)
-#define BT_WARN(fmt, ...)	bt_warn("%s:%s() " fmt "\n",		\
-				basename(__FILE__), __func__, ##__VA_ARGS__)
-#define BT_ERR(fmt, ...)	bt_err("%s:%s() " fmt "\n",		\
-				basename(__FILE__), __func__, ##__VA_ARGS__)
-#define BT_DBG(fmt, ...)	bt_dbg("%s:%s() " fmt "\n",		\
-				basename(__FILE__), __func__, ##__VA_ARGS__)
-
-#define BT_ERR_RATELIMITED(fmt, ...) bt_err_ratelimited(fmt "\n", ##__VA_ARGS__)
+#define BT_ERR_RATELIMITED(fmt, ...) \
+	bt_err_ratelimited(BT_PREFIX fmt "\n" BT_PREFIX_PARAM, ##__VA_ARGS__)
 
 #define bt_dev_info(hdev, fmt, ...)				\
 	BT_INFO("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
@@ -165,7 +178,8 @@ static inline const char *basename(const char *path)
 	BT_DBG("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 
 #define bt_dev_warn_ratelimited(hdev, fmt, ...)			\
-	bt_warn_ratelimited("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
+	bt_warn_ratelimited("%s: " BT_PREFIX fmt, (hdev)->name	\
+			    BT_PREFIX_PARAM, ##__VA_ARGS__)
 #define bt_dev_err_ratelimited(hdev, fmt, ...)			\
 	BT_ERR_RATELIMITED("%s: " fmt, (hdev)->name, ##__VA_ARGS__)
 
@@ -267,6 +281,7 @@ struct bt_sock {
 	struct sock *parent;
 	unsigned long flags;
 	void (*skb_msg_name)(struct sk_buff *, void *, int *);
+	void (*skb_put_cmsg)(struct sk_buff *, struct msghdr *, struct sock *);
 };
 
 enum {
@@ -316,6 +331,10 @@ struct l2cap_ctrl {
 	struct l2cap_chan *chan;
 };
 
+struct sco_ctrl {
+	u8	pkt_status;
+};
+
 struct hci_dev;
 
 typedef void (*hci_req_complete_t)(struct hci_dev *hdev, u8 status, u16 opcode);
@@ -342,6 +361,7 @@ struct bt_skb_cb {
 	u8 incoming:1;
 	union {
 		struct l2cap_ctrl l2cap;
+		struct sco_ctrl sco;
 		struct hci_ctrl hci;
 	};
 };

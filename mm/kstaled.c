@@ -445,38 +445,40 @@ static int kstaled_walk_pte(struct vm_area_struct *vma, pte_t *pte,
 	return hot;
 }
 
-static int kstaled_walk_pmd(pmd_t *pmd, unsigned long start,
+static int kstaled_walk_pmd(pmd_t *pmdp, unsigned long start,
 			    unsigned long end, struct mm_walk *walk)
 {
 	pte_t *pte;
 	spinlock_t *ptl;
+	pmd_t pmd = READ_ONCE(*pmdp);
 	struct kstaled_priv *priv = walk->private;
 
-	if (!pmd_present(*pmd) || is_huge_zero_pmd(*pmd) || pmd_trans_huge(*pmd))
+	if (!pmd_present(pmd) || pmd_trans_huge(pmd))
 		return 0;
 
-	if (kstaled_pmd_young_equal(*pmd, false))
+	if (kstaled_pmd_young_equal(pmd, false))
 		return 0;
 
-	pte = pte_offset_map_lock(walk->mm, pmd, start, &ptl);
+	pte = pte_offset_map_lock(walk->mm, &pmd, start, &ptl);
 	priv->hot += kstaled_walk_pte(walk->vma, pte, start, end, priv->head);
 	pte_unmap_unlock(pte, ptl);
 
 	return 0;
 }
 
-static int kstaled_walk_pud(pud_t *pud, unsigned long start,
+static int kstaled_walk_pud(pud_t *pudp, unsigned long start,
 			    unsigned long end, struct mm_walk *walk)
 {
 	int i;
 	pmd_t *pmd;
 	spinlock_t *ptl;
+	pud_t pud = READ_ONCE(*pudp);
 	struct kstaled_priv *priv = walk->private;
 
-	if (!pud_present(*pud) || is_huge_zero_pud(*pud))
+	if (!pud_present(pud) || pud_trans_huge(pud))
 		return 0;
 
-	pmd = pmd_offset(pud, start);
+	pmd = pmd_offset(&pud, start);
 	ptl = pmd_lock(walk->mm, pmd);
 
 	for (i = 0; start != end; i++, start = pmd_addr_end(start, end)) {
@@ -1246,9 +1248,6 @@ bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 		goto done;
 	}
 
-	VM_BUG_ON_PAGE(pmd_trans_huge(*pvmw->pmd), pvmw->page);
-	VM_BUG_ON_PAGE(pvmw->ptl !=
-		       pte_lockptr(pvmw->vma->vm_mm, pvmw->pmd), pvmw->page);
 	lockdep_assert_held(pvmw->ptl);
 
 	if (page_mapcount(pvmw->page) > 1)
@@ -1260,17 +1259,17 @@ bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 	start = max(pvmw->address & PMD_MASK, pvmw->vma->vm_start);
 	end = pmd_addr_end(pvmw->address, pvmw->vma->vm_end);
 
-	pte = pte_offset_map(pvmw->pmd, start);
+	pte = pvmw->pte - ((pvmw->address - start) >> PAGE_SHIFT);
 	hot = kstaled_walk_pte(pvmw->vma, pte, start, end, head);
-	pte_unmap(pte);
 
 	page_vma_mapped_walk_done(pvmw);
 
-	if (kstaled_pmd_young_equal(*pvmw->pmd, true) &&
+	if (kstaled_pmd_young_equal(READ_ONCE(*pvmw->pmd), true) &&
 	    start + PMD_SIZE == end) {
 		spinlock_t *ptl = pmd_lock(pvmw->vma->vm_mm, pvmw->pmd);
 
-		pmdp_test_and_clear_young(pvmw->vma, start, pvmw->pmd);
+		if (pmd_present(*pvmw->pmd) && !pmd_trans_huge(*pvmw->pmd))
+			pmdp_test_and_clear_young(pvmw->vma, start, pvmw->pmd);
 		spin_unlock(ptl);
 	}
 

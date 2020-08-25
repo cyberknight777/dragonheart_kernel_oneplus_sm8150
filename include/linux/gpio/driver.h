@@ -94,6 +94,13 @@ struct gpio_irq_chip {
 	unsigned int num_parents;
 
 	/**
+	 * @parent_irq:
+	 *
+	 * For use by gpiochip_set_cascaded_irqchip()
+	 */
+	unsigned int parent_irq;
+
+	/**
 	 * @parents:
 	 *
 	 * A list of interrupt parents of a GPIO chip. This is owned by the
@@ -130,11 +137,6 @@ struct gpio_irq_chip {
 	 */
 	unsigned long *valid_mask;
 };
-
-static inline struct gpio_irq_chip *to_gpio_irq_chip(struct irq_chip *chip)
-{
-	return container_of(chip, struct gpio_irq_chip, chip);
-}
 #endif
 
 /**

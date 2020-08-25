@@ -69,6 +69,7 @@ struct rt5682_priv {
 static const struct reg_sequence patch_list[] = {
 	{RT5682_HP_IMP_SENS_CTRL_19, 0x1000},
 	{RT5682_DAC_ADC_DIG_VOL1, 0xa020},
+	{RT5682_I2C_CTRL, 0x000f},
 };
 
 static const struct reg_default rt5682_reg[] = {
@@ -2473,6 +2474,7 @@ static void rt5682_calibrate(struct rt5682_priv *rt5682)
 	mutex_lock(&rt5682->calibrate_mutex);
 
 	rt5682_reset(rt5682->regmap);
+	regmap_write(rt5682->regmap, RT5682_I2C_CTRL, 0x000f);
 	regmap_write(rt5682->regmap, RT5682_PWR_ANLG_1, 0xa2af);
 	usleep_range(15000, 20000);
 	regmap_write(rt5682->regmap, RT5682_PWR_ANLG_1, 0xf2af);
@@ -2583,6 +2585,7 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 
 	rt5682_reset(rt5682->regmap);
 
+	mutex_init(&rt5682->calibrate_mutex);
 	rt5682_calibrate(rt5682);
 
 	ret = regmap_multi_reg_write(rt5682->regmap, patch_list,
@@ -2649,7 +2652,6 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 	INIT_DELAYED_WORK(&rt5682->jd_check_work,
 				rt5682_jd_check_handler);
 
-	mutex_init(&rt5682->calibrate_mutex);
 
 	if (i2c->irq) {
 		ret = devm_request_threaded_irq(&i2c->dev, i2c->irq, NULL,
