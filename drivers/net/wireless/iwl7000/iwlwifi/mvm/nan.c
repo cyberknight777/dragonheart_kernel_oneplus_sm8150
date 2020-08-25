@@ -521,12 +521,6 @@ static void iwl_mvm_nan_match_v1(struct iwl_mvm *mvm,
 		return;
 	}
 
-	if (WARN_ON_ONCE(len < sizeof(*ev))) {
-		IWL_ERR(mvm, "Invalid NAN match event length: %d\n",
-			len);
-		return;
-	}
-
 	if (WARN_ON_ONCE(len < sizeof(*ev) + ev->service_info_len)) {
 		IWL_ERR(mvm,
 			"Invalid NAN match event length: %d, info_len: %d\n",
@@ -606,17 +600,10 @@ void iwl_mvm_nan_de_term_notif(struct iwl_mvm *mvm,
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_nan_de_term *ev = (void *)pkt->data;
-	int len = iwl_rx_packet_payload_len(pkt);
 	enum nl80211_nan_func_term_reason nl_reason;
 
 	if (WARN_ON_ONCE(!mvm->nan_vif)) {
 		IWL_ERR(mvm, "NAN vif is NULL\n");
-		return;
-	}
-
-	if (WARN_ON_ONCE(len != sizeof(*ev))) {
-		IWL_ERR(mvm, "NAN DE termination event bad length: %d\n",
-			len);
 		return;
 	}
 
