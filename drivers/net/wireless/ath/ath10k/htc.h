@@ -23,6 +23,7 @@
 #include <linux/bug.h>
 #include <linux/skbuff.h>
 #include <linux/timer.h>
+#include <linux/bitfield.h>
 
 struct ath10k;
 
