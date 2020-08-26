@@ -803,7 +803,9 @@ void iwl_mvm_rx_session_protect_notif(struct iwl_mvm *mvm,
 		set_bit(IWL_MVM_STATUS_NEED_FLUSH_P2P, &mvm->status);
 		iwl_mvm_roc_finished(mvm);
 	} else if (le32_to_cpu(notif->start)) {
-		mvmvif->time_event_data.id = le32_to_cpu(notif->conf_id);
+		if (WARN_ON(mvmvif->time_event_data.id !=
+				le32_to_cpu(notif->conf_id)))
+			goto out_unlock;
 		set_bit(IWL_MVM_STATUS_ROC_RUNNING, &mvm->status);
 		ieee80211_ready_on_channel(mvm->hw); /* Start TE */
 	}
@@ -829,20 +831,24 @@ iwl_mvm_start_p2p_roc_session_protection(struct iwl_mvm *mvm,
 
 	lockdep_assert_held(&mvm->mutex);
 
+	/* The time_event_data.id field is reused to save session
+	 * protection's configuration.
+	 */
 	switch (type) {
 	case IEEE80211_ROC_TYPE_NORMAL:
-		cmd.conf_id =
-			cpu_to_le32(SESSION_PROTECT_CONF_P2P_DEVICE_DISCOV);
+		mvmvif->time_event_data.id =
+			SESSION_PROTECT_CONF_P2P_DEVICE_DISCOV;
 		break;
 	case IEEE80211_ROC_TYPE_MGMT_TX:
-		cmd.conf_id =
-			cpu_to_le32(SESSION_PROTECT_CONF_P2P_GO_NEGOTIATION);
+		mvmvif->time_event_data.id =
+			SESSION_PROTECT_CONF_P2P_GO_NEGOTIATION;
 		break;
 	default:
 		WARN_ONCE(1, "Got an invalid ROC type\n");
 		return -EINVAL;
 	}
 
+	cmd.conf_id = cpu_to_le32(mvmvif->time_event_data.id);
 	return iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(SESSION_PROTECTION_CMD,
 						    MAC_CONF_GROUP, 0),
 				    0, sizeof(cmd), &cmd);
@@ -1094,9 +1100,14 @@ void iwl_mvm_schedule_session_protection(struct iwl_mvm *mvm,
 			cpu_to_le32(FW_CMD_ID_AND_COLOR(mvmvif->id,
 							mvmvif->color)),
 		.action = cpu_to_le32(FW_CTXT_ACTION_ADD),
-		.conf_id = cpu_to_le32(SESSION_PROTECT_CONF_ASSOC),
 		.duration_tu = cpu_to_le32(MSEC_TO_TU(duration)),
 	};
+
+	/* The time_event_data.id field is reused to save session
+	 * protection's configuration.
+	 */
+	mvmvif->time_event_data.id = SESSION_PROTECT_CONF_ASSOC;
+	cmd.conf_id = cpu_to_le32(mvmvif->time_event_data.id);
 
 	lockdep_assert_held(&mvm->mutex);
 
