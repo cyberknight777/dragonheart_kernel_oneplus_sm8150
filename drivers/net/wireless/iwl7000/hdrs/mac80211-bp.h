@@ -2360,3 +2360,7 @@ LINUX_BACKPORT(cfg80211_ch_switch_started_notify)(struct net_device *dev,
 }
 #define cfg80211_ch_switch_started_notify LINUX_BACKPORT(cfg80211_ch_switch_started_notify)
 #endif /* < 5.10 */
+
+#ifndef ETH_TLEN
+#define ETH_TLEN	2		/* Octets in ethernet type field */
+#endif
