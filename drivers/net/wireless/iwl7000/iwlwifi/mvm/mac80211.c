@@ -4934,19 +4934,19 @@ static void iwl_mvm_channel_switch_rx_beacon(struct ieee80211_hw *hw,
 	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_CS_MODIFY))
 		return;
 
-	mutex_lock(&mvm->mutex);
 	if (chsw->count >= mvmvif->csa_count && chsw->block_tx) {
 		if (mvmvif->csa_misbehave) {
 			/* Second time, give up on this AP*/
 			iwl_mvm_abort_channel_switch(hw, vif);
 			ieee80211_chswitch_done(vif, false);
 			mvmvif->csa_misbehave = false;
-			goto out_unlock;
+			return;
 		}
 		mvmvif->csa_misbehave = true;
 	}
 	mvmvif->csa_count = chsw->count;
 
+	mutex_lock(&mvm->mutex);
 	if (mvmvif->csa_failed)
 		goto out_unlock;
 
