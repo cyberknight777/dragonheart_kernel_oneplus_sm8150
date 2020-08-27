@@ -13,6 +13,11 @@
 #include "fw/api/nvm-reg.h"
 #include "fw/api/alive.h"
 
+struct iwl_pnvm_section {
+	__le32 offset;
+	const u8 data[];
+} __packed;
+
 static bool iwl_pnvm_complete_fn(struct iwl_notif_wait_data *notif_wait,
 				 struct iwl_rx_packet *pkt, void *data)
 {
@@ -96,7 +101,10 @@ static int iwl_pnvm_handle_section(struct iwl_trans *trans, const u8 *data,
 			}
 
 			break;
-		case IWL_UCODE_TLV_SEC_RT:
+		case IWL_UCODE_TLV_SEC_RT: {
+			struct iwl_pnvm_section *section = (void *)data;
+			u32 data_len = tlv_len - sizeof(*section);
+
 			IWL_DEBUG_FW(trans,
 				     "Got IWL_UCODE_TLV_SEC_RT len %d\n",
 				     tlv_len);
@@ -108,9 +116,9 @@ static int iwl_pnvm_handle_section(struct iwl_trans *trans, const u8 *data,
 			}
 
 			IWL_DEBUG_FW(trans, "Adding data (size %d)\n",
-				     tlv_len);
+				     data_len);
 
-			tmp = krealloc(pnvm_data, size + tlv_len, GFP_KERNEL);
+			tmp = krealloc(pnvm_data, size + data_len, GFP_KERNEL);
 			if (!tmp) {
 				IWL_DEBUG_FW(trans,
 					     "Couldn't allocate (more) pnvm_data\n");
@@ -121,11 +129,12 @@ static int iwl_pnvm_handle_section(struct iwl_trans *trans, const u8 *data,
 
 			pnvm_data = tmp;
 
-			memcpy(pnvm_data + size, data, tlv_len);
+			memcpy(pnvm_data + size, section->data, data_len);
 
-			size += tlv_len;
+			size += data_len;
 
 			break;
+		}
 		case IWL_UCODE_TLV_PNVM_SKU:
 			IWL_DEBUG_FW(trans,
 				     "New PNVM section started, stop parsing.\n");
