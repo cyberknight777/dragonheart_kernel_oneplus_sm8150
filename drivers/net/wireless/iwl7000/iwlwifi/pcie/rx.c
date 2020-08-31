@@ -1529,7 +1529,7 @@ restart:
 	if (i == r)
 		IWL_DEBUG_RX(trans, "Q %d: HW = SW = %d\n", rxq->id, r);
 
-	while (i != r && handled++ < budget) {
+	while (i != r && ++handled < budget) {
 		struct iwl_rb_allocator *rba = &trans_pcie->rba;
 		struct iwl_rx_mem_buffer *rxb;
 		/* number of RBDs still waiting for page allocation */
