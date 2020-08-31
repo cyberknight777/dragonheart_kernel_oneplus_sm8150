@@ -39,7 +39,6 @@ const void *const mac80211_wiphy_privid = &mac80211_wiphy_privid;
 struct ieee80211_hw *wiphy_to_ieee80211_hw(struct wiphy *wiphy)
 {
 	struct ieee80211_local *local;
-	BUG_ON(!wiphy);
 
 	local = wiphy_priv(wiphy);
 	return &local->hw;
@@ -938,7 +937,7 @@ static void ieee80211_parse_extension_element(u32 *crc,
 		break;
 	case WLAN_EID_EXT_HE_SPR:
 		if (len >= sizeof(*elems->he_spr) &&
-		    len == ieee80211_he_spr_size(data) - 1)
+		    len >= ieee80211_he_spr_size(data))
 			elems->he_spr = data;
 		break;
 	}

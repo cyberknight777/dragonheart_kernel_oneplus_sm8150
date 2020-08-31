@@ -105,7 +105,6 @@
 #define APCI_WTAS_BLACK_LIST_MAX	16
 #define ACPI_WTAS_WIFI_DATA_SIZE	(3 + APCI_WTAS_BLACK_LIST_MAX)
 
-#define ACPI_WGDS_NUM_BANDS		2
 #define ACPI_WGDS_TABLE_SIZE		3
 
 #define ACPI_PPAG_WIFI_DATA_SIZE	((IWL_NUM_CHAIN_LIMITS * \
@@ -267,12 +266,6 @@ static inline int iwl_sar_get_wgds_table(struct iwl_fw_runtime *fwrt)
 static inline bool iwl_sar_geo_support(struct iwl_fw_runtime *fwrt)
 {
 	return false;
-}
-
-static int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
-			    struct iwl_per_chain_offset *table, u32 n_bands)
-{
-	return -ENOENT;
 }
 
 static inline int iwl_acpi_get_tas(struct iwl_fw_runtime *fwrt,
