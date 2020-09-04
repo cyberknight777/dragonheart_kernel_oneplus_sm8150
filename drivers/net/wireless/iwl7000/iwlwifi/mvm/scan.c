@@ -2289,6 +2289,9 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 			     struct ieee80211_scan_ies *ies,
 			     int type)
 {
+#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
+	struct cfg80211_sched_scan_plan scan_plan = {};
+#endif
 	struct iwl_host_cmd hcmd = {
 		.len = { iwl_mvm_scan_size(mvm), },
 		.data = { mvm->scan_cmd, },
