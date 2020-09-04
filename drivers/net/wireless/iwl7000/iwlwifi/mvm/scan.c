@@ -2296,9 +2296,6 @@ int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 	};
 	struct iwl_mvm_scan_params params = {};
 	int ret, uid;
-#if CFG80211_VERSION < KERNEL_VERSION(4,4,0)
-	struct cfg80211_sched_scan_plan scan_plan = {};
-#endif
 
 	lockdep_assert_held(&mvm->mutex);
 
