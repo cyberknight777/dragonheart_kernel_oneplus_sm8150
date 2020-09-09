@@ -1587,6 +1587,10 @@ static inline u8 iwl_mvm_nl80211_band_from_rx_msdu(u8 phy_band)
 		return NL80211_BAND_2GHZ;
 	case PHY_BAND_5:
 		return NL80211_BAND_5GHZ;
+#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
+	case PHY_BAND_6:
+		return NL80211_BAND_6GHZ;
+#endif
 	default:
 		WARN_ONCE(1, "Unsupported phy band (%u)\n", phy_band);
 		return NL80211_BAND_5GHZ;

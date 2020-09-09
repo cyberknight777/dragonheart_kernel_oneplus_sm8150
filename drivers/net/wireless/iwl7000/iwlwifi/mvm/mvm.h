@@ -2173,6 +2173,9 @@ static inline u8 iwl_mvm_phy_band_from_nl80211(enum nl80211_band band)
 	case NL80211_BAND_6GHZ:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
+#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
+		return PHY_BAND_6;
+#endif
 	default:
 		WARN_ONCE(1, "Unsupported band (%u)\n", band);
 		return PHY_BAND_5;

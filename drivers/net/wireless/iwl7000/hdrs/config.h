@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2018-2019 Intel Corporation
+ * Copyright(c) 2018-2020 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -41,6 +41,8 @@
 #define CPTCFG_IWLWIFI_NUM_STA_INTERFACES 1
 #define CPTCFG_REJECT_NONUPSTREAM_NL80211 1
 #define CPTCFG_IWLWIFI_ATLAS_PLATFORM_WORKAROUND 1
+
+#define CPTCFG_IWLWIFI_WIFI_6_SUPPORT 1
 
 #ifdef CONFIG_IWL7000_DEBUGFS
 #define CPTCFG_MAC80211_DEBUGFS 1
