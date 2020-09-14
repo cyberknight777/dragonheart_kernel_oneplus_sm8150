@@ -1494,10 +1494,25 @@ static inline void skb_put_u8(struct sk_buff *skb, u8 val)
 }
 #endif
 
+#if LINUX_VERSION_IS_LESS(4,20,0) && !LINUX_VERSION_IN_RANGE(4,19,10, 4,20,0)
+static inline void skb_mark_not_on_list(struct sk_buff *skb)
+{
+	skb->next = NULL;
+}
+#endif /* < 4.20 || 4.19.10 <= x < 4.20 */
+
 #if LINUX_VERSION_IS_LESS(4,20,0)
 static inline struct sk_buff *__skb_peek(const struct sk_buff_head *list_)
 {
 	return list_->next;
+}
+#endif
+
+#if LINUX_VERSION_IS_LESS(4,19,0)
+static inline void skb_list_del_init(struct sk_buff *skb)
+{
+	__list_del_entry((struct list_head *)&skb->next);
+	skb_mark_not_on_list(skb);
 }
 #endif
 
@@ -2387,3 +2402,71 @@ static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
 }
 
 #endif /* < 5.8.0 */
+
+#if LINUX_VERSION_IS_LESS(5,9,0)
+
+#define kfree_sensitive(p) kzfree(p)
+
+#include <linux/thermal.h>
+#ifdef CONFIG_THERMAL
+static inline int thermal_zone_device_enable(struct thermal_zone_device *tz)
+{ return 0; }
+#else /* CONFIG_THERMAL */
+static inline int thermal_zone_device_enable(struct thermal_zone_device *tz)
+{ return -ENODEV; }
+#endif /* CONFIG_THERMAL */
+
+static inline bool nl80211_is_s1ghz(enum nl80211_band band)
+{
+	return false;
+}
+
+#define NL80211_CHAN_WIDTH_1 8
+#define NL80211_CHAN_WIDTH_2 9
+#define NL80211_CHAN_WIDTH_4 10
+#define NL80211_CHAN_WIDTH_8 11
+#define NL80211_CHAN_WIDTH_16 12
+
+static inline bool nl80211_is_s1ghz_width(enum nl80211_chan_width w1,
+					  enum nl80211_chan_width w2)
+{
+	return false;
+}
+#else /* < 5.9.0 */
+static inline bool nl80211_is_s1ghz_width(enum nl80211_chan_width w1,
+					  enum nl80211_chan_width w2)
+{
+	return w1 == w2;
+}
+#endif /* < 5.9.0 */
+
+#if LINUX_VERSION_IS_LESS(4,19,0)
+static inline void netif_receive_skb_list(struct list_head *head)
+{
+	struct sk_buff *skb;
+	struct list_head *l, *next;
+
+	if (list_empty(head))
+		return;
+
+	list_for_each_safe(l, next, head) {
+		skb = (void *)l;
+
+		skb_list_del_init(skb);
+		netif_receive_skb(skb);
+	}
+}
+
+static inline u8 cfg80211_he_gi(struct rate_info *ri)
+{
+	return 0;
+}
+
+#else /* < 4.19.0 */
+
+static inline u8 cfg80211_he_gi(struct rate_info *ri)
+{
+	return ri->he_gi;
+}
+
+#endif /* < 4.19.0 */
