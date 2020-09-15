@@ -2169,6 +2169,10 @@ static inline u8 iwl_mvm_phy_band_from_nl80211(enum nl80211_band band)
 		return PHY_BAND_24;
 	case NL80211_BAND_5GHZ:
 		return PHY_BAND_5;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
+	case NL80211_BAND_6GHZ:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 	default:
 		WARN_ONCE(1, "Unsupported band (%u)\n", band);
 		return PHY_BAND_5;
