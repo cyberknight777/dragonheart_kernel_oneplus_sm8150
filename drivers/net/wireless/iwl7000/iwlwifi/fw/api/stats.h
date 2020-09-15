@@ -461,6 +461,7 @@ struct iwl_statistics_ntfy_hdr {
  *	 filtered)
  * @beacon_rssi_a: beacon RSSI on antenna A
  * @beacon_rssi_b: beacon RSSI on antenna B
+ * @rx_bytes: per MAC RX byte count
  * @rx_time: rx time
  * @tx_time: usec the radio is transmitting.
  * @on_time_rf: The total time in usec the RF is awake.
@@ -476,11 +477,11 @@ struct iwl_statistics_operational_ntfy {
 	__le32 beacon_filter_reason;
 	__le32 radio_temperature;
 	__le32 air_time[MAC_INDEX_AUX];
-	__le32 rx_bytes[MAC_INDEX_AUX];
 	__le32 beacon_counter[MAC_INDEX_AUX];
 	__le32 beacon_average_energy[MAC_INDEX_AUX];
 	__le32 beacon_rssi_a;
 	__le32 beacon_rssi_b;
+	__le32 rx_bytes[MAC_INDEX_AUX];
 	__le64 rx_time;
 	__le64 tx_time;
 	__le64 on_time_rf;
