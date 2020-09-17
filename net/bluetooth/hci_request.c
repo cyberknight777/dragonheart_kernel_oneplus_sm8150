@@ -2461,6 +2461,9 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 	BT_DBG("BT_DBG_DG: call hci_req_add_le_scan_disable: request:active_scan\n");
 	hci_req_add_le_scan_disable(req);
 
+	if (hci_dev_test_flag(hdev, HCI_LE_SCAN))
+		cancel_interleave_scan(hdev);
+
 	/* All active scans will be done with either a resolvable private
 	 * address (when privacy feature has been enabled) or non-resolvable
 	 * private address.
