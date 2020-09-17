@@ -961,6 +961,9 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 		filter_policy |= 0x02;
 
 	if (hdev->suspended) {
+		/* Block suspend notifier on response */
+		set_bit(SUSPEND_SCAN_ENABLE, hdev->suspend_tasks);
+
 		window = hdev->le_scan_window_suspend;
 		interval = hdev->le_scan_int_suspend;
 	} else if (hci_is_le_conn_scanning(hdev)) {
@@ -1041,10 +1044,8 @@ static void hci_req_config_le_suspend_scan(struct hci_request *req)
 	hci_req_add_le_scan_disable(req);
 
 	/* Configure params and enable scanning */
-	hci_req_add_le_passive_scan(req);
+	__hci_update_background_scan(req);
 
-	/* Block suspend notifier on response */
-	set_bit(SUSPEND_SCAN_ENABLE, req->hdev->suspend_tasks);
 }
 
 static void suspend_req_complete(struct hci_dev *hdev, u8 status, u16 opcode)
@@ -1107,6 +1108,8 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 
 		/* Disable LE passive scan */
 		hci_req_add_le_scan_disable(&req);
+		if (hci_dev_test_flag(hdev, HCI_LE_SCAN))
+			cancel_interleave_scan(hdev);
 
 		/* Mark task needing completion */
 		set_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks);
