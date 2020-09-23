@@ -451,6 +451,8 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 
 	if (err)
 		IWL_ERR(mvm, "failed to update device TX power: %d\n", err);
+	else
+		mvm->txp_cmd = cmd;
 	err = 0;
 free:
 	kfree(tb);
