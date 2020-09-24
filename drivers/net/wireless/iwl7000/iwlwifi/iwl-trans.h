@@ -972,6 +972,7 @@ struct iwl_trans {
 
 	bool pm_support;
 	bool ltr_enabled;
+	u8 pnvm_loaded:1;
 
 	const struct iwl_hcmd_arr *command_groups;
 	int command_groups_size;
@@ -1467,8 +1468,14 @@ void iwl_trans_sync_nmi_with_addr(struct iwl_trans *trans, u32 inta_addr,
 static inline int iwl_trans_set_pnvm(struct iwl_trans *trans,
 				     const void *data, u32 len)
 {
-	if (trans->ops->set_pnvm)
-		return trans->ops->set_pnvm(trans, data, len);
+	if (trans->ops->set_pnvm) {
+		int ret = trans->ops->set_pnvm(trans, data, len);
+
+		if (ret)
+			return ret;
+	}
+
+	trans->pnvm_loaded = true;
 
 	return 0;
 }
