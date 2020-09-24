@@ -235,6 +235,10 @@ int iwl_pnvm_load(struct iwl_trans *trans,
 	if (!trans->sku_id[0] && !trans->sku_id[1] && !trans->sku_id[2])
 		return 0;
 
+	/* if we already have it, nothing to do either */
+	if (trans->pnvm_loaded)
+		return 0;
+
 	/*
 	 * The prefix unfortunately includes a hyphen at the end, so
 	 * don't add the dot here...
