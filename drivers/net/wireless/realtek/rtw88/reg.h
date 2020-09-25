@@ -124,6 +124,9 @@
 				 BIT_WINTINI_RDY | BIT_RAM_DL_SEL)
 #define FW_READY_MASK		0xffff
 
+#define REG_MCU_TST_CFG		0x84
+#define VAL_FW_TRIGGER		0x1
+
 #define REG_PMC_DBG_CTRL1	0xa8
 #define BITS_PMC_BT_IQK_STS	GENMASK(22, 21)
 
