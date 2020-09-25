@@ -1111,6 +1111,17 @@ enum rtw_wlan_cpu {
 	RTW_WCPU_11N,
 };
 
+enum rtw_fw_fifo_sel {
+	RTW_FW_FIFO_SEL_TX,
+	RTW_FW_FIFO_SEL_RX,
+	RTW_FW_FIFO_SEL_RSVD_PAGE,
+	RTW_FW_FIFO_SEL_REPORT,
+	RTW_FW_FIFO_SEL_LLT,
+	RTW_FW_FIFO_SEL_RXBUF_FW,
+
+	RTW_FW_FIFO_MAX,
+};
+
 /* hardware configuration for each IC */
 struct rtw_chip_info {
 	struct rtw_chip_ops *ops;
@@ -1127,6 +1138,7 @@ struct rtw_chip_info {
 	u32 ptct_efuse_size;
 	u32 txff_size;
 	u32 rxff_size;
+	u32 fw_rxff_size;
 	u8 band;
 	u8 page_size;
 	u8 csi_buf_pg_num;
@@ -1137,6 +1149,7 @@ struct rtw_chip_info {
 	bool rx_ldpc;
 	u8 max_power_index;
 
+	u16 fw_fifo_addr[RTW_FW_FIFO_MAX];
 	u8 default_1ss_tx_path;
 
 	bool path_div_supported;
