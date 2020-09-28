@@ -2098,8 +2098,6 @@ static inline void cfg80211_bss_iter(struct wiphy *wiphy,
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
-#define NL80211_BAND_6GHZ 3
-
 static inline bool nl80211_is_6ghz(enum nl80211_band band)
 {
 	return false;
@@ -2382,7 +2380,7 @@ LINUX_BACKPORT(cfg80211_ch_switch_started_notify)(struct net_device *dev,
 #define ETH_TLEN	2		/* Octets in ethernet type field */
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5, 10, 0)
 /**
  * cfg80211_channel_is_psc - Check if the channel is a 6 GHz PSC
  * @chan: control channel to check
@@ -2398,7 +2396,7 @@ static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
 	return ieee80211_frequency_to_channel(chan->center_freq) % 16 == 5;
 }
 
-#endif /* < 5.8.0 */
+#endif /* >= 5.10.0 */
 
 #if LINUX_VERSION_IS_LESS(5,9,0)
 
