@@ -187,6 +187,10 @@ static int catpt_probe_components(struct catpt_dev *cdev)
 		goto err_reg_board;
 	}
 
+	ret = catpt_sysfs_create(cdev);
+	if (ret)
+		goto err_reg_board;
+
 	/* reflect actual ADSP state in pm_runtime */
 	pm_runtime_set_active(cdev->dev);
 
@@ -294,6 +298,8 @@ static int catpt_acpi_remove(struct platform_device *pdev)
 	struct catpt_dev *cdev = platform_get_drvdata(pdev);
 
 	pm_runtime_disable(cdev->dev);
+
+	catpt_sysfs_remove(cdev);
 
 	snd_soc_unregister_component(cdev->dev);
 	catpt_dmac_remove(cdev);

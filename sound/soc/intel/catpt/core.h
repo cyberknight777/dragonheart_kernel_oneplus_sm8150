@@ -15,6 +15,8 @@
 
 struct catpt_dev;
 
+extern const struct attribute_group *catpt_attr_groups[];
+
 void catpt_sram_init(struct resource *sram, u32 start, u32 size);
 void catpt_sram_free(struct resource *sram);
 struct resource *
@@ -154,6 +156,9 @@ int catpt_store_streams_context(struct catpt_dev *cdev, struct dma_chan *chan);
 int catpt_store_module_states(struct catpt_dev *cdev, struct dma_chan *chan);
 int catpt_store_memdumps(struct catpt_dev *cdev, struct dma_chan *chan);
 int catpt_coredump(struct catpt_dev *cdev);
+
+int catpt_sysfs_create(struct catpt_dev *cdev);
+void catpt_sysfs_remove(struct catpt_dev *cdev);
 
 #include <sound/memalloc.h>
 #include <uapi/sound/asound.h>
