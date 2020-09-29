@@ -22,9 +22,6 @@
 #include <sound/soc-acpi.h>
 #include <sound/pcm_params.h>
 
-#include "../common/sst-dsp.h"
-#include "../haswell/sst-haswell-ipc.h"
-
 #include "../../codecs/rt5640.h"
 
 /* Haswell ULT platforms have a Headphone and Mic jack */
@@ -86,40 +83,16 @@ static const struct snd_soc_ops haswell_rt5640_ops = {
 	.hw_params = haswell_rt5640_hw_params,
 };
 
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_HASWELL)
-static int haswell_rtd_init(struct snd_soc_pcm_runtime *rtd)
-{
-	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
-	struct sst_pdata *pdata = dev_get_platdata(component->dev);
-	struct sst_hsw *haswell = pdata->dsp;
-	int ret;
-
-	/* Set ADSP SSP port settings */
-	ret = sst_hsw_device_set_config(haswell, SST_HSW_DEVICE_SSP_0,
-		SST_HSW_DEVICE_MCLK_FREQ_24_MHZ,
-		SST_HSW_DEVICE_CLOCK_MASTER, 9);
-	if (ret < 0) {
-		dev_err(rtd->dev, "failed to set device config\n");
-		return ret;
-	}
-
-	return 0;
-}
-#endif
-
 static struct snd_soc_dai_link haswell_rt5640_dais[] = {
 	/* Front End DAI links */
 	{
 		.name = "System",
 		.stream_name = "System Playback/Capture",
 		.cpu_dai_name = "System Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_HASWELL)
-		.init = haswell_rtd_init,
-#endif
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST},
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
@@ -128,7 +101,7 @@ static struct snd_soc_dai_link haswell_rt5640_dais[] = {
 		.name = "Offload0",
 		.stream_name = "Offload0 Playback",
 		.cpu_dai_name = "Offload0 Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -139,7 +112,7 @@ static struct snd_soc_dai_link haswell_rt5640_dais[] = {
 		.name = "Offload1",
 		.stream_name = "Offload1 Playback",
 		.cpu_dai_name = "Offload1 Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -150,7 +123,7 @@ static struct snd_soc_dai_link haswell_rt5640_dais[] = {
 		.name = "Loopback",
 		.stream_name = "Loopback",
 		.cpu_dai_name = "Loopback Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -163,8 +136,8 @@ static struct snd_soc_dai_link haswell_rt5640_dais[] = {
 		/* SSP0 - Codec */
 		.name = "Codec",
 		.id = 0,
-		.cpu_dai_name = "snd-soc-dummy-dai",
-		.platform_name = "snd-soc-dummy",
+		.cpu_dai_name = "ssp0-port",
+		.platform_name = "catpt-platform",
 		.no_pcm = 1,
 		.codec_name = "i2c-INT33CA:00",
 		.codec_dai_name = "rt5640-aif1",
