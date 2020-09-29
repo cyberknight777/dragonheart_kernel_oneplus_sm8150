@@ -23,9 +23,6 @@
 #include <sound/pcm_params.h>
 #include <sound/soc-acpi.h>
 
-#include "../common/sst-dsp.h"
-#include "../haswell/sst-haswell-ipc.h"
-
 #include "../../codecs/rt286.h"
 
 static struct snd_soc_jack broadwell_headset;
@@ -131,27 +128,6 @@ static const struct snd_soc_ops broadwell_rt286_ops = {
 	.hw_params = broadwell_rt286_hw_params,
 };
 
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_BROADWELL)
-static int broadwell_rtd_init(struct snd_soc_pcm_runtime *rtd)
-{
-	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
-	struct sst_pdata *pdata = dev_get_platdata(component->dev);
-	struct sst_hsw *broadwell = pdata->dsp;
-	int ret;
-
-	/* Set ADSP SSP port settings */
-	ret = sst_hsw_device_set_config(broadwell, SST_HSW_DEVICE_SSP_0,
-		SST_HSW_DEVICE_MCLK_FREQ_24_MHZ,
-		SST_HSW_DEVICE_CLOCK_MASTER, 9);
-	if (ret < 0) {
-		dev_err(rtd->dev, "error: failed to set device config\n");
-		return ret;
-	}
-
-	return 0;
-}
-#endif
-
 /* broadwell digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link broadwell_rt286_dais[] = {
 	/* Front End DAI links */
@@ -159,13 +135,10 @@ static struct snd_soc_dai_link broadwell_rt286_dais[] = {
 		.name = "System PCM",
 		.stream_name = "System Playback/Capture",
 		.cpu_dai_name = "System Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
-#if !IS_ENABLED(CONFIG_SND_SOC_SOF_BROADWELL)
-		.init = broadwell_rtd_init,
-#endif
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST},
 		.dpcm_playback = 1,
 		.dpcm_capture = 1,
@@ -174,7 +147,7 @@ static struct snd_soc_dai_link broadwell_rt286_dais[] = {
 		.name = "Offload0",
 		.stream_name = "Offload0 Playback",
 		.cpu_dai_name = "Offload0 Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -185,7 +158,7 @@ static struct snd_soc_dai_link broadwell_rt286_dais[] = {
 		.name = "Offload1",
 		.stream_name = "Offload1 Playback",
 		.cpu_dai_name = "Offload1 Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -196,7 +169,7 @@ static struct snd_soc_dai_link broadwell_rt286_dais[] = {
 		.name = "Loopback PCM",
 		.stream_name = "Loopback",
 		.cpu_dai_name = "Loopback Pin",
-		.platform_name = "haswell-pcm-audio",
+		.platform_name = "catpt-platform",
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -208,8 +181,8 @@ static struct snd_soc_dai_link broadwell_rt286_dais[] = {
 		/* SSP0 - Codec */
 		.name = "Codec",
 		.id = 0,
-		.cpu_dai_name = "snd-soc-dummy-dai",
-		.platform_name = "snd-soc-dummy",
+		.cpu_dai_name = "ssp0-port",
+		.platform_name = "catpt-platform",
 		.no_pcm = 1,
 		.codec_name = "i2c-INT343A:00",
 		.codec_dai_name = "rt286-aif1",
