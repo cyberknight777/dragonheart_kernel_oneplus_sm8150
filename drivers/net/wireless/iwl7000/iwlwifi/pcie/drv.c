@@ -430,20 +430,12 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 
 	/* SnJ with HR */
 	IWL_DEV_INFO(0x2725, 0x00B0, iwlax411_2ax_cfg_sosnj_gf4_a0, NULL),
-	IWL_DEV_INFO(0x2726, 0x0070, iwlax201_cfg_snj_hr_b0, NULL),
-	IWL_DEV_INFO(0x2726, 0x0074, iwlax201_cfg_snj_hr_b0, NULL),
-	IWL_DEV_INFO(0x2726, 0x0078, iwlax201_cfg_snj_hr_b0, NULL),
-	IWL_DEV_INFO(0x2726, 0x007C, iwlax201_cfg_snj_hr_b0, NULL),
 	IWL_DEV_INFO(0x2726, 0x0090, iwlax211_cfg_snj_gf_a0, NULL),
 	IWL_DEV_INFO(0x2726, 0x0098, iwlax211_cfg_snj_gf_a0, NULL),
 	IWL_DEV_INFO(0x2726, 0x00B0, iwlax411_2ax_cfg_sosnj_gf4_a0, NULL),
 	IWL_DEV_INFO(0x2726, 0x0510, iwlax211_cfg_snj_gf_a0, NULL),
-	IWL_DEV_INFO(0x2726, 0x2074, iwlax201_cfg_snj_hr_b0, NULL),
-	IWL_DEV_INFO(0x2726, 0x4070, iwlax201_cfg_snj_hr_b0, NULL),
-	IWL_DEV_INFO(0x2726, 0x0244, iwlax201_cfg_snj_hr_b0, iwl_ax101_name),
-	IWL_DEV_INFO(0x2726, 0x1651, iwlax201_cfg_snj_hr_b0, iwl_ax201_killer_1650s_name),
-	IWL_DEV_INFO(0x2726, 0x1652, iwlax201_cfg_snj_hr_b0, iwl_ax201_killer_1650i_name),
-	IWL_DEV_INFO(0x2726, 0x4244, iwlax201_cfg_snj_hr_b0, iwl_ax101_name),
+	IWL_DEV_INFO(0x2726, 0x1651, iwl_cfg_snj_hr_b0, iwl_ax201_killer_1650s_name),
+	IWL_DEV_INFO(0x2726, 0x1652, iwl_cfg_snj_hr_b0, iwl_ax201_killer_1650i_name),
 
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
 		      IWL_CFG_MAC_TYPE_PU, IWL_CFG_ANY,
@@ -781,6 +773,13 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 		      IWL_CFG_NO_160, IWL_CFG_CORES_BT,
 		      iwl_cfg_snj_a0_jf_b0, iwl9560_name),
 
+/* SnJ with Hr */
+	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
+		      IWL_CFG_MAC_TYPE_SNJ, IWL_CFG_ANY,
+		      IWL_CFG_RF_TYPE_HR2, IWL_CFG_ANY,
+		      IWL_CFG_ANY, IWL_CFG_ANY,
+		      iwl_cfg_snj_hr_b0, iwl_ax201_name),
+
 /* Ma */
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
 		      IWL_CFG_MAC_TYPE_MA, IWL_CFG_ANY,
@@ -862,15 +861,13 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	/*
-	 * Workaround for problematic SnJ with Jf combinations: when
-	 * Jf is connected used with SnJ, the device ID changes to
-	 * QnJ's ID.  So we are using QnJ's trans_cfg until here.  But
-	 * if we detect that the MAC type is actually SnJ, we should
-	 * switch to it here to avoid problems later.
+	 * Workaround for problematic SnJ device: sometimes when
+	 * certain RF modules are connected to SnJ, the device ID
+	 * changes to QnJ's ID.  So we are using QnJ's trans_cfg until
+	 * here.  But if we detect that the MAC type is actually SnJ,
+	 * we should switch to it here to avoid problems later.
 	 */
-	if ((CSR_HW_REV_TYPE(iwl_trans->hw_rev) == IWL_CFG_MAC_TYPE_SNJ) &&
-	    (CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id) == IWL_CFG_RF_TYPE_JF2 ||
-	     CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id) == IWL_CFG_RF_TYPE_JF1))
+	if (CSR_HW_REV_TYPE(iwl_trans->hw_rev) == IWL_CFG_MAC_TYPE_SNJ)
 		iwl_trans->trans_cfg = &iwl_so_trans_cfg;
 
 #if IS_ENABLED(CPTCFG_IWLMVM)

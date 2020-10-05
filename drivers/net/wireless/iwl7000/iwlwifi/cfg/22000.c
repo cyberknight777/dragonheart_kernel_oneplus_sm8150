@@ -627,9 +627,8 @@ const struct iwl_cfg iwlax211_cfg_snj_gf_a0 = {
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
 };
 
-const struct iwl_cfg iwlax201_cfg_snj_hr_b0 = {
-	.name = iwl_ax201_name,
-	.fw_name_pre = IWL_QU_B_HR_B_FW_PRE,
+const struct iwl_cfg iwl_cfg_snj_hr_b0 = {
+	.fw_name_pre = IWL_SNJ_A_HR_B_FW_PRE,
 	.uhb_supported = true,
 	IWL_DEVICE_AX210,
 	.num_rbds = IWL_NUM_RBDS_AX210_HE,
