@@ -4804,9 +4804,10 @@ void ieee80211_rx_napi(struct ieee80211_hw *hw, struct ieee80211_sta *pubsta,
 		       struct sk_buff *skb, struct napi_struct *napi)
 {
 #if LINUX_VERSION_IS_LESS(5,9,0)
-	struct list_head *l;
+	struct list_head *l, *tmp;
+#else
+	struct sk_buff *tmp;
 #endif
-	struct list_head *tmp;
 	LIST_HEAD(list);
 
 	/*
