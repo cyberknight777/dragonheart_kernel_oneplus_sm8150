@@ -161,7 +161,7 @@ int iwl_trans_send_cmd(struct iwl_trans *trans, struct iwl_host_cmd *cmd)
 	if (!(cmd->flags & CMD_ASYNC))
 		lock_map_acquire_read(&trans->sync_cmd_lockdep_map);
 
-	if (!iwl_cmd_groupid(cmd->id))
+	if (trans->wide_cmd_header && !iwl_cmd_groupid(cmd->id))
 		cmd->id = DEF_ID(cmd->id);
 
 	ret = iwl_trans_txq_send_hcmd(trans, cmd);

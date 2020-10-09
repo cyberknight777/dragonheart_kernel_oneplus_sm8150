@@ -934,6 +934,7 @@ struct iwl_trans_txqs {
  * @hw_id_str: a string with info about HW ID. Set during transport allocation.
  * @pm_support: set to true in start_hw if link pm is supported
  * @ltr_enabled: set to true if the LTR is enabled
+ * @wide_cmd_header: true when ucode supports wide command header format
  * @wait_command_queue: wait queue for sync commands
  * @num_rx_queues: number of RX queues allocated by the transport;
  *	the transport must set this before calling iwl_drv_start()
@@ -977,6 +978,7 @@ struct iwl_trans {
 
 	const struct iwl_hcmd_arr *command_groups;
 	int command_groups_size;
+	bool wide_cmd_header;
 
 	wait_queue_head_t wait_command_queue;
 	u8 num_rx_queues;
