@@ -162,6 +162,7 @@ static inline int btintel_read_version(struct hci_dev *hdev,
 
 static inline void btintel_retry_fw_download(struct hci_dev *hdev)
 {
+	return -EOPNOTSUPP;
 }
 
 static inline struct regmap *btintel_regmap_init(struct hci_dev *hdev,
