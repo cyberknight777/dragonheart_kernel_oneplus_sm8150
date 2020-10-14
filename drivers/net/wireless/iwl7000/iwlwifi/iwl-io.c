@@ -50,13 +50,14 @@ IWL_EXPORT_SYMBOL(iwl_read32);
 int iwl_poll_bit(struct iwl_trans *trans, u32 addr,
 		 u32 bits, u32 mask, int timeout)
 {
-	unsigned long jiffies_timeout = jiffies + usecs_to_jiffies(timeout);
+	int t = 0;
 
 	do {
 		if ((iwl_read32(trans, addr) & mask) == (bits & mask))
-			return 0;
+			return t;
 		udelay(IWL_POLL_INTERVAL);
-	} while (!time_after(jiffies, jiffies_timeout));
+		t += IWL_POLL_INTERVAL;
+	} while (t < timeout);
 
 	return -ETIMEDOUT;
 }
