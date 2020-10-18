@@ -2161,6 +2161,10 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 
 /* 11ax Softap Test Mode */
 
+int iwl_rfi_send_config_cmd(struct iwl_mvm *mvm,
+			    struct iwl_rfi_lut_entry *rfi_table);
+struct iwl_rfi_freq_table_resp_cmd *iwl_rfi_get_freq_table(struct iwl_mvm *mvm);
+
 static inline u8 iwl_mvm_phy_band_from_nl80211(enum nl80211_band band)
 {
 	switch (band) {
