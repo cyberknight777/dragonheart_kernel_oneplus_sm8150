@@ -6,9 +6,7 @@
  */
 #include <net/mac80211.h>
 #include <linux/netdevice.h>
-#ifdef CPTCFG_IWLWIFI_ATLAS_PLATFORM_WORKAROUND
 #include <linux/dmi.h>
-#endif
 
 #include "iwl-trans.h"
 #include "iwl-op-mode.h"
@@ -1154,6 +1152,9 @@ int iwl_mvm_ppag_send_cmd(struct iwl_mvm *mvm)
 	return ret;
 }
 
+static const struct dmi_system_id dmi_ppag_approved_list[] = {
+};
+
 static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 {
 	int ret;
@@ -1165,6 +1166,15 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 				ret);
 		return 0;
 	}
+
+	if (!dmi_check_system(dmi_ppag_approved_list)) {
+		IWL_DEBUG_RADIO(mvm,
+				"System vendor '%s' is not in the approved list, disabling PPAG.\n",
+				dmi_get_system_info(DMI_SYS_VENDOR));
+		mvm->fwrt.ppag_table.v1.enabled = cpu_to_le32(0);
+		return 0;
+	}
+
 	return iwl_mvm_ppag_send_cmd(mvm);
 }
 
