@@ -1334,7 +1334,7 @@ static void iwl_mvm_tx_status_check_trigger(struct iwl_mvm *mvm,
 		enum iwl_fw_ini_time_point tp =
 			IWL_FW_INI_TIME_POINT_TX_FAILED;
 
-		if (ieee80211_is_ctl(frame_control))
+		if (ieee80211_is_action(frame_control))
 			tp = IWL_FW_INI_TIME_POINT_TX_WFD_ACTION_FRAME_FAILED;
 
 		iwl_dbg_tlv_time_point(&mvm->fwrt,
