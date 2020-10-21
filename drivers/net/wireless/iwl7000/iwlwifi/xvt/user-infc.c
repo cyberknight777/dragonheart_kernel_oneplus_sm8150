@@ -1777,6 +1777,8 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 			   u16 ssn, u16 flags, int size)
 {
 	int queue_id = cmd->scd_queue, ret;
+	int sta_id = cmd->sta_id;
+	int lmac_id = map_sta_to_lmac(xvt, sta_id);
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		/*TODO: add support for second lmac*/
@@ -1798,6 +1800,7 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 		}
 	}
 
+	xvt->tx_meta_data[lmac_id].queue = queue_id;
 	xvt->queue_data[queue_id].allocated_queue = true;
 	init_waitqueue_head(&xvt->queue_data[queue_id].tx_wq);
 
@@ -1808,6 +1811,8 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 			      struct iwl_scd_txq_cfg_cmd *cmd)
 {
 	int ret = 0;
+	int sta_id = cmd->sta_id;
+	int lmac_id = map_sta_to_lmac(xvt, sta_id);
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		struct iwl_tx_queue_cfg_cmd queue_cfg_cmd = {
@@ -1829,6 +1834,7 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 	if (WARN(ret, "failed to send SCD_QUEUE_CFG"))
 		return ret;
 
+	xvt->tx_meta_data[lmac_id].queue = -1;
 	xvt->queue_data[cmd->scd_queue].allocated_queue = false;
 
 	return 0;
