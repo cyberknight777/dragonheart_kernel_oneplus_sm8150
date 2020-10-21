@@ -85,6 +85,10 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_STA_CIPHER] = { .type = NLA_U32 },
 	[IWL_MVM_VENDOR_ATTR_STA_HLTK] = { .type = NLA_BINARY },
 	[IWL_MVM_VENDOR_ATTR_STA_TK] = { .type = NLA_BINARY },
+	[IWL_MVM_VENDOR_ATTR_RFIM_INFO]		    = { .type = NLA_NESTED },
+	[IWL_MVM_VENDOR_ATTR_RFIM_FREQ]		    = { .type = NLA_U32 },
+	[IWL_MVM_VENDOR_ATTR_RFIM_CHANNELS]	    = { .type = NLA_U32 },
+	[IWL_MVM_VENDOR_ATTR_RFIM_BANDS]	    = { .type = NLA_U32 },
 };
 
 static struct nlattr **iwl_mvm_parse_vendor_data(const void *data, int data_len)
@@ -377,6 +381,99 @@ static int iwl_vendor_tdls_peer_cache_query(struct wiphy *wiphy,
 	return cfg80211_vendor_cmd_reply(skb);
 }
 #endif /* CPTCFG_IWLMVM_TDLS_PEER_CACHE */
+
+static int iwl_vendor_rfim_get_table(struct wiphy *wiphy,
+				     struct wireless_dev *wdev,
+				     const void *data, int data_len)
+{
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_rfi_freq_table_resp_cmd *resp;
+	struct sk_buff *skb;
+	struct nlattr *rfim_info;
+	int i;
+
+	resp = iwl_rfi_get_freq_table(mvm);
+
+	if (!resp || resp->status != RFI_FREQ_TABLE_OK)
+		return -EINVAL;
+
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(rfim_info));
+	if (!skb)
+		return -ENOMEM;
+
+	rfim_info = nla_nest_start(skb, IWL_MVM_VENDOR_ATTR_RFIM_INFO |
+					NLA_F_NESTED);
+	if (!rfim_info)
+		return -ENOBUFS;
+
+	for (i = 0; i < 4; i++) {
+		nla_put_u16(skb, IWL_MVM_VENDOR_ATTR_RFIM_FREQ,
+			    le16_to_cpu(resp->table[i].freq));
+		nla_put(skb, IWL_MVM_VENDOR_ATTR_RFIM_CHANNELS,
+			sizeof(resp->table[i].channels),
+			resp->table[i].channels);
+		nla_put(skb, IWL_MVM_VENDOR_ATTR_RFIM_BANDS,
+			sizeof(resp->table[i].bands),
+			resp->table[i].bands);
+	}
+
+	nla_nest_end(skb, rfim_info);
+
+	return cfg80211_vendor_cmd_reply(skb);
+}
+
+static int iwl_vendor_rfim_set_table(struct wiphy *wiphy,
+				     struct wireless_dev *wdev,
+				     const void *data, int data_len)
+{
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_rfi_lut_entry rfim_table[IWL_RFI_LUT_SIZE] = {};
+	struct nlattr **tb;
+	struct nlattr *attr;
+	int rem, err = 0;
+	int row_idx = -1; /* the row is updated only at frequency attr */
+
+	tb = iwl_mvm_parse_vendor_data(data, data_len);
+	if (IS_ERR(tb))
+		return PTR_ERR(tb);
+
+	if (!tb[IWL_MVM_VENDOR_ATTR_RFIM_INFO]) {
+		err = -EINVAL;
+		goto err;
+	}
+
+	nla_for_each_nested(attr, tb[IWL_MVM_VENDOR_ATTR_RFIM_INFO], rem) {
+		switch (nla_type(attr)) {
+		case IWL_MVM_VENDOR_ATTR_RFIM_FREQ:
+			row_idx++;
+			rfim_table[row_idx].freq =
+				cpu_to_le16(nla_get_u16(attr));
+			break;
+		case IWL_MVM_VENDOR_ATTR_RFIM_CHANNELS:
+			memcpy(rfim_table[row_idx].channels, nla_data(attr),
+			       ARRAY_SIZE(rfim_table[row_idx].channels));
+			break;
+		case IWL_MVM_VENDOR_ATTR_RFIM_BANDS:
+			memcpy(rfim_table[row_idx].bands, nla_data(attr),
+			       ARRAY_SIZE(rfim_table[row_idx].bands));
+			break;
+		default:
+			IWL_ERR(mvm, "Invalid attribute %d\n", nla_type(attr));
+			err = -EINVAL;
+			goto err;
+		}
+	}
+
+	err = iwl_rfi_send_config_cmd(mvm, rfim_table);
+	if (err)
+		IWL_ERR(mvm, "Failed to send rfi table to FW, error %d\n", err);
+
+err:
+	kfree(tb);
+	return err;
+}
 
 static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 					    struct wireless_dev *wdev,
@@ -1485,7 +1582,35 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
 #endif
 	},
-
+	{
+		.info = {
+			.vendor_id = INTEL_OUI,
+			.subcmd = IWL_MVM_VENDOR_CMD_RFIM_SET_TABLE,
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.doit = iwl_vendor_rfim_set_table,
+#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
+		.policy = iwl_mvm_vendor_attr_policy,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
+		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
+#endif
+	},
+	{
+		.info = {
+			.vendor_id = INTEL_OUI,
+			.subcmd = IWL_MVM_VENDOR_CMD_RFIM_GET_TABLE,
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
+		.doit = iwl_vendor_rfim_get_table,
+#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
+		.policy = iwl_mvm_vendor_attr_policy,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
+		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
+#endif
+	},
 };
 
 enum iwl_mvm_vendor_events_idx {
