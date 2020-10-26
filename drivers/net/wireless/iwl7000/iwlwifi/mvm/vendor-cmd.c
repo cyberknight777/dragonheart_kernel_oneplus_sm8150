@@ -783,6 +783,16 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 	mutex_unlock(&mvm->mutex);
 free:
 	kfree(tb);
+	if (err > 0)
+		/*
+		 * For SAR validation purpose we need to track the exact return
+		 * value of iwl_mvm_sar_select_profile, mostly to differentiate
+		 * between general SAR failure and the case of WRDS disable
+		 * (it is illegal if WRDS doesn't exist but WGDS does).
+		 * Since nl80211 forbids a positive number as a return value,
+		 * in case SAR is disabled overwrite it with -ENOENT.
+		 */
+		err = -ENOENT;
 	return err;
 }
 
