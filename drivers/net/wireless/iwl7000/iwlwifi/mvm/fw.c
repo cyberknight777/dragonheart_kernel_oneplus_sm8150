@@ -1172,6 +1172,14 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 		return 0;
 	}
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.ppag_allowed)) {
+		IWL_DEBUG_RADIO(mvm,
+				"System vendor matches dbg_cfg.ppag_allowed %s\n",
+				mvm->trans->dbg_cfg.ppag_allowed);
+		return iwl_mvm_ppag_send_cmd(mvm);
+	}
+#endif
 	if (!dmi_check_system(dmi_ppag_approved_list)) {
 		IWL_DEBUG_RADIO(mvm,
 				"System vendor '%s' is not in the approved list, disabling PPAG.\n",
