@@ -913,8 +913,8 @@ static void iwl_txq_gen2_free(struct iwl_trans *trans, int txq_id)
 	/* De-alloc array of command/tx buffers */
 	if (txq_id == trans->txqs.cmd.q_id)
 		for (i = 0; i < txq->n_window; i++) {
-			kzfree(txq->entries[i].cmd);
-			kzfree(txq->entries[i].free_buf);
+			kfree_sensitive(txq->entries[i].cmd);
+			kfree_sensitive(txq->entries[i].free_buf);
 		}
 	del_timer_sync(&txq->stuck_timer);
 
