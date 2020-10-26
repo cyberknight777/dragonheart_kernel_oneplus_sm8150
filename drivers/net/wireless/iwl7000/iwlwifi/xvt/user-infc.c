@@ -1780,6 +1780,9 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 	int sta_id = cmd->sta_id;
 	int lmac_id = map_sta_to_lmac(xvt, sta_id);
 
+	if (lmac_id < 0)
+		return lmac_id;
+
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		/*TODO: add support for second lmac*/
 		queue_id =
@@ -1813,6 +1816,9 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 	int ret = 0;
 	int sta_id = cmd->sta_id;
 	int lmac_id = map_sta_to_lmac(xvt, sta_id);
+
+	if (lmac_id < 0)
+		return lmac_id;
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		struct iwl_tx_queue_cfg_cmd queue_cfg_cmd = {
