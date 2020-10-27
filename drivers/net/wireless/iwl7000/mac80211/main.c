@@ -283,6 +283,10 @@ static void ieee80211_restart_work(struct work_struct *work)
 			 * Then we can have a race...
 			 */
 			cancel_work_sync(&sdata->u.mgd.csa_connection_drop_work);
+			if (sdata->vif.csa_active)
+				ieee80211_sta_connection_lost(sdata,
+							      sdata->u.mgd.associated->bssid,
+							      WLAN_REASON_UNSPECIFIED, false);
 		}
 		flush_delayed_work(&sdata->dec_tailroom_needed_wk);
 	}
