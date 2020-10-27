@@ -1407,7 +1407,7 @@ static void iwl_pcie_rx_handle_rb(struct iwl_trans *trans,
 			int index = SEQ_TO_INDEX(sequence);
 			int cmd_index = iwl_txq_get_cmd_index(txq, index);
 
-			kzfree(txq->entries[cmd_index].free_buf);
+			kfree_sensitive(txq->entries[cmd_index].free_buf);
 			txq->entries[cmd_index].free_buf = NULL;
 
 			/* Invoke any callbacks, transfer the buffer to caller,
