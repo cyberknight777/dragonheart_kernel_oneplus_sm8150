@@ -943,13 +943,11 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	 */
 	if (iwl_trans->trans_cfg->rf_id &&
 	    !CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id)) {
-		unsigned long flags;
-
 		ret = iwl_finish_nic_init(iwl_trans, trans);
 		if (ret)
 			goto out_free_trans;
 
-		if (iwl_trans_grab_nic_access(iwl_trans, &flags)) {
+		if (iwl_trans_grab_nic_access(iwl_trans)) {
 			u32 val;
 
 			val = iwl_read_umac_prph_no_grab(iwl_trans,
@@ -968,7 +966,7 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 			default:
 				iwl_trans->hw_rf_id = CSR_HW_RF_ID_TYPE_HR;
 			}
-			iwl_trans_release_nic_access(iwl_trans, &flags);
+			iwl_trans_release_nic_access(iwl_trans);
 		}
 	}
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2019 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2020 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  */
 #include "iwl-trans.h"
@@ -98,7 +98,6 @@ static int iwl_tm_reg_ops(struct iwl_testmode *testmode,
 	u32 result_size;
 	u32 idx, read_idx;
 	bool is_grab_nic_access_required = true;
-	unsigned long flags;
 
 	/* Calculate result size (result is returned only for read ops) */
 	for (idx = 0, read_idx = 0; idx < request->num; idx++) {
@@ -119,12 +118,12 @@ static int iwl_tm_reg_ops(struct iwl_testmode *testmode,
 		return -ENOMEM;
 	result->num = read_idx;
 	if (is_grab_nic_access_required) {
-		if (!iwl_trans_grab_nic_access(testmode->trans, &flags)) {
+		if (!iwl_trans_grab_nic_access(testmode->trans)) {
 			kfree(result);
 			return -EBUSY;
 		}
 		iwl_tm_execute_reg_ops(testmode, request, result);
-		iwl_trans_release_nic_access(testmode->trans, &flags);
+		iwl_trans_release_nic_access(testmode->trans);
 	} else {
 		iwl_tm_execute_reg_ops(testmode, request, result);
 	}
@@ -171,7 +170,6 @@ static int iwl_tm_indirect_read(struct iwl_testmode *testmode,
 	u32 addr = cmd_in->offset;
 	u32 size = cmd_in->length;
 	u32 *buf32, size32, i;
-	unsigned long flags;
 
 	if (size & (sizeof(u32) - 1))
 		return -EINVAL;
@@ -190,14 +188,14 @@ static int iwl_tm_indirect_read(struct iwl_testmode *testmode,
 	/* Hard-coded periphery absolute address */
 	if (addr >= IWL_ABS_PRPH_START &&
 	    addr < IWL_ABS_PRPH_START + PRPH_END) {
-		if (!iwl_trans_grab_nic_access(trans, &flags)) {
+		if (!iwl_trans_grab_nic_access(trans)) {
 			mutex_unlock(testmode->mutex);
 			return -EBUSY;
 		}
 		for (i = 0; i < size32; i++)
 			buf32[i] = iwl_trans_read_prph(trans,
 						       addr + i * sizeof(u32));
-		iwl_trans_release_nic_access(trans, &flags);
+		iwl_trans_release_nic_access(trans);
 	} else {
 		/* target memory (SRAM) */
 		iwl_trans_read_mem(trans, addr, buf32, size32);
@@ -216,7 +214,6 @@ static int iwl_tm_indirect_write(struct iwl_testmode *testmode,
 	u32 size = cmd_in->len;
 	u8 *buf = cmd_in->buffer;
 	u32 *buf32 = (u32 *)buf, size32 = size / sizeof(u32);
-	unsigned long flags;
 	u32 val, i;
 
 	mutex_lock(testmode->mutex);
@@ -225,14 +222,14 @@ static int iwl_tm_indirect_write(struct iwl_testmode *testmode,
 		/* Periphery writes can be 1-3 bytes long, or DWORDs */
 		if (size < 4) {
 			memcpy(&val, buf, size);
-			if (!iwl_trans_grab_nic_access(trans, &flags)) {
+			if (!iwl_trans_grab_nic_access(trans)) {
 				mutex_unlock(testmode->mutex);
 				return -EBUSY;
 			}
 			iwl_write32(trans, HBUS_TARG_PRPH_WADDR,
 				    (addr & 0x000FFFFF) | ((size - 1) << 24));
 			iwl_write32(trans, HBUS_TARG_PRPH_WDAT, val);
-			iwl_trans_release_nic_access(trans, &flags);
+			iwl_trans_release_nic_access(trans);
 		} else {
 			if (size % sizeof(u32)) {
 				mutex_unlock(testmode->mutex);
