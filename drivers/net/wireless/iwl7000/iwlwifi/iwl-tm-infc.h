@@ -319,12 +319,16 @@ struct iwl_tm_sil_type {
  * @dash:	- RFID dash
  * @step:	- RFID step
  * @type:	- RFID type
+ * @is_cdb:	- RFID is CDB
+ * @is_jacket:	- RFID is Jacket
  */
 struct iwl_tm_rfid {
 	__u32 flavor;
 	__u32 dash;
 	__u32 step;
-	__u32 type;
+	__u16 type;
+	__u8 is_cdb;
+	__u8 is_jacket;
 } __packed __aligned(4);
 
 #define MAX_DRIVER_VERSION_LEN	256

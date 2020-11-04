@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2010-2014, 2018-2019 Intel Corporation
+ * Copyright (C) 2010-2014, 2018-2020 Intel Corporation
  * Copyright (C) 2013-2014 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -419,6 +419,8 @@ static int iwl_tm_gnl_get_rfid(struct iwl_trans *trans,
 	resp->dash   = CSR_HW_RFID_DASH(trans->hw_rf_id);
 	resp->step   = CSR_HW_RFID_STEP(trans->hw_rf_id);
 	resp->type   = CSR_HW_RFID_TYPE(trans->hw_rf_id);
+	resp->is_cdb = CSR_HW_RFID_IS_CDB(trans->hw_rf_id);
+	resp->is_jacket = CSR_HW_RFID_IS_JACKET(trans->hw_rf_id);
 
 	data_out->data = resp;
 	data_out->len = sizeof(*resp);
