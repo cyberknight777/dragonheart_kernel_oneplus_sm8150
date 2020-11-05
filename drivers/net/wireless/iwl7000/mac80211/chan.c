@@ -1202,13 +1202,7 @@ ieee80211_vif_use_reserved_assign(struct ieee80211_sub_if_data *sdata)
 	if (WARN_ON(!chandef))
 		return -EINVAL;
 
-	if (old_ctx->conf.def.width > new_ctx->conf.def.width)
-		ieee80211_chan_bw_change(local, new_ctx);
-
 	ieee80211_change_chanctx(local, new_ctx, chandef);
-
-	if (old_ctx->conf.def.width < new_ctx->conf.def.width)
-		ieee80211_chan_bw_change(local, new_ctx);
 
 	list_del(&sdata->reserved_chanctx_list);
 	sdata->reserved_chanctx = NULL;
