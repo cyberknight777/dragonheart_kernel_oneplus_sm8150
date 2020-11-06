@@ -741,6 +741,9 @@ static void create_le_conn_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 
 	conn = hci_lookup_le_connect(hdev);
 
+	if (hdev->adv_instance_cnt)
+		hci_req_resume_adv_instances(hdev);
+
 	if (!status) {
 		hci_connect_le_scan_cleanup(conn);
 		goto done;
@@ -919,13 +922,11 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 	 * connections most controllers will refuse to connect if
 	 * advertising is enabled, and for slave role connections we
 	 * anyway have to disable it in order to start directed
-	 * advertising.
+	 * advertising. Any registered advertisements will be
+	 * re-enabled after the connection attempt is finished.
 	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_ADV)) {
-		u8 enable = 0x00;
-		hci_req_add(&req, HCI_OP_LE_SET_ADV_ENABLE, sizeof(enable),
-			    &enable);
-	}
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+		__hci_req_pause_adv_instances(&req);
 
 	/* If requested to connect as slave use directed advertising */
 	if (conn->role == HCI_ROLE_SLAVE) {
@@ -974,6 +975,10 @@ create_conn:
 	err = hci_req_run(&req, create_le_conn_complete);
 	if (err) {
 		hci_conn_del(conn);
+
+		if (hdev->adv_instance_cnt)
+			hci_req_resume_adv_instances(hdev);
+
 		return ERR_PTR(err);
 	}
 
