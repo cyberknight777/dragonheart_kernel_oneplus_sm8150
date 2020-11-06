@@ -174,6 +174,9 @@ static const struct hid_blacklist {
 	{ USB_VENDOR_ID_INNOMEDIA, USB_DEVICE_ID_INNEX_GENESIS_ATARI, HID_QUIRK_MULTI_INPUT },
 	{ USB_VENDOR_ID_LOGITECH, USB_DEVICE_ID_LOGITECH_GROUP_AUDIO, HID_QUIRK_NOGET },
 
+	{ USB_VENDOR_ID_HUION, USB_DEVICE_ID_HUION_TABLET, HID_QUIRK_DEVICE_IS_DIGITIZER },
+	{ USB_VENDOR_ID_HUION, USB_DEVICE_ID_HUION_HS64, HID_QUIRK_DEVICE_IS_DIGITIZER },
+
 	{ 0, 0 }
 };
 
@@ -397,6 +400,13 @@ u32 usbhid_lookup_quirk(const u16 idVendor, const u16 idProduct)
 	if (bl_entry)
 		quirks = bl_entry->quirks;
 	up_read(&dquirks_rwsem);
+
+	/*
+	 * UGEE/XP-Pen HID Pen devices which have 0x0-0x9 as the low nibble
+	 * of the device ID are actually digitizers, not HID Pen devices
+	 */
+	if (idVendor == USB_VENDOR_ID_UGEE && (idProduct & 0x0F) <= 0x09)
+		quirks |= HID_QUIRK_DEVICE_IS_DIGITIZER;
 
 	return quirks;
 }
