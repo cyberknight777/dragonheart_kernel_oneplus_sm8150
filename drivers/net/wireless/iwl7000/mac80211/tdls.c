@@ -226,12 +226,11 @@ static void ieee80211_tdls_add_link_ie(struct ieee80211_sub_if_data *sdata,
 static void
 ieee80211_tdls_add_aid(struct ieee80211_sub_if_data *sdata, struct sk_buff *skb)
 {
-	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 	u8 *pos = skb_put(skb, 4);
 
 	*pos++ = WLAN_EID_AID;
 	*pos++ = 2; /* len */
-	put_unaligned_le16(ifmgd->aid, pos);
+	put_unaligned_le16(sdata->vif.bss_conf.aid, pos);
 }
 
 /* translate numbering in the WMM parameter IE to the mac80211 notation */
@@ -240,7 +239,7 @@ static enum ieee80211_ac_numbers ieee80211_ac_from_wmm(int ac)
 	switch (ac) {
 	default:
 		WARN_ON_ONCE(1);
-		/* fall through */
+		fallthrough;
 	case 0:
 		return IEEE80211_AC_BE;
 	case 1:
@@ -953,7 +952,7 @@ ieee80211_tdls_prep_mgmt_packet(struct wiphy *wiphy, struct net_device *dev,
 			set_sta_flag(sta, WLAN_STA_TDLS_INITIATOR);
 			sta->sta.tdls_initiator = false;
 		}
-		/* fall-through */
+		fallthrough;
 	case WLAN_TDLS_SETUP_CONFIRM:
 	case WLAN_TDLS_DISCOVERY_REQUEST:
 		initiator = true;
@@ -968,7 +967,7 @@ ieee80211_tdls_prep_mgmt_packet(struct wiphy *wiphy, struct net_device *dev,
 			clear_sta_flag(sta, WLAN_STA_TDLS_INITIATOR);
 			sta->sta.tdls_initiator = true;
 		}
-		/* fall-through */
+		fallthrough;
 	case WLAN_PUB_ACTION_TDLS_DISCOVER_RES:
 		initiator = false;
 		break;
@@ -1055,7 +1054,7 @@ ieee80211_tdls_prep_mgmt_packet(struct wiphy *wiphy, struct net_device *dev,
 
 	/* disable bottom halves when entering the Tx path */
 	local_bh_disable();
-	__ieee80211_subif_start_xmit(skb, dev, flags, 0);
+	__ieee80211_subif_start_xmit(skb, dev, flags, 0, NULL);
 	local_bh_enable();
 
 	return ret;
@@ -1067,7 +1066,7 @@ fail:
 
 static int
 ieee80211_tdls_mgmt_setup(struct wiphy *wiphy, struct net_device *dev,
-			  const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
+			  const u8 *peer, u8 action_code, u8 dialog_token,
 			  u16 status_code, u32 peer_capability, bool initiator,
 			  const u8 *extra_ies, size_t extra_ies_len)
 {
@@ -1185,23 +1184,12 @@ ieee80211_tdls_mgmt_teardown(struct wiphy *wiphy, struct net_device *dev,
 }
 
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
-			u16 status_code,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
-			u32 peer_capability,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,17,0)
-			bool initiator,
-#endif
-			const u8 *extra_ies, size_t extra_ies_len)
+			const u8 *peer, u8 action_code, u8 dialog_token,
+			u16 status_code, u32 peer_capability,
+			bool initiator, const u8 *extra_ies,
+			size_t extra_ies_len)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
-#if CFG80211_VERSION < KERNEL_VERSION(3,15,0)
-	u32 peer_capability = 0;
-#endif
-#if CFG80211_VERSION < KERNEL_VERSION(3,17,0)
-	bool initiator = false;
-#endif
 	int ret;
 
 	if (!(wiphy->flags & WIPHY_FLAG_SUPPORTS_TDLS))
@@ -1234,7 +1222,7 @@ int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 		 * by the AP.
 		 */
 		drv_mgd_protect_tdls_discover(sdata->local, sdata);
-		/* fall-through */
+		fallthrough;
 	case WLAN_TDLS_SETUP_CONFIRM:
 	case WLAN_PUB_ACTION_TDLS_DISCOVER_RES:
 		/* no special handling */
@@ -1351,7 +1339,7 @@ iee80211_tdls_recalc_ht_protection(struct ieee80211_sub_if_data *sdata,
 }
 
 int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, enum nl80211_tdls_operation oper)
+			const u8 *peer, enum nl80211_tdls_operation oper)
 {
 	struct sta_info *sta;
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
@@ -1577,6 +1565,10 @@ ieee80211_tdls_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	struct sk_buff *skb = NULL;
 	u32 ch_sw_tm_ie;
 	int ret;
+
+	if (cfg80211_chan_freq_offset(chandef->chan))
+		/* this may work, but is untested */
+		return -EOPNOTSUPP;
 
 	mutex_lock(&local->sta_mtx);
 	sta = sta_info_get(sdata, addr);

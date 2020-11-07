@@ -64,6 +64,9 @@ void ieee80211_configure_filter(struct ieee80211_local *local)
 	if (local->fif_pspoll)
 		new_flags |= FIF_PSPOLL;
 
+	if (local->rx_mcast_action_reg)
+		new_flags |= FIF_MCAST_ACTION;
+
 	spin_lock_bh(&local->filter_lock);
 	changed_flags = local->filter_flags ^ new_flags;
 
@@ -104,13 +107,18 @@ static u32 ieee80211_hw_conf_chan(struct ieee80211_local *local)
 		chandef.chan = local->tmp_channel;
 		chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
 		chandef.center_freq1 = chandef.chan->center_freq;
+		cfg80211_chandef_freq1_offset_set(&chandef,
+						  cfg80211_chan_freq_offset(chandef.chan));
 	} else
 		chandef = local->_oper_chandef;
 
 	WARN(!cfg80211_chandef_valid(&chandef),
-	     "control:%d MHz width:%d center: %d/%d MHz",
-	     chandef.chan->center_freq, chandef.width,
-	     chandef.center_freq1, chandef.center_freq2);
+	     "control:%d.%03d MHz width:%d center: %d.%03d/%d MHz",
+	     chandef.chan->center_freq,
+	     cfg80211_chan_freq_offset(chandef.chan),
+	     chandef.width, chandef.center_freq1,
+	     cfg80211_chandef_freq1_offset(&chandef),
+	     chandef.center_freq2);
 
 	if (!cfg80211_chandef_identical(&chandef, &local->_oper_chandef))
 		local->hw.conf.flags |= IEEE80211_CONF_OFFCHANNEL;
@@ -145,6 +153,8 @@ static u32 ieee80211_hw_conf_chan(struct ieee80211_local *local)
 		if (!rcu_access_pointer(sdata->vif.chanctx_conf))
 			continue;
 		if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+			continue;
+		if (sdata->vif.bss_conf.txpower == INT_MIN)
 			continue;
 		power = min(power, sdata->vif.bss_conf.txpower);
 	}
@@ -369,10 +379,6 @@ static int ieee80211_ifa_changed(struct notifier_block *nb,
 
 	sdata_unlock(sdata);
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	ieee80211_check_fast_rx_iface(sdata);
-#endif
-
 	return NOTIFY_OK;
 }
 #endif
@@ -578,7 +584,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 			WIPHY_FLAG_REPORTS_OBSS |
 			WIPHY_FLAG_OFFCHAN_TX;
 
-	if (ops->remain_on_channel)
+	if (!use_chanctx || ops->remain_on_channel)
 		wiphy->flags |= WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
 
 	wiphy->features |= NL80211_FEATURE_SK_TX_STATUS |
@@ -593,6 +599,12 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 #endif
 	wiphy_ext_feature_set(wiphy,
 			      NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211);
+	wiphy_ext_feature_set(wiphy,
+			      NL80211_EXT_FEATURE_CONTROL_PORT_NO_PREAUTH);
+	wiphy_ext_feature_set(wiphy,
+			      NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211_TX_STATUS);
+	wiphy_ext_feature_set(wiphy,
+			      NL80211_EXT_FEATURE_SCAN_FREQ_KHZ);
 
 	if (!ops->hw_scan) {
 		wiphy->features |= NL80211_FEATURE_LOW_PRIORITY_SCAN |
@@ -661,9 +673,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	local->hw.max_mtu = IEEE80211_MAX_DATA_LEN;
 	local->user_power_level = IEEE80211_UNSET_POWER_LEVEL;
 	wiphy->ht_capa_mod_mask = &mac80211_ht_capa_mod_mask;
-#if CFG80211_VERSION >= KERNEL_VERSION(3,10,0)
 	wiphy->vht_capa_mod_mask = &mac80211_vht_capa_mod_mask;
-#endif
 
 	local->ext_capa[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF;
 
@@ -925,11 +935,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		return -EINVAL;
 
 #ifdef CONFIG_PM
-	if (
-#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
-	    hw->wiphy->wowlan &&
-#endif
-	    (!local->ops->suspend || !local->ops->resume))
+	if (hw->wiphy->wowlan && (!local->ops->suspend || !local->ops->resume))
 		return -EINVAL;
 #endif
 
@@ -957,11 +963,9 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 
 			comb = &local->hw.wiphy->iface_combinations[i];
 
-#if CFG80211_VERSION > KERNEL_VERSION(3,9,0)
 			if (comb->radar_detect_widths &&
 			    comb->num_different_channels > 1)
 				return -EINVAL;
-#endif
 		}
 	}
 
@@ -1102,6 +1106,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 				      NL80211_EXT_FEATURE_EXT_KEY_ID);
 	}
 
+	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_ADHOC))
+		wiphy_ext_feature_set(local->hw.wiphy,
+				      NL80211_EXT_FEATURE_DEL_IBSS_STA);
+
 	/*
 	 * Calculate scan IE length -- we need this to alloc
 	 * memory and to subtract from the driver limit. It
@@ -1176,9 +1184,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	}
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
 	local->hw.wiphy->max_num_csa_counters = IEEE80211_MAX_CSA_COUNTERS_NUM;
-#endif
 
 	/*
 	 * We use the number of queues for feature tests (QoS, HT) internally

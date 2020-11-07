@@ -778,7 +778,7 @@ ieee80211_ibss_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 	case NL80211_CHAN_WIDTH_10:
 	case NL80211_CHAN_WIDTH_20_NOHT:
 		sta_flags |= IEEE80211_STA_DISABLE_HT;
-		/* fall through */
+		fallthrough;
 	case NL80211_CHAN_WIDTH_20:
 		sta_flags |= IEEE80211_STA_DISABLE_40MHZ;
 		break;
@@ -1365,7 +1365,7 @@ ieee80211_ibss_setup_scan_channels(struct wiphy *wiphy,
 		break;
 	case NL80211_CHAN_WIDTH_80P80:
 		cf2 = chandef->center_freq2;
-		/* fall through */
+		fallthrough;
 	case NL80211_CHAN_WIDTH_80:
 		width = 80;
 		break;
@@ -1713,6 +1713,11 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 	int i;
 	int ret;
 
+	if (cfg80211_chan_freq_offset(params->chandef.chan)) {
+		/* this may work, but is untested */
+		return -EOPNOTSUPP;
+	}
+
 	ret = cfg80211_chandef_dfs_required(local->hw.wiphy,
 					    &params->chandef,
 					    sdata->wdev.iftype);
@@ -1720,7 +1725,7 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 		return ret;
 
 	if (ret > 0) {
-		if (!cfg80211_ibss_userspace_handles_dfs(params))
+		if (!params->userspace_handles_dfs)
 			return -EINVAL;
 		radar_detect_width = BIT(params->chandef.width);
 	}
@@ -1743,7 +1748,7 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 
 	sdata->u.ibss.privacy = params->privacy;
 	sdata->u.ibss.control_port = params->control_port;
-	sdata->u.ibss.userspace_handles_dfs = cfg80211_ibss_userspace_handles_dfs(params);
+	sdata->u.ibss.userspace_handles_dfs = params->userspace_handles_dfs;
 	sdata->u.ibss.basic_rates = params->basic_rates;
 	sdata->u.ibss.last_scan_completed = jiffies;
 
@@ -1775,12 +1780,10 @@ int ieee80211_ibss_join(struct ieee80211_sub_if_data *sdata,
 	memcpy(sdata->u.ibss.ssid, params->ssid, params->ssid_len);
 	sdata->u.ibss.ssid_len = params->ssid_len;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(3,12,0)
 	memcpy(&sdata->u.ibss.ht_capa, &params->ht_capa,
 	       sizeof(sdata->u.ibss.ht_capa));
 	memcpy(&sdata->u.ibss.ht_capa_mask, &params->ht_capa_mask,
 	       sizeof(sdata->u.ibss.ht_capa_mask));
-#endif
 
 	/*
 	 * 802.11n-2009 9.13.3.1: In an IBSS, the HT Protection field is
