@@ -1330,6 +1330,7 @@ struct rtw_coex_stat {
 	bool wl_cck_lock;
 	bool wl_cck_lock_pre;
 	bool wl_cck_lock_ever;
+	bool wl_connecting;
 
 	u32 bt_supported_version;
 	u32 bt_supported_feature;
@@ -1399,6 +1400,7 @@ struct rtw_coex {
 	struct delayed_work defreeze_work;
 	struct delayed_work wl_remain_work;
 	struct delayed_work bt_remain_work;
+	struct delayed_work wl_connecting_work;
 };
 
 #define DPK_RF_REG_NUM 7
