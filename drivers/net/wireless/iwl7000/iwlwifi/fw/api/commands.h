@@ -620,6 +620,12 @@ enum iwl_system_subcmd_ids {
  */
 enum iwl_xvt_subcmd_ids {
 	/**
+	 * Get/Set PHY DB Command
+	 * Handled by user space component
+	 */
+	GRP_XVT_GET_SET_PHY_DB_CMD = 0x34,
+
+	/**
 	 * @DTS_MEASUREMENT_TRIGGER_NOTIF : Notification about
 	 * DTS measurement
 	 * Handled by user space component

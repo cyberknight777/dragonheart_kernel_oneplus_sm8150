@@ -51,6 +51,7 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 
 	switch (WIDE_ID(pkt->hdr.group_id, pkt->hdr.cmd)) {
 	case WIDE_ID(LONG_GROUP, GET_SET_PHY_DB_CMD):
+	case WIDE_ID(XVT_GROUP, GRP_XVT_GET_SET_PHY_DB_CMD):
 		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_PHY_DB,
 					data, size, GFP_ATOMIC);
 		break;
