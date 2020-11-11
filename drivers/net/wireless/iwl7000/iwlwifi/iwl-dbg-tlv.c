@@ -969,6 +969,9 @@ static void iwl_dbg_tlv_init_cfg(struct iwl_fw_runtime *fwrt)
 	if (*ini_dest != IWL_FW_INI_LOCATION_INVALID)
 		return;
 
+	if (*ini_dest != IWL_FW_INI_LOCATION_INVALID)
+		return;
+
 	IWL_DEBUG_FW(fwrt,
 		     "WRT: Generating active triggers list, domain 0x%x\n",
 		     fwrt->trans->dbg.domains_bitmap);

@@ -335,7 +335,6 @@ struct ieee80211_fast_tx {
  * @expected_ds_bits: from/to DS bits expected
  * @icv_len: length of the MIC if present
  * @key: bool indicating encryption is expected (key is set)
- * @sta_notify: notify the MLME code (once)
  * @internal_forward: forward froms internally on AP/VLAN type interfaces
  * @uses_rss: copy of USES_RSS hw flag
  * @da_offs: offset of the DA in the header (for header conversion)
@@ -351,7 +350,6 @@ struct ieee80211_fast_rx {
 	__le16 expected_ds_bits;
 	u8 icv_len;
 	u8 key:1,
-	   sta_notify:1,
 	   internal_forward:1,
 	   uses_rss:1;
 	u8 da_offs, sa_offs;
@@ -786,7 +784,7 @@ int sta_info_init(struct ieee80211_local *local);
 void sta_info_stop(struct ieee80211_local *local);
 
 /**
- * sta_info_flush - flush matching STA entries from the STA table
+ * __sta_info_flush - flush matching STA entries from the STA table
  *
  * Returns the number of removed STA entries.
  *
@@ -795,6 +793,13 @@ void sta_info_stop(struct ieee80211_local *local);
  */
 int __sta_info_flush(struct ieee80211_sub_if_data *sdata, bool vlans);
 
+/**
+ * sta_info_flush - flush matching STA entries from the STA table
+ *
+ * Returns the number of removed STA entries.
+ *
+ * @sdata: sdata to remove all stations from
+ */
 static inline int sta_info_flush(struct ieee80211_sub_if_data *sdata)
 {
 	return __sta_info_flush(sdata, false);
@@ -824,6 +829,7 @@ enum sta_stats_type {
 	STA_STATS_RATE_TYPE_HT,
 	STA_STATS_RATE_TYPE_VHT,
 	STA_STATS_RATE_TYPE_HE,
+	STA_STATS_RATE_TYPE_S1G,
 };
 
 #define STA_STATS_FIELD_HT_MCS		GENMASK( 7,  0)

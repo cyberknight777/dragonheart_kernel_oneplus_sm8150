@@ -776,6 +776,93 @@ static int iwl_mvm_ftm_start_v11(struct iwl_mvm *mvm,
 	return iwl_mvm_ftm_send_cmd(mvm, &hcmd);
 }
 
+static void iter(struct ieee80211_hw *hw,
+		 struct ieee80211_vif *vif,
+		 struct ieee80211_sta *sta,
+		 struct ieee80211_key_conf *key,
+		 void *data)
+{
+	struct iwl_tof_range_req_ap_entry_v6 *target = data;
+
+	if (!sta || memcmp(sta->addr, target->bssid, ETH_ALEN))
+		return;
+
+	WARN_ON(!sta->mfp);
+
+	if (WARN_ON(key->keylen > sizeof(target->tk)))
+		return;
+
+	memcpy(target->tk, key->key, key->keylen);
+	target->cipher = iwl_mvm_cipher_to_location_cipher(key->cipher);
+	WARN_ON(target->cipher == IWL_LOCATION_CIPHER_INVALID);
+}
+
+static void
+iwl_mvm_ftm_set_secured_ranging(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+				struct iwl_tof_range_req_ap_entry_v7 *target)
+{
+	struct iwl_mvm_ftm_pasn_entry *entry;
+	u32 flags = le32_to_cpu(target->initiator_ap_flags);
+
+	if (!(flags & (IWL_INITIATOR_AP_FLAGS_NON_TB |
+		       IWL_INITIATOR_AP_FLAGS_TB)))
+		return;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	list_for_each_entry(entry, &mvm->ftm_initiator.pasn_list, list) {
+		if (memcmp(entry->addr, target->bssid, sizeof(entry->addr)))
+			continue;
+
+		target->cipher = entry->cipher;
+		memcpy(target->hltk, entry->hltk, sizeof(target->hltk));
+
+		if (vif->bss_conf.assoc &&
+		    !memcmp(vif->bss_conf.bssid, target->bssid,
+			    sizeof(target->bssid)))
+			ieee80211_iter_keys(mvm->hw, vif, iter, target);
+		else
+			memcpy(target->tk, entry->tk, sizeof(target->tk));
+
+		memcpy(target->rx_pn, entry->rx_pn, sizeof(target->rx_pn));
+		memcpy(target->tx_pn, entry->tx_pn, sizeof(target->tx_pn));
+
+		target->initiator_ap_flags |=
+			cpu_to_le32(IWL_INITIATOR_AP_FLAGS_SECURED);
+		return;
+	}
+}
+
+static int iwl_mvm_ftm_start_v11(struct iwl_mvm *mvm,
+				 struct ieee80211_vif *vif,
+				 struct cfg80211_pmsr_request *req)
+{
+	struct iwl_tof_range_req_cmd_v11 cmd;
+	struct iwl_host_cmd hcmd = {
+		.id = iwl_cmd_id(TOF_RANGE_REQ_CMD, LOCATION_GROUP, 0),
+		.dataflags[0] = IWL_HCMD_DFL_DUP,
+		.data[0] = &cmd,
+		.len[0] = sizeof(cmd),
+	};
+	u8 i;
+	int err;
+
+	iwl_mvm_ftm_cmd_common(mvm, vif, (void *)&cmd, req);
+
+	for (i = 0; i < cmd.num_of_ap; i++) {
+		struct cfg80211_pmsr_request_peer *peer = &req->peers[i];
+		struct iwl_tof_range_req_ap_entry_v7 *target = &cmd.ap[i];
+
+		err = iwl_mvm_ftm_put_target(mvm, vif, peer, (void *)target);
+		if (err)
+			return err;
+
+		iwl_mvm_ftm_set_secured_ranging(mvm, vif, target);
+	}
+
+	return iwl_mvm_ftm_send_cmd(mvm, &hcmd);
+}
+
 int iwl_mvm_ftm_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		      struct cfg80211_pmsr_request *req)
 {
