@@ -302,7 +302,6 @@ static struct snd_soc_dai_link bdw_rt5677_dais[] = {
 		.stream_name = "System Playback/Capture",
 		.cpu_dai_name = "System Pin",
 		.platform_name = "catpt-platform",
-		.nonatomic = 1,
 		.dynamic = 1,
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
