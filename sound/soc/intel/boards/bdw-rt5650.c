@@ -15,6 +15,9 @@
 #include <sound/pcm_params.h>
 #include <sound/jack.h>
 
+#include "../common/sst-dsp.h"
+#include "../haswell/sst-haswell-ipc.h"
+
 #include "../../codecs/rt5645.h"
 
 struct bdw_rt5650_priv {
@@ -134,6 +137,28 @@ static struct snd_soc_ops bdw_rt5650_ops = {
 	.hw_params = bdw_rt5650_hw_params,
 };
 
+static int bdw_rt5650_rtd_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_component *component =
+		snd_soc_rtdcom_lookup(rtd, DRV_NAME);
+	struct sst_pdata *pdata = dev_get_platdata(component->dev);
+	struct sst_hsw *broadwell = pdata->dsp;
+	int ret;
+
+	/* Set ADSP SSP port settings
+	 * clock_divider = 4 means BCLK = MCLK/5 = 24MHz/5 = 4.8MHz
+	 */
+	ret = sst_hsw_device_set_config(broadwell, SST_HSW_DEVICE_SSP_0,
+		SST_HSW_DEVICE_MCLK_FREQ_24_MHZ,
+		SST_HSW_DEVICE_TDM_CLOCK_MASTER, 4);
+	if (ret < 0) {
+		dev_err(rtd->dev, "error: failed to set device config\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static const unsigned int channels[] = {
 	2, 4,
 };
@@ -217,9 +242,10 @@ static struct snd_soc_dai_link bdw_rt5650_dais[] = {
 		.name = "System PCM",
 		.stream_name = "System Playback",
 		.cpu_dai_name = "System Pin",
-		.platform_name = "catpt-platform",
+		.platform_name = "haswell-pcm-audio",
 		.dynamic = 1,
 		.ops = &bdw_rt5650_fe_ops,
+		.init = bdw_rt5650_rtd_init,
 		.trigger = {
 			SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST
@@ -235,8 +261,8 @@ static struct snd_soc_dai_link bdw_rt5650_dais[] = {
 		/* SSP0 - Codec */
 		.name = "Codec",
 		.id = 0,
-		.cpu_dai_name = "ssp0-port",
-		.platform_name = "catpt-platform",
+		.cpu_dai_name = "snd-soc-dummy-dai",
+		.platform_name = "snd-soc-dummy",
 		.no_pcm = 1,
 		.codec_name = "i2c-10EC5650:00",
 		.codec_dai_name = "rt5645-aif1",
