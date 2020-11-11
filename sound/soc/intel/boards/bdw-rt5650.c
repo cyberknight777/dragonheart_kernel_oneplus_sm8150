@@ -218,7 +218,6 @@ static struct snd_soc_dai_link bdw_rt5650_dais[] = {
 		.stream_name = "System Playback",
 		.cpu_dai_name = "System Pin",
 		.platform_name = "catpt-platform",
-		.nonatomic = 1,
 		.dynamic = 1,
 		.ops = &bdw_rt5650_fe_ops,
 		.trigger = {
