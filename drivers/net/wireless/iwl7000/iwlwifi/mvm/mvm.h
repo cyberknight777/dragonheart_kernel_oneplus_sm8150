@@ -2353,18 +2353,10 @@ static inline void iwl_mvm_mei_tx_copy_to_csme(struct iwl_mvm *mvm,
 		iwl_mei_tx_copy_to_csme(skb, ivlen);
 }
 
-static inline void iwl_mvm_mei_host_associated(struct iwl_mvm *mvm,
-					       const struct iwl_mei_conn_info *conn_info,
-					       const struct iwl_mei_colloc_info *colloc_info)
+static inline void iwl_mvm_mei_host_disassociated(struct iwl_mvm *mvm)
 {
 	if (mvm->mei_registered)
-		iwl_mei_host_associated(conn_info, colloc_info);
-}
-
-static inline void iwl_mvm_mei_host_disassociated(struct iwl_mvm *mvm, u8 type)
-{
-	if (mvm->mei_registered)
-		iwl_mei_host_disassociated(type);
+		iwl_mei_host_disassociated();
 }
 
 static inline void iwl_mvm_mei_device_down(struct iwl_mvm *mvm)

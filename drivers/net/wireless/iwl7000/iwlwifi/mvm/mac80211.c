@@ -2620,6 +2620,7 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 						    IEEE80211_SMPS_DYNAMIC);
 			}
 		} else if (mvmvif->ap_sta_id != IWL_MVM_INVALID_STA) {
+			iwl_mvm_mei_host_disassociated(mvm);
 			/*
 			 * If update fails - SF might be running in associated
 			 * mode while disassociated - which is forbidden.
@@ -3356,6 +3357,67 @@ static void iwl_mvm_reset_cca_40mhz_workaround(struct iwl_mvm *mvm,
 	}
 }
 
+static void iwl_mvm_mei_host_associated(struct iwl_mvm *mvm,
+					struct ieee80211_vif *vif,
+					struct iwl_mvm_sta *mvm_sta)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mei_conn_info conn_info = {
+		.ssid_len = vif->bss_conf.ssid_len,
+		.channel = vif->bss_conf.chandef.chan->hw_value,
+	};
+
+	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
+		return;
+
+	if (!mvm->mei_registered)
+		return;
+
+	switch (mvm_sta->pairwise_cipher) {
+	case WLAN_CIPHER_SUITE_CCMP:
+		conn_info.pairwise_cipher = IWL_MEI_CIPHER_CCMP;
+		break;
+	case WLAN_CIPHER_SUITE_GCMP:
+		conn_info.pairwise_cipher = IWL_MEI_CIPHER_GCMP;
+		break;
+	case WLAN_CIPHER_SUITE_GCMP_256:
+		conn_info.pairwise_cipher = IWL_MEI_CIPHER_GCMP_256;
+		break;
+	case 0:
+		/* open profile */
+		break;
+	default:
+		/* cipher not supported, don't send anything to iwlmei */
+		return;
+	};
+
+	switch (mvmvif->rekey_data.akm) {
+	case WLAN_AKM_SUITE_SAE & 0xff:
+		conn_info.auth_mode = IWL_MEI_AKM_AUTH_SAE;
+		break;
+	case WLAN_AKM_SUITE_PSK & 0xff:
+		conn_info.auth_mode = IWL_MEI_AKM_AUTH_RSNA_PSK;
+		break;
+	case WLAN_AKM_SUITE_8021X & 0xff:
+		conn_info.auth_mode = IWL_MEI_AKM_AUTH_RSNA;
+		break;
+	case 0:
+		/* open profile */
+		conn_info.auth_mode = IWL_MEI_AKM_AUTH_OPEN;
+		break;
+	default:
+		/* auth method / AKM not supported */
+		/* TODO: All the FT vesions of these? */
+		return;
+	}
+
+	memcpy(conn_info.ssid, vif->bss_conf.ssid, vif->bss_conf.ssid_len);
+	memcpy(conn_info.bssid,  vif->bss_conf.bssid, ETH_ALEN);
+
+	/* TODO: add support for collocated AP data */
+	iwl_mei_host_associated(&conn_info, NULL);
+}
+
 static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 				 struct ieee80211_vif *vif,
 				 struct ieee80211_sta *sta,
@@ -3507,6 +3569,7 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 			 * multicast data frames can be forwarded to the driver
 			 */
 			iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
+			iwl_mvm_mei_host_associated(mvm, vif, mvm_sta);
 		}
 
 		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
@@ -3791,6 +3854,8 @@ static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 	int ret, i;
 	u8 key_offset;
 
+	mvmsta = iwl_mvm_sta_from_mac80211(sta);
+
 	switch (key->cipher) {
 	case WLAN_CIPHER_SUITE_TKIP:
 		if (!mvm->trans->trans_cfg->gen2) {
@@ -3899,7 +3964,6 @@ static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 			struct ieee80211_key_seq seq;
 			int tid, q;
 
-			mvmsta = iwl_mvm_sta_from_mac80211(sta);
 			WARN_ON(rcu_access_pointer(mvmsta->ptk_pn[keyidx]));
 			ptk_pn = kzalloc(struct_size(ptk_pn, q,
 						     mvm->trans->num_rx_queues),
@@ -3925,6 +3989,9 @@ static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 			key_offset = key->hw_key_idx;
 		else
 			key_offset = STA_KEY_IDX_INVALID;
+
+		if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE)
+			mvmsta->pairwise_cipher = key->cipher;
 
 		IWL_DEBUG_MAC80211(mvm, "set hwcrypto key\n");
 		ret = iwl_mvm_set_sta_key(mvm, vif, sta, key, key_offset);
@@ -3971,7 +4038,6 @@ static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 		    (key->cipher == WLAN_CIPHER_SUITE_CCMP ||
 		     key->cipher == WLAN_CIPHER_SUITE_GCMP ||
 		     key->cipher == WLAN_CIPHER_SUITE_GCMP_256)) {
-			mvmsta = iwl_mvm_sta_from_mac80211(sta);
 			ptk_pn = rcu_dereference_protected(
 						mvmsta->ptk_pn[keyidx],
 						lockdep_is_held(&mvm->mutex));
