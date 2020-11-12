@@ -533,7 +533,7 @@ static int elan_i2c_set_flash_key(struct i2c_client *client)
 	return 0;
 }
 
-static int elan_read_write_iap_type(struct i2c_client *client)
+static int elan_read_write_iap_type(struct i2c_client *client, u16 fw_page_size)
 {
 	int error;
 	u16 constant;
@@ -542,7 +542,7 @@ static int elan_read_write_iap_type(struct i2c_client *client)
 
 	do {
 		error = elan_i2c_write_cmd(client, ETP_I2C_IAP_TYPE_CMD,
-					   ETP_I2C_IAP_TYPE_REG);
+					   fw_page_size / 2);
 		if (error) {
 			dev_err(&client->dev,
 				"cannot write iap type: %d\n", error);
@@ -559,7 +559,7 @@ static int elan_read_write_iap_type(struct i2c_client *client)
 		constant = le16_to_cpup((__le16 *)val);
 		dev_dbg(&client->dev, "iap type reg: 0x%04x\n", constant);
 
-		if (constant == ETP_I2C_IAP_TYPE_REG)
+		if (constant == fw_page_size / 2)
 			return 0;
 
 	} while (--retry > 0);
@@ -569,7 +569,7 @@ static int elan_read_write_iap_type(struct i2c_client *client)
 }
 
 static int elan_i2c_prepare_fw_update(struct i2c_client *client, u16 ic_type,
-				      u8 iap_version)
+				      u8 iap_version, u16 fw_page_size)
 {
 	struct device *dev = &client->dev;
 	int error;
@@ -610,7 +610,7 @@ static int elan_i2c_prepare_fw_update(struct i2c_client *client, u16 ic_type,
 	}
 
 	if (ic_type >= 0x0D && iap_version >= 1) {
-		error = elan_read_write_iap_type(client);
+		error = elan_read_write_iap_type(client, fw_page_size);
 		if (error)
 			return error;
 	}
