@@ -976,8 +976,14 @@ static void ieee80211_scan_state_set_channel(struct ieee80211_local *local,
 		else
 			local->scan_chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
 	case NL80211_BSS_CHAN_WIDTH_1:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
 	case NL80211_BSS_CHAN_WIDTH_2:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* shouldn't get here, S1G handled above */
 		WARN_ON(1);
 		break;

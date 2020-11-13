@@ -897,6 +897,7 @@ static int ieee80211_set_probe_resp(struct ieee80211_sub_if_data *sdata,
 	return 0;
 }
 
+#if CFG80211_VERSION > KERNEL_VERSION(5,10,0)
 static int ieee80211_set_fils_discovery(struct ieee80211_sub_if_data *sdata,
 					struct cfg80211_fils_discovery *params)
 {
@@ -923,7 +924,9 @@ static int ieee80211_set_fils_discovery(struct ieee80211_sub_if_data *sdata,
 
 	return 0;
 }
+#endif
 
+#if CFG80211_VERSION > KERNEL_VERSION(5,10,0)
 static int
 ieee80211_set_unsol_bcast_probe_resp(struct ieee80211_sub_if_data *sdata,
 				     struct cfg80211_unsol_bcast_probe_resp *params)
@@ -949,6 +952,7 @@ ieee80211_set_unsol_bcast_probe_resp(struct ieee80211_sub_if_data *sdata,
 
 	return 0;
 }
+#endif
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 static int ieee80211_set_ftm_responder_params(
