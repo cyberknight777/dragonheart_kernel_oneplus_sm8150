@@ -81,9 +81,4 @@ void iwl_nvm_fixups(u32 hw_id, unsigned int section, u8 *data,
 struct iwl_nvm_data *iwl_get_nvm(struct iwl_trans *trans,
 				 const struct iwl_fw *fw);
 
-/**
- * iwl_get_he_capa - get iwl's HE capabilities (for STA and AP)
- */
-void iwl_get_he_capa(const struct ieee80211_sband_iftype_data **he_capa,
-		     int *he_capa_len);
 #endif /* __iwl_nvm_parse_h__ */

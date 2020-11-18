@@ -1867,11 +1867,3 @@ out:
 	return ERR_PTR(ret);
 }
 IWL_EXPORT_SYMBOL(iwl_get_nvm);
-
-void iwl_get_he_capa(const struct ieee80211_sband_iftype_data **he_capa,
-		     int *he_capa_len)
-{
-	*he_capa = iwl_he_capa;
-	*he_capa_len = ARRAY_SIZE(iwl_he_capa);
-}
-IWL_EXPORT_SYMBOL(iwl_get_he_capa);
