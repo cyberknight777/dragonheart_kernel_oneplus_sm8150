@@ -1118,7 +1118,8 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	kfree(mvm->mcast_active_filter_cmd);
 	mvm->mcast_active_filter_cmd = NULL;
-	iwl_mvm_vendor_cmds_unregister(mvm);
+	if (mvm->hw_registered)
+		iwl_mvm_vendor_cmds_unregister(mvm);
 #endif
 
 	iwl_trans_op_mode_leave(mvm->trans);
