@@ -964,7 +964,11 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 	 * handler for scan disabling knows to set the correct discovery
 	 * state.
 	 */
+#ifdef CONFIG_BT_EVE_HACKS
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) || hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
+#else
+	if (hci_dev_test_flag(hdev, HCI_LE_SCAN)) {
+#endif
 		hci_req_add_le_scan_disable(&req);
 		hci_dev_set_flag(hdev, HCI_LE_SCAN_INTERRUPTED);
 	}
