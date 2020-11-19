@@ -389,9 +389,11 @@ iwl_xvt_rx_get_tx_meta_data(struct iwl_xvt *xvt, u16 txq_id)
 
 	lmac_id = XVT_LMAC_0_ID;
 verify:
-	if (WARN(xvt->queue_data[txq_id].allocated_queue == 0,
-		 "got TX_CMD from unidentified queue: (lmac %d) %d %d\n",
-		 lmac_id, txq_id, xvt->queue_data[txq_id].allocated_queue))
+	if (WARN(txq_id != xvt->tx_meta_data[lmac_id].queue &&
+		 xvt->queue_data[txq_id].allocated_queue == 0,
+		 "got TX_CMD from unidentified queue: (lmac %d) %d %d %d\n",
+		 lmac_id, txq_id, xvt->tx_meta_data[lmac_id].queue,
+		 xvt->queue_data[txq_id].allocated_queue))
 		return NULL;
 
 	return &xvt->tx_meta_data[lmac_id];
