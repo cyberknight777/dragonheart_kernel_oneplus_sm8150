@@ -3412,9 +3412,6 @@ struct hci_dev *hci_alloc_dev(void)
 	hdev->le_max_rx_len = 0x001b;
 	hdev->le_max_rx_time = 0x0148;
 
-	hdev->count_adv_change_in_progress = 0;
-	hdev->count_scan_change_in_progress = 0;
-
 	hdev->def_multi_adv_rotation_duration = HCI_DEFAULT_ADV_DURATION;
 	hdev->def_le_autoconnect_timeout = HCI_LE_AUTOCONN_TIMEOUT;
 
@@ -4767,24 +4764,18 @@ static bool skip_conditional_cmd(struct work_struct *work, struct sk_buff *skb)
 		cur_enabled = hci_dev_test_flag(hdev, bit_num_cur_ena);
 		cur_changing = hci_dev_test_flag(hdev, bit_num_cur_chng);
 
-		BT_DBG("COND opcode=0x%04x, wanted=%d, on=%d, chngn=%d",
-		       hci_skb_opcode(skb), desired_enabled, cur_enabled,
-		       cur_changing);
+		BT_DBG("COND opcode=%d, wanted=%d, on=%d, chngn=%d",
+			hci_skb_opcode(skb), desired_enabled, cur_enabled, cur_changing);
 
-		/* No need to enable/disable anything if it is already in that
-		 * state or about to be.
-		 * The following condition is good for at most 1 pending
-		 * enabled command and 1 pending disabled command.
-		 * Refer to crbug.com/781749 for more context.
+		/* No need to enable/disable anything if it is already in that state or
+		 * about to be
 		 */
-		if ((cur_enabled == desired_enabled && !cur_changing) ||
-		    (cur_enabled != desired_enabled && cur_changing)) {
+		if (cur_enabled == desired_enabled || cur_changing) {
 			skb_orphan(skb);
 			kfree_skb(skb);
 
-			BT_INFO("  COND LE cmd (0x%04x) is already %d (chg %d),"
-				" skip transition to %d", hci_skb_opcode(skb),
-				cur_enabled, cur_changing, desired_enabled);
+			BT_INFO("  COND LE cmd is already %d (chg %d), skip transition to %d",
+			        cur_enabled, cur_changing, desired_enabled);
 			/* See if there are more commands to do in cmd_q. */
 			atomic_set(&hdev->cmd_cnt, 1);
 			if (!skb_queue_empty(&hdev->cmd_q)) {
@@ -4796,29 +4787,7 @@ static bool skip_conditional_cmd(struct work_struct *work, struct sk_buff *skb)
 			ret = true;
 			goto out;
 		}
-
 		hci_dev_set_flag(hdev, bit_num_cur_chng);
-		if (bit_num_cur_chng == HCI_LE_ADV_CHANGE_IN_PROGRESS) {
-			hdev->count_adv_change_in_progress++;
-			if (hdev->count_adv_change_in_progress <= 0 ||
-			    hdev->count_adv_change_in_progress >= 3)
-				BT_WARN("Unexpected "
-					"count_adv_change_in_progress: %d",
-					hdev->count_adv_change_in_progress);
-			else
-				BT_DBG("count_adv_change_in_progress: %d",
-				       hdev->count_adv_change_in_progress);
-		} else if (bit_num_cur_chng == HCI_LE_SCAN_CHANGE_IN_PROGRESS) {
-			hdev->count_scan_change_in_progress++;
-			if (hdev->count_scan_change_in_progress <= 0 ||
-			    hdev->count_scan_change_in_progress >= 3)
-				BT_WARN("Unexpected "
-					"count_scan_change_in_progress: %d",
-					hdev->count_scan_change_in_progress);
-			else
-				BT_DBG("count_scan_change_in_progress: %d",
-				       hdev->count_scan_change_in_progress);
-		}
 	}
 
 out:
