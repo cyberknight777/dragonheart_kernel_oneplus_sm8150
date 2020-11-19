@@ -1125,9 +1125,7 @@ static void hci_cc_le_set_adv_enable(struct hci_dev *hdev, struct sk_buff *skb)
 	} else {
 		hci_dev_clear_flag(hdev, HCI_LE_ADV);
 	}
-#ifdef CONFIG_BT_EVE_HACKS
-	hci_dev_clear_flag(hdev, HCI_LE_ADV_CHANGE_IN_PROGRESS);
-#endif
+
 	hci_dev_unlock(hdev);
 }
 
@@ -1200,7 +1198,6 @@ static void hci_cc_le_set_scan_enable(struct hci_dev *hdev,
 		return;
 
 	hci_dev_lock(hdev);
-	hci_dev_clear_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS);
 
 	switch (cp->enable) {
 	case LE_SCAN_ENABLE:

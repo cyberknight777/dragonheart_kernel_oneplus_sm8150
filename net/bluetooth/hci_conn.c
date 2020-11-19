@@ -957,18 +957,13 @@ struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 		conn->le_supv_timeout = hdev->le_supv_timeout;
 	}
 
-	/* If controller is scanning (or about to start it), we stop it
-	 * since some controllers are
+	/* If controller is scanning, we stop it since some controllers are
 	 * not able to scan and connect at the same time. Also set the
 	 * HCI_LE_SCAN_INTERRUPTED flag so that the command complete
 	 * handler for scan disabling knows to set the correct discovery
 	 * state.
 	 */
-#ifdef CONFIG_BT_EVE_HACKS
-	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) || hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
-#else
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN)) {
-#endif
 		hci_req_add_le_scan_disable(&req);
 		hci_dev_set_flag(hdev, HCI_LE_SCAN_INTERRUPTED);
 	}
