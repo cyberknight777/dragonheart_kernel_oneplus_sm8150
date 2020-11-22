@@ -112,11 +112,10 @@ struct iwl_rfi_freq_table_resp_cmd *iwl_rfi_get_freq_table(struct iwl_mvm *mvm)
 
 	resp = kzalloc(resp_size, GFP_KERNEL);
 	if (!resp)
-		goto out;
+		return ERR_PTR(-ENOMEM);
 
 	memcpy(resp, cmd.resp_pkt->data, resp_size);
 
-out:
 	iwl_free_resp(&cmd);
 	return resp;
 }

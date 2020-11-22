@@ -2204,6 +2204,7 @@ static ssize_t iwl_dbgfs_rfi_freq_table_read(struct file *file,
 	}
 
 out:
+	kfree(resp);
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
 
