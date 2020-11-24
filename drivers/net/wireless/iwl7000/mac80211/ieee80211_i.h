@@ -164,7 +164,6 @@ typedef unsigned __bitwise ieee80211_tx_result;
 #define TX_DROP		((__force ieee80211_tx_result) 1u)
 #define TX_QUEUED	((__force ieee80211_tx_result) 2u)
 
-#define IEEE80211_TX_NO_SEQNO		BIT(0)
 #define IEEE80211_TX_UNICAST		BIT(1)
 #define IEEE80211_TX_PS_BUFFERED	BIT(2)
 
@@ -218,7 +217,7 @@ enum ieee80211_rx_flags {
 };
 
 struct ieee80211_rx_data {
-	struct napi_struct *napi;
+	struct list_head *list;
 	struct sk_buff *skb;
 	struct ieee80211_local *local;
 	struct ieee80211_sub_if_data *sdata;
@@ -269,7 +268,7 @@ struct probe_resp {
 	struct rcu_head rcu_head;
 	int len;
 	u16 csa_counter_offsets[IEEE80211_MAX_CSA_COUNTERS_NUM];
-	u8 data[0];
+	u8 data[];
 };
 
 struct ps_data {
@@ -444,15 +443,15 @@ struct ieee80211_if_managed {
 	unsigned long probe_timeout;
 	int probe_send_count;
 	bool nullfunc_failed;
-	bool connection_loss;
+	u8 connection_loss:1,
+	   driver_disconnect:1,
+	   reconnect:1;
 
 	struct cfg80211_bss *associated;
 	struct ieee80211_mgd_auth_data *auth_data;
 	struct ieee80211_mgd_assoc_data *assoc_data;
 
 	u8 bssid[ETH_ALEN] __aligned(2);
-
-	u16 aid;
 
 	bool powersave; /* powersave requested for this iface */
 	bool broken_ap; /* AP is broken -- turn off powersave */
@@ -911,6 +910,7 @@ struct ieee80211_sub_if_data {
 	u16 sequence_number;
 	__be16 control_port_protocol;
 	bool control_port_no_encrypt;
+	bool control_port_no_preauth;
 	bool control_port_over_nl80211;
 	int encrypt_headroom;
 
@@ -962,6 +962,10 @@ struct ieee80211_sub_if_data {
 	bool rc_has_vht_mcs_mask[NUM_NL80211_BANDS];
 	u16 rc_rateidx_vht_mcs_mask[NUM_NL80211_BANDS][NL80211_VHT_NSS_MAX];
 
+	/* Beacon frame (non-MCS) rate (as a bitmap) */
+	u32 beacon_rateidx_mask[NUM_NL80211_BANDS];
+	bool beacon_rate_set;
+
 	union {
 		struct ieee80211_if_ap ap;
 		struct ieee80211_if_wds wds;
@@ -983,6 +987,8 @@ struct ieee80211_sub_if_data {
 		struct dentry *default_beacon_key;
 	} debugfs;
 #endif
+
+	bool hw_80211_encap;
 
 	/* must be last, dynamically sized area in this! */
 	struct ieee80211_vif vif;
@@ -1184,7 +1190,12 @@ struct ieee80211_local {
 	/* number of interfaces with corresponding FIF_ flags */
 	int fif_fcsfail, fif_plcpfail, fif_control, fif_other_bss, fif_pspoll,
 	    fif_probe_req;
-	int probe_req_reg;
+#if CFG80211_VERSION >= KERNEL_VERSION(5,8,0)
+	bool probe_req_reg;
+#else
+	unsigned int probe_req_reg;
+#endif
+	bool rx_mcast_action_reg;
 	unsigned int filter_flags; /* FIF_* */
 
 	bool wiphy_ciphers_allocated;
@@ -1427,13 +1438,11 @@ struct ieee80211_local {
 	struct cfg80211_chan_def monitor_chandef;
 
 	/* extended capabilities provided by mac80211 */
-	u8 ext_capa[9];
+	u8 ext_capa[8];
 
 	/* TDLS channel switch */
 	struct work_struct tdls_chsw_work;
 	struct sk_buff_head skb_queue_tdls_chsw;
-
-	u64 msrment_cookie_counter;
 };
 
 static inline struct ieee80211_sub_if_data *
@@ -1509,6 +1518,7 @@ struct ieee802_11_elems {
 	const struct ieee80211_he_operation *he_operation;
 	const struct ieee80211_he_spr *he_spr;
 	const struct ieee80211_mu_edca_param_set *mu_edca_param_set;
+	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
 	const u8 *uora_element;
 	const u8 *mesh_id;
 	const u8 *peering;
@@ -1531,7 +1541,6 @@ struct ieee802_11_elems {
 	const struct ieee80211_bss_max_idle_period_ie *max_idle_period_ie;
 	const struct ieee80211_multiple_bssid_configuration *mbssid_config_ie;
 	const struct ieee80211_bssid_index *bssid_index;
-	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
 	u8 max_bssid_indicator;
 	u8 dtim_count;
 	u8 dtim_period;
@@ -1797,10 +1806,13 @@ netdev_tx_t ieee80211_monitor_start_xmit(struct sk_buff *skb,
 					 struct net_device *dev);
 netdev_tx_t ieee80211_subif_start_xmit(struct sk_buff *skb,
 				       struct net_device *dev);
+netdev_tx_t ieee80211_subif_start_xmit_8023(struct sk_buff *skb,
+					    struct net_device *dev);
 void __ieee80211_subif_start_xmit(struct sk_buff *skb,
 				  struct net_device *dev,
 				  u32 info_flags,
-				  u32 ctrl_flags);
+				  u32 ctrl_flags,
+				  u64 *cookie);
 void ieee80211_purge_tx_queue(struct ieee80211_hw *hw,
 			      struct sk_buff_head *skbs);
 struct sk_buff *
@@ -1817,7 +1829,8 @@ void ieee80211_check_fast_xmit_iface(struct ieee80211_sub_if_data *sdata);
 void ieee80211_clear_fast_xmit(struct sta_info *sta);
 int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 			      const u8 *buf, size_t len,
-			      const u8 *dest, __be16 proto, bool unencrypted);
+			      const u8 *dest, __be16 proto, bool unencrypted,
+			      u64 *cookie);
 int ieee80211_probe_mesh_link(struct wiphy *wiphy, struct net_device *dev,
 			      const u8 *buf, size_t len);
 
@@ -1979,20 +1992,24 @@ void ieee80211_regulatory_limit_wmm_params(struct ieee80211_sub_if_data *sdata,
 void ieee80211_set_wmm_default(struct ieee80211_sub_if_data *sdata,
 			       bool bss_notify, bool enable_qos);
 void ieee80211_xmit(struct ieee80211_sub_if_data *sdata,
-		    struct sta_info *sta, struct sk_buff *skb,
-		    u32 txdata_flags);
+		    struct sta_info *sta, struct sk_buff *skb);
 
 void __ieee80211_tx_skb_tid_band(struct ieee80211_sub_if_data *sdata,
 				 struct sk_buff *skb, int tid,
-				 enum nl80211_band band, u32 txdata_flags);
+				 enum nl80211_band band);
+
+/* sta_out needs to be checked for ERR_PTR() before using */
+int ieee80211_lookup_ra_sta(struct ieee80211_sub_if_data *sdata,
+			    struct sk_buff *skb,
+			    struct sta_info **sta_out);
 
 static inline void
 ieee80211_tx_skb_tid_band(struct ieee80211_sub_if_data *sdata,
 			  struct sk_buff *skb, int tid,
-			  enum nl80211_band band, u32 txdata_flags)
+			  enum nl80211_band band)
 {
 	rcu_read_lock();
-	__ieee80211_tx_skb_tid_band(sdata, skb, tid, band, txdata_flags);
+	__ieee80211_tx_skb_tid_band(sdata, skb, tid, band);
 	rcu_read_unlock();
 }
 
@@ -2010,7 +2027,7 @@ static inline void ieee80211_tx_skb_tid(struct ieee80211_sub_if_data *sdata,
 	}
 
 	__ieee80211_tx_skb_tid_band(sdata, skb, tid,
-				    chanctx_conf->def.chan->band, 0);
+				    chanctx_conf->def.chan->band);
 	rcu_read_unlock();
 }
 
@@ -2156,7 +2173,7 @@ enum {
 	IEEE80211_PROBE_FLAG_RANDOM_SN		= BIT(2),
 };
 
-int ieee80211_build_preq_ies(struct ieee80211_local *local, u8 *buffer,
+int ieee80211_build_preq_ies(struct ieee80211_sub_if_data *sdata, u8 *buffer,
 			     size_t buffer_len,
 			     struct ieee80211_scan_ies *ie_desc,
 			     const u8 *ie, size_t ie_len,
@@ -2194,7 +2211,9 @@ u8 ieee80211_ie_len_he_cap(struct ieee80211_sub_if_data *sdata, u8 iftype);
 u8 *ieee80211_ie_build_he_cap(u8 *pos,
 			      const struct ieee80211_sta_he_cap *he_cap,
 			      u8 *end);
-u8 *ieee80211_ie_build_he_oper(u8 *pos);
+void ieee80211_ie_build_he_6ghz_cap(struct ieee80211_sub_if_data *sdata,
+				    struct sk_buff *skb);
+u8 *ieee80211_ie_build_he_oper(u8 *pos, struct cfg80211_chan_def *chandef);
 int ieee80211_parse_bitrates(struct cfg80211_chan_def *chandef,
 			     const struct ieee80211_supported_band *sband,
 			     const u8 *srates, int srates_len, u32 *rates);
@@ -2213,6 +2232,9 @@ bool ieee80211_chandef_vht_oper(struct ieee80211_hw *hw, u32 vht_cap_info,
 				const struct ieee80211_vht_operation *oper,
 				const struct ieee80211_ht_operation *htop,
 				struct cfg80211_chan_def *chandef);
+bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
+				    const struct ieee80211_he_operation *he_oper,
+				    struct cfg80211_chan_def *chandef);
 u32 ieee80211_chandef_downgrade(struct cfg80211_chan_def *c);
 
 int __must_check
@@ -2279,18 +2301,12 @@ void intel_regulatory_register(struct ieee80211_local *local);
 
 /* TDLS */
 int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, u8 action_code, u8 dialog_token,
-			u16 status_code,
-#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
-			u32 peer_capability,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(3,17,0)
-			bool initiator,
-#endif
-			const u8 *extra_ies,
+			const u8 *peer, u8 action_code, u8 dialog_token,
+			u16 status_code, u32 peer_capability,
+			bool initiator, const u8 *extra_ies,
 			size_t extra_ies_len);
 int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
-			const_since_3_16 u8 *peer, enum nl80211_tdls_operation oper);
+			const u8 *peer, enum nl80211_tdls_operation oper);
 void ieee80211_tdls_peer_del_work(struct work_struct *wk);
 int ieee80211_tdls_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 				  const u8 *addr, u8 oper_class,
@@ -2309,7 +2325,7 @@ extern const struct ethtool_ops ieee80211_ethtool_ops;
 u32 ieee80211_calc_expected_tx_airtime(struct ieee80211_hw *hw,
 				       struct ieee80211_vif *vif,
 				       struct ieee80211_sta *pubsta,
-				       int len);
+				       int len, bool ampdu);
 #ifdef CPTCFG_MAC80211_NOINLINE
 #define debug_noinline noinline
 #else
