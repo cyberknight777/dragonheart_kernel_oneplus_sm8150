@@ -1584,11 +1584,11 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 				    WLAN_USER_POSITION_LEN)
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
 #define cfg_he_oper(params) params->he_oper
 #else
 #define cfg_he_oper(params) ((struct ieee80211_he_operation *)NULL)
-#endif /* >= 99.0 */
+#endif /* >= 5.7 */
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 #define cfg_he_cap(params) params->he_cap
@@ -2109,7 +2109,7 @@ static inline bool nl80211_is_6ghz(enum nl80211_band band)
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,4,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
 #define ieee80211_preamble_he() 0
 #define ftm_non_trigger_based(peer)	0
 #define ftm_trigger_based(peer)	0
@@ -2130,7 +2130,7 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #define NL80211_EXT_FEATURE_BEACON_PROTECTION_CLIENT -1
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(99,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
 #define NL80211_EXT_FEATURE_PROTECTED_TWT -1
 #endif
 
