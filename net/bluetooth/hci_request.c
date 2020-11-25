@@ -735,6 +735,9 @@ void hci_req_add_le_scan_disable(struct hci_request *req)
 		return;
 	}
 
+	if (hdev->suspended)
+		set_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks);
+
 	memset(&cp, 0, sizeof(cp));
 	cp.enable = LE_SCAN_DISABLE;
 	BT_DBG("BT_DBG_DG: set scan enable tx: hci_req_add_le_scan_disable (ena=%d)\n", cp.enable);
@@ -1023,6 +1026,11 @@ static void hci_req_set_event_filter(struct hci_request *req)
 		hci_req_add(req, HCI_OP_SET_EVENT_FLT, sizeof(f), &f);
 		scan = SCAN_PAGE;
 	}
+
+	if (scan)
+		set_bit(SUSPEND_SCAN_ENABLE, hdev->suspend_tasks);
+	else
+		set_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks);
 
 	hci_req_add(req, HCI_OP_WRITE_SCAN_ENABLE, 1, &scan);
 }
