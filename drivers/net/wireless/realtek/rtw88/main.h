@@ -1221,6 +1221,7 @@ enum rtw_coex_bt_state_cnt {
 };
 
 enum rtw_coex_wl_state_cnt {
+	COEX_CNT_WL_SCANAP,
 	COEX_CNT_WL_CONNPKT,
 	COEX_CNT_WL_COEXRUN,
 	COEX_CNT_WL_NOISY0,
@@ -1306,6 +1307,8 @@ struct rtw_coex_stat {
 	bool bt_fix_2M;
 	bool bt_setup_link;
 	bool bt_multi_link;
+	bool bt_multi_link_pre;
+	bool bt_multi_link_remain;
 	bool bt_a2dp_sink;
 	bool bt_a2dp_active;
 	bool bt_reenable;
@@ -1364,7 +1367,11 @@ struct rtw_coex_stat {
 	u8 wl_noisy_level;
 	u8 wl_fw_dbg_info[10];
 	u8 wl_fw_dbg_info_pre[10];
+	u8 wl_rx_rate;
+	u8 wl_tx_rate;
+	u8 wl_rts_rx_rate;
 	u8 wl_coex_mode;
+	u8 wl_iot_peer;
 	u8 ampdu_max_time;
 	u8 wl_tput_dir;
 
@@ -1407,6 +1414,9 @@ struct rtw_coex {
 	struct delayed_work wl_remain_work;
 	struct delayed_work bt_remain_work;
 	struct delayed_work wl_connecting_work;
+	struct delayed_work bt_multi_link_remain_work;
+	struct delayed_work wl_ccklock_work;
+
 };
 
 #define DPK_RF_REG_NUM 7
