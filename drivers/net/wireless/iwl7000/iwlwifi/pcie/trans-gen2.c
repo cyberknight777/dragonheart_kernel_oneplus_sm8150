@@ -10,7 +10,7 @@
 #include "internal.h"
 #include "fw/dbg.h"
 
-#define FW_RESET_TIMEOUT (HZ / 5)
+#define FW_RESET_TIMEOUT (CPTCFG_IWL_TIMEOUT_FACTOR * HZ / 5)
 
 /*
  * Start up NIC's basic functionality after it has been reset
