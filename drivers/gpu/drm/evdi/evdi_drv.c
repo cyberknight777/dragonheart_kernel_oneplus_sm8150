@@ -31,7 +31,21 @@ static struct evdi_context {
 	struct device *root_dev;
 	unsigned int dev_count;
 	struct platform_device *devices[EVDI_DEVICE_COUNT_MAX];
+	struct notifier_block usb_notifier;
 } evdi_context;
+
+static int evdi_platform_drv_usb(__always_unused struct notifier_block *nb,
+		unsigned long action,
+		void *data)
+{
+	struct usb_device *usb_dev = (struct usb_device *)(data);
+
+	if (!usb_dev)
+		return 0;
+	if (action != BUS_NOTIFY_DEL_DEVICE)
+		return 0;
+	return 0;
+}
 
 static int evdi_context_get_free_idx(struct evdi_context *ctx)
 {
@@ -495,6 +509,9 @@ static int __init evdi_init(void)
 	EVDI_INFO("Atomic driver:%s",
 		(driver.driver_features & DRIVER_ATOMIC) ? "yes" : "no");
 	evdi_context.root_dev = root_device_register("evdi");
+	evdi_context.usb_notifier.notifier_call = evdi_platform_drv_usb;
+
+	usb_register_notify(&evdi_context.usb_notifier);
 	if (!PTR_RET(evdi_context.root_dev))
 		for (i = 0; i < ARRAY_SIZE(evdi_device_attributes); i++) {
 			device_create_file(evdi_context.root_dev,
@@ -510,6 +527,8 @@ static void __exit evdi_exit(void)
 
 	EVDI_CHECKPT();
 	evdi_remove_all();
+
+	usb_unregister_notify(&evdi_context.usb_notifier);
 	platform_driver_unregister(&evdi_platform_driver);
 
 	if (!PTR_RET(evdi_context.root_dev)) {
