@@ -13,6 +13,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/usb.h>
 
 #include "evdi_drv.h"
 #include <uapi/drm/evdi_drm.h>
@@ -296,9 +297,13 @@ static ssize_t count_show(__always_unused struct device *dev,
 struct evdi_usb_addr {
 	int addr[MAX_EVDI_USB_ADDR];
 	int len;
+	struct usb_device *usb;
 };
 
-static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
+static int evdi_platform_device_attach(struct device *device,
+		struct evdi_usb_addr *parent_addr);
+
+static ssize_t add_device_with_usb_path(struct device *dev,
 			 const char *buf, size_t count)
 {
 	char *usb_path = kstrdup(buf, GFP_KERNEL);
@@ -345,7 +350,16 @@ static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
 			goto err_parse_usb_path;
 	} while (token && port && usb_addr.len < MAX_EVDI_USB_ADDR);
 
+	if (evdi_platform_device_attach(dev, &usb_addr) != 0) {
+		EVDI_ERROR("Unable to attach to: %s\n", buf);
+		kfree(usb_path);
+		kfree(usb_token_copy);
+		return -EINVAL;
+	}
+
 	EVDI_INFO("Attaching to %s:%s\n", bus_token, usb_token);
+	kfree(usb_path);
+	kfree(usb_token_copy);
 	return count;
 
 err_parse_usb_path:
@@ -353,6 +367,49 @@ err_parse_usb_path:
 	kfree(usb_path);
 	kfree(usb_token_copy);
 	return -EINVAL;
+}
+
+static int find_usb_device_at_path(struct usb_device *usb, void *data)
+{
+	struct evdi_usb_addr *find_path = (struct evdi_usb_addr *)(data);
+	struct usb_device *pdev = usb;
+	int port = 0;
+	int i;
+
+	i = find_path->len - 1;
+	while (pdev != NULL && i >= 0 && i < MAX_EVDI_USB_ADDR) {
+		port = pdev->portnum;
+		if (port == 0)
+			port = pdev->bus->busnum;
+
+		if (port != find_path->addr[i])
+			return 0;
+
+		if (pdev->parent == NULL && i == 0) {
+			find_path->usb = usb;
+			return 1;
+		}
+		pdev = pdev->parent;
+		i--;
+	}
+
+	return 0;
+}
+
+int evdi_platform_device_attach(struct device *device,
+		struct evdi_usb_addr *parent_addr)
+{
+	struct device *parent = NULL;
+
+	if (!parent_addr)
+		return -EINVAL;
+
+	if (!usb_for_each_dev(parent_addr, find_usb_device_at_path) ||
+	    !parent_addr->usb)
+		return -EINVAL;
+
+	parent = &parent_addr->usb->dev;
+	return evdi_add_device(&evdi_context, parent);
 }
 
 static ssize_t add_store(struct device *dev,
