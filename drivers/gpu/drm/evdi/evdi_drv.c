@@ -24,6 +24,7 @@ MODULE_DESCRIPTION("Extensible Virtual Display Interface");
 MODULE_LICENSE("GPL");
 
 #define EVDI_DEVICE_COUNT_MAX 16
+#define MAX_EVDI_USB_ADDR 10
 
 static struct evdi_context {
 	struct device *root_dev;
@@ -275,6 +276,11 @@ static ssize_t count_show(__always_unused struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%u\n", evdi_context.dev_count);
 }
 
+struct evdi_usb_addr {
+	int addr[MAX_EVDI_USB_ADDR];
+	int len;
+};
+
 static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
 			 const char *buf, size_t count)
 {
@@ -282,8 +288,14 @@ static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
 	char *temp_path = usb_path;
 	char *bus_token = NULL;
 	char *usb_token = NULL;
+	char *usb_token_copy = NULL;
 	char *itf_token = NULL;
+	char *token = NULL;
+	char *bus = NULL;
+	char *port = NULL;
+	struct evdi_usb_addr usb_addr;
 
+	memset(&usb_addr, 0, sizeof(usb_addr));
 	temp_path = strnstr(temp_path, "usb:", count);
 	if (!temp_path)
 		goto err_parse_usb_path;
@@ -301,6 +313,20 @@ static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
 
 	itf_token = strsep(&temp_path, ":");
 
+	token = usb_token_copy = kstrdup(usb_token, GFP_KERNEL);
+	bus = strsep(&token, "-");
+	if (!bus)
+		goto err_parse_usb_path;
+	if (kstrtouint(bus, 10, &usb_addr.addr[usb_addr.len++]))
+		goto err_parse_usb_path;
+
+	do {
+		port = strsep(&token, ".");
+		if (!port)
+			goto err_parse_usb_path;
+		if (kstrtouint(port, 10, &usb_addr.addr[usb_addr.len++]))
+			goto err_parse_usb_path;
+	} while (token && port && usb_addr.len < MAX_EVDI_USB_ADDR);
 
 	EVDI_INFO("Attaching to %s:%s\n", bus_token, usb_token);
 	return count;
@@ -308,6 +334,7 @@ static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
 err_parse_usb_path:
 	EVDI_ERROR("Unable to parse usb path: %s", buf);
 	kfree(usb_path);
+	kfree(usb_token_copy);
 	return -EINVAL;
 }
 
