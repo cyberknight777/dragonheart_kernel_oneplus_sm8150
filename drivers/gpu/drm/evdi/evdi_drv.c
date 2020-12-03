@@ -32,6 +32,17 @@ static struct evdi_context {
 	struct platform_device *devices[EVDI_DEVICE_COUNT_MAX];
 } evdi_context;
 
+static int evdi_context_get_free_idx(struct evdi_context *ctx)
+{
+	int i;
+
+	for (i = 0; i < EVDI_DEVICE_COUNT_MAX; ++i) {
+		if (ctx->devices[i] == NULL)
+			return i;
+	}
+	return -ENOMEM;
+}
+
 static struct drm_driver driver;
 
 struct drm_ioctl_desc evdi_painter_ioctls[] = {
@@ -115,12 +126,12 @@ static struct drm_driver driver = {
 	.patchlevel = DRIVER_PATCHLEVEL,
 };
 
-static void evdi_add_device(void)
+static int evdi_add_device(struct evdi_context *ctx, struct device *parent)
 {
 	struct platform_device_info pdevinfo = {
-		.parent = NULL,
+		.parent = parent,
 		.name = "evdi",
-		.id = evdi_context.dev_count,
+		.id = evdi_context_get_free_idx(ctx),
 		.res = NULL,
 		.num_res = 0,
 		.data = NULL,
@@ -128,14 +139,20 @@ static void evdi_add_device(void)
 		.dma_mask = DMA_BIT_MASK(32),
 	};
 
-	evdi_context.devices[evdi_context.dev_count] =
-			platform_device_register_full(&pdevinfo);
+	if (pdevinfo.id < 0 || ctx->dev_count >= EVDI_DEVICE_COUNT_MAX) {
+		EVDI_ERROR("Evdi device add failed. Too many devices.\n");
+		return -EINVAL;
+	}
+
+	ctx->devices[pdevinfo.id] = platform_device_register_full(&pdevinfo);
 	if (dma_set_mask(&evdi_context.devices[evdi_context.dev_count]->dev,
 			 DMA_BIT_MASK(64))) {
 		EVDI_DEBUG("Unable to change dma mask to 64 bit. ");
 		EVDI_DEBUG("Sticking with 32 bit\n");
 	}
-	evdi_context.dev_count++;
+
+	ctx->dev_count++;
+	return 0;
 }
 
 
@@ -240,7 +257,7 @@ static void evdi_remove_all(void)
 	int i;
 
 	EVDI_DEBUG("removing all evdi devices\n");
-	for (i = 0; i < evdi_context.dev_count; ++i) {
+	for (i = 0; i < EVDI_DEVICE_COUNT_MAX; ++i) {
 		if (evdi_context.devices[i]) {
 			EVDI_DEBUG("removing evdi %d\n", i);
 
@@ -361,9 +378,9 @@ static ssize_t add_store(struct device *dev,
 	}
 
 	EVDI_DEBUG("Increasing device count to %u\n",
-			 evdi_context.dev_count + val);
-	while (val--)
-		evdi_add_device();
+			evdi_context.dev_count + val);
+	while (val-- && evdi_add_device(&evdi_context, NULL) == 0)
+		;
 
 	return count;
 }
