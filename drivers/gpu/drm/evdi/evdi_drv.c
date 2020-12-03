@@ -275,11 +275,50 @@ static ssize_t count_show(__always_unused struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%u\n", evdi_context.dev_count);
 }
 
-static ssize_t add_store(__always_unused struct device *dev,
+static ssize_t add_device_with_usb_path(__always_unused struct device *dev,
+			 const char *buf, size_t count)
+{
+	char *usb_path = kstrdup(buf, GFP_KERNEL);
+	char *temp_path = usb_path;
+	char *bus_token = NULL;
+	char *usb_token = NULL;
+	char *itf_token = NULL;
+
+	temp_path = strnstr(temp_path, "usb:", count);
+	if (!temp_path)
+		goto err_parse_usb_path;
+
+
+	temp_path = strim(temp_path);
+
+	bus_token = strsep(&temp_path, ":");
+	if (!bus_token)
+		goto err_parse_usb_path;
+
+	usb_token = strsep(&temp_path, ":");
+	if (!usb_token)
+		goto err_parse_usb_path;
+
+	itf_token = strsep(&temp_path, ":");
+
+
+	EVDI_INFO("Attaching to %s:%s\n", bus_token, usb_token);
+	return count;
+
+err_parse_usb_path:
+	EVDI_ERROR("Unable to parse usb path: %s", buf);
+	kfree(usb_path);
+	return -EINVAL;
+}
+
+static ssize_t add_store(struct device *dev,
 			 __always_unused struct device_attribute *attr,
 			 const char *buf, size_t count)
 {
 	unsigned int val;
+
+	if (strnstr(buf, "usb:", count))
+		return add_device_with_usb_path(dev, buf, count);
 
 	if (kstrtouint(buf, 10, &val)) {
 		EVDI_ERROR("Invalid device count \"%s\"\n", buf);
