@@ -39,11 +39,24 @@ static int evdi_platform_drv_usb(__always_unused struct notifier_block *nb,
 		void *data)
 {
 	struct usb_device *usb_dev = (struct usb_device *)(data);
+	struct platform_device *pdev;
+	int i = 0;
 
 	if (!usb_dev)
 		return 0;
 	if (action != BUS_NOTIFY_DEL_DEVICE)
 		return 0;
+
+	for (i = 0; i < EVDI_DEVICE_COUNT_MAX; ++i) {
+		pdev = evdi_context.devices[i];
+		if (pdev && pdev->dev.parent == &usb_dev->dev) {
+			EVDI_INFO("Parent USB removed. Removing evdi.%d\n", i);
+			platform_device_unregister(pdev);
+			evdi_context.dev_count--;
+			evdi_context.devices[i] = NULL;
+		}
+	}
+
 	return 0;
 }
 
@@ -277,6 +290,7 @@ static void evdi_remove_all(void)
 			EVDI_DEBUG("removing evdi %d\n", i);
 
 			platform_device_unregister(evdi_context.devices[i]);
+			evdi_context.dev_count--;
 			evdi_context.devices[i] = NULL;
 		}
 	}
