@@ -115,6 +115,17 @@ config LOCALVERSION_AUTO
 
 	  which is done within the script "scripts/setlocalversion".)
 
+config POLLY_CLANG
+	bool "Use Clang Polly optimizations"
+	help
+	  This option enables Clang's polyhedral loop optimizer known as
+	  Polly. Polly is able to optimize various loops throughout the
+	  kernel for cache locality. This requires a Clang toolchain
+	  compiled with support for Polly. More information can be found
+	  from Polly's website:
+
+	  https://polly.llvm.org
+
 config HAVE_KERNEL_GZIP
 	bool
 
