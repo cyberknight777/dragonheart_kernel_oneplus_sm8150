@@ -71,6 +71,17 @@ static int evdi_context_get_free_idx(struct evdi_context *ctx)
 	return -ENOMEM;
 }
 
+bool evdi_platform_device_is_free(struct platform_device *pdev)
+{
+	struct drm_device *drm_dev =
+		(struct drm_device *)platform_get_drvdata(pdev);
+	struct evdi_device *evdi = drm_dev->dev_private;
+
+	if (evdi && !evdi_painter_is_connected(evdi))
+		return true;
+	return false;
+}
+
 static struct drm_driver driver;
 
 struct drm_ioctl_desc evdi_painter_ioctls[] = {
@@ -154,10 +165,25 @@ static struct drm_driver driver = {
 	.patchlevel = DRIVER_PATCHLEVEL,
 };
 
-static int evdi_add_device(struct evdi_context *ctx, struct device *parent)
+static struct platform_device *evdi_platform_drv_get_free_device(
+				struct evdi_context *ctx)
+{
+	int i;
+	struct platform_device *pdev = NULL;
+
+	for (i = 0; i < EVDI_DEVICE_COUNT_MAX; ++i) {
+		pdev = ctx->devices[i];
+		if (pdev && evdi_platform_device_is_free(pdev))
+			return pdev;
+	}
+	return NULL;
+}
+
+static struct platform_device *evdi_platform_drv_create_new_device(
+				struct evdi_context *ctx)
 {
 	struct platform_device_info pdevinfo = {
-		.parent = parent,
+		.parent = NULL,
 		.name = "evdi",
 		.id = evdi_context_get_free_idx(ctx),
 		.res = NULL,
@@ -169,7 +195,7 @@ static int evdi_add_device(struct evdi_context *ctx, struct device *parent)
 
 	if (pdevinfo.id < 0 || ctx->dev_count >= EVDI_DEVICE_COUNT_MAX) {
 		EVDI_ERROR("Evdi device add failed. Too many devices.\n");
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 	}
 
 	ctx->devices[pdevinfo.id] = platform_device_register_full(&pdevinfo);
@@ -180,9 +206,25 @@ static int evdi_add_device(struct evdi_context *ctx, struct device *parent)
 	}
 
 	ctx->dev_count++;
-	return 0;
+	return ctx->devices[pdevinfo.id];
 }
 
+static int evdi_add_device(struct evdi_context *ctx,
+		__always_unused struct device *parent)
+{
+	struct platform_device *pdev = NULL;
+
+	if (parent)
+		pdev = evdi_platform_drv_get_free_device(ctx);
+
+	if (IS_ERR_OR_NULL(pdev))
+		pdev = evdi_platform_drv_create_new_device(ctx);
+
+	if (IS_ERR_OR_NULL(pdev))
+		return -EINVAL;
+
+	return 0;
+}
 
 int evdi_driver_setup_early(struct drm_device *dev)
 {
