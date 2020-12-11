@@ -119,6 +119,8 @@ int evdi_gem_fault(struct vm_fault *vmf);
 void evdi_stats_init(struct evdi_device *evdi);
 void evdi_stats_cleanup(struct evdi_device *evdi);
 
+void evdi_platform_device_unlink_if_linked_with(struct platform_device *pdev,
+				struct device *parent);
 bool evdi_painter_is_connected(struct evdi_device *evdi);
 void evdi_painter_close(struct evdi_device *evdi, struct drm_file *file);
 u8 *evdi_painter_get_edid_copy(struct evdi_device *evdi);
