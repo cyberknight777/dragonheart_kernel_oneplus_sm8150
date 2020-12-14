@@ -25,6 +25,7 @@
 #include "wmi-tlv.h"
 #include "p2p.h"
 #include "testmode.h"
+#include <linux/bitfield.h>
 
 /***************/
 /* TLV helpers */
@@ -221,6 +222,91 @@ static int ath10k_wmi_tlv_event_bcn_tx_status(struct ath10k *ar,
 
 	kfree(tb);
 	return 0;
+}
+
+static int ath10k_wmi_tlv_parse_peer_stats_info(struct ath10k *ar, u16 tag, u16 len,
+						const void *ptr, void *data)
+{
+	const struct wmi_tlv_peer_stats_info *stat = ptr;
+	struct ieee80211_sta *sta;
+	struct ath10k_sta *arsta;
+
+	if (tag != WMI_TLV_TAG_STRUCT_PEER_STATS_INFO)
+		return -EPROTO;
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI,
+		   "wmi tlv stats peer addr %pMF rx rate code 0x%x bit rate %d kbps\n",
+		   stat->peer_macaddr.addr,
+		   __le32_to_cpu(stat->last_rx_rate_code),
+		   __le32_to_cpu(stat->last_rx_bitrate_kbps));
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI,
+		   "wmi tlv stats tx rate code 0x%x bit rate %d kbps\n",
+		   __le32_to_cpu(stat->last_tx_rate_code),
+		   __le32_to_cpu(stat->last_tx_bitrate_kbps));
+
+	sta = ieee80211_find_sta_by_ifaddr(ar->hw, stat->peer_macaddr.addr, NULL);
+	if (!sta) {
+		ath10k_warn(ar, "not found station for peer stats\n");
+		return -EINVAL;
+	}
+
+	arsta = (struct ath10k_sta *)sta->drv_priv;
+	arsta->rx_rate_code = __le32_to_cpu(stat->last_rx_rate_code);
+	arsta->rx_bitrate_kbps = __le32_to_cpu(stat->last_rx_bitrate_kbps);
+	arsta->tx_rate_code = __le32_to_cpu(stat->last_tx_rate_code);
+	arsta->tx_bitrate_kbps = __le32_to_cpu(stat->last_tx_bitrate_kbps);
+
+	return 0;
+}
+
+static int ath10k_wmi_tlv_op_pull_peer_stats_info(struct ath10k *ar,
+						  struct sk_buff *skb)
+{
+	const void **tb;
+	const struct wmi_tlv_peer_stats_info_ev *ev;
+	const void *data;
+	u32 num_peer_stats;
+	int ret;
+
+	tb = ath10k_wmi_tlv_parse_alloc(ar, skb->data, skb->len, GFP_ATOMIC);
+	if (IS_ERR(tb)) {
+		ret = PTR_ERR(tb);
+		ath10k_warn(ar, "failed to parse tlv: %d\n", ret);
+		return ret;
+	}
+
+	ev = tb[WMI_TLV_TAG_STRUCT_PEER_STATS_INFO_EVENT];
+	data = tb[WMI_TLV_TAG_ARRAY_STRUCT];
+
+	if (!ev || !data) {
+		kfree(tb);
+		return -EPROTO;
+	}
+
+	num_peer_stats = __le32_to_cpu(ev->num_peers);
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI,
+		   "wmi tlv peer stats info update peer vdev id %d peers %i more data %d\n",
+		   __le32_to_cpu(ev->vdev_id),
+		   num_peer_stats,
+		   __le32_to_cpu(ev->more_data));
+
+	ret = ath10k_wmi_tlv_iter(ar, data, ath10k_wmi_tlv_len(data),
+				  ath10k_wmi_tlv_parse_peer_stats_info, NULL);
+	if (ret)
+		ath10k_warn(ar, "failed to parse stats info tlv: %d\n", ret);
+
+	kfree(tb);
+	return 0;
+}
+
+static void ath10k_wmi_tlv_event_peer_stats_info(struct ath10k *ar,
+						 struct sk_buff *skb)
+{
+	ath10k_dbg(ar, ATH10K_DBG_WMI, "WMI_PEER_STATS_INFO_EVENTID\n");
+	ath10k_wmi_tlv_op_pull_peer_stats_info(ar, skb);
+	complete(&ar->peer_stats_info_complete);
 }
 
 static int ath10k_wmi_tlv_event_diag_data(struct ath10k *ar,
@@ -462,6 +548,9 @@ static void ath10k_wmi_tlv_op_rx(struct ath10k *ar, struct sk_buff *skb)
 		break;
 	case WMI_TLV_UPDATE_STATS_EVENTID:
 		ath10k_wmi_event_update_stats(ar, skb);
+		break;
+	case WMI_TLV_PEER_STATS_INFO_EVENTID:
+		ath10k_wmi_tlv_event_peer_stats_info(ar, skb);
 		break;
 	case WMI_TLV_VDEV_START_RESP_EVENTID:
 		ath10k_wmi_event_vdev_start_resp(ar, skb);
@@ -1161,6 +1250,7 @@ static int ath10k_wmi_tlv_op_pull_fw_stats(struct ath10k *ar,
 {
 	const void **tb;
 	const struct wmi_tlv_stats_ev *ev;
+	u32 num_peer_stats_extd;
 	const void *data;
 	u32 num_pdev_stats;
 	u32 num_vdev_stats;
@@ -1168,6 +1258,7 @@ static int ath10k_wmi_tlv_op_pull_fw_stats(struct ath10k *ar,
 	u32 num_bcnflt_stats;
 	u32 num_chan_stats;
 	size_t data_len;
+	u32 stats_id;
 	int ret;
 	int i;
 
@@ -1192,11 +1283,13 @@ static int ath10k_wmi_tlv_op_pull_fw_stats(struct ath10k *ar,
 	num_peer_stats = __le32_to_cpu(ev->num_peer_stats);
 	num_bcnflt_stats = __le32_to_cpu(ev->num_bcnflt_stats);
 	num_chan_stats = __le32_to_cpu(ev->num_chan_stats);
+	stats_id = __le32_to_cpu(ev->stats_id);
+	num_peer_stats_extd = __le32_to_cpu(ev->num_peer_stats_extd);
 
 	ath10k_dbg(ar, ATH10K_DBG_WMI,
-		   "wmi tlv stats update pdev %i vdev %i peer %i bcnflt %i chan %i\n",
+		   "wmi tlv stats update pdev %i vdev %i peer %i bcnflt %i chan %i peer_extd %i\n",
 		   num_pdev_stats, num_vdev_stats, num_peer_stats,
-		   num_bcnflt_stats, num_chan_stats);
+		   num_bcnflt_stats, num_chan_stats, num_peer_stats_extd);
 
 	for (i = 0; i < num_pdev_stats; i++) {
 		const struct wmi_pdev_stats *src;
@@ -1261,6 +1354,28 @@ static int ath10k_wmi_tlv_op_pull_fw_stats(struct ath10k *ar,
 
 		ath10k_wmi_pull_peer_stats(&src->old, dst);
 		dst->peer_rx_rate = __le32_to_cpu(src->peer_rx_rate);
+
+		if (stats_id & WMI_TLV_STAT_PEER_EXTD) {
+			const struct wmi_tlv_peer_stats_extd *extd;
+			unsigned long rx_duration_high;
+
+			extd = data + sizeof(*src) * (num_peer_stats - i - 1)
+			       + sizeof(*extd) * i;
+
+			dst->rx_duration = __le32_to_cpu(extd->rx_duration);
+			rx_duration_high = __le32_to_cpu
+						(extd->rx_duration_high);
+
+			if (test_bit(WMI_TLV_PEER_RX_DURATION_HIGH_VALID_BIT,
+				     &rx_duration_high)) {
+				rx_duration_high =
+					FIELD_GET(WMI_TLV_PEER_RX_DURATION_HIGH_MASK,
+						  rx_duration_high);
+				dst->rx_duration |= (u64)rx_duration_high <<
+						    WMI_TLV_PEER_RX_DURATION_SHIFT;
+			}
+		}
+
 		list_add_tail(&dst->list, &stats->peers);
 	}
 
@@ -2576,6 +2691,36 @@ ath10k_wmi_tlv_op_gen_request_stats(struct ath10k *ar, u32 stats_mask)
 	return skb;
 }
 
+static struct sk_buff *
+ath10k_wmi_tlv_op_gen_request_peer_stats_info(struct ath10k *ar,
+					      u32 vdev_id,
+					      enum wmi_peer_stats_info_request_type type,
+					      u8 *addr,
+					      u32 reset)
+{
+	struct wmi_tlv_request_peer_stats_info *cmd;
+	struct wmi_tlv *tlv;
+	struct sk_buff *skb;
+
+	skb = ath10k_wmi_alloc_skb(ar, sizeof(*tlv) + sizeof(*cmd));
+	if (!skb)
+		return ERR_PTR(-ENOMEM);
+
+	tlv = (void *)skb->data;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_REQUEST_PEER_STATS_INFO_CMD);
+	tlv->len = __cpu_to_le16(sizeof(*cmd));
+	cmd = (void *)tlv->value;
+	cmd->vdev_id = __cpu_to_le32(vdev_id);
+	cmd->request_type = __cpu_to_le32(type);
+
+	if (type == WMI_REQUEST_ONE_PEER_STATS_INFO)
+		ether_addr_copy(cmd->peer_macaddr.addr, addr);
+
+	cmd->reset_after_request = __cpu_to_le32(reset);
+	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv request peer stats info\n");
+	return skb;
+}
+
 static int
 ath10k_wmi_tlv_op_cleanup_mgmt_tx_send(struct ath10k *ar,
 				       struct sk_buff *msdu)
@@ -3328,6 +3473,192 @@ ath10k_wmi_tlv_op_gen_wow_del_pattern(struct ath10k *ar, u32 vdev_id,
 	return skb;
 }
 
+/* Request FW to start PNO operation */
+static struct sk_buff *
+ath10k_wmi_tlv_op_gen_config_pno_start(struct ath10k *ar,
+				       u32 vdev_id,
+				       struct wmi_pno_scan_req *pno)
+{
+	struct nlo_configured_parameters *nlo_list;
+	struct wmi_tlv_wow_nlo_config_cmd *cmd;
+	struct wmi_tlv *tlv;
+	struct sk_buff *skb;
+	__le32 *channel_list;
+	u16 tlv_len;
+	size_t len;
+	void *ptr;
+	u32 i;
+
+	len = sizeof(*tlv) + sizeof(*cmd) +
+	      sizeof(*tlv) +
+	      /* TLV place holder for array of structures
+	       * nlo_configured_parameters(nlo_list)
+	       */
+	      sizeof(*tlv);
+	      /* TLV place holder for array of uint32 channel_list */
+
+	len += sizeof(u32) * min_t(u8, pno->a_networks[0].channel_count,
+				   WMI_NLO_MAX_CHAN);
+	len += sizeof(struct nlo_configured_parameters) *
+				min_t(u8, pno->uc_networks_count, WMI_NLO_MAX_SSIDS);
+
+	skb = ath10k_wmi_alloc_skb(ar, len);
+	if (!skb)
+		return ERR_PTR(-ENOMEM);
+
+	ptr = (void *)skb->data;
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_NLO_CONFIG_CMD);
+	tlv->len = __cpu_to_le16(sizeof(*cmd));
+	cmd = (void *)tlv->value;
+
+	/* wmi_tlv_wow_nlo_config_cmd parameters*/
+	cmd->vdev_id = __cpu_to_le32(pno->vdev_id);
+	cmd->flags = __cpu_to_le32(WMI_NLO_CONFIG_START | WMI_NLO_CONFIG_SSID_HIDE_EN);
+
+	/* current FW does not support min-max range for dwell time */
+	cmd->active_dwell_time = __cpu_to_le32(pno->active_max_time);
+	cmd->passive_dwell_time = __cpu_to_le32(pno->passive_max_time);
+
+	if (pno->do_passive_scan)
+		cmd->flags |= __cpu_to_le32(WMI_NLO_CONFIG_SCAN_PASSIVE);
+
+	/* copy scan interval */
+	cmd->fast_scan_period = __cpu_to_le32(pno->fast_scan_period);
+	cmd->slow_scan_period = __cpu_to_le32(pno->slow_scan_period);
+	cmd->fast_scan_max_cycles = __cpu_to_le32(pno->fast_scan_max_cycles);
+	cmd->delay_start_time = __cpu_to_le32(pno->delay_start_time);
+
+	if (pno->enable_pno_scan_randomization) {
+		cmd->flags |= __cpu_to_le32(WMI_NLO_CONFIG_SPOOFED_MAC_IN_PROBE_REQ |
+				WMI_NLO_CONFIG_RANDOM_SEQ_NO_IN_PROBE_REQ);
+		ether_addr_copy(cmd->mac_addr.addr, pno->mac_addr);
+		ether_addr_copy(cmd->mac_mask.addr, pno->mac_addr_mask);
+	}
+
+	ptr += sizeof(*tlv);
+	ptr += sizeof(*cmd);
+
+	/* nlo_configured_parameters(nlo_list) */
+	cmd->no_of_ssids = __cpu_to_le32(min_t(u8, pno->uc_networks_count,
+					       WMI_NLO_MAX_SSIDS));
+	tlv_len = __le32_to_cpu(cmd->no_of_ssids) *
+		sizeof(struct nlo_configured_parameters);
+
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_ARRAY_STRUCT);
+	tlv->len = __cpu_to_le16(tlv_len);
+
+	ptr += sizeof(*tlv);
+	nlo_list = ptr;
+	for (i = 0; i < __le32_to_cpu(cmd->no_of_ssids); i++) {
+		tlv = (struct wmi_tlv *)(&nlo_list[i].tlv_header);
+		tlv->tag = __cpu_to_le16(WMI_TLV_TAG_ARRAY_BYTE);
+		tlv->len = __cpu_to_le16(sizeof(struct nlo_configured_parameters) -
+					 sizeof(*tlv));
+
+		/* copy ssid and it's length */
+		nlo_list[i].ssid.valid = __cpu_to_le32(true);
+		nlo_list[i].ssid.ssid.ssid_len = pno->a_networks[i].ssid.ssid_len;
+		memcpy(nlo_list[i].ssid.ssid.ssid,
+		       pno->a_networks[i].ssid.ssid,
+		       __le32_to_cpu(nlo_list[i].ssid.ssid.ssid_len));
+
+		/* copy rssi threshold */
+		if (pno->a_networks[i].rssi_threshold &&
+		    pno->a_networks[i].rssi_threshold > -300) {
+			nlo_list[i].rssi_cond.valid = __cpu_to_le32(true);
+			nlo_list[i].rssi_cond.rssi =
+				__cpu_to_le32(pno->a_networks[i].rssi_threshold);
+		}
+
+		nlo_list[i].bcast_nw_type.valid = __cpu_to_le32(true);
+		nlo_list[i].bcast_nw_type.bcast_nw_type =
+			__cpu_to_le32(pno->a_networks[i].bcast_nw_type);
+	}
+
+	ptr += __le32_to_cpu(cmd->no_of_ssids) * sizeof(struct nlo_configured_parameters);
+
+	/* copy channel info */
+	cmd->num_of_channels = __cpu_to_le32(min_t(u8,
+						   pno->a_networks[0].channel_count,
+						   WMI_NLO_MAX_CHAN));
+
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_ARRAY_UINT32);
+	tlv->len = __cpu_to_le16(__le32_to_cpu(cmd->num_of_channels) *
+				 sizeof(u_int32_t));
+	ptr += sizeof(*tlv);
+
+	channel_list = (__le32 *)ptr;
+	for (i = 0; i < __le32_to_cpu(cmd->num_of_channels); i++)
+		channel_list[i] = __cpu_to_le32(pno->a_networks[0].channels[i]);
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv start pno config vdev_id %d\n",
+		   vdev_id);
+
+	return skb;
+}
+
+/* Request FW to stop ongoing PNO operation */
+static struct sk_buff *ath10k_wmi_tlv_op_gen_config_pno_stop(struct ath10k *ar,
+							     u32 vdev_id)
+{
+	struct wmi_tlv_wow_nlo_config_cmd *cmd;
+	struct wmi_tlv *tlv;
+	struct sk_buff *skb;
+	void *ptr;
+	size_t len;
+
+	len = sizeof(*tlv) + sizeof(*cmd) +
+	      sizeof(*tlv) +
+	      /* TLV place holder for array of structures
+	       * nlo_configured_parameters(nlo_list)
+	       */
+	      sizeof(*tlv);
+	      /* TLV place holder for array of uint32 channel_list */
+	skb = ath10k_wmi_alloc_skb(ar, len);
+	if (!skb)
+		return ERR_PTR(-ENOMEM);
+
+	ptr = (void *)skb->data;
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_STRUCT_NLO_CONFIG_CMD);
+	tlv->len = __cpu_to_le16(sizeof(*cmd));
+	cmd = (void *)tlv->value;
+
+	cmd->vdev_id = __cpu_to_le32(vdev_id);
+	cmd->flags = __cpu_to_le32(WMI_NLO_CONFIG_STOP);
+
+	ptr += sizeof(*tlv);
+	ptr += sizeof(*cmd);
+
+	/* nlo_configured_parameters(nlo_list) */
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_ARRAY_STRUCT);
+	tlv->len = __cpu_to_le16(0);
+
+	ptr += sizeof(*tlv);
+
+	/* channel list */
+	tlv = ptr;
+	tlv->tag = __cpu_to_le16(WMI_TLV_TAG_ARRAY_UINT32);
+	tlv->len = __cpu_to_le16(0);
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi tlv stop pno config vdev_id %d\n", vdev_id);
+	return skb;
+}
+
+static struct sk_buff *
+ath10k_wmi_tlv_op_gen_config_pno(struct ath10k *ar, u32 vdev_id,
+				 struct wmi_pno_scan_req *pno_scan)
+{
+	if (pno_scan->enable)
+		return ath10k_wmi_tlv_op_gen_config_pno_start(ar, vdev_id, pno_scan);
+	else
+		return ath10k_wmi_tlv_op_gen_config_pno_stop(ar, vdev_id);
+}
+
 static struct sk_buff *
 ath10k_wmi_tlv_op_gen_adaptive_qcs(struct ath10k *ar, bool enable)
 {
@@ -3556,6 +3887,7 @@ static struct wmi_cmd_map wmi_tlv_cmd_map = {
 	.vdev_spectral_scan_configure_cmdid = WMI_TLV_SPECTRAL_SCAN_CONF_CMDID,
 	.vdev_spectral_scan_enable_cmdid = WMI_TLV_SPECTRAL_SCAN_ENABLE_CMDID,
 	.request_stats_cmdid = WMI_TLV_REQUEST_STATS_CMDID,
+	.request_peer_stats_info_cmdid = WMI_TLV_REQUEST_PEER_STATS_INFO_CMDID,
 	.set_arp_ns_offload_cmdid = WMI_TLV_SET_ARP_NS_OFFLOAD_CMDID,
 	.network_list_offload_config_cmdid =
 				WMI_TLV_NETWORK_LIST_OFFLOAD_CONFIG_CMDID,
@@ -3710,6 +4042,7 @@ static struct wmi_pdev_param_map wmi_tlv_pdev_param_map = {
 	.wapi_mbssid_offset = WMI_PDEV_PARAM_UNSUPPORTED,
 	.arp_srcaddr = WMI_PDEV_PARAM_UNSUPPORTED,
 	.arp_dstaddr = WMI_PDEV_PARAM_UNSUPPORTED,
+	.peer_stats_info_enable = WMI_TLV_PDEV_PARAM_PEER_STATS_INFO_ENABLE,
 };
 
 static struct wmi_vdev_param_map wmi_tlv_vdev_param_map = {
@@ -3838,6 +4171,7 @@ static const struct wmi_ops wmi_tlv_ops = {
 	.gen_beacon_dma = ath10k_wmi_tlv_op_gen_beacon_dma,
 	.gen_pdev_set_wmm = ath10k_wmi_tlv_op_gen_pdev_set_wmm,
 	.gen_request_stats = ath10k_wmi_tlv_op_gen_request_stats,
+	.gen_request_peer_stats_info = ath10k_wmi_tlv_op_gen_request_peer_stats_info,
 	.gen_force_fw_hang = ath10k_wmi_tlv_op_gen_force_fw_hang,
 	/* .gen_mgmt_tx = not implemented; HTT is used */
 	.gen_mgmt_tx_send = ath10k_wmi_tlv_op_gen_mgmt_tx_send,
@@ -3861,6 +4195,7 @@ static const struct wmi_ops wmi_tlv_ops = {
 	.gen_wow_host_wakeup_ind = ath10k_wmi_tlv_gen_wow_host_wakeup_ind,
 	.gen_wow_add_pattern = ath10k_wmi_tlv_op_gen_wow_add_pattern,
 	.gen_wow_del_pattern = ath10k_wmi_tlv_op_gen_wow_del_pattern,
+	.gen_wow_config_pno = ath10k_wmi_tlv_op_gen_config_pno,
 	.gen_update_fw_tdls_state = ath10k_wmi_tlv_op_gen_update_fw_tdls_state,
 	.gen_tdls_peer_update = ath10k_wmi_tlv_op_gen_tdls_peer_update,
 	.gen_adaptive_qcs = ath10k_wmi_tlv_op_gen_adaptive_qcs,

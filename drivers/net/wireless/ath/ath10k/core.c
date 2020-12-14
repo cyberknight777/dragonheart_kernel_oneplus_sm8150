@@ -308,6 +308,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.hw_filter_reset_required = true,
 		.fw_diag_ce_download = true,
 		.tx_sk_pacing_shift = SK_PACING_SHIFT_6174,
+		.supports_peer_stats_info = true,
 	},
 	{
 		.id = QCA99X0_HW_2_0_DEV_VERSION,
@@ -2138,8 +2139,8 @@ static int ath10k_core_init_firmware_features(struct ath10k *ar)
 		ar->max_num_tdls_vdevs = TARGET_TLV_NUM_TDLS_VDEVS;
 		ar->htt.max_num_pending_tx = TARGET_TLV_NUM_MSDU_DESC;
 		ar->wow.max_num_patterns = TARGET_TLV_NUM_WOW_PATTERNS;
-		ar->fw_stats_req_mask = WMI_STAT_PDEV | WMI_STAT_VDEV |
-			WMI_STAT_PEER;
+		ar->fw_stats_req_mask = WMI_TLV_STAT_PDEV | WMI_TLV_STAT_VDEV |
+			WMI_TLV_STAT_PEER | WMI_TLV_STAT_PEER_EXTD;
 		ar->max_spatial_stream = WMI_MAX_SPATIAL_STREAM;
 		ar->wmi.mgmt_max_num_pending_tx = TARGET_TLV_MGMT_NUM_MSDU_DESC;
 		break;
@@ -2150,7 +2151,8 @@ static int ath10k_core_init_firmware_features(struct ath10k *ar)
 		ar->max_num_vdevs = TARGET_10_4_NUM_VDEVS;
 		ar->num_tids = TARGET_10_4_TGT_NUM_TIDS;
 		ar->fw_stats_req_mask = WMI_10_4_STAT_PEER |
-					WMI_10_4_STAT_PEER_EXTD;
+					WMI_10_4_STAT_PEER_EXTD |
+					WMI_10_4_STAT_VDEV_EXTD;
 		ar->max_spatial_stream = ar->hw_params.max_spatial_stream;
 		ar->max_num_tdls_vdevs = TARGET_10_4_NUM_TDLS_VDEVS;
 
@@ -2390,6 +2392,9 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 		val = 0;
 		if (ath10k_peer_stats_enabled(ar))
 			val = WMI_10_4_PEER_STATS;
+
+		/* Enable vdev stats by default */
+		val |= WMI_10_4_VDEV_STATS;
 
 		if (test_bit(WMI_SERVICE_BSS_CHANNEL_INFO_64, ar->wmi.svc_map))
 			val |= WMI_10_4_BSS_CHANNEL_INFO_64;
@@ -2866,6 +2871,7 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 	init_completion(&ar->vdev_setup_done);
 	init_completion(&ar->thermal.wmi_sync);
 	init_completion(&ar->bss_survey_done);
+	init_completion(&ar->peer_stats_info_complete);
 
 	INIT_DELAYED_WORK(&ar->scan.timeout, ath10k_scan_timeout_work);
 

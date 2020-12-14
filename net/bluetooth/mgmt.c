@@ -162,6 +162,8 @@ static const u16 mgmt_events[] = {
 	MGMT_EV_EXT_INFO_CHANGED,
 	MGMT_EV_EXP_FEATURE_CHANGED,
 	MGMT_EV_DEVICE_FLAGS_CHANGED,
+	MGMT_EV_CONTROLLER_SUSPEND,
+	MGMT_EV_CONTROLLER_RESUME,
 };
 
 static const u16 mgmt_untrusted_commands[] = {
@@ -659,7 +661,8 @@ static u32 get_supported_settings(struct hci_dev *hdev)
 
 		if (lmp_ssp_capable(hdev)) {
 			settings |= MGMT_SETTING_SSP;
-			settings |= MGMT_SETTING_HS;
+			if (IS_ENABLED(CONFIG_BT_HS))
+				settings |= MGMT_SETTING_HS;
 		}
 
 		if (lmp_sc_capable(hdev))
@@ -1040,7 +1043,8 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 
 	hci_req_clear_adv_instance(hdev, NULL, NULL, 0x00, false);
 
-	__hci_req_disable_advertising(&req);
+	if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+		__hci_req_disable_advertising(&req);
 
 	discov_stopped = hci_req_stop_discovery(&req);
 
@@ -1048,22 +1052,6 @@ static int clean_up_hci_state(struct hci_dev *hdev)
 		/* 0x15 == Terminated due to Power Off */
 		__hci_abort_conn(&req, conn, 0x15);
 	}
-
-	/* When there are no bluetooth activities, i.e., no advertising,
-	 * no scanning, and no connections, the only command built into
-	 * the request would be a conditional HCI command to disable
-	 * advertising. Since the advertising is already off, the command
-	 * is skipped at run time. This leads to an issue that there is
-	 * no command complete event and thus the clean_up_hci_complete()
-	 * callback below is not invoked. This ends up with a 5-second delay
-	 * in setting power off.
-	 * It is important to add this dummy HCI command at the end of the
-	 * request to ensure that the last command in the request would
-	 * definitely be executed. As a result, the clean_up_hci_complete()
-	 * callback would be executed which in turn starts the power off
-	 * procedure immediately.
-	 */
-	hci_req_add(&req, HCI_OP_READ_LOCAL_NAME, 0, NULL);
 
 	err = hci_req_run(&req, clean_up_hci_complete);
 	if (!err && discov_stopped)
@@ -1697,6 +1685,10 @@ static int set_hs(struct sock *sk, struct hci_dev *hdev, void *data, u16 len)
 
 	BT_DBG("request for %s", hdev->name);
 
+	if (!IS_ENABLED(CONFIG_BT_HS))
+		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_HS,
+				       MGMT_STATUS_NOT_SUPPORTED);
+
 	status = mgmt_bredr_support(hdev);
 	if (status)
 		return mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_HS, status);
@@ -1873,7 +1865,8 @@ static int set_le(struct sock *sk, struct hci_dev *hdev, void *data, u16 len)
 		hci_cp.le = val;
 		hci_cp.simul = 0x00;
 	} else {
-		__hci_req_disable_advertising(&req);
+		if (hci_dev_test_flag(hdev, HCI_LE_ADV))
+			__hci_req_disable_advertising(&req);
 	}
 
 	hci_req_add(&req, HCI_OP_WRITE_LE_HOST_SUPPORTED, sizeof(hci_cp),
@@ -3647,7 +3640,7 @@ static int read_adv_mon_features(struct sock *sk, struct hci_dev *hdev,
 {
 	struct adv_monitor *monitor = NULL;
 	struct mgmt_rp_read_adv_monitor_features *rp = NULL;
-	int handle;
+	int handle, err;
 	size_t rp_size = 0;
 	__u32 supported = 0;
 	__u16 num_handles = 0;
@@ -3682,9 +3675,13 @@ static int read_adv_mon_features(struct sock *sk, struct hci_dev *hdev,
 	if (num_handles)
 		memcpy(&rp->handles, &handles, (num_handles * sizeof(u16)));
 
-	return mgmt_cmd_complete(sk, hdev->id,
-				 MGMT_OP_READ_ADV_MONITOR_FEATURES,
-				 MGMT_STATUS_SUCCESS, rp, rp_size);
+	err = mgmt_cmd_complete(sk, hdev->id,
+				MGMT_OP_READ_ADV_MONITOR_FEATURES,
+				MGMT_STATUS_SUCCESS, rp, rp_size);
+
+	kfree(rp);
+
+	return err;
 }
 
 static int add_adv_patterns_monitor(struct sock *sk, struct hci_dev *hdev,
@@ -4812,14 +4809,11 @@ static int set_scan_params(struct sock *sk, struct hci_dev *hdev,
 	err = mgmt_cmd_complete(sk, hdev->id, MGMT_OP_SET_SCAN_PARAMS, 0,
 				NULL, 0);
 
-	/* If background scan is running (and not in progress of stopping
-	 * already), restart it so new parameters are
+	/* If background scan is running, restart it so new parameters are
 	 * loaded.
 	 */
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN) &&
-	    !hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS) &&
 	    hdev->discovery.state == DISCOVERY_STOPPED) {
-
 		struct hci_request req;
 
 		hci_req_init(&req, hdev);
@@ -7714,6 +7708,10 @@ void mgmt_device_disconnected(struct hci_dev *hdev, bdaddr_t *bdaddr,
 	ev.addr.type = link_to_bdaddr(link_type, addr_type);
 	ev.reason = reason;
 
+	/* Report disconnects due to suspend */
+	if (hdev->suspended)
+		ev.reason = MGMT_DEV_DISCONN_LOCAL_HOST_SUSPEND;
+
 	mgmt_event(MGMT_EV_DEVICE_DISCONNECTED, hdev, &ev, sizeof(ev), sk);
 
 	if (sk)
@@ -8188,7 +8186,6 @@ static bool is_filter_match(struct hci_dev *hdev, s8 rssi, u8 *eir,
 	 * scanning to ensure updated result with updated RSSI values.
 	 */
 	if (test_bit(HCI_QUIRK_STRICT_DUPLICATE_FILTER, &hdev->quirks)) {
-		BT_DBG("BT_DBG_DG: queue le_scan_restart: mgmt:restart_le_scan:is_filter_match\n");
 		restart_le_scan(hdev);
 
 		/* Validate RSSI value against the RSSI threshold once more. */
@@ -8319,6 +8316,30 @@ void mgmt_discovering(struct hci_dev *hdev, u8 discovering)
 	ev.discovering = discovering;
 
 	mgmt_event(MGMT_EV_DISCOVERING, hdev, &ev, sizeof(ev), NULL);
+}
+
+void mgmt_suspending(struct hci_dev *hdev, u8 state)
+{
+	struct mgmt_ev_controller_suspend ev;
+
+	ev.suspend_state = state;
+	mgmt_event(MGMT_EV_CONTROLLER_SUSPEND, hdev, &ev, sizeof(ev), NULL);
+}
+
+void mgmt_resuming(struct hci_dev *hdev, u8 reason, bdaddr_t *bdaddr,
+		   u8 addr_type)
+{
+	struct mgmt_ev_controller_resume ev;
+
+	ev.wake_reason = reason;
+	if (bdaddr) {
+		bacpy(&ev.addr.bdaddr, bdaddr);
+		ev.addr.type = addr_type;
+	} else {
+		memset(&ev.addr, 0, sizeof(ev.addr));
+	}
+
+	mgmt_event(MGMT_EV_CONTROLLER_RESUME, hdev, &ev, sizeof(ev), NULL);
 }
 
 static struct hci_mgmt_chan chan = {

@@ -134,6 +134,7 @@ struct elants_data {
 	u8 bc_version;
 	u8 iap_version;
 	u16 hw_version;
+	u8 major_res;
 	unsigned int x_res;	/* resolution in units/mm */
 	unsigned int y_res;
 	unsigned int x_max;
@@ -443,6 +444,9 @@ static int elants_i2c_query_ts_info(struct elants_data *ts)
 
 	rows = resp[2] + resp[6] + resp[10];
 	cols = resp[3] + resp[7] + resp[11];
+
+	/* Get report resolution value of ABS_MT_TOUCH_MAJOR */
+	ts->major_res = resp[16];
 
 	/* Process mm_to_pixel information */
 	error = elants_i2c_execute_command(client,
@@ -1267,6 +1271,8 @@ static int elants_i2c_probe(struct i2c_client *client,
 	input_set_abs_params(ts->input, ABS_MT_PRESSURE, 0, 255, 0, 0);
 	input_abs_set_res(ts->input, ABS_MT_POSITION_X, ts->x_res);
 	input_abs_set_res(ts->input, ABS_MT_POSITION_Y, ts->y_res);
+	if (ts->major_res > 0)
+		input_abs_set_res(ts->input, ABS_MT_TOUCH_MAJOR, ts->major_res);
 
 	error = input_register_device(ts->input);
 	if (error) {

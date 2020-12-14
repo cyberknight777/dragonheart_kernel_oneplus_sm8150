@@ -47,26 +47,29 @@ static int cros_ec_baro_read(struct iio_dev *indio_dev,
 {
 	struct cros_ec_baro_state *st = iio_priv(indio_dev);
 	u16 data = 0;
-	int ret = IIO_VAL_INT;
+	int ret;
 	int idx = chan->scan_index;
 
 	mutex_lock(&st->core.cmd_lock);
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		if (cros_ec_sensors_read_cmd(indio_dev, 1 << idx,
-					     (s16 *)&data) < 0)
-			ret = -EIO;
+		ret = cros_ec_sensors_read_cmd(indio_dev, 1 << idx,
+					     (s16 *)&data);
+		if (ret)
+			break;
+
 		*val = data;
+		ret = IIO_VAL_INT;
 		break;
 	case IIO_CHAN_INFO_SCALE:
 		st->core.param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
 		st->core.param.sensor_range.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (cros_ec_motion_send_host_cmd(&st->core, 0)) {
-			ret = -EIO;
+		ret = cros_ec_motion_send_host_cmd(&st->core, 0);
+		if (ret)
 			break;
-		}
+
 		*val = st->core.resp->sensor_range.ret;
 
 		/* scale * in_pressure_raw --> kPa */
@@ -101,8 +104,11 @@ static int cros_ec_baro_write(struct iio_dev *indio_dev,
 		/* Always roundup, so caller gets at least what it asks for. */
 		st->core.param.sensor_range.roundup = 1;
 
-		if (cros_ec_motion_send_host_cmd(&st->core, 0))
-			ret = -EIO;
+		ret = cros_ec_motion_send_host_cmd(&st->core, 0);
+		if (ret == 0) {
+			st->core.range_updated = true;
+			st->core.curr_range = val;
+		}
 		break;
 	default:
 		ret = cros_ec_sensors_core_write(&st->core, chan, val, val2,
@@ -209,6 +215,7 @@ MODULE_DEVICE_TABLE(platform, cros_ec_baro_ids);
 static struct platform_driver cros_ec_baro_platform_driver = {
 	.driver = {
 		.name	= "cros-ec-baro",
+		.pm	= &cros_ec_sensors_pm_ops,
 	},
 	.probe		= cros_ec_baro_probe,
 	.id_table	= cros_ec_baro_ids,
