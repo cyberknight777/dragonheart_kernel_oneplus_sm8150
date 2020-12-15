@@ -82,6 +82,7 @@ int __hci_req_schedule_adv_instance(struct hci_request *req, u8 instance,
 void hci_req_clear_adv_instance(struct hci_dev *hdev, struct sock *sk,
 				struct hci_request *req, u8 instance,
 				bool force);
+int hci_req_enable_paused_adv(struct hci_dev *hdev);
 
 void __hci_req_update_class(struct hci_request *req);
 
