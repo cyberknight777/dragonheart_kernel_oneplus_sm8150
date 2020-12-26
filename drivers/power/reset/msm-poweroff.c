@@ -67,7 +67,7 @@ static void scm_disable_sdi(void);
  * So the SDI cannot be re-enabled when it already by-passed.
  */
 static int download_mode = 1;
-static bool force_warm_reboot;
+static bool force_warm_reboot = true;
 
 #ifdef CONFIG_QCOM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
@@ -754,9 +754,6 @@ skip_sysfs_create:
 		set_dload_mode(download_mode);
 	if (!download_mode)
 		scm_disable_sdi();
-
-	force_warm_reboot = of_property_read_bool(dev->of_node,
-						"qcom,force-warm-reboot");
 
 	return 0;
 
