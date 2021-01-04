@@ -3481,6 +3481,13 @@ static int btusb_probe(struct usb_interface *intf,
 #endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
+		switch (id->idProduct) {
+		case 0x0aa7:
+			set_bit(HCI_QUIRK_INTEL_STP_CONTROLLER, &hdev->quirks);
+			break;
+		default:
+			break;
+		}
 	}
 
 	if (id->driver_info & BTUSB_INTEL_NEW) {
