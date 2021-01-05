@@ -44,7 +44,7 @@ static void iwl_mvm_exit_ctkill(struct iwl_mvm *mvm)
 	iwl_mvm_set_hw_ctkill_state(mvm, false);
 }
 
-void iwl_mvm_tt_temp_changed(struct iwl_mvm *mvm, u32 temp)
+static void iwl_mvm_tt_temp_changed(struct iwl_mvm *mvm, u32 temp)
 {
 	/* ignore the notification if we are in test mode */
 	if (mvm->temperature_test)
@@ -261,7 +261,7 @@ int iwl_mvm_get_temp(struct iwl_mvm *mvm, s32 *temp)
 	ret = iwl_wait_notification(&mvm->notif_wait, &wait_temp_notif,
 				    IWL_MVM_TEMP_NOTIF_WAIT_TIMEOUT);
 	if (ret)
-		IWL_ERR(mvm, "Getting the temperature timed out\n");
+		IWL_WARN(mvm, "Getting the temperature timed out\n");
 
 	return ret;
 }

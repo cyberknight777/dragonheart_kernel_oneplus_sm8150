@@ -3814,7 +3814,7 @@ static void iwl_mvm_int_sta_modify_disable_tx(struct iwl_mvm *mvm,
 	};
 	int ret;
 
-	ret = iwl_mvm_send_cmd_pdu(mvm, ADD_STA, 0,
+	ret = iwl_mvm_send_cmd_pdu(mvm, ADD_STA, CMD_ASYNC,
 				   iwl_mvm_add_sta_cmd_size(mvm), &cmd);
 	if (ret)
 		IWL_ERR(mvm, "Failed to send ADD_STA command (%d)\n", ret);

@@ -306,11 +306,6 @@ enum iwl_legacy_cmds {
 	PHY_DB_CMD = 0x6c,
 
 	/**
-	 * @CONFIG_2G_COEX_CMD: &struct iwl_config_2g_coex_cmd
-	 */
-	CONFIG_2G_COEX_CMD = 0x71,
-
-	/**
 	 * @POWER_TABLE_CMD: &struct iwl_device_power_cmd
 	 */
 	POWER_TABLE_CMD = 0x77,

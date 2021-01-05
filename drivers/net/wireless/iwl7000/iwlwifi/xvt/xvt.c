@@ -209,6 +209,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	trans_cfg.bc_table_dword =
 		trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210;
 	trans_cfg.scd_set_active = true;
+	trans->wide_cmd_header = true;
 
 	switch (iwlwifi_mod_params.amsdu_size) {
 	case IWL_AMSDU_DEF:
@@ -388,9 +389,9 @@ iwl_xvt_rx_get_tx_meta_data(struct iwl_xvt *xvt, u16 txq_id)
 
 	lmac_id = XVT_LMAC_0_ID;
 verify:
-	if (WARN(txq_id != xvt->tx_meta_data[lmac_id].queue,
+	if (WARN(xvt->queue_data[txq_id].allocated_queue == 0,
 		 "got TX_CMD from unidentified queue: (lmac %d) %d %d\n",
-		 lmac_id, txq_id, xvt->tx_meta_data[lmac_id].queue))
+		 lmac_id, txq_id, xvt->queue_data[txq_id].allocated_queue))
 		return NULL;
 
 	return &xvt->tx_meta_data[lmac_id];

@@ -834,8 +834,11 @@ err:
 		trans_pcie->base_rb_stts_dma = 0;
 	}
 	kfree(trans_pcie->rx_pool);
+	trans_pcie->rx_pool = NULL;
 	kfree(trans_pcie->global_table);
+	trans_pcie->global_table = NULL;
 	kfree(trans_pcie->rxq);
+	trans_pcie->rxq = NULL;
 
 	return ret;
 }
@@ -1657,6 +1660,9 @@ irqreturn_t iwl_pcie_irq_rx_msix_handler(int irq, void *dev_id)
 	if (WARN_ON(entry->entry >= trans->num_rx_queues))
 		return IRQ_NONE;
 
+	if (WARN_ONCE(!rxq, "Got MSI-X interrupt before we have Rx queues"))
+		return IRQ_NONE;
+
 	lock_map_acquire(&trans->sync_cmd_lockdep_map);
 
 	local_bh_disable();
@@ -1676,7 +1682,6 @@ irqreturn_t iwl_pcie_irq_rx_msix_handler(int irq, void *dev_id)
  */
 static void iwl_pcie_irq_handle_error(struct iwl_trans *trans)
 {
-	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	int i;
 
 	/* W/A for WiFi/WiMAX coex and WiMAX own the RF */
@@ -1688,7 +1693,7 @@ static void iwl_pcie_irq_handle_error(struct iwl_trans *trans)
 			    APMG_PS_CTRL_VAL_RESET_REQ))) {
 		clear_bit(STATUS_SYNC_HCMD_ACTIVE, &trans->status);
 		iwl_op_mode_wimax_active(trans->op_mode);
-		wake_up(&trans_pcie->wait_command_queue);
+		wake_up(&trans->wait_command_queue);
 		return;
 	}
 
@@ -1703,7 +1708,7 @@ static void iwl_pcie_irq_handle_error(struct iwl_trans *trans)
 	iwl_trans_fw_error(trans);
 
 	clear_bit(STATUS_SYNC_HCMD_ACTIVE, &trans->status);
-	wake_up(&trans_pcie->wait_command_queue);
+	wake_up(&trans->wait_command_queue);
 }
 
 static u32 iwl_pcie_int_cause_non_ict(struct iwl_trans *trans)
@@ -1818,7 +1823,7 @@ void iwl_pcie_handle_rfkill_irq(struct iwl_trans *trans)
 				       &trans->status))
 			IWL_DEBUG_RF_KILL(trans,
 					  "Rfkill while SYNC HCMD in flight\n");
-		wake_up(&trans_pcie->wait_command_queue);
+		wake_up(&trans->wait_command_queue);
 	} else {
 		clear_bit(STATUS_RFKILL_HW, &trans->status);
 		if (trans_pcie->opmode_down)

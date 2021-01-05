@@ -136,12 +136,13 @@ union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 	/*
 	 * We need at least two packages, one for the revision and one
 	 * for the data itself.  Also check that the revision is valid
-	 * (i.e. it is an integer set to 0).
+	 * (i.e. it is an integer smaller than 2, as we currently support only
+	 * 2 revisions).
 	 */
 	if (data->type != ACPI_TYPE_PACKAGE ||
 	    data->package.count < 2 ||
 	    data->package.elements[0].type != ACPI_TYPE_INTEGER ||
-	    data->package.elements[0].integer.value != 0) {
+	    data->package.elements[0].integer.value > 1) {
 		IWL_DEBUG_DEV_RADIO(dev, "Unsupported packages structure\n");
 		return ERR_PTR(-EINVAL);
 	}
@@ -446,8 +447,13 @@ int iwl_sar_get_wrds_table(struct iwl_fw_runtime *fwrt)
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(fwrt->dev, data,
 					 ACPI_WRDS_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev != 0) {
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
+		goto out_free;
+	}
+
+	if (tbl_rev != 0) {
+		ret = -EINVAL;
 		goto out_free;
 	}
 
@@ -484,8 +490,13 @@ int iwl_sar_get_ewrd_table(struct iwl_fw_runtime *fwrt)
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(fwrt->dev, data,
 					 ACPI_EWRD_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev != 0) {
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
+		goto out_free;
+	}
+
+	if (tbl_rev != 0) {
+		ret = -EINVAL;
 		goto out_free;
 	}
 
@@ -544,8 +555,14 @@ int iwl_sar_get_wgds_table(struct iwl_fw_runtime *fwrt)
 
 	wifi_pkg = iwl_acpi_get_wifi_pkg(fwrt->dev, data,
 					 ACPI_WGDS_WIFI_DATA_SIZE, &tbl_rev);
-	if (IS_ERR(wifi_pkg) || tbl_rev > 1) {
+
+	if (IS_ERR(wifi_pkg)) {
 		ret = PTR_ERR(wifi_pkg);
+		goto out_free;
+	}
+
+	if (tbl_rev > 1) {
+		ret = -EINVAL;
 		goto out_free;
 	}
 

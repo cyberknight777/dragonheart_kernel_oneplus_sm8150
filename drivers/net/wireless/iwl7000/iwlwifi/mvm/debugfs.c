@@ -1243,9 +1243,9 @@ static ssize_t iwl_dbgfs_inject_packet_write(struct iwl_mvm *mvm,
 	if (ret)
 		goto out;
 
-	/* avoid invalid memory access */
+	/* avoid invalid memory access and malformed packet */
 	if (bin_len < sizeof(*pkt) ||
-	    bin_len < sizeof(*pkt) + iwl_rx_packet_payload_len(pkt))
+	    bin_len != sizeof(*pkt) + iwl_rx_packet_payload_len(pkt))
 		goto out;
 
 	local_bh_disable();
@@ -1419,6 +1419,24 @@ static ssize_t iwl_dbgfs_fw_dbg_collect_write(struct iwl_mvm *mvm,
 
 	iwl_fw_dbg_collect(&mvm->fwrt, FW_DBG_TRIGGER_USER, buf,
 			   (count - 1), NULL);
+
+	return count;
+}
+
+static ssize_t iwl_dbgfs_dbg_time_point_write(struct iwl_mvm *mvm,
+					      char *buf, size_t count,
+					      loff_t *ppos)
+{
+	u32 timepoint;
+
+	if (kstrtou32(buf, 0, &timepoint))
+		return -EINVAL;
+
+	if (timepoint == IWL_FW_INI_TIME_POINT_INVALID ||
+	    timepoint >= IWL_FW_INI_TIME_POINT_NUM)
+		return -EINVAL;
+
+	iwl_dbg_tlv_time_point(&mvm->fwrt, timepoint, NULL);
 
 	return count;
 }
@@ -2158,6 +2176,7 @@ MVM_DEBUGFS_WRITE_FILE_OPS(bt_force_ant, 10);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(scan_ant_rxchain, 8);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(fw_dbg_conf, 8);
 MVM_DEBUGFS_WRITE_FILE_OPS(fw_dbg_collect, 64);
+MVM_DEBUGFS_WRITE_FILE_OPS(dbg_time_point, 64);
 MVM_DEBUGFS_WRITE_FILE_OPS(indirection_tbl,
 			   (IWL_RSS_INDIRECTION_TABLE_SIZE * 2));
 MVM_DEBUGFS_WRITE_FILE_OPS(inject_packet, 512);

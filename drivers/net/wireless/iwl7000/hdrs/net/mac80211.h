@@ -369,7 +369,6 @@ enum ieee80211_bss_change {
  * @BA_FRAME_TIMEOUT: Frames were released from the reordering buffer because
  *	they timed out. This won't be called for each frame released, but only
  *	once each time the timeout triggers.
- * @TX_LATENCY_EVENT: A Tx packet latency crossed the configured threshold
  */
 enum ieee80211_event_type {
 	RSSI_EVENT,
@@ -452,7 +451,6 @@ struct ieee80211_ba_event {
  * @rssi: relevant if &type is %RSSI_EVENT
  * @mlme: relevant if &type is %AUTH_EVENT
  * @ba: relevant if &type is %BAR_RX_EVENT or %BA_FRAME_TIMEOUT
- * @tx_lat: relevant if &type is %TX_LATENCY_EVENT
  * @u:union holding the fields above
  */
 struct ieee80211_event {
@@ -1628,9 +1626,6 @@ enum ieee80211_vif_flags {
  *	these need to be set (or cleared) when the interface is added
  *	or, if supported by the driver, the interface type is changed
  *	at runtime, mac80211 will never touch this field
- * @filter_gratuitous_arp_unscol_na: User space configuration if to filter
- *	gratuitous arp & unsolicited na packets
- * @filter_gtk: User space configuration if to filter gtk packets
  * @hw_queue: hardware queue for each AC
  * @cab_queue: content-after-beacon (DTIM beacon really) queue, AP mode only
  * @chanctx_conf: The channel context this interface is assigned to, or %NULL
@@ -2388,27 +2383,6 @@ enum ieee80211_hw_flags {
 
 	/* keep last, obviously */
 	NUM_IEEE80211_HW_FLAGS
-};
-
-/*
- * struct ieee80211_tx_thrshld_md - tx packet metadata that crosses a thrshld
- *
- * @mode: recording mode (Internal buffer or continues recording)
- * @monitor_collec_wind: the size of the window to collect the logs
- * @seq: packet sequence
- * @pkt_start: start time of triggering pkt
- * @pkt_end: end time of triggering pkt
- * @msrmnt: the tx latency of the pkt
- * @tid: tid of the pkt
- */
-struct ieee80211_tx_thrshld_md {
-	u8 mode;
-	u16 monitor_collec_wind;
-	u16 seq;
-	u32 pkt_start;
-	u32 pkt_end;
-	u32 msrmnt;
-	u16 tid;
 };
 
 /**

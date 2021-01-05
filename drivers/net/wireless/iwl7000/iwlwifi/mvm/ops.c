@@ -449,7 +449,6 @@ static const struct iwl_hcmd_names iwl_mvm_legacy_names[] = {
 	HCMD_NAME(PHY_DB_CMD),
 	HCMD_NAME(SCAN_OFFLOAD_COMPLETE),
 	HCMD_NAME(SCAN_OFFLOAD_UPDATE_PROFILES_CMD),
-	HCMD_NAME(CONFIG_2G_COEX_CMD),
 	HCMD_NAME(POWER_TABLE_CMD),
 	HCMD_NAME(PSM_UAPSD_AP_MISBEHAVING_NOTIFICATION),
 	HCMD_NAME(REPLY_THERMAL_MNG_BACKOFF),
@@ -936,6 +935,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		trans_cfg.rx_buf_size = rb_size_default;
 	}
 
+	trans->wide_cmd_header = true;
 	trans_cfg.bc_table_dword =
 		mvm->trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_AX210;
 
@@ -1102,7 +1102,8 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	kfree(mvm->mcast_active_filter_cmd);
 	mvm->mcast_active_filter_cmd = NULL;
-	iwl_mvm_vendor_cmds_unregister(mvm);
+	if (mvm->hw_registered)
+		iwl_mvm_vendor_cmds_unregister(mvm);
 #endif
 
 	iwl_trans_op_mode_leave(mvm->trans);
