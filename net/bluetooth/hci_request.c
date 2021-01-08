@@ -1035,10 +1035,7 @@ static void hci_req_config_le_suspend_scan(struct hci_request *req)
 		hci_req_add_le_scan_disable(req);
 
 	/* Configure params and enable scanning */
-	hci_req_add_le_passive_scan(req);
-
-	/* Block suspend notifier on response */
-	set_bit(SUSPEND_SCAN_ENABLE, req->hdev->suspend_tasks);
+	__hci_update_background_scan(req);
 }
 
 static void cancel_adv_timeout(struct hci_dev *hdev)
@@ -1091,10 +1088,8 @@ static void suspend_req_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 {
 	bt_dev_dbg(hdev, "Request complete opcode=0x%x, status=0x%x", opcode,
 		   status);
-	if (test_bit(SUSPEND_SCAN_ENABLE, hdev->suspend_tasks) ||
-	    test_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks)) {
-		clear_bit(SUSPEND_SCAN_ENABLE, hdev->suspend_tasks);
-		clear_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks);
+	if (test_and_clear_bit(SUSPEND_SCAN_ENABLE, hdev->suspend_tasks) ||
+	    test_and_clear_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks)) {
 		wake_up(&hdev->suspend_wait_q);
 	}
 }
@@ -1185,7 +1180,7 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 		/* Enable event filter for paired devices */
 		hci_req_set_event_filter(&req);
 		/* Enable passive scan at lower duty cycle */
-		__hci_update_background_scan(&req);
+		hci_req_config_le_suspend_scan(&req);
 		/* Pause scan changes again. */
 		hdev->scanning_paused = true;
 		hci_req_run(&req, suspend_req_complete);
@@ -1195,7 +1190,7 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 
 		hci_req_clear_event_filter(&req);
 		/* Reset passive/background scanning to normal */
-		__hci_update_background_scan(&req);
+		hci_req_config_le_suspend_scan(&req);
 
 		/* Unpause directed advertising */
 		hdev->advertising_paused = false;
