@@ -480,16 +480,6 @@ void cfg80211_bss_expire(struct cfg80211_registered_device *rdev)
 	__cfg80211_bss_expire(rdev, jiffies - IEEE80211_SCAN_RESULT_EXPIRE);
 }
 
-void cfg80211_bss_flush(struct wiphy *wiphy)
-{
-	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
-
-	spin_lock_bh(&rdev->bss_lock);
-	__cfg80211_bss_expire(rdev, jiffies);
-	spin_unlock_bh(&rdev->bss_lock);
-}
-EXPORT_SYMBOL(cfg80211_bss_flush);
-
 const u8 *cfg80211_find_ie_match(u8 eid, const u8 *ies, int len,
 				 const u8 *match, int match_len,
 				 int match_offset)
