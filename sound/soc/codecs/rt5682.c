@@ -969,6 +969,8 @@ static int rt5682_headset_detect(struct snd_soc_component *component,
 		case 0x1:
 		case 0x2:
 			rt5682->jack_type = SND_JACK_HEADSET;
+			snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_1,
+				RT5682_FAST_OFF_MASK, RT5682_FAST_OFF_EN);
 			rt5682_enable_push_button_irq(component, true);
 			break;
 		default:
@@ -987,6 +989,8 @@ static int rt5682_headset_detect(struct snd_soc_component *component,
 				RT5682_PWR_ANLG_1, RT5682_PWR_VREF2, 0);
 		snd_soc_component_update_bits(component, RT5682_PWR_ANLG_3,
 			RT5682_PWR_CBJ, 0);
+		snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_1,
+			RT5682_FAST_OFF_MASK, RT5682_FAST_OFF_DIS);
 
 		rt5682->jack_type = 0;
 	}
@@ -1044,10 +1048,12 @@ static int rt5682_set_jack_detect(struct snd_soc_component *component,
 		switch (rt5682->pdata.jd_src) {
 		case RT5682_JD1:
 			snd_soc_component_update_bits(component,
+				RT5682_CBJ_CTRL_5, 0x0700, 0x0600);
+			snd_soc_component_update_bits(component,
 				RT5682_CBJ_CTRL_2, RT5682_EXT_JD_SRC,
 				RT5682_EXT_JD_SRC_MANUAL);
 			snd_soc_component_write(component, RT5682_CBJ_CTRL_1,
-				0xd042);
+				0xd142);
 			snd_soc_component_update_bits(component,
 				RT5682_CBJ_CTRL_3, RT5682_CBJ_IN_BUF_EN,
 				RT5682_CBJ_IN_BUF_EN);
