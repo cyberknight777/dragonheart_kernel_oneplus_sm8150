@@ -41,6 +41,8 @@ struct evdi_device {
 	struct drm_device *ddev;
 	struct drm_connector *conn;
 	struct evdi_cursor *cursor;
+	bool cursor_events_enabled;
+
 	uint32_t sku_area_limit;
 
 	struct evdi_fbdev *fbdev;
@@ -143,6 +145,8 @@ int evdi_painter_request_update_ioctl(struct drm_device *drm_dev, void *data,
 				      struct drm_file *file);
 int evdi_painter_ddcci_response_ioctl(struct drm_device *drm_dev, void *data,
 				      struct drm_file *file);
+int evdi_painter_enable_cursor_events_ioctl(struct drm_device *drm_dev,
+					void *data, struct drm_file *file);
 
 int evdi_painter_init(struct evdi_device *evdi);
 void evdi_painter_cleanup(struct evdi_device *evdi);

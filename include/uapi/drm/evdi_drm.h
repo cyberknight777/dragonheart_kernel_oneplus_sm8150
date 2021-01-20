@@ -88,6 +88,11 @@ struct drm_evdi_event_cursor_move {
 	int32_t y;
 };
 
+struct drm_evdi_enable_cursor_events {
+	struct drm_event base;
+	uint8_t enable;
+};
+
 struct drm_evdi_ddcci_response {
 	const unsigned char * __user buffer;
 	uint32_t buffer_length;
@@ -109,6 +114,7 @@ struct drm_evdi_event_ddcci_data {
 #define DRM_EVDI_REQUEST_UPDATE   0x01
 #define DRM_EVDI_GRABPIX          0x02
 #define DRM_EVDI_DDCCI_RESPONSE   0x03
+#define DRM_EVDI_ENABLE_CURSOR_EVENTS 0x04
 /* LAST_IOCTL 0x5F -- 96 driver specific ioctls to use */
 
 #define DRM_IOCTL_EVDI_CONNECT DRM_IOWR(DRM_COMMAND_BASE +  \
@@ -119,6 +125,8 @@ struct drm_evdi_event_ddcci_data {
 	DRM_EVDI_GRABPIX, struct drm_evdi_grabpix)
 #define DRM_IOCTL_EVDI_DDCCI_RESPONSE DRM_IOWR(DRM_COMMAND_BASE +  \
 	DRM_EVDI_DDCCI_RESPONSE, struct drm_evdi_ddcci_response)
+#define DRM_IOCTL_EVDI_ENABLE_CURSOR_EVENTS DRM_IOWR(DRM_COMMAND_BASE +  \
+	DRM_EVDI_ENABLE_CURSOR_EVENTS, struct drm_evdi_enable_cursor_events)
 
 #endif /* __EVDI_UAPI_DRM_H__ */
 

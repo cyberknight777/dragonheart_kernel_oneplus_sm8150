@@ -157,6 +157,9 @@ struct drm_ioctl_desc evdi_painter_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(EVDI_DDCCI_RESPONSE,
 				evdi_painter_ddcci_response_ioctl,
 				DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(EVDI_ENABLE_CURSOR_EVENTS,
+			    evdi_painter_enable_cursor_events_ioctl,
+				DRM_UNLOCKED),
 };
 
 static const struct vm_operations_struct evdi_gem_vm_ops = {

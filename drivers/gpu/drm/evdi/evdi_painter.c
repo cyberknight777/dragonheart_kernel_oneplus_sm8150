@@ -184,16 +184,14 @@ static void copy_cursor_pixels(struct evdi_framebuffer *efb,
 			      int buf_byte_stride,
 			      struct evdi_cursor *cursor)
 {
-	if (evdi_enable_cursor_blending) {
-		evdi_cursor_lock(cursor);
-		if (evdi_cursor_compose_and_copy(cursor,
-						   efb,
-						   buffer,
-						   buf_byte_stride))
-			EVDI_ERROR("Failed to blend cursor\n");
+	evdi_cursor_lock(cursor);
+	if (evdi_cursor_compose_and_copy(cursor,
+					 efb,
+					 buffer,
+					 buf_byte_stride))
+		EVDI_ERROR("Failed to blend cursor\n");
 
-		evdi_cursor_unlock(cursor);
-	}
+	evdi_cursor_unlock(cursor);
 }
 
 #define painter_lock(painter)                           \
@@ -768,6 +766,7 @@ static int evdi_painter_disconnect(struct evdi_device *evdi,
 	painter->drm_filp = NULL;
 
 	painter->was_update_requested = false;
+	evdi->cursor_events_enabled = false;
 
 	painter_unlock(painter);
 
@@ -900,7 +899,7 @@ int evdi_painter_grabpix_ioctl(struct drm_device *drm_dev, void *data,
 						  painter->dirty_rects,
 						  cmd->buf_width,
 						  cmd->buf_height);
-		if (err == 0)
+		if (err == 0 && !evdi->cursor_events_enabled)
 			copy_cursor_pixels(efb,
 					   cmd->buffer,
 					   cmd->buf_byte_stride,
@@ -1153,4 +1152,16 @@ int evdi_painter_ddcci_response_ioctl(struct drm_device *drm_dev, void *data,
 unlock:
 	painter_unlock(painter);
 	return result;
+}
+
+int evdi_painter_enable_cursor_events_ioctl(struct drm_device *drm_dev,
+					void *data,
+					__always_unused struct drm_file *file)
+{
+	struct evdi_device *evdi = drm_dev->dev_private;
+	struct drm_evdi_enable_cursor_events *cmd = data;
+
+	evdi->cursor_events_enabled = cmd->enable;
+
+	return 0;
 }
