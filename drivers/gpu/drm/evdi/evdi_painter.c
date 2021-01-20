@@ -269,13 +269,13 @@ static void evdi_painter_send_event2(struct evdi_painter *painter,
 	}
 }
 
-
 static void evdi_painter_send_event(struct drm_file *drm_filp,
 				    struct list_head *event_link)
 {
 	list_add_tail(event_link, &drm_filp->event_list);
 	wake_up_interruptible(&drm_filp->event_wait);
 }
+
 
 static struct drm_pending_event *create_update_ready_event(void)
 {
@@ -451,32 +451,42 @@ static void evdi_painter_send_crtc_state(struct evdi_painter *painter,
 	evdi_painter_send_event2(painter, event);
 }
 
-static void evdi_painter_send_mode_changed(
-	struct evdi_painter *painter,
+static struct drm_pending_event *create_mode_changed_event(
 	struct drm_display_mode *current_mode,
 	int32_t bits_per_pixel,
 	uint32_t pixel_format)
 {
 	struct evdi_event_mode_changed_pending *event;
 
-	if (painter->drm_filp) {
-		event = kzalloc(sizeof(*event), GFP_KERNEL);
-		event->mode_changed.base.type = DRM_EVDI_EVENT_MODE_CHANGED;
-		event->mode_changed.base.length = sizeof(event->mode_changed);
-
-		event->mode_changed.hdisplay = current_mode->hdisplay;
-		event->mode_changed.vdisplay = current_mode->vdisplay;
-		event->mode_changed.vrefresh =
-			drm_mode_vrefresh(current_mode);
-		event->mode_changed.bits_per_pixel = bits_per_pixel;
-		event->mode_changed.pixel_format = pixel_format;
-
-		event->base.event = &event->mode_changed.base;
-		event->base.file_priv = painter->drm_filp;
-		evdi_painter_send_event(painter->drm_filp, &event->base.link);
-	} else {
-		EVDI_WARN("Painter is not connected!");
+	event = kzalloc(sizeof(*event), GFP_KERNEL);
+	if (!event) {
+		EVDI_ERROR("Failed to create mode changed event");
+		return NULL;
 	}
+
+	event->mode_changed.base.type = DRM_EVDI_EVENT_MODE_CHANGED;
+	event->mode_changed.base.length = sizeof(event->mode_changed);
+
+	event->mode_changed.hdisplay = current_mode->hdisplay;
+	event->mode_changed.vdisplay = current_mode->vdisplay;
+	event->mode_changed.vrefresh = drm_mode_vrefresh(current_mode);
+	event->mode_changed.bits_per_pixel = bits_per_pixel;
+	event->mode_changed.pixel_format = pixel_format;
+
+	event->base.event = &event->mode_changed.base;
+	return &event->base;
+}
+
+static void evdi_painter_send_mode_changed(
+	struct evdi_painter *painter,
+	struct drm_display_mode *current_mode,
+	int32_t bits_per_pixel,
+	uint32_t pixel_format)
+{
+	struct drm_pending_event *event = create_mode_changed_event(
+		current_mode, bits_per_pixel, pixel_format);
+
+	evdi_painter_send_event2(painter, event);
 }
 
 struct drm_clip_rect evdi_painter_framebuffer_size(
