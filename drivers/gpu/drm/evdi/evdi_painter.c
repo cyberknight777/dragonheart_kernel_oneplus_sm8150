@@ -237,8 +237,8 @@ u8 *evdi_painter_get_edid_copy(struct evdi_device *evdi)
 	return block;
 }
 
-static void evdi_painter_send_event2(struct evdi_painter *painter,
-				      struct drm_pending_event *event)
+static void evdi_painter_send_event(struct evdi_painter *painter,
+				     struct drm_pending_event *event)
 {
 	int ret = 0;
 
@@ -269,14 +269,6 @@ static void evdi_painter_send_event2(struct evdi_painter *painter,
 	}
 }
 
-static void evdi_painter_send_event(struct drm_file *drm_filp,
-				    struct list_head *event_link)
-{
-	list_add_tail(event_link, &drm_filp->event_list);
-	wake_up_interruptible(&drm_filp->event_wait);
-}
-
-
 static struct drm_pending_event *create_update_ready_event(void)
 {
 	struct evdi_event_update_ready_pending *event;
@@ -296,7 +288,7 @@ static void evdi_painter_send_update_ready(struct evdi_painter *painter)
 {
 	struct drm_pending_event *event = create_update_ready_event();
 
-	evdi_painter_send_event2(painter, event);
+	evdi_painter_send_event(painter, event);
 }
 
 static uint32_t evdi_painter_get_gem_handle(struct evdi_painter *painter,
@@ -366,7 +358,7 @@ void evdi_painter_send_cursor_set(struct evdi_painter *painter,
 	struct drm_pending_event *event =
 		create_cursor_set_event(painter, cursor);
 
-	evdi_painter_send_event2(painter, event);
+	evdi_painter_send_event(painter, event);
 }
 
 static struct drm_pending_event *create_cursor_move_event(
@@ -399,7 +391,7 @@ void evdi_painter_send_cursor_move(struct evdi_painter *painter,
 {
 	struct drm_pending_event *event = create_cursor_move_event(cursor);
 
-	evdi_painter_send_event2(painter, event);
+	evdi_painter_send_event(painter, event);
 }
 
 static struct drm_pending_event *create_dpms_event(int mode)
@@ -423,7 +415,7 @@ static void evdi_painter_send_dpms(struct evdi_painter *painter, int mode)
 {
 	struct drm_pending_event *event = create_dpms_event(mode);
 
-	evdi_painter_send_event2(painter, event);
+	evdi_painter_send_event(painter, event);
 }
 
 static struct drm_pending_event *create_crtc_state_event(int state)
@@ -448,7 +440,7 @@ static void evdi_painter_send_crtc_state(struct evdi_painter *painter,
 {
 	struct drm_pending_event *event = create_crtc_state_event(state);
 
-	evdi_painter_send_event2(painter, event);
+	evdi_painter_send_event(painter, event);
 }
 
 static struct drm_pending_event *create_mode_changed_event(
@@ -486,7 +478,7 @@ static void evdi_painter_send_mode_changed(
 	struct drm_pending_event *event = create_mode_changed_event(
 		current_mode, bits_per_pixel, pixel_format);
 
-	evdi_painter_send_event2(painter, event);
+	evdi_painter_send_event(painter, event);
 }
 
 struct drm_clip_rect evdi_painter_framebuffer_size(
@@ -1072,17 +1064,10 @@ static struct drm_pending_event *create_ddcci_data_event(struct i2c_msg *msg)
 static void evdi_painter_ddcci_data(struct evdi_painter *painter,
 		struct i2c_msg *msg)
 {
-	struct drm_pending_event *event;
-
-	if (!painter->drm_filp) {
-		EVDI_WARN("Painter is not connected!");
-		return;
-	}
-
-	event = create_ddcci_data_event(msg);
+	struct drm_pending_event *event = create_ddcci_data_event(msg);
 
 	reinit_completion(&painter->ddcci_response_received);
-	evdi_painter_send_event(painter->drm_filp, &event->link);
+	evdi_painter_send_event(painter, event);
 
 	if (wait_for_completion_interruptible_timeout(
 		&painter->ddcci_response_received,
