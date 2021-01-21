@@ -35,8 +35,6 @@
 struct evdi_fbdev;
 struct evdi_painter;
 
-extern bool evdi_enable_cursor_blending __read_mostly;
-
 struct evdi_device {
 	struct drm_device *ddev;
 	struct drm_connector *conn;
