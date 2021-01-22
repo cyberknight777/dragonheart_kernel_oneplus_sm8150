@@ -1329,11 +1329,13 @@ int hci_set_adv_instance_data(struct hci_dev *hdev, u8 instance,
 int hci_remove_adv_instance(struct hci_dev *hdev, u8 instance);
 
 void hci_adv_monitors_clear(struct hci_dev *hdev);
-void hci_free_adv_monitor(struct adv_monitor *monitor);
+void hci_free_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor);
 int hci_add_adv_patterns_monitor_complete(struct hci_dev *hdev, u8 status);
+int hci_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status);
 bool hci_add_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor,
 			int *err);
-int hci_remove_adv_monitor(struct hci_dev *hdev, u16 handle);
+bool hci_remove_single_adv_monitor(struct hci_dev *hdev, u16 handle, int *err);
+bool hci_remove_all_adv_monitor(struct hci_dev *hdev, int *err);
 bool hci_is_adv_monitoring(struct hci_dev *hdev);
 int hci_get_adv_monitor_offload_ext(struct hci_dev *hdev);
 
@@ -1781,7 +1783,9 @@ void mgmt_advertising_added(struct sock *sk, struct hci_dev *hdev,
 			    u8 instance);
 void mgmt_advertising_removed(struct sock *sk, struct hci_dev *hdev,
 			      u8 instance);
+void mgmt_adv_monitor_removed(struct hci_dev *hdev, u16 handle);
 int mgmt_add_adv_patterns_monitor_complete(struct hci_dev *hdev, u8 status);
+int mgmt_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status);
 
 u8 hci_le_conn_update(struct hci_conn *conn, u16 min, u16 max, u16 latency,
 		      u16 to_multiplier);
