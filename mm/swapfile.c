@@ -2699,6 +2699,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	err = 0;
 	atomic_inc(&proc_poll_event);
 	wake_up_interruptible(&proc_poll_wait);
+	/* stop tracking anon if the multigenerational lru is turned off */
+	lru_gen_set_state(false, false, true);
 
 out_dput:
 	if (victim)
@@ -3329,6 +3331,8 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 	mutex_unlock(&swapon_mutex);
 	atomic_inc(&proc_poll_event);
 	wake_up_interruptible(&proc_poll_wait);
+	/* start tracking anon if the multigenerational lru is turned on */
+	lru_gen_set_state(true, false, true);
 
 	if (S_ISREG(inode->i_mode))
 		inode->i_flags |= S_SWAPFILE;
