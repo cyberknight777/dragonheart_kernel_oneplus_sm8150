@@ -973,10 +973,50 @@ static int chv_init_workarounds(struct intel_engine_cs *engine)
 	return 0;
 }
 
+static void
+gen9_wa_init_mcr(struct drm_i915_private *dev_priv)
+{
+	const struct sseu_dev_info *sseu = &INTEL_INFO(dev_priv)->sseu;
+	unsigned int slice, subslice;
+	u32 mcr, mcr_mask;
+
+	GEM_BUG_ON(INTEL_GEN(dev_priv) != 9);
+
+	/*
+	 * WaProgramMgsrForCorrectSliceSpecificMmioReads:glk,kbl,cml
+	 * Before any MMIO read into slice/subslice specific registers, MCR
+	 * packet control register needs to be programmed to point to any
+	 * enabled s/ss pair. Otherwise, incorrect values will be returned.
+	 * This means each subsequent MMIO read will be forwarded to an
+	 * specific s/ss combination, but this is OK since these registers
+	 * are consistent across s/ss in almost all cases. In the rare
+	 * occasions, such as INSTDONE, where this value is dependent
+	 * on s/ss combo, the read should be done with read_subslice_reg.
+	 */
+	slice = ffs(sseu->slice_mask) - 1;
+	subslice = ffs(sseu->subslice_mask);
+	GEM_BUG_ON(!subslice);
+	subslice--;
+
+	/*
+	 * We use GEN8_MCR..() macros to calculate the |mcr| value for
+	 * Gen 9 to address WaProgramMgsrForCorrectSliceSpecificMmioReads
+	 */
+	mcr = GEN8_MCR_SLICE(slice) | GEN8_MCR_SUBSLICE(subslice);
+	mcr_mask = GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK;
+
+	DRM_DEBUG_DRIVER("MCR slice:%d/subslice:%d = 0x%x\n", slice, subslice, mcr);
+
+	I915_WRITE(GEN8_MCR_SELECTOR, (I915_READ(GEN8_MCR_SELECTOR) & ~(mcr_mask)) | mcr);
+}
+
 static int gen9_init_workarounds(struct intel_engine_cs *engine)
 {
 	struct drm_i915_private *dev_priv = engine->i915;
 	int ret;
+
+	/* WaProgramMgsrForCorrectSliceSpecificMmioReads:glk,kbl,cml,gen9 */
+	gen9_wa_init_mcr(dev_priv);
 
 	/* WaConextSwitchWithConcurrentTLBInvalidate:skl,bxt,kbl,glk,cfl */
 	I915_WRITE(GEN9_CSFE_CHICKEN1_RCS, _MASKED_BIT_ENABLE(GEN9_PREEMPT_GPGPU_SYNC_SWITCH_DISABLE));
