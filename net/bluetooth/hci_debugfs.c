@@ -465,6 +465,35 @@ static int auto_accept_delay_set(void *data, u64 val)
 	return 0;
 }
 
+static int min_encrypt_key_size_set(void *data, u64 val)
+{
+	struct hci_dev *hdev = data;
+
+	if (val < 1 || val > 16)
+		return -EINVAL;
+
+	hci_dev_lock(hdev);
+	hdev->min_enc_key_size = val;
+	hci_dev_unlock(hdev);
+
+	return 0;
+}
+
+static int min_encrypt_key_size_get(void *data, u64 *val)
+{
+	struct hci_dev *hdev = data;
+
+	hci_dev_lock(hdev);
+	*val = hdev->min_enc_key_size;
+	hci_dev_unlock(hdev);
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(min_encrypt_key_size_fops,
+			min_encrypt_key_size_get,
+			min_encrypt_key_size_set, "%llu\n");
+
 static int auto_accept_delay_get(void *data, u64 *val)
 {
 	struct hci_dev *hdev = data;
@@ -577,6 +606,8 @@ void hci_debugfs_create_bredr(struct hci_dev *hdev)
 	if (lmp_ssp_capable(hdev)) {
 		debugfs_create_file("ssp_debug_mode", 0444, hdev->debugfs,
 				    hdev, &ssp_debug_mode_fops);
+		debugfs_create_file("min_encrypt_key_size", 0644, hdev->debugfs,
+				    hdev, &min_encrypt_key_size_fops);
 		debugfs_create_file("auto_accept_delay", 0644, hdev->debugfs,
 				    hdev, &auto_accept_delay_fops);
 	}
@@ -962,6 +993,50 @@ static int adv_max_interval_get(void *data, u64 *val)
 DEFINE_SIMPLE_ATTRIBUTE(adv_max_interval_fops, adv_max_interval_get,
 			adv_max_interval_set, "%llu\n");
 
+static ssize_t force_no_mitm_read(struct file *file,
+				  char __user *user_buf,
+				  size_t count, loff_t *ppos)
+{
+	struct hci_dev *hdev = file->private_data;
+	char buf[3];
+
+	buf[0] = hci_dev_test_flag(hdev, HCI_FORCE_NO_MITM) ? 'Y' : 'N';
+	buf[1] = '\n';
+	buf[2] = '\0';
+	return simple_read_from_buffer(user_buf, count, ppos, buf, 2);
+}
+
+static ssize_t force_no_mitm_write(struct file *file,
+				   const char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct hci_dev *hdev = file->private_data;
+	char buf[32];
+	size_t buf_size = min(count, (sizeof(buf) - 1));
+	bool enable;
+
+	if (copy_from_user(buf, user_buf, buf_size))
+		return -EFAULT;
+
+	buf[buf_size] = '\0';
+	if (strtobool(buf, &enable))
+		return -EINVAL;
+
+	if (enable == hci_dev_test_flag(hdev, HCI_FORCE_NO_MITM))
+		return -EALREADY;
+
+	hci_dev_change_flag(hdev, HCI_FORCE_NO_MITM);
+
+	return count;
+}
+
+static const struct file_operations force_no_mitm_fops = {
+	.open		= simple_open,
+	.read		= force_no_mitm_read,
+	.write		= force_no_mitm_write,
+	.llseek		= default_llseek,
+};
+
 DEFINE_QUIRK_ATTRIBUTE(quirk_strict_duplicate_filter,
 		       HCI_QUIRK_STRICT_DUPLICATE_FILTER);
 DEFINE_QUIRK_ATTRIBUTE(quirk_simultaneous_discovery,
@@ -1011,6 +1086,8 @@ void hci_debugfs_create_le(struct hci_dev *hdev)
 			    &adv_max_interval_fops);
 	debugfs_create_u16("discov_interleaved_timeout", 0644, hdev->debugfs,
 			   &hdev->discov_interleaved_timeout);
+	debugfs_create_file("force_no_mitm", 0644, hdev->debugfs, hdev,
+			    &force_no_mitm_fops);
 
 	debugfs_create_file("quirk_strict_duplicate_filter", 0644,
 			    hdev->debugfs, hdev,

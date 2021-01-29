@@ -62,7 +62,6 @@ source "net/bluetooth/hidp/Kconfig"
 config BT_HS
 	bool "Bluetooth High Speed (HS) features"
 	depends on BT_BREDR
-	default y
 	help
 	  Bluetooth High Speed includes support for off-loading
 	  Bluetooth connections via 802.11 (wifi) physical layer
@@ -142,16 +141,6 @@ config BT_ENFORCE_CLASSIC_SECURITY
 	  insecure Bluetooth chips, i.e. that doesn't support Read Encryption
 	  Key Size command to prevent BT classic connection with very short
 	  encryption key.
-
-config BT_EVE_HACKS
-	bool "Enable Special kernel hacks for EVE launch (do not ask)"
-	depends on BT
-	default n
-	help
-	  Eve needed hacks. Testing them on all other devices needs time.
-	  I have no time to get to this, nor does anyone else, so...
-	  this option will be on for eve and off for every other device
-	  for now. Yes, this is beyond ugly. Accepting patches :)
 
 config BT_FEATURE_DEBUG
 	bool "Enable runtime option for debugging statements"
