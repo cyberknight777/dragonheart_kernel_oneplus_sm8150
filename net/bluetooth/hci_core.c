@@ -1644,14 +1644,6 @@ int hci_dev_do_close(struct hci_dev *hdev)
 
 	hci_dev_lock(hdev);
 
-	/* This will clear the HCI_LE_SCAN_CHANGE_IN_PROGRESS flag in case its
-	 * already set and exception occurred to sync host and controller state.
-	 */
-	if (hci_dev_test_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS)) {
-		hci_dev_clear_flag(hdev, HCI_LE_SCAN_CHANGE_IN_PROGRESS);
-		hdev->count_scan_change_in_progress = 0;
-	}
-
 	hci_discovery_set_state(hdev, DISCOVERY_STOPPED);
 
 	auto_off = hci_dev_test_and_clear_flag(hdev, HCI_AUTO_OFF);
@@ -1669,8 +1661,6 @@ int hci_dev_do_close(struct hci_dev *hdev)
 	smp_unregister(hdev);
 
 	hci_sock_dev_event(hdev, HCI_DEV_DOWN);
-
-	msft_do_close(hdev);
 
 	if (hdev->flush)
 		hdev->flush(hdev);
@@ -2822,7 +2812,8 @@ void hci_adv_instances_clear(struct hci_dev *hdev)
 int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 			 u16 adv_data_len, u8 *adv_data,
 			 u16 scan_rsp_len, u8 *scan_rsp_data,
-			 u16 timeout, u16 duration)
+			 u16 timeout, u16 duration, s8 tx_power,
+			 u32 min_interval, u32 max_interval)
 {
 	struct adv_info *adv_instance;
 
@@ -2850,6 +2841,8 @@ int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 	adv_instance->flags = flags;
 	adv_instance->adv_data_len = adv_data_len;
 	adv_instance->scan_rsp_len = scan_rsp_len;
+	adv_instance->min_interval = min_interval;
+	adv_instance->max_interval = max_interval;
 
 	if (adv_data_len)
 		memcpy(adv_instance->adv_data, adv_data, adv_data_len);
@@ -2870,6 +2863,37 @@ int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 	}
 
 	BT_DBG("%s for %dMR", hdev->name, instance);
+
+	return 0;
+}
+
+/* This function requires the caller holds hdev->lock */
+int hci_set_adv_instance_data(struct hci_dev *hdev, u8 instance,
+			      u16 adv_data_len, u8 *adv_data,
+			      u16 scan_rsp_len, u8 *scan_rsp_data)
+{
+	struct adv_info *adv_instance;
+
+	adv_instance = hci_find_adv_instance(hdev, instance);
+
+	/* If advertisement doesn't exist, we can't modify its data */
+	if (!adv_instance)
+		return -ENOENT;
+
+	if (adv_data_len) {
+		memset(adv_instance->adv_data, 0,
+		       sizeof(adv_instance->adv_data));
+		memcpy(adv_instance->adv_data, adv_data, adv_data_len);
+		adv_instance->adv_data_len = adv_data_len;
+	}
+
+	if (scan_rsp_len) {
+		memset(adv_instance->scan_rsp_data, 0,
+		       sizeof(adv_instance->scan_rsp_data));
+		memcpy(adv_instance->scan_rsp_data,
+		       scan_rsp_data, scan_rsp_len);
+		adv_instance->scan_rsp_len = scan_rsp_len;
+	}
 
 	return 0;
 }
@@ -2930,6 +2954,7 @@ static int free_adv_monitor(int id, void *ptr, void *data)
 
 	idr_remove(&hdev->adv_monitors_idr, monitor->handle);
 	hci_free_adv_monitor(monitor);
+	hdev->adv_monitors_cnt--;
 
 	return 0;
 }
@@ -2946,6 +2971,7 @@ int hci_remove_adv_monitor(struct hci_dev *hdev, u16 handle)
 
 		idr_remove(&hdev->adv_monitors_idr, monitor->handle);
 		hci_free_adv_monitor(monitor);
+		hdev->adv_monitors_cnt--;
 	} else {
 		/* Remove all monitors if handle is 0. */
 		idr_for_each(&hdev->adv_monitors_idr, &free_adv_monitor, hdev);
@@ -3239,6 +3265,16 @@ void hci_copy_identity_address(struct hci_dev *hdev, bdaddr_t *bdaddr,
 	}
 }
 
+static void hci_suspend_clear_tasks(struct hci_dev *hdev)
+{
+	int i;
+
+	for (i = 0; i < __SUSPEND_NUM_TASKS; i++)
+		clear_bit(i, hdev->suspend_tasks);
+
+	wake_up(&hdev->suspend_wait_q);
+}
+
 static int hci_suspend_wait_event(struct hci_dev *hdev)
 {
 #define WAKE_COND                                                              \
@@ -3284,12 +3320,24 @@ static int hci_change_suspend_state(struct hci_dev *hdev,
 	return hci_suspend_wait_event(hdev);
 }
 
+static void hci_clear_wake_reason(struct hci_dev *hdev)
+{
+	hci_dev_lock(hdev);
+
+	hdev->wake_reason = 0;
+	bacpy(&hdev->wake_addr, BDADDR_ANY);
+	hdev->wake_addr_type = 0;
+
+	hci_dev_unlock(hdev);
+}
+
 static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 				void *data)
 {
 	struct hci_dev *hdev =
 		container_of(nb, struct hci_dev, suspend_notifier);
 	int ret = 0;
+	u8 state = BT_RUNNING;
 
 	/* If powering down, wait for completion. */
 	if (mgmt_powering_down(hdev)) {
@@ -3310,15 +3358,27 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 		 *  - Second, program event filter/whitelist and enable scan
 		 */
 		ret = hci_change_suspend_state(hdev, BT_SUSPEND_DISCONNECT);
+		if (!ret)
+			state = BT_SUSPEND_DISCONNECT;
 
 		/* Only configure whitelist if disconnect succeeded and wake
 		 * isn't being prevented.
 		 */
-		if (!ret && !(hdev->prevent_wake && hdev->prevent_wake(hdev)))
+		if (!ret && !(hdev->prevent_wake && hdev->prevent_wake(hdev))) {
 			ret = hci_change_suspend_state(hdev,
 						BT_SUSPEND_CONFIGURE_WAKE);
+			if (!ret)
+				state = BT_SUSPEND_CONFIGURE_WAKE;
+		}
+
+		hci_clear_wake_reason(hdev);
+		mgmt_suspending(hdev, state);
+
 	} else if (action == PM_POST_SUSPEND) {
 		ret = hci_change_suspend_state(hdev, BT_RUNNING);
+
+		mgmt_resuming(hdev, hdev->wake_reason, &hdev->wake_addr,
+			      hdev->wake_addr_type);
 	}
 
 done:
@@ -3354,6 +3414,11 @@ struct hci_dev *hci_alloc_dev(void)
 	hdev->adv_instance_timeout = 0;
 	hdev->eir_max_name_len = 48;
 
+	/* The default values will be chosen in the future */
+	hdev->advmon_allowlist_duration = 300;
+	hdev->advmon_no_filter_duration = 500;
+	hdev->enable_advmon_interleave_scan = 0x0001;	/* Default to enable */
+
 	hdev->sniff_max_interval = 800;
 	hdev->sniff_min_interval = 80;
 
@@ -3379,9 +3444,6 @@ struct hci_dev *hci_alloc_dev(void)
 	hdev->le_max_rx_len = 0x001b;
 	hdev->le_max_rx_time = 0x0148;
 
-	hdev->count_adv_change_in_progress = 0;
-	hdev->count_scan_change_in_progress = 0;
-
 	hdev->def_multi_adv_rotation_duration = HCI_DEFAULT_ADV_DURATION;
 	hdev->def_le_autoconnect_timeout = HCI_LE_AUTOCONN_TIMEOUT;
 
@@ -3389,6 +3451,7 @@ struct hci_dev *hci_alloc_dev(void)
 	hdev->discov_interleaved_timeout = DISCOV_INTERLEAVED_TIMEOUT;
 	hdev->conn_info_min_age = DEFAULT_CONN_INFO_MIN_AGE;
 	hdev->conn_info_max_age = DEFAULT_CONN_INFO_MAX_AGE;
+	hdev->min_enc_key_size = HCI_MIN_ENC_KEY_SIZE;
 
 	/* default 1.28 sec page scan */
 	hdev->def_page_scan_type = PAGE_SCAN_TYPE_STANDARD;
@@ -3579,7 +3642,10 @@ void hci_unregister_dev(struct hci_dev *hdev)
 	cancel_work_sync(&hdev->power_on);
 
 	unregister_pm_notifier(&hdev->suspend_notifier);
+	hci_suspend_clear_tasks(hdev);
 	cancel_work_sync(&hdev->suspend_prepare);
+
+	msft_do_close(hdev);
 
 	hci_dev_do_close(hdev);
 
@@ -4699,104 +4765,13 @@ static void hci_rx_work(struct work_struct *work)
 	}
 }
 
-/* This is a conditional HCI command. The HCI command
- * would be executed only when the run-time condition
- * is met.
- */
-static bool skip_conditional_cmd(struct work_struct *work, struct sk_buff *skb)
-{
-	struct hci_dev *hdev = container_of(work, struct hci_dev, cmd_work);
-	bool cur_enabled, cur_changing, desired_enabled, conditional_cmd = false;
-	unsigned bit_num_cur_ena, bit_num_cur_chng;
-	bool ret = false;
-
-	hci_dev_lock(hdev);
-
-	if (hci_skb_pkt_type(skb) == HCI_COMMAND_PKT) {
-		if (hci_skb_opcode(skb) == HCI_OP_LE_SET_ADV_ENABLE) {
-			desired_enabled = !!*(skb_tail_pointer(skb) - 1);
-			bit_num_cur_ena = HCI_LE_ADV;
-			bit_num_cur_chng = HCI_LE_ADV_CHANGE_IN_PROGRESS;
-			conditional_cmd = true;
-		} else if (hci_skb_opcode(skb) == HCI_OP_LE_SET_SCAN_ENABLE) {
-			desired_enabled = !!*(skb_tail_pointer(skb) - 2);
-			bit_num_cur_ena = HCI_LE_SCAN;
-			bit_num_cur_chng = HCI_LE_SCAN_CHANGE_IN_PROGRESS;
-			conditional_cmd = true;
-			BT_DBG("BT_DBG_DG: set scan enable tx: desired=%d\n",
-			       desired_enabled);
-		}
-	}
-
-	if (conditional_cmd) {
-
-		cur_enabled = hci_dev_test_flag(hdev, bit_num_cur_ena);
-		cur_changing = hci_dev_test_flag(hdev, bit_num_cur_chng);
-
-		BT_DBG("COND opcode=0x%04x, wanted=%d, on=%d, chngn=%d",
-		       hci_skb_opcode(skb), desired_enabled, cur_enabled,
-		       cur_changing);
-
-		/* No need to enable/disable anything if it is already in that
-		 * state or about to be.
-		 * The following condition is good for at most 1 pending
-		 * enabled command and 1 pending disabled command.
-		 * Refer to crbug.com/781749 for more context.
-		 */
-		if ((cur_enabled == desired_enabled && !cur_changing) ||
-		    (cur_enabled != desired_enabled && cur_changing)) {
-			BT_DBG("  COND LE cmd (0x%04x) is already %d (chg %d),"
-				" skip transition to %d", hci_skb_opcode(skb),
-				cur_enabled, cur_changing, desired_enabled);
-
-			skb_orphan(skb);
-			kfree_skb(skb);
-
-			/* See if there are more commands to do in cmd_q. */
-			atomic_set(&hdev->cmd_cnt, 1);
-			if (!skb_queue_empty(&hdev->cmd_q)) {
-				BT_DBG("  COND call queue_work.");
-				queue_work(hdev->workqueue, &hdev->cmd_work);
-			} else {
-				BT_DBG("  COND no more cmd in queue.");
-			}
-			ret = true;
-			goto out;
-		}
-
-		hci_dev_set_flag(hdev, bit_num_cur_chng);
-		if (bit_num_cur_chng == HCI_LE_ADV_CHANGE_IN_PROGRESS) {
-			hdev->count_adv_change_in_progress++;
-			if (hdev->count_adv_change_in_progress <= 0 ||
-			    hdev->count_adv_change_in_progress >= 3)
-				BT_WARN("Unexpected "
-					"count_adv_change_in_progress: %d",
-					hdev->count_adv_change_in_progress);
-			else
-				BT_DBG("count_adv_change_in_progress: %d",
-				       hdev->count_adv_change_in_progress);
-		} else if (bit_num_cur_chng == HCI_LE_SCAN_CHANGE_IN_PROGRESS) {
-			hdev->count_scan_change_in_progress++;
-			if (hdev->count_scan_change_in_progress <= 0 ||
-			    hdev->count_scan_change_in_progress >= 3)
-				BT_WARN("Unexpected "
-					"count_scan_change_in_progress: %d",
-					hdev->count_scan_change_in_progress);
-			else
-				BT_DBG("count_scan_change_in_progress: %d",
-				       hdev->count_scan_change_in_progress);
-		}
-	}
-
-out:
-	hci_dev_unlock(hdev);
-	return ret;
-}
-
 static void hci_cmd_work(struct work_struct *work)
 {
 	struct hci_dev *hdev = container_of(work, struct hci_dev, cmd_work);
 	struct sk_buff *skb;
+
+	BT_DBG("%s cmd_cnt %d cmd queued %d", hdev->name,
+	       atomic_read(&hdev->cmd_cnt), skb_queue_len(&hdev->cmd_q));
 
 	/* Send queued commands */
 	if (atomic_read(&hdev->cmd_cnt)) {
@@ -4809,11 +4784,6 @@ static void hci_cmd_work(struct work_struct *work)
 		hdev->sent_cmd = skb_clone(skb, GFP_KERNEL);
 		if (hdev->sent_cmd) {
 			atomic_dec(&hdev->cmd_cnt);
-
-			/* Check if the command could be skipped. */
-			if (skip_conditional_cmd(work, skb))
-				return;
-
 			hci_send_frame(hdev, skb);
 			if (test_bit(HCI_RESET, &hdev->flags))
 				cancel_delayed_work(&hdev->cmd_timer);

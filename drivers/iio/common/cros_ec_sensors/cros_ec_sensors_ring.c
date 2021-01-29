@@ -94,9 +94,9 @@ static const struct iio_info ec_sensors_info = {
 
 static int cros_sensor_ring_push_sample(
 		struct iio_dev *indio_dev,
-		struct cros_ec_sensors_ring_sample *sample)
+		s16 *data, s64 timestamp)
 {
-	return iio_push_to_buffers(indio_dev, (u8 *)sample);
+	return iio_push_to_buffers(indio_dev, (u8 *)data);
 }
 
 static int cros_ec_ring_probe(struct platform_device *pdev)
@@ -124,8 +124,9 @@ static int cros_ec_ring_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	iio_device_attach_buffer(indio_dev, buffer);
-	ret = cros_ec_sensorhub_register_push_sample(
-			sensor_hub, indio_dev, cros_sensor_ring_push_sample);
+	ret = cros_ec_sensorhub_register_push_data(
+			sensor_hub, sensor_hub->sensor_num, indio_dev,
+			cros_sensor_ring_push_sample);
 	if (ret)
 		return ret;
 
@@ -137,7 +138,7 @@ static int cros_ec_ring_remove(struct platform_device *pdev)
 	struct cros_ec_sensorhub *sensor_hub =
 		dev_get_drvdata(pdev->dev.parent);
 
-	cros_ec_sensorhub_unregister_push_sample(sensor_hub);
+	cros_ec_sensorhub_unregister_push_data(sensor_hub, sensor_hub->sensor_num);
 
 	return 0;
 }

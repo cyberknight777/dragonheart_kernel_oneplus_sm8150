@@ -609,6 +609,12 @@ struct btrtl_device_info *btrtl_initialize(struct hci_dev *hdev,
 		}
 	}
 
+	/* RTL8822CE supports the Microsoft vendor extension and uses 0xFCF0
+	 * for VsMsftOpCode.
+	 */
+	if (lmp_subver == RTL_ROM_LMP_8822B)
+		hci_set_msft_opcode(hdev, 0xFCF0);
+
 	return btrtl_dev;
 
 err_free:
@@ -659,13 +665,28 @@ int btrtl_setup_realtek(struct hci_dev *hdev)
 
 	ret = btrtl_download_firmware(hdev, btrtl_dev);
 
-	btrtl_free(btrtl_dev);
-
 	/* Set the bit to reflect that all Realtek controllers are capable
 	 * of doing simultaneous LE scanning and BR/EDR inquiry.
 	*/
 	set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 
+	if (!btrtl_dev->ic_info)
+		goto done;
+
+	/* Enable central-peripheral role (able to create new connections with
+	 * an existing connection in slave role).
+	 */
+	switch (btrtl_dev->ic_info->lmp_subver) {
+	case RTL_ROM_LMP_8822B:
+		set_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks);
+		break;
+	default:
+		rtl_dev_dbg(hdev, "Central-peripheral role not enabled.");
+		break;
+	}
+
+done:
+	btrtl_free(btrtl_dev);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(btrtl_setup_realtek);
