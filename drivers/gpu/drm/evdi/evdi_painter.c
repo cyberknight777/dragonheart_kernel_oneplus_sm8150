@@ -321,6 +321,12 @@ static void evdi_painter_send_event(struct evdi_painter *painter,
 		return;
 	}
 
+	if (!painter->is_connected) {
+		EVDI_WARN("Painter is not connected!");
+		drm_event_cancel_free(painter->drm_device, event);
+		return;
+	}
+
 	evdi_painter_add_event_to_pending_list(painter, event);
 	if (delayed_work_pending(&painter->send_events_work))
 		return;
@@ -722,6 +728,21 @@ static void evdi_remove_i2c_adapter(struct evdi_device *evdi)
 	}
 }
 
+static void evdi_painter_events_cleanup(struct evdi_painter *painter)
+{
+	struct drm_pending_event *event, *temp;
+	unsigned long flags;
+
+	spin_lock_irqsave(&painter->drm_device->event_lock, flags);
+	list_for_each_entry_safe(event, temp, &painter->pending_events, link) {
+		list_del(&event->link);
+		kfree(event);
+	}
+	spin_unlock_irqrestore(&painter->drm_device->event_lock, flags);
+
+	cancel_delayed_work_sync(&painter->send_events_work);
+}
+
 static int
 evdi_painter_connect(struct evdi_device *evdi,
 		     void const __user *edid_data, unsigned int edid_length,
@@ -818,6 +839,7 @@ static int evdi_painter_disconnect(struct evdi_device *evdi,
 
 	EVDI_DEBUG("(dev=%d) Disconnected from %p\n", evdi->dev_index,
 		   painter->drm_filp);
+	evdi_painter_events_cleanup(painter);
 
 	evdi_cursor_enable(evdi->cursor, false);
 
@@ -1041,8 +1063,6 @@ int evdi_painter_init(struct evdi_device *dev)
 void evdi_painter_cleanup(struct evdi_device *evdi)
 {
 	struct evdi_painter *painter = evdi->painter;
-	struct drm_pending_event *event, *temp;
-	unsigned long flags;
 
 	EVDI_CHECKPT();
 	if (!painter) {
@@ -1053,16 +1073,10 @@ void evdi_painter_cleanup(struct evdi_device *evdi)
 	painter_lock(painter);
 	kfree(painter->edid);
 	painter->edid_length = 0;
-	painter->edid = 0;
+	painter->edid = NULL;
 
-	spin_lock_irqsave(&painter->drm_device->event_lock, flags);
-	list_for_each_entry_safe(event, temp, &painter->pending_events, link) {
-		list_del(&event->link);
-		kfree(event);
-	}
-	spin_unlock_irqrestore(&painter->drm_device->event_lock, flags);
+	evdi_painter_events_cleanup(painter);
 
-	cancel_delayed_work_sync(&painter->send_events_work);
 	painter->drm_device = NULL;
 	painter_unlock(painter);
 }
