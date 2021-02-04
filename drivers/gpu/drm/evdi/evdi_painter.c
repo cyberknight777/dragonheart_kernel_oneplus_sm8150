@@ -80,6 +80,8 @@ struct evdi_painter {
 	bool was_update_requested;
 	bool needs_full_modeset;
 
+	struct list_head pending_events;
+
 	struct completion ddcci_response_received;
 	char *ddcci_buffer;
 	unsigned int ddcci_buffer_length;
@@ -954,6 +956,7 @@ int evdi_painter_init(struct evdi_device *dev)
 		dev->painter->edid_length = 0;
 		dev->painter->needs_full_modeset = true;
 		dev->painter->drm_device = dev->ddev;
+		INIT_LIST_HEAD(&dev->painter->pending_events);
 		init_completion(&dev->painter->ddcci_response_received);
 		return 0;
 	}
@@ -963,18 +966,25 @@ int evdi_painter_init(struct evdi_device *dev)
 void evdi_painter_cleanup(struct evdi_device *evdi)
 {
 	struct evdi_painter *painter = evdi->painter;
+	struct drm_pending_event *event, *temp;
 
 	EVDI_CHECKPT();
-	if (painter) {
-		painter_lock(painter);
-		kfree(painter->edid);
-		painter->edid_length = 0;
-		painter->edid = 0;
-		painter->drm_device = NULL;
-		painter_unlock(painter);
-	} else {
+	if (!painter) {
 		EVDI_WARN("Painter does not exist\n");
+		return;
 	}
+
+	painter_lock(painter);
+	kfree(painter->edid);
+	painter->edid_length = 0;
+	painter->edid = 0;
+
+	list_for_each_entry_safe(event, temp, &painter->pending_events, link) {
+		list_del(&event->link);
+		kfree(event);
+	}
+	painter->drm_device = NULL;
+	painter_unlock(painter);
 }
 
 /*
