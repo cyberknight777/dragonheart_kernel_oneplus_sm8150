@@ -3275,6 +3275,8 @@ bool sde_crtc_get_fingerprint_pressed(struct drm_crtc_state *crtc_state)
 
 extern int oneplus_force_screenfp;
 extern int oneplus_panel_alpha;
+static int alpha_generated = 0, alpha_generated_dc = 0;
+
 struct ba {
 	u32 brightness;
 	u32 alpha;
@@ -3350,7 +3352,7 @@ struct ba brightness_alpha_lut_dc[] = {
 	{260, 0x00}
 };
 
-struct ba brightness_alpha_lut[21] = {};
+static u32 *alpha_gen, *alpha_gen_dc;
 
 static int interpolate(int x, int xa, int xb, int ya, int yb)
 {
@@ -3366,50 +3368,85 @@ static int interpolate(int x, int xa, int xb, int ya, int yb)
 	return ya + factor + plus + sub;
 }
 
-int brightness_to_alpha(int brightness)
+u32 alpha_generator(struct ba *pre_gen_array, u32 array_size, u32 brightness)
 {
-	int level = ARRAY_SIZE(brightness_alpha_lut);
-	int i = 0;
+	int i;
 
-	for (i = 0; i < ARRAY_SIZE(brightness_alpha_lut); i++){
-		if (brightness_alpha_lut[i].brightness >= brightness)
+	for (i = 0; i < array_size; i++) {
+		if (pre_gen_array[i].brightness >= brightness)
 			break;
 	}
 
 	if (i == 0)
-		return brightness_alpha_lut[0].alpha;
-	else if (i == level)
-		return brightness_alpha_lut[level - 1].alpha;
+		return pre_gen_array[0].alpha;
+
+	if (i == array_size)
+		return pre_gen_array[array_size - 1].alpha;
 
 	return interpolate(brightness,
-			brightness_alpha_lut[i-1].brightness,
-			brightness_alpha_lut[i].brightness,
-			brightness_alpha_lut[i-1].alpha,
-			brightness_alpha_lut[i].alpha);
+			pre_gen_array[i - 1].brightness,
+			pre_gen_array[i].brightness,
+			pre_gen_array[i - 1].alpha,
+			pre_gen_array[i].alpha);
 }
 
-int bl_to_alpha_dc(int brightness)
+void gen_alpha(struct ba *pre_gen_array)
 {
-	int level = ARRAY_SIZE(brightness_alpha_lut_dc);
-	int i = 0;
-	int alpha;
+	int i;
 
-	for (i = 0; i < ARRAY_SIZE(brightness_alpha_lut_dc); i++) {
-		if (brightness_alpha_lut_dc[i].brightness >= brightness)
-			break;
+	if (alpha_generated)
+		return;
+
+	alpha_gen = kmalloc_array(2001, sizeof(u32), GFP_KERNEL);
+
+	for (i = 0; i < 2001; i++) {
+		alpha_gen[i] = alpha_generator(pre_gen_array, 21, i);
 	}
 
-	if (i == 0)
-		alpha = brightness_alpha_lut_dc[0].alpha;
-	else if (i == level)
-		alpha = brightness_alpha_lut_dc[level - 1].alpha;
-	else
-		alpha = interpolate(brightness,
-			brightness_alpha_lut_dc[i-1].brightness,
-			brightness_alpha_lut_dc[i].brightness,
-			brightness_alpha_lut_dc[i-1].alpha,
-			brightness_alpha_lut_dc[i].alpha);
-	return alpha;
+	alpha_generated = 1;
+}
+
+void gen_alpha_dc(void)
+{
+	int i;
+
+	if (alpha_generated_dc)
+		return;
+
+	alpha_gen_dc = kmalloc_array(261, sizeof(u32), GFP_KERNEL);
+
+	for (i = 0; i < 261; i++) {
+		alpha_gen_dc[i] = alpha_generator(brightness_alpha_lut_dc,
+				ARRAY_SIZE(brightness_alpha_lut_dc), i);
+	}
+
+	alpha_generated_dc = 1;
+}
+
+static inline int brightness_to_alpha(int brightness)
+{
+	static const int level = 2001;
+
+	if (unlikely(brightness < 0))
+		return alpha_gen[0];
+
+	if (unlikely(brightness >= level))
+		return alpha_gen[level - 1];
+
+	return alpha_gen[brightness];
+}
+
+static inline int bl_to_alpha_dc(int brightness)
+{
+	static const int level = 261;
+
+	if (unlikely(brightness < 0))
+		return alpha_gen_dc[0];
+
+	if (unlikely(brightness >= level))
+		return alpha_gen_dc[level - 1];
+
+	return alpha_gen_dc[brightness];
 }
 
 bool oneplus_dimlayer_hbm_enable;
@@ -7612,12 +7649,11 @@ struct drm_crtc *sde_crtc_init(struct drm_device *dev, struct drm_plane *plane)
 	sde_crtc_install_properties(crtc, kms->catalog);
 
 	if (dsi_panel_hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
-		for (i = 0; i < 21; i++)
-			brightness_alpha_lut[i] = brightness_alpha_lut_2[i];
+		gen_alpha(brightness_alpha_lut_2);
 	} else {
-		for (i = 0; i < 21; i++)
-			brightness_alpha_lut[i] = brightness_alpha_lut_1[i];
+		gen_alpha(brightness_alpha_lut_1);
 	}
+	gen_alpha_dc();
 
 	/* Install color processing properties */
 	sde_cp_crtc_init(crtc);
