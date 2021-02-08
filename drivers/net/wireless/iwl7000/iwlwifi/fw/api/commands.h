@@ -291,7 +291,7 @@ enum iwl_legacy_cmds {
 
 	/* Phy */
 	/**
-	 * @PHY_CONFIGURATION_CMD: &struct iwl_phy_cfg_cmd
+	 * @PHY_CONFIGURATION_CMD: &struct iwl_phy_cfg_cmd_v1 or &struct iwl_phy_cfg_cmd_v3
 	 */
 	PHY_CONFIGURATION_CMD = 0x6a,
 
@@ -613,12 +613,28 @@ enum iwl_system_subcmd_ids {
 	 * @FW_ERROR_RECOVERY_CMD: &struct iwl_fw_error_recovery_cmd
 	 */
 	FW_ERROR_RECOVERY_CMD = 0x7,
+
+	/**
+	 * @RFI_CONFIG_CMD: &struct iwl_rfi_config_cmd
+	 */
+	RFI_CONFIG_CMD = 0xb,
+
+	/**
+	 * @RFI_GET_FREQ_TABLE_CMD: &struct iwl_rfi_config_cmd
+	 */
+	RFI_GET_FREQ_TABLE_CMD = 0xc,
 };
 
 /**
  * enum iwl_xvt_subcmd_ids - XVT group command IDs
  */
 enum iwl_xvt_subcmd_ids {
+	/**
+	 * Get/Set PHY DB Command
+	 * Handled by user space component
+	 */
+	GRP_XVT_GET_SET_PHY_DB_CMD = 0x34,
+
 	/**
 	 * @DTS_MEASUREMENT_TRIGGER_NOTIF : Notification about
 	 * DTS measurement

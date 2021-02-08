@@ -389,9 +389,11 @@ iwl_xvt_rx_get_tx_meta_data(struct iwl_xvt *xvt, u16 txq_id)
 
 	lmac_id = XVT_LMAC_0_ID;
 verify:
-	if (WARN(xvt->queue_data[txq_id].allocated_queue == 0,
-		 "got TX_CMD from unidentified queue: (lmac %d) %d %d\n",
-		 lmac_id, txq_id, xvt->queue_data[txq_id].allocated_queue))
+	if (WARN(txq_id != xvt->tx_meta_data[lmac_id].queue &&
+		 xvt->queue_data[txq_id].allocated_queue == 0,
+		 "got TX_CMD from unidentified queue: (lmac %d) %d %d %d\n",
+		 lmac_id, txq_id, xvt->tx_meta_data[lmac_id].queue,
+		 xvt->queue_data[txq_id].allocated_queue))
 		return NULL;
 
 	return &xvt->tx_meta_data[lmac_id];
@@ -749,6 +751,15 @@ static void iwl_xvt_wake_sw_queue(struct iwl_op_mode *op_mode, int queue)
 	}
 }
 
+static void iwl_xvt_time_point(struct iwl_op_mode *op_mode,
+			       enum iwl_fw_ini_time_point tp_id,
+			       union iwl_dbg_tlv_tp_data *tp_data)
+{
+	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+
+	iwl_dbg_tlv_time_point(&xvt->fwrt, tp_id, tp_data);
+}
+
 static const struct iwl_op_mode_ops iwl_xvt_ops = {
 	.start = iwl_xvt_start,
 	.stop = iwl_xvt_stop,
@@ -759,6 +770,7 @@ static const struct iwl_op_mode_ops iwl_xvt_ops = {
 	.free_skb = iwl_xvt_free_skb,
 	.queue_full = iwl_xvt_stop_sw_queue,
 	.queue_not_full = iwl_xvt_wake_sw_queue,
+	.time_point = iwl_xvt_time_point,
 	.test_ops = {
 		.send_hcmd = iwl_xvt_tm_send_hcmd,
 		.cmd_exec = iwl_xvt_user_cmd_execute,

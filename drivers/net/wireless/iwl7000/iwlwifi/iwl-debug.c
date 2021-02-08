@@ -78,13 +78,12 @@ void __iwl_dbg(struct device *dev,
 
 		va_copy(args2, args);
 		vaf.va = &args2;
-		dev_printk(KERN_DEBUG, dev, "%c %s %pV",
-			   in_interrupt() ? 'I' : 'U', function, &vaf);
+		dev_printk(KERN_DEBUG, dev, "%s %pV", function, &vaf);
 		va_end(args2);
 	}
 #endif
 	vaf.va = &args;
-	trace_iwlwifi_dbg(level, in_interrupt(), function, &vaf);
+	trace_iwlwifi_dbg(level, function, &vaf);
 	va_end(args);
 }
 IWL_EXPORT_SYMBOL(__iwl_dbg);

@@ -36,7 +36,7 @@
 #define XVT_SCU_SNUM3	(XVT_SCU_SNUM2 + 0x4)
 #define XVT_MAX_TX_COUNT (ULLONG_MAX)
 #define XVT_LMAC_0_STA_ID (0) /* must be aligned with station id added in USC */
-#define XVT_LMAC_1_STA_ID (3) /* must be aligned with station id added in USC */
+#define XVT_LMAC_1_STA_ID (2) /* must be aligned with station id added in USC */
 #define XVT_STOP_TX (IEEE80211_SCTL_FRAG + 1)
 
 void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
@@ -51,6 +51,7 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 
 	switch (WIDE_ID(pkt->hdr.group_id, pkt->hdr.cmd)) {
 	case WIDE_ID(LONG_GROUP, GET_SET_PHY_DB_CMD):
+	case WIDE_ID(XVT_GROUP, GRP_XVT_GET_SET_PHY_DB_CMD):
 		iwl_xvt_user_send_notif(xvt, IWL_TM_USER_CMD_NOTIF_PHY_DB,
 					data, size, GFP_ATOMIC);
 		break;

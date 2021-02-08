@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2014, 2019 Intel Corporation
+ * Copyright (C) 2014, 2019-2020 Intel Corporation
  * Copyright (C) 2014 Intel Mobile Communications GmbH
  */
 #include <linux/types.h>
@@ -538,7 +538,6 @@ int iwl_dnt_dev_if_read_rx(struct iwl_dnt *dnt, struct iwl_trans *trans)
 	int i, reg_val;
 	u32 buf32_size, offset = 0;
 	u32 *buf32;
-	unsigned long flags;
 
 	/* reading buffer size */
 	reg_val = iwl_trans_read_prph(trans, RXF_SIZE_ADDR);
@@ -559,7 +558,7 @@ int iwl_dnt_dev_if_read_rx(struct iwl_dnt *dnt, struct iwl_trans *trans)
 
 	buf32 = (u32 *)crash->rx;
 
-	if (!iwl_trans_grab_nic_access(trans, &flags)) {
+	if (!iwl_trans_grab_nic_access(trans)) {
 		vfree(crash->rx);
 		return -EBUSY;
 	}
@@ -568,7 +567,7 @@ int iwl_dnt_dev_if_read_rx(struct iwl_dnt *dnt, struct iwl_trans *trans)
 		offset += sizeof(u32);
 		buf32[i] = iwl_trans_read_prph(trans, RXF_FIFO_RD_FENCE_ADDR);
 	}
-	iwl_trans_release_nic_access(trans, &flags);
+	iwl_trans_release_nic_access(trans);
 
 	return 0;
 }

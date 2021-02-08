@@ -1,7 +1,7 @@
 /*
  * ChromeOS backport definitions
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2020 Intel Corporation
+ * Copyright (C) 2018-2021 Intel Corporation
  */
 #include <linux/if_ether.h>
 #include <net/cfg80211.h>
@@ -1496,20 +1496,18 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 {
 	skb->next = NULL;
 }
+
+static inline void skb_list_del_init(struct sk_buff *skb)
+{
+	__list_del_entry((struct list_head *)&skb->next);
+	skb_mark_not_on_list(skb);
+}
 #endif /* < 4.14 */
 
 #if LINUX_VERSION_IS_LESS(4,20,0)
 static inline struct sk_buff *__skb_peek(const struct sk_buff_head *list_)
 {
 	return list_->next;
-}
-#endif
-
-#if LINUX_VERSION_IS_LESS(4,14,0)
-static inline void skb_list_del_init(struct sk_buff *skb)
-{
-	__list_del_entry((struct list_head *)&skb->next);
-	skb_mark_not_on_list(skb);
 }
 #endif
 
@@ -1584,11 +1582,11 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 				    WLAN_USER_POSITION_LEN)
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(99,0,0)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,7,0)
 #define cfg_he_oper(params) params->he_oper
 #else
 #define cfg_he_oper(params) ((struct ieee80211_he_operation *)NULL)
-#endif /* >= 99.0 */
+#endif /* >= 5.7 */
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,20,0)
 #define cfg_he_cap(params) params->he_cap
@@ -2109,7 +2107,7 @@ static inline bool nl80211_is_6ghz(enum nl80211_band band)
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,4,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
 #define ieee80211_preamble_he() 0
 #define ftm_non_trigger_based(peer)	0
 #define ftm_trigger_based(peer)	0
@@ -2130,7 +2128,7 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #define NL80211_EXT_FEATURE_BEACON_PROTECTION_CLIENT -1
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(99,99,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,7,0)
 #define NL80211_EXT_FEATURE_PROTECTED_TWT -1
 #endif
 
@@ -2292,6 +2290,12 @@ cfg80211_iftd_he_6ghz_capa(const struct ieee80211_sband_iftype_data *iftd)
 	return 0;
 }
 
+static inline void
+cfg80211_iftd_set_he_6ghz_capa(struct ieee80211_sband_iftype_data *iftd,
+			       __le16 capa)
+{
+}
+
 int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 			      const u8 *buf, size_t len,
 			      const u8 *dest, __be16 proto, bool unencrypted,
@@ -2328,6 +2332,13 @@ cfg80211_iftd_he_6ghz_capa(const struct ieee80211_sband_iftype_data *iftd)
 {
 	return iftd->he_6ghz_capa.capa;
 }
+
+static inline void
+cfg80211_iftd_set_he_6ghz_capa(struct ieee80211_sband_iftype_data *iftd,
+			       __le16 capa)
+{
+	iftd->he_6ghz_capa.capa = capa;
+}
 #endif /* < 5.8 */
 
 #if LINUX_VERSION_IS_GEQ(4,20,0)
@@ -2361,6 +2372,11 @@ cfg80211_iftd_he_6ghz_capa(const struct ieee80211_sband_iftype_data *iftd)
 #endif /* fallthrough */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,10,0)
+#define WIPHY_FLAG_SPLIT_SCAN_6GHZ 0
+#define NL80211_SCAN_FLAG_COLOCATED_6GHZ 0
+#endif /* < 5.10 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,11,0)
 static inline void
 LINUX_BACKPORT(cfg80211_ch_switch_started_notify)(struct net_device *dev,
 						  struct cfg80211_chan_def *chandef,
@@ -2369,18 +2385,20 @@ LINUX_BACKPORT(cfg80211_ch_switch_started_notify)(struct net_device *dev,
 	cfg80211_ch_switch_started_notify(dev, chandef, count);
 }
 #define cfg80211_ch_switch_started_notify LINUX_BACKPORT(cfg80211_ch_switch_started_notify)
+
 #define cfg80211_tx_mlme_mgmt(netdev, buf, len, reconnect) cfg80211_tx_mlme_mgmt(netdev, buf, len)
-
-#define WIPHY_FLAG_SPLIT_SCAN_6GHZ 0
-#define NL80211_SCAN_FLAG_COLOCATED_6GHZ 0
-
-#endif /* < 5.10 */
+#endif /* < 5.11 */
 
 #ifndef ETH_TLEN
 #define ETH_TLEN	2		/* Octets in ethernet type field */
 #endif
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5, 10, 0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
+static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
+{
+	return false;
+}
+#elif CFG80211_VERSION < KERNEL_VERSION(5,8,0)
 /**
  * cfg80211_channel_is_psc - Check if the channel is a 6 GHz PSC
  * @chan: control channel to check
@@ -2388,6 +2406,7 @@ LINUX_BACKPORT(cfg80211_ch_switch_started_notify)(struct net_device *dev,
  * The Preferred Scanning Channels (PSC) are defined in
  * Draft IEEE P802.11ax/D5.0, 26.17.2.3.3
  */
+#
 static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
 {
 	if (chan->band != NL80211_BAND_6GHZ)
@@ -2396,7 +2415,7 @@ static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
 	return ieee80211_frequency_to_channel(chan->center_freq) % 16 == 5;
 }
 
-#endif /* >= 5.10.0 */
+#endif /* < 5.8.0 */
 
 #if LINUX_VERSION_IS_LESS(5,9,0)
 
@@ -2430,6 +2449,11 @@ static inline bool nl80211_is_s1ghz_width(enum nl80211_chan_width w1,
 	return false;
 }
 #else /* CFG80211_VERSION < 5.9.0 */
+static inline bool nl80211_is_s1ghz(enum nl80211_band band)
+{
+	return band == NL80211_BAND_S1GHZ;
+}
+
 static inline bool nl80211_is_s1ghz_width(enum nl80211_chan_width w1,
 					  enum nl80211_chan_width w2)
 {
@@ -2467,3 +2491,62 @@ static inline u8 cfg80211_he_gi(struct rate_info *ri)
 }
 
 #endif /* < 4.19.0 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,10,0)
+static inline enum nl80211_chan_width
+ieee80211_s1g_channel_width(const struct ieee80211_channel *chan)
+{
+	return NL80211_CHAN_WIDTH_20_NOHT;
+}
+
+#define NL80211_BSS_CHAN_WIDTH_1	3
+#define NL80211_BSS_CHAN_WIDTH_2	4
+
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,10,0) */
+
+#if LINUX_VERSION_IS_LESS(5,10,0)
+/**
+ *      dev_fetch_sw_netstats - get per-cpu network device statistics
+ *      @s: place to store stats
+ *      @netstats: per-cpu network stats to read from
+ *
+ *      Read per-cpu network statistics and populate the related fields in @s.
+ */
+static inline
+void dev_fetch_sw_netstats(struct rtnl_link_stats64 *s,
+                           const struct pcpu_sw_netstats __percpu *netstats)
+{
+        int cpu;
+
+        for_each_possible_cpu(cpu) {
+                const struct pcpu_sw_netstats *stats;
+                struct pcpu_sw_netstats tmp;
+                unsigned int start;
+
+                stats = per_cpu_ptr(netstats, cpu);
+                do {
+                        start = u64_stats_fetch_begin_irq(&stats->syncp);
+                        tmp.rx_packets = stats->rx_packets;
+                        tmp.rx_bytes   = stats->rx_bytes;
+                        tmp.tx_packets = stats->tx_packets;
+                        tmp.tx_bytes   = stats->tx_bytes;
+                } while (u64_stats_fetch_retry_irq(&stats->syncp, start));
+
+                s->rx_packets += tmp.rx_packets;
+                s->rx_bytes   += tmp.rx_bytes;
+                s->tx_packets += tmp.tx_packets;
+                s->tx_bytes   += tmp.tx_bytes;
+        }
+}
+
+#define bp_ieee80211_set_unsol_bcast_probe_resp(sdata, params) 0
+#define bp_unsol_bcast_probe_resp_interval(params) 0
+
+#else /* < 5.10 */
+
+#define bp_ieee80211_set_unsol_bcast_probe_resp(sdata, params) \
+	ieee80211_set_unsol_bcast_probe_resp(sdata, params)
+#define bp_unsol_bcast_probe_resp_interval(params) \
+	(params->unsol_bcast_probe_resp.interval)
+
+#endif /* < 5.10 */

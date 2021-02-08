@@ -9,9 +9,15 @@
 #include "acpi.h"
 #include "fw/runtime.h"
 
-const static guid_t intel_wifi_guid = GUID_INIT(0xF21202BF, 0x8F78, 0x4DC6,
-						0xA5, 0xB3, 0x1F, 0x73,
-						0x8E, 0x28, 0x5A, 0xDE);
+const guid_t iwl_guid = GUID_INIT(0xF21202BF, 0x8F78, 0x4DC6,
+				  0xA5, 0xB3, 0x1F, 0x73,
+				  0x8E, 0x28, 0x5A, 0xDE);
+IWL_EXPORT_SYMBOL(iwl_guid);
+
+const guid_t iwl_rfi_guid = GUID_INIT(0x7266172C, 0x220B, 0x4B29,
+				      0x81, 0x4F, 0x75, 0xE4,
+				      0xDD, 0x26, 0xB5, 0xFD);
+IWL_EXPORT_SYMBOL(iwl_rfi_guid);
 
 static int iwl_acpi_get_handle(struct device *dev, acpi_string method,
 			       acpi_handle *ret_handle)
@@ -64,11 +70,12 @@ IWL_EXPORT_SYMBOL(iwl_acpi_get_object);
 * function.
 */
 static void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
-				     union acpi_object *args)
+				     union acpi_object *args,
+				     const guid_t *guid)
 {
 	union acpi_object *obj;
 
-	obj = acpi_evaluate_dsm(ACPI_HANDLE(dev), &intel_wifi_guid, rev, func,
+	obj = acpi_evaluate_dsm(ACPI_HANDLE(dev), guid, rev, func,
 				args);
 	if (!obj) {
 		IWL_DEBUG_DEV_RADIO(dev,
@@ -80,19 +87,20 @@ static void *iwl_acpi_get_dsm_object(struct device *dev, int rev, int func,
 }
 
 /**
- * Evaluate a DSM with no arguments and a single u8 return value (inside a
- * buffer object), verify and return that value.
+ * Evaluate a DSM with no arguments and a single u8 return value,
+ * verify and return that value.
  */
-int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func)
+int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func,
+			const guid_t *guid)
 {
 	union acpi_object *obj;
 	int ret;
 
-	obj = iwl_acpi_get_dsm_object(dev, rev, func, NULL);
+	obj = iwl_acpi_get_dsm_object(dev, rev, func, NULL, guid);
 	if (IS_ERR(obj))
 		return -ENOENT;
 
-	if (obj->type != ACPI_TYPE_BUFFER) {
+	if (obj->type != ACPI_TYPE_INTEGER) {
 		IWL_DEBUG_DEV_RADIO(dev,
 				    "ACPI: DSM method did not return a valid object, type=%d\n",
 				    obj->type);
@@ -100,15 +108,7 @@ int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func)
 		goto out;
 	}
 
-	if (obj->buffer.length != sizeof(u8)) {
-		IWL_DEBUG_DEV_RADIO(dev,
-				    "ACPI: DSM method returned invalid buffer, length=%d\n",
-				    obj->buffer.length);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	ret = obj->buffer.pointer[0];
+	ret = obj->integer.value;
 	IWL_DEBUG_DEV_RADIO(dev,
 			    "ACPI: DSM method evaluated: func=%d, ret=%d\n",
 			    func, ret);
