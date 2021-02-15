@@ -32,7 +32,15 @@ static struct evdi_context {
 	unsigned int dev_count;
 	struct platform_device *devices[EVDI_DEVICE_COUNT_MAX];
 	struct notifier_block usb_notifier;
+	struct mutex lock;
 } evdi_context;
+
+#define evdi_context_lock(ctx) \
+		mutex_lock(&ctx->lock)
+
+#define evdi_context_unlock(ctx) \
+		mutex_unlock(&ctx->lock)
+
 
 struct evdi_platform_device_data {
 	struct drm_device *drm_dev;
@@ -53,6 +61,7 @@ static int evdi_platform_drv_usb(__always_unused struct notifier_block *nb,
 	if (action != BUS_NOTIFY_DEL_DEVICE)
 		return 0;
 
+	evdi_context_lock((&evdi_context));
 	for (i = 0; i < EVDI_DEVICE_COUNT_MAX; ++i) {
 		pdev = evdi_context.devices[i];
 		if (!pdev)
@@ -65,6 +74,7 @@ static int evdi_platform_drv_usb(__always_unused struct notifier_block *nb,
 			evdi_context.devices[i] = NULL;
 		}
 	}
+	evdi_context_unlock((&evdi_context));
 
 	return 0;
 }
@@ -261,11 +271,13 @@ static int evdi_add_device(struct evdi_context *ctx, struct device *parent)
 {
 	struct platform_device *pdev = NULL;
 
+	evdi_context_lock(ctx);
 	if (parent)
 		pdev = evdi_platform_drv_get_free_device(ctx);
 
 	if (IS_ERR_OR_NULL(pdev))
 		pdev = evdi_platform_drv_create_new_device(ctx);
+	evdi_context_unlock(ctx);
 
 	if (IS_ERR_OR_NULL(pdev))
 		return -EINVAL;
@@ -385,6 +397,7 @@ static void evdi_remove_all(void)
 	int i;
 
 	EVDI_DEBUG("removing all evdi devices\n");
+	evdi_context_lock((&evdi_context));
 	for (i = 0; i < EVDI_DEVICE_COUNT_MAX; ++i) {
 		if (evdi_context.devices[i]) {
 			EVDI_DEBUG("removing evdi %d\n", i);
@@ -395,6 +408,7 @@ static void evdi_remove_all(void)
 		}
 	}
 	evdi_context.dev_count = 0;
+	evdi_context_unlock((&evdi_context));
 }
 
 static struct platform_driver evdi_platform_driver = {
@@ -624,6 +638,7 @@ static int __init evdi_init(void)
 		(driver.driver_features & DRIVER_ATOMIC) ? "yes" : "no");
 	evdi_context.root_dev = root_device_register("evdi");
 	evdi_context.usb_notifier.notifier_call = evdi_platform_drv_usb;
+	mutex_init(&evdi_context.lock);
 
 	usb_register_notify(&evdi_context.usb_notifier);
 	if (!PTR_RET(evdi_context.root_dev))
