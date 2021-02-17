@@ -68,6 +68,8 @@ void hci_req_add_le_passive_scan(struct hci_request *req);
 
 void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next);
 
+void __hci_req_pause_adv_instances(struct hci_request *req);
+int hci_req_resume_adv_instances(struct hci_dev *hdev);
 void hci_req_reenable_advertising(struct hci_dev *hdev);
 void __hci_req_enable_advertising(struct hci_request *req);
 void __hci_req_disable_advertising(struct hci_request *req);
@@ -80,6 +82,7 @@ int __hci_req_schedule_adv_instance(struct hci_request *req, u8 instance,
 void hci_req_clear_adv_instance(struct hci_dev *hdev, struct sock *sk,
 				struct hci_request *req, u8 instance,
 				bool force);
+int hci_req_enable_paused_adv(struct hci_dev *hdev);
 
 void __hci_req_update_class(struct hci_request *req);
 

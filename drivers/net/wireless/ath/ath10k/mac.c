@@ -102,6 +102,8 @@ static struct ieee80211_rate ath10k_rates_rev2[] = {
 #define ath10k_g_rates_rev2 (ath10k_rates_rev2 + 0)
 #define ath10k_g_rates_rev2_size (ARRAY_SIZE(ath10k_rates_rev2))
 
+#define ath10k_wmi_legacy_rates ath10k_rates
+
 static bool ath10k_mac_bitrate_is_cck(int bitrate)
 {
 	switch (bitrate) {
@@ -153,6 +155,22 @@ u8 ath10k_mac_bitrate_to_idx(const struct ieee80211_supported_band *sband,
 			return i;
 
 	return 0;
+}
+
+static int ath10k_mac_get_rate_hw_value(int bitrate)
+{
+	int i;
+	u8 hw_value_prefix = 0;
+
+	if (ath10k_mac_bitrate_is_cck(bitrate))
+		hw_value_prefix = WMI_RATE_PREAMBLE_CCK << 6;
+
+	for (i = 0; i < ARRAY_SIZE(ath10k_rates); i++) {
+		if (ath10k_rates[i].bitrate == bitrate)
+			return hw_value_prefix | ath10k_rates[i].hw_value;
+	}
+
+	return -EINVAL;
 }
 
 static int ath10k_mac_get_max_vht_mcs_map(u16 mcs_map, int nss)
@@ -2873,6 +2891,11 @@ static void ath10k_bss_assoc(struct ieee80211_hw *hw,
 	arvif->aid = bss_conf->aid;
 	ether_addr_copy(arvif->bssid, bss_conf->bssid);
 
+	ret = ath10k_wmi_pdev_set_param(ar,
+					ar->wmi.pdev_param->peer_stats_info_enable, 1);
+	if (ret)
+		ath10k_warn(ar, "failed to enable peer stats info: %d\n", ret);
+
 	ret = ath10k_wmi_vdev_up(ar, arvif->vdev_id, arvif->aid, arvif->bssid);
 	if (ret) {
 		ath10k_warn(ar, "failed to set vdev %d up: %d\n",
@@ -5438,6 +5461,37 @@ static void ath10k_configure_filter(struct ieee80211_hw *hw,
 	mutex_unlock(&ar->conf_mutex);
 }
 
+static void ath10k_recalculate_mgmt_rate(struct ath10k *ar,
+					 struct ieee80211_vif *vif,
+					 struct cfg80211_chan_def *def)
+{
+	struct ath10k_vif *arvif = (void *)vif->drv_priv;
+	const struct ieee80211_supported_band *sband;
+	u8 basic_rate_idx;
+	int hw_rate_code;
+	u32 vdev_param;
+	u16 bitrate;
+	int ret;
+
+	lockdep_assert_held(&ar->conf_mutex);
+
+	sband = ar->hw->wiphy->bands[def->chan->band];
+	basic_rate_idx = ffs(vif->bss_conf.basic_rates) - 1;
+	bitrate = sband->bitrates[basic_rate_idx].bitrate;
+
+	hw_rate_code = ath10k_mac_get_rate_hw_value(bitrate);
+	if (hw_rate_code < 0) {
+		ath10k_warn(ar, "bitrate not supported %d\n", bitrate);
+		return;
+	}
+
+	vdev_param = ar->wmi.vdev_param->mgmt_rate;
+	ret = ath10k_wmi_vdev_set_param(ar, arvif->vdev_id, vdev_param,
+					hw_rate_code);
+	if (ret)
+		ath10k_warn(ar, "failed to set mgmt tx rate %d\n", ret);
+}
+
 static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
 				    struct ieee80211_vif *vif,
 				    struct ieee80211_bss_conf *info,
@@ -5445,8 +5499,12 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
 {
 	struct ath10k *ar = hw->priv;
 	struct ath10k_vif *arvif = (void *)vif->drv_priv;
-	int ret = 0;
+	struct cfg80211_chan_def def;
 	u32 vdev_param, pdev_param, slottime, preamble;
+	u16 bitrate, hw_value;
+	u8 rate, rateidx;
+	int ret = 0, mcast_rate;
+	enum nl80211_band band;
 
 	mutex_lock(&ar->conf_mutex);
 
@@ -5613,6 +5671,52 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
 			ath10k_warn(ar, "failed to setup ps on vdev %i: %d\n",
 				    arvif->vdev_id, ret);
 	}
+
+	if (changed & BSS_CHANGED_MCAST_RATE &&
+	    !ath10k_mac_vif_chan(arvif->vif, &def)) {
+		band = def.chan->band;
+		mcast_rate = vif->bss_conf.mcast_rate[band];
+		if (mcast_rate > 0)
+			rateidx = mcast_rate - 1;
+		else
+			rateidx = ffs(vif->bss_conf.basic_rates) - 1;
+
+		if (ar->phy_capability & WHAL_WLAN_11A_CAPABILITY)
+			rateidx += ATH10K_MAC_FIRST_OFDM_RATE_IDX;
+
+		bitrate = ath10k_wmi_legacy_rates[rateidx].bitrate;
+		hw_value = ath10k_wmi_legacy_rates[rateidx].hw_value;
+		if (ath10k_mac_bitrate_is_cck(bitrate))
+			preamble = WMI_RATE_PREAMBLE_CCK;
+		else
+			preamble = WMI_RATE_PREAMBLE_OFDM;
+
+		rate = ATH10K_HW_RATECODE(hw_value, 0, preamble);
+
+		ath10k_dbg(ar, ATH10K_DBG_MAC,
+			   "mac vdev %d mcast_rate %x\n",
+			   arvif->vdev_id, rate);
+
+		vdev_param = ar->wmi.vdev_param->mcast_data_rate;
+		ret = ath10k_wmi_vdev_set_param(ar, arvif->vdev_id,
+						vdev_param, rate);
+		if (ret)
+			ath10k_warn(ar,
+				    "failed to set mcast rate on vdev %i: %d\n",
+				    arvif->vdev_id,  ret);
+
+		vdev_param = ar->wmi.vdev_param->bcast_data_rate;
+		ret = ath10k_wmi_vdev_set_param(ar, arvif->vdev_id,
+						vdev_param, rate);
+		if (ret)
+			ath10k_warn(ar,
+				    "failed to set bcast rate on vdev %i: %d\n",
+				    arvif->vdev_id,  ret);
+	}
+
+	if (changed & BSS_CHANGED_BASIC_RATES &&
+	    !ath10k_mac_vif_chan(arvif->vif, &def))
+		ath10k_recalculate_mgmt_rate(ar, vif, &def);
 
 	mutex_unlock(&ar->conf_mutex);
 }
@@ -6178,6 +6282,15 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 			   ar->num_stations + 1, ar->max_num_stations,
 			   ar->num_peers + 1, ar->max_num_peers);
 
+		if (ath10k_debug_is_extd_tx_stats_enabled(ar)) {
+			arsta->tx_stats = kzalloc(sizeof(*arsta->tx_stats),
+						  GFP_KERNEL);
+			if (!arsta->tx_stats) {
+				ret = -ENOMEM;
+				goto exit;
+			}
+		}
+
 		num_tdls_stations = ath10k_mac_tdls_vif_stations_count(hw, vif);
 		num_tdls_vifs = ath10k_mac_tdls_vifs_count(hw);
 
@@ -6301,6 +6414,11 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 			}
 		}
 		spin_unlock_bh(&ar->data_lock);
+
+		if (ath10k_debug_is_extd_tx_stats_enabled(ar)) {
+			kfree(arsta->tx_stats);
+			arsta->tx_stats = NULL;
+		}
 
 		for (i = 0; i < ARRAY_SIZE(sta->txq); i++)
 			ath10k_mac_txq_unref(ar, sta->txq[i]);
@@ -6789,7 +6907,7 @@ ath10k_mac_update_bss_chan_survey(struct ath10k *ar,
 				  struct ieee80211_channel *channel)
 {
 	int ret;
-	enum wmi_bss_survey_req_type type = WMI_BSS_SURVEY_REQ_TYPE_READ_CLEAR;
+	enum wmi_bss_survey_req_type type = WMI_BSS_SURVEY_REQ_TYPE_READ;
 
 	lockdep_assert_held(&ar->conf_mutex);
 
@@ -6931,7 +7049,6 @@ ath10k_mac_bitrate_mask_get_single_rate(struct ath10k *ar,
 					const struct cfg80211_bitrate_mask *mask,
 					u8 *rate, u8 *nss)
 {
-	struct ieee80211_supported_band *sband = &ar->mac.sbands[band];
 	int rate_idx;
 	int i;
 	u16 bitrate;
@@ -6941,8 +7058,11 @@ ath10k_mac_bitrate_mask_get_single_rate(struct ath10k *ar,
 	if (hweight32(mask->control[band].legacy) == 1) {
 		rate_idx = ffs(mask->control[band].legacy) - 1;
 
-		hw_rate = sband->bitrates[rate_idx].hw_value;
-		bitrate = sband->bitrates[rate_idx].bitrate;
+		if (ar->phy_capability & WHAL_WLAN_11A_CAPABILITY)
+			rate_idx += ATH10K_MAC_FIRST_OFDM_RATE_IDX;
+
+		hw_rate = ath10k_wmi_legacy_rates[rate_idx].hw_value;
+		bitrate = ath10k_wmi_legacy_rates[rate_idx].bitrate;
 
 		if (ath10k_mac_bitrate_is_cck(bitrate))
 			preamble = WMI_RATE_PREAMBLE_CCK;
@@ -7722,6 +7842,231 @@ static void ath10k_mac_op_sta_pre_rcu_remove(struct ieee80211_hw *hw,
 			peer->removed = true;
 }
 
+/* HT MCS parameters with Nss = 1 */
+static const struct ath10k_index_ht_data_rate_type supported_ht_mcs_rate_nss1[] = {
+	/* MCS  L20   L40   S20  S40 */
+	{0,  { 65,  135,  72,  150} },
+	{1,  { 130, 270,  144, 300} },
+	{2,  { 195, 405,  217, 450} },
+	{3,  { 260, 540,  289, 600} },
+	{4,  { 390, 810,  433, 900} },
+	{5,  { 520, 1080, 578, 1200} },
+	{6,  { 585, 1215, 650, 1350} },
+	{7,  { 650, 1350, 722, 1500} }
+};
+
+/* HT MCS parameters with Nss = 2 */
+static const struct ath10k_index_ht_data_rate_type supported_ht_mcs_rate_nss2[] = {
+	/* MCS  L20    L40   S20   S40 */
+	{0,  {130,  270,  144,  300} },
+	{1,  {260,  540,  289,  600} },
+	{2,  {390,  810,  433,  900} },
+	{3,  {520,  1080, 578,  1200} },
+	{4,  {780,  1620, 867,  1800} },
+	{5,  {1040, 2160, 1156, 2400} },
+	{6,  {1170, 2430, 1300, 2700} },
+	{7,  {1300, 2700, 1444, 3000} }
+};
+
+/* MCS parameters with Nss = 1 */
+static const struct ath10k_index_vht_data_rate_type supported_vht_mcs_rate_nss1[] = {
+	/* MCS  L80    S80     L40   S40    L20   S20 */
+	{0,  {293,  325},  {135,  150},  {65,   72} },
+	{1,  {585,  650},  {270,  300},  {130,  144} },
+	{2,  {878,  975},  {405,  450},  {195,  217} },
+	{3,  {1170, 1300}, {540,  600},  {260,  289} },
+	{4,  {1755, 1950}, {810,  900},  {390,  433} },
+	{5,  {2340, 2600}, {1080, 1200}, {520,  578} },
+	{6,  {2633, 2925}, {1215, 1350}, {585,  650} },
+	{7,  {2925, 3250}, {1350, 1500}, {650,  722} },
+	{8,  {3510, 3900}, {1620, 1800}, {780,  867} },
+	{9,  {3900, 4333}, {1800, 2000}, {780,  867} }
+};
+
+/*MCS parameters with Nss = 2 */
+static const struct ath10k_index_vht_data_rate_type supported_vht_mcs_rate_nss2[] = {
+	/* MCS  L80    S80     L40   S40    L20   S20 */
+	{0,  {585,  650},  {270,  300},  {130,  144} },
+	{1,  {1170, 1300}, {540,  600},  {260,  289} },
+	{2,  {1755, 1950}, {810,  900},  {390,  433} },
+	{3,  {2340, 2600}, {1080, 1200}, {520,  578} },
+	{4,  {3510, 3900}, {1620, 1800}, {780,  867} },
+	{5,  {4680, 5200}, {2160, 2400}, {1040, 1156} },
+	{6,  {5265, 5850}, {2430, 2700}, {1170, 1300} },
+	{7,  {5850, 6500}, {2700, 3000}, {1300, 1444} },
+	{8,  {7020, 7800}, {3240, 3600}, {1560, 1733} },
+	{9,  {7800, 8667}, {3600, 4000}, {1560, 1733} }
+};
+
+static void ath10k_mac_get_rate_flags_ht(struct ath10k *ar, u32 rate, u8 nss, u8 mcs,
+					 u8 *flags, u8 *bw)
+{
+	struct ath10k_index_ht_data_rate_type *mcs_rate;
+	u8 index;
+	size_t len_nss1 = ARRAY_SIZE(supported_ht_mcs_rate_nss1);
+	size_t len_nss2 = ARRAY_SIZE(supported_ht_mcs_rate_nss2);
+
+	if (mcs >= (len_nss1 + len_nss2)) {
+		ath10k_warn(ar, "not supported mcs %d in current rate table", mcs);
+		return;
+	}
+
+	mcs_rate = (struct ath10k_index_ht_data_rate_type *)
+		   ((nss == 1) ? &supported_ht_mcs_rate_nss1 :
+		   &supported_ht_mcs_rate_nss2);
+
+	if (mcs >= len_nss1)
+		index = mcs - len_nss1;
+	else
+		index = mcs;
+
+	if (rate == mcs_rate[index].supported_rate[0]) {
+		*bw = RATE_INFO_BW_20;
+	} else if (rate == mcs_rate[index].supported_rate[1]) {
+		*bw |= RATE_INFO_BW_40;
+	} else if (rate == mcs_rate[index].supported_rate[2]) {
+		*bw |= RATE_INFO_BW_20;
+		*flags |= RATE_INFO_FLAGS_SHORT_GI;
+	} else if (rate == mcs_rate[index].supported_rate[3]) {
+		*bw |= RATE_INFO_BW_40;
+		*flags |= RATE_INFO_FLAGS_SHORT_GI;
+	} else {
+		ath10k_warn(ar, "invalid ht params rate %d 100kbps nss %d mcs %d",
+			    rate, nss, mcs);
+	}
+}
+
+static void ath10k_mac_get_rate_flags_vht(struct ath10k *ar, u32 rate, u8 nss, u8 mcs,
+					  u8 *flags, u8 *bw)
+{
+	struct ath10k_index_vht_data_rate_type *mcs_rate;
+
+	mcs_rate = (struct ath10k_index_vht_data_rate_type *)
+		   ((nss == 1) ? &supported_vht_mcs_rate_nss1 :
+		   &supported_vht_mcs_rate_nss2);
+
+	if (rate == mcs_rate[mcs].supported_VHT80_rate[0]) {
+		*bw = RATE_INFO_BW_80;
+	} else if (rate == mcs_rate[mcs].supported_VHT80_rate[1]) {
+		*bw = RATE_INFO_BW_80;
+		*flags |= RATE_INFO_FLAGS_SHORT_GI;
+	} else if (rate == mcs_rate[mcs].supported_VHT40_rate[0]) {
+		*bw = RATE_INFO_BW_40;
+	} else if (rate == mcs_rate[mcs].supported_VHT40_rate[1]) {
+		*bw = RATE_INFO_BW_40;
+		*flags |= RATE_INFO_FLAGS_SHORT_GI;
+	} else if (rate == mcs_rate[mcs].supported_VHT20_rate[0]) {
+		*bw = RATE_INFO_BW_20;
+	} else if (rate == mcs_rate[mcs].supported_VHT20_rate[1]) {
+		*bw = RATE_INFO_BW_20;
+		*flags |= RATE_INFO_FLAGS_SHORT_GI;
+	} else {
+		ath10k_warn(ar, "invalid vht params rate %d 100kbps nss %d mcs %d",
+			    rate, nss, mcs);
+	}
+}
+
+static void ath10k_mac_get_rate_flags(struct ath10k *ar, u32 rate,
+				      enum ath10k_phy_mode mode, u8 nss, u8 mcs,
+				      u8 *flags, u8 *bw)
+{
+	if (mode == ATH10K_PHY_MODE_HT) {
+		*flags = RATE_INFO_FLAGS_MCS;
+		ath10k_mac_get_rate_flags_ht(ar, rate, nss, mcs, flags, bw);
+	} else if (mode == ATH10K_PHY_MODE_VHT) {
+		*flags = RATE_INFO_FLAGS_VHT_MCS;
+		ath10k_mac_get_rate_flags_vht(ar, rate, nss, mcs, flags, bw);
+	}
+}
+
+static void ath10k_mac_parse_bitrate(struct ath10k *ar, u32 rate_code,
+				     u32 bitrate_kbps, struct rate_info *rate)
+{
+	enum ath10k_phy_mode mode = ATH10K_PHY_MODE_LEGACY;
+	enum wmi_rate_preamble preamble = WMI_TLV_GET_HW_RC_PREAM_V1(rate_code);
+	u8 nss = WMI_TLV_GET_HW_RC_NSS_V1(rate_code) + 1;
+	u8 mcs = WMI_TLV_GET_HW_RC_RATE_V1(rate_code);
+	u8 flags = 0, bw = 0;
+
+	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac parse rate code 0x%x bitrate %d kbps\n",
+		   rate_code, bitrate_kbps);
+
+	if (preamble == WMI_RATE_PREAMBLE_HT)
+		mode = ATH10K_PHY_MODE_HT;
+	else if (preamble == WMI_RATE_PREAMBLE_VHT)
+		mode = ATH10K_PHY_MODE_VHT;
+
+	ath10k_mac_get_rate_flags(ar, bitrate_kbps / 100, mode, nss, mcs, &flags, &bw);
+
+	ath10k_dbg(ar, ATH10K_DBG_MAC,
+		   "mac parse bitrate preamble %d mode %d nss %d mcs %d flags %x bw %d\n",
+		   preamble, mode, nss, mcs, flags, bw);
+
+	rate->flags = flags;
+	rate->bw = bw;
+	rate->legacy = bitrate_kbps / 100;
+	rate->nss = nss;
+	rate->mcs = mcs;
+}
+
+static void ath10k_mac_sta_get_peer_stats_info(struct ath10k *ar,
+					       struct ieee80211_sta *sta,
+					       struct station_info *sinfo)
+{
+	struct ath10k_sta *arsta = (struct ath10k_sta *)sta->drv_priv;
+	struct ath10k_peer *peer;
+	unsigned long time_left;
+	int ret;
+
+	if (!(ar->hw_params.supports_peer_stats_info &&
+	      arsta->arvif->vdev_type == WMI_VDEV_TYPE_STA))
+		return;
+
+	spin_lock_bh(&ar->data_lock);
+	peer = ath10k_peer_find(ar, arsta->arvif->vdev_id, sta->addr);
+	spin_unlock_bh(&ar->data_lock);
+	if (!peer)
+		return;
+
+	reinit_completion(&ar->peer_stats_info_complete);
+
+	ret = ath10k_wmi_request_peer_stats_info(ar,
+						 arsta->arvif->vdev_id,
+						 WMI_REQUEST_ONE_PEER_STATS_INFO,
+						 arsta->arvif->bssid,
+						 0);
+	if (ret && ret != -EOPNOTSUPP) {
+		ath10k_warn(ar, "could not request peer stats info: %d\n", ret);
+		return;
+	}
+
+	time_left = wait_for_completion_timeout(&ar->peer_stats_info_complete, 3 * HZ);
+	if (time_left == 0) {
+		ath10k_warn(ar, "timed out waiting peer stats info\n");
+		return;
+	}
+
+	if (arsta->rx_rate_code != 0 && arsta->rx_bitrate_kbps != 0) {
+		ath10k_mac_parse_bitrate(ar, arsta->rx_rate_code,
+					 arsta->rx_bitrate_kbps,
+					 &sinfo->rxrate);
+
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BITRATE);
+		arsta->rx_rate_code = 0;
+		arsta->rx_bitrate_kbps = 0;
+	}
+
+	if (arsta->tx_rate_code != 0 && arsta->tx_bitrate_kbps != 0) {
+		ath10k_mac_parse_bitrate(ar, arsta->tx_rate_code,
+					 arsta->tx_bitrate_kbps,
+					 &sinfo->txrate);
+
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+		arsta->tx_rate_code = 0;
+		arsta->tx_bitrate_kbps = 0;
+	}
+}
+
 static void ath10k_sta_statistics(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif,
 				  struct ieee80211_sta *sta,
@@ -7733,21 +8078,24 @@ static void ath10k_sta_statistics(struct ieee80211_hw *hw,
 	if (!ath10k_peer_stats_enabled(ar))
 		return;
 
+	ath10k_debug_fw_stats_request(ar);
+
 	sinfo->rx_duration = arsta->rx_duration;
-	sinfo->filled |= 1ULL << NL80211_STA_INFO_RX_DURATION;
+	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_DURATION);
 
-	if (!arsta->txrate.legacy && !arsta->txrate.nss)
-		return;
-
-	if (arsta->txrate.legacy) {
-		sinfo->txrate.legacy = arsta->txrate.legacy;
-	} else {
-		sinfo->txrate.mcs = arsta->txrate.mcs;
-		sinfo->txrate.nss = arsta->txrate.nss;
-		sinfo->txrate.bw = arsta->txrate.bw;
+	if (arsta->txrate.legacy || arsta->txrate.nss) {
+		if (arsta->txrate.legacy) {
+			sinfo->txrate.legacy = arsta->txrate.legacy;
+		} else {
+			sinfo->txrate.mcs = arsta->txrate.mcs;
+			sinfo->txrate.nss = arsta->txrate.nss;
+			sinfo->txrate.bw = arsta->txrate.bw;
+		}
+		sinfo->txrate.flags = arsta->txrate.flags;
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
 	}
-	sinfo->txrate.flags = arsta->txrate.flags;
-	sinfo->filled |= 1ULL << NL80211_STA_INFO_TX_BITRATE;
+
+	ath10k_mac_sta_get_peer_stats_info(ar, sta, sinfo);
 }
 
 static const struct ieee80211_ops ath10k_ops = {
@@ -8358,6 +8706,18 @@ int ath10k_mac_register(struct ath10k *ar)
 
 	ar->hw->wiphy->max_scan_ssids = WLAN_SCAN_PARAMS_MAX_SSID;
 	ar->hw->wiphy->max_scan_ie_len = WLAN_SCAN_PARAMS_MAX_IE_LEN;
+
+	if (test_bit(WMI_SERVICE_NLO, ar->wmi.svc_map)) {
+		ar->hw->wiphy->max_sched_scan_ssids = WMI_PNO_MAX_SUPP_NETWORKS;
+		ar->hw->wiphy->max_match_sets = WMI_PNO_MAX_SUPP_NETWORKS;
+		ar->hw->wiphy->max_sched_scan_ie_len = WMI_PNO_MAX_IE_LENGTH;
+		ar->hw->wiphy->max_sched_scan_plans = WMI_PNO_MAX_SCHED_SCAN_PLANS;
+		ar->hw->wiphy->max_sched_scan_plan_interval =
+			WMI_PNO_MAX_SCHED_SCAN_PLAN_INT;
+		ar->hw->wiphy->max_sched_scan_plan_iterations =
+			WMI_PNO_MAX_SCHED_SCAN_PLAN_ITRNS;
+		ar->hw->wiphy->features |= NL80211_FEATURE_ND_RANDOM_MAC_ADDR;
+	}
 
 	if (ar->hw_params.tx_sk_pacing_shift != 0)
 		ar->hw->tx_sk_pacing_shift = ar->hw_params.tx_sk_pacing_shift;

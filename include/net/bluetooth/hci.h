@@ -213,6 +213,9 @@ enum {
 	 * supported.
 	 */
 	HCI_QUIRK_VALID_LE_STATES,
+
+	/* This quirk will be set when running on Intel StP controller */
+	HCI_QUIRK_INTEL_STP_CONTROLLER,
 };
 
 /* HCI device flags */
@@ -267,8 +270,6 @@ enum {
 	HCI_EXT_CONFIGURED,
 	HCI_LE_ADV,
 	HCI_LE_SCAN,
-	HCI_LE_ADV_CHANGE_IN_PROGRESS,
-	HCI_LE_SCAN_CHANGE_IN_PROGRESS,
 	HCI_SSP_ENABLED,
 	HCI_SC_ENABLED,
 	HCI_SC_ONLY,
@@ -294,6 +295,7 @@ enum {
 	HCI_VENDOR_DIAG,
 	HCI_FORCE_BREDR_SMP,
 	HCI_FORCE_STATIC_ADDR,
+	HCI_FORCE_NO_MITM,
 
 	__HCI_NUM_FLAGS,
 };

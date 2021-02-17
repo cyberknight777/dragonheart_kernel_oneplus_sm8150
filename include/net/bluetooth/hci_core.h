@@ -105,6 +105,8 @@ enum suspend_tasks {
 	SUSPEND_POWERING_DOWN,
 
 	SUSPEND_PREPARE_NOTIFIER,
+
+	SUSPEND_SET_ADV_FILTER,
 	__SUSPEND_NUM_TASKS
 };
 
@@ -222,10 +224,14 @@ struct adv_info {
 	__u8	adv_data[HCI_MAX_AD_LENGTH];
 	__u16	scan_rsp_len;
 	__u8	scan_rsp_data[HCI_MAX_AD_LENGTH];
+	__u32   min_interval;
+	__u32   max_interval;
 };
 
 #define HCI_MAX_ADV_INSTANCES		5
 #define HCI_DEFAULT_ADV_DURATION	2000
+
+#define HCI_ADV_TX_POWER_NO_PREFERENCE 0x7F
 
 struct adv_pattern {
 	struct list_head list;
@@ -235,15 +241,31 @@ struct adv_pattern {
 	__u8 value[HCI_MAX_AD_LENGTH];
 };
 
+struct adv_rssi_thresholds {
+	__s8 low_threshold;
+	__s8 high_threshold;
+	__u16 low_threshold_timeout;
+	__u16 high_threshold_timeout;
+	__u8 sampling_period;
+};
+
 struct adv_monitor {
 	struct list_head patterns;
-	bool		active;
+	struct adv_rssi_thresholds rssi;
 	__u16		handle;
+
+	enum {
+		ADV_MONITOR_STATE_NOT_REGISTERED,
+		ADV_MONITOR_STATE_REGISTERED,
+		ADV_MONITOR_STATE_OFFLOADED
+	} state;
 };
 
 #define HCI_MIN_ADV_MONITOR_HANDLE		1
-#define HCI_MAX_ADV_MONITOR_NUM_HANDLES	32
+#define HCI_MAX_ADV_MONITOR_NUM_HANDLES		32
 #define HCI_MAX_ADV_MONITOR_NUM_PATTERNS	16
+#define HCI_ADV_MONITOR_EXT_NONE		1
+#define HCI_ADV_MONITOR_EXT_MSFT		2
 
 #define HCI_MAX_SHORT_NAME_LENGTH	10
 
@@ -339,9 +361,13 @@ struct hci_dev {
 	__u16		discov_interleaved_timeout;
 	__u16		conn_info_min_age;
 	__u16		conn_info_max_age;
+	__u8		min_enc_key_size;
 	__u8		ssp_debug_mode;
 	__u8		hw_error_code;
 	__u32		clock;
+	__u16		advmon_allowlist_duration;
+	__u16		advmon_no_filter_duration;
+	__u8		enable_advmon_interleave_scan;
 
 	__u16		devid_source;
 	__u16		devid_vendor;
@@ -392,15 +418,13 @@ struct hci_dev {
 	unsigned int	sco_cnt;
 	unsigned int	le_cnt;
 
-	unsigned int	count_adv_change_in_progress;
-	unsigned int	count_scan_change_in_progress;
-
 	unsigned int	acl_mtu;
 	unsigned int	sco_mtu;
 	unsigned int	le_mtu;
 	unsigned int	acl_pkts;
 	unsigned int	sco_pkts;
 	unsigned int	le_pkts;
+	unsigned int	wbs_pkt_len;
 
 	__u16		block_len;
 	__u16		block_mtu;
@@ -466,6 +490,9 @@ struct hci_dev {
 	enum suspended_state	suspend_state;
 	bool			scanning_paused;
 	bool			suspended;
+	u8			wake_reason;
+	bdaddr_t		wake_addr;
+	u8			wake_addr_type;
 
 	wait_queue_head_t	suspend_wait_q;
 	DECLARE_BITMAP(suspend_tasks, __SUSPEND_NUM_TASKS);
@@ -519,6 +546,14 @@ struct hci_dev {
 	__u32			rpa_timeout;
 	struct delayed_work	rpa_expired;
 	bdaddr_t		rpa;
+
+	enum {
+		INTERLEAVE_SCAN_NONE,
+		INTERLEAVE_SCAN_NO_FILTER,
+		INTERLEAVE_SCAN_ALLOWLIST
+	} interleave_scan_state;
+
+	struct delayed_work	interleave_scan;
 
 #if IS_ENABLED(CONFIG_BT_LEDS)
 	struct led_trigger	*power_led;
@@ -748,6 +783,47 @@ static inline long inquiry_cache_age(struct hci_dev *hdev)
 static inline long inquiry_entry_age(struct inquiry_entry *e)
 {
 	return jiffies - e->timestamp;
+}
+
+static inline bool keychron_conn_is_present(struct hci_dev *hdev)
+{
+	struct hci_conn_hash *h = &hdev->conn_hash;
+	struct hci_conn *c;
+
+	/* The keychron device is identified using the OUI portion of
+	 * the address
+	 */
+	static __u8 keychron[3] = {0x26, 0x2c, 0xdc};
+
+	rcu_read_lock();
+
+	list_for_each_entry_rcu(c, &h->list, list) {
+		u8 *t;
+
+		if (c->type != ACL_LINK)
+			continue;
+
+		t = (u8 *)(&c->dst);
+		if (!memcmp(t + 3, keychron, 3)) {
+			rcu_read_unlock();
+			return true;
+		}
+	}
+
+	rcu_read_unlock();
+
+	return false;
+}
+
+static inline bool restrict_le_conn_params(struct hci_dev *hdev)
+{
+	if (!test_bit(HCI_QUIRK_INTEL_STP_CONTROLLER, &hdev->quirks))
+		return false;
+
+	if (!keychron_conn_is_present(hdev))
+		return false;
+
+	return true;
 }
 
 struct inquiry_entry *hci_inquiry_cache_lookup(struct hci_dev *hdev,
@@ -1247,14 +1323,23 @@ struct adv_info *hci_get_next_instance(struct hci_dev *hdev, u8 instance);
 int hci_add_adv_instance(struct hci_dev *hdev, u8 instance, u32 flags,
 			 u16 adv_data_len, u8 *adv_data,
 			 u16 scan_rsp_len, u8 *scan_rsp_data,
-			 u16 timeout, u16 duration);
+			 u16 timeout, u16 duration, s8 tx_power,
+			 u32 min_interval, u32 max_interval);
+int hci_set_adv_instance_data(struct hci_dev *hdev, u8 instance,
+			 u16 adv_data_len, u8 *adv_data,
+			 u16 scan_rsp_len, u8 *scan_rsp_data);
 int hci_remove_adv_instance(struct hci_dev *hdev, u8 instance);
 
 void hci_adv_monitors_clear(struct hci_dev *hdev);
-void hci_free_adv_monitor(struct adv_monitor *monitor);
-int hci_add_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor);
-int hci_remove_adv_monitor(struct hci_dev *hdev, u16 handle);
+void hci_free_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor);
+int hci_add_adv_patterns_monitor_complete(struct hci_dev *hdev, u8 status);
+int hci_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status);
+bool hci_add_adv_monitor(struct hci_dev *hdev, struct adv_monitor *monitor,
+			int *err);
+bool hci_remove_single_adv_monitor(struct hci_dev *hdev, u16 handle, int *err);
+bool hci_remove_all_adv_monitor(struct hci_dev *hdev, int *err);
 bool hci_is_adv_monitoring(struct hci_dev *hdev);
+int hci_get_adv_monitor_offload_ext(struct hci_dev *hdev);
 
 void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb);
 
@@ -1277,6 +1362,7 @@ void hci_conn_del_sysfs(struct hci_conn *conn);
 #define lmp_le_capable(dev)        ((dev)->features[0][4] & LMP_LE)
 #define lmp_sniffsubr_capable(dev) ((dev)->features[0][5] & LMP_SNIFF_SUBR)
 #define lmp_pause_enc_capable(dev) ((dev)->features[0][5] & LMP_PAUSE_ENC)
+#define lmp_esco_2m_capable(dev)   ((dev)->features[0][5] & LMP_EDR_ESCO_2M)
 #define lmp_ext_inq_capable(dev)   ((dev)->features[0][6] & LMP_EXT_INQ)
 #define lmp_le_br_capable(dev)     (!!((dev)->features[0][6] & LMP_SIMUL_LE_BR))
 #define lmp_ssp_capable(dev)       ((dev)->features[0][6] & LMP_SIMPLE_PAIR)
@@ -1398,16 +1484,34 @@ static inline void hci_auth_cfm(struct hci_conn *conn, __u8 status)
 		conn->security_cfm_cb(conn, status);
 }
 
-static inline void hci_encrypt_cfm(struct hci_conn *conn, __u8 status,
-								__u8 encrypt)
+static inline void hci_encrypt_cfm(struct hci_conn *conn, __u8 status)
 {
 	struct hci_cb *cb;
+	__u8 encrypt;
 
-	if (conn->sec_level == BT_SECURITY_SDP)
-		conn->sec_level = BT_SECURITY_LOW;
+	if (conn->state == BT_CONFIG) {
+		if (!status)
+			conn->state = BT_CONNECTED;
 
-	if (conn->pending_sec_level > conn->sec_level)
-		conn->sec_level = conn->pending_sec_level;
+		hci_connect_cfm(conn, status);
+		hci_conn_drop(conn);
+		return;
+	}
+
+	if (!test_bit(HCI_CONN_ENCRYPT, &conn->flags))
+		encrypt = 0x00;
+	else if (test_bit(HCI_CONN_AES_CCM, &conn->flags))
+		encrypt = 0x02;
+	else
+		encrypt = 0x01;
+
+	if (!status) {
+		if (conn->sec_level == BT_SECURITY_SDP)
+			conn->sec_level = BT_SECURITY_LOW;
+
+		if (conn->pending_sec_level > conn->sec_level)
+			conn->sec_level = conn->pending_sec_level;
+	}
 
 	mutex_lock(&hci_cb_list_lock);
 	list_for_each_entry(cb, &hci_cb_list, list) {
@@ -1662,6 +1766,9 @@ void mgmt_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 void mgmt_remote_name(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 		      u8 addr_type, s8 rssi, u8 *name, u8 name_len);
 void mgmt_discovering(struct hci_dev *hdev, u8 discovering);
+void mgmt_suspending(struct hci_dev *hdev, u8 state);
+void mgmt_resuming(struct hci_dev *hdev, u8 reason, bdaddr_t *bdaddr,
+		   u8 addr_type);
 bool mgmt_powering_down(struct hci_dev *hdev);
 void mgmt_new_ltk(struct hci_dev *hdev, struct smp_ltk *key, bool persistent);
 void mgmt_new_irk(struct hci_dev *hdev, struct smp_irk *irk, bool persistent);
@@ -1679,6 +1786,9 @@ void mgmt_advertising_added(struct sock *sk, struct hci_dev *hdev,
 			    u8 instance);
 void mgmt_advertising_removed(struct sock *sk, struct hci_dev *hdev,
 			      u8 instance);
+void mgmt_adv_monitor_removed(struct hci_dev *hdev, u16 handle);
+int mgmt_add_adv_patterns_monitor_complete(struct hci_dev *hdev, u8 status);
+int mgmt_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status);
 
 u8 hci_le_conn_update(struct hci_conn *conn, u16 min, u16 max, u16 latency,
 		      u16 to_multiplier);
