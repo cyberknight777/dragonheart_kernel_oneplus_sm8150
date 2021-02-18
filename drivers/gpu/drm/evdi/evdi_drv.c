@@ -452,17 +452,19 @@ static ssize_t add_device_with_usb_path(struct device *dev,
 	char *temp_path = usb_path;
 	char *bus_token;
 	char *usb_token;
-	char *usb_token_copy;
+	char *usb_token_copy = NULL;
 	char *token;
 	char *bus;
 	char *port;
 	struct evdi_usb_addr usb_addr;
 
+	if (!usb_path)
+		return -ENOMEM;
+
 	memset(&usb_addr, 0, sizeof(usb_addr));
 	temp_path = strnstr(temp_path, "usb:", count);
 	if (!temp_path)
 		goto err_parse_usb_path;
-
 
 	temp_path = strim(temp_path);
 
@@ -473,6 +475,9 @@ static ssize_t add_device_with_usb_path(struct device *dev,
 	usb_token = strsep(&temp_path, ":");
 	if (!usb_token)
 		goto err_parse_usb_path;
+
+	/* Separate trailing ':*' from usb_token */
+	strsep(&temp_path, ":");
 
 	token = usb_token_copy = kstrdup(usb_token, GFP_KERNEL);
 	bus = strsep(&token, "-");
