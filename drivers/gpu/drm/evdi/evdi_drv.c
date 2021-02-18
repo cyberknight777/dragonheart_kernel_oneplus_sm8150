@@ -90,7 +90,7 @@ static int evdi_context_get_free_idx(struct evdi_context *ctx)
 	return -ENOMEM;
 }
 
-bool evdi_platform_device_is_free(struct platform_device *pdev)
+static bool evdi_platform_device_is_free(struct platform_device *pdev)
 {
 	struct evdi_platform_device_data *data =
 		(struct evdi_platform_device_data *)platform_get_drvdata(pdev);
@@ -102,7 +102,7 @@ bool evdi_platform_device_is_free(struct platform_device *pdev)
 	return false;
 }
 
-void evdi_platform_device_link(struct platform_device *pdev,
+static void evdi_platform_device_link(struct platform_device *pdev,
 				      struct device *parent)
 {
 	struct evdi_platform_device_data *data = NULL;
@@ -450,13 +450,12 @@ static ssize_t add_device_with_usb_path(struct device *dev,
 {
 	char *usb_path = kstrdup(buf, GFP_KERNEL);
 	char *temp_path = usb_path;
-	char *bus_token = NULL;
-	char *usb_token = NULL;
-	char *usb_token_copy = NULL;
-	char *itf_token = NULL;
-	char *token = NULL;
-	char *bus = NULL;
-	char *port = NULL;
+	char *bus_token;
+	char *usb_token;
+	char *usb_token_copy;
+	char *token;
+	char *bus;
+	char *port;
 	struct evdi_usb_addr usb_addr;
 
 	memset(&usb_addr, 0, sizeof(usb_addr));
@@ -474,8 +473,6 @@ static ssize_t add_device_with_usb_path(struct device *dev,
 	usb_token = strsep(&temp_path, ":");
 	if (!usb_token)
 		goto err_parse_usb_path;
-
-	itf_token = strsep(&temp_path, ":");
 
 	token = usb_token_copy = kstrdup(usb_token, GFP_KERNEL);
 	bus = strsep(&token, "-");
