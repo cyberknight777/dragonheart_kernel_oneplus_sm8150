@@ -48,6 +48,10 @@ struct evdi_platform_device_data {
 	bool symlinked;
 };
 
+static void
+evdi_platform_device_unlink_if_linked_with(struct platform_device *pdev,
+					   struct device *parent);
+
 static int evdi_platform_drv_usb(__always_unused struct notifier_block *nb,
 		unsigned long action,
 		void *data)
@@ -126,7 +130,7 @@ static void evdi_platform_device_link(struct platform_device *pdev,
 	}
 }
 
-void evdi_platform_device_unlink_if_linked_with(struct platform_device *pdev,
+static void evdi_platform_device_unlink_if_linked_with(struct platform_device *pdev,
 				struct device *parent)
 {
 	struct evdi_platform_device_data *data =
