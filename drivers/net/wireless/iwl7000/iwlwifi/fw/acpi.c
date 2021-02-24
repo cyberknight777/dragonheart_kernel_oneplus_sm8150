@@ -141,7 +141,9 @@ union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
 	if (data->type != ACPI_TYPE_PACKAGE ||
 	    data->package.count < 2 ||
 	    data->package.elements[0].type != ACPI_TYPE_INTEGER ||
-	    data->package.elements[0].integer.value != 0) {
+	    WARN_ONCE(data->package.elements[0].integer.value != 0,
+		      "invalid GEO SAR version %d",
+		      data->package.elements[0].integer.value)) {
 		IWL_DEBUG_DEV_RADIO(dev, "Unsupported packages structure\n");
 		return ERR_PTR(-EINVAL);
 	}
