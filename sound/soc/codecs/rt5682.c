@@ -2868,7 +2868,10 @@ static int rt5682_probe(struct snd_soc_component *component)
 
 #ifdef CONFIG_COMMON_CLK
 	/* Check if MCLK provided */
-	rt5682->mclk = devm_clk_get(component->dev, "mclk");
+	if (rt5682->pdata.mclk_name)
+		rt5682->mclk = clk_get(NULL, rt5682->pdata.mclk_name);
+	if (!rt5682->mclk)
+		rt5682->mclk = devm_clk_get(component->dev, "mclk");
 	if (IS_ERR(rt5682->mclk)) {
 		if (PTR_ERR(rt5682->mclk) != -ENOENT) {
 			ret = PTR_ERR(rt5682->mclk);
@@ -2906,6 +2909,9 @@ static void rt5682_remove(struct snd_soc_component *component)
 #endif
 
 	rt5682_reset(rt5682);
+
+	if (rt5682->pdata.mclk_name)
+		clk_put(rt5682->mclk);
 }
 
 #ifdef CONFIG_PM
@@ -3044,6 +3050,8 @@ static int rt5682_parse_dt(struct rt5682_priv *rt5682, struct device *dev)
 		dev_warn(dev, "Using default DAI clk names: %s, %s\n",
 			 rt5682->pdata.dai_clk_names[RT5682_DAI_WCLK_IDX],
 			 rt5682->pdata.dai_clk_names[RT5682_DAI_BCLK_IDX]);
+
+	device_property_read_string(dev, "realtek,mclk-name", &rt5682->pdata.mclk_name);
 
 	return 0;
 }
