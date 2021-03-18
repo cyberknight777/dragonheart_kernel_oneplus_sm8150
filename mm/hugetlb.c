@@ -3695,6 +3695,43 @@ int huge_add_to_page_cache(struct page *page, struct address_space *mapping,
 	return 0;
 }
 
+static inline int hugetlb_handle_userfault(struct vm_area_struct *vma,
+						  struct address_space *mapping,
+						  struct hstate *h,
+						  pgoff_t idx,
+						  unsigned int flags,
+						  unsigned long haddr,
+						  unsigned long reason)
+{
+	int ret;
+	u32 hash;
+	struct vm_fault vmf = {
+		.vma = vma,
+		.address = haddr,
+		.flags = flags,
+
+		/*
+		 * Hard to debug if it ends up being
+		 * used by a callee that assumes
+		 * something about the other
+		 * uninitialized fields... same as in
+		 * memory.c
+		 */
+	};
+
+	/*
+	 * hugetlb_fault_mutex and i_mmap_rwsem must be
+	 * dropped before handling userfault.  Reacquire
+	 * after handling fault to make calling code simpler.
+	 */
+	hash = hugetlb_fault_mutex_hash(h, mapping, idx);
+	mutex_unlock(&hugetlb_fault_mutex_table[hash]);
+	ret = handle_userfault(&vmf, reason);
+	mutex_lock(&hugetlb_fault_mutex_table[hash]);
+
+	return ret;
+}
+
 static int hugetlb_no_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			   struct address_space *mapping, pgoff_t idx,
 			   unsigned long address, pte_t *ptep, unsigned int flags)
@@ -3730,35 +3767,11 @@ retry:
 		if (idx >= size)
 			goto out;
 
-		/*
-		 * Check for page in userfault range
-		 */
+		/* Check for page in userfault range */
 		if (userfaultfd_missing(vma)) {
-			u32 hash;
-			struct vm_fault vmf = {
-				.vma = vma,
-				.address = address,
-				.flags = flags,
-				.vma_flags = vma->vm_flags,
-				.vma_page_prot = vma->vm_page_prot,
-				/*
-				 * Hard to debug if it ends up being
-				 * used by a callee that assumes
-				 * something about the other
-				 * uninitialized fields... same as in
-				 * memory.c
-				 */
-			};
-
-			/*
-			 * hugetlb_fault_mutex must be dropped before
-			 * handling userfault.  Reacquire after handling
-			 * fault to make calling code simpler.
-			 */
-			hash = hugetlb_fault_mutex_hash(h, mapping, idx);
-			mutex_unlock(&hugetlb_fault_mutex_table[hash]);
-			ret = handle_userfault(&vmf, VM_UFFD_MISSING);
-			mutex_lock(&hugetlb_fault_mutex_table[hash]);
+			ret = hugetlb_handle_userfault(vma, mapping, h,
+						       idx, flags, address,
+						       VM_UFFD_MISSING);
 			goto out;
 		}
 
@@ -3801,6 +3814,15 @@ retry:
 			ret = VM_FAULT_HWPOISON |
 				VM_FAULT_SET_HINDEX(hstate_index(h));
 			goto backout_unlocked;
+		}
+
+		/* Check for page in userfault range. */
+		if (userfaultfd_minor(vma)) {
+			unlock_page(page);
+			ret = hugetlb_handle_userfault(vma, mapping, h,
+						       idx, flags, address,
+						       VM_UFFD_MINOR);
+			goto out;
 		}
 	}
 
