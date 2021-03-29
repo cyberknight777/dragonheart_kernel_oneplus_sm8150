@@ -2910,8 +2910,10 @@ static void rt5682_remove(struct snd_soc_component *component)
 
 	rt5682_reset(rt5682);
 
+#ifdef CONFIG_COMMON_CLK
 	if (rt5682->pdata.mclk_name)
 		clk_put(rt5682->mclk);
+#endif
 }
 
 #ifdef CONFIG_PM
