@@ -2461,6 +2461,7 @@ bool is_filter_process(struct task_struct *t)
 
 	return false;
 }
+#ifdef CONFIG_ONEPLUS_FG_OPT
 static bool high_prio_for_task(struct task_struct *t)
 {
 	int cur_uid;
@@ -2476,7 +2477,7 @@ static bool high_prio_for_task(struct task_struct *t)
 
 	return false;
 }
-
+#endif
 
 /**
  * submit_bio - submit a bio to the block device layer for I/O
@@ -2525,7 +2526,7 @@ blk_qc_t submit_bio(struct bio *bio)
 	}
 
 
-
+#ifdef CONFIG_ONEPLUS_FG_OPT
 #ifdef CONFIG_MEMPLUS
         if (current_is_swapind())
                 bio->bi_opf |= REQ_FG;
@@ -2534,6 +2535,7 @@ blk_qc_t submit_bio(struct bio *bio)
 #else
         if (high_prio_for_task(current))
                 bio->bi_opf |= REQ_FG;
+#endif
 #endif
 	/*
 	 * If we're reading data that is part of the userspace
