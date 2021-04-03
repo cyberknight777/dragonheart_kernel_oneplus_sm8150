@@ -5129,8 +5129,6 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	}
 	mutex_unlock(&panel->panel_lock);
 	pr_err("end\n");
-	/* remove print actvie ws */
-	pm_print_active_wakeup_sources_queue(false);
 
 	return rc;
 }
@@ -5230,8 +5228,6 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	panel->power_mode = SDE_MODE_DPMS_OFF;
 
 	mutex_unlock(&panel->panel_lock);
-	/* add print actvie ws */
-	pm_print_active_wakeup_sources_queue(true);
 	printk(KERN_ERR"dsi_panel_disable --\n");
 	return rc;
 }
