@@ -3894,7 +3894,6 @@ int msm_serial_oem_init(void)
 	pr_err("%s\n", __func__);
 
 	memcpy(oem_force_cmdline_str, SERIAL_CMDLINE, sizeof(SERIAL_CMDLINE));
-	force_oem_console_setup(&oem_force_cmdline_str[0]);
 	oem_msm_geni_serial_init();
 	return ret;
 }
