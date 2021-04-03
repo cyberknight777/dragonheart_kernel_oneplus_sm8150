@@ -277,9 +277,6 @@ static void init_enhance_dash_exist_node(void)
 		pr_err("Failed to register enhance dash node\n");
 }
 
-//for mcu_data irq delay issue 2017.10.14@Infi
-extern void msm_cpuidle_set_sleep_disable(bool disable);
-
 static int is_usb_pluged(void)
 {
 	static struct power_supply *psy;
@@ -930,7 +927,6 @@ void switch_mode_to_normal(void)
 {
 	usb_sw_gpio_set(0);
 	mcu_en_gpio_set(1);
-	msm_cpuidle_set_sleep_disable(false);
 	op_check_charger_collapse_rerun_aicl();
 	update_disconnect_pd_status(false);
 }
@@ -1224,7 +1220,6 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				di->fast_chg_error = false;
 				dash_write(di, ALLOW_DATA);
 				di->fast_chg_started = true;
-				msm_cpuidle_set_sleep_disable(true);
 			}
 			break;
 		case DASH_NOTIFY_FAST_ABSENT:

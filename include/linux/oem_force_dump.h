@@ -20,17 +20,11 @@ enum key_stat_item {
 };
 
 extern void send_sig_to_get_trace(char *name);
-extern void compound_key_to_get_trace(char *name);
 extern enum key_stat_item pwr_status, vol_up_status;
 
 static inline void set_pwr_status(enum key_stat_item status)
 {
 	pwr_status = status;
-}
-
-static inline void set_vol_up_status(enum key_stat_item status)
-{
-	vol_up_status = status;
 }
 
 #endif
