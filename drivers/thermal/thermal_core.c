@@ -1747,19 +1747,6 @@ static struct notifier_block skin_thermal_qos_notifier = {
 	.notifier_call = skin_thermal_qos_handler,
 };
 
-void add_therm_pm_qos_notifier(void)
-{
-	pr_err("register_pm_qos_notifier\n");
-	/*Power Teams add dynamic thermal qos notify */
-	pm_qos_add_notifier(PM_QOS_MSM_THERMAL, &msm_thermal_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_SKIN_THERMAL, &skin_thermal_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_MODEM_SKIN_THERMAL, &modem_skin_thermal_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_MMW1_THERMAL, &xo_mmw1_thermal_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_MMW0_THERMAL,
-				&pa1_mmw0_thermal_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_MMW2_THERMAL, &modem_mmw2_qos_notifier);
-}
-
 static int __init thermal_init(void)
 {
 	int result;
@@ -1790,8 +1777,6 @@ static int __init thermal_init(void)
 	if (result)
 		pr_warn("Thermal: Can not register suspend notifier, return %d\n",
 			result);
-
-	add_therm_pm_qos_notifier();
 
 	return 0;
 

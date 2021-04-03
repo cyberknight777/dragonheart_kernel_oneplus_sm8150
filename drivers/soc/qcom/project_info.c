@@ -102,26 +102,9 @@ void save_dump_reason_to_smem(char *info, char *function_name)
 			pr_debug("%s: function caused panic :%s strl1=%d\n", __func__,
 				function_name, strl1);
 		}
-		caller_function_name = parse_function_builtin_return_address(
-			(unsigned long)__builtin_return_address(0));
-		if ((strcmp(caller_function_name, "panic") == 0)) {
-			regs = (struct pt_regs *)panic_info;
-			if (regs) {
-				buf1 = parse_regs_pc(regs->pc, &length);
-				length = length < DUMP_REASON_SIZE ? length : DUMP_REASON_SIZE;
-				if ((strlen(dp_info->dump_reason) + length + 12) < DUMP_REASON_SIZE) {
-					strncat(dp_info->dump_reason, "\r\n", 2);
-					strncpy(buf, "PC at:", 7);
-					strncat(dp_info->dump_reason, buf, 7);
-					strncat(dp_info->dump_reason, buf1, length);
-					strncat(dp_info->dump_reason, "\r\n", 2);
-				}
-			}
-		}
 	}
 	pr_debug("\r%s: dump_reason : %s strl=%d\n", __func__,
 		dp_info->dump_reason, strl);
-	save_dump_reason_to_device_info(dp_info->dump_reason);
 	flag++;
 }
 

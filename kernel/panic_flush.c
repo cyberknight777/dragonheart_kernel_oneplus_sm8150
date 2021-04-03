@@ -53,29 +53,6 @@ repeat:
 	goto repeat;
 }
 
-extern int sysctl_ext4_fsync_enable;
-int panic_flush_device_cache(int timeout)
-{
-	pr_emerg("%s\n", __func__);
-	if (!pfc || !sysctl_ext4_fsync_enable) {
-		pr_emerg("%s: skip flush device cache\n", __func__);
-		return timeout;
-	}
-
-	if (atomic_inc_return(&pfc->flush_issuing) == 1 &&
-		waitqueue_active(&pfc->flush_wq)) {
-		pr_emerg("%s: flush device cache\n", __func__);
-		atomic_set(&pfc->flush_issued, 0);
-		wake_up(&pfc->flush_wq);
-		while (timeout > 0 && atomic_read(&pfc->flush_issued) == 0) {
-			mdelay(PANIC_FLUSH_POLL_MS);
-			timeout -= PANIC_FLUSH_POLL_MS;
-		}
-		pr_emerg("%s: remaining timeout = %d\n", __func__, timeout);
-	}
-	return timeout;
-}
-
 static int __init create_panic_flush_control(void)
 {
 	int err = 0;
