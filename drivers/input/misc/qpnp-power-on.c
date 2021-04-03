@@ -992,7 +992,6 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		pon_rt_bit = QPNP_PON_KPDPWR_N_SET;
 		if ((pon_rt_sts & pon_rt_bit) == 0) {
 			pr_info("Power-Key UP\n");
-			set_pwr_status(key_released);
 			schedule_work(&pon->up_work);
 			cancel_delayed_work(&pon->press_work);
 			cancel_delayed_work(&pon->press_pwr);
@@ -1037,7 +1036,6 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	input_sync(pon->pon_input);
 
 	cfg->old_state = !!key_status;
-	oem_check_force_dump_key(cfg->key_code, key_status);
 
 	return 0;
 }
@@ -1267,7 +1265,6 @@ static void press_work_func(struct work_struct *work)
 		if (display_bl == 0 && boot_mode == MSM_BOOT_MODE__NORMAL) {
 			oem_force_minidump_mode();
 			show_state_filter(TASK_UNINTERRUPTIBLE);
-			send_sig_to_get_trace("system_server");
 			panic("power key still pressed\n");
 		}
 	}
@@ -1300,8 +1297,6 @@ static void press_pwr_func(struct work_struct *work)
 	if ((pon_rt_sts & QPNP_PON_KPDPWR_N_SET) == 1) {
 		qpnp_powerkey_state_check(pon, 1);
 		dev_err(pon->dev, "after 8s Power-Key is still DOWN\n");
-		set_pwr_status(key_pressed);
-		compound_key_to_get_trace("system_server");
 	}
 	msleep(20);
 	sys_sync();

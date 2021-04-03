@@ -373,8 +373,6 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		return;
 	}
 
-	oem_check_force_dump_key(button->code, state);
-
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
@@ -410,10 +408,6 @@ static void gpio_vol_up_work_func(struct work_struct *work)
 		return;
 	}
 
-	if (state && button->code == KEY_VOLUMEUP) {
-		set_vol_up_status(key_pressed);
-		compound_key_to_get_trace("system_server");
-	}
 }
 
 static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
@@ -455,7 +449,6 @@ static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 		if (state)
 			schedule_delayed_work(&bdata->press_vol_up, msecs_to_jiffies(6000));
 		else {
-			set_vol_up_status(key_released);
 			cancel_delayed_work(&bdata->press_vol_up);
 		}
 	}
