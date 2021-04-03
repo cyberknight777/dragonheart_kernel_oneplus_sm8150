@@ -3,7 +3,3 @@ config OEM_BOOT_MODE
 	default y
 	help
           detect oem boot mode  If unsure, say y.
-
-source "drivers/oneplus/coretech/Kconfig"
-source "drivers/oneplus/oneplus_healthinfo/Kconfig"
-source "drivers/oneplus/op_freezer/Kconfig"

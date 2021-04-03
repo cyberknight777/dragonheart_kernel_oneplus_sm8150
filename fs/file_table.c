@@ -11,7 +11,6 @@
 #include <linux/fdtable.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/fs.h>
 #include <linux/security.h>
 #include <linux/cred.h>
@@ -366,24 +365,14 @@ static void __fput(struct file *file)
 	mntput(mnt);
 }
 
-static int apply_cdsp_wa = 1;
-module_param(apply_cdsp_wa, int, 0644);
-
 static LLIST_HEAD(delayed_fput_list);
 static void delayed_fput(struct work_struct *unused)
 {
 	struct llist_node *node = llist_del_all(&delayed_fput_list);
 	struct file *f, *t;
-	struct dentry *temp = NULL;
 
-	llist_for_each_entry_safe(f, t, node, f_u.fu_llist) {
-		temp = f->f_path.dentry;
-		if (apply_cdsp_wa && temp &&
-			!(current->flags & PF_WQ_WORKER) &&
-			!strncmp(temp->d_name.name, "adsprpc-smd", 11))
-			continue;
+	llist_for_each_entry_safe(f, t, node, f_u.fu_llist)
 		__fput(f);
-	}
 }
 
 static void ____fput(struct callback_head *work)
