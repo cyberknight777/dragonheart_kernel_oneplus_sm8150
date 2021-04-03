@@ -453,47 +453,6 @@ static inline bool cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
 	return false;
 }
 
-#if defined(CONFIG_SLUB_DEBUG) || defined(CONFIG_SLAB_STAT_DEBUG)
-/* Tracking of the number of slabs for debugging purposes */
-static inline unsigned long slabs_node(struct kmem_cache *s, int node)
-{
-	struct kmem_cache_node *n = get_node(s, node);
-
-	return atomic_long_read(&n->nr_slabs);
-}
-
-static inline unsigned long node_nr_slabs(struct kmem_cache_node *n)
-{
-	return atomic_long_read(&n->nr_slabs);
-}
-
-static inline void inc_slabs_node(struct kmem_cache *s, int node, int objects)
-{
-	struct kmem_cache_node *n = get_node(s, node);
-
-	if (likely(n)) {
-		atomic_long_inc(&n->nr_slabs);
-		atomic_long_add(objects, &n->total_objects);
-	}
-}
-static inline void dec_slabs_node(struct kmem_cache *s, int node, int objects)
-{
-	struct kmem_cache_node *n = get_node(s, node);
-
-	atomic_long_dec(&n->nr_slabs);
-	atomic_long_sub(objects, &n->total_objects);
-}
-#else
-static inline unsigned long slabs_node(struct kmem_cache *s, int node)
-							{ return 0; }
-static inline unsigned long node_nr_slabs(struct kmem_cache_node *n)
-							{ return 0; }
-static inline void inc_slabs_node(struct kmem_cache *s, int node,
-							int objects) {}
-static inline void dec_slabs_node(struct kmem_cache *s, int node,
-							int objects) {}
-#endif
-
 #ifdef CONFIG_SLUB_DEBUG
 /*
  * Determine a map of object in use on a page.
@@ -1113,7 +1072,6 @@ static void remove_full(struct kmem_cache *s, struct kmem_cache_node *n, struct 
 	list_del(&page->lru);
 }
 
-#if 0
 /* Tracking of the number of slabs for debugging purposes */
 static inline unsigned long slabs_node(struct kmem_cache *s, int node)
 {
@@ -1149,7 +1107,6 @@ static inline void dec_slabs_node(struct kmem_cache *s, int node, int objects)
 	atomic_long_dec(&n->nr_slabs);
 	atomic_long_sub(objects, &n->total_objects);
 }
-#endif
 
 /* Object debug checks for alloc/free paths */
 static void setup_object_debug(struct kmem_cache *s, struct page *page,
@@ -1422,7 +1379,6 @@ unsigned long kmem_cache_flags(unsigned long object_size,
 
 #define disable_higher_order_debug 0
 
-#if 0
 static inline unsigned long slabs_node(struct kmem_cache *s, int node)
 							{ return 0; }
 static inline unsigned long node_nr_slabs(struct kmem_cache_node *n)
@@ -1431,7 +1387,6 @@ static inline void inc_slabs_node(struct kmem_cache *s, int node,
 							int objects) {}
 static inline void dec_slabs_node(struct kmem_cache *s, int node,
 							int objects) {}
-#endif
 
 static bool freelist_corrupted(struct kmem_cache *s, struct page *page,
 			       void *freelist, void *nextfree)
@@ -2501,7 +2456,7 @@ static inline int node_match(struct page *page, int node)
 	return 1;
 }
 
-#if defined(CONFIG_SLUB_DEBUG) || defined(CONFIG_SLAB_STAT_DEBUG)
+#ifdef CONFIG_SLUB_DEBUG
 static int count_free(struct page *page)
 {
 	return page->objects - page->inuse;
@@ -3470,7 +3425,7 @@ init_kmem_cache_node(struct kmem_cache_node *n)
 	n->nr_partial = 0;
 	spin_lock_init(&n->list_lock);
 	INIT_LIST_HEAD(&n->partial);
-#if defined(CONFIG_SLUB_DEBUG) || defined(CONFIG_SLAB_STAT_DEBUG)
+#ifdef CONFIG_SLUB_DEBUG
 	atomic_long_set(&n->nr_slabs, 0);
 	atomic_long_set(&n->total_objects, 0);
 	INIT_LIST_HEAD(&n->full);
@@ -6048,36 +6003,3 @@ __initcall(slab_sysfs_init);
 /*
  * The /proc/slabinfo ABI
  */
-#ifdef CONFIG_SLABINFO
-void get_slabinfo(struct kmem_cache *s, struct slabinfo *sinfo)
-{
-	unsigned long nr_slabs = 0;
-	unsigned long nr_objs = 0;
-	unsigned long nr_free = 0;
-	int node;
-	struct kmem_cache_node *n;
-
-	for_each_kmem_cache_node(s, node, n) {
-		nr_slabs += node_nr_slabs(n);
-		nr_objs += node_nr_objs(n);
-		nr_free += count_partial(n, count_free);
-	}
-
-	sinfo->active_objs = nr_objs - nr_free;
-	sinfo->num_objs = nr_objs;
-	sinfo->active_slabs = nr_slabs;
-	sinfo->num_slabs = nr_slabs;
-	sinfo->objects_per_slab = oo_objects(s->oo);
-	sinfo->cache_order = oo_order(s->oo);
-}
-
-void slabinfo_show_stats(struct seq_file *m, struct kmem_cache *s)
-{
-}
-
-ssize_t slabinfo_write(struct file *file, const char __user *buffer,
-		       size_t count, loff_t *ppos)
-{
-	return -EIO;
-}
-#endif /* CONFIG_SLABINFO */
