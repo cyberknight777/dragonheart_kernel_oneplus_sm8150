@@ -162,7 +162,6 @@ static struct sysrq_key_op sysrq_reboot_op = {
 
 static void sysrq_handle_flush(int key)
 {
-	panic_flush_device_cache(0);
 }
 
 static struct sysrq_key_op sysrq_flush_op = {
