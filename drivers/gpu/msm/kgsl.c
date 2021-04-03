@@ -4700,28 +4700,6 @@ static unsigned long _get_svm_area(struct kgsl_process_private *private,
 		addr = end & ~(align - 1);
 	}
 
-	/*
-	 * Search downwards from the hint first. If that fails we
-	 * must try to search above it.
-	 */
-	if (current->mm->va_feature & 0x2) {
-		uint64_t lstart, lend;
-		unsigned long lresult;
-
-		switch (len) {
-		case 4096: case 8192: case 16384: case 32768:
-		case 65536: case 131072: case 262144:
-			lend = current->mm->va_feature_rnd - (SIZE_10M * (ilog2(len) - 12));
-			lstart = current->mm->va_feature_rnd - (SIZE_10M * 7);
-			if (lend <= svm_end && lstart >= svm_start) {
-				lresult = _search_range(private, entry, lstart, lend, len, align);
-				if (!IS_ERR_VALUE(lresult))
-					return lresult;
-			}
-		default:
-			break;
-		}
-	}
 	result = _search_range(private, entry, start, addr, len, align);
 	if (IS_ERR_VALUE(result) && hint != 0)
 		result = _search_range(private, entry, addr, end, len, align);
@@ -4802,8 +4780,6 @@ kgsl_get_unmapped_area(struct file *file, unsigned long addr,
 
 			if (!RB_EMPTY_ROOT(&mm->mm_rb)) {
 				vma = rb_entry(mm->mm_rb.rb_node, struct vm_area_struct, vm_rb);
-				largest_gap_cpu = vma->rb_subtree_gap;
-				largest_gap_gpu = vma->rb_glfragment_gap;
 			}
 
 			if (private->pid != current_pid) {
@@ -4812,10 +4788,6 @@ kgsl_get_unmapped_area(struct file *file, unsigned long addr,
 					len, mm->total_vm, largest_gap_cpu, largest_gap_gpu);
 			}
 
-			KGSL_DRV_ERR_RATELIMIT(device,
-				"kgsl additional info: %s VmSize %lu MaxGapCpu %lu MaxGapGpu %lu VA_rnd 0x%llx\n",
-				current->group_leader->comm, mm->total_vm, largest_gap_cpu,
-				largest_gap_gpu, mm->va_feature_rnd);
 		}
 	}
 
