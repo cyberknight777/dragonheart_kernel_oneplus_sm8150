@@ -480,18 +480,6 @@ unsigned long mem_cgroup_get_limit(struct mem_cgroup *memcg);
 void mem_cgroup_print_oom_info(struct mem_cgroup *memcg,
 				struct task_struct *p);
 
-static inline void mem_cgroup_oom_enable(void)
-{
-	WARN_ON(current->memcg_may_oom);
-	current->memcg_may_oom = 1;
-}
-
-static inline void mem_cgroup_oom_disable(void)
-{
-	WARN_ON(!current->memcg_may_oom);
-	current->memcg_may_oom = 0;
-}
-
 static inline bool task_in_memcg_oom(struct task_struct *p)
 {
 	return p->memcg_in_oom;
@@ -910,14 +898,6 @@ static inline void unlock_page_memcg(struct page *page)
 }
 
 static inline void mem_cgroup_handle_over_high(void)
-{
-}
-
-static inline void mem_cgroup_oom_enable(void)
-{
-}
-
-static inline void mem_cgroup_oom_disable(void)
 {
 }
 
