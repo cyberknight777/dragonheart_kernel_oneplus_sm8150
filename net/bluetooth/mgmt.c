@@ -7347,7 +7347,6 @@ static int add_ext_adv_params(struct sock *sk, struct hci_dev *hdev,
 		goto unlock;
 	}
 
-	hdev->cur_adv_instance = cp->instance;
 	rp.instance = cp->instance;
 	rp.tx_power = HCI_ADV_TX_POWER_NO_PREFERENCE;
 	rp.max_adv_data_len = tlv_data_max_len(hdev, flags, true);
