@@ -643,7 +643,7 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 			/* payload[1] contains the error status for response */
 			if (payload[1] != 0) {
 				atomic_set(&this_afe.status, payload[1]);
-				pr_err("%s: cmd = 0x%x returned error = 0x%x\n",
+				pr_debug("%s: cmd = 0x%x returned error = 0x%x\n",
 					__func__, payload[0], payload[1]);
 			}
 			switch (payload[0]) {
@@ -1007,7 +1007,7 @@ static int afe_apr_send_pkt(void *data, wait_queue_head_t *wait)
 					__func__);
 				ret = -ETIMEDOUT;
 			} else if (atomic_read(&this_afe.status) > 0) {
-				pr_err("%s: DSP returned error[%s]\n", __func__,
+				pr_debug("%s: DSP returned error[%s]\n", __func__,
 					adsp_err_get_err_str(atomic_read(
 					&this_afe.status)));
 				ret = adsp_err_get_lnx_err_code(
@@ -1714,7 +1714,7 @@ static int afe_spk_prot_prepare(int src_port, int dst_port, int param_id,
 					       q6audio_get_port_index(src_port),
 					       param_info, (u8 *) prot_config);
 	if (ret)
-		pr_err("%s: port = 0x%x param = 0x%x failed %d\n", __func__,
+		pr_debug("%s: port = 0x%x param = 0x%x failed %d\n", __func__,
 		       src_port, param_id, ret);
 
 fail_cmd:
