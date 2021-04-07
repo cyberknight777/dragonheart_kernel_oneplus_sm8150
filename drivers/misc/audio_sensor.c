@@ -59,7 +59,7 @@ static ssize_t audio_write(struct file *file,
 	if (sscanf(kbuf, "%d", &state))
 		audio_data.state = state;
 
-	pr_info("%s: audio_data.state is %#x\n", __func__, audio_data.state);
+	pr_debug("%s: audio_data.state is %#x\n", __func__, audio_data.state);
 	atomic_set(&audio_data.read_ready, 1);
 	wake_up(&audio_data.wait);
 
@@ -100,7 +100,7 @@ static unsigned int audio_poll(struct file *file,
 	if (atomic_read(&audio_data.read_ready))
 		mask |= POLLIN | POLLRDNORM;
 
-	pr_info("%s: exit mask is %#x\n", __func__, mask);
+	pr_debug("%s: exit mask is %#x\n", __func__, mask);
 	return mask;
 }
 
@@ -141,7 +141,7 @@ static ssize_t sensor_write(struct file *file,
 	if (sscanf(kbuf, "%d", &state))
 		sensor_data.state = state;
 
-	pr_info("%s: state is %#x\n", __func__, sensor_data.state);
+	pr_debug("%s: state is %#x\n", __func__, sensor_data.state);
 
 	atomic_set(&sensor_data.read_ready, 1);
 	wake_up(&sensor_data.wait);
@@ -182,7 +182,7 @@ unsigned int sensor_poll(struct file *file, struct poll_table_struct *table)
 	if (atomic_read(&sensor_data.read_ready))
 		mask |= POLLIN | POLLRDNORM;
 
-	pr_info("%s: exit mask is %#x\n", __func__, mask);
+	pr_debug("%s: exit mask is %#x\n", __func__, mask);
 	return mask;
 }
 
@@ -197,7 +197,7 @@ static long share_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case IOCTL_AUDIO_SEND_ACK:
 		data->ack = arg == 1 ? 1 : 0;  //1 success, 0 fail
-		pr_info("%s: send ack %d\n", __func__, data->ack);
+		pr_debug("%s: send ack %d\n", __func__, data->ack);
 		break;
 
 	case IOCTL_SENSOR_RECEIVE_ACK:
