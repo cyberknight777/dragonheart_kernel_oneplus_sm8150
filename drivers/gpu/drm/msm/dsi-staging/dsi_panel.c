@@ -905,7 +905,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	if (panel->is_hbm_enabled) {
 		hbm_finger_print = true;
-		pr_err("HBM is enabled\n");
+		pr_debug("HBM is enabled\n");
 		return 0;
 	}
 
@@ -943,7 +943,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 		}
 
 		rc = mipi_dsi_dcs_set_display_brightness_samsung(dsi, bl_lvl);
-		pr_err("backlight = %d\n", bl_lvl);
+		pr_debug("backlight = %d\n", bl_lvl);
 		cur_backlight = bl_lvl;
 		cur_fps = mode_fps;
 		cur_h = panel->cur_mode->timing.h_active;
@@ -5417,7 +5417,7 @@ int dsi_panel_set_hbm_brightness(struct dsi_panel *panel, int level)
 
 	if (panel->is_hbm_enabled) {
 		hbm_finger_print = true;
-		pr_err("HBM is enabled\n");
+		pr_debug("HBM is enabled\n");
 		return 0;
 	}
 
@@ -5556,12 +5556,12 @@ int dsi_panel_set_native_display_p3_mode(struct dsi_panel *panel, int level)
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_P3_ON].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_ON);
-            pr_err("Native Display p3 Mode On.\n");
+            pr_debug("Native Display p3 Mode On.\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_P3_OFF].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_OFF);
-            pr_err("Native Display p3 Mode Off.\n");
+            pr_debug("Native Display p3 Mode Off.\n");
     }
 	mutex_unlock(&panel->panel_lock);
 return rc;
@@ -5584,12 +5584,12 @@ int dsi_panel_set_native_display_wide_color_mode(struct dsi_panel *panel, int le
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON);
-            pr_err("Native wide color Mode On.\n");
+            pr_debug("Native wide color Mode On.\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_OFF].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_OFF);
-            pr_err("Native wide color Mode Off.\n");
+            pr_debug("Native wide color Mode Off.\n");
     }
 	mutex_unlock(&panel->panel_lock);
 return rc;
@@ -5612,12 +5612,12 @@ int dsi_panel_set_native_display_srgb_color_mode(struct dsi_panel *panel, int le
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON);
-            pr_err("Native srgb color Mode On.\n");
+            pr_debug("Native srgb color Mode On.\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_OFF].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_OFF);
-            pr_err("Native  srgb color Mode Off.\n");
+            pr_debug("Native  srgb color Mode Off.\n");
     }
 	mutex_unlock(&panel->panel_lock);
 return rc;
@@ -5669,12 +5669,12 @@ int dsi_panel_set_customer_srgb_mode(struct dsi_panel *panel, int level)
         count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_CUSTOMER_RGB_ON].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_ON);
-            pr_err("turn on customer srgb\n");
+            pr_debug("turn on customer srgb\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_CUSTOMER_RGB_OFF].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_OFF);
-            pr_err("turn off customer srgb\n");
+            pr_debug("turn off customer srgb\n");
     }
 	mutex_unlock(&panel->panel_lock);
 return rc;
@@ -5697,12 +5697,12 @@ int dsi_panel_set_customer_p3_mode(struct dsi_panel *panel, int level)
         count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_CUSTOMER_P3_ON].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_ON);
-            pr_err("turn on customer P3\n");
+            pr_debug("turn on customer P3\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_CUSTOMER_P3_OFF].count;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_OFF);
-            pr_err("turn off customer P3\n");
+            pr_debug("turn off customer P3\n");
     }
 	mutex_unlock(&panel->panel_lock);
 return rc;
@@ -5721,7 +5721,7 @@ int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level)
     if (panel->aod_disable) {
         return 0;
     }
-	pr_err("panel->aod_status ==%d\n", panel->aod_status);
+	pr_debug("panel->aod_status ==%d\n", panel->aod_status);
     mode = panel->cur_mode;
 	if (level == 1) {
 		mutex_lock(&panel->panel_lock);
@@ -5787,7 +5787,7 @@ int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level)
 	else {
 		if (panel->aod_status) {
 			panel->aod_status = 0;
-			pr_err("send AOD OFF cmds start\n");
+			pr_debug("send AOD OFF cmds start\n");
 			if (aod_fod_flag == true) {
 				if (real_aod_mode) {
 					mutex_lock(&panel->panel_lock);
@@ -5795,7 +5795,7 @@ int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level)
 					mutex_unlock(&panel->panel_lock);
 					pr_err("Send DSI_CMD_SET_AOD_OFF cmds\n");
 				} else {
-					pr_err("real_aod_mode is %d, aod_fod_flag is %d\n", real_aod_mode, aod_fod_flag);
+					pr_debug("real_aod_mode is %d, aod_fod_flag is %d\n", real_aod_mode, aod_fod_flag);
 				}
 			}
 			if (aod_fod_flag == false) {
@@ -5805,7 +5805,7 @@ int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level)
 					mutex_unlock(&panel->panel_lock);
 					pr_err("Send DSI_CMD_SET_AOD_OFF_NEW cmds\n");
 				} else {
-					pr_err("real_aod_mode is %d, aod_fod_flag is %d\n", real_aod_mode, aod_fod_flag);
+					pr_debug("real_aod_mode is %d, aod_fod_flag is %d\n", real_aod_mode, aod_fod_flag);
 				}
 				if (level == 0) {
 					tp_aod_flag = 200;
@@ -5816,12 +5816,12 @@ int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level)
 				}
 			}
 			aod_complete = false;
-			pr_err("Send AOD OFF cmds end \n");
+			pr_debug("Send AOD OFF cmds end \n");
 		}
 	}
 
 	panel->aod_curr_mode = level;
-	pr_err("AOD MODE = %d\n", level);
+	pr_debug("AOD MODE = %d\n", level);
 return rc;
 }
 
