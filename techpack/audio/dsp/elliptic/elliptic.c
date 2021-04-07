@@ -294,9 +294,9 @@ int send_event_to_user(uint32_t *payload, uint32_t payload_size)
 	}
 
 	if (payload_size == 1) {
-		EL_PRINT_E("payload[0]:%u, size:%d\n", payload[0], payload_size);
+		EL_PRINT_D("payload[0]:%u, size:%d\n", payload[0], payload_size);
 	} else {
-		EL_PRINT_E("payload[0]:%u, payload[1] : %u, size:%d\n", payload[0], payload[1], payload_size);
+		EL_PRINT_D("payload[0]:%u, payload[1] : %u, size:%d\n", payload[0], payload[1], payload_size);
 	}
 
 	near = (data[12] == 0);
@@ -445,7 +445,7 @@ int32_t elliptic_data_write(uint32_t message_id,
 	err_dsp = 0;
 	err_dsp = elliptic_data_io_write(message_id, data, data_size);
 	if (err_dsp)
-		EL_PRINT_E("Failed write to DSP");
+		EL_PRINT_D("Failed write to DSP");
 	return err_dsp;
 
 }
