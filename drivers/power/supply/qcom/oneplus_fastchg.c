@@ -345,7 +345,7 @@ void mcu_en_gpio_set(int value)
 
 void usb_sw_gpio_set(int value)
 {
-	pr_info("set usb_sw_gpio=%d\n", value);
+	pr_debug("set usb_sw_gpio=%d\n", value);
 	if (!gpio_is_valid(fastchg_di->usb_sw_1_gpio)
 		&& !gpio_is_valid(fastchg_di->usb_sw_2_gpio)) {
 		pr_err("gpio is invalid\n");
@@ -948,7 +948,7 @@ static void request_mcu_irq(struct fastchg_device_info *di)
 	gpio_set_value(di->ap_clk, 1);
 	if (di->adapter_update_real
 		!= ADAPTER_FW_NEED_UPDATE) {
-		pr_info("%s\n", __func__);
+		pr_debug("%s\n", __func__);
 	if (!di->irq_enabled) {
 		retval = request_irq(di->irq, irq_rx_handler,
 				IRQF_TRIGGER_RISING, "mcu_data", di);
@@ -968,7 +968,7 @@ static void fastcg_work_func(struct work_struct *work)
 	struct fastchg_device_info *di = container_of(work,
 			struct fastchg_device_info,
 			fastcg_work);
-	pr_info("\n");
+	pr_debug("\n");
 	if (di->irq_enabled) {
 		free_irq(di->irq, di);
 		msleep(25);
@@ -1055,7 +1055,7 @@ static int dash_read(struct fastchg_device_info *di)
 		bit = gpio_get_value(di->ap_data);
 		data |= bit<<(6-i);
 	}
-	pr_err("recv data:0x%x\n", data);
+	pr_debug("recv data:0x%x\n", data);
 	return data;
 }
 
@@ -1213,7 +1213,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				mod_timer(&di->watchdog,
 				jiffies + msecs_to_jiffies(15000));
 			} else if (arg == DASH_NOTIFY_FAST_PRESENT + 2) {
-				pr_err("REJECT_DATA\n");
+				pr_debug("REJECT_DATA\n");
 				dash_write(di, REJECT_DATA);
 			} else if (arg == DASH_NOTIFY_FAST_PRESENT + 3) {
 				notify_check_usb_suspend(false, false);
@@ -1254,7 +1254,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				onplus_get_batt_remaining_capacity();
 				soc = onplus_get_battery_soc();
 				current_now = onplus_get_average_current();
-				pr_err("volt:%d,temp:%d,remain_cap:%d,soc:%d,current:%d\n",
+				pr_debug("volt:%d,temp:%d,remain_cap:%d,soc:%d,current:%d\n",
 				volt, temp, remain_cap, soc, current_now);
 				if (!di->batt_psy)
 					di->batt_psy =

@@ -648,7 +648,7 @@ static const struct apsd_result *smblib_get_apsd_result(struct smb_charger *chg)
 	smblib_dbg(chg, PR_REGISTER, "APSD_STATUS = 0x%02x\n", apsd_stat);
 
 	if (!(apsd_stat & APSD_DTC_STATUS_DONE_BIT)) {
-		pr_info("APSD_DTC_STATUS_DONE_BIT is 0\n");
+		pr_debug("APSD_DTC_STATUS_DONE_BIT is 0\n");
 		return result;
 	}
 	rc = smblib_read(chg, APSD_RESULT_STATUS_REG, &stat);
@@ -831,7 +831,7 @@ int smblib_set_usb_suspend(struct smb_charger *chg, bool suspend)
 	int rc = 0;
 	int irq = chg->irq_info[USBIN_ICL_CHANGE_IRQ].irq;
 	int boot_mode = get_boot_mode();
-	pr_info("suspend=%d\n", suspend);
+	pr_debug("suspend=%d\n", suspend);
 
 	if (!suspend) {
 		if (boot_mode == MSM_BOOT_MODE__RF
@@ -1211,7 +1211,7 @@ static const struct apsd_result *smblib_update_usb_type(struct smb_charger *chg)
 				POWER_SUPPLY_TYPE_USB_PD : apsd_result->pst;
 		}
 	}
-	smblib_err(chg, "APSD=%s PD=%d dash_on=%d real_charger_type=%d\n",
+	smblib_dbg(chg, PR_MISC, "APSD=%s PD=%d dash_on=%d real_charger_type=%d\n",
 					apsd_result->name, chg->pd_active,
 					chg->dash_on, chg->real_charger_type);
 	return apsd_result;
@@ -1541,7 +1541,7 @@ int op_usb_icl_set(struct smb_charger *chg, int icl_ua)
 	int rc = 0;
 	bool override;
 
-	pr_info("icl_ua=%d\n", icl_ua);
+	pr_debug("icl_ua=%d\n", icl_ua);
 
 	disable_irq_nosync(chg->irq_info[USBIN_ICL_CHANGE_IRQ].irq);
 	rc = smblib_set_charge_param(chg, &chg->param.usb_icl,
@@ -1586,7 +1586,7 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 
 	if (icl_ua_pre != icl_ua) {
 		icl_ua_pre = icl_ua;
-		pr_info("icl_ua=%d\n", icl_ua);
+		pr_debug("icl_ua=%d\n", icl_ua);
 	}
 
 	/* Do not configure ICL from SW for DAM cables */
@@ -1868,7 +1868,7 @@ static int smblib_awake_vote_callback(struct votable *votable, void *data,
 {
 	struct smb_charger *chg = data;
 
-	pr_info("set awake=%d\n", awake);
+	pr_debug("set awake=%d\n", awake);
 	if (awake)
 		pm_stay_awake(chg->dev);
 	else
@@ -2515,7 +2515,7 @@ int op_set_prop_otg_switch(struct smb_charger *chg,
 	if (chg->otg_switch == pre_otg_switch)
 		return rc;
 
-	pr_info("set otg_switch=%d\n", chg->otg_switch);
+	pr_debug("set otg_switch=%d\n", chg->otg_switch);
 	if (chg->otg_switch)
 		power_role = EN_TRY_SNK_BIT;
 	else
@@ -2543,7 +2543,7 @@ int op_set_prop_otg_switch(struct smb_charger *chg,
 		if ((power_role == EN_SNK_ONLY_BIT) && (ctrl & EN_SNK_ONLY_BIT))
 			break;
 	}
-	pr_info("retry time = %d,ctrl = %d\n", i, ctrl);
+	pr_debug("retry time = %d,ctrl = %d\n", i, ctrl);
 	if (i == 10)
 		pr_err("retry time over\n");
 
@@ -5327,7 +5327,7 @@ irqreturn_t usbin_uv_irq_handler(int irq, void *data)
 
 	chg->dash_on = get_prop_fast_chg_started(chg);
 	if (chg->dash_on) {
-		pr_err("return directly because dash is online\n");
+		pr_debug("return directly because dash is online\n");
 		return IRQ_HANDLED;
 	}
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
@@ -5561,7 +5561,7 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 	last_vbus_present = chg->vbus_present;
 	chg->dash_on = get_prop_fast_chg_started(chg);
 	if (chg->dash_on) {
-		pr_err("return directly because dash is online\n");
+		pr_debug("return directly because dash is online\n");
 		return;
 	}
 
@@ -5576,7 +5576,7 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 	if (last_vbus_present != chg->vbus_present) {
 		if (chg->vbus_present) {
 			if (!chg->chg_wake_lock_on) {
-				pr_info("acquire chg_wake_lock\n");
+				pr_debug("acquire chg_wake_lock\n");
 				__pm_stay_awake(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = true;
 			} else {
@@ -5584,7 +5584,7 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 			}
 		} else {
 			if (chg->chg_wake_lock_on) {
-				pr_info("release chg_wake_lock\n");
+				pr_debug("release chg_wake_lock\n");
 				__pm_relax(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = false;
 			} else {
@@ -5642,7 +5642,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	last_vbus_present = chg->vbus_present;
 	chg->dash_on = get_prop_fast_chg_started(chg);
 	if (chg->dash_on) {
-		pr_err("return directly because dash is online\n");
+		pr_debug("return directly because dash is online\n");
 		return;
 	}
 
@@ -5660,7 +5660,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 	if (last_vbus_present != chg->vbus_present) {
 		if (chg->vbus_present) {
 			if (!chg->chg_wake_lock_on) {
-				pr_info("acquire chg_wake_lock\n");
+				pr_debug("acquire chg_wake_lock\n");
 				__pm_stay_awake(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = true;
 			} else {
@@ -5668,7 +5668,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 			}
 		} else {
 			if (chg->chg_wake_lock_on) {
-				pr_info("release chg_wake_lock\n");
+				pr_debug("release chg_wake_lock\n");
 				__pm_relax(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = false;
 			} else {
@@ -5790,7 +5790,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 			}
 		}
 	}
-	pr_err("IRQ: %s\n",
+	pr_debug("IRQ: %s\n",
 			vbus_rising ? "attached" : "detached");
 }
 
@@ -6023,9 +6023,9 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 		op_charging_en(chg, true);
 	}
 
-	pr_info("apsd result=0x%x, name=%s, psy_type=%d\n",
+	pr_debug("apsd result=0x%x, name=%s, psy_type=%d\n",
 		apsd_result->bit, apsd_result->name, apsd_result->pst);
-	pr_info("apsd done,current_now=%d\n",
+	pr_debug("apsd done,current_now=%d\n",
 		(get_prop_batt_current_now(chg) / 1000));
 	if (apsd_result->bit == DCP_CHARGER_BIT
 		|| apsd_result->bit == OCP_CHARGER_BIT) {
@@ -6074,7 +6074,7 @@ irqreturn_t usb_source_change_irq_handler(int irq, void *data)
 		smblib_err(chg, "Couldn't read APSD_STATUS rc=%d\n", rc);
 		return IRQ_HANDLED;
 	}
-	pr_info("APSD_STATUS=0x%02x\n", stat);
+	pr_debug("APSD_STATUS=0x%02x\n", stat);
 
 	smblib_dbg(chg, PR_INTERRUPT, "APSD_STATUS = 0x%02x\n", stat);
 
@@ -6636,7 +6636,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	chg->dash_on = get_prop_fast_chg_started(chg);
 	if (chg->dash_on) {
-		pr_err("return directly because dash is online\n");
+		pr_debug("return directly because dash is online\n");
 		return IRQ_HANDLED;
 	}
 	for (i = 0; i <= 1; i++) {
@@ -6645,7 +6645,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 			smblib_err(chg, "Couldn't read dump_reg:0x%02x, rc=%d\n",
 				(TYPEC_BASE + i*2 + dump_offset), rc);
 		}
-		pr_info("dump_reg:0x%02x = 0x%02x\n",
+		pr_debug("dump_reg:0x%02x = 0x%02x\n",
 			(TYPEC_BASE + i*2 + dump_offset), stat);
 	}
 
@@ -6654,7 +6654,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 		smblib_err(chg, "Couldn't read dump_reg:0x%02x, rc=%d\n",
 			(TYPEC_BASE + 0x0b), rc);
 	}
-	pr_info("dump_reg:0x%02x = 0x%02x\n",
+	pr_debug("dump_reg:0x%02x = 0x%02x\n",
 		(TYPEC_BASE + 0x0b), stat);
 
 	rc = smblib_read(chg, (TYPEC_BASE + 0x10), &stat);
@@ -6662,7 +6662,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 		smblib_err(chg, "Couldn't read dump_reg:0x%02x, rc=%d\n",
 			(TYPEC_BASE + 0x10), rc);
 	}
-	pr_info("dump_reg:0x%02x = 0x%02x\n",
+	pr_debug("dump_reg:0x%02x = 0x%02x\n",
 		(TYPEC_BASE + 0x10), stat);
 
 	rc = smblib_read(chg, TYPE_C_INTERRUPT_EN_CFG_1_REG, &stat);
@@ -6670,7 +6670,7 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 		smblib_err(chg, "Couldn't read dump_reg:0x%02x, rc=%d\n",
 			TYPE_C_INTERRUPT_EN_CFG_1_REG, rc);
 	}
-	pr_info("dump_reg:0x%02x = 0x%02x\n",
+	pr_debug("dump_reg:0x%02x = 0x%02x\n",
 			TYPE_C_INTERRUPT_EN_CFG_1_REG, stat);
 
 
@@ -7040,7 +7040,7 @@ irqreturn_t switcher_power_ok_irq_handler(int irq, void *data)
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	chg->dash_on = get_prop_fast_chg_started(chg);
 	if (chg->dash_on) {
-		pr_err("return directly because dash is online\n");
+		pr_debug("return directly because dash is online\n");
 		return IRQ_HANDLED;
 	}
 
@@ -7477,7 +7477,7 @@ static int op_charging_en(struct smb_charger *chg, bool en)
 {
 	int rc;
 
-	pr_info("enable=%d\n", en);
+	pr_debug("enable=%d\n", en);
 	if (chg->chg_disabled && en) {
 		pr_info("chg_disabled just return\n");
 		return 0;
@@ -7562,7 +7562,7 @@ bool is_fastchg_allowed(struct smb_charger *chg)
 
 	switch_to_normal = get_prop_fast_switch_to_normal(chg);
 	if (pre_switch_to_normal != switch_to_normal)
-		pr_info("switch_to_normal =%d\n", switch_to_normal);
+		pr_debug("switch_to_normal =%d\n", switch_to_normal);
 	if (switch_to_normal)
 		return false;
 
@@ -7705,7 +7705,7 @@ static int op_set_collapse_fet(struct smb_charger *chg, bool on)
 			USBIN_5V_AICL_THRESHOLD_CFG_REG, rc);
 		return rc;
 	}
-	pr_info("USBIN_5V_AICL_THRESHOLD_CFG_REG(0x%x)=0x%x\n",
+	pr_debug("USBIN_5V_AICL_THRESHOLD_CFG_REG(0x%x)=0x%x\n",
 			USBIN_5V_AICL_THRESHOLD_CFG_REG, stat);
 
 	rc = smblib_masked_write(chg, USBIN_CONT_AICL_THRESHOLD_CFG_REG,
@@ -7723,7 +7723,7 @@ static int op_set_collapse_fet(struct smb_charger *chg, bool on)
 			USBIN_CONT_AICL_THRESHOLD_CFG_REG, rc);
 		return rc;
 	}
-	pr_info("USBIN_CONT_AICL_THRESHOLD_CFG_REG(0x%x)=0x%x\n",
+	pr_debug("USBIN_CONT_AICL_THRESHOLD_CFG_REG(0x%x)=0x%x\n",
 			USBIN_CONT_AICL_THRESHOLD_CFG_REG, stat);
 
 	rc = smblib_masked_write(chg, USBIN_AICL_OPTIONS_CFG_REG,
@@ -7747,7 +7747,7 @@ static int op_set_collapse_fet(struct smb_charger *chg, bool on)
 			USBIN_AICL_OPTIONS_CFG_REG, rc);
 		return rc;
 	}
-	pr_info("USBIN_AICL_OPTIONS_CFG_REG(0x%x)=0x%x\n",
+	pr_debug("USBIN_AICL_OPTIONS_CFG_REG(0x%x)=0x%x\n",
 		USBIN_AICL_OPTIONS_CFG_REG, stat);
 
 	rc = smblib_masked_write(chg, USBIN_LOAD_CFG_REG, BIT(0)
@@ -7764,7 +7764,7 @@ static int op_set_collapse_fet(struct smb_charger *chg, bool on)
 			USBIN_LOAD_CFG_REG, rc);
 		return rc;
 	}
-	pr_info("USBIN_LOAD_CFG_REG(0x%x)=0x%x\n",
+	pr_debug("USBIN_LOAD_CFG_REG(0x%x)=0x%x\n",
 			USBIN_LOAD_CFG_REG, stat);
 
 	return rc;
@@ -7829,7 +7829,7 @@ int op_handle_switcher_power_ok(void)
 
 int op_contrl(int enable, bool check_power_ok)
 {
-	pr_info("en=%d\n", enable);
+	pr_debug("en=%d\n", enable);
 	if (!g_chg)
 		return 0;
 	if (enable) {
@@ -7962,7 +7962,7 @@ static void op_battery_temp_region_set(struct smb_charger *chg,
 		enum temp_region_type batt_temp_region)
 {
 	chg->mBattTempRegion = batt_temp_region;
-	pr_err("set temp_region=%d\n", chg->mBattTempRegion);
+	pr_debug("set temp_region=%d\n", chg->mBattTempRegion);
 }
 
 static void set_prop_batt_health(struct smb_charger *chg, int batt_health)
@@ -7981,7 +7981,7 @@ static void set_usb_switch(struct smb_charger *chg, bool enable)
 
 
 	if (enable) {
-		pr_err("switch on fastchg\n");
+		pr_debug("switch on fastchg\n");
 		chg->switch_on_fastchg = true;
 		if (chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH ||
 				chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_MEDIUM)
@@ -8033,13 +8033,13 @@ static void switch_fast_chg(struct smb_charger *chg)
 	fastchg_allowed = op_get_fast_chg_allow(chg);
 	if (pre_fastchg_allowed != fastchg_allowed) {
 		pre_fastchg_allowed = fastchg_allowed;
-		pr_info("fastchg_allowed = %d\n", fastchg_allowed);
+		pr_debug("fastchg_allowed = %d\n", fastchg_allowed);
 	}
 	if (!fastchg_allowed) {
 		is_allowed = is_fastchg_allowed(chg);
 	if (pre_is_allowed != is_allowed) {
 		pre_is_allowed = is_allowed;
-		pr_info("is_allowed = %d\n", is_allowed);
+		pr_debug("is_allowed = %d\n", is_allowed);
 	}
 		if (is_allowed) {
 			set_usb_switch(chg, true);
@@ -8090,7 +8090,7 @@ static void op_usb_remove_check_work(struct work_struct *work)
 		return;
 	}
 	if (chg->ck_unplug_count >= 4) {
-		pr_info("op usb remove checked\n");
+		pr_debug("op usb remove checked\n");
 		update_dash_unplug_status();
 	} else {
 		chg->ck_unplug_count++;
@@ -8252,7 +8252,7 @@ static int set_dash_charger_present(int status)
 		charger_present = is_usb_present(g_chg);
 		g_chg->dash_present = status && charger_present;
 		if (g_chg->dash_present && !pre_dash_present) {
-			pr_err("set dash online\n");
+			pr_debug("set dash online\n");
 			g_chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_DASH;
 			vote(g_chg->usb_icl_votable, PD_VOTER, true,
 					DEFAULT_WALL_CHG_MA * 1000);
@@ -8262,7 +8262,7 @@ static int set_dash_charger_present(int status)
 			g_chg->usb_psy_desc.type = POWER_SUPPLY_TYPE_DASH;
 		}
 		power_supply_changed(g_chg->batt_psy);
-		pr_info("dash_present = %d, charger_present = %d\n",
+		pr_debug("dash_present = %d, charger_present = %d\n",
 				g_chg->dash_present, charger_present);
 	} else {
 		pr_err("set_dash_charger_present error\n");
@@ -8490,7 +8490,7 @@ void set_chg_ibat_vbat_max(
 {
 	enum temp_region_type temp_region;
 
-	pr_err("set ibatmax=%d and set vbatmax=%d\n",
+	pr_debug("set ibatmax=%d and set vbatmax=%d\n",
 			ibat, vfloat);
 	if (chg->ffc_status != FFC_DEFAULT)
 		return;
@@ -8727,7 +8727,7 @@ static int handle_batt_temp_normal(struct smb_charger *chg)
 	}
 	if ((temp_region != BATT_TEMP_NORMAL)
 			|| chg->is_power_changed || chg->recharge_pending) {
-		pr_err("triggered\n");
+		pr_debug("triggered\n");
 		chg->recharge_pending = false;
 		chg->is_power_changed = false;
 
@@ -9690,7 +9690,7 @@ static int op_get_skin_thermal_temp(struct smb_charger *chg)
 	else if (chg->skin_thermal_temp <= chg->skin_thermal_normal_threshold)
 		chg->is_skin_thermal_high = false;
 
-	pr_info("skin_thermal_temp=(%d), is_skin_thermal_high(%d)\n",
+	pr_debug("skin_thermal_temp=(%d), is_skin_thermal_high(%d)\n",
 			chg->skin_thermal_temp,
 			chg->is_skin_thermal_high);
 
@@ -9721,11 +9721,11 @@ bool check_call_on_status(void)
 	is_call_on = *g_chg->call_on;
 
 	if (is_call_on == 1) {
-		pr_info("is_call_on=(%d)\n",
+		pr_debug("is_call_on=(%d)\n",
 				is_call_on);
 		return true;
 	} else {
-		pr_info("is_call_on=(%d)\n",
+		pr_debug("is_call_on=(%d)\n",
 				is_call_on);
 		return false;
 	}
@@ -9837,10 +9837,10 @@ static void op_otg_switch(struct work_struct *work)
 		return;
 	usb_pluged = gpio_get_value(g_chg->plug_irq) ? false : true;
 	if (usb_pluged == pre_usb_pluged) {
-		pr_info("same status,return;usb_present:%d\n", usb_pluged);
+		pr_debug("same status,return;usb_present:%d\n", usb_pluged);
 		return;
 	}
-	pr_info("%s,usb_present:%d\n", __func__, usb_pluged);
+	pr_debug("%s,usb_present:%d\n", __func__, usb_pluged);
 	if (usb_pluged) {
 		vote(g_chg->otg_toggle_votable, HW_DETECT_VOTER, 1, 0);
 		g_chg->hw_detect = 1;
@@ -9850,7 +9850,7 @@ static void op_otg_switch(struct work_struct *work)
 		schedule_delayed_work(&g_chg->unplug_check_work,
 				msecs_to_jiffies(TIME_200MS));
 	}
-	pr_info("%s:hw_detect=%d\n", __func__, g_chg->hw_detect);
+	pr_debug("%s:hw_detect=%d\n", __func__, g_chg->hw_detect);
 	pre_usb_pluged = usb_pluged;
 }
 
@@ -9903,7 +9903,7 @@ static void op_heartbeat_work(struct work_struct *work)
 			goto out;
 		}
 		switch_fast_chg(chg);
-		pr_info("fast chg started, usb_switch=%d\n",
+		pr_debug("fast chg started, usb_switch=%d\n",
 				op_is_usb_switch_on(chg));
 		/* add for disable normal charge */
 		fast_charging = op_get_fastchg_ing(chg);
