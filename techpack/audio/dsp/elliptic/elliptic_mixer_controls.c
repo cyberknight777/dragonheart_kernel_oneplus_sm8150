@@ -403,7 +403,7 @@ int elliptic_ultrasound_rx_port_set(struct snd_kcontrol *kcontrol,
 	else
 		ret = elliptic_close_port(ULTRASOUND_RX_PORT_ID);
 
-	EL_PRINT_E("ultrasound_rx_port: enable=%d ret=%d",
+	EL_PRINT_D("ultrasound_rx_port: enable=%d ret=%d",
 		ultrasound_tx_port_cache, ret);
 
 	return 0;
@@ -711,7 +711,7 @@ int elliptic_system_configuration_param_get(
 
 	if (mc->shift >= ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_0 &&
 		mc->shift <= ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_15){
-		EL_PRINT_E("get ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_%02d",
+		EL_PRINT_D("get ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_%02d",
 			mc->shift - ELLIPTIC_SYSTEM_CONFIGURATION_CUSTOM_SETTING_0);
 		ucontrol->value.integer.value[0] = 0;
 		return 1;
