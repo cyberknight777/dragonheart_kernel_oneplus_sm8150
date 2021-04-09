@@ -2544,7 +2544,7 @@ static void usbpd_sm(struct work_struct *w)
 			pd->vconn_enabled = false;
 		}
 
-		usbpd_info(&pd->dev, "USB Type-C disconnect\n");
+		usbpd_dbg(&pd->dev, "USB Type-C disconnect\n");
 
 		if (pd->pd_phy_opened) {
 			pd_phy_close();
@@ -3583,7 +3583,7 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 
 	pd->psy_type = val.intval;
 
-	usbpd_err(&pd->dev, "typec mode:%d present:%d type:%d orientation:%d\n",
+	usbpd_dbg(&pd->dev, "typec mode:%d present:%d type:%d orientation:%d\n",
 			typec_mode, pd->vbus_present, pd->psy_type,
 			usbpd_get_plug_orientation(pd));
 
@@ -3602,7 +3602,7 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 	case POWER_SUPPLY_TYPEC_SOURCE_DEFAULT:
 	case POWER_SUPPLY_TYPEC_SOURCE_MEDIUM:
 	case POWER_SUPPLY_TYPEC_SOURCE_HIGH:
-		usbpd_info(&pd->dev, "Type-C Source (%s) connected\n",
+		usbpd_dbg(&pd->dev, "Type-C Source (%s) connected\n",
 				src_current(typec_mode));
 
 		/* if waiting for SinkTxOk to start an AMS */
