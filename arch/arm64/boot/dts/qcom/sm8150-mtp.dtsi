@@ -605,7 +605,7 @@
 		};
 	};
 
-	msm-therm {
+	skin-msm-therm {
 		polling-delay-passive = <2000>;
 		polling-delay = <0>;
 		thermal-governor = "step_wise";
