@@ -1249,6 +1249,12 @@ config LD_DEAD_CODE_DATA_ELIMINATION
 	  silently broken kernel if the required annotations are not
 	  present. This option is not well tested yet, so use at your
 	  own risk.
+config USERLAND_WORKER
+  depends on !STATIC_USERMODEHELPER
+	bool "Run userspace functions from the kernel"
+	help
+	  Enabling this option will give you access to userspace
+	  functions, being able to call them from the kernel space.
 
 config SYSCTL
 	bool
