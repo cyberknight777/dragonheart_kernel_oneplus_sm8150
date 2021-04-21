@@ -1840,9 +1840,19 @@ const struct file_operations proc_pagemap_operations = {
 
 #ifdef CONFIG_PROCESS_RECLAIM
 enum reclaim_type {
-	RECLAIM_FILE,
+	RECLAIM_FILE = 1,
 	RECLAIM_ANON,
 	RECLAIM_ALL,
+	/*
+	 * For safety and backwards compatability, shmem reclaim mode
+	 * is only possible by directly using 'shmem', 'all' does not
+	 * inlcude shmem.
+	 */
+	RECLAIM_SHMEM,
+};
+
+struct walk_data {
+	enum reclaim_type type;
 };
 
 static int deactivate_pte_range(pmd_t *pmd, unsigned long addr,
@@ -1949,8 +1959,13 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 	struct page *page;
 	int isolated = 0;
 	struct vm_area_struct *vma = walk->vma;
+	struct walk_data *data = (struct walk_data*)walk->private;
+	enum reclaim_type type = 0;
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long next = pmd_addr_end(addr, end);
+
+	if (data)
+		type = data->type;
 
 	ptl = pmd_trans_huge_lock(pmd, vma);
 	if (ptl) {
@@ -1961,7 +1976,7 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 			goto huge_unlock;
 
 		page = pmd_page(*pmd);
-		if (page_mapcount(page) > 1)
+		if (type != RECLAIM_SHMEM && page_mapcount(page) > 1)
 			goto huge_unlock;
 
 		if (next - addr != HPAGE_PMD_SIZE) {
@@ -2003,7 +2018,7 @@ regular_page:
 			continue;
 
 		if (PageTransCompound(page)) {
-			if (page_mapcount(page) != 1)
+			if (type != RECLAIM_SHMEM && page_mapcount(page) != 1)
 				break;
 			get_page(page);
 			if (!trylock_page(page)) {
@@ -2031,7 +2046,7 @@ regular_page:
 		if (!PageLRU(page))
 			continue;
 
-		if (page_mapcount(page) > 1)
+		if (type != RECLAIM_SHMEM && page_mapcount(page) > 1)
 			continue;
 
 		if (isolate_lru_page(page))
@@ -2078,6 +2093,10 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		type = RECLAIM_FILE;
 	else if (!strcmp(type_buf, "anon"))
 		type = RECLAIM_ANON;
+#ifdef CONFIG_SHMEM
+	else if (!strcmp(type_buf, "shmem"))
+		type = RECLAIM_SHMEM;
+#endif
 	else if (!strcmp(type_buf, "all"))
 		type = RECLAIM_ALL;
 	else
@@ -2089,9 +2108,14 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 
 	mm = get_task_mm(task);
 	if (mm) {
+		struct walk_data reclaim_data = {
+			.type = type,
+		};
+
 		struct mm_walk reclaim_walk = {
 			.pmd_entry = reclaim_pte_range,
 			.mm = mm,
+			.private = &reclaim_data,
 		};
 
 		down_read(&mm->mmap_sem);
@@ -2105,10 +2129,12 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 
 			if (type == RECLAIM_ANON && !vma_is_anonymous(vma))
 				continue;
-			if (type == RECLAIM_FILE && vma_is_anonymous(vma))
+			if ((type == RECLAIM_FILE || type == RECLAIM_SHMEM)
+					&& vma_is_anonymous(vma)) {
 				continue;
+			}
 
-			if (vma_is_anonymous(vma)) {
+			if (vma_is_anonymous(vma) || shmem_file(vma->vm_file)) {
 				if (get_nr_swap_pages() <= 0 ||
 					get_mm_counter(mm, MM_ANONPAGES) == 0) {
 					if (type == RECLAIM_ALL)
@@ -2116,6 +2142,11 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 					else
 						break;
 				}
+
+				if (shmem_file(vma->vm_file) && type != RECLAIM_SHMEM) {
+					continue;
+				}
+
 				reclaim_walk.pmd_entry = reclaim_pte_range;
 			} else {
 				reclaim_walk.pmd_entry = deactivate_pte_range;
