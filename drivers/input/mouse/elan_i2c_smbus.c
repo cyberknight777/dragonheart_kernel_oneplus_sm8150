@@ -343,7 +343,8 @@ static int elan_smbus_set_flash_key(struct i2c_client *client)
 	return 0;
 }
 
-static int elan_smbus_prepare_fw_update(struct i2c_client *client)
+static int elan_smbus_prepare_fw_update(struct i2c_client *client, u16 ic_type,
+					u8 iap_version, u16 fw_page_size)
 {
 	struct device *dev = &client->dev;
 	int len;
@@ -417,7 +418,7 @@ static int elan_smbus_prepare_fw_update(struct i2c_client *client)
 }
 
 
-static int elan_smbus_write_fw_block(struct i2c_client *client,
+static int elan_smbus_write_fw_block(struct i2c_client *client, u16 fw_page_size,
 				     const u8 *page, u16 checksum, int idx)
 {
 	struct device *dev = &client->dev;
@@ -432,7 +433,7 @@ static int elan_smbus_write_fw_block(struct i2c_client *client,
 	 */
 	error = i2c_smbus_write_block_data(client,
 					   ETP_SMBUS_WRITE_FW_BLOCK,
-					   ETP_FW_PAGE_SIZE / 2,
+					   fw_page_size / 2,
 					   page);
 	if (error) {
 		dev_err(dev, "Failed to write page %d (part %d): %d\n",
@@ -442,8 +443,8 @@ static int elan_smbus_write_fw_block(struct i2c_client *client,
 
 	error = i2c_smbus_write_block_data(client,
 					   ETP_SMBUS_WRITE_FW_BLOCK,
-					   ETP_FW_PAGE_SIZE / 2,
-					   page + ETP_FW_PAGE_SIZE / 2);
+					   fw_page_size / 2,
+					   page + fw_page_size / 2);
 	if (error) {
 		dev_err(dev, "Failed to write page %d (part %d): %d\n",
 			idx, 2, error);

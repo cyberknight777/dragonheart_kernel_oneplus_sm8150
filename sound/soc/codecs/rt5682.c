@@ -30,6 +30,9 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
+#include <linux/clk.h>
+#include <linux/clkdev.h>
+#include <linux/clk-provider.h>
 #include <sound/rt5682.h>
 
 #include "rl6231.h"
@@ -43,6 +46,15 @@ static const char *rt5682_supply_names[RT5682_NUM_SUPPLIES] = {
 	"VBAT",
 };
 
+static const struct rt5682_platform_data i2s_default_platform_data = {
+	.dmic1_data_pin = RT5682_DMIC1_DATA_GPIO2,
+	.dmic1_clk_pin = RT5682_DMIC1_CLK_GPIO3,
+	.jd_src = RT5682_JD1,
+	.btndet_delay = 16,
+	.dai_clk_names[RT5682_DAI_WCLK_IDX] = "rt5682-dai-wclk",
+	.dai_clk_names[RT5682_DAI_BCLK_IDX] = "rt5682-dai-bclk",
+};
+
 struct rt5682_priv {
 	struct snd_soc_component *component;
 	struct rt5682_platform_data pdata;
@@ -52,6 +64,14 @@ struct rt5682_priv {
 	struct delayed_work jack_detect_work;
 	struct delayed_work jd_check_work;
 	struct mutex calibrate_mutex;
+	bool is_sdw;
+
+#ifdef CONFIG_COMMON_CLK
+	struct clk_hw dai_clks_hw[RT5682_DAI_NUM_CLKS];
+	struct clk_lookup *dai_clks_lookup[RT5682_DAI_NUM_CLKS];
+	struct clk *dai_clks[RT5682_DAI_NUM_CLKS];
+	struct clk *mclk;
+#endif
 
 	int sysclk;
 	int sysclk_src;
@@ -59,9 +79,9 @@ struct rt5682_priv {
 	int bclk[RT5682_AIFS];
 	int master[RT5682_AIFS];
 
-	int pll_src;
-	int pll_in;
-	int pll_out;
+	int pll_src[RT5682_PLLS];
+	int pll_in[RT5682_PLLS];
+	int pll_out[RT5682_PLLS];
 
 	int jack_type;
 };
@@ -70,6 +90,7 @@ static const struct reg_sequence patch_list[] = {
 	{RT5682_HP_IMP_SENS_CTRL_19, 0x1000},
 	{RT5682_DAC_ADC_DIG_VOL1, 0xa020},
 	{RT5682_I2C_CTRL, 0x000f},
+	{RT5682_PLL2_INTERNAL, 0x8266},
 };
 
 static const struct reg_default rt5682_reg[] = {
@@ -217,7 +238,7 @@ static const struct reg_default rt5682_reg[] = {
 	{0x0148, 0x0000},
 	{0x0149, 0x0000},
 	{0x0150, 0x79a1},
-	{0x0151, 0x0000},
+	{0x0156, 0xaaaa},
 	{0x0160, 0x4ec0},
 	{0x0161, 0x0080},
 	{0x0162, 0x0200},
@@ -801,10 +822,11 @@ static const struct snd_kcontrol_new rt5682_if1_45_adc_swap_mux =
 static const struct snd_kcontrol_new rt5682_if1_67_adc_swap_mux =
 	SOC_DAPM_ENUM("IF1 67 ADC Swap Mux", rt5682_if1_67_adc_enum);
 
-static void rt5682_reset(struct regmap *regmap)
+static void rt5682_reset(struct rt5682_priv *rt5682)
 {
-	regmap_write(regmap, RT5682_RESET, 0);
-	regmap_write(regmap, RT5682_I2C_MODE, 1);
+	regmap_write(rt5682->regmap, RT5682_RESET, 0);
+	if (!rt5682->is_sdw)
+		regmap_write(rt5682->regmap, RT5682_I2C_MODE, 1);
 }
 /**
  * rt5682_sel_asrc_clk_src - select ASRC clock source for a set of filters
@@ -867,6 +889,8 @@ static int rt5682_button_detect(struct snd_soc_component *component)
 static void rt5682_enable_push_button_irq(struct snd_soc_component *component,
 		bool enable)
 {
+	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
+
 	if (enable) {
 		snd_soc_component_update_bits(component, RT5682_SAR_IL_CMD_1,
 			RT5682_SAR_BUTT_DET_MASK, RT5682_SAR_BUTT_DET_EN);
@@ -876,8 +900,15 @@ static void rt5682_enable_push_button_irq(struct snd_soc_component *component,
 		snd_soc_component_update_bits(component, RT5682_4BTN_IL_CMD_2,
 			RT5682_4BTN_IL_MASK | RT5682_4BTN_IL_RST_MASK,
 			RT5682_4BTN_IL_EN | RT5682_4BTN_IL_NOR);
-		snd_soc_component_update_bits(component, RT5682_IRQ_CTRL_3,
-			RT5682_IL_IRQ_MASK, RT5682_IL_IRQ_EN);
+		if (rt5682->is_sdw)
+			snd_soc_component_update_bits(component,
+				RT5682_IRQ_CTRL_3,
+				RT5682_IL_IRQ_MASK | RT5682_IL_IRQ_TYPE_MASK,
+				RT5682_IL_IRQ_EN | RT5682_IL_IRQ_PUL);
+		else
+			snd_soc_component_update_bits(component,
+				RT5682_IRQ_CTRL_3, RT5682_IL_IRQ_MASK,
+				RT5682_IL_IRQ_EN);
 	} else {
 		snd_soc_component_update_bits(component, RT5682_IRQ_CTRL_3,
 			RT5682_IL_IRQ_MASK, RT5682_IL_IRQ_DIS);
@@ -905,6 +936,7 @@ static int rt5682_headset_detect(struct snd_soc_component *component,
 		int jack_insert)
 {
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
+	struct snd_soc_dapm_context *dapm = &component->dapm;
 	unsigned int val, count;
 
 	if (jack_insert) {
@@ -913,10 +945,10 @@ static int rt5682_headset_detect(struct snd_soc_component *component,
 			RT5682_PWR_VREF2 | RT5682_PWR_MB,
 			RT5682_PWR_VREF2 | RT5682_PWR_MB);
 		snd_soc_component_update_bits(component,
-				RT5682_PWR_ANLG_1, RT5682_PWR_FV2, 0);
+			RT5682_PWR_ANLG_1, RT5682_PWR_FV2, 0);
 		usleep_range(15000, 20000);
 		snd_soc_component_update_bits(component,
-				RT5682_PWR_ANLG_1, RT5682_PWR_FV2, RT5682_PWR_FV2);
+			RT5682_PWR_ANLG_1, RT5682_PWR_FV2, RT5682_PWR_FV2);
 		snd_soc_component_update_bits(component, RT5682_PWR_ANLG_3,
 			RT5682_PWR_CBJ, RT5682_PWR_CBJ);
 
@@ -937,6 +969,8 @@ static int rt5682_headset_detect(struct snd_soc_component *component,
 		case 0x1:
 		case 0x2:
 			rt5682->jack_type = SND_JACK_HEADSET;
+			snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_1,
+				RT5682_FAST_OFF_MASK, RT5682_FAST_OFF_EN);
 			rt5682_enable_push_button_irq(component, true);
 			break;
 		default:
@@ -947,10 +981,16 @@ static int rt5682_headset_detect(struct snd_soc_component *component,
 		rt5682_enable_push_button_irq(component, false);
 		snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_1,
 			RT5682_TRIG_JD_MASK, RT5682_TRIG_JD_LOW);
-		snd_soc_component_update_bits(component, RT5682_PWR_ANLG_1,
-			RT5682_PWR_VREF2 | RT5682_PWR_MB, 0);
+		if (!snd_soc_dapm_get_pin_status(dapm, "MICBIAS"))
+			snd_soc_component_update_bits(component,
+				RT5682_PWR_ANLG_1, RT5682_PWR_MB, 0);
+		if (!snd_soc_dapm_get_pin_status(dapm, "Vref2"))
+			snd_soc_component_update_bits(component,
+				RT5682_PWR_ANLG_1, RT5682_PWR_VREF2, 0);
 		snd_soc_component_update_bits(component, RT5682_PWR_ANLG_3,
 			RT5682_PWR_CBJ, 0);
+		snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_1,
+			RT5682_FAST_OFF_MASK, RT5682_FAST_OFF_DIS);
 
 		rt5682->jack_type = 0;
 	}
@@ -993,44 +1033,74 @@ static int rt5682_set_jack_detect(struct snd_soc_component *component,
 {
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
 
-	switch (rt5682->pdata.jd_src) {
-	case RT5682_JD1:
-		snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_2,
-			RT5682_EXT_JD_SRC, RT5682_EXT_JD_SRC_MANUAL);
-		snd_soc_component_write(component, RT5682_CBJ_CTRL_1, 0xd042);
-		snd_soc_component_update_bits(component, RT5682_CBJ_CTRL_3,
-			RT5682_CBJ_IN_BUF_EN, RT5682_CBJ_IN_BUF_EN);
-		snd_soc_component_update_bits(component, RT5682_SAR_IL_CMD_1,
-			RT5682_SAR_POW_MASK, RT5682_SAR_POW_EN);
-		regmap_update_bits(rt5682->regmap, RT5682_GPIO_CTRL_1,
-			RT5682_GP1_PIN_MASK, RT5682_GP1_PIN_IRQ);
-		regmap_update_bits(rt5682->regmap, RT5682_RC_CLK_CTRL,
+	rt5682->hs_jack = hs_jack;
+
+	if (!rt5682->is_sdw) {
+		if (!hs_jack) {
+			regmap_update_bits(rt5682->regmap, RT5682_IRQ_CTRL_2,
+					   RT5682_JD1_EN_MASK, RT5682_JD1_DIS);
+			regmap_update_bits(rt5682->regmap, RT5682_RC_CLK_CTRL,
+					   RT5682_POW_JDH | RT5682_POW_JDL, 0);
+			cancel_delayed_work_sync(&rt5682->jack_detect_work);
+			return 0;
+		}
+
+		switch (rt5682->pdata.jd_src) {
+		case RT5682_JD1:
+			snd_soc_component_update_bits(component,
+				RT5682_CBJ_CTRL_5, 0x0700, 0x0600);
+			snd_soc_component_update_bits(component,
+				RT5682_CBJ_CTRL_2, RT5682_EXT_JD_SRC,
+				RT5682_EXT_JD_SRC_MANUAL);
+			snd_soc_component_write(component, RT5682_CBJ_CTRL_1,
+				0xd142);
+			snd_soc_component_update_bits(component,
+				RT5682_CBJ_CTRL_3, RT5682_CBJ_IN_BUF_EN,
+				RT5682_CBJ_IN_BUF_EN);
+			snd_soc_component_update_bits(component,
+				RT5682_SAR_IL_CMD_1, RT5682_SAR_POW_MASK,
+				RT5682_SAR_POW_EN);
+			regmap_update_bits(rt5682->regmap, RT5682_GPIO_CTRL_1,
+				RT5682_GP1_PIN_MASK, RT5682_GP1_PIN_IRQ);
+			regmap_update_bits(rt5682->regmap, RT5682_RC_CLK_CTRL,
 				RT5682_POW_IRQ | RT5682_POW_JDH |
 				RT5682_POW_ANA, RT5682_POW_IRQ |
 				RT5682_POW_JDH | RT5682_POW_ANA);
-		regmap_update_bits(rt5682->regmap, RT5682_PWR_ANLG_2,
-			RT5682_PWR_JDH | RT5682_PWR_JDL,
-			RT5682_PWR_JDH | RT5682_PWR_JDL);
-		regmap_update_bits(rt5682->regmap, RT5682_IRQ_CTRL_2,
-			RT5682_JD1_EN_MASK | RT5682_JD1_POL_MASK,
-			RT5682_JD1_EN | RT5682_JD1_POL_NOR);
-		mod_delayed_work(system_power_efficient_wq,
-			   &rt5682->jack_detect_work, msecs_to_jiffies(250));
-		break;
+			regmap_update_bits(rt5682->regmap, RT5682_PWR_ANLG_2,
+				RT5682_PWR_JDH | RT5682_PWR_JDL,
+				RT5682_PWR_JDH | RT5682_PWR_JDL);
+			regmap_update_bits(rt5682->regmap, RT5682_IRQ_CTRL_2,
+				RT5682_JD1_EN_MASK | RT5682_JD1_POL_MASK,
+				RT5682_JD1_EN | RT5682_JD1_POL_NOR);
+			regmap_update_bits(rt5682->regmap, RT5682_4BTN_IL_CMD_4,
+				0x7f7f, (rt5682->pdata.btndet_delay << 8 |
+				rt5682->pdata.btndet_delay));
+			regmap_update_bits(rt5682->regmap, RT5682_4BTN_IL_CMD_5,
+				0x7f7f, (rt5682->pdata.btndet_delay << 8 |
+				rt5682->pdata.btndet_delay));
+			regmap_update_bits(rt5682->regmap, RT5682_4BTN_IL_CMD_6,
+				0x7f7f, (rt5682->pdata.btndet_delay << 8 |
+				rt5682->pdata.btndet_delay));
+			regmap_update_bits(rt5682->regmap, RT5682_4BTN_IL_CMD_7,
+				0x7f7f, (rt5682->pdata.btndet_delay << 8 |
+				rt5682->pdata.btndet_delay));
+			mod_delayed_work(system_power_efficient_wq,
+				   &rt5682->jack_detect_work,
+					msecs_to_jiffies(250));
+			break;
 
-	case RT5682_JD_NULL:
-		regmap_update_bits(rt5682->regmap, RT5682_IRQ_CTRL_2,
-			RT5682_JD1_EN_MASK, RT5682_JD1_DIS);
-		regmap_update_bits(rt5682->regmap, RT5682_RC_CLK_CTRL,
-				RT5682_POW_JDH | RT5682_POW_JDL, 0);
-		break;
+		case RT5682_JD_NULL:
+			regmap_update_bits(rt5682->regmap, RT5682_IRQ_CTRL_2,
+				RT5682_JD1_EN_MASK, RT5682_JD1_DIS);
+			regmap_update_bits(rt5682->regmap, RT5682_RC_CLK_CTRL,
+					RT5682_POW_JDH | RT5682_POW_JDL, 0);
+			break;
 
-	default:
-		dev_warn(component->dev, "Wrong JD source\n");
-		break;
+		default:
+			dev_warn(component->dev, "Wrong JD source\n");
+			break;
+		}
 	}
-
-	rt5682->hs_jack = hs_jack;
 
 	return 0;
 }
@@ -1109,11 +1179,13 @@ static void rt5682_jack_detect_handler(struct work_struct *work)
 			    SND_JACK_BTN_0 | SND_JACK_BTN_1 |
 			    SND_JACK_BTN_2 | SND_JACK_BTN_3);
 
-	if (rt5682->jack_type & (SND_JACK_BTN_0 | SND_JACK_BTN_1 |
-		SND_JACK_BTN_2 | SND_JACK_BTN_3))
-		schedule_delayed_work(&rt5682->jd_check_work, 0);
-	else
-		cancel_delayed_work_sync(&rt5682->jd_check_work);
+	if (!rt5682->is_sdw) {
+		if (rt5682->jack_type & (SND_JACK_BTN_0 | SND_JACK_BTN_1 |
+			SND_JACK_BTN_2 | SND_JACK_BTN_3))
+			schedule_delayed_work(&rt5682->jd_check_work, 0);
+		else
+			cancel_delayed_work_sync(&rt5682->jd_check_work);
+	}
 
 	mutex_unlock(&rt5682->calibrate_mutex);
 }
@@ -1121,7 +1193,7 @@ static void rt5682_jack_detect_handler(struct work_struct *work)
 static const struct snd_kcontrol_new rt5682_snd_controls[] = {
 	/* DAC Digital Volume */
 	SOC_DOUBLE_TLV("DAC1 Playback Volume", RT5682_DAC1_DIG_VOL,
-		RT5682_L_VOL_SFT + 1, RT5682_R_VOL_SFT + 1, 86, 0, dac_vol_tlv),
+		RT5682_L_VOL_SFT + 1, RT5682_R_VOL_SFT + 1, 87, 0, dac_vol_tlv),
 
 	/* IN Boost Volume */
 	SOC_SINGLE_TLV("CBJ Boost Volume", RT5682_CBJ_BST_CTRL,
@@ -1203,7 +1275,7 @@ static int set_filter_clk(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 		snd_soc_dapm_to_component(w->dapm);
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
-	int ref, val, reg, sft, mask, idx = -EINVAL;
+	int ref, val, reg, idx = -EINVAL;
 	static const int div_f[] = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48};
 	static const int div_o[] = {1, 2, 4, 6, 8, 12, 16, 24, 32, 48};
 
@@ -1217,15 +1289,10 @@ static int set_filter_clk(struct snd_soc_dapm_widget *w,
 
 	idx = rt5682_div_sel(rt5682, ref, div_f, ARRAY_SIZE(div_f));
 
-	if (w->shift == RT5682_PWR_ADC_S1F_BIT) {
+	if (w->shift == RT5682_PWR_ADC_S1F_BIT)
 		reg = RT5682_PLL_TRACK_3;
-		sft = RT5682_ADC_OSR_SFT;
-		mask = RT5682_ADC_OSR_MASK;
-	} else {
+	else
 		reg = RT5682_PLL_TRACK_2;
-		sft = RT5682_DAC_OSR_SFT;
-		mask = RT5682_DAC_OSR_MASK;
-	}
 
 	snd_soc_component_update_bits(component, reg,
 		RT5682_FILTER_CLK_DIV_MASK, idx << RT5682_FILTER_CLK_DIV_SFT);
@@ -1237,7 +1304,8 @@ static int set_filter_clk(struct snd_soc_dapm_widget *w,
 	}
 
 	snd_soc_component_update_bits(component, RT5682_ADDA_CLK_1,
-		mask, idx << sft);
+		RT5682_ADC_OSR_MASK | RT5682_DAC_OSR_MASK,
+		(idx << RT5682_ADC_OSR_SFT) | (idx << RT5682_DAC_OSR_SFT));
 
 	return 0;
 }
@@ -1252,6 +1320,21 @@ static int is_sys_clk_from_pll1(struct snd_soc_dapm_widget *w,
 	val = snd_soc_component_read32(component, RT5682_GLB_CLK);
 	val &= RT5682_SCLK_SRC_MASK;
 	if (val == RT5682_SCLK_SRC_PLL1)
+		return 1;
+	else
+		return 0;
+}
+
+static int is_sys_clk_from_pll2(struct snd_soc_dapm_widget *w,
+			 struct snd_soc_dapm_widget *sink)
+{
+	unsigned int val;
+	struct snd_soc_component *component =
+		snd_soc_dapm_to_component(w->dapm);
+
+	val = snd_soc_component_read32(component, RT5682_GLB_CLK);
+	val &= RT5682_SCLK_SRC_MASK;
+	if (val == RT5682_SCLK_SRC_PLL2)
 		return 1;
 	else
 		return 0;
@@ -1444,28 +1527,6 @@ static const struct snd_kcontrol_new hpor_switch =
 	SOC_DAPM_SINGLE_AUTODISABLE("Switch", RT5682_HP_CTRL_1,
 					RT5682_R_MUTE_SFT, 1, 1);
 
-static int rt5682_charge_pump_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_component *component =
-		snd_soc_dapm_to_component(w->dapm);
-
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMU:
-		snd_soc_component_update_bits(component,
-			RT5682_HP_CHARGE_PUMP_1, RT5682_PM_HP_MASK, RT5682_PM_HP_HV);
-		break;
-	case SND_SOC_DAPM_POST_PMD:
-		snd_soc_component_update_bits(component,
-			RT5682_HP_CHARGE_PUMP_1, RT5682_PM_HP_MASK, RT5682_PM_HP_LV);
-		break;
-	default:
-		return 0;
-	}
-
-	return 0;
-}
-
 static int rt5682_hp_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
@@ -1517,7 +1578,7 @@ static int set_dmic_power(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-static int rt5655_set_verf(struct snd_soc_dapm_widget *w,
+static int rt5682_set_verf(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_component *component =
@@ -1593,9 +1654,11 @@ static const struct snd_soc_dapm_widget rt5682_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("PLL2B", RT5682_PWR_ANLG_3, RT5682_PWR_PLL2B_BIT,
 		0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("PLL2F", RT5682_PWR_ANLG_3, RT5682_PWR_PLL2F_BIT,
-		0, NULL, 0),
+		0, set_filter_clk, SND_SOC_DAPM_PRE_PMU),
 	SND_SOC_DAPM_SUPPLY("Vref1", RT5682_PWR_ANLG_1, RT5682_PWR_VREF1_BIT, 0,
-		rt5655_set_verf, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
+		rt5682_set_verf, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_SUPPLY("Vref2", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("MICBIAS", SND_SOC_NOPM, 0, 0, NULL, 0),
 
 	/* ASRC */
 	SND_SOC_DAPM_SUPPLY_S("DAC STO1 ASRC", 1, RT5682_PLL_TRACK_1,
@@ -1749,8 +1812,7 @@ static const struct snd_soc_dapm_widget rt5682_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("HP Amp R", RT5682_PWR_ANLG_1,
 		RT5682_PWR_HA_R_BIT, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY_S("Charge Pump", 1, RT5682_DEPOP_1,
-		RT5682_PUMP_EN_SFT, 0, rt5682_charge_pump_event,
-		SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+		RT5682_PUMP_EN_SFT, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY_S("Capless", 2, RT5682_DEPOP_1,
 		RT5682_CAPLESS_EN_SFT, 0, NULL, 0),
 
@@ -1778,7 +1840,11 @@ static const struct snd_soc_dapm_widget rt5682_dapm_widgets[] = {
 static const struct snd_soc_dapm_route rt5682_dapm_routes[] = {
 	/*PLL*/
 	{"ADC Stereo1 Filter", NULL, "PLL1", is_sys_clk_from_pll1},
+	{"ADC Stereo1 Filter", NULL, "PLL2B", is_sys_clk_from_pll2},
+	{"ADC Stereo1 Filter", NULL, "PLL2F", is_sys_clk_from_pll2},
 	{"DAC Stereo1 Filter", NULL, "PLL1", is_sys_clk_from_pll1},
+	{"DAC Stereo1 Filter", NULL, "PLL2B", is_sys_clk_from_pll2},
+	{"DAC Stereo1 Filter", NULL, "PLL2F", is_sys_clk_from_pll2},
 
 	/*ASRC*/
 	{"ADC Stereo1 Filter", NULL, "ADC STO1 ASRC", is_using_asrc},
@@ -2035,8 +2101,10 @@ static int rt5682_hw_params(struct snd_pcm_substream *substream,
 			RT5682_I2S1_DL_MASK, len_1);
 		if (rt5682->master[RT5682_AIF1]) {
 			snd_soc_component_update_bits(component,
-				RT5682_ADDA_CLK_1, RT5682_I2S_M_DIV_MASK,
-				pre_div << RT5682_I2S_M_DIV_SFT);
+				RT5682_ADDA_CLK_1, RT5682_I2S_M_DIV_MASK |
+				RT5682_I2S_CLK_SRC_MASK,
+				pre_div << RT5682_I2S_M_DIV_SFT |
+				(rt5682->sysclk_src) << RT5682_I2S_CLK_SRC_SFT);
 		}
 		if (params_channels(params) == 1) /* mono mode */
 			snd_soc_component_update_bits(component,
@@ -2209,61 +2277,164 @@ static int rt5682_set_component_pll(struct snd_soc_component *component,
 		unsigned int freq_out)
 {
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
-	struct rl6231_pll_code pll_code;
+	struct rl6231_pll_code pll_code, pll2f_code, pll2b_code;
+	unsigned int pll2_fout1, pll2_ps_val;
 	int ret;
 
-	if (source == rt5682->pll_src && freq_in == rt5682->pll_in &&
-	    freq_out == rt5682->pll_out)
+	if (source == rt5682->pll_src[pll_id] &&
+	    freq_in == rt5682->pll_in[pll_id] &&
+	    freq_out == rt5682->pll_out[pll_id])
 		return 0;
 
 	if (!freq_in || !freq_out) {
 		dev_dbg(component->dev, "PLL disabled\n");
 
-		rt5682->pll_in = 0;
-		rt5682->pll_out = 0;
+		rt5682->pll_in[pll_id] = 0;
+		rt5682->pll_out[pll_id] = 0;
 		snd_soc_component_update_bits(component, RT5682_GLB_CLK,
 			RT5682_SCLK_SRC_MASK, RT5682_SCLK_SRC_MCLK);
 		return 0;
 	}
 
-	switch (source) {
-	case RT5682_PLL1_S_MCLK:
-		snd_soc_component_update_bits(component, RT5682_GLB_CLK,
-			RT5682_PLL1_SRC_MASK, RT5682_PLL1_SRC_MCLK);
-		break;
-	case RT5682_PLL1_S_BCLK1:
-		snd_soc_component_update_bits(component, RT5682_GLB_CLK,
-				RT5682_PLL1_SRC_MASK, RT5682_PLL1_SRC_BCLK1);
-		break;
-	default:
-		dev_err(component->dev, "Unknown PLL Source %d\n", source);
-		return -EINVAL;
+	if (pll_id == RT5682_PLL2) {
+		switch (source) {
+		case RT5682_PLL2_S_MCLK:
+			snd_soc_component_update_bits(component,
+				RT5682_GLB_CLK, RT5682_PLL2_SRC_MASK,
+				RT5682_PLL2_SRC_MCLK);
+			break;
+		default:
+			dev_err(component->dev, "Unknown PLL2 Source %d\n",
+				source);
+			return -EINVAL;
+		}
+
+		/**
+		 * PLL2 concatenates 2 PLL units.
+		 * We suggest the Fout of the front PLL is 3.84MHz.
+		 */
+		pll2_fout1 = 3840000;
+		ret = rl6231_pll_calc(freq_in, pll2_fout1, &pll2f_code);
+		if (ret < 0) {
+			dev_err(component->dev, "Unsupport input clock %d\n",
+				freq_in);
+			return ret;
+		}
+		dev_dbg(component->dev, "PLL2F: fin=%d fout=%d bypass=%d m=%d n=%d k=%d\n",
+			freq_in, pll2_fout1,
+			pll2f_code.m_bp,
+			(pll2f_code.m_bp ? 0 : pll2f_code.m_code),
+			pll2f_code.n_code, pll2f_code.k_code);
+
+		ret = rl6231_pll_calc(pll2_fout1, freq_out, &pll2b_code);
+		if (ret < 0) {
+			dev_err(component->dev, "Unsupport input clock %d\n",
+				pll2_fout1);
+			return ret;
+		}
+		dev_dbg(component->dev, "PLL2B: fin=%d fout=%d bypass=%d m=%d n=%d k=%d\n",
+			pll2_fout1, freq_out,
+			pll2b_code.m_bp,
+			(pll2b_code.m_bp ? 0 : pll2b_code.m_code),
+			pll2b_code.n_code, pll2b_code.k_code);
+
+		snd_soc_component_write(component, RT5682_PLL2_CTRL_1,
+			pll2f_code.k_code << RT5682_PLL2F_K_SFT |
+			pll2b_code.k_code << RT5682_PLL2B_K_SFT |
+			pll2b_code.m_code);
+		snd_soc_component_write(component, RT5682_PLL2_CTRL_2,
+			pll2f_code.m_code << RT5682_PLL2F_M_SFT |
+			pll2b_code.n_code);
+		snd_soc_component_write(component, RT5682_PLL2_CTRL_3,
+			pll2f_code.n_code << RT5682_PLL2F_N_SFT);
+
+		if (freq_out == 22579200)
+			pll2_ps_val = 1 << RT5682_PLL2B_SEL_PS_SFT;
+		else
+			pll2_ps_val = 1 << RT5682_PLL2B_PS_BYP_SFT;
+		snd_soc_component_update_bits(component, RT5682_PLL2_CTRL_4,
+			RT5682_PLL2B_SEL_PS_MASK | RT5682_PLL2B_PS_BYP_MASK |
+			RT5682_PLL2B_M_BP_MASK | RT5682_PLL2F_M_BP_MASK | 0xf,
+			pll2_ps_val |
+			(pll2b_code.m_bp ? 1 : 0) << RT5682_PLL2B_M_BP_SFT |
+			(pll2f_code.m_bp ? 1 : 0) << RT5682_PLL2F_M_BP_SFT |
+			0xf);
+	} else {
+		switch (source) {
+		case RT5682_PLL1_S_MCLK:
+			snd_soc_component_update_bits(component,
+				RT5682_GLB_CLK, RT5682_PLL1_SRC_MASK,
+				RT5682_PLL1_SRC_MCLK);
+			break;
+		case RT5682_PLL1_S_BCLK1:
+			snd_soc_component_update_bits(component,
+				RT5682_GLB_CLK, RT5682_PLL1_SRC_MASK,
+				RT5682_PLL1_SRC_BCLK1);
+			break;
+		default:
+			dev_err(component->dev, "Unknown PLL1 Source %d\n",
+				source);
+			return -EINVAL;
+		}
+
+		ret = rl6231_pll_calc(freq_in, freq_out, &pll_code);
+		if (ret < 0) {
+			dev_err(component->dev, "Unsupport input clock %d\n",
+				freq_in);
+			return ret;
+		}
+
+		dev_dbg(component->dev, "bypass=%d m=%d n=%d k=%d\n",
+			pll_code.m_bp, (pll_code.m_bp ? 0 : pll_code.m_code),
+			pll_code.n_code, pll_code.k_code);
+
+		snd_soc_component_write(component, RT5682_PLL_CTRL_1,
+			pll_code.n_code << RT5682_PLL_N_SFT | pll_code.k_code);
+		snd_soc_component_write(component, RT5682_PLL_CTRL_2,
+		    (pll_code.m_bp ? 0 : pll_code.m_code) << RT5682_PLL_M_SFT |
+		    pll_code.m_bp << RT5682_PLL_M_BP_SFT | RT5682_PLL_RST);
 	}
 
-	ret = rl6231_pll_calc(freq_in, freq_out, &pll_code);
-	if (ret < 0) {
-		dev_err(component->dev, "Unsupport input clock %d\n", freq_in);
-		return ret;
-	}
-
-	dev_dbg(component->dev, "bypass=%d m=%d n=%d k=%d\n",
-		pll_code.m_bp, (pll_code.m_bp ? 0 : pll_code.m_code),
-		pll_code.n_code, pll_code.k_code);
-
-	snd_soc_component_write(component, RT5682_PLL_CTRL_1,
-		pll_code.n_code << RT5682_PLL_N_SFT | pll_code.k_code);
-	snd_soc_component_write(component, RT5682_PLL_CTRL_2,
-		(pll_code.m_bp ? 0 : pll_code.m_code) << RT5682_PLL_M_SFT |
-		pll_code.m_bp << RT5682_PLL_M_BP_SFT | RT5682_PLL_RST);
-
-	rt5682->pll_in = freq_in;
-	rt5682->pll_out = freq_out;
-	rt5682->pll_src = source;
+	rt5682->pll_in[pll_id] = freq_in;
+	rt5682->pll_out[pll_id] = freq_out;
+	rt5682->pll_src[pll_id] = source;
 
 	return 0;
 }
 
-static int rt5682_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
+static int rt5682_set_bclk1_ratio(struct snd_soc_dai *dai, unsigned int ratio)
+{
+	struct snd_soc_component *component = dai->component;
+	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
+
+	rt5682->bclk[dai->id] = ratio;
+
+	switch (ratio) {
+	case 256:
+		snd_soc_component_update_bits(component, RT5682_TDM_TCON_CTRL,
+			RT5682_TDM_BCLK_MS1_MASK, RT5682_TDM_BCLK_MS1_256);
+		break;
+	case 128:
+		snd_soc_component_update_bits(component, RT5682_TDM_TCON_CTRL,
+			RT5682_TDM_BCLK_MS1_MASK, RT5682_TDM_BCLK_MS1_128);
+		break;
+	case 64:
+		snd_soc_component_update_bits(component, RT5682_TDM_TCON_CTRL,
+			RT5682_TDM_BCLK_MS1_MASK, RT5682_TDM_BCLK_MS1_64);
+		break;
+	case 32:
+		snd_soc_component_update_bits(component, RT5682_TDM_TCON_CTRL,
+			RT5682_TDM_BCLK_MS1_MASK, RT5682_TDM_BCLK_MS1_32);
+		break;
+	default:
+		dev_err(dai->dev, "Invalid bclk1 ratio %d\n", ratio);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int rt5682_set_bclk2_ratio(struct snd_soc_dai *dai, unsigned int ratio)
 {
 	struct snd_soc_component *component = dai->component;
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
@@ -2282,7 +2453,7 @@ static int rt5682_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
 			RT5682_I2S2_BCLK_MS2_32);
 		break;
 	default:
-		dev_err(dai->dev, "Invalid bclk ratio %d\n", ratio);
+		dev_err(dai->dev, "Invalid bclk2 ratio %d\n", ratio);
 		return -EINVAL;
 	}
 
@@ -2321,12 +2492,412 @@ static int rt5682_set_bias_level(struct snd_soc_component *component,
 	return 0;
 }
 
+#ifdef CONFIG_COMMON_CLK
+#define CLK_PLL2_FIN 48000000
+#define CLK_48 48000
+#define CLK_44 44100
+
+static bool rt5682_clk_check(struct rt5682_priv *rt5682)
+{
+	if (!rt5682->master[RT5682_AIF1]) {
+		dev_err(rt5682->component->dev, "sysclk/dai not set correctly\n");
+		return false;
+	}
+	return true;
+}
+
+static int rt5682_wclk_prepare(struct clk_hw *hw)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_WCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	struct snd_soc_dapm_context *dapm =
+			snd_soc_component_get_dapm(component);
+
+	if (!rt5682_clk_check(rt5682))
+		return -EINVAL;
+
+	snd_soc_dapm_mutex_lock(dapm);
+
+	snd_soc_dapm_force_enable_pin_unlocked(dapm, "MICBIAS");
+	snd_soc_component_update_bits(component, RT5682_PWR_ANLG_1,
+				RT5682_PWR_MB, RT5682_PWR_MB);
+
+	snd_soc_dapm_force_enable_pin_unlocked(dapm, "Vref2");
+	snd_soc_component_update_bits(component, RT5682_PWR_ANLG_1,
+			RT5682_PWR_VREF2 | RT5682_PWR_FV2,
+			RT5682_PWR_VREF2);
+	usleep_range(55000, 60000);
+	snd_soc_component_update_bits(component, RT5682_PWR_ANLG_1,
+			RT5682_PWR_FV2, RT5682_PWR_FV2);
+
+	snd_soc_dapm_force_enable_pin_unlocked(dapm, "I2S1");
+	snd_soc_dapm_force_enable_pin_unlocked(dapm, "PLL2F");
+	snd_soc_dapm_force_enable_pin_unlocked(dapm, "PLL2B");
+	snd_soc_dapm_sync_unlocked(dapm);
+
+	snd_soc_dapm_mutex_unlock(dapm);
+
+	return 0;
+}
+
+static void rt5682_wclk_unprepare(struct clk_hw *hw)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_WCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	struct snd_soc_dapm_context *dapm =
+			snd_soc_component_get_dapm(component);
+
+	if (!rt5682_clk_check(rt5682))
+		return;
+
+	snd_soc_dapm_mutex_lock(dapm);
+
+	snd_soc_dapm_disable_pin_unlocked(dapm, "MICBIAS");
+	snd_soc_dapm_disable_pin_unlocked(dapm, "Vref2");
+	if (!rt5682->jack_type)
+		snd_soc_component_update_bits(component, RT5682_PWR_ANLG_1,
+				RT5682_PWR_VREF2 | RT5682_PWR_FV2 |
+				RT5682_PWR_MB, 0);
+
+	snd_soc_dapm_disable_pin_unlocked(dapm, "I2S1");
+	snd_soc_dapm_disable_pin_unlocked(dapm, "PLL2F");
+	snd_soc_dapm_disable_pin_unlocked(dapm, "PLL2B");
+	snd_soc_dapm_sync_unlocked(dapm);
+
+	snd_soc_dapm_mutex_unlock(dapm);
+}
+
+static unsigned long rt5682_wclk_recalc_rate(struct clk_hw *hw,
+					     unsigned long parent_rate)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_WCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	const char * const clk_name = __clk_get_name(hw->clk);
+
+	if (!rt5682_clk_check(rt5682))
+		return 0;
+	/*
+	 * Only accept to set wclk rate to 44.1k or 48kHz.
+	 */
+	if (rt5682->lrck[RT5682_AIF1] != CLK_48 &&
+	    rt5682->lrck[RT5682_AIF1] != CLK_44) {
+		dev_warn(component->dev, "%s: clk %s only support %d or %d Hz output\n",
+			__func__, clk_name, CLK_44, CLK_48);
+		return 0;
+	}
+
+	return rt5682->lrck[RT5682_AIF1];
+}
+
+static long rt5682_wclk_round_rate(struct clk_hw *hw, unsigned long rate,
+				   unsigned long *parent_rate)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_WCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	const char * const clk_name = __clk_get_name(hw->clk);
+
+	if (!rt5682_clk_check(rt5682))
+		return -EINVAL;
+	/*
+	 * Only accept to set wclk rate to 44.1k or 48kHz.
+	 * It will force to 48kHz if not both.
+	 */
+	if (rate != CLK_48 && rate != CLK_44) {
+		dev_warn(component->dev, "%s: clk %s only support %d or %d Hz output\n",
+			__func__, clk_name, CLK_44, CLK_48);
+		rate = CLK_48;
+	}
+
+	return rate;
+}
+
+static int rt5682_wclk_set_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long parent_rate)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_WCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	struct clk *parent_clk;
+	const char * const clk_name = __clk_get_name(hw->clk);
+	int pre_div;
+	unsigned int clk_pll2_out;
+
+	if (!rt5682_clk_check(rt5682))
+		return -EINVAL;
+
+	/*
+	 * Whether the wclk's parent clk (mclk) exists or not, please ensure
+	 * it is fixed or set to 48MHz before setting wclk rate. It's a
+	 * temporary limitation. Only accept 48MHz clk as the clk provider.
+	 *
+	 * It will set the codec anyway by assuming mclk is 48MHz.
+	 */
+	parent_clk = clk_get_parent(hw->clk);
+	if (!parent_clk)
+		dev_warn(component->dev,
+			"Parent mclk of wclk not acquired in driver. Please ensure mclk was provided as %d Hz.\n",
+			CLK_PLL2_FIN);
+
+	if (parent_rate != CLK_PLL2_FIN)
+		dev_warn(component->dev, "clk %s only support %d Hz input\n",
+			clk_name, CLK_PLL2_FIN);
+
+	/*
+	 * To achieve the rate conversion from 48MHz to 44.1k or 48kHz,
+	 * PLL2 is needed.
+	 */
+	clk_pll2_out = rate * 512;
+	rt5682_set_component_pll(component, RT5682_PLL2, RT5682_PLL2_S_MCLK,
+		CLK_PLL2_FIN, clk_pll2_out);
+
+	rt5682_set_component_sysclk(component, RT5682_SCLK_S_PLL2, 0,
+		clk_pll2_out, SND_SOC_CLOCK_IN);
+
+	rt5682->lrck[RT5682_AIF1] = rate;
+
+	pre_div = rl6231_get_clk_info(rt5682->sysclk, rate);
+
+	snd_soc_component_update_bits(component, RT5682_ADDA_CLK_1,
+		RT5682_I2S_M_DIV_MASK | RT5682_I2S_CLK_SRC_MASK,
+		pre_div << RT5682_I2S_M_DIV_SFT |
+		(rt5682->sysclk_src) << RT5682_I2S_CLK_SRC_SFT);
+
+	return 0;
+}
+
+static unsigned long rt5682_bclk_recalc_rate(struct clk_hw *hw,
+					     unsigned long parent_rate)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_BCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	unsigned int bclks_per_wclk;
+
+	snd_soc_component_read(component, RT5682_TDM_TCON_CTRL,
+				&bclks_per_wclk);
+
+	switch (bclks_per_wclk & RT5682_TDM_BCLK_MS1_MASK) {
+	case RT5682_TDM_BCLK_MS1_256:
+		return parent_rate * 256;
+	case RT5682_TDM_BCLK_MS1_128:
+		return parent_rate * 128;
+	case RT5682_TDM_BCLK_MS1_64:
+		return parent_rate * 64;
+	case RT5682_TDM_BCLK_MS1_32:
+		return parent_rate * 32;
+	default:
+		return 0;
+	}
+}
+
+static unsigned long rt5682_bclk_get_factor(unsigned long rate,
+					    unsigned long parent_rate)
+{
+	unsigned long factor;
+
+	factor = rate / parent_rate;
+	if (factor < 64)
+		return 32;
+	else if (factor < 128)
+		return 64;
+	else if (factor < 256)
+		return 128;
+	else
+		return 256;
+}
+
+static long rt5682_bclk_round_rate(struct clk_hw *hw, unsigned long rate,
+				   unsigned long *parent_rate)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_BCLK_IDX]);
+	unsigned long factor;
+
+	if (!*parent_rate || !rt5682_clk_check(rt5682))
+		return -EINVAL;
+
+	/*
+	 * BCLK rates are set as a multiplier of WCLK in HW.
+	 * We don't allow changing the parent WCLK. We just do
+	 * some rounding down based on the parent WCLK rate
+	 * and find the appropriate multiplier of BCLK to
+	 * get the rounded down BCLK value.
+	 */
+	factor = rt5682_bclk_get_factor(rate, *parent_rate);
+
+	return *parent_rate * factor;
+}
+
+static int rt5682_bclk_set_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long parent_rate)
+{
+	struct rt5682_priv *rt5682 =
+		container_of(hw, struct rt5682_priv,
+			     dai_clks_hw[RT5682_DAI_BCLK_IDX]);
+	struct snd_soc_component *component = rt5682->component;
+	struct snd_soc_dai *dai = NULL;
+	unsigned long factor;
+
+	if (!rt5682_clk_check(rt5682))
+		return -EINVAL;
+
+	factor = rt5682_bclk_get_factor(rate, parent_rate);
+
+	for_each_component_dais(component, dai)
+		if (dai->id == RT5682_AIF1)
+			break;
+	if (!dai) {
+		dev_err(component->dev, "dai %d not found in component\n",
+			RT5682_AIF1);
+		return -ENODEV;
+	}
+
+	return rt5682_set_bclk1_ratio(dai, factor);
+}
+
+static const struct clk_ops rt5682_dai_clk_ops[RT5682_DAI_NUM_CLKS] = {
+	[RT5682_DAI_WCLK_IDX] = {
+		.prepare = rt5682_wclk_prepare,
+		.unprepare = rt5682_wclk_unprepare,
+		.recalc_rate = rt5682_wclk_recalc_rate,
+		.round_rate = rt5682_wclk_round_rate,
+		.set_rate = rt5682_wclk_set_rate,
+	},
+	[RT5682_DAI_BCLK_IDX] = {
+		.recalc_rate = rt5682_bclk_recalc_rate,
+		.round_rate = rt5682_bclk_round_rate,
+		.set_rate = rt5682_bclk_set_rate,
+	},
+};
+
+static int rt5682_register_dai_clks(struct snd_soc_component *component)
+{
+	struct device *dev = component->dev;
+	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
+	struct rt5682_platform_data *pdata = &rt5682->pdata;
+	struct clk_init_data init;
+	struct clk *dai_clk;
+	struct clk_lookup *dai_clk_lookup;
+	struct clk_hw *dai_clk_hw;
+	const char *parent_name;
+	int i, ret;
+
+	for (i = 0; i < RT5682_DAI_NUM_CLKS; ++i) {
+		dai_clk_hw = &rt5682->dai_clks_hw[i];
+
+		switch (i) {
+		case RT5682_DAI_WCLK_IDX:
+			/* Make MCLK the parent of WCLK */
+			if (rt5682->mclk) {
+				parent_name = __clk_get_name(rt5682->mclk);
+				init.parent_names = &parent_name;
+				init.num_parents = 1;
+			} else {
+				init.parent_names = NULL;
+				init.num_parents = 0;
+			}
+			break;
+		case RT5682_DAI_BCLK_IDX:
+			/* Make WCLK the parent of BCLK */
+			parent_name = __clk_get_name(
+				rt5682->dai_clks[RT5682_DAI_WCLK_IDX]);
+			init.parent_names = &parent_name;
+			init.num_parents = 1;
+			break;
+		default:
+			dev_err(dev, "Invalid clock index\n");
+			ret = -EINVAL;
+			goto err;
+		}
+
+		init.name = pdata->dai_clk_names[i];
+		init.ops = &rt5682_dai_clk_ops[i];
+		init.flags = CLK_GET_RATE_NOCACHE | CLK_SET_RATE_GATE;
+		dai_clk_hw->init = &init;
+
+		dai_clk = devm_clk_register(dev, dai_clk_hw);
+		if (IS_ERR(dai_clk)) {
+			dev_warn(dev, "Failed to register %s: %ld\n",
+				 init.name, PTR_ERR(dai_clk));
+			ret = PTR_ERR(dai_clk);
+			goto err;
+		}
+		rt5682->dai_clks[i] = dai_clk;
+
+		if (dev->of_node) {
+			devm_of_clk_add_hw_provider(dev, of_clk_hw_simple_get,
+						    dai_clk_hw);
+		} else {
+			dai_clk_lookup = clkdev_create(dai_clk, init.name,
+						       "%s", dev_name(dev));
+			if (!dai_clk_lookup) {
+				ret = -ENOMEM;
+				goto err;
+			} else {
+				rt5682->dai_clks_lookup[i] = dai_clk_lookup;
+			}
+		}
+	}
+
+	return 0;
+
+err:
+	do {
+		if (rt5682->dai_clks_lookup[i])
+			clkdev_drop(rt5682->dai_clks_lookup[i]);
+	} while (i-- > 0);
+
+	return ret;
+}
+#endif /* CONFIG_COMMON_CLK */
+
 static int rt5682_probe(struct snd_soc_component *component)
 {
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
+	struct snd_soc_dapm_context *dapm = &component->dapm;
 
+#ifdef CONFIG_COMMON_CLK
+	int ret;
+#endif
 	rt5682->component = component;
 
+#ifdef CONFIG_COMMON_CLK
+	/* Check if MCLK provided */
+	if (rt5682->pdata.mclk_name)
+		rt5682->mclk = clk_get(NULL, rt5682->pdata.mclk_name);
+	if (!rt5682->mclk)
+		rt5682->mclk = devm_clk_get(component->dev, "mclk");
+	if (IS_ERR(rt5682->mclk)) {
+		if (PTR_ERR(rt5682->mclk) != -ENOENT) {
+			ret = PTR_ERR(rt5682->mclk);
+			return ret;
+		}
+		rt5682->mclk = NULL;
+	}
+
+	/* Register CCF DAI clock control */
+	ret = rt5682_register_dai_clks(component);
+	if (ret)
+		return ret;
+
+	/* Initial setup for CCF */
+	rt5682->lrck[RT5682_AIF1] = CLK_48;
+#endif
+
+	snd_soc_dapm_disable_pin(dapm, "MICBIAS");
+	snd_soc_dapm_disable_pin(dapm, "Vref2");
+	snd_soc_dapm_sync(dapm);
 	return 0;
 }
 
@@ -2334,7 +2905,21 @@ static void rt5682_remove(struct snd_soc_component *component)
 {
 	struct rt5682_priv *rt5682 = snd_soc_component_get_drvdata(component);
 
-	rt5682_reset(rt5682->regmap);
+#ifdef CONFIG_COMMON_CLK
+	int i;
+
+	for (i = RT5682_DAI_NUM_CLKS - 1; i >= 0; --i) {
+		if (rt5682->dai_clks_lookup[i])
+			clkdev_drop(rt5682->dai_clks_lookup[i]);
+	}
+#endif
+
+	rt5682_reset(rt5682);
+
+#ifdef CONFIG_COMMON_CLK
+	if (rt5682->pdata.mclk_name)
+		clk_put(rt5682->mclk);
+#endif
 }
 
 #ifdef CONFIG_PM
@@ -2371,12 +2956,13 @@ static const struct snd_soc_dai_ops rt5682_aif1_dai_ops = {
 	.hw_params = rt5682_hw_params,
 	.set_fmt = rt5682_set_dai_fmt,
 	.set_tdm_slot = rt5682_set_tdm_slot,
+	.set_bclk_ratio = rt5682_set_bclk1_ratio,
 };
 
 static const struct snd_soc_dai_ops rt5682_aif2_dai_ops = {
 	.hw_params = rt5682_hw_params,
 	.set_fmt = rt5682_set_dai_fmt,
-	.set_bclk_ratio = rt5682_set_bclk_ratio,
+	.set_bclk_ratio = rt5682_set_bclk2_ratio,
 };
 
 static struct snd_soc_dai_driver rt5682_dai[] = {
@@ -2460,9 +3046,20 @@ static int rt5682_parse_dt(struct rt5682_priv *rt5682, struct device *dev)
 		&rt5682->pdata.dmic1_clk_pin);
 	device_property_read_u32(dev, "realtek,jd-src",
 		&rt5682->pdata.jd_src);
+	device_property_read_u32(dev, "realtek,btndet-delay",
+		&rt5682->pdata.btndet_delay);
 
 	rt5682->pdata.ldo1_en = of_get_named_gpio(dev->of_node,
 		"realtek,ldo1-en-gpios", 0);
+
+	if (device_property_read_string_array(dev, "clock-output-names",
+					      rt5682->pdata.dai_clk_names,
+					      RT5682_DAI_NUM_CLKS) < 0)
+		dev_warn(dev, "Using default DAI clk names: %s, %s\n",
+			 rt5682->pdata.dai_clk_names[RT5682_DAI_WCLK_IDX],
+			 rt5682->pdata.dai_clk_names[RT5682_DAI_BCLK_IDX]);
+
+	device_property_read_string(dev, "realtek,mclk-name", &rt5682->pdata.mclk_name);
 
 	return 0;
 }
@@ -2473,7 +3070,7 @@ static void rt5682_calibrate(struct rt5682_priv *rt5682)
 
 	mutex_lock(&rt5682->calibrate_mutex);
 
-	rt5682_reset(rt5682->regmap);
+	rt5682_reset(rt5682);
 	regmap_write(rt5682->regmap, RT5682_I2C_CTRL, 0x000f);
 	regmap_write(rt5682->regmap, RT5682_PWR_ANLG_1, 0xa2af);
 	usleep_range(15000, 20000);
@@ -2535,6 +3132,8 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, rt5682);
 
+	rt5682->pdata = i2s_default_platform_data;
+
 	if (pdata)
 		rt5682->pdata = *pdata;
 	else
@@ -2583,7 +3182,7 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 		return -ENODEV;
 	}
 
-	rt5682_reset(rt5682->regmap);
+	rt5682_reset(rt5682);
 
 	mutex_init(&rt5682->calibrate_mutex);
 	rt5682_calibrate(rt5682);
@@ -2646,6 +3245,10 @@ static int rt5682_i2c_probe(struct i2c_client *i2c,
 			RT5682_HPA_CP_BIAS_CTRL_MASK, RT5682_HPA_CP_BIAS_3UA);
 	regmap_update_bits(rt5682->regmap, RT5682_CHARGE_PUMP_1,
 			RT5682_CP_CLK_HP_MASK, RT5682_CP_CLK_HP_300KHZ);
+	regmap_update_bits(rt5682->regmap, RT5682_HP_CHARGE_PUMP_1,
+			RT5682_PM_HP_MASK, RT5682_PM_HP_HV);
+	regmap_update_bits(rt5682->regmap, RT5682_DMIC_CTRL_1,
+			RT5682_FIFO_CLK_DIV_MASK, RT5682_FIFO_CLK_DIV_2);
 
 	INIT_DELAYED_WORK(&rt5682->jack_detect_work,
 				rt5682_jack_detect_handler);
@@ -2677,7 +3280,7 @@ static void rt5682_i2c_shutdown(struct i2c_client *client)
 {
 	struct rt5682_priv *rt5682 = i2c_get_clientdata(client);
 
-	rt5682_reset(rt5682->regmap);
+	rt5682_reset(rt5682);
 }
 
 #ifdef CONFIG_OF

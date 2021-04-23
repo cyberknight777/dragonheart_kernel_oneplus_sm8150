@@ -162,8 +162,21 @@ static unsigned int eventfd_poll(struct file *file, poll_table *wait)
 	 */
 	count = READ_ONCE(ctx->count);
 
-	if (count > 0)
+	if (count > 0) {
+		if ((ctx->flags & EFD_ZERO_ON_WAKE) &&
+				(poll_requested_events(wait) & POLLIN)) {
+			/*
+			 * We're going to cause a wake on EPOLLIN, we need to zero the count.
+			 * We validate that EPOLLIN is a requested event because if the user
+			 * did something odd like POLLPRI we wouldn't want to zero the count
+			 * if no wake happens.
+			 */
+			spin_lock_irq(&ctx->wqh.lock);
+			ctx->count = 0;
+			spin_unlock_irq(&ctx->wqh.lock);
+		}
 		events |= POLLIN;
+	}
 	if (count == ULLONG_MAX)
 		events |= POLLERR;
 	if (ULLONG_MAX - 1 > count)
@@ -235,7 +248,9 @@ ssize_t eventfd_ctx_read(struct eventfd_ctx *ctx, int no_wait, __u64 *cnt)
 		__add_wait_queue(&ctx->wqh, &wait);
 		for (;;) {
 			set_current_state(TASK_INTERRUPTIBLE);
-			if (ctx->count > 0) {
+			if (ctx->count) {
+				if (ctx->flags & EFD_ZERO_ON_WAKE)
+					ctx->count = 0;
 				res = 0;
 				break;
 			}
@@ -293,6 +308,18 @@ static ssize_t eventfd_write(struct file *file, const char __user *buf, size_t c
 		return -EINVAL;
 	spin_lock_irq(&ctx->wqh.lock);
 	res = -EAGAIN;
+
+	/*
+	 * In the case of EFD_ZERO_ON_WAKE the actual count is never needed, for this
+	 * reason we only adjust it to set it from 0 to 1 or 1 to 0. This means that
+	 * write will never return EWOULDBLOCK or block, because there is always
+	 * going to be enough space to write as the amount we will increment could
+	 * be at most 1 as it's clamped below. Additionally, we know that POLLERR
+	 * cannot be returned when EFD_ZERO_ON_WAKE is used for the same reason.
+	 */
+	if (ctx->flags & EFD_ZERO_ON_WAKE)
+		ucnt = (ctx->count == 0) ? 1 : 0;
+
 	if (ULLONG_MAX - ctx->count > ucnt)
 		res = sizeof(ucnt);
 	else if (!(file->f_flags & O_NONBLOCK)) {
@@ -435,7 +462,14 @@ struct file *eventfd_file_create(unsigned int count, int flags)
 	BUILD_BUG_ON(EFD_CLOEXEC != O_CLOEXEC);
 	BUILD_BUG_ON(EFD_NONBLOCK != O_NONBLOCK);
 
+	/* O_NOFOLLOW has been repurposed as EFD_ZERO_ON_WAKE */
+	BUILD_BUG_ON(EFD_ZERO_ON_WAKE != O_NOFOLLOW);
+
 	if (flags & ~EFD_FLAGS_SET)
+		return ERR_PTR(-EINVAL);
+
+	/* The semaphore semantics would be lost if using EFD_ZERO_ON_WAKE */
+	if ((flags & EFD_ZERO_ON_WAKE) && (flags & EFD_SEMAPHORE))
 		return ERR_PTR(-EINVAL);
 
 	ctx = kmalloc(sizeof(*ctx), GFP_KERNEL);
