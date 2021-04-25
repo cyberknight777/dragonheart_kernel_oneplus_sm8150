@@ -76,17 +76,21 @@ int pointx[2] = {0, 0};
 int pointy[2] = {0, 0};
 #define ABS(a,b) ((a - b > 0) ? a - b : b - a)
 
-uint8_t DouTap_enable = 1;				 // double tap
-uint8_t UpVee_enable  = 1;				 // V
-uint8_t LeftVee_enable = 1; 			 // >
-uint8_t RightVee_enable = 1;			 // <
-uint8_t Circle_enable = 1;				 // O
-uint8_t DouSwip_enable = 1; 			 // ||
-uint8_t Mgestrue_enable = 1;			 // M
-uint8_t Wgestrue_enable = 1;			 // W
-uint8_t Sgestrue_enable = 1;			 // S
-uint8_t SingleTap_enable = 1;			 // single tap
-uint8_t Enable_gesture = 1;
+static uint8_t DouTap_enable = 1;	        // double tap
+static uint8_t UpVee_enable  = 1;	        // V
+static uint8_t DownVee_enable = 1;		    // ^
+static uint8_t LeftVee_enable = 1; 			// >
+static uint8_t RightVee_enable = 1;			// <
+static uint8_t Circle_enable = 1;		    // O
+static uint8_t DouSwip_enable = 1; 			// ||
+static uint8_t Left2RightSwip_enable = 0;	// -->
+static uint8_t Right2LeftSwip_enable = 0;	// <--
+static uint8_t Up2DownSwip_enable = 0;	    // |v
+static uint8_t Down2UpSwip_enable = 0;	    // |^
+static uint8_t Mgestrue_enable = 1;			// M
+static uint8_t Wgestrue_enable = 1;			// W
+static uint8_t Sgestrue_enable = 1;			// S
+static uint8_t SingleTap_enable = 1;	    // single tap
 
 /*******Part2:declear Area********************************/
 static void speedup_resume(struct work_struct *work);
@@ -397,15 +401,19 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 			break;
 		case UpVee:
 			enabled = UpVee_enable;
+			key = KEY_GESTURE_UP_ARROW;
+			break;
+		case DownVee:
+			enabled = DownVee_enable;
 			key = KEY_GESTURE_DOWN_ARROW;
 			break;
 		case LeftVee:
 			enabled = LeftVee_enable;
-			key = KEY_GESTURE_RIGHT_ARROW;
+			key = KEY_GESTURE_LEFT_ARROW;
 			break;
 		case RightVee:
 			enabled = RightVee_enable;
-			key = KEY_GESTURE_LEFT_ARROW;
+			key = KEY_GESTURE_RIGHT_ARROW;
 			break;
 		case Circle:
 			enabled = Circle_enable;
@@ -414,6 +422,22 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 		case DouSwip:
 			enabled = DouSwip_enable;
 			key = KEY_GESTURE_TWO_SWIPE;
+			break;
+		case Left2RightSwip:
+			enabled = Left2RightSwip_enable;
+			key = KEY_GESTURE_SWIPE_LEFT;
+			break;
+		case Right2LeftSwip:
+			enabled = Right2LeftSwip_enable;
+			key = KEY_GESTURE_SWIPE_RIGHT;
+			break;
+		case Up2DownSwip:
+			enabled = Up2DownSwip_enable;
+			key = KEY_GESTURE_SWIPE_UP;
+			break;
+		case Down2UpSwip:
+			enabled = Down2UpSwip_enable;
+			key = KEY_GESTURE_SWIPE_DOWN;
 			break;
 		case Mgestrue:
 			enabled = Mgestrue_enable;
@@ -433,7 +457,7 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 			break;
 	}
 
-	if (enabled) {
+    if (enabled) {
 		memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
 		input_report_key(ts->input_dev, key, 1);
 		input_sync(ts->input_dev);
@@ -2190,9 +2214,10 @@ static DEVICE_ATTR(tp_fw_update, 0644, sec_update_fw_show, sec_update_fw_store);
 	{ \
 		int enabled = 0; \
 		char page[PAGESIZE] = {0}; \
-		copy_from_user(page, user_buf, count); \
-		sscanf(page, "%d", &enabled); \
-		out = enabled > 0 ? 1 : 0; \
+		if (!copy_from_user(page, user_buf, count)) { \
+			sscanf(page, "%d", &enabled); \
+			out = enabled > 0 ? 1 : 0; \
+		} \
 		return count; \
 	} \
 	static const struct file_operations name##_enable_proc_fops = { \
@@ -2204,10 +2229,15 @@ static DEVICE_ATTR(tp_fw_update, 0644, sec_update_fw_show, sec_update_fw_store);
 
 GESTURE_ATTR(single_tap, SingleTap_enable);
 GESTURE_ATTR(double_tap, DouTap_enable);
-GESTURE_ATTR(down_arrow, UpVee_enable);
-GESTURE_ATTR(left_arrow, RightVee_enable);
-GESTURE_ATTR(right_arrow, LeftVee_enable);
+GESTURE_ATTR(up_arrow, UpVee_enable);
+GESTURE_ATTR(down_arrow, DownVee_enable);
+GESTURE_ATTR(left_arrow, LeftVee_enable);
+GESTURE_ATTR(right_arrow, RightVee_enable);
 GESTURE_ATTR(double_swipe, DouSwip_enable);
+GESTURE_ATTR(up_swipe, Up2DownSwip_enable);
+GESTURE_ATTR(down_swipe, Down2UpSwip_enable);
+GESTURE_ATTR(left_swipe, Left2RightSwip_enable);
+GESTURE_ATTR(right_swipe, Right2LeftSwip_enable);
 GESTURE_ATTR(letter_o, Circle_enable);
 GESTURE_ATTR(letter_w, Wgestrue_enable);
 GESTURE_ATTR(letter_m, Mgestrue_enable);
@@ -2278,15 +2308,20 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
     //proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
     if (ts->black_gesture_support) {
         CREATE_GESTURE_NODE(single_tap);
-        CREATE_GESTURE_NODE(double_tap);
-        CREATE_GESTURE_NODE(down_arrow);
-        CREATE_GESTURE_NODE(left_arrow);
-        CREATE_GESTURE_NODE(right_arrow);
-        CREATE_GESTURE_NODE(double_swipe);
-        CREATE_GESTURE_NODE(letter_o);
-        CREATE_GESTURE_NODE(letter_w);
-        CREATE_GESTURE_NODE(letter_m);
-        CREATE_GESTURE_NODE(letter_s);
+		CREATE_GESTURE_NODE(double_tap);
+		CREATE_GESTURE_NODE(up_arrow);
+		CREATE_GESTURE_NODE(down_arrow);
+		CREATE_GESTURE_NODE(left_arrow);
+		CREATE_GESTURE_NODE(right_arrow);
+		CREATE_GESTURE_NODE(double_swipe);
+		CREATE_GESTURE_NODE(up_swipe);
+		CREATE_GESTURE_NODE(down_swipe);
+		CREATE_GESTURE_NODE(left_swipe);
+		CREATE_GESTURE_NODE(right_swipe);
+		CREATE_GESTURE_NODE(letter_o);
+		CREATE_GESTURE_NODE(letter_w);
+		CREATE_GESTURE_NODE(letter_m);
+		CREATE_GESTURE_NODE(letter_s);
 
         prEntry_tmp = proc_create_data("coordinate", 0444, prEntry_tp, &proc_coordinate_fops, ts);
         if (prEntry_tmp == NULL) {
@@ -3703,17 +3738,21 @@ static int init_input_device(struct touchpanel_data *ts)
     set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
     set_bit(BTN_TOUCH, ts->input_dev->keybit);
     if (ts->black_gesture_support) {
-        set_bit(KEY_F4, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_W, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_M, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_S, ts->input_dev->keybit);
-        set_bit(KEY_DOUBLE_TAP, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_CIRCLE, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_TWO_SWIPE, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_DOWN_ARROW, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_LEFT_ARROW, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_RIGHT_ARROW, ts->input_dev->keybit);
-        set_bit(KEY_GESTURE_SINGLE_TAP, ts->input_dev->keybit);
+       set_bit(KEY_GESTURE_W, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_M, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_S, ts->input_dev->keybit);
+		set_bit(KEY_DOUBLE_TAP, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_CIRCLE, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_TWO_SWIPE, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_UP_ARROW, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_LEFT_ARROW, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_RIGHT_ARROW, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_DOWN_ARROW, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_SWIPE_LEFT, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_SWIPE_DOWN, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_SWIPE_RIGHT, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_SWIPE_UP, ts->input_dev->keybit);
+		set_bit(KEY_GESTURE_SINGLE_TAP, ts->input_dev->keybit);
     }
 
     ts->kpd_input_dev->name = TPD_DEVICE"_kpd";
