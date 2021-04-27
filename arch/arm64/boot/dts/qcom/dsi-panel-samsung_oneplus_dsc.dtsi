@@ -789,7 +789,6 @@
 				qcom,mdss-dsi-timing-switch-command = [
 				29 01 00 00 00 00 03 F0 5A 5A			/* Level2 key Access Enable */
 				//29 01 00 00 00 00 03 9F A5 A5			/* Level1 key Access Enable */
-				07 01 00 00 00 00 01 01					/* DSC enable */
 				15 01 00 00 00 00 02 C3 01				/* Scaler enable(x1.78) */
 				29 01 00 00 00 00 05 2A 00 00 04 37		/* CASET */
 				29 01 00 00 00 00 05 2B 00 00 09 23		/* PASET */
@@ -815,7 +814,6 @@
 				qcom,mdss-dsi-on-command = [
 				/* DSC Setting */
 				29 01 00 00 00 00 03 F0 5A 5A
-				07 01 00 00 00 00 01 01					/* DSC enable */
 				15 01 00 00 00 00 02 C3 01				/* Scaler enable(x1.78) */
 				39 01 00 00 00 00 59 0A					/* PPS Setting (1080 x 2340) */
 				11 00 00 89 30 80 09 24
@@ -879,7 +877,6 @@
 				qcom,mdss-113mhz-osc-dsi-on-command = [
 				/* DSC Setting */
 				29 01 00 00 00 00 03 F0 5A 5A
-				07 01 00 00 00 00 01 01					/* DSC enable */
 				15 01 00 00 00 00 02 C3 01				/* Scaler enable(x1.78) */
 				39 01 00 00 00 00 59 0A					/* PPS Setting (1080 x 2340) */
 				11 00 00 89 30 80 09 24
@@ -1349,15 +1346,6 @@
 				qcom,mdss-dsi-panel-gamma-otp-read-b3-command-state = "dsi_lp_mode";
 				qcom,mdss-dsi-panel-level2-key-disable-command-state = "dsi_lp_mode";
 				qcom,panel-roi-alignment=<540 60 540 60 540 60>;
-				qcom,compression-mode = "dsc";
-				qcom,lm-split = <540 540>;
-				qcom,mdss-dsc-encoders = <2>;
-				qcom,mdss-dsc-slice-height = <60>;
-				qcom,mdss-dsc-slice-width = <540>;
-				qcom,mdss-dsc-slice-per-pkt = <2>;
-				qcom,mdss-dsc-bit-per-component = <8>;
-				qcom,mdss-dsc-bit-per-pixel = <8>;
-				qcom,mdss-dsc-block-prediction-enable;
 				};
 
 			timing@2{
@@ -1418,7 +1406,6 @@
 				qcom,mdss-dsi-timing-switch-command = [
 				29 01 00 00 00 00 03 F0 5A 5A			/* Level2 key Access Enable */
 				//29 01 00 00 00 00 03 9F A5 A5			/* Level1 key Access Enable */
-				07 01 00 00 00 00 01 01					/* DSC enable */
 				15 01 00 00 00 00 02 C3 01				/* Scaler enable(x1.78) */
 				29 01 00 00 00 00 05 2A 00 00 04 37		/* CASET */
 				29 01 00 00 00 00 05 2B 00 00 09 23		/* PASET */
@@ -1443,7 +1430,6 @@
 				qcom,mdss-dsi-on-command = [
 				/* DSC Setting */
 				29 01 00 00 00 00 03 F0 5A 5A
-				07 01 00 00 00 00 01 01					/* DSC enable */
 				15 01 00 00 00 00 02 C3 01				/* Scaler enable(x1.78) */
 				39 01 00 00 00 00 59 0A					/* PPS Setting (1080 x 2340) */
 				11 00 00 89 30 80 09 24
@@ -1507,7 +1493,6 @@
 				qcom,mdss-113mhz-osc-dsi-on-command = [
 				/* DSC Setting */
 				29 01 00 00 00 00 03 F0 5A 5A
-				07 01 00 00 00 00 01 01					/* DSC enable */
 				15 01 00 00 00 00 02 C3 01				/* Scaler enable(x1.78) */
 				39 01 00 00 00 00 59 0A					/* PPS Setting (1080 x 2340) */
 				11 00 00 89 30 80 09 24
@@ -1976,15 +1961,6 @@
 				qcom,mdss-dsi-panel-gamma-otp-read-b3-command-state = "dsi_lp_mode";
 				qcom,mdss-dsi-panel-level2-key-disable-command-state = "dsi_lp_mode";
 				qcom,panel-roi-alignment=<540 60 540 60 540 60>;
-				qcom,compression-mode = "dsc";
-				qcom,lm-split = <540 540>;
-				qcom,mdss-dsc-encoders = <2>;
-				qcom,mdss-dsc-slice-height = <60>;
-				qcom,mdss-dsc-slice-width = <540>;
-				qcom,mdss-dsc-slice-per-pkt = <2>;
-				qcom,mdss-dsc-bit-per-component = <8>;
-				qcom,mdss-dsc-bit-per-pixel = <8>;
-				qcom,mdss-dsc-block-prediction-enable;
 				};
 
 			timing@3{
