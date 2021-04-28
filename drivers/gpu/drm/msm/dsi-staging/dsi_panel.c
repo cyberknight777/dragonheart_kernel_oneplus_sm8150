@@ -5084,7 +5084,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 	if (panel->aod_mode == 2) {
-		pr_err("Send dsi_panel_set_aod_mode 2 cmds\n");
+		pr_debug("Send dsi_panel_set_aod_mode 2 cmds\n");
 		rc = dsi_panel_set_aod_mode(panel, 2);
 		panel->aod_status = 1;
 	}
@@ -5120,7 +5120,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	notifier_data.id = connector_state_crtc_index;
 	msm_drm_notifier_call_chain(MSM_DRM_EARLY_EVENT_BLANK, &notifier_data);
 	if (panel->aod_mode == 0) {
-		pr_err("Send dsi_panel_set_aod_mode 0 cmds\n");
+		pr_debug("Send dsi_panel_set_aod_mode 0 cmds\n");
 		panel->aod_status = 0;
 		aod_complete = false;
 	}
