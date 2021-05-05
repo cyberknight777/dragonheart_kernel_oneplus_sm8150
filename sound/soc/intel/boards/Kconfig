@@ -366,6 +366,20 @@ config SND_SOC_INTEL_SOF_RT5682_MACH
 	   with rt5682 codec.
 	   Say Y if you have such a device.
 	   If unsure select "N".
+
+config SND_SOC_INTEL_SOF_CS42L42_MACH
+	tristate "SOF with cs42l42 codec in I2S Mode"
+	depends on I2C && ACPI
+	depends on (SND_SOC_SOF_HDA_COMMON && MFD_INTEL_LPSS)
+	select SND_SOC_CS42L42
+	select SND_SOC_MAX98357A
+	select SND_SOC_DMIC
+	select SND_SOC_HDAC_HDMI
+	help
+	   This adds support for ASoC machine driver for SOF platforms
+	   with cs42l42 codec.
+	   Say Y if you have such a device.
+	   If unsure select "N".
 endif ## SND_SOC_SOF_HDA_COMMON || SND_SOC_SOF_BAYTRAIL
 
 endif ## SND_SOC_INTEL_MACH
