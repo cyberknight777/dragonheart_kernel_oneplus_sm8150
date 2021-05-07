@@ -373,4 +373,8 @@ config ARCH_ZYNQMP
 	help
 	  This enables support for Xilinx ZynqMP Family
 
+config ONEPLUS
+	bool "OnePlus Build Support"
+	depends on ARM64
+
 endmenu
