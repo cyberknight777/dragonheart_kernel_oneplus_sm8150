@@ -115,8 +115,10 @@ static void vbswap_help(void)
 	linux_sh("/system/bin/swapon /dev/block/vbswap0");
 }
 
-static void restart_proximity(void) {
-	//TODO
+static void fix_proximity(void) {
+	linux_sh("/system/bin/chmod 666 /dev/input/event4");
+	linux_sh("/system/bin/chmod 666 /dev/input/event9");
+	linux_sh("/system/bin/chmod 666 /dev/input/event11");
 }
 
 static void userland_worker(struct work_struct *work)
@@ -139,7 +141,7 @@ static void userland_worker(struct work_struct *work)
 
 	vbswap_help();
 
-	//restart_proximity();
+	fix_proximity();
 
 	if (is_enforcing) {
 		pr_info("Going enforcing");
