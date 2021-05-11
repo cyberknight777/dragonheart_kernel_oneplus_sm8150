@@ -933,12 +933,11 @@ static int cs42l42_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	return 0;
 }
 
-int cs42l42_trigger(struct snd_pcm_substream * substream, int cmd, struct snd_soc_dai *dai)
+static int cs42l42_trigger(struct snd_pcm_substream * substream, int cmd, struct snd_soc_dai *dai)
 {
 	struct snd_soc_component *component = dai->component;
 	struct cs42l42_private *cs42l42 = snd_soc_component_get_drvdata(component);
 	unsigned int regval;
-	int ret;
 	unsigned int count = 0;
 	int streams = cs42l42->stream_use;
 
@@ -975,7 +974,7 @@ int cs42l42_trigger(struct snd_pcm_substream * substream, int cmd, struct snd_so
 							(0 << CS42L42_MCLK_SRC_SEL_SHIFT) |
 							(0 << CS42L42_MCLKDIV_SHIFT));
 
-				ret = snd_soc_component_update_bits(component, CS42L42_PLL_CTL1,
+				snd_soc_component_update_bits(component, CS42L42_PLL_CTL1,
 								    CS42L42_PLL_START_MASK, 0);
 
 				/* PLL unlock delay 10ms*/
@@ -1802,8 +1801,7 @@ static int cs42l42_handle_device_data(struct device *dev,
 
 	ret = device_property_read_u32(dev, "cirrus,btn-det-init-dbnce", &val);
 	if (!ret) {
-		if ((val >= CS42L42_BTN_DET_INIT_DBNCE_MIN) &&
-			(val <= CS42L42_BTN_DET_INIT_DBNCE_MAX))
+		if (val <= CS42L42_BTN_DET_INIT_DBNCE_MAX)
 			cs42l42->btn_det_init_dbnce = val;
 		else {
 			dev_err(dev,
@@ -1819,8 +1817,7 @@ static int cs42l42_handle_device_data(struct device *dev,
 
 	ret = device_property_read_u32(dev, "cirrus,btn-det-event-dbnce", &val);
 	if (!ret) {
-		if ((val >= CS42L42_BTN_DET_EVENT_DBNCE_MIN) &&
-			(val <= CS42L42_BTN_DET_EVENT_DBNCE_MAX))
+		if (val <= CS42L42_BTN_DET_EVENT_DBNCE_MAX)
 			cs42l42->btn_det_event_dbnce = val;
 		else {
 			dev_err(dev,
@@ -1837,8 +1834,7 @@ static int cs42l42_handle_device_data(struct device *dev,
 					     thresholds, ARRAY_SIZE(thresholds));
 	if (!ret) {
 		for (i = 0; i < CS42L42_NUM_BIASES; i++) {
-			if ((thresholds[i] >= CS42L42_HS_DET_LEVEL_MIN) &&
-				(thresholds[i] <= CS42L42_HS_DET_LEVEL_MAX))
+			if (thresholds[i] <= CS42L42_HS_DET_LEVEL_MAX)
 				cs42l42->bias_thresholds[i] = thresholds[i];
 			else {
 				dev_err(dev,
