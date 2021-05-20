@@ -268,6 +268,7 @@ static u32 iwl_mvm_get_tx_rate(struct iwl_mvm *mvm,
 	int rate_idx = -1;
 	u8 rate_plcp;
 	u32 rate_flags = 0;
+	bool is_new_rate, is_cck;
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
 	/* info->control is only relevant for non HW rate control */
@@ -298,11 +299,16 @@ static u32 iwl_mvm_get_tx_rate(struct iwl_mvm *mvm,
 	/* For 2.4 GHZ band, check that there is no need to remap */
 	BUILD_BUG_ON(IWL_FIRST_CCK_RATE != 0);
 
+	is_new_rate = (iwl_fw_lookup_cmd_ver(mvm->fw, LEGACY_GROUP,
+					  TX_CMD, 0) > 8);
 	/* Get PLCP rate for tx_cmd->rate_n_flags */
-	rate_plcp = iwl_mvm_mac80211_idx_to_hwrate(rate_idx);
+	rate_plcp = iwl_mvm_mac80211_idx_to_hwrate(mvm->fw, rate_idx);
+	is_cck = (rate_idx >= IWL_FIRST_CCK_RATE) && (rate_idx <= IWL_LAST_CCK_RATE);
 
-	/* Set CCK flag as needed */
-	if ((rate_idx >= IWL_FIRST_CCK_RATE) && (rate_idx <= IWL_LAST_CCK_RATE))
+	/* Set CCK or OFDM flag */
+	if (is_new_rate && !is_cck)
+		rate_flags |= RATE_MCS_LEGACY_OFDM_MSK;
+	else if (is_cck)
 		rate_flags |= RATE_MCS_CCK_MSK_V1;
 
 	return (u32)rate_plcp | rate_flags;

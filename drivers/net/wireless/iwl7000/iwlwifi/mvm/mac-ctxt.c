@@ -861,7 +861,8 @@ static void iwl_mvm_mac_ctxt_set_tx(struct iwl_mvm *mvm,
 
 	rate = iwl_mvm_mac_ctxt_get_lowest_rate(info, vif);
 
-	tx->rate_n_flags |= cpu_to_le32(iwl_mvm_mac80211_idx_to_hwrate(rate));
+	tx->rate_n_flags |=
+		cpu_to_le32(iwl_mvm_mac80211_idx_to_hwrate(mvm->fw, rate));
 	if (rate == IWL_FIRST_CCK_RATE)
 		tx->rate_n_flags |= cpu_to_le32(RATE_MCS_CCK_MSK_V1);
 
@@ -949,7 +950,7 @@ static int iwl_mvm_mac_ctxt_send_beacon_v9(struct iwl_mvm *mvm,
 	int channel;
 #endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
 
-	flags = iwl_mvm_mac80211_idx_to_hwrate(rate);
+	flags = iwl_mvm_mac80211_idx_to_hwrate(mvm->fw, rate);
 
 	if (rate == IWL_FIRST_CCK_RATE)
 		flags |= IWL_MAC_BEACON_CCK;
