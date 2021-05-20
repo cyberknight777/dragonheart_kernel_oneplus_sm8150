@@ -915,6 +915,7 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 	u8 own_addr_type;
 	u8 filter_policy;
 	u16 window, interval;
+	u8 filter_dup;
 
 	if (hdev->scanning_paused) {
 		bt_dev_dbg(hdev, "Scanning is paused for suspend");
@@ -955,6 +956,11 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 	    (hdev->le_features[0] & HCI_LE_EXT_SCAN_POLICY))
 		filter_policy |= 0x02;
 
+	if (hdev->le_scan_type == LE_SCAN_PASSIVE)
+		filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+	else
+		filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+
 	if (hdev->suspended) {
 		window = hdev->le_scan_window_suspend;
 		interval = hdev->le_scan_int_suspend;
@@ -966,6 +972,20 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 	} else if (hci_is_adv_monitoring(hdev)) {
 		window = hdev->le_scan_window_adv_monitor;
 		interval = hdev->le_scan_int_adv_monitor;
+
+		/* Disable duplicates filter when scanning for advertisement
+		 * monitor for the following reasons.
+		 *
+		 * For HW pattern filtering (ex. MSFT), Realtek and Qualcomm
+		 * controllers ignore RSSI_Sampling_Period when the duplicates
+		 * filter is enabled.
+		 *
+		 * For SW pattern filtering, when we're not doing interleaved
+		 * scanning, it is necessary to disable duplicates filter,
+		 * otherwise hosts can only receive one advertisement and it's
+		 * impossible to know if a peer is still in range.
+		 */
+		filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
 	} else {
 		window = hdev->le_scan_window;
 		interval = hdev->le_scan_interval;
@@ -983,8 +1003,7 @@ void hci_req_add_le_passive_scan(struct hci_request *req)
 
 	memset(&enable_cp, 0, sizeof(enable_cp));
 	enable_cp.enable = LE_SCAN_ENABLE;
-	enable_cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
-			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
+	enable_cp.filter_dup = filter_dup;
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(enable_cp),
 		    &enable_cp);
 }
@@ -2589,6 +2608,7 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 	struct hci_cp_le_set_scan_param param_cp;
 	struct hci_cp_le_set_scan_enable enable_cp;
 	u8 own_addr_type;
+	u8 filter_dup;
 	int err;
 
 	BT_DBG("%s", hdev->name);
@@ -2611,6 +2631,28 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 	if (err < 0)
 		own_addr_type = ADDR_LE_DEV_PUBLIC;
 
+	if (hdev->le_scan_type == LE_SCAN_PASSIVE)
+		filter_dup = LE_SCAN_FILTER_DUP_ENABLE;
+	else
+		filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+
+	if (hci_is_adv_monitoring(hdev)) {
+		/* Duplicate filter should be disabled when some advertisement
+		 * monitor is activated, otherwise AdvMon can only receive one
+		 * advertisement for one peer(*) during active scanning, and
+		 * might report loss to these peers.
+		 *
+		 * Note that different controllers have different meanings of
+		 * |duplicate|. Some of them consider packets with the same
+		 * address as duplicate, and others consider packets with the
+		 * same address and the same RSSI as duplicate. Although in the
+		 * latter case we don't need to disable duplicate filter, but
+		 * it is common to have active scanning for a short period of
+		 * time, the power impact should be neglectable.
+		 */
+		filter_dup = LE_SCAN_FILTER_DUP_DISABLE;
+	}
+
 	memset(&param_cp, 0, sizeof(param_cp));
 	param_cp.type = LE_SCAN_ACTIVE;
 	param_cp.interval = cpu_to_le16(interval);
@@ -2622,8 +2664,7 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 
 	memset(&enable_cp, 0, sizeof(enable_cp));
 	enable_cp.enable = LE_SCAN_ENABLE;
-	enable_cp.filter_dup = (hdev->le_scan_type == LE_SCAN_PASSIVE) ?
-			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
+	enable_cp.filter_dup = filter_dup;
 
 	BT_DBG("BT_DBG_DG: set scan enable tx: active_scan (ena=%d)\n", enable_cp.enable);
 	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(enable_cp),
