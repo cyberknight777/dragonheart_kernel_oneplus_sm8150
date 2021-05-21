@@ -655,7 +655,7 @@ static bool kstaled_lru_reclaimable(bool file)
 
 static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 					 bool file, gfp_t gfp_mask,
-					 unsigned long *acc_isolated)
+					 unsigned long *attempts)
 {
 	int i;
 	LIST_HEAD(list);
@@ -738,6 +738,7 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 unlock:
 	spin_unlock_irq(&node->lru_lock);
 
+	*attempts += batch;
 	if (scanned)
 		atomic_long_add(scanned, &kstaled->scanned);
 	if (isolated)
@@ -748,7 +749,6 @@ unlock:
 	trace_kstaled_reclaim(node->node_id, file, clean_only, span, scanned,
 			      scanned - batch, isolated, reclaimed);
 
-	*acc_isolated += isolated;
 	return reclaimed;
 }
 
@@ -772,7 +772,7 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 	file[1] = !file[0];
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
-		unsigned long isolated = 0;
+		unsigned long attempts = 0;
 
 		if (file_only && !file[i])
 			break;
@@ -781,8 +781,8 @@ static bool kstaled_balance_lru(struct kstaled_struct *kstaled,
 			continue;
 
 		*reclaimed += kstaled_reclaim_lru(kstaled, file[i], GFP_KERNEL,
-						  &isolated);
-		if (isolated)
+						  &attempts);
+		if (attempts)
 			return true;
 	}
 
@@ -1297,7 +1297,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 {
 	int i;
 	bool interrupted;
-	unsigned long isolated = 0;
+	unsigned long attempts = 0;
 	struct kstaled_struct *kstaled = kstaled_of_zone(zone);
 
 	VM_BUG_ON(current_is_kswapd());
@@ -1309,7 +1309,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
 		if (kstaled_lru_reclaimable(i) &&
-		    kstaled_reclaim_lru(kstaled, i, gfp_mask, &isolated))
+		    kstaled_reclaim_lru(kstaled, i, gfp_mask, &attempts))
 			return true;
 	}
 
@@ -1321,7 +1321,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask)
 		return true;
 
 	/* limited retries in case we are not making any progress */
-	if (isolated)
+	if (attempts)
 		return false;
 
 	/* throttle before retry because cold pages have run out */
