@@ -445,7 +445,6 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 	unsigned span;
 	bool clean_only;
 	struct page *page, *prev;
-	unsigned long page_reclaim;
 	unsigned long batch = 0;
 	unsigned long scanned = 0;
 	unsigned long isolated = 0;
@@ -455,7 +454,6 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 	enum lru_list lru = kstaled_lru(file);
 	unsigned long zone_isolated[MAX_NR_ZONES] = {};
 
-	page_reclaim = file ? BIT(PG_reclaim) : 0;
 	clean_only = file ? !current_is_kswapd() : !(gfp_mask & __GFP_IO);
 
 	spin_lock_irq(&node->lru_lock);
@@ -504,7 +502,7 @@ static unsigned long kstaled_reclaim_lru(struct kstaled_struct *kstaled,
 			continue;
 
 		set_mask_bits(&page->flags, KSTALED_AGE_MASK | BIT(PG_lru),
-			      page_reclaim);
+			      BIT(PG_reclaim));
 		list_move(&page->lru, &list);
 		zone_isolated[page_zonenum(page)] += npages;
 		isolated += npages;
@@ -940,11 +938,17 @@ inline void kstaled_update_age(struct page *page)
 	unsigned age, head = READ_ONCE(kstaled->head);
 	int npages = hpage_nr_pages(page);
 
+	if (!PageLRU(page) && !PageReclaim(page))
+		return;
+
 	VM_BUG_ON_PAGE(PageHuge(page), page);
 	VM_BUG_ON_PAGE(PageTail(page), page);
 	VM_BUG_ON_PAGE(!page_count(page), page);
 
-	if (PageUnevictable(page))
+	if (PageUnevictable(page) || PageMlocked(page))
+		return;
+
+	if (!PageAnon(page) && mapping_unevictable(page->mapping))
 		return;
 
 	age = kstaled_xchg_age(page, head);
