@@ -26,14 +26,14 @@ struct zone;
  *
  * The ring shares the same data structure, i.e., doubly linked list,
  * with inactive LRU list (kstaled doesn't use active LRU list). The
- * head is incremented after each mm walk has filled a bucket. The
+ * head is incremented after each PMD walk has filled a bucket. The
  * tail is incremented before reclaim starts draining a bucket.
  *
- * Pages that are added or accessed after the second to the last mm
+ * Pages that are added or accessed after the second to the last PMD
  * walk are hot, and the rest are cold. In other words, hot pages are
  * from the last filled bucket and the bucket that is currently being
  * filled. This means cold pages are guaranteed to be at least as old
- * as the interval between the last two mm walks, which is also the
+ * as the interval between the last two PMD walks, which is also the
  * time to fill the last bucket.
  *
  * When there aren't any used buckets, i.e, kstaled is not running, we
@@ -41,7 +41,7 @@ struct zone;
  * tail is right behind the head, we call it low. There are no cold
  * pages in this case, and reclaim stalls. When there aren't any empty
  * buckets, i.e., the head is right behind the tail, we call it full.
- * And mm walk stalls in this case.
+ * And PMD walk stalls in this case.
  */
 #define KSTALED_AGE_WIDTH	4
 #define KSTALED_LRU_TYPES	2

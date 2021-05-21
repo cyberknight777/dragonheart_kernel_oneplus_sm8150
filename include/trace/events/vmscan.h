@@ -559,10 +559,11 @@ TRACE_EVENT(kstaled_reclaim,
 TRACE_EVENT(kstaled_estimate,
 	TP_PROTO(int nid, unsigned long total, unsigned long free,
 		 unsigned long drop, unsigned long growth, unsigned span_anon,
-		 unsigned span_file, bool walk_mm, unsigned long nr_to_reclaim),
+		 unsigned span_file, bool walk_pmdp,
+		 unsigned long nr_to_reclaim),
 
 	TP_ARGS(nid, total, free, drop, growth, span_anon, span_file,
-		walk_mm, nr_to_reclaim),
+		walk_pmdp, nr_to_reclaim),
 
 	TP_STRUCT__entry(
 		__field(int, nid)
@@ -572,7 +573,7 @@ TRACE_EVENT(kstaled_estimate,
 		__field(unsigned long, growth)
 		__field(unsigned, span_anon)
 		__field(unsigned, span_file)
-		__field(bool, walk_mm)
+		__field(bool, walk_pmdp)
 		__field(unsigned long, nr_to_reclaim)
 	),
 
@@ -584,14 +585,14 @@ TRACE_EVENT(kstaled_estimate,
 		__entry->growth = growth;
 		__entry->span_anon = span_anon;
 		__entry->span_file = span_file;
-		__entry->walk_mm = walk_mm;
+		__entry->walk_pmdp = walk_pmdp;
 		__entry->nr_to_reclaim = nr_to_reclaim;
 	),
 
-	TP_printk("node %4u; total %12lu; free %12lu; drop %12lu; growth %12lu; span anon %4u, file %4u; mm walk %d; reclaim target %12lu",
+	TP_printk("node %4u; total %12lu; free %12lu; drop %12lu; growth %12lu; span anon %4u, file %4u; PMD walk %d; reclaim target %12lu",
 		  __entry->nid, __entry->total, __entry->free, __entry->drop,
 		  __entry->growth, __entry->span_anon, __entry->span_file,
-		  __entry->walk_mm, __entry->nr_to_reclaim)
+		  __entry->walk_pmdp, __entry->nr_to_reclaim)
 );
 #endif /* _TRACE_VMSCAN_H */
 

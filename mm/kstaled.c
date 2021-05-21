@@ -616,7 +616,7 @@ struct kstaled_context {
 	unsigned long hot;
 	unsigned long nr_to_reclaim;
 	unsigned ratio;
-	bool walk_mm;
+	bool walk_pmdp;
 };
 
 static void kstaled_estimate_demands(struct kstaled_struct *kstaled,
@@ -665,35 +665,35 @@ static void kstaled_estimate_demands(struct kstaled_struct *kstaled,
 	 * reclaim was attempted last time, it might be needed again.
 	 */
 	if (!ctx->nr_to_reclaim && free >= high + drop) {
-		ctx->walk_mm = false;
+		ctx->walk_pmdp = false;
 		ctx->nr_to_reclaim = 0;
 		goto done;
 	}
 
 	if (kstaled_ring_empty(kstaled)) {
-		ctx->walk_mm = true;
+		ctx->walk_pmdp = true;
 		ctx->nr_to_reclaim = 0;
 		goto done;
 	}
 
 	/*
-	 * Second, estimate if we need to walk mm. This is fairly
+	 * Second, estimate if we need to walk PMD. This is fairly
 	 * proactive because we can fall back to direct aging as long
 	 * as the ring is not running low.
 	 */
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
 		if (kstaled_ring_low(kstaled, i)) {
-			ctx->walk_mm = true;
+			ctx->walk_pmdp = true;
 			goto may_reclaim;
 		}
 	}
 
 	/*
-	 * We want to pace the mm walk and avoid consecutive walks
+	 * We want to pace the PMD walk and avoid consecutive walks
 	 * between which reclaim wasn't even attempted.
 	 */
-	if (ctx->walk_mm && !READ_ONCE(kstaled->peeked)) {
-		ctx->walk_mm = false;
+	if (ctx->walk_pmdp && !READ_ONCE(kstaled->peeked)) {
+		ctx->walk_pmdp = false;
 		goto may_reclaim;
 	}
 
@@ -704,17 +704,17 @@ static void kstaled_estimate_demands(struct kstaled_struct *kstaled,
 	 */
 	for (i = 0; i < KSTALED_LRU_TYPES; i++) {
 		if (kstaled_ring_span(kstaled, i) <= ctx->ratio) {
-			ctx->walk_mm = true;
+			ctx->walk_pmdp = true;
 			goto may_reclaim;
 		}
 	}
 
 	if (growth * (ctx->ratio + 1) > total) {
-		ctx->walk_mm = true;
+		ctx->walk_pmdp = true;
 		goto may_reclaim;
 	}
 
-	ctx->walk_mm = false;
+	ctx->walk_pmdp = false;
 may_reclaim:
 	/*
 	 * Finally, estimate if we also need to reclaim. This is least
@@ -736,7 +736,7 @@ done:
 	trace_kstaled_estimate(node->node_id, total, free, drop, growth,
 			       kstaled_ring_span(kstaled, false),
 			       kstaled_ring_span(kstaled, true),
-			       ctx->walk_mm, ctx->nr_to_reclaim);
+			       ctx->walk_pmdp, ctx->nr_to_reclaim);
 }
 
 static int kstaled_node_worker(void *arg)
@@ -772,7 +772,7 @@ static int kstaled_node_worker(void *arg)
 
 		kstaled_estimate_demands(kstaled, &ctx);
 
-		if (ctx.walk_mm) {
+		if (ctx.walk_pmdp) {
 			kstaled_advance_head(kstaled);
 			wake_up_all(&kstaled->throttled);
 			ctx.hot = node_page_state(node, KSTALED_DIRECT_HOT);
