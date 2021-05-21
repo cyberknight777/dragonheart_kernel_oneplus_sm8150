@@ -21,7 +21,6 @@
 #include <linux/vmalloc.h>
 #include <linux/swap_slots.h>
 #include <linux/huge_mm.h>
-#include <linux/mm_metrics.h>
 
 #include <asm/pgtable.h>
 #include "internal.h"
@@ -232,7 +231,6 @@ int add_to_swap(struct page *page)
 	/*
 	 * Add it to the swap cache.
 	 */
-	mm_metrics_swapout(&entry);
 	err = add_to_swap_cache(page, entry,
 			__GFP_HIGH|__GFP_NOMEMALLOC|__GFP_NOWARN);
 	/* -ENOMEM radix-tree allocation failure */
