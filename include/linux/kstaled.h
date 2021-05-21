@@ -4,7 +4,6 @@
 #define _LINUX_KSTALED_H
 
 #include <linux/mm_types.h>
-#include <asm/pgtable.h>
 
 struct page_vma_mapped_walk;
 struct pglist_data;
@@ -47,7 +46,6 @@ struct zone;
 #define KSTALED_AGE_WIDTH	4
 #define KSTALED_LRU_TYPES	2
 #define KSTALED_MAX_AGE		GENMASK(KSTALED_AGE_WIDTH - 1, 0)
-#define KSTALED_AGE_PGOFF	(LAST_CPUPID_PGOFF - KSTALED_AGE_WIDTH)
 #define KSTALED_AGE_MASK	(KSTALED_MAX_AGE << KSTALED_AGE_PGOFF)
 
 struct kstaled_struct {
@@ -86,6 +84,9 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask);
 
 #define KSTALED_AGE_WIDTH	0
 #define KSTALED_AGE_MASK	0
+
+struct kstaled_struct {
+};
 
 static inline bool kstaled_is_enabled(void)
 {

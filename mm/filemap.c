@@ -36,7 +36,6 @@
 #include <linux/memcontrol.h>
 #include <linux/cleancache.h>
 #include <linux/rmap.h>
-#include <linux/kstaled.h>
 #include <linux/delayacct.h>
 #include <linux/psi.h>
 #include "internal.h"

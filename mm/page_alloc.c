@@ -71,7 +71,6 @@
 #include <linux/psi.h>
 #include <linux/low-mem-notify.h>
 #include <linux/mm_metrics.h>
-#include <linux/kstaled.h>
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
