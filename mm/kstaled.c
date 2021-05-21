@@ -807,6 +807,28 @@ static unsigned long kstaled_shrink_slab(struct kstaled_struct *kstaled,
 	return node_shrink_slab(node, scanned, total, gfp_mask);
 }
 
+static void kstaled_wakeup_kcompactd(struct kstaled_struct *kstaled,
+				     unsigned long reclaimed)
+{
+	int i;
+	int order = 0;
+	struct pglist_data *node = kstaled_node(kstaled);
+
+	for (i = 0; i < MAX_NR_ZONES; i++) {
+		struct zone *zone = node->node_zones + i;
+
+		if (!managed_zone(zone) || !zone->compact_defer_shift)
+			continue;
+
+		order = max(order, zone->compact_order_failed);
+	}
+
+	/* try compaction if we've freed enough pages for migration */
+	order = min(order, MAX_ORDER - 1);
+	if (order && compact_gap(order) < reclaimed)
+		wakeup_kcompactd(node, order, MAX_NR_ZONES);
+}
+
 struct kstaled_context {
 	/* to track how fast free pages drop */
 	unsigned long free;
@@ -981,7 +1003,10 @@ static int kstaled_node_worker(void *arg)
 		       reclaimed >= ctx.nr_to_reclaim, &reclaimed))
 			;
 
-		kstaled_shrink_slab(kstaled, GFP_KERNEL);
+		reclaimed += kstaled_shrink_slab(kstaled, GFP_KERNEL);
+
+		if (reclaimed)
+			kstaled_wakeup_kcompactd(kstaled, reclaimed);
 
 		timeout -= jiffies;
 		if (timeout < 0) {
