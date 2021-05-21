@@ -8,7 +8,6 @@
 struct page;
 struct page_vma_mapped_walk;
 struct pglist_data;
-struct mm_struct;
 struct zone;
 
 #ifdef CONFIG_KSTALED
@@ -53,8 +52,6 @@ struct zone;
 
 bool kstaled_is_enabled(void);
 bool kstaled_ring_inuse(struct pglist_data *node);
-void kstaled_add_mm(struct mm_struct *mm);
-void kstaled_del_mm(struct mm_struct *mm);
 unsigned kstaled_get_age(struct page *page);
 void kstaled_set_age(struct page *page);
 void kstaled_clear_age(struct page *page);
@@ -76,14 +73,6 @@ static inline bool kstaled_is_enabled(void)
 static inline bool kstaled_ring_inuse(struct pglist_data *node)
 {
 	return false;
-}
-
-static inline void kstaled_add_mm(struct mm_struct *mm)
-{
-}
-
-static inline void kstaled_del_mm(struct mm_struct *mm)
-{
 }
 
 static inline unsigned kstaled_get_age(struct page *page)

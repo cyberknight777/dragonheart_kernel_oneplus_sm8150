@@ -625,9 +625,6 @@ extern struct page *mem_map;
 
 struct kstaled_struct {
 #ifdef CONFIG_KSTALED
-	/* mm_struct list protected by spin lock */
-	struct list_head mm_list;
-	spinlock_t mm_list_lock;
 	/* pages scanned: slab pressure numerator */
 	atomic_long_t scanned;
 	/* wait queue for cold pages when depleted */

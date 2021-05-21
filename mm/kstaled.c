@@ -6,14 +6,12 @@
 #include <linux/hugetlb.h>
 #include <linux/kstaled.h>
 #include <linux/kthread.h>
-#include <linux/mm.h>
 #include <linux/mm_inline.h>
 #include <linux/mm_types.h>
 #include <linux/mmzone.h>
 #include <linux/module.h>
 #include <linux/pagemap.h>
 #include <linux/rmap.h>
-#include <linux/sched/mm.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/task_stack.h>
 #include <linux/swap.h>
@@ -308,221 +306,6 @@ static inline bool kstaled_sort_page(struct kstaled_struct *kstaled,
 	list_move_tail(&page->lru, &bucket->lru);
 
 	return true;
-}
-
-struct kstaled_priv {
-	unsigned head;
-	unsigned long hot;
-};
-
-/*
- * For x86_64, we clear young on huge and non-huge pmd entries. For the
- * former the reason is obvious; for the latter, it's an optimization:
- * we clear young on a parent pmd entry after we clear young on all its
- * child pte entries so next time we can skip all the children if their
- * parent is not young. If any of the children is accessed, x86_64 also
- * sets young on their parent.
- *
- * This may or may not hold on arm64 v8.1 and later; before v8.1, arm64
- * doesn't set young at all.
- *
- * Note that pmd_young() and pmdp_test_and_clear_young() don't exist or
- * work when thp is not configured, and if so, we can't do anything even
- * on x86_64.
- */
-static bool kstaled_should_skip_pmd(pmd_t pmd)
-{
-	VM_BUG_ON(pmd_trans_huge(pmd));
-
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-	return IS_ENABLED(CONFIG_X86_64) && !pmd_young(pmd);
-#else
-	return false;
-#endif
-}
-
-static bool kstaled_should_clear_pmd_young(pmd_t pmd, unsigned long start,
-					   unsigned long end)
-{
-	VM_BUG_ON(pmd_trans_huge(pmd));
-
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-	return IS_ENABLED(CONFIG_X86_64) &&
-	       !(start & ~PMD_MASK) && start + PMD_SIZE <= end;
-#else
-	return false;
-#endif
-}
-
-static bool kstaled_vma_reclaimable(struct vm_area_struct *vma)
-{
-	if (vma->vm_flags & (VM_SPECIAL | VM_LOCKED))
-		return false;
-
-	if (vma == get_gate_vma(vma->vm_mm))
-		return false;
-
-	if (is_vm_hugetlb_page(vma))
-		return false;
-
-	if (vma_is_dax(vma))
-		return false;
-
-	if (vma_is_anonymous(vma))
-		return true;
-
-	return vma->vm_file && vma->vm_file->f_mapping &&
-	       vma->vm_file->f_mapping->a_ops->writepage &&
-	       !mapping_unevictable(vma->vm_file->f_mapping);
-}
-
-static int kstaled_should_skip_vma(unsigned long start, unsigned long end,
-				   struct mm_walk *walk)
-{
-	return !kstaled_vma_reclaimable(walk->vma);
-}
-
-static int kstaled_walk_pte(struct vm_area_struct *vma, pte_t *pte,
-			    unsigned long start, unsigned long end,
-			    unsigned head)
-{
-	int i;
-	int hot = 0;
-
-	for (i = 0; start != end; i++, start += PAGE_SIZE) {
-		unsigned age;
-		struct page *page;
-
-		if (!pte_present(pte[i]) || is_zero_pfn(pte_pfn(pte[i])))
-			continue;
-
-		if (!ptep_test_and_clear_young(vma, start, pte + i))
-			continue;
-
-		page = compound_head(pte_page(pte[i]));
-		age = kstaled_xchg_age(page, head);
-		if (head && age != head && PageLRU(page))
-			hot += hpage_nr_pages(page);
-	}
-
-	return hot;
-}
-
-static int kstaled_walk_pmd(pmd_t *pmd, unsigned long start,
-			    unsigned long end, struct mm_walk *walk)
-{
-	pte_t *pte;
-	spinlock_t *ptl;
-	struct kstaled_priv *priv = walk->private;
-
-	if (!pmd_present(*pmd) || is_huge_zero_pmd(*pmd) || pmd_trans_huge(*pmd))
-		return 0;
-
-	if (kstaled_should_skip_pmd(*pmd))
-		return 0;
-
-	pte = pte_offset_map_lock(walk->mm, pmd, start, &ptl);
-	priv->hot += kstaled_walk_pte(walk->vma, pte, start, end, priv->head);
-	pte_unmap_unlock(pte, ptl);
-
-	return 0;
-}
-
-static int kstaled_walk_pud(pud_t *pud, unsigned long start,
-			    unsigned long end, struct mm_walk *walk)
-{
-	int i;
-	pmd_t *pmd;
-	spinlock_t *ptl;
-	struct kstaled_priv *priv = walk->private;
-
-	if (!pud_present(*pud) || is_huge_zero_pud(*pud))
-		return 0;
-
-	pmd = pmd_offset(pud, start);
-	ptl = pmd_lock(walk->mm, pmd);
-
-	for (i = 0; start != end; i++, start = pmd_addr_end(start, end)) {
-		unsigned age;
-		struct page *page;
-
-		if (!pmd_present(pmd[i]) || is_huge_zero_pmd(pmd[i]))
-			continue;
-
-		if (!pmd_trans_huge(pmd[i]) &&
-		    !kstaled_should_clear_pmd_young(pmd[i], start, end))
-			continue;
-
-		if (!pmdp_test_and_clear_young(walk->vma, start, pmd + i))
-			continue;
-
-		if (!pmd_trans_huge(pmd[i]))
-			continue;
-
-		page = pmd_page(pmd[i]);
-		age = kstaled_xchg_age(page, priv->head);
-		if (priv->head && age != priv->head && PageLRU(page))
-			priv->hot += hpage_nr_pages(page);
-	}
-
-	spin_unlock(ptl);
-
-	return 0;
-}
-
-static unsigned long kstaled_walk_pgtable(struct mm_struct *mm, unsigned head)
-{
-	struct kstaled_priv priv = {
-		.head = head,
-	};
-	struct mm_walk walk = {
-		.mm = mm,
-		.private = &priv,
-		.test_walk = kstaled_should_skip_vma,
-		.pud_entry_late = kstaled_walk_pud,
-		.pmd_entry = kstaled_walk_pmd,
-	};
-
-	if (!down_read_trylock(&mm->mmap_sem))
-		return 0;
-
-	walk_page_range(FIRST_USER_ADDRESS, mm->highest_vm_end, &walk);
-
-	up_read(&mm->mmap_sem);
-
-	cond_resched();
-
-	return priv.hot;
-}
-
-static void kstaled_walk_mm(struct kstaled_struct *kstaled)
-{
-	struct mm_struct *mm;
-	unsigned long hot = 0;
-	struct pglist_data *node = kstaled_node(kstaled);
-
-	VM_BUG_ON(!current_is_kswapd());
-
-	rcu_read_lock();
-
-	list_for_each_entry_rcu(mm, &kstaled->mm_list, mm_list) {
-		if (!mmget_not_zero(mm))
-			continue;
-
-		rcu_read_unlock();
-		hot += kstaled_walk_pgtable(mm, kstaled->head);
-		rcu_read_lock();
-
-		mmput_async(mm);
-	}
-
-	rcu_read_unlock();
-
-	inc_node_state(node, KSTALED_BACKGROUND_AGING);
-	if (hot)
-		mod_node_page_state(node, KSTALED_BACKGROUND_HOT, hot);
-
-	trace_kstaled_aging(node->node_id, true, hot);
 }
 
 static void kstaled_drain_active(struct kstaled_struct *kstaled, enum lru_list lru)
@@ -993,7 +776,6 @@ static int kstaled_node_worker(void *arg)
 		kstaled_estimate_demands(kstaled, &ctx);
 
 		if (ctx.walk_mm) {
-			kstaled_walk_mm(kstaled);
 			kstaled_advance_head(kstaled);
 			wake_up_all(&kstaled->throttled);
 			ctx.hot = node_page_state(node, KSTALED_DIRECT_HOT);
@@ -1073,8 +855,6 @@ static int __init kstaled_module_init(void)
 	struct pglist_data *node = NODE_DATA(first_memory_node);
 	struct kstaled_struct *kstaled = &node->kstaled;
 
-	INIT_LIST_HEAD(&kstaled->mm_list);
-	spin_lock_init(&kstaled->mm_list_lock);
 	init_waitqueue_head(&kstaled->throttled);
 	kstaled_init_ring(kstaled);
 
@@ -1105,26 +885,6 @@ inline bool kstaled_is_enabled(void)
 inline bool kstaled_ring_inuse(struct pglist_data *node)
 {
 	return !kstaled_ring_empty(&node->kstaled);
-}
-
-inline void kstaled_add_mm(struct mm_struct *mm)
-{
-	struct pglist_data *node = NODE_DATA(first_memory_node);
-	struct kstaled_struct *kstaled = &node->kstaled;
-
-	spin_lock(&kstaled->mm_list_lock);
-	list_add_tail_rcu(&mm->mm_list, &kstaled->mm_list);
-	spin_unlock(&kstaled->mm_list_lock);
-}
-
-inline void kstaled_del_mm(struct mm_struct *mm)
-{
-	struct pglist_data *node = NODE_DATA(first_memory_node);
-	struct kstaled_struct *kstaled = &node->kstaled;
-
-	spin_lock(&kstaled->mm_list_lock);
-	list_del_rcu(&mm->mm_list);
-	spin_unlock(&kstaled->mm_list_lock);
 }
 
 inline unsigned kstaled_get_age(struct page *page)
