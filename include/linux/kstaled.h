@@ -3,9 +3,8 @@
 #ifndef _LINUX_KSTALED_H
 #define _LINUX_KSTALED_H
 
-#include <linux/types.h>
+#include <linux/mm_types.h>
 
-struct page;
 struct page_vma_mapped_walk;
 struct pglist_data;
 struct zone;
@@ -50,6 +49,19 @@ struct zone;
 #define KSTALED_AGE_PGOFF	(LAST_CPUPID_PGOFF - KSTALED_AGE_WIDTH)
 #define KSTALED_AGE_MASK	(KSTALED_MAX_AGE << KSTALED_AGE_PGOFF)
 
+struct kstaled_struct {
+	/* pages scanned: slab pressure numerator */
+	atomic_long_t scanned;
+	/* wait queue for cold pages when depleted */
+	wait_queue_head_t throttled;
+	/* ring of buckets for pages of cyclic ages */
+	struct page ring[KSTALED_LRU_TYPES][KSTALED_MAX_AGE];
+	unsigned tail[KSTALED_LRU_TYPES];
+	unsigned head;
+	/* true if reclaim has tried to use the ring */
+	bool peeked;
+};
+
 bool kstaled_is_enabled(void);
 bool kstaled_ring_inuse(struct pglist_data *node);
 unsigned kstaled_get_age(struct page *page);
@@ -63,6 +75,7 @@ bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask);
 
 #else /* CONFIG_KSTALED */
 
+#define KSTALED_AGE_WIDTH	0
 #define KSTALED_AGE_MASK	0
 
 static inline bool kstaled_is_enabled(void)

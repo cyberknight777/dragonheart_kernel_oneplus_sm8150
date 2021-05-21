@@ -8,7 +8,6 @@
 #include <linux/kthread.h>
 #include <linux/mm_inline.h>
 #include <linux/mm_types.h>
-#include <linux/mmzone.h>
 #include <linux/module.h>
 #include <linux/pagemap.h>
 #include <linux/rmap.h>
