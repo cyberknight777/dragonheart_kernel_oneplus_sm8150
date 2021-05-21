@@ -20,6 +20,10 @@
 
 #include <trace/events/vmscan.h>
 
+/* ref counts from page table owner and kstaled */
+#define KSTALED_MAX_REF		2
+#define KSTALED_REF_MASK	GENMASK(PAGE_TYPE_NEXT + ilog2(KSTALED_MAX_REF), PAGE_TYPE_NEXT)
+
 #define kstaled_lru(file)	((file) ? LRU_INACTIVE_FILE : LRU_INACTIVE_ANON)
 #define kstaled_flags(file)	((file) ? BIT(PG_lru) : BIT(PG_lru) | BIT(PG_swapbacked))
 #define kstaled_node(kstaled)	container_of(kstaled, struct pglist_data, kstaled)
@@ -305,6 +309,264 @@ static inline bool kstaled_sort_page(struct kstaled_struct *kstaled,
 	list_move_tail(&page->lru, &bucket->lru);
 
 	return true;
+}
+
+static inline void kstaled_init_ref(struct page *page)
+{
+	BUILD_BUG_ON(KSTALED_REF_MASK & PAGE_TYPE_BASE);
+
+	VM_BUG_ON_PAGE(~page->page_type >> PAGE_TYPE_NEXT, page);
+
+	page->page_type &= ~BIT(PAGE_TYPE_NEXT);
+}
+
+static inline bool kstaled_has_ref(struct page *page)
+{
+	unsigned cnt;
+
+	cnt = ~page->page_type >> PAGE_TYPE_NEXT;
+
+	VM_BUG_ON_PAGE(cnt > KSTALED_MAX_REF, page);
+
+	return cnt;
+}
+
+static inline bool kstaled_get_ref(struct page *page)
+{
+	unsigned cnt;
+	unsigned old, new;
+
+	do {
+		old = READ_ONCE(page->page_type);
+		cnt = ~old >> PAGE_TYPE_NEXT;
+		if (!cnt)
+			break;
+
+		VM_BUG_ON_PAGE(cnt >= KSTALED_MAX_REF, page);
+
+		new = old & ~KSTALED_REF_MASK;
+		new |= ~(++cnt << PAGE_TYPE_NEXT) & KSTALED_REF_MASK;
+	} while (cmpxchg(&page->page_type, old, new) != old);
+
+	return cnt;
+}
+
+static inline bool kstaled_put_ref(struct page *page)
+{
+	unsigned cnt;
+	unsigned old, new;
+
+	do {
+		old = READ_ONCE(page->page_type);
+		cnt = ~old >> PAGE_TYPE_NEXT;
+
+		VM_BUG_ON_PAGE(!cnt, page);
+		VM_BUG_ON_PAGE(cnt > KSTALED_MAX_REF, page);
+
+		new = old & ~KSTALED_REF_MASK;
+		new |= ~(--cnt << PAGE_TYPE_NEXT) & KSTALED_REF_MASK;
+	} while (cmpxchg(&page->page_type, old, new) != old);
+
+	return cnt;
+}
+
+static int kstaled_check_pte(pte_t *ptep, unsigned head, int *hot)
+{
+	int i;
+	struct page *page;
+	unsigned long npages;
+	unsigned age;
+	pte_t pte = *ptep;
+	int accessed = 0;
+
+	lockdep_assert_held(ptlock_ptr(virt_to_page(ptep)));
+
+	if (!pte_present(pte) || pte_special(pte) || pte_devmap(pte) ||
+	    !pte_young(pte))
+		return 1;
+
+	VM_BUG_ON(!pfn_valid(pte_pfn(pte)));
+
+	page = compound_head(pte_page(pte));
+	if (!PageLRU(page) && !PageReclaim(page))
+		return 1;
+
+	npages = hpage_nr_pages(page);
+
+	VM_BUG_ON_PAGE(PageHuge(page), page);
+	VM_BUG_ON_PAGE(PageTail(page), page);
+	VM_BUG_ON_PAGE(!page_count(page), page);
+	VM_BUG_ON_PAGE(!page_mapped(page), page);
+	VM_BUG_ON_PAGE(!PageAnon(page) && !page->mapping, page);
+	VM_BUG_ON_PAGE(pte_page(pte) - page >= npages, page);
+
+	npages -= pte_page(pte) - page;
+
+	if (PageUnevictable(page) || PageMlocked(page))
+		return npages;
+
+	if (!PageAnon(page) && mapping_unevictable(page->mapping))
+		return npages;
+
+	for (i = 0; i < npages; i++)
+		accessed += ptep_test_and_clear_young(NULL, 0, ptep + i);
+
+	if (!accessed)
+		return npages;
+
+	age = kstaled_xchg_age(page, head);
+	if (head && age != head && PageLRU(page))
+		*hot += hpage_nr_pages(page);
+
+	return npages;
+}
+
+static int kstaled_scan_ptep(struct page *page, unsigned head)
+{
+	int i = 0;
+	pte_t *ptep = page_address(page);
+	spinlock_t *ptl = ptlock_ptr(page);
+	int hot = 0;
+
+	VM_BUG_ON(!rcu_read_lock_sched_held());
+	VM_BUG_ON_PAGE(!PageTable(page), page);
+	VM_BUG_ON_PAGE(!kstaled_has_ref(page), page);
+
+	spin_lock(ptl);
+	while (i < PTRS_PER_PTE)
+		i += kstaled_check_pte(ptep + i, head, &hot);
+	spin_unlock(ptl);
+
+	VM_BUG_ON(i != PTRS_PER_PTE);
+
+	rcu_read_unlock_sched();
+	cond_resched();
+	rcu_read_lock_sched();
+
+	return hot;
+}
+
+static int kstaled_check_ptep(pmd_t *pmdp, unsigned head)
+{
+	int hot;
+	struct page *page;
+	pmd_t pmd = READ_ONCE(*pmdp);
+
+	VM_BUG_ON(!rcu_read_lock_sched_held());
+
+	if (!pmd_present(pmd) || is_huge_zero_pmd(pmd) || pmd_devmap(pmd) ||
+	    !pmd_young(pmd) || pmd_trans_huge(pmd) || pmd_huge(pmd))
+		return 0;
+
+	VM_BUG_ON(!pfn_valid(pmd_pfn(pmd)));
+
+	page = pmd_page(pmd);
+	if (!kstaled_get_ref(page))
+		return 0;
+
+	hot = kstaled_scan_ptep(page, head);
+	kstaled_put_ptep(page);
+
+	return hot;
+}
+
+static int kstaled_check_pmd(pmd_t *pmdp, unsigned head)
+{
+	struct page *page;
+	unsigned age;
+	pmd_t pmd = *pmdp;
+
+	lockdep_assert_held(ptlock_ptr(virt_to_page(pmdp)));
+
+	if (!pmd_present(pmd) || is_huge_zero_pmd(pmd) || pmd_devmap(pmd) ||
+	    !pmd_young(pmd))
+		return 0;
+
+	VM_BUG_ON(!pfn_valid(pmd_pfn(pmd)));
+
+	if (!pmd_trans_huge(pmd) && !pmd_huge(pmd)) {
+		pmdp_test_and_clear_young(NULL, 0, pmdp);
+		return 0;
+	}
+
+	page = pmd_page(pmd);
+	if (!PageLRU(page) && !PageReclaim(page))
+		return 0;
+
+	VM_BUG_ON_PAGE(PageHuge(page), page);
+	VM_BUG_ON_PAGE(!PageTransHuge(page), page);
+	VM_BUG_ON_PAGE(!page_count(page), page);
+	VM_BUG_ON_PAGE(!page_mapped(page), page);
+	VM_BUG_ON_PAGE(!PageAnon(page) && !page->mapping, page);
+	VM_BUG_ON_PAGE(!PageAnon(page) && !PageSwapBacked(page), page);
+
+	if (PageUnevictable(page) || PageMlocked(page))
+		return 0;
+
+	if (!PageAnon(page) && mapping_unevictable(page->mapping))
+		return 0;
+
+	if (!pmdp_test_and_clear_young(NULL, 0, pmdp))
+		return 0;
+
+	age = kstaled_xchg_age(page, head);
+	if (!head || age == head || !PageLRU(page))
+		return 0;
+
+	return hpage_nr_pages(page);
+}
+
+static int kstaled_scan_pmdp(struct page *page, unsigned head)
+{
+	int i;
+	pmd_t *pmdp = page_address(page);
+	spinlock_t *ptl = ptlock_ptr(page);
+	int hot = 0;
+
+	VM_BUG_ON(!rcu_read_lock_sched_held());
+	VM_BUG_ON_PAGE(!kstaled_has_ref(page), page);
+
+	for (i = 0; i < PTRS_PER_PMD; i++)
+		hot += kstaled_check_ptep(pmdp + i, head);
+
+	spin_lock(ptl);
+	for (i = 0; i < PTRS_PER_PMD; i++)
+		hot += kstaled_check_pmd(pmdp + i, head);
+	spin_unlock(ptl);
+
+	rcu_read_unlock_sched();
+	cond_resched();
+	rcu_read_lock_sched();
+
+	return hot;
+}
+
+static void kstaled_walk_pmdp(struct kstaled_struct *kstaled)
+{
+	struct page *page;
+	unsigned head = kstaled->head;
+	unsigned long hot = 0;
+	struct pglist_data *node = kstaled_node(kstaled);
+
+	VM_BUG_ON(!current_is_kswapd());
+
+	rcu_read_lock_sched();
+
+	list_for_each_entry_rcu(page, &kstaled->pmdp_list, pmdp_list) {
+		if (!kstaled_get_ref(page))
+			continue;
+
+		hot += kstaled_scan_pmdp(page, head);
+		kstaled_put_pmdp(page);
+	}
+
+	rcu_read_unlock_sched();
+
+	inc_node_state(node, KSTALED_BACKGROUND_AGING);
+	if (hot)
+		mod_node_page_state(node, KSTALED_BACKGROUND_HOT, hot);
+
+	trace_kstaled_aging(node->node_id, true, hot);
 }
 
 static void kstaled_drain_active(struct kstaled_struct *kstaled, enum lru_list lru)
@@ -773,6 +1035,7 @@ static int kstaled_node_worker(void *arg)
 		kstaled_estimate_demands(kstaled, &ctx);
 
 		if (ctx.walk_pmdp) {
+			kstaled_walk_pmdp(kstaled);
 			kstaled_advance_head(kstaled);
 			wake_up_all(&kstaled->throttled);
 			ctx.hot = node_page_state(node, KSTALED_DIRECT_HOT);
@@ -852,6 +1115,8 @@ static int __init kstaled_module_init(void)
 	struct pglist_data *node = NODE_DATA(first_memory_node);
 	struct kstaled_struct *kstaled = &node->kstaled;
 
+	INIT_LIST_HEAD(&kstaled->pmdp_list);
+	spin_lock_init(&kstaled->pmdp_list_lock);
 	init_waitqueue_head(&kstaled->throttled);
 	kstaled_init_ring(kstaled);
 
@@ -882,6 +1147,98 @@ inline bool kstaled_is_enabled(void)
 inline bool kstaled_ring_inuse(struct pglist_data *node)
 {
 	return !kstaled_ring_empty(&node->kstaled);
+}
+
+static void kstaled_free_ptep(struct rcu_head *rcu)
+{
+	struct page *page = container_of(rcu, struct page, rcu_head);
+
+	__free_page(page);
+}
+
+static void kstaled_free_pmdp(struct rcu_head *rcu)
+{
+	struct page *page = container_of(rcu, struct page, rcu_head);
+
+	/* clear mapping because it overlaps with pmdp_list */
+	page->mapping = NULL;
+	__free_page(page);
+}
+
+bool kstaled_put_ptep(struct page *page)
+{
+	VM_BUG_ON_PAGE(!PageTable(page), page);
+
+	if (!kstaled_has_ref(page))
+		return false;
+
+	if (kstaled_put_ref(page))
+		return true;
+
+	pgtable_page_dtor(page);
+	call_rcu_sched(&page->rcu_head, kstaled_free_ptep);
+
+	return true;
+}
+
+bool kstaled_put_pmdp(struct page *page)
+{
+	struct kstaled_struct *kstaled;
+
+	if (!kstaled_has_ref(page))
+		return false;
+
+	if (kstaled_put_ref(page))
+		return true;
+
+	kstaled = kstaled_of_page(page);
+	spin_lock(&kstaled->pmdp_list_lock);
+	list_del_rcu(&page->pmdp_list);
+	spin_unlock(&kstaled->pmdp_list_lock);
+
+	pgtable_pmd_page_dtor(page);
+	call_rcu_sched(&page->rcu_head, kstaled_free_pmdp);
+
+	return true;
+}
+
+void kstaled_init_ptep(pmd_t *pmdp, struct page *page)
+{
+	VM_BUG_ON_PAGE(!PageTable(page), page);
+
+	/* ignore temporary pmd_t used during thp split */
+	if (object_is_on_stack(pmdp))
+		return;
+
+	lockdep_assert_held(ptlock_ptr(virt_to_page(pmdp)));
+
+	if (kstaled_has_ref(virt_to_page(pmdp)) && !kstaled_has_ref(page))
+		kstaled_init_ref(page);
+}
+
+void kstaled_init_pmdp(struct mm_struct *mm, pmd_t *pmdp)
+{
+	struct page *page;
+	struct kstaled_struct *kstaled;
+
+	/* ignore static mm_struct like init_mm, etc. */
+	if (core_kernel_data((unsigned long)mm))
+		return;
+
+	lockdep_assert_held(&mm->page_table_lock);
+
+	page = virt_to_page(pmdp);
+	if (kstaled_has_ref(page))
+		return;
+
+	kstaled_init_ref(page);
+
+	VM_BUG_ON_PAGE(page->mapping, page);
+
+	kstaled = kstaled_of_page(page);
+	spin_lock(&kstaled->pmdp_list_lock);
+	list_add_tail_rcu(&page->pmdp_list, &kstaled->pmdp_list);
+	spin_unlock(&kstaled->pmdp_list_lock);
 }
 
 inline unsigned kstaled_get_age(struct page *page)
@@ -953,6 +1310,42 @@ inline void kstaled_update_age(struct page *page)
 	age = kstaled_xchg_age(page, head);
 	if (head && age != head && PageLRU(page))
 		mod_node_page_state(node, KSTALED_DIRECT_HOT, npages);
+}
+
+void kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
+{
+	int i = 0;
+	struct kstaled_struct *kstaled = kstaled_of_page(pvmw->page);
+	struct pglist_data *node = kstaled_node(kstaled);
+	unsigned head = READ_ONCE(kstaled->head);
+	struct page *page = virt_to_page(pvmw->pte);
+	pte_t *ptep = page_address(page);
+	pmd_t *pmdp = pvmw->pmd;
+	spinlock_t *ptl = ptlock_ptr(virt_to_page(pmdp));
+	int hot = 0;
+
+	VM_BUG_ON_PAGE(!PageTable(page), page);
+	VM_BUG_ON_PAGE(ptlock_ptr(page) != pvmw->ptl, page);
+	lockdep_assert_held(ptlock_ptr(page));
+
+	while (i < PTRS_PER_PTE)
+		i += kstaled_check_pte(ptep + i, head, &hot);
+
+	VM_BUG_ON(i != PTRS_PER_PTE);
+
+	page_vma_mapped_walk_done(pvmw);
+
+	/* we've unlocked the ptep, so it's safe to lock the pmdp */
+	spin_lock(ptl);
+	if (pmd_page(*pmdp) == page)
+		pmdp_test_and_clear_young(NULL, 0, pmdp);
+	spin_unlock(ptl);
+
+	inc_node_state(node, KSTALED_DIRECT_AGING);
+	if (hot)
+		mod_node_page_state(node, KSTALED_DIRECT_HOT, hot);
+
+	trace_kstaled_aging(node->node_id, false, hot);
 }
 
 inline void kstaled_enable_throttle(void)

@@ -4,6 +4,7 @@
 #define _LINUX_KSTALED_H
 
 #include <linux/mm_types.h>
+#include <asm/pgtable.h>
 
 struct page_vma_mapped_walk;
 struct pglist_data;
@@ -50,6 +51,9 @@ struct zone;
 #define KSTALED_AGE_MASK	(KSTALED_MAX_AGE << KSTALED_AGE_PGOFF)
 
 struct kstaled_struct {
+	/* pmd page list protected by spin lock */
+	struct list_head pmdp_list;
+	spinlock_t pmdp_list_lock;
 	/* pages scanned: slab pressure numerator */
 	atomic_long_t scanned;
 	/* wait queue for cold pages when depleted */
@@ -64,10 +68,15 @@ struct kstaled_struct {
 
 bool kstaled_is_enabled(void);
 bool kstaled_ring_inuse(struct pglist_data *node);
+bool kstaled_put_ptep(struct page *page);
+bool kstaled_put_pmdp(struct page *page);
+void kstaled_init_ptep(pmd_t *pmdp, struct page *page);
+void kstaled_init_pmdp(struct mm_struct *mm, pmd_t *pmdp);
 unsigned kstaled_get_age(struct page *page);
 void kstaled_set_age(struct page *page);
 void kstaled_clear_age(struct page *page);
 void kstaled_update_age(struct page *page);
+void kstaled_direct_aging(struct page_vma_mapped_walk *pvmw);
 void kstaled_enable_throttle(void);
 void kstaled_disable_throttle(void);
 bool kstaled_throttle_alloc(struct zone *zone, int order, gfp_t gfp_mask);
@@ -88,6 +97,24 @@ static inline bool kstaled_ring_inuse(struct pglist_data *node)
 	return false;
 }
 
+static inline bool kstaled_put_ptep(struct page *page)
+{
+	return false;
+}
+
+static inline bool kstaled_put_pmdp(struct page *page)
+{
+	return false;
+}
+
+static inline void kstaled_init_ptep(pmd_t *pmdp, struct page *page)
+{
+}
+
+static inline void kstaled_init_pmdp(struct mm_struct *mm, pmd_t *pmdp)
+{
+}
+
 static inline unsigned kstaled_get_age(struct page *page)
 {
 	return 0;
@@ -102,6 +129,10 @@ static inline void kstaled_clear_age(struct page *page)
 }
 
 static inline void kstaled_update_age(struct page *page)
+{
+}
+
+static inline void kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
 {
 }
 
