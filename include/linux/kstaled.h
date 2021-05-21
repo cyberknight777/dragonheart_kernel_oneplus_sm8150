@@ -59,7 +59,6 @@ unsigned kstaled_get_age(struct page *page);
 void kstaled_set_age(struct page *page);
 void kstaled_clear_age(struct page *page);
 void kstaled_update_age(struct page *page);
-bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw);
 void kstaled_enable_throttle(void);
 void kstaled_disable_throttle(void);
 bool kstaled_throttle_alloc(struct zone *zone, int order, gfp_t gfp_mask);
@@ -102,11 +101,6 @@ static inline void kstaled_clear_age(struct page *page)
 
 static inline void kstaled_update_age(struct page *page)
 {
-}
-
-static inline bool kstaled_direct_aging(struct page_vma_mapped_walk *pvmw)
-{
-	return false;
 }
 
 static inline void kstaled_enable_throttle(void)
