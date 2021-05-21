@@ -56,13 +56,8 @@ early_param("userpte", setup_userpte);
 
 void ___pte_free_tlb(struct mmu_gather *tlb, struct page *pte)
 {
-	paravirt_release_pte(page_to_pfn(pte));
-	if (kstaled_put_ptep(pte)) {
-		tlb_flush_mmu_tlbonly(tlb);
-		return;
-	}
-
 	pgtable_page_dtor(pte);
+	paravirt_release_pte(page_to_pfn(pte));
 	tlb_remove_table(tlb, pte);
 }
 
@@ -78,11 +73,6 @@ void ___pmd_free_tlb(struct mmu_gather *tlb, pmd_t *pmd)
 #ifdef CONFIG_X86_PAE
 	tlb->need_flush_all = 1;
 #endif
-	if (kstaled_put_pmdp(page)) {
-		tlb_flush_mmu_tlbonly(tlb);
-		return;
-	}
-
 	pgtable_pmd_page_dtor(page);
 	tlb_remove_table(tlb, page);
 }
