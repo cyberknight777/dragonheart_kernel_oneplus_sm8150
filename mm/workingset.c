@@ -235,11 +235,6 @@ void *workingset_eviction(struct address_space *mapping, struct page *page)
 	VM_BUG_ON_PAGE(page_count(page), page);
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 
-#ifdef CONFIG_KSTALED
-	if (kstaled_is_enabled())
-		return NULL;
-#endif
-
 	lruvec = mem_cgroup_lruvec(pgdat, memcg);
 	eviction = atomic_long_inc_return(&lruvec->inactive_age);
 	return pack_shadow(memcgid, pgdat, eviction, PageWorkingset(page));
@@ -264,11 +259,6 @@ void workingset_refault(struct page *page, void *shadow)
 	unsigned long refault;
 	bool workingset;
 	int memcgid;
-
-#ifdef CONFIG_KSTALED
-	if (kstaled_is_enabled())
-		return;
-#endif
 
 	unpack_shadow(shadow, &memcgid, &pgdat, &eviction, &workingset);
 
