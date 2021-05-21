@@ -2079,7 +2079,6 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	struct vm_area_struct *vma;
 	enum reclaim_type type;
 	char *type_buf;
-	struct mmu_gather tlb;
 
 	memset(buffer, 0, sizeof(buffer));
 	if (count > sizeof(buffer) - 1)
@@ -2119,7 +2118,6 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		};
 
 		down_read(&mm->mmap_sem);
-		tlb_gather_mmu(&tlb, mm, 0, -1);
 		for (vma = mm->mmap; vma; vma = vma->vm_next) {
 			if (is_vm_hugetlb_page(vma))
 				continue;
@@ -2155,7 +2153,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			walk_page_range(vma->vm_start, vma->vm_end,
 					&reclaim_walk);
 		}
-		tlb_finish_mmu(&tlb, 0, -1);
+		flush_tlb_mm(mm);
 		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}
