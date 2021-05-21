@@ -16,7 +16,6 @@
 #include <linux/sched/mm.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/task_stack.h>
-#include <linux/shmem_fs.h>
 #include <linux/swap.h>
 #include <linux/compaction.h>
 
@@ -370,16 +369,11 @@ static bool kstaled_vma_reclaimable(struct vm_area_struct *vma)
 		return false;
 
 	if (vma_is_anonymous(vma))
-		return total_swap_pages;
+		return true;
 
-	if (!vma->vm_file || !vma->vm_file->f_mapping ||
-	    mapping_unevictable(vma->vm_file->f_mapping))
-		return false;
-
-	if (shmem_mapping(vma->vm_file->f_mapping))
-		return total_swap_pages;
-
-	return vma->vm_file->f_mapping->a_ops->writepage;
+	return vma->vm_file && vma->vm_file->f_mapping &&
+	       vma->vm_file->f_mapping->a_ops->writepage &&
+	       !mapping_unevictable(vma->vm_file->f_mapping);
 }
 
 static int kstaled_should_skip_vma(unsigned long start, unsigned long end,
