@@ -8,7 +8,6 @@
 #include <linux/mm.h>
 #include <linux/mm_inline.h>
 #include <linux/mm_types.h>
-#include <linux/mmu_notifier.h>
 #include <linux/mmzone.h>
 #include <linux/module.h>
 #include <linux/oom.h>
@@ -356,49 +355,6 @@ static bool kstaled_vma_reclaimable(struct vm_area_struct *vma)
 	return vma_is_anonymous(vma) || vma->vm_file;
 }
 
-/*
- * Gets a reference on the page, which may be a regular or a compound page.
- * Returns head page if a reference is successfully obtained
- * Returns NULL if
- * - The page has already reached 0 ref-count
- * - kstaled doesn't really care about tracking the page's age
- */
-struct page *kstaled_get_page_ref(struct page *page)
-{
-	struct page *head;
-
-start:
-	head = compound_head(page);
-
-
-	if (!PageLRU(head) || PageUnevictable(head) ||
-	    !get_page_unless_zero(head))
-		return NULL;
-
-	/*
-	 * Check if the page is still part of the same compound page, or is a
-	 * non-compound page. If it is a compound page, the reference on the
-	 * head page will prevent it from getting split.
-	 */
-	if (compound_head(page) == head)
-		return head;
-
-	/*
-	 * The page was a compound-tail, but it got split up and is now either a
-	 * non-compound page, or part of a compound page of a different order.
-	 * Let's try again from the start.
-	 */
-	put_page(head);
-	goto start;
-}
-EXPORT_SYMBOL_GPL(kstaled_get_page_ref);
-
-void kstaled_put_page_ref(struct page *page)
-{
-	put_page(page);
-}
-EXPORT_SYMBOL_GPL(kstaled_put_page_ref);
-
 static int kstaled_should_skip_vma(unsigned long start, unsigned long end,
 				   struct mm_walk *walk)
 {
@@ -539,9 +495,7 @@ static unsigned long kstaled_walk_pgtable(struct mm_struct *mm, unsigned head)
 static void kstaled_walk_mm(struct kstaled_struct *kstaled)
 {
 	struct mm_struct *mm;
-	int delta;
 	unsigned long hot = 0;
-	unsigned long vm_hot = 0;
 	struct pglist_data *node = kstaled_node(kstaled);
 
 	VM_BUG_ON(!current_is_kswapd());
@@ -554,9 +508,6 @@ static void kstaled_walk_mm(struct kstaled_struct *kstaled)
 
 		rcu_read_unlock();
 		hot += kstaled_walk_pgtable(mm, kstaled->head);
-		delta = mmu_notifier_update_ages(mm);
-		hot += delta;
-		vm_hot += delta;
 		rcu_read_lock();
 
 		mmput_async(mm);
@@ -567,8 +518,6 @@ static void kstaled_walk_mm(struct kstaled_struct *kstaled)
 	inc_node_state(node, KSTALED_BACKGROUND_AGING);
 	if (hot)
 		mod_node_page_state(node, KSTALED_BACKGROUND_HOT, hot);
-	if (vm_hot)
-		mod_node_page_state(node, KSTALED_VM_BACKGROUND_HOT, vm_hot);
 
 	trace_kstaled_aging(node->node_id, true, hot);
 }

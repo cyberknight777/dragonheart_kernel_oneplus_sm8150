@@ -64,8 +64,6 @@ void kstaled_enable_throttle(void);
 void kstaled_disable_throttle(void);
 bool kstaled_throttle_alloc(struct zone *zone, int order, gfp_t gfp_mask);
 bool kstaled_direct_reclaim(struct zone *zone, int order, gfp_t gfp_mask);
-struct page *kstaled_get_page_ref(struct page *page);
-void kstaled_put_page_ref(struct page *page);
 
 #else /* CONFIG_KSTALED */
 
