@@ -21,12 +21,18 @@ void iwl_mvm_rx_rx_phy_cmd(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	unsigned int pkt_len = iwl_rx_packet_payload_len(pkt);
+	u32 rate_n_flags;
 
 	if (unlikely(pkt_len < sizeof(mvm->last_phy_info)))
 		return;
 
 	memcpy(&mvm->last_phy_info, pkt->data, sizeof(mvm->last_phy_info));
 	mvm->ampdu_ref++;
+
+	/* last_phy_info always has the old rate */
+	rate_n_flags = le32_to_cpu(mvm->last_phy_info.rate_n_flags);
+	mvm->last_phy_info.rate_n_flags =
+		cpu_to_le32(iwl_new_rate_from_v1(rate_n_flags));
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	if (mvm->last_phy_info.phy_flags & cpu_to_le16(RX_RES_PHY_FLAGS_AGG)) {
