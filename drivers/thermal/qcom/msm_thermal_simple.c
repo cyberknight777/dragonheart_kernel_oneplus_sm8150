@@ -84,15 +84,15 @@ static void thermal_throttle_worker(struct work_struct *work)
 	if (temp_batt <= 29000) {
 		/* Battery is cool-ish, bias the temp towards it */
 		temp_avg = (temp_cpus_avg * 2 + temp_batt * 3) / 5;
-		pr_info("temp_avg1: %i", temp_avg);
+		pr_debug("temp_avg1: %i", temp_avg);
 	} else if (temp_batt > 29000 && temp_batt <= 36000) {
 		/* Getting warmer, start biasing towards CPU temps */
 		temp_avg = (temp_cpus_avg * 3 + temp_batt * 2) / 5;
-		pr_info("temp_avg2: %i", temp_avg);
+		pr_debug("temp_avg2: %i", temp_avg);
 	} else if (temp_batt > 36000) {
 		/* Pretty hot, bias towards CPU temp */
 		temp_avg = (temp_cpus_avg * 3 + temp_batt) / 4;
-		pr_info("temp_avg3: %i", temp_avg);
+		pr_debug("temp_avg3: %i", temp_avg);
 	}
 
 	/* Emergency case */
@@ -111,7 +111,7 @@ static void thermal_throttle_worker(struct work_struct *work)
 
 	/* Update thermal zone if it changed */
 	if (new_zone != old_zone) {
-		pr_info("temp: %i\n", temp_avg);
+		pr_debug("temp: %i\n", temp_avg);
 		t->curr_zone = new_zone;
 		update_online_cpu_policy();
 	}
