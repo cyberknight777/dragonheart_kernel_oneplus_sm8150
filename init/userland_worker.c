@@ -115,8 +115,9 @@ static void vbswap_help(void)
 	linux_sh("/system/bin/swapon /dev/block/vbswap0");
 }
 
-static void fix_proximity(void) {
-	linux_sh("/system/bin/chmod 666 /dev/input/event4");
+//Thanks to @gotenksIN for finding OOS left these out of init.oem.rc
+//event9 is prox, event11 is brightness.
+static void fix_sensors(void) {
 	linux_sh("/system/bin/chmod 666 /dev/input/event9");
 	linux_sh("/system/bin/chmod 666 /dev/input/event11");
 }
@@ -141,7 +142,7 @@ static void userland_worker(struct work_struct *work)
 
 	vbswap_help();
 
-	fix_proximity();
+	fix_sensors();
 
 	if (is_enforcing) {
 		pr_info("Going enforcing");
