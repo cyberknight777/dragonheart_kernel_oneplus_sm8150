@@ -331,9 +331,17 @@ static int ssp_dai_prepare(struct snd_pcm_substream *substream,
 	}
 	config = sof_dai->dai_config;
 
+	/* set HW_PARAMS flag */
+	config->flags = (config->flags & ~SOF_DAI_CONFIG_FLAGS_MASK) |
+			SOF_DAI_CONFIG_FLAGS_HW_PARAMS;
+
 	/* send DAI_CONFIG IPC */
 	ret = sof_ipc_tx_message(sdev->ipc, config->hdr.cmd, config,
 				 config->hdr.size, &reply, sizeof(reply));
+
+	/* set NONE flag to clear all previous settings */
+	config->flags = (config->flags & ~SOF_DAI_CONFIG_FLAGS_MASK) |
+			SOF_DAI_CONFIG_FLAGS_NONE;
 
 	if (ret < 0)
 		dev_err(sdev->dev, "error: failed to set DAI config for %s\n",
@@ -373,9 +381,17 @@ static int ssp_dai_hw_free(struct snd_pcm_substream *substream,
 	}
 	config = sof_dai->dai_config;
 
+	/* set HW_FREE flag */
+	config->flags = (config->flags & ~SOF_DAI_CONFIG_FLAGS_MASK) |
+			SOF_DAI_CONFIG_FLAGS_HW_FREE;
+
 	/* send DAI_CONFIG IPC */
 	ret = sof_ipc_tx_message(sdev->ipc, config->hdr.cmd, config,
 				 config->hdr.size, &reply, sizeof(reply));
+
+	/* set NONE flag to clear all previous settings */
+	config->flags = (config->flags & ~SOF_DAI_CONFIG_FLAGS_MASK) |
+			SOF_DAI_CONFIG_FLAGS_NONE;
 
 	if (ret < 0)
 		dev_err(sdev->dev, "error: failed to set DAI config for %s\n",
