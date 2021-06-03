@@ -431,7 +431,7 @@ struct ieee80211_fragment_cache {
 	unsigned int next;
 };
 
-/*
+/**
  * The bandwidth threshold below which the per-station CoDel parameters will be
  * scaled to be more lenient (to prevent starvation of slow stations). This
  * value will be scaled by the number of active stations when it is being
