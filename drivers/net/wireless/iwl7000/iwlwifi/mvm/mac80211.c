@@ -3508,15 +3508,17 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
 				     true);
 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
-		   new_state == IEEE80211_STA_ASSOC && !sta->tdls) {
-		/* Multicast data frames are no longer allowed */
-		iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
+		   new_state == IEEE80211_STA_ASSOC) {
+		if (!sta->tdls) {
+			/* Multicast data frames are no longer allowed */
+			iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
 
-		/* disable beacon filtering */
-		ret = iwl_mvm_disable_beacon_filter(mvm, vif, 0);
-		WARN_ON(ret &&
-			!test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED,
-				  &mvm->status));
+			/* disable beacon filtering */
+			ret = iwl_mvm_disable_beacon_filter(mvm, vif, 0);
+			WARN_ON(ret &&
+				!test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED,
+					  &mvm->status));
+		}
 		ret = 0;
 	} else if (old_state == IEEE80211_STA_ASSOC &&
 		   new_state == IEEE80211_STA_AUTH) {
