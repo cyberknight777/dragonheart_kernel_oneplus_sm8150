@@ -107,7 +107,6 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_HOST_DISASSOC_TYPE] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_SSID] = { .type = NLA_BINARY,
 				       .len = IEEE80211_MAX_SSID_LEN },
-	[IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_BAND] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_COLLOC_CHANNEL] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_COLLOC_ADDR] = { .type = NLA_BINARY, .len = ETH_ALEN },
@@ -1780,36 +1779,6 @@ static int iwl_mvm_vendor_host_get_ownership(struct wiphy *wiphy,
 	return 0;
 }
 
-static int iwl_mvm_vendor_set_sw_rfkill_state(struct wiphy *wiphy,
-					      struct wireless_dev *wdev,
-					      const void *data, int data_len)
-{
-	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
-	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr **tb;
-	u8 state;
-	int err = 0;
-
-	tb = iwl_mvm_parse_vendor_data(data, data_len);
-	if (IS_ERR(tb))
-		return PTR_ERR(tb);
-
-	if (!tb[IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE]) {
-		err = -EINVAL;
-		goto free;
-	}
-
-	state = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE]);
-
-	mutex_lock(&mvm->mutex);
-	iwl_mvm_mei_set_sw_rfkill_state(mvm, state);
-	mutex_unlock(&mvm->mutex);
-
-free:
-	kfree(tb);
-	return err;
-}
-
 static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 	{
 		.info = {
@@ -2234,20 +2203,6 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 			.subcmd = IWL_MVM_VENDOR_CMD_HOST_GET_OWNERSHIP,
 		},
 		.doit = iwl_mvm_vendor_host_get_ownership,
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-		.policy = iwl_mvm_vendor_attr_policy,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
-#endif
-	},
-	{
-		.info = {
-			.vendor_id = INTEL_OUI,
-			.subcmd = IWL_MVM_VENDOR_CMD_HOST_SET_SW_RFKILL_STATE,
-		},
-		.doit = iwl_mvm_vendor_set_sw_rfkill_state,
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,

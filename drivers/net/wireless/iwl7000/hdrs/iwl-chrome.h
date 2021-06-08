@@ -804,3 +804,6 @@ wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
 {
 	wiphy_rfkill_set_hw_state(wiphy, blocked);
 }
+
+/* make this code disappear, rfkill moved from rdev to wiphy */
+#define rfkill_blocked(__rkfill) false

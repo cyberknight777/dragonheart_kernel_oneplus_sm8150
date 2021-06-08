@@ -883,6 +883,9 @@ static int iwl_mvm_start_post_nvm(struct iwl_mvm *mvm)
 					 mvm->mei_rfkill_blocked,
 					 RFKILL_HARD_BLOCK_NOT_OWNER);
 #endif
+
+	iwl_mvm_mei_set_sw_rfkill_state(mvm);
+
 	return 0;
 }
 
