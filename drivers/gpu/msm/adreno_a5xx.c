@@ -3425,6 +3425,7 @@ static struct adreno_snapshot_data a5xx_snapshot_data = {
 	.sect_sizes = &a5xx_snap_sizes,
 };
 
+#ifdef CONFIG_CORESIGHT
 static struct adreno_coresight_register a5xx_coresight_registers[] = {
 	{ A5XX_RBBM_CFG_DBGBUS_SEL_A },
 	{ A5XX_RBBM_CFG_DBGBUS_SEL_B },
@@ -3619,13 +3620,16 @@ static struct adreno_coresight a5xx_coresight = {
 	.read = kgsl_regread,
 	.write = kgsl_regwrite,
 };
+#endif /* CONFIG_CORESIGHT */
 
 struct adreno_gpudev adreno_a5xx_gpudev = {
 	.reg_offsets = &a5xx_reg_offsets,
 	.int_bits = a5xx_int_bits,
 	.ft_perf_counters = a5xx_ft_perf_counters,
 	.ft_perf_counters_count = ARRAY_SIZE(a5xx_ft_perf_counters),
+	#ifdef CONFIG_CORESIGHT
 	.coresight = {&a5xx_coresight},
+	#endif
 	.start = a5xx_start,
 	.snapshot = a5xx_snapshot,
 	.irq = &a5xx_irq,

@@ -1221,6 +1221,7 @@ static const struct adreno_invalid_countables
 	ADRENO_PERFCOUNTER_INVALID_COUNTABLE(a420_uche, UCHE),
 };
 
+#ifdef CONFIG_CORESIGHT
 static struct adreno_coresight_register a4xx_coresight_registers[] = {
 	{ A4XX_RBBM_CFG_DEBBUS_CTLT },
 	{ A4XX_RBBM_CFG_DEBBUS_SEL_A },
@@ -1257,6 +1258,7 @@ static struct adreno_coresight_register a4xx_coresight_registers[] = {
 	{ A4XX_RBBM_EXT_TRACE_BUS_CTL },
 	{ A4XX_RBBM_CFG_DEBBUS_CTLM },
 };
+#endif /* CONFIG_CORESIGHT */
 
 static void a4xx_perfcounter_init(struct adreno_device *adreno_dev)
 {
@@ -1602,6 +1604,7 @@ static int a4xx_rb_start(struct adreno_device *adreno_dev,
 	return ret;
 }
 
+#ifdef CONFIG_CORESIGHT
 static ADRENO_CORESIGHT_ATTR(cfg_debbus_ctrlt, &a4xx_coresight_registers[0]);
 static ADRENO_CORESIGHT_ATTR(cfg_debbus_sela, &a4xx_coresight_registers[1]);
 static ADRENO_CORESIGHT_ATTR(cfg_debbus_selb, &a4xx_coresight_registers[2]);
@@ -1692,6 +1695,7 @@ static struct adreno_coresight a4xx_coresight = {
 	.read = kgsl_regread,
 	.write = kgsl_regwrite,
 };
+#endif /* CONFIG_CORESIGHT */
 
 static void a4xx_preempt_callback(struct adreno_device *adreno_dev, int bit)
 {
@@ -1802,7 +1806,9 @@ struct adreno_gpudev adreno_a4xx_gpudev = {
 	.rb_start = a4xx_rb_start,
 	.init = a4xx_init,
 	.microcode_read = a3xx_microcode_read,
+	#ifdef CONFIG_CORESIGHT 
 	.coresight = {&a4xx_coresight},
+	#endif
 	.start = a4xx_start,
 	.snapshot = a4xx_snapshot,
 	.is_sptp_idle = a4xx_is_sptp_idle,
