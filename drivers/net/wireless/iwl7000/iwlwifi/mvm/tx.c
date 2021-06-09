@@ -1775,12 +1775,8 @@ static void iwl_mvm_rx_tx_cmd_agg(struct iwl_mvm *mvm,
 	}
 
 	if (!WARN_ON_ONCE(!mvmsta)) {
-		u32 initial_rate =
-			iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP, TX_CMD, 0) > 6 ?
-			le32_to_cpu(tx_resp->initial_rate) :
-			iwl_new_rate_from_v1(le32_to_cpu(tx_resp->initial_rate));
-
-		mvmsta->tid_data[tid].rate_n_flags = initial_rate;
+		mvmsta->tid_data[tid].rate_n_flags =
+			le32_to_cpu(tx_resp->initial_rate);
 		mvmsta->tid_data[tid].tx_time =
 			le16_to_cpu(tx_resp->wireless_media_time);
 		mvmsta->tid_data[tid].lq_color =
