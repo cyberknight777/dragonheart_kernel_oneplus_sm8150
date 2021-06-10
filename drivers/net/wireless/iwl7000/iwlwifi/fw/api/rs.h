@@ -721,7 +721,7 @@ u32 iwl_new_rate_from_v1(u32 rate_v1);
 u32 iwl_legacy_rate_to_fw_idx(u32 rate_n_flags);
 const struct iwl_rate_mcs_info *iwl_rate_mcs(int idx);
 const char *iwl_rs_pretty_ant(u8 ant);
-const char *iwl_rs_pretty_bw(u32 bw);
+const char *iwl_rs_pretty_bw(int bw);
 int rs_pretty_print_rate(char *buf, int bufsz, const u32 rate);
 bool iwl_he_is_sgi(u32 rate_n_flags);
 

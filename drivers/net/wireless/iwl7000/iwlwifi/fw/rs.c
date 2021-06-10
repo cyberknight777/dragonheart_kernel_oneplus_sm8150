@@ -54,11 +54,11 @@ static const char * const ant_name[] = {
 };
 
 static const char * const pretty_bw[] = {
-	[RATE_MCS_CHAN_WIDTH_20]	= "20Mhz",
-	[RATE_MCS_CHAN_WIDTH_40]	= "40Mhz",
-	[RATE_MCS_CHAN_WIDTH_80]	= "80Mhz",
-	[RATE_MCS_CHAN_WIDTH_160]	= "160 Mhz",
-	[RATE_MCS_CHAN_WIDTH_320]	= "320Mhz",
+	"20Mhz",
+	"40Mhz",
+	"80Mhz",
+	"160 Mhz",
+	"320Mhz",
 };
 
 u8 iwl_fw_rate_idx_to_plcp(int idx)
@@ -75,16 +75,16 @@ IWL_EXPORT_SYMBOL(iwl_rate_mcs);
 
 const char *iwl_rs_pretty_ant(u8 ant)
 {
-	if (ant > ARRAY_SIZE(ant_name))
+	if (ant >= ARRAY_SIZE(ant_name))
 		return "UNKNOWN";
 
 	return ant_name[ant];
 }
 IWL_EXPORT_SYMBOL(iwl_rs_pretty_ant);
 
-const char *iwl_rs_pretty_bw(u32 bw)
+const char *iwl_rs_pretty_bw(int bw)
 {
-	if (bw > ARRAY_SIZE(pretty_bw))
+	if (bw >= ARRAY_SIZE(pretty_bw))
 		return "unknown bw";
 
 	return pretty_bw[bw];
@@ -191,7 +191,8 @@ int rs_pretty_print_rate(char *buf, int bufsz, const u32 rate)
 	char *type;
 	u8 mcs = 0, nss = 0;
 	u8 ant = (rate & RATE_MCS_ANT_AB_MSK) >> RATE_MCS_ANT_POS;
-	u32 bw = rate & RATE_MCS_CHAN_WIDTH_MSK;
+	u32 bw = (rate & RATE_MCS_CHAN_WIDTH_MSK) >>
+		RATE_MCS_CHAN_WIDTH_POS;
 	u32 format = rate & RATE_MCS_MOD_TYPE_MSK;
 	bool sgi;
 

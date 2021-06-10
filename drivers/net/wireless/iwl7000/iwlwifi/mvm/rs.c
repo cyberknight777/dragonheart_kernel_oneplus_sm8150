@@ -3648,7 +3648,8 @@ int rs_pretty_print_rate_v1(char *buf, int bufsz, const u32 rate)
 	char *type;
 	u8 mcs = 0, nss = 0;
 	u8 ant = (rate & RATE_MCS_ANT_AB_MSK) >> RATE_MCS_ANT_POS;
-	u32 bw = rate & RATE_MCS_CHAN_WIDTH_MSK_V1;
+	u32 bw = (rate & RATE_MCS_CHAN_WIDTH_MSK_V1) >>
+		RATE_MCS_CHAN_WIDTH_POS;
 
 	if (!(rate & RATE_MCS_HT_MSK_V1) &&
 	    !(rate & RATE_MCS_VHT_MSK_V1) &&
