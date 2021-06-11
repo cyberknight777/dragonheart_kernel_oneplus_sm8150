@@ -18,8 +18,6 @@
 #include <linux/pageblock-flags.h>
 #include <linux/page-flags-layout.h>
 #include <linux/atomic.h>
-#include <linux/mm_types.h>
-#include <linux/kstaled.h>
 #include <asm/page.h>
 
 /* Free memory management - zoned buddy allocator.  */
@@ -184,20 +182,6 @@ enum node_stat_item {
 	NR_DIRTIED,		/* page dirtyings since bootup */
 	NR_WRITTEN,		/* page writings since bootup */
 	NR_INDIRECTLY_RECLAIMABLE_BYTES, /* measured in bytes */
-#ifdef CONFIG_KSTALED
-	KSTALED_TIMEOUT,
-	KSTALED_AGING_STALLS,
-	KSTALED_RECLAIM_STALLS,
-	KSTALED_BACKGROUND_AGING,
-	KSTALED_BACKGROUND_HOT,
-	KSTALED_VM_BACKGROUND_HOT,
-	KSTALED_DIRECT_AGING,
-	KSTALED_DIRECT_HOT,
-	KSTALED_SHARED_AGING,
-	KSTALED_SHARED_HOT,
-	KSTALED_THP_AGING,
-	KSTALED_THP_HOT,
-#endif
 	NR_VM_NODE_STAT_ITEMS
 };
 
@@ -237,17 +221,17 @@ static inline int is_active_lru(enum lru_list lru)
 	return (lru == LRU_ACTIVE_ANON || lru == LRU_ACTIVE_FILE);
 }
 
+#define ANON_AND_FILE 2
+
 struct zone_reclaim_stat {
 	/*
 	 * The pageout code in vmscan.c keeps track of how many of the
 	 * mem/swap backed and file backed pages are referenced.
 	 * The higher the rotated/scanned ratio, the more valuable
 	 * that cache is.
-	 *
-	 * The anon LRU stats live in [0], file LRU stats in [1]
 	 */
-	unsigned long		recent_rotated[2];
-	unsigned long		recent_scanned[2];
+	unsigned long		recent_rotated[ANON_AND_FILE];
+	unsigned long		recent_scanned[ANON_AND_FILE];
 };
 
 struct lruvec {
@@ -373,6 +357,8 @@ enum zone_type {
 
 #ifndef __GENERATING_BOUNDS_H
 
+#define ASYNC_AND_SYNC 2
+
 struct zone {
 	/* Read-mostly fields */
 
@@ -497,8 +483,8 @@ struct zone {
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
 	/* pfn where compaction free scanner should start */
 	unsigned long		compact_cached_free_pfn;
-	/* pfn where async and sync compaction migration scanner should start */
-	unsigned long		compact_cached_migrate_pfn[2];
+	/* pfn where compaction migration scanner should start */
+	unsigned long		compact_cached_migrate_pfn[ASYNC_AND_SYNC];
 #endif
 
 #ifdef CONFIG_COMPACTION
@@ -629,24 +615,6 @@ struct zonelist {
 extern struct page *mem_map;
 #endif
 
-struct kstaled_struct {
-#ifdef CONFIG_KSTALED
-	/* mm_struct list protected by spin lock */
-	struct list_head mm_list;
-	spinlock_t mm_list_lock;
-	/* pages scanned: slab pressure numerator */
-	atomic_long_t scanned;
-	/* wait queue for cold pages when depleted */
-	wait_queue_head_t throttled;
-	/* ring of buckets for pages of cyclic ages */
-	struct page ring[KSTALED_LRU_TYPES][KSTALED_MAX_AGE];
-	unsigned tail[KSTALED_LRU_TYPES];
-	unsigned head;
-	/* true if reclaim has tried to use the ring */
-	bool peeked;
-#endif
-};
-
 /*
  * On NUMA machines, each NUMA node would have a pg_data_t to describe
  * it's memory layout. On UMA machines there is a single pglist_data which
@@ -756,8 +724,6 @@ typedef struct pglist_data {
 	unsigned int inactive_ratio;
 
 	unsigned long		flags;
-
-	struct kstaled_struct	kstaled;
 
 	ZONE_PADDING(_pad2_)
 

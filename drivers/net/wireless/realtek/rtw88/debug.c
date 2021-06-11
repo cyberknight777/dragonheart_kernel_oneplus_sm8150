@@ -10,6 +10,7 @@
 #include "fw.h"
 #include "debug.h"
 #include "phy.h"
+#include "reg.h"
 
 #ifdef CONFIG_RTW88_DEBUGFS
 
@@ -34,7 +35,15 @@ struct rtw_debugfs_priv {
 			u32 addr;
 			u32 len;
 		} read_reg;
+		struct {
+			u8 bit;
+		} dm_cap;
 	};
+};
+
+static const char * const rtw_dm_cap_strs[] = {
+	[RTW_DM_CAP_NA] = "NA",
+	[RTW_DM_CAP_TXGAPK] = "TXGAPK",
 };
 
 static int rtw_debugfs_single_show(struct seq_file *m, void *v)
@@ -285,7 +294,7 @@ static ssize_t rtw_debugfs_set_rsvd_page(struct file *filp,
 
 	if (num != 2) {
 		rtw_warn(rtwdev, "invalid arguments\n");
-		return num;
+		return -EINVAL;
 	}
 
 	debugfs_priv->rsvd_page.page_offset = offset;
@@ -358,6 +367,31 @@ static ssize_t rtw_debugfs_set_write_reg(struct file *filp,
 			"error write length = %d\n", len);
 		break;
 	}
+
+	return count;
+}
+
+static ssize_t rtw_debugfs_set_h2c(struct file *filp,
+				   const char __user *buffer,
+				   size_t count, loff_t *loff)
+{
+	struct rtw_debugfs_priv *debugfs_priv = filp->private_data;
+	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
+	char tmp[32 + 1];
+	u8 param[8];
+	int num;
+
+	rtw_debugfs_copy_from_user(tmp, sizeof(tmp), buffer, count, 3);
+
+	num = sscanf(tmp, "%hhx,%hhx,%hhx,%hhx,%hhx,%hhx,%hhx,%hhx",
+		     &param[0], &param[1], &param[2], &param[3],
+		     &param[4], &param[5], &param[6], &param[7]);
+	if (num != 8) {
+		rtw_info(rtwdev, "invalid H2C command format for debug\n");
+		return -EINVAL;
+	}
+
+	rtw_fw_h2c_cmd_dbg(rtwdev, param);
 
 	return count;
 }
@@ -563,6 +597,28 @@ static void rtw_print_rate(struct seq_file *m, u8 rate)
 	}
 }
 
+#define case_REGD(src) \
+	case RTW_REGD_##src: return #src
+
+static const char *rtw_get_regd_string(u8 regd)
+{
+	switch (regd) {
+	case_REGD(FCC);
+	case_REGD(MKK);
+	case_REGD(ETSI);
+	case_REGD(IC);
+	case_REGD(KCC);
+	case_REGD(ACMA);
+	case_REGD(CHILE);
+	case_REGD(UKRAINE);
+	case_REGD(MEXICO);
+	case_REGD(CN);
+	case_REGD(WW);
+	default:
+		return "Unknown";
+	}
+}
+
 static int rtw_debugfs_get_tx_pwr_tbl(struct seq_file *m, void *v)
 {
 	struct rtw_debugfs_priv *debugfs_priv = m->private;
@@ -574,6 +630,7 @@ static int rtw_debugfs_get_tx_pwr_tbl(struct seq_file *m, void *v)
 	u8 ch = hal->current_channel;
 	u8 regd = rtwdev->regd.txpwr_regd;
 
+	seq_printf(m, "regulatory: %s\n", rtw_get_regd_string(regd));
 	seq_printf(m, "%-4s %-10s %-3s%6s %-4s %4s (%-4s %-4s %-4s) %-4s\n",
 		   "path", "rate", "pwr", "", "base", "", "byr", "lmt", "sar", "rem");
 
@@ -840,6 +897,83 @@ static int rtw_debugfs_get_edcca_enable(struct seq_file *m, void *v)
 	return 0;
 }
 
+static ssize_t rtw_debugfs_set_dm_cap(struct file *filp,
+				      const char __user *buffer,
+				      size_t count, loff_t *loff)
+{
+	struct seq_file *seqpriv = (struct seq_file *)filp->private_data;
+	struct rtw_debugfs_priv *debugfs_priv = seqpriv->private;
+	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
+	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+	int bit;
+	bool en;
+
+	if (kstrtoint_from_user(buffer, count, 10, &bit))
+		return -EINVAL;
+
+	en = bit > 0;
+	bit = abs(bit);
+
+	if (bit >= RTW_DM_CAP_NUM) {
+		rtw_warn(rtwdev, "unknown DM CAP %d\n", bit);
+		return -EINVAL;
+	}
+
+	if (en)
+		dm_info->dm_flags &= ~BIT(bit);
+	else
+		dm_info->dm_flags |= BIT(bit);
+
+	debugfs_priv->dm_cap.bit = bit;
+
+	return count;
+}
+
+static void dump_gapk_status(struct rtw_dev *rtwdev, struct seq_file *m)
+{
+	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+	struct rtw_gapk_info *txgapk = &rtwdev->dm_info.gapk;
+	int i, path;
+	u32 val;
+
+	seq_printf(m, "\n(%2d) %c%s\n\n", RTW_DM_CAP_TXGAPK,
+		   dm_info->dm_flags & BIT(RTW_DM_CAP_TXGAPK) ? '-' : '+',
+		   rtw_dm_cap_strs[RTW_DM_CAP_TXGAPK]);
+
+	for (path = 0; path < rtwdev->hal.rf_path_num; path++) {
+		val = rtw_read_rf(rtwdev, path, RF_GAINTX, RFREG_MASK);
+		seq_printf(m, "path %d:\n0x%x = 0x%x\n", path, RF_GAINTX, val);
+
+		for (i = 0; i < RF_HW_OFFSET_NUM; i++)
+			seq_printf(m, "[TXGAPK] offset %d %d\n",
+				   txgapk->rf3f_fs[path][i], i);
+		seq_puts(m, "\n");
+	}
+}
+
+static int rtw_debugfs_get_dm_cap(struct seq_file *m, void *v)
+{
+	struct rtw_debugfs_priv *debugfs_priv = m->private;
+	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
+	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+	int i;
+
+	switch (debugfs_priv->dm_cap.bit) {
+	case RTW_DM_CAP_TXGAPK:
+		dump_gapk_status(rtwdev, m);
+		break;
+	default:
+		for (i = 1; i < RTW_DM_CAP_NUM; i++) {
+			seq_printf(m, "(%2d) %c%s\n", i,
+				   dm_info->dm_flags & BIT(i) ? '-' : '+',
+				   rtw_dm_cap_strs[i]);
+		}
+		break;
+	}
+	debugfs_priv->dm_cap.bit = RTW_DM_CAP_NA;
+	return 0;
+}
+
 #define rtw_debug_impl_mac(page, addr)				\
 static struct rtw_debugfs_priv rtw_debug_priv_mac_ ##page = {	\
 	.cb_read = rtw_debug_get_mac_page,			\
@@ -902,6 +1036,10 @@ static struct rtw_debugfs_priv rtw_debug_priv_write_reg = {
 	.cb_write = rtw_debugfs_set_write_reg,
 };
 
+static struct rtw_debugfs_priv rtw_debug_priv_h2c = {
+	.cb_write = rtw_debugfs_set_h2c,
+};
+
 static struct rtw_debugfs_priv rtw_debug_priv_rf_write = {
 	.cb_write = rtw_debugfs_set_rf_write,
 };
@@ -949,6 +1087,11 @@ static struct rtw_debugfs_priv rtw_debug_priv_edcca_enable = {
 	.cb_read = rtw_debugfs_get_edcca_enable,
 };
 
+static struct rtw_debugfs_priv rtw_debug_priv_dm_cap = {
+	.cb_write = rtw_debugfs_set_dm_cap,
+	.cb_read = rtw_debugfs_get_dm_cap,
+};
+
 #define rtw_debugfs_add_core(name, mode, fopname, parent)		\
 	do {								\
 		rtw_debug_priv_ ##name.rtwdev = rtwdev;			\
@@ -982,6 +1125,7 @@ void rtw_debugfs_init(struct rtw_dev *rtwdev)
 	rtw_debugfs_add_r(phy_info);
 	rtw_debugfs_add_r(coex_info);
 	rtw_debugfs_add_rw(coex_enable);
+	rtw_debugfs_add_w(h2c);
 	rtw_debugfs_add_r(mac_0);
 	rtw_debugfs_add_r(mac_1);
 	rtw_debugfs_add_r(mac_2);
@@ -1023,6 +1167,7 @@ void rtw_debugfs_init(struct rtw_dev *rtwdev)
 	rtw_debugfs_add_r(rf_dump);
 	rtw_debugfs_add_r(tx_pwr_tbl);
 	rtw_debugfs_add_rw(edcca_enable);
+	rtw_debugfs_add_rw(dm_cap);
 }
 
 #endif /* CONFIG_RTW88_DEBUGFS */

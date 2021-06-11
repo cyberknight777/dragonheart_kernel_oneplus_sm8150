@@ -70,8 +70,6 @@
 #include <linux/khugepaged.h>
 #include <linux/psi.h>
 #include <linux/low-mem-notify.h>
-#include <linux/mm_metrics.h>
-#include <linux/kstaled.h>
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
@@ -3776,10 +3774,6 @@ should_reclaim_retry(gfp_t gfp_mask, unsigned order,
 	 * several times in the row.
 	 */
 	if (*no_progress_loops > MAX_RECLAIM_RETRIES) {
-		low_mem_notify();
-		if (kstaled_is_enabled())
-			kstaled_throttle_alloc(ac->zonelist->_zonerefs->zone,
-					       order, gfp_mask);
 		/* Before OOM, exhaust highatomic_reserve */
 		return unreserve_highatomic_pageblock(ac, true);
 	}
@@ -4189,7 +4183,6 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
 	struct alloc_context ac = { };
-	u64 start = 0;
 
 	/*
 	 * There are several places where we assume that the order value is sane
@@ -4230,11 +4223,7 @@ __alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid,
 	if (unlikely(ac.nodemask != nodemask))
 		ac.nodemask = nodemask;
 
-	if (order < MAX_ORDER && (gfp_mask & __GFP_DIRECT_RECLAIM) &&
-	    !(current->flags & PF_MEMALLOC))
-		start = mm_metrics_reclaim_start();
 	page = __alloc_pages_slowpath(alloc_mask, order, &ac);
-	mm_metrics_reclaim_end(start);
 
 out:
 	if (memcg_kmem_enabled() && (gfp_mask & __GFP_ACCOUNT) && page &&

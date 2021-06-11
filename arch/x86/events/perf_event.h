@@ -69,7 +69,7 @@ struct event_constraint {
 #define PERF_X86_EVENT_RDPMC_ALLOWED	0x0100 /* grant rdpmc permission */
 #define PERF_X86_EVENT_EXCL_ACCT	0x0200 /* accounted EXCL event */
 #define PERF_X86_EVENT_AUTO_RELOAD	0x0400 /* use PEBS auto-reload */
-#define PERF_X86_EVENT_FREERUNNING	0x0800 /* use freerunning PEBS */
+#define PERF_X86_EVENT_LARGE_PEBS	0x0800 /* use large PEBS */
 
 
 struct amd_nb {
@@ -88,7 +88,7 @@ struct amd_nb {
  * REGS_USER can be handled for events limited to ring 3.
  *
  */
-#define PEBS_FREERUNNING_FLAGS \
+#define LARGE_PEBS_FLAGS \
 	(PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_ADDR | \
 	PERF_SAMPLE_ID | PERF_SAMPLE_CPU | PERF_SAMPLE_STREAM_ID | \
 	PERF_SAMPLE_DATA_SRC | PERF_SAMPLE_IDENTIFIER | \
@@ -612,7 +612,7 @@ struct x86_pmu {
 	struct event_constraint *pebs_constraints;
 	void		(*pebs_aliases)(struct perf_event *event);
 	int 		max_pebs_events;
-	unsigned long	free_running_flags;
+	unsigned long	large_pebs_flags;
 
 	/*
 	 * Intel LBR
@@ -628,6 +628,14 @@ struct x86_pmu {
 	 * Intel PT/LBR/BTS are exclusive
 	 */
 	atomic_t	lbr_exclusive[x86_lbr_exclusive_max];
+
+	/*
+	 * perf task context (i.e. struct perf_event_context::task_ctx_data)
+	 * switch helper to bridge calls from perf/core to perf/x86.
+	 * See struct pmu::swap_task_ctx() usage for examples;
+	 */
+	void		(*swap_task_ctx)(struct perf_event_context *prev,
+					 struct perf_event_context *next);
 
 	/*
 	 * AMD bits
@@ -948,6 +956,9 @@ void intel_pmu_pebs_disable_all(void);
 void intel_pmu_pebs_sched_task(struct perf_event_context *ctx, bool sched_in);
 
 void intel_ds_init(void);
+
+void intel_pmu_lbr_swap_task_ctx(struct perf_event_context *prev,
+				 struct perf_event_context *next);
 
 void intel_pmu_lbr_sched_task(struct perf_event_context *ctx, bool sched_in);
 

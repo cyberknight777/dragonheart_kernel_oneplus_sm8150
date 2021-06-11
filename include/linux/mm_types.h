@@ -522,11 +522,6 @@ struct mm_struct {
 	/* HMM needs to track a few things per mm */
 	struct hmm *hmm;
 #endif
-#ifdef CONFIG_KSTALED
-	struct list_head mm_list;
-	struct rcu_head rcu_head;
-	atomic_t throttle_disabled;
-#endif
 } __randomize_layout;
 
 extern struct mm_struct init_mm;
