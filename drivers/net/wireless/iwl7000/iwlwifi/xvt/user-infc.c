@@ -1747,6 +1747,8 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 				(xvt->trans, xvt->cfg, xvt->fw,
 				NULL, dummy_nvm_section, NULL, dummy_nvm_section,
 				NULL, dummy_nvm_section, 0, 0);
+			if (!data)
+				return -ENOMEM;
 			memcpy(mac_addr_info->mac_addr, data->hw_addr,
 			       sizeof(mac_addr_info->mac_addr));
 		}
