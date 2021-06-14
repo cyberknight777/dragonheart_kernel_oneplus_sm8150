@@ -299,7 +299,7 @@ static u32 iwl_mvm_get_tx_rate(struct iwl_mvm *mvm,
 	/* For 2.4 GHZ band, check that there is no need to remap */
 	BUILD_BUG_ON(IWL_FIRST_CCK_RATE != 0);
 
-	is_new_rate = (iwl_fw_lookup_cmd_ver(mvm->fw, LEGACY_GROUP,
+	is_new_rate = (iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
 					  TX_CMD, 0) > 8);
 	/* Get PLCP rate for tx_cmd->rate_n_flags */
 	rate_plcp = iwl_mvm_mac80211_idx_to_hwrate(mvm->fw, rate_idx);
@@ -1377,7 +1377,7 @@ static void iwl_mvm_hwrate_to_tx_status(const struct iwl_fw *fw,
 {
 	struct ieee80211_tx_rate *r = &info->status.rates[0];
 
-	if (iwl_fw_lookup_notif_ver(fw, LEGACY_GROUP,
+	if (iwl_fw_lookup_notif_ver(fw, LONG_GROUP,
 				    TX_CMD, 0) > 6)
 		rate_n_flags = iwl_new_rate_from_v1(rate_n_flags);
 
