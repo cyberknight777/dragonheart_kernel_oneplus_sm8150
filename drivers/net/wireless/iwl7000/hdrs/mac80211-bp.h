@@ -1630,6 +1630,13 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 	WARN_ON(idx != 0);
 	return crypto->cipher_group;
 }
+
+static inline void
+cfg80211_assoc_comeback(struct net_device *netdev,
+			struct cfg80211_bss *bss, u32 timeout)
+{
+}
+
 #else
 static inline int
 cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
