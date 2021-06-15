@@ -2409,30 +2409,9 @@ ieee80211_deliver_skb(struct ieee80211_rx_data *rx)
 #endif
 
 	if (skb) {
-		struct ethhdr *ehdr = (void *)skb_mac_header(skb);
-
 		/* deliver to local stack */
 		skb->protocol = eth_type_trans(skb, dev);
 		memset(skb->cb, 0, sizeof(skb->cb));
-
-		/*
-		 * 802.1X over 802.11 requires that the authenticator address
-		 * be used for EAPOL frames. However, 802.1X allows the use of
-		 * the PAE group address instead. If the interface is part of
-		 * a bridge and we pass the frame with the PAE group address,
-		 * then the bridge will forward it to the network (even if the
-		 * client was not associated yet), which isn't supposed to
-		 * happen.
-		 * To avoid that, rewrite the destination address to our own
-		 * address, so that the authenticator (e.g. hostapd) will see
-		 * the frame, but bridge won't forward it anywhere else. Note
-		 * that due to earlier filtering, the only other address can
-		 * be the PAE group address.
-		 */
-		if (unlikely(skb->protocol == sdata->control_port_protocol &&
-			     !ether_addr_equal(ehdr->h_dest, sdata->vif.addr)))
-			ether_addr_copy(ehdr->h_dest, sdata->vif.addr);
-
 		if (rx->napi)
 			napi_gro_receive(rx->napi, skb);
 		else
@@ -2534,23 +2513,6 @@ ieee80211_rx_h_amsdu(struct ieee80211_rx_data *rx)
 					  rx->sdata->vif.type,
 					  true))
 		return RX_DROP_UNUSABLE;
-
-	if (rx->key) {
-		/*
-		 * We should not receive A-MSDUs on pre-HT connections,
-		 * and HT connections cannot use old ciphers. Thus drop
-		 * them, as in those cases we couldn't even have SPP
-		 * A-MSDUs or such.
-		 */
-		switch (rx->key->conf.cipher) {
-		case WLAN_CIPHER_SUITE_WEP40:
-		case WLAN_CIPHER_SUITE_WEP104:
-		case WLAN_CIPHER_SUITE_TKIP:
-			return RX_DROP_UNUSABLE;
-		default:
-			break;
-		}
-	}
 
 	ieee80211_amsdu_to_8023s(skb, &frame_list, dev->dev_addr,
 				 rx->sdata->vif.type,
