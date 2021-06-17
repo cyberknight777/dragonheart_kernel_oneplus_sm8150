@@ -1473,7 +1473,7 @@ static irqreturn_t cs42l42_irq_thread(int irq, void *data)
 			regmap_multi_reg_write(cs42l42->regmap, cs42l42_to_sclk_seq,
 						ARRAY_SIZE(cs42l42_to_sclk_seq));
 
-			return IRQ_HANDLED;
+		return IRQ_HANDLED;
 		}
 	}
 
