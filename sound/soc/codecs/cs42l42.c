@@ -597,7 +597,6 @@ struct cs42l42_pll_params {
  */
 static const struct cs42l42_pll_params pll_ratio_table[] = {
 	{ 1536000, 0, 1, 0x00, 0x7D, 0x000000, 0x03, 0x10, 12000000, 125 },
-	{ 2400000, 0, 1, 0x00, 0x50, 0x000000, 0x03, 0x10, 12000000, 80 },
 	{ 2822400, 0, 1, 0x00, 0x40, 0x000000, 0x03, 0x10, 11289600, 128 },
 	{ 3000000, 0, 1, 0x00, 0x40, 0x000000, 0x03, 0x10, 12000000, 128 },
 	{ 3072000, 0, 1, 0x00, 0x3E, 0x800000, 0x03, 0x10, 12000000, 125 },
@@ -886,7 +885,17 @@ static int cs42l42_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 						      CS42L42_HP_ANA_BMUTE_MASK);
 
 		cs42l42->stream_use &= ~(1 << stream);
-
+		if(!cs42l42->stream_use) {
+			/*
+			 * Switch to the internal oscillator.
+			 * SCLK must remain running until after this clock switch.
+			 * Without a source of clock the I2C bus doesn't work.
+			 */
+			regmap_multi_reg_write(cs42l42->regmap, cs42l42_to_osc_seq,
+					       ARRAY_SIZE(cs42l42_to_osc_seq));
+			snd_soc_component_update_bits(component, CS42L42_PLL_CTL1,
+						      CS42L42_PLL_START_MASK, 0);
+		}
 	} else {
 		if (!cs42l42->stream_use) {
 			/* SCLK must be running before codec unmute */
@@ -899,17 +908,14 @@ static int cs42l42_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 							       (regval & 1),
 							       CS42L42_PLL_LOCK_POLL_US,
 							       CS42L42_PLL_LOCK_TIMEOUT_US);
-				if (ret < 0) {
+				if (ret < 0)
 					dev_warn(component->dev, "PLL failed to lock: %d\n", ret);
-				} else {
-					dev_dbg(component->dev, "PLL is locked switching to PLL\n");
-					/* Mark SCLK as present, turn off internal oscillator */
-					regmap_multi_reg_write(cs42l42->regmap, cs42l42_to_sclk_seq,
-							       ARRAY_SIZE(cs42l42_to_sclk_seq));
-				}
 			}
-		}
 
+			/* Mark SCLK as present, turn off internal oscillator */
+			regmap_multi_reg_write(cs42l42->regmap, cs42l42_to_sclk_seq,
+					       ARRAY_SIZE(cs42l42_to_sclk_seq));
+		}
 		cs42l42->stream_use |= 1 << stream;
 
 		if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -933,67 +939,6 @@ static int cs42l42_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	return 0;
 }
 
-int cs42l42_trigger(struct snd_pcm_substream * substream, int cmd, struct snd_soc_dai *dai)
-{
-	struct snd_soc_component *component = dai->component;
-	struct cs42l42_private *cs42l42 = snd_soc_component_get_drvdata(component);
-	unsigned int regval;
-	int ret;
-	unsigned int count = 0;
-	int streams = cs42l42->stream_use;
-
-	/* Count currently active streams */
-	while (streams) {
-		if(streams & 1)
-			++count;
-		streams >>= 1;
-	}
-
-	dev_dbg(component->dev, "%s() cs42l42->stream_use=%08x, active streams=%d\n",
-		__func__, cs42l42->stream_use, count);
-
-	regmap_read(cs42l42->regmap, CS42L42_PLL_LOCK_STATUS, &regval);
-
-	switch (cmd) {
-		case SNDRV_PCM_TRIGGER_START:
-			if (!regval)
-				snd_soc_component_update_bits(component, CS42L42_PLL_CTL1,
-							      CS42L42_PLL_START_MASK, 1);
-			break;
-
-		case SNDRV_PCM_TRIGGER_STOP:
-			/* Last active stream, switching to SCO */
-			if (count ==  1) {
-				dev_dbg(component->dev, "%s() Switching to SCO\n", __func__);
-
-				regmap_multi_reg_write(cs42l42->regmap, cs42l42_to_osc_seq,
-						       ARRAY_SIZE(cs42l42_to_osc_seq));
-
-				snd_soc_component_update_bits(component, CS42L42_MCLK_SRC_SEL,
-							CS42L42_MCLK_SRC_SEL_MASK |
-							CS42L42_MCLKDIV_MASK,
-							(0 << CS42L42_MCLK_SRC_SEL_SHIFT) |
-							(0 << CS42L42_MCLKDIV_SHIFT));
-
-				ret = snd_soc_component_update_bits(component, CS42L42_PLL_CTL1,
-								    CS42L42_PLL_START_MASK, 0);
-
-				/* PLL unlock delay 10ms*/
-				usleep_range(10000,12000);
-
-				regmap_read(cs42l42->regmap, CS42L42_PLL_LOCK_STATUS, &regval);
-			}
-			break;
-
-		default:
-			break;
-	}
-
-	cs42l42->pll_lock = regval;
-
-	return 0;
-}
-
 #define CS42L42_FORMATS (SNDRV_PCM_FMTBIT_S16_LE |\
 			 SNDRV_PCM_FMTBIT_S24_LE |\
 			 SNDRV_PCM_FMTBIT_S32_LE )
@@ -1004,7 +949,6 @@ static const struct snd_soc_dai_ops cs42l42_ops = {
 	.set_fmt	= cs42l42_set_dai_fmt,
 	.set_sysclk	= cs42l42_set_sysclk,
 	.mute_stream	= cs42l42_mute_stream,
-	.trigger = cs42l42_trigger,
 };
 
 static struct snd_soc_dai_driver cs42l42_dai = {
@@ -1459,24 +1403,6 @@ static irqreturn_t cs42l42_irq_thread(int irq, void *data)
 				irq_params_table[i].mask;
 	}
 
-	if(cs42l42->pll_lock != stickies[10]) {
-
-		dev_dbg(component->dev, "%s() PLL lock transition %d => %d\n",
-			__func__, cs42l42->pll_lock, stickies[10]);
-
-		/* Update pll_lock status */
-		cs42l42->pll_lock = stickies[10];
-
-		if(cs42l42->pll_lock) {
-			dev_dbg(component->dev, "%s() Switching to PLL\n", __func__);
-			/* Mark SCLK as present */
-			regmap_multi_reg_write(cs42l42->regmap, cs42l42_to_sclk_seq,
-						ARRAY_SIZE(cs42l42_to_sclk_seq));
-
-		return IRQ_HANDLED;
-		}
-	}
-
 	/* Read tip sense status before handling type detect */
 	current_plug_status = (stickies[11] &
 		(CS42L42_TS_PLUG_MASK | CS42L42_TS_UNPLUG_MASK)) >>
@@ -1659,7 +1585,7 @@ static void cs42l42_set_interrupt_masks(struct cs42l42_private *cs42l42)
 
 	regmap_update_bits(cs42l42->regmap, CS42L42_PLL_LOCK_INT_MASK,
 			CS42L42_PLL_LOCK_MASK,
-			(0 << CS42L42_PLL_LOCK_SHIFT));
+			(1 << CS42L42_PLL_LOCK_SHIFT));
 
 	regmap_update_bits(cs42l42->regmap, CS42L42_TSRS_PLUG_INT_MASK,
 			CS42L42_RS_PLUG_MASK |
@@ -1959,8 +1885,6 @@ static int cs42l42_i2c_probe(struct i2c_client *i2c_client,
 			NULL, cs42l42_irq_thread,
 			IRQF_ONESHOT | IRQF_TRIGGER_LOW,
 			"cs42l42", cs42l42);
-
-	cs42l42->pll_lock = 0;
 
 	if (ret != 0)
 		dev_err(&i2c_client->dev,

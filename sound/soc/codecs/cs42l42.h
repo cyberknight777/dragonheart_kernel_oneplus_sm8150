@@ -793,7 +793,6 @@ struct  cs42l42_private {
 	u8 hs_bias_ramp_time;
 	u8 hs_bias_sense_en;
 	u8 stream_use;
-	u8 pll_lock;
 };
 
 #endif /* __CS42L42_H__ */
