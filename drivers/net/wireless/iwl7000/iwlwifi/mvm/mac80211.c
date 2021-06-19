@@ -3361,6 +3361,7 @@ static void iwl_mvm_mei_host_associated(struct iwl_mvm *mvm,
 					struct ieee80211_vif *vif,
 					struct iwl_mvm_sta *mvm_sta)
 {
+#if IS_ENABLED(CONFIG_IWLMEI)
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mei_conn_info conn_info = {
 		.ssid_len = vif->bss_conf.ssid_len,
@@ -3416,6 +3417,7 @@ static void iwl_mvm_mei_host_associated(struct iwl_mvm *mvm,
 
 	/* TODO: add support for collocated AP data */
 	iwl_mei_host_associated(&conn_info, NULL);
+#endif
 }
 
 static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
