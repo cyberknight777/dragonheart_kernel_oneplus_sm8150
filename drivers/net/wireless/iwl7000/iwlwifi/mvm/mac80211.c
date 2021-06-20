@@ -2260,6 +2260,32 @@ static u8 iwl_mvm_he_get_ppe_val(u8 *ppe, u8 ppe_pos_bit)
 	return res;
 }
 
+#ifdef CPTCFG_IWLWIFI_DHC
+static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
+{
+	struct iwl_dhc_twt_control *dhc_twt_control;
+	struct iwl_dhc_cmd *dhc_cmd;
+	size_t cmd_size = sizeof(*dhc_cmd) + sizeof(*dhc_twt_control);
+
+	dhc_cmd = kzalloc(cmd_size, GFP_KERNEL);
+	if (!dhc_cmd)
+		return;
+
+	dhc_twt_control = (void *)dhc_cmd->data;
+	dhc_twt_control->twt_test_mode = 1;
+	dhc_cmd->length = cpu_to_le32(sizeof(*dhc_twt_control) >> 2);
+	dhc_cmd->index_and_mask = cpu_to_le32(DHC_TABLE_INTEGRATION |
+					      DHC_TARGET_UMAC |
+					      DHC_INT_UMAC_TWT_CONTROL);
+	if (iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(DEBUG_HOST_COMMAND,
+						 IWL_ALWAYS_LONG_GROUP, 0),
+				 0, cmd_size, dhc_cmd))
+		IWL_ERR(mvm, "Failed to set TWT testmode!\n");
+
+	kfree(dhc_cmd);
+}
+#endif
+
 static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			       struct ieee80211_vif *vif, u8 sta_id)
 {
@@ -2525,6 +2551,10 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 				 0, size, &sta_ctxt_cmd))
 		IWL_ERR(mvm, "Failed to config FW to work HE!\n");
 
+#ifdef CPTCFG_IWLWIFI_DHC
+	if (IWL_MVM_TWT_TESTMODE)
+		iwl_mvm_set_twt_testmode(mvm);
+#endif
 }
 
 static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
