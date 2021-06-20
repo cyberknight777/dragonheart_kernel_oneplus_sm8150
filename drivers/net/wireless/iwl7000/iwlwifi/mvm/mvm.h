@@ -2061,7 +2061,6 @@ void iwl_mvm_ct_kill_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
 void iwl_mvm_enter_ctkill(struct iwl_mvm *mvm);
 int iwl_mvm_send_temp_report_ths_cmd(struct iwl_mvm *mvm);
 int iwl_mvm_ctdp_command(struct iwl_mvm *mvm, u32 op, u32 budget);
-struct iwl_mvm_csme_conn_info *iwl_mvm_get_csme_conn_info(struct iwl_mvm *mvm);
 
 /* Location Aware Regulatory */
 struct iwl_mcc_update_resp *
@@ -2188,8 +2187,6 @@ void iwl_mvm_event_frame_timeout_callback(struct iwl_mvm *mvm,
 					  u16 tid);
 
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-void iwl_mvm_send_csme_conn_info_event(struct iwl_mvm *mvm,
-				       const struct iwl_mei_conn_info *conn_info);
 void iwl_mvm_recalc_multicast(struct iwl_mvm *mvm);
 int iwl_mvm_configure_bcast_filter(struct iwl_mvm *mvm);
 
@@ -2340,6 +2337,7 @@ enum iwl_location_cipher iwl_mvm_cipher_to_location_cipher(u32 cipher)
 	}
 }
 
+struct iwl_mvm_csme_conn_info *iwl_mvm_get_csme_conn_info(struct iwl_mvm *mvm);
 static inline int iwl_mvm_mei_get_ownership(struct iwl_mvm *mvm)
 {
 	if (mvm->mei_registered)
