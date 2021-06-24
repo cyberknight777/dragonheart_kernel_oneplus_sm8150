@@ -1753,6 +1753,7 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 			}
 			memcpy(mac_addr_info->mac_addr, data->hw_addr,
 			       sizeof(mac_addr_info->mac_addr));
+			kfree(data);
 		}
 	}
 
