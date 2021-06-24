@@ -2278,3 +2278,4 @@ module_param_named(remove_when_gone,
 		   iwlwifi_mod_params.remove_when_gone, bool, 0444);
 MODULE_PARM_DESC(remove_when_gone,
 		 "Remove dev from PCIe bus if it is deemed inaccessible (default: false)");
+
