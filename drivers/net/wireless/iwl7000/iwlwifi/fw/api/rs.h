@@ -189,7 +189,9 @@ struct iwl_tlc_update_notif {
  * enum iwl_tlc_debug_types - debug options
  */
 enum iwl_tlc_debug_types {
-	/* @IWL_TLC_DEBUG_FIXED_RATE: set fixed rate for rate scaling */
+	/**
+	 *  @IWL_TLC_DEBUG_FIXED_RATE: set fixed rate for rate scaling
+	 */
 	IWL_TLC_DEBUG_FIXED_RATE,
 }; /* TLC_MNG_DEBUG_TYPES_API_E */
 #endif /* CPTCFG_IWLWIFI_DHC */

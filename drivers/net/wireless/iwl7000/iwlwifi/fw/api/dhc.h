@@ -12,7 +12,9 @@
  * enum iwl_dhc_table_id - DHC table operations index
  */
 enum iwl_dhc_table_id {
-	/* @DHC_TABLE_INTEGRATION: select the integration table */
+	/**
+	 * @DHC_TABLE_INTEGRATION: select the integration table
+	 */
 	DHC_TABLE_INTEGRATION	= 2 << DHC_TABLE_MASK_POS,
 };
 
@@ -20,9 +22,13 @@ enum iwl_dhc_table_id {
  * enum iwl_dhc_umac_integration_table - integration operations
  */
 enum iwl_dhc_umac_integration_table {
-	/* @DHC_INT_UMAC_TWT_OPERATION: trigger a TWT operation */
+	/**
+	 * @DHC_INT_UMAC_TWT_OPERATION: trigger a TWT operation
+	 */
 	DHC_INT_UMAC_TWT_OPERATION = 4,
-	/* @DHC_INTEGRATION_MAX: Maximum UMAC integration table entries */
+	/**
+	 * @DHC_INTEGRATION_MAX: Maximum UMAC integration table entries
+	 */
 	DHC_INTEGRATION_MAX
 };
 
