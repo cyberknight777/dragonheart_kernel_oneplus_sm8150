@@ -2077,7 +2077,7 @@ static int synaptics_ts_probe(struct i2c_client *client, const struct i2c_device
     TPD_INFO("synaptic:ts->irq is %d\n", ts->irq);
     ret = request_threaded_irq(ts->irq, NULL,
             synaptics_irq_thread_fn,
-            ts->irq_flags | IRQF_ONESHOT,
+            ts->irq_flags | IRQF_ONESHOT | IRQF_PERF_AFFINE,
             TPD_DEVICE, ts);
     if (ret < 0)
         TPD_INFO("%s request_threaded_irq ret is %d\n", __func__, ret);
