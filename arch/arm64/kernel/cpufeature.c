@@ -1124,6 +1124,18 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.cpu_enable = cpu_enable_ssbs,
 	},
 #endif
+#ifdef CONFIG_ARM64_HW_AFDBM
+	{
+		.desc = "Hardware update of the Access flag",
+		.type = ARM64_CPUCAP_SYSTEM_FEATURE,
+		.capability = ARM64_HW_AF,
+		.sys_reg = SYS_ID_AA64MMFR1_EL1,
+		.sign = FTR_UNSIGNED,
+		.field_pos = ID_AA64MMFR1_HADBS_SHIFT,
+		.min_field_value = 1,
+		.matches = has_cpuid_feature,
+	},
+#endif
 	{},
 };
 
