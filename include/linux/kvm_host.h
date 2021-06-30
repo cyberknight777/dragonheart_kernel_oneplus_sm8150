@@ -1086,6 +1086,9 @@ static inline int mmu_notifier_retry_hva(struct kvm *kvm,
 		return 1;
 	return 0;
 }
+
+void kvm_arch_mmu_clear_young_walk(struct kvm *kvm,
+				   struct mmu_notifier_walk *walk);
 #endif
 
 #ifdef CONFIG_HAVE_KVM_IRQ_ROUTING
