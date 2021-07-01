@@ -1258,7 +1258,7 @@ fast_isolate_around(struct compact_control *cc, unsigned long pfn, unsigned long
 static unsigned long
 fast_isolate_freepages(struct compact_control *cc)
 {
-	unsigned int limit = min(1U, freelist_scan_limit(cc) >> 1);
+	unsigned int limit = max(1U, freelist_scan_limit(cc) >> 1);
 	unsigned int nr_scanned = 0;
 	unsigned long low_pfn, min_pfn, high_pfn = 0, highest = 0;
 	unsigned long nr_isolated = 0;
@@ -1361,11 +1361,11 @@ fast_isolate_freepages(struct compact_control *cc)
 		spin_unlock_irqrestore(&cc->zone->lock, flags);
 
 		/*
-		 * Smaller scan on next order so the total scan ig related
+		 * Smaller scan on next order so the total scan is related
 		 * to freelist_scan_limit.
 		 */
 		if (order_scanned >= limit)
-			limit = min(1U, limit >> 1);
+			limit = max(1U, limit >> 1);
 	}
 
 	if (!page) {
