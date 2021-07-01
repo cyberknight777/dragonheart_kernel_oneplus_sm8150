@@ -1402,13 +1402,12 @@ void iwl_mvm_get_acpi_tables(struct iwl_mvm *mvm)
 }
 #else /* CONFIG_ACPI */
 
-inline int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm,
-				      int prof_a, int prof_b)
+int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 {
 	return 1;
 }
 
-inline int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
+int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
 {
 	return -ENOENT;
 }
