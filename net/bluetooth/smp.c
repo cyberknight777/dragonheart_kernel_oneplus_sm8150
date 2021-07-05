@@ -113,9 +113,9 @@ struct smp_chan {
 	u8		id_addr_type;
 	u8		irk[16];
 	struct smp_csrk	*csrk;
-	struct smp_csrk	*slave_csrk;
+	struct smp_csrk	*responder_csrk;
 	struct smp_ltk	*ltk;
-	struct smp_ltk	*slave_ltk;
+	struct smp_ltk	*responder_ltk;
 	struct smp_irk	*remote_irk;
 	u8		*link_key;
 	unsigned long	flags;
@@ -766,7 +766,7 @@ static void smp_chan_destroy(struct l2cap_conn *conn)
 	mgmt_smp_complete(hcon, complete);
 
 	kzfree(smp->csrk);
-	kzfree(smp->slave_csrk);
+	kzfree(smp->responder_csrk);
 	kzfree(smp->link_key);
 
 	crypto_free_cipher(smp->tfm_aes);
@@ -789,9 +789,9 @@ static void smp_chan_destroy(struct l2cap_conn *conn)
 			kfree_rcu(smp->ltk, rcu);
 		}
 
-		if (smp->slave_ltk) {
-			list_del_rcu(&smp->slave_ltk->list);
-			kfree_rcu(smp->slave_ltk, rcu);
+		if (smp->responder_ltk) {
+			list_del_rcu(&smp->responder_ltk->list);
+			kfree_rcu(smp->responder_ltk, rcu);
 		}
 
 		if (smp->remote_irk) {
@@ -921,8 +921,8 @@ static int tk_request(struct l2cap_conn *conn, u8 remote_oob, u8 auth,
 			hcon->pending_sec_level = BT_SECURITY_HIGH;
 	}
 
-	/* If both devices have Keyoard-Display I/O, the master
-	 * Confirms and the slave Enters the passkey.
+	/* If both devices have Keyboard-Display I/O, the initiator
+	 * Confirms and the responder Enters the passkey.
 	 */
 	if (smp->method == OVERLAP) {
 		if (hcon->role == HCI_ROLE_MASTER)
@@ -993,7 +993,7 @@ static u8 smp_random(struct smp_chan *smp)
 	if (IS_ERR_OR_NULL(smp->tfm_aes))
 		return SMP_UNSPECIFIED;
 
-	BT_DBG("conn %p %s", conn, conn->hcon->out ? "master" : "slave");
+	BT_DBG("conn %p %s", conn, conn->hcon->out ? "initiator" : "responder");
 
 	ret = smp_c1(smp->tfm_aes, smp->tk, smp->rrnd, smp->preq, smp->prsp,
 		     hcon->init_addr_type, &hcon->init_addr,
@@ -1035,8 +1035,8 @@ static u8 smp_random(struct smp_chan *smp)
 		else
 			auth = 0;
 
-		/* Even though there's no _SLAVE suffix this is the
-		 * slave STK we're adding for later lookup (the master
+		/* Even though there's no _RESPONDER suffix this is the
+		 * responder STK we're adding for later lookup (the initiator
 		 * STK never needs to be stored).
 		 */
 		hci_add_ltk(hcon->hdev, &hcon->dst, hcon->dst_type,
@@ -1091,10 +1091,10 @@ static void smp_notify_keys(struct l2cap_conn *conn)
 		mgmt_new_csrk(hdev, smp->csrk, persistent);
 	}
 
-	if (smp->slave_csrk) {
-		smp->slave_csrk->bdaddr_type = hcon->dst_type;
-		bacpy(&smp->slave_csrk->bdaddr, &hcon->dst);
-		mgmt_new_csrk(hdev, smp->slave_csrk, persistent);
+	if (smp->responder_csrk) {
+		smp->responder_csrk->bdaddr_type = hcon->dst_type;
+		bacpy(&smp->responder_csrk->bdaddr, &hcon->dst);
+		mgmt_new_csrk(hdev, smp->responder_csrk, persistent);
 	}
 
 	if (smp->ltk) {
@@ -1103,10 +1103,10 @@ static void smp_notify_keys(struct l2cap_conn *conn)
 		mgmt_new_ltk(hdev, smp->ltk, persistent);
 	}
 
-	if (smp->slave_ltk) {
-		smp->slave_ltk->bdaddr_type = hcon->dst_type;
-		bacpy(&smp->slave_ltk->bdaddr, &hcon->dst);
-		mgmt_new_ltk(hdev, smp->slave_ltk, persistent);
+	if (smp->responder_ltk) {
+		smp->responder_ltk->bdaddr_type = hcon->dst_type;
+		bacpy(&smp->responder_ltk->bdaddr, &hcon->dst);
+		mgmt_new_ltk(hdev, smp->responder_ltk, persistent);
 	}
 
 	if (smp->link_key) {
@@ -1286,7 +1286,7 @@ static void smp_distribute_keys(struct smp_chan *smp)
 
 	if (*keydist & SMP_DIST_ENC_KEY) {
 		struct smp_cmd_encrypt_info enc;
-		struct smp_cmd_master_ident ident;
+		struct smp_cmd_initiator_ident ident;
 		struct smp_ltk *ltk;
 		u8 authenticated;
 		__le16 ediv;
@@ -1307,14 +1307,15 @@ static void smp_distribute_keys(struct smp_chan *smp)
 
 		authenticated = hcon->sec_level == BT_SECURITY_HIGH;
 		ltk = hci_add_ltk(hdev, &hcon->dst, hcon->dst_type,
-				  SMP_LTK_SLAVE, authenticated, enc.ltk,
+				  SMP_LTK_RESPONDER, authenticated, enc.ltk,
 				  smp->enc_key_size, ediv, rand);
-		smp->slave_ltk = ltk;
+		smp->responder_ltk = ltk;
 
 		ident.ediv = ediv;
 		ident.rand = rand;
 
-		smp_send_cmd(conn, SMP_CMD_MASTER_IDENT, sizeof(ident), &ident);
+		smp_send_cmd(conn, SMP_CMD_INITIATOR_IDENT, sizeof(ident),
+			     &ident);
 
 		*keydist &= ~SMP_DIST_ENC_KEY;
 	}
@@ -1357,7 +1358,7 @@ static void smp_distribute_keys(struct smp_chan *smp)
 				csrk->type = MGMT_CSRK_LOCAL_UNAUTHENTICATED;
 			memcpy(csrk->val, sign.csrk, sizeof(csrk->val));
 		}
-		smp->slave_csrk = csrk;
+		smp->responder_csrk = csrk;
 
 		smp_send_cmd(conn, SMP_CMD_SIGN_INFO, sizeof(sign), &sign);
 
@@ -2062,7 +2063,7 @@ static int fixup_sc_false_positive(struct smp_chan *smp)
 	struct smp_cmd_pairing *req, *rsp;
 	u8 auth;
 
-	/* The issue is only observed when we're in slave role */
+	/* The issue is only observed when we're in responder role */
 	if (hcon->out)
 		return SMP_UNSPECIFIED;
 
@@ -2096,7 +2097,7 @@ static u8 smp_cmd_pairing_confirm(struct l2cap_conn *conn, struct sk_buff *skb)
 	struct l2cap_chan *chan = conn->smp;
 	struct smp_chan *smp = chan->data;
 
-	BT_DBG("conn %p %s", conn, conn->hcon->out ? "master" : "slave");
+	BT_DBG("conn %p %s", conn, conn->hcon->out ? "initiator" : "responder");
 
 	if (skb->len < sizeof(smp->pcnf))
 		return SMP_INVALID_PARAMS;
@@ -2263,7 +2264,7 @@ static bool smp_ltk_encrypt(struct l2cap_conn *conn, u8 sec_level)
 	hci_le_start_enc(hcon, key->ediv, key->rand, key->val, key->enc_size);
 	hcon->enc_key_size = key->enc_size;
 
-	/* We never store STKs for master role, so clear this flag */
+	/* We never store STKs for initiator role, so clear this flag */
 	clear_bit(HCI_CONN_STK_ENCRYPT, &hcon->flags);
 
 	return true;
@@ -2478,7 +2479,7 @@ int smp_cancel_and_remove_pairing(struct hci_dev *hdev, bdaddr_t *bdaddr,
 		/* Set keys to NULL to make sure smp_failure() does not try to
 		 * remove and free already invalidated rcu list entries. */
 		smp->ltk = NULL;
-		smp->slave_ltk = NULL;
+		smp->responder_ltk = NULL;
 		smp->remote_irk = NULL;
 
 		if (test_bit(SMP_FLAG_COMPLETE, &smp->flags))
@@ -2514,7 +2515,7 @@ static int smp_cmd_encrypt_info(struct l2cap_conn *conn, struct sk_buff *skb)
 		return SMP_INVALID_PARAMS;
 	}
 
-	SMP_ALLOW_CMD(smp, SMP_CMD_MASTER_IDENT);
+	SMP_ALLOW_CMD(smp, SMP_CMD_INITIATOR_IDENT);
 
 	skb_pull(skb, sizeof(*rp));
 
@@ -2523,9 +2524,9 @@ static int smp_cmd_encrypt_info(struct l2cap_conn *conn, struct sk_buff *skb)
 	return 0;
 }
 
-static int smp_cmd_master_ident(struct l2cap_conn *conn, struct sk_buff *skb)
+static int smp_cmd_initiator_ident(struct l2cap_conn *conn, struct sk_buff *skb)
 {
-	struct smp_cmd_master_ident *rp = (void *) skb->data;
+	struct smp_cmd_initiator_ident *rp = (void *)skb->data;
 	struct l2cap_chan *chan = conn->smp;
 	struct smp_chan *smp = chan->data;
 	struct hci_dev *hdev = conn->hcon->hdev;
@@ -2748,6 +2749,15 @@ static int smp_cmd_public_key(struct l2cap_conn *conn, struct sk_buff *skb)
 	if (skb->len < sizeof(*key))
 		return SMP_INVALID_PARAMS;
 
+	/* Check if remote and local public keys are the same and debug key is
+	 * not in use.
+	 */
+	if (!test_bit(SMP_FLAG_DEBUG_KEY, &smp->flags) &&
+	    !crypto_memneq(key, smp->local_pk, 64)) {
+		bt_dev_err(hdev, "Remote and local public keys are identical");
+		return SMP_UNSPECIFIED;
+	}
+
 	memcpy(smp->remote_pk, key, 64);
 
 	if (test_bit(SMP_FLAG_REMOTE_OOB, &smp->flags)) {
@@ -2897,7 +2907,7 @@ static int smp_cmd_dhkey_check(struct l2cap_conn *conn, struct sk_buff *skb)
 			return 0;
 		}
 
-		/* Slave sends DHKey check as response to master */
+		/* Responder sends DHKey check as response to initiator */
 		sc_dhkey_check(smp);
 	}
 
@@ -2984,8 +2994,8 @@ static int smp_sig_channel(struct l2cap_chan *chan, struct sk_buff *skb)
 		reason = smp_cmd_encrypt_info(conn, skb);
 		break;
 
-	case SMP_CMD_MASTER_IDENT:
-		reason = smp_cmd_master_ident(conn, skb);
+	case SMP_CMD_INITIATOR_IDENT:
+		reason = smp_cmd_initiator_ident(conn, skb);
 		break;
 
 	case SMP_CMD_IDENT_INFO:
@@ -3065,7 +3075,7 @@ static void bredr_pairing(struct l2cap_chan *chan)
 	if (!test_bit(HCI_CONN_ENCRYPT, &hcon->flags))
 		return;
 
-	/* Only master may initiate SMP over BR/EDR */
+	/* Only initiator may initiate SMP over BR/EDR */
 	if (hcon->role != HCI_ROLE_MASTER)
 		return;
 

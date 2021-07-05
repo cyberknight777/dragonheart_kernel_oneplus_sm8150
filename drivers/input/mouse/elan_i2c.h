@@ -36,6 +36,8 @@
 #define ETP_FW_IAP_PAGE_ERR	(1 << 5)
 #define ETP_FW_IAP_INTF_ERR	(1 << 4)
 #define ETP_FW_PAGE_SIZE	64
+#define ETP_FW_PAGE_SIZE_128	128
+#define ETP_FW_PAGE_SIZE_512	512
 #define ETP_FW_SIGNATURE_SIZE	6
 
 struct i2c_client;
@@ -75,8 +77,9 @@ struct elan_transport_ops {
 	int (*iap_get_mode)(struct i2c_client *client, enum tp_mode *mode);
 	int (*iap_reset)(struct i2c_client *client);
 
-	int (*prepare_fw_update)(struct i2c_client *client);
-	int (*write_fw_block)(struct i2c_client *client,
+	int (*prepare_fw_update)(struct i2c_client *client, u16 ic_type,
+				 u8 iap_version, u16 fw_page_size);
+	int (*write_fw_block)(struct i2c_client *client, u16 fw_page_size,
 			      const u8 *page, u16 checksum, int idx);
 	int (*finish_fw_update)(struct i2c_client *client,
 				struct completion *reset_done);

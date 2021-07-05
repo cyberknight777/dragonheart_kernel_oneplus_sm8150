@@ -47,7 +47,6 @@ static bool force_scofix;
 static bool enable_autosuspend = IS_ENABLED(CONFIG_BT_HCIBTUSB_AUTOSUSPEND);
 static bool enable_interval = IS_ENABLED(CONFIG_BT_HCIBTUSB_INTERVAL);
 static bool reset = true;
-static bool reload_firmware = true;
 
 static struct usb_driver btusb_driver;
 
@@ -2358,7 +2357,6 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	struct intel_version ver;
 	struct intel_boot_params params;
-	struct intel_debug_features features;
 	const struct firmware *fw;
 	u32 boot_param;
 	char fwname[64];
@@ -2429,13 +2427,6 @@ static int btusb_setup_intel_new(struct hci_dev *hdev)
 	if (ver.fw_variant == 0x23) {
 		clear_bit(BTUSB_BOOTLOADER, &data->flags);
 		btintel_check_bdaddr(hdev);
-
-		if (reload_firmware) {
-			bt_dev_err(hdev, "Intel reloading firmware on reboot");
-			btintel_reset_to_bootloader(hdev);
-			reload_firmware = false;
-			return -EINVAL;
-		}
 		goto finish;
 	}
 
@@ -2661,13 +2652,10 @@ done:
 	 */
 	btintel_load_ddc_config(hdev, fwname);
 
-	/* Read the Intel supported features and if new exception formats
-	 * supported, need to load the additional DDC config to enable.
-	 */
-	btintel_read_debug_features(hdev, &features);
-
-	/* Set DDC mask for available debug features */
-	btintel_set_debug_features(hdev, &features);
+#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
+	hci_dev_clear_flag(hdev, HCI_QUALITY_REPORT);
+	bt_dev_dbg(hdev, "HCI_QUALITY_REPORT cleared");
+#endif
 
 	/* Read the Intel version information after loading the FW  */
 	err = btintel_read_version(hdev, &ver);
@@ -3509,6 +3497,9 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
+#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
+		hdev->set_quality_report = btintel_set_quality_report;
+#endif
 
 		if (btusb_find_altsetting(data, 6))
 			hdev->wbs_pkt_len = hci_packet_size_usb_alt[6];

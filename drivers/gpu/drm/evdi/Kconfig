@@ -9,6 +9,7 @@
 config DRM_EVDI
 	tristate "Extensible Virtual Display Interface"
 	depends on DRM
+	depends on USB
 	select DRM_KMS_HELPER
 	help
 		This is a KMS interface driver allowing user-space programs to

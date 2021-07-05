@@ -55,6 +55,7 @@
 #include <linux/irqbypass.h>
 #include <linux/sched/stat.h>
 #include <linux/mem_encrypt.h>
+#include <linux/suspend.h>
 
 #include <trace/events/kvm.h>
 
@@ -98,6 +99,7 @@ static u64 __read_mostly efer_reserved_bits = ~((u64)EFER_SCE);
 
 static void update_cr8_intercept(struct kvm_vcpu *vcpu);
 static void process_nmi(struct kvm_vcpu *vcpu);
+static void process_smi(struct kvm_vcpu *vcpu);
 static void enter_smm(struct kvm_vcpu *vcpu);
 static void __kvm_set_rflags(struct kvm_vcpu *vcpu, unsigned long rflags);
 
@@ -3290,6 +3292,10 @@ static void kvm_vcpu_ioctl_x86_get_vcpu_events(struct kvm_vcpu *vcpu,
 					       struct kvm_vcpu_events *events)
 {
 	process_nmi(vcpu);
+
+	if (kvm_check_request(KVM_REQ_SMI, vcpu))
+		process_smi(vcpu);
+
 	/*
 	 * FIXME: pass injected and pending separately.  This is only
 	 * needed for nested virtualization, whose state cannot be
@@ -4214,6 +4220,41 @@ split_irqchip_unlock:
 	}
 	return r;
 }
+
+#ifdef CONFIG_HAVE_KVM_PM_NOTIFIER
+static int kvm_arch_suspend_notifier(struct kvm *kvm)
+{
+	struct kvm_vcpu *vcpu;
+	int i, ret = 0;
+
+	mutex_lock(&kvm->lock);
+	kvm_for_each_vcpu(i, vcpu, kvm) {
+		if (!vcpu->arch.pv_time_enabled)
+			continue;
+
+		ret = kvm_set_guest_paused(vcpu);
+		if (ret) {
+			kvm_err("Failed to pause guest VCPU%d: %d\n",
+				vcpu->vcpu_id, ret);
+			break;
+		}
+	}
+	mutex_unlock(&kvm->lock);
+
+	return ret ? NOTIFY_BAD : NOTIFY_DONE;
+}
+
+int kvm_arch_pm_notifier(struct kvm *kvm, unsigned long state)
+{
+	switch (state) {
+	case PM_HIBERNATION_PREPARE:
+	case PM_SUSPEND_PREPARE:
+		return kvm_arch_suspend_notifier(kvm);
+	}
+
+	return NOTIFY_DONE;
+}
+#endif /* CONFIG_HAVE_KVM_PM_NOTIFIER */
 
 long kvm_arch_vm_ioctl(struct file *filp,
 		       unsigned int ioctl, unsigned long arg)
@@ -6415,6 +6456,7 @@ void kvm_arch_exit(void)
 	cpuhp_remove_state_nocalls(CPUHP_AP_X86_KVM_CLK_ONLINE);
 #ifdef CONFIG_X86_64
 	pvclock_gtod_unregister_notifier(&pvclock_gtod_notifier);
+	cancel_work_sync(&pvclock_gtod_work);
 #endif
 	kvm_x86_ops = NULL;
 	kvm_mmu_module_exit();

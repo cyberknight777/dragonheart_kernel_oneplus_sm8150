@@ -174,6 +174,7 @@ struct hid_item {
 #define HID_UP_LNVENDOR		0xffa00000
 #define HID_UP_SENSOR		0x00200000
 #define HID_UP_ASUSVENDOR	0xff310000
+#define HID_UP_GOOGLEVENDOR	0xffd10000
 
 #define HID_USAGE		0x0000ffff
 
@@ -265,6 +266,8 @@ struct hid_item {
 #define HID_CP_SELECTION	0x000c0080
 #define HID_CP_MEDIASELECTION	0x000c0087
 #define HID_CP_SELECTDISC	0x000c00ba
+#define HID_CP_VOLUMEUP		0x000c00e9
+#define HID_CP_VOLUMEDOWN	0x000c00ea
 #define HID_CP_PLAYBACKSPEED	0x000c00f1
 #define HID_CP_PROXIMITY	0x000c0109
 #define HID_CP_SPEAKERSYSTEM	0x000c0160
@@ -369,6 +372,7 @@ struct hid_item {
 #define HID_GROUP_RMI				0x0100
 #define HID_GROUP_WACOM				0x0101
 #define HID_GROUP_LOGITECH_DJ_DEVICE		0x0102
+#define HID_GROUP_VIVALDI			0x0105
 
 /*
  * HID protocol status
@@ -384,6 +388,7 @@ struct hid_item {
 
 struct hid_global {
 	unsigned usage_page;
+	/* HID Global fields are constrained by spec to 32-bits */
 	__s32    logical_minimum;
 	__s32    logical_maximum;
 	__s32    physical_minimum;
@@ -450,7 +455,7 @@ struct hid_field {
 	unsigned  maxusage;		/* maximum usage index */
 	unsigned  flags;		/* main-item flags (i.e. volatile,array,constant) */
 	unsigned  report_offset;	/* bit offset in the report */
-	unsigned  report_size;		/* size of this field in the report */
+	unsigned  report_size;		/* size of this field in the report, in bits */
 	unsigned  report_count;		/* number of this field in the report */
 	unsigned  report_type;		/* (input,output,feature) */
 	__s32    *value;		/* last known value(s) */
@@ -573,8 +578,14 @@ struct hid_device {							/* device report descriptor */
 	__s32 battery_max;
 	__s32 battery_report_type;
 	__s32 battery_report_id;
+	__u64 battery_serial_number;
+	__u64 battery_new_serial_number;				/* gather entire updated 64-bit SN here for end of report */
+	char battery_serial_number_str[17];				/* Space for max 16 hex digits */
 	enum hid_battery_status battery_status;
 	bool battery_avoid_query;
+	bool battery_state_changed;					/* a battery field has been changed within the current report */
+	bool battery_reported;
+	bool battery_sn_64bit;						/* whether battery S/N is 32 or 64 bits long */
 	ktime_t battery_ratelimit_time;
 #endif
 
@@ -1129,8 +1140,7 @@ static inline void hid_hw_wait(struct hid_device *hdev)
  */
 static inline u32 hid_report_len(struct hid_report *report)
 {
-	/* equivalent to DIV_ROUND_UP(report->size, 8) + !!(report->id > 0) */
-	return ((report->size - 1) >> 3) + 1 + (report->id > 0);
+	return DIV_ROUND_UP(report->size, 8) + (report->id > 0);
 }
 
 int hid_report_raw_event(struct hid_device *hid, int type, u8 *data, u32 size,

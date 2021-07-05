@@ -70,7 +70,7 @@
 #include <linux/userfaultfd_k.h>
 #include <linux/dax.h>
 #include <linux/oom.h>
-#include <linux/mm_metrics.h>
+#include <linux/mm_inline.h>
 
 #include <asm/io.h>
 #include <asm/mmu_context.h>
@@ -150,7 +150,7 @@ static int __init init_zero_pfn(void)
 	zero_pfn = page_to_pfn(ZERO_PAGE(0));
 	return 0;
 }
-core_initcall(init_zero_pfn);
+early_initcall(init_zero_pfn);
 
 
 #if defined(SPLIT_RSS_COUNTING)
@@ -1975,11 +1975,11 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
 			unsigned long addr, unsigned long end,
 			unsigned long pfn, pgprot_t prot)
 {
-	pte_t *pte;
+	pte_t *pte, *mapped_pte;
 	spinlock_t *ptl;
 	int err = 0;
 
-	pte = pte_alloc_map_lock(mm, pmd, addr, &ptl);
+	mapped_pte = pte = pte_alloc_map_lock(mm, pmd, addr, &ptl);
 	if (!pte)
 		return -ENOMEM;
 	arch_enter_lazy_mmu_mode();
@@ -1993,7 +1993,7 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
 		pfn++;
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 	arch_leave_lazy_mmu_mode();
-	pte_unmap_unlock(pte - 1, ptl);
+	pte_unmap_unlock(mapped_pte, ptl);
 	return err;
 }
 
@@ -2945,6 +2945,21 @@ void unmap_mapping_range(struct address_space *mapping,
 }
 EXPORT_SYMBOL(unmap_mapping_range);
 
+static void lru_gen_swap_refault(struct page *page, swp_entry_t entry)
+{
+	if (lru_gen_enabled()) {
+		void *item;
+		struct address_space *mapping = swap_address_space(entry);
+		pgoff_t index = swp_offset(entry);
+
+		rcu_read_lock();
+		item = radix_tree_lookup(&mapping->page_tree, index);
+		rcu_read_unlock();
+		if (radix_tree_exceptional_entry(item))
+			lru_gen_refault(page, item);
+	}
+}
+
 /*
  * We enter with non-exclusive mmap_sem (to exclude vma changes,
  * but allow concurrent faults), and pte mapped but not yet locked.
@@ -2964,7 +2979,6 @@ int do_swap_page(struct vm_fault *vmf)
 	int locked;
 	int exclusive = 0;
 	int ret = 0;
-	u64 start = 0;
 	bool vma_readahead = swap_use_vma_readahead();
 
 	if (vma_readahead) {
@@ -3001,7 +3015,6 @@ int do_swap_page(struct vm_fault *vmf)
 	}
 
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
-	mm_metrics_swapin(entry);
 	if (!page) {
 		page = lookup_swap_cache(entry, vma_readahead ? vma : NULL,
 					 vmf->address);
@@ -3011,7 +3024,6 @@ int do_swap_page(struct vm_fault *vmf)
 	if (!page) {
 		struct swap_info_struct *si = swp_swap_info(entry);
 
-		start = mm_metrics_swapin_start();
 		if (si->flags & SWP_SYNCHRONOUS_IO &&
 				__swap_count(si, entry) == 1) {
 			/* skip swapcache */
@@ -3021,6 +3033,7 @@ int do_swap_page(struct vm_fault *vmf)
 				__SetPageLocked(page);
 				__SetPageSwapBacked(page);
 				set_page_private(page, entry.val);
+				lru_gen_swap_refault(page, entry);
 				lru_cache_add_anon(page);
 				swap_readpage(page, true);
 			}
@@ -3065,7 +3078,6 @@ int do_swap_page(struct vm_fault *vmf)
 
 	locked = lock_page_or_retry(page, vma->vm_mm, vmf->flags);
 
-	mm_metrics_swapin_end(start);
 	delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 	if (!locked) {
 		ret |= VM_FAULT_RETRY;
@@ -4258,7 +4270,7 @@ int handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 	 * space.  Kernel faults are handled more gracefully.
 	 */
 	if (flags & FAULT_FLAG_USER)
-		mem_cgroup_oom_enable();
+		task_enter_user_fault();
 
 	if (unlikely(is_vm_hugetlb_page(vma)))
 		ret = hugetlb_fault(vma->vm_mm, vma, address, flags);
@@ -4266,7 +4278,7 @@ int handle_mm_fault(struct vm_area_struct *vma, unsigned long address,
 		ret = __handle_mm_fault(vma, address, flags);
 
 	if (flags & FAULT_FLAG_USER) {
-		mem_cgroup_oom_disable();
+		task_exit_user_fault();
 		/*
 		 * The task may have entered a memcg OOM situation but
 		 * if the allocation error was handled gracefully (no
@@ -4816,17 +4828,19 @@ long copy_huge_page_from_user(struct page *dst_page,
 	void *page_kaddr;
 	unsigned long i, rc = 0;
 	unsigned long ret_val = pages_per_huge_page * PAGE_SIZE;
+	struct page *subpage = dst_page;
 
-	for (i = 0; i < pages_per_huge_page; i++) {
+	for (i = 0; i < pages_per_huge_page;
+	     i++, subpage = mem_map_next(subpage, dst_page, i)) {
 		if (allow_pagefault)
-			page_kaddr = kmap(dst_page + i);
+			page_kaddr = kmap(subpage);
 		else
-			page_kaddr = kmap_atomic(dst_page + i);
+			page_kaddr = kmap_atomic(subpage);
 		rc = copy_from_user(page_kaddr,
 				(const void __user *)(src + i * PAGE_SIZE),
 				PAGE_SIZE);
 		if (allow_pagefault)
-			kunmap(dst_page + i);
+			kunmap(subpage);
 		else
 			kunmap_atomic(page_kaddr);
 

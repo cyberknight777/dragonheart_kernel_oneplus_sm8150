@@ -263,6 +263,25 @@ static ssize_t cros_ec_pdinfo_read(struct file *file,
 				       read_buf, p - read_buf);
 }
 
+static bool cros_ec_uptime_is_supported(struct cros_ec_device *ec_dev)
+{
+	struct {
+		struct cros_ec_command cmd;
+		struct ec_response_uptime_info resp;
+	} __packed msg = {};
+	int ret;
+
+	msg.cmd.command = EC_CMD_GET_UPTIME_INFO;
+	msg.cmd.insize = sizeof(msg.resp);
+
+	ret = cros_ec_cmd_xfer_status(ec_dev, &msg.cmd);
+	if (ret == -EPROTO && msg.cmd.result == EC_RES_INVALID_COMMAND)
+		return false;
+
+	/* Other errors maybe a transient error, do not rule about support. */
+	return true;
+}
+
 static ssize_t cros_ec_uptime_read(struct file *file, char __user *user_buf,
 				   size_t count, loff_t *ppos)
 {
@@ -486,8 +505,9 @@ int cros_ec_debugfs_init(struct cros_ec_dev *ec)
 	if (ret)
 		goto remove_debugfs;
 
-	debugfs_create_file("uptime", 0444, debug_info->dir, debug_info,
-			    &cros_ec_uptime_fops);
+	if (cros_ec_uptime_is_supported(ec->ec_dev))
+		debugfs_create_file("uptime", 0444, debug_info->dir, debug_info,
+				    &cros_ec_uptime_fops);
 
 	ec->debug_info = debug_info;
 
