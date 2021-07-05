@@ -91,7 +91,6 @@
 #include <linux/livepatch.h>
 #include <linux/thread_info.h>
 #include <linux/cpufreq_times.h>
-#include <linux/kstaled.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -767,23 +766,7 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 __cacheline_aligned_in_smp DEFINE_SPINLOCK(mmlist_lock);
 
 #define allocate_mm()	(kmem_cache_alloc(mm_cachep, GFP_KERNEL))
-#ifdef CONFIG_KSTALED
-static void rcu_free_mm(struct rcu_head *rcu)
-{
-	struct mm_struct *mm = container_of(rcu, struct mm_struct, rcu_head);
-
-	kmem_cache_free(mm_cachep, mm);
-}
-
-static void free_mm(struct mm_struct *mm)
-{
-	kstaled_del_mm(mm);
-
-	call_rcu(&mm->rcu_head, rcu_free_mm);
-}
-#else
 #define free_mm(mm)	(kmem_cache_free(mm_cachep, (mm)))
-#endif
 
 static unsigned long default_dump_filter = MMF_DUMP_FILTER_DEFAULT;
 
@@ -875,7 +858,7 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 		goto fail_nocontext;
 
 	mm->user_ns = get_user_ns(user_ns);
-	kstaled_add_mm(mm);
+	lru_gen_init_mm(mm);
 	return mm;
 
 fail_nocontext:
@@ -907,6 +890,7 @@ static void check_mm(struct mm_struct *mm)
 #if defined(CONFIG_TRANSPARENT_HUGEPAGE) && !USE_SPLIT_PMD_PTLOCKS
 	VM_BUG_ON_MM(mm->pmd_huge_pte, mm);
 #endif
+	VM_BUG_ON_MM(lru_gen_mm_is_active(mm), mm);
 }
 
 /*
@@ -960,6 +944,7 @@ static inline void __mmput(struct mm_struct *mm)
 	}
 	if (mm->binfmt)
 		module_put(mm->binfmt->module);
+	lru_gen_del_mm(mm);
 	mmdrop(mm);
 }
 
@@ -2144,6 +2129,13 @@ long _do_fork(unsigned long clone_flags,
 			p->vfork_done = &vfork;
 			init_completion(&vfork);
 			get_task_struct(p);
+		}
+
+		if (IS_ENABLED(CONFIG_LRU_GEN) && !(clone_flags & CLONE_VM)) {
+			/* lock the task to synchronize with memcg migration */
+			task_lock(p);
+			lru_gen_add_mm(p->mm);
+			task_unlock(p);
 		}
 
 		wake_up_new_task(p);

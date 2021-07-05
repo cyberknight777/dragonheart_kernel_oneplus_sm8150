@@ -99,7 +99,19 @@ void intel_pipe_update_start(const struct intel_crtc_state *new_crtc_state)
 	/* FIXME needs to be calibrated sensibly */
 	min = vblank_start - intel_usecs_to_scanlines(adjusted_mode,
 						      VBLANK_EVASION_TIME_US);
-	max = vblank_start - 1;
+
+	/*
+	 * CHROMIUM(b/174528381 + b/159775392): This used to be
+	 * max = vblank_start - 1. We observed flickers on octopus devices and
+	 * including vblank_start in the vblank evasion stopped the corruption
+	 * (credit to David Stevens - stevensd@ for finding this).
+	 *
+	 * As much as I try, I can't make sense of why this makes a difference,
+	 * and testing upstream kernel on octopus is not possible so I can't
+	 * test if this has been fixed upstream. So this is a CHROMIUM patch
+	 * for now.
+	 */
+	max = vblank_start;
 
 	local_irq_disable();
 

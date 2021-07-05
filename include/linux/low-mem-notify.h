@@ -5,7 +5,7 @@
 #include <linux/ratelimit.h>
 #include <linux/stddef.h>
 #include <linux/swap.h>
-#include <linux/kstaled.h>
+#include <linux/mm_inline.h>
 
 /* We support up to this many different thresholds. */
 #define LOW_MEM_THRESHOLD_MAX 5
@@ -13,6 +13,7 @@
 extern unsigned long low_mem_thresholds[];
 extern unsigned int low_mem_threshold_count;
 extern unsigned int low_mem_threshold_last;
+void low_mem_notify(void);
 extern const struct file_operations low_mem_notify_fops;
 extern bool low_mem_margin_enabled;
 extern unsigned long low_mem_lowest_seen_anon_mem;
@@ -36,8 +37,8 @@ static inline unsigned long get_available_file_mem(void)
 			global_node_page_state(NR_ACTIVE_FILE) +
 			global_node_page_state(NR_INACTIVE_FILE);
 	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
-	unsigned long min_file_mem = kstaled_is_enabled() ?
-			0 : min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	unsigned long min_file_mem = lru_gen_enabled() ?
+				     0 : min_filelist_kbytes >> (PAGE_SHIFT - 10);
 	unsigned long clean_file_mem = file_mem - dirty_mem;
 	/* Conservatively estimate the amount of available_file_mem */
 	unsigned long available_file_mem = (clean_file_mem > min_file_mem) ?
@@ -82,8 +83,6 @@ static inline unsigned long get_available_mem_adj(void)
 #ifdef CONFIG_LOW_MEM_NOTIFY
 
 extern atomic_t in_low_mem_check;
-
-void low_mem_notify(void);
 
 /*
  * Returns TRUE if we are in a low memory state.
@@ -140,10 +139,6 @@ static inline bool low_mem_check(void)
 	return is_low_mem;
 }
 #else
-static inline void low_mem_notify(void)
-{
-}
-
 static inline bool low_mem_check(void)
 {
 	return false;

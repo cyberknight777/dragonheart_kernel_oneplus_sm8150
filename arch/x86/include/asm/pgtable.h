@@ -778,7 +778,7 @@ static inline pte_t *pte_offset_kernel(pmd_t *pmd, unsigned long address)
 
 static inline int pmd_bad(pmd_t pmd)
 {
-	return ((pmd_flags(pmd) & ~_PAGE_USER) | _PAGE_ACCESSED) != _KERNPG_TABLE;
+	return ((pmd_flags(pmd) | _PAGE_ACCESSED) & ~_PAGE_USER) != _KERNPG_TABLE;
 }
 
 static inline unsigned long pages_to_mb(unsigned long npg)
@@ -1305,6 +1305,12 @@ static inline bool arch_has_pfn_modify_check(void)
 {
 	return boot_cpu_has_bug(X86_BUG_L1TF);
 }
+
+static inline bool arch_has_hw_pte_young(void)
+{
+	return true;
+}
+#define arch_has_hw_pte_young arch_has_hw_pte_young
 
 #include <asm-generic/pgtable.h>
 #endif	/* __ASSEMBLY__ */

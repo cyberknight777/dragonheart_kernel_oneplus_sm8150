@@ -639,6 +639,7 @@ static void add_to_avail_list(struct swap_info_struct *p)
 static void swap_range_free(struct swap_info_struct *si, unsigned long offset,
 			    unsigned int nr_entries)
 {
+	unsigned long begin = offset;
 	unsigned long end = offset + nr_entries - 1;
 	void (*swap_slot_free_notify)(struct block_device *, unsigned long);
 
@@ -664,6 +665,7 @@ static void swap_range_free(struct swap_info_struct *si, unsigned long offset,
 			swap_slot_free_notify(si->bdev, offset);
 		offset++;
 	}
+	clear_shadow_from_swap_cache(si->type, begin, end);
 }
 
 static int scan_swap_map_slots(struct swap_info_struct *si,
@@ -1760,9 +1762,9 @@ unsigned int count_swap_pages(int type, int free)
 }
 #endif /* CONFIG_HIBERNATION */
 
-static inline int pte_same_as_swp(pte_t pte, swp_entry_t swp)
+static inline int pte_same_as_swp(pte_t pte, pte_t swp_pte)
 {
-	return is_swap_pte(pte) && swp_entry_same(pte_to_swp_entry(pte), swp);
+	return pte_same(pte_swp_clear_soft_dirty(pte), swp_pte);
 }
 
 /*
@@ -1791,7 +1793,7 @@ static int unuse_pte(struct vm_area_struct *vma, pmd_t *pmd,
 	}
 
 	pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
-	if (unlikely(!pte_same_as_swp(*pte, entry))) {
+	if (unlikely(!pte_same_as_swp(*pte, swp_entry_to_pte(entry)))) {
 		mem_cgroup_cancel_charge(page, memcg, false);
 		ret = 0;
 		goto out;
@@ -1830,6 +1832,7 @@ static int unuse_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				unsigned long addr, unsigned long end,
 				swp_entry_t entry, struct page *page)
 {
+	pte_t swp_pte = swp_entry_to_pte(entry);
 	pte_t *pte;
 	int ret = 0;
 
@@ -1848,7 +1851,7 @@ static int unuse_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 		 * swapoff spends a _lot_ of time in this loop!
 		 * Test inline before going to call unuse_pte.
 		 */
-		if (unlikely(pte_same_as_swp(*pte, entry))) {
+		if (unlikely(pte_same_as_swp(*pte, swp_pte))) {
 			pte_unmap(pte);
 			ret = unuse_pte(vma, pmd, addr, entry, page);
 			if (ret)
@@ -2223,7 +2226,7 @@ int try_to_unuse(unsigned int type, bool frontswap,
 		 * delete, since it may not have been written out to swap yet.
 		 */
 		if (PageSwapCache(page) &&
-		    likely(swp_page_same(entry, page)) &&
+		    likely(page_private(page) == entry.val) &&
 		    (!PageTransCompound(page) ||
 		     !swap_page_trans_huge_swapped(si, entry)))
 			delete_from_swap_cache(compound_head(page));
@@ -2310,7 +2313,7 @@ sector_t map_swap_page(struct page *page, struct block_device **bdev)
 {
 	swp_entry_t entry;
 	entry.val = page_private(page);
-	return map_swap_entry(entry, bdev);
+	return map_swap_entry(entry, bdev) << (PAGE_SHIFT - 9);
 }
 
 /*
@@ -2696,6 +2699,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	err = 0;
 	atomic_inc(&proc_poll_event);
 	wake_up_interruptible(&proc_poll_wait);
+	/* stop tracking anon if the multigenerational lru is turned off */
+	lru_gen_set_state(false, false, true);
 
 out_dput:
 	if (victim)
@@ -3326,6 +3331,8 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 	mutex_unlock(&swapon_mutex);
 	atomic_inc(&proc_poll_event);
 	wake_up_interruptible(&proc_poll_wait);
+	/* start tracking anon if the multigenerational lru is turned on */
+	lru_gen_set_state(true, false, true);
 
 	if (S_ISREG(inode->i_mode))
 		inode->i_flags |= S_SWAPFILE;

@@ -174,6 +174,7 @@ static void gen9_sseu_info_init(struct drm_i915_private *dev_priv)
 	sseu->subslice_mask = (1 << ss_max) - 1;
 	sseu->subslice_mask &= ~((fuse2 & GEN9_F2_SS_DIS_MASK) >>
 				 GEN9_F2_SS_DIS_SHIFT);
+	DRM_DEBUG_DRIVER("fuse2=0x%x subslice_mask=0x%x\n", fuse2, sseu->subslice_mask);
 
 	/*
 	 * Iterate through enabled slices and subslices to

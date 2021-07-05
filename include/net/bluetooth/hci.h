@@ -35,7 +35,7 @@
 
 #define HCI_MAX_AMP_ASSOC_SIZE	672
 
-#define HCI_MAX_CSB_DATA_SIZE	252
+#define HCI_MAX_CPB_DATA_SIZE	252
 
 /* HCI dev events */
 #define HCI_DEV_REG			1
@@ -290,12 +290,17 @@ enum {
 	HCI_BREDR_ENABLED,
 	HCI_LE_SCAN_INTERRUPTED,
 	HCI_WIDEBAND_SPEECH_ENABLED,
+	HCI_EVENT_FILTER_CONFIGURED,
 
 	HCI_DUT_MODE,
 	HCI_VENDOR_DIAG,
 	HCI_FORCE_BREDR_SMP,
 	HCI_FORCE_STATIC_ADDR,
 	HCI_FORCE_NO_MITM,
+
+#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
+	HCI_QUALITY_REPORT,
+#endif
 
 	__HCI_NUM_FLAGS,
 };
@@ -414,10 +419,10 @@ enum {
 #define LMP_EXTFEATURES	0x80
 
 /* Extended LMP features */
-#define LMP_CSB_MASTER	0x01
-#define LMP_CSB_SLAVE	0x02
-#define LMP_SYNC_TRAIN	0x04
-#define LMP_SYNC_SCAN	0x08
+#define LMP_CPB_CENTRAL		0x01
+#define LMP_CPB_PERIPHERAL	0x02
+#define LMP_SYNC_TRAIN		0x04
+#define LMP_SYNC_SCAN		0x08
 
 #define LMP_SC		0x01
 #define LMP_PING	0x02
@@ -431,7 +436,7 @@ enum {
 /* LE features */
 #define HCI_LE_ENCRYPTION		0x01
 #define HCI_LE_CONN_PARAM_REQ_PROC	0x02
-#define HCI_LE_SLAVE_FEATURES		0x08
+#define HCI_LE_PERIPHERAL_FEATURES	0x08
 #define HCI_LE_PING			0x10
 #define HCI_LE_DATA_LEN_EXT		0x20
 #define HCI_LE_EXT_SCAN_POLICY		0x80
@@ -813,17 +818,17 @@ struct hci_rp_logical_link_cancel {
 	__u8     flow_spec_id;
 } __packed;
 
-#define HCI_OP_SET_CSB			0x0441
-struct hci_cp_set_csb {
+#define HCI_OP_SET_CPB			0x0441
+struct hci_cp_set_cpb {
 	__u8	enable;
 	__u8	lt_addr;
 	__u8	lpo_allowed;
 	__le16	packet_type;
 	__le16	interval_min;
 	__le16	interval_max;
-	__le16	csb_sv_tout;
+	__le16	cpb_sv_tout;
 } __packed;
-struct hci_rp_set_csb {
+struct hci_rp_set_cpb {
 	__u8	status;
 	__u8	lt_addr;
 	__le16	interval;
@@ -1120,14 +1125,14 @@ struct hci_rp_delete_reserved_lt_addr {
 	__u8	lt_addr;
 } __packed;
 
-#define HCI_OP_SET_CSB_DATA		0x0c76
-struct hci_cp_set_csb_data {
+#define HCI_OP_SET_CPB_DATA		0x0c76
+struct hci_cp_set_cpb_data {
 	__u8	lt_addr;
 	__u8	fragment;
 	__u8	data_length;
-	__u8	data[HCI_MAX_CSB_DATA_SIZE];
+	__u8	data[HCI_MAX_CPB_DATA_SIZE];
 } __packed;
-struct hci_rp_set_csb_data {
+struct hci_rp_set_cpb_data {
 	__u8	status;
 	__u8	lt_addr;
 } __packed;
@@ -1414,7 +1419,7 @@ struct hci_cp_le_set_scan_enable {
 } __packed;
 
 #define HCI_LE_USE_PEER_ADDR		0x00
-#define HCI_LE_USE_WHITELIST		0x01
+#define HCI_LE_USE_ACCEPT_LIST		0x01
 
 #define HCI_OP_LE_CREATE_CONN		0x200d
 struct hci_cp_le_create_conn {
@@ -1434,22 +1439,22 @@ struct hci_cp_le_create_conn {
 
 #define HCI_OP_LE_CREATE_CONN_CANCEL	0x200e
 
-#define HCI_OP_LE_READ_WHITE_LIST_SIZE	0x200f
-struct hci_rp_le_read_white_list_size {
+#define HCI_OP_LE_READ_ACCEPT_LIST_SIZE	0x200f
+struct hci_rp_le_read_accept_list_size {
 	__u8	status;
 	__u8	size;
 } __packed;
 
-#define HCI_OP_LE_CLEAR_WHITE_LIST	0x2010
+#define HCI_OP_LE_CLEAR_ACCEPT_LIST	0x2010
 
-#define HCI_OP_LE_ADD_TO_WHITE_LIST	0x2011
-struct hci_cp_le_add_to_white_list {
+#define HCI_OP_LE_ADD_TO_ACCEPT_LIST	0x2011
+struct hci_cp_le_add_to_accept_list {
 	__u8     bdaddr_type;
 	bdaddr_t bdaddr;
 } __packed;
 
-#define HCI_OP_LE_DEL_FROM_WHITE_LIST	0x2012
-struct hci_cp_le_del_from_white_list {
+#define HCI_OP_LE_DEL_FROM_ACCEPT_LIST	0x2012
+struct hci_cp_le_del_from_accept_list {
 	__u8     bdaddr_type;
 	bdaddr_t bdaddr;
 } __packed;
@@ -1926,7 +1931,7 @@ struct hci_ev_sync_train_complete {
 	__u8	status;
 } __packed;
 
-#define HCI_EV_SLAVE_PAGE_RESP_TIMEOUT	0x54
+#define HCI_EV_PERIPHERAL_PAGE_RESP_TIMEOUT	0x54
 
 #define HCI_EV_LE_CONN_COMPLETE		0x01
 struct hci_ev_le_conn_complete {

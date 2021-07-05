@@ -728,9 +728,11 @@ static inline uint32_t
 read_subslice_reg(struct drm_i915_private *dev_priv, int slice,
 		  int subslice, i915_reg_t reg)
 {
-	uint32_t mcr;
-	uint32_t ret;
+	uint32_t mcr_mask, mcr_ss, mcr, old_mcr, val;
 	enum forcewake_domains fw_domains;
+
+	mcr_mask = GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK;
+	mcr_ss = GEN8_MCR_SLICE(slice) | GEN8_MCR_SUBSLICE(subslice);
 
 	fw_domains = intel_uncore_forcewake_for_reg(dev_priv, reg,
 						    FW_REG_READ);
@@ -741,25 +743,22 @@ read_subslice_reg(struct drm_i915_private *dev_priv, int slice,
 	spin_lock_irq(&dev_priv->uncore.lock);
 	intel_uncore_forcewake_get__locked(dev_priv, fw_domains);
 
-	mcr = I915_READ_FW(GEN8_MCR_SELECTOR);
-	/*
-	 * The HW expects the slice and sublice selectors to be reset to 0
-	 * after reading out the registers.
-	 */
-	WARN_ON_ONCE(mcr & (GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK));
-	mcr &= ~(GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK);
-	mcr |= GEN8_MCR_SLICE(slice) | GEN8_MCR_SUBSLICE(subslice);
+	old_mcr = mcr = I915_READ_FW(GEN8_MCR_SELECTOR);
+
+	mcr &= ~mcr_mask;
+	mcr |= mcr_ss;
 	I915_WRITE_FW(GEN8_MCR_SELECTOR, mcr);
 
-	ret = I915_READ_FW(reg);
+	val = I915_READ_FW(reg);
 
-	mcr &= ~(GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK);
+	mcr &= ~mcr_mask;
+	mcr |= old_mcr & mcr_mask;
 	I915_WRITE_FW(GEN8_MCR_SELECTOR, mcr);
 
 	intel_uncore_forcewake_put__locked(dev_priv, fw_domains);
 	spin_unlock_irq(&dev_priv->uncore.lock);
 
-	return ret;
+	return val;
 }
 
 /* NB: please notice the memset */
@@ -973,10 +972,50 @@ static int chv_init_workarounds(struct intel_engine_cs *engine)
 	return 0;
 }
 
+static void
+gen9_wa_init_mcr(struct drm_i915_private *dev_priv)
+{
+	const struct sseu_dev_info *sseu = &INTEL_INFO(dev_priv)->sseu;
+	unsigned int slice, subslice;
+	u32 mcr, mcr_mask;
+
+	GEM_BUG_ON(INTEL_GEN(dev_priv) != 9);
+
+	/*
+	 * WaProgramMgsrForCorrectSliceSpecificMmioReads:glk,kbl,cml
+	 * Before any MMIO read into slice/subslice specific registers, MCR
+	 * packet control register needs to be programmed to point to any
+	 * enabled s/ss pair. Otherwise, incorrect values will be returned.
+	 * This means each subsequent MMIO read will be forwarded to an
+	 * specific s/ss combination, but this is OK since these registers
+	 * are consistent across s/ss in almost all cases. In the rare
+	 * occasions, such as INSTDONE, where this value is dependent
+	 * on s/ss combo, the read should be done with read_subslice_reg.
+	 */
+	slice = ffs(sseu->slice_mask) - 1;
+	subslice = ffs(sseu->subslice_mask);
+	GEM_BUG_ON(!subslice);
+	subslice--;
+
+	/*
+	 * We use GEN8_MCR..() macros to calculate the |mcr| value for
+	 * Gen 9 to address WaProgramMgsrForCorrectSliceSpecificMmioReads
+	 */
+	mcr = GEN8_MCR_SLICE(slice) | GEN8_MCR_SUBSLICE(subslice);
+	mcr_mask = GEN8_MCR_SLICE_MASK | GEN8_MCR_SUBSLICE_MASK;
+
+	DRM_DEBUG_DRIVER("MCR slice:%d/subslice:%d = 0x%x\n", slice, subslice, mcr);
+
+	I915_WRITE(GEN8_MCR_SELECTOR, (I915_READ(GEN8_MCR_SELECTOR) & ~(mcr_mask)) | mcr);
+}
+
 static int gen9_init_workarounds(struct intel_engine_cs *engine)
 {
 	struct drm_i915_private *dev_priv = engine->i915;
 	int ret;
+
+	/* WaProgramMgsrForCorrectSliceSpecificMmioReads:glk,kbl,cml,gen9 */
+	gen9_wa_init_mcr(dev_priv);
 
 	/* WaConextSwitchWithConcurrentTLBInvalidate:skl,bxt,kbl,glk,cfl */
 	I915_WRITE(GEN9_CSFE_CHICKEN1_RCS, _MASKED_BIT_ENABLE(GEN9_PREEMPT_GPGPU_SYNC_SWITCH_DISABLE));

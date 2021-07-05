@@ -96,7 +96,7 @@ EXPORT_SYMBOL_GPL(hid_register_report);
  * Register a new field for this report.
  */
 
-static struct hid_field *hid_register_field(struct hid_report *report, unsigned usages, unsigned values)
+static struct hid_field *hid_register_field(struct hid_report *report, unsigned usages)
 {
 	struct hid_field *field;
 
@@ -107,7 +107,7 @@ static struct hid_field *hid_register_field(struct hid_report *report, unsigned 
 
 	field = kzalloc((sizeof(struct hid_field) +
 			 usages * sizeof(struct hid_usage) +
-			 values * sizeof(unsigned)), GFP_KERNEL);
+			 usages * sizeof(unsigned)), GFP_KERNEL);
 	if (!field)
 		return NULL;
 
@@ -271,6 +271,7 @@ static int hid_add_field(struct hid_parser *parser, unsigned report_type, unsign
 	unsigned usages;
 	unsigned offset;
 	unsigned i;
+	bool dg_tsn_large_fixup = false;
 
 	report = hid_register_report(parser->device, report_type, parser->global.report_id);
 	if (!report) {
@@ -306,7 +307,19 @@ static int hid_add_field(struct hid_parser *parser, unsigned report_type, unsign
 	usages = max_t(unsigned, parser->local.usage_index,
 				 parser->global.report_count);
 
-	field = hid_register_field(report, usages, parser->global.report_count);
+	/* Recognize a Usage(Digitizers.Transducer Serial Number) of 64 bits,
+	 * for special processing later; we need to reserve two usages now.
+	 */
+	if (usages == 1 &&
+	    parser->global.report_size == 64 &&
+	    parser->local.usage[0] == (HID_UP_DIGITIZER | 0x005b) &&
+	    parser->global.report_count == 1 &&
+	    parser->local.usage_index == 1) {
+		dg_tsn_large_fixup = true;
+		usages = 2;
+	}
+
+	field = hid_register_field(report, usages);
 	if (!field)
 		return 0;
 
@@ -339,11 +352,21 @@ static int hid_add_field(struct hid_parser *parser, unsigned report_type, unsign
 	field->unit_exponent = parser->global.unit_exponent;
 	field->unit = parser->global.unit;
 
+	/* Fix up that particular report, split it into two distinct 32-bit fields.
+	 */
+	if (dg_tsn_large_fixup) {
+		/* Convert second half into Usage(Digitizers.Transducer Serial Number Second 32 Bits) */
+		field->usage[1].hid = (HID_UP_DIGITIZER | 0x006e);
+		field->report_size = 32;
+		field->report_count = 2;
+	}
+
 	return 0;
 }
 
 /*
- * Read data value from item.
+ * Read data value from global items, which are
+ * a maximum of 32 bits in size.
  */
 
 static u32 item_udata(struct hid_item *item)
@@ -715,7 +738,7 @@ static void hid_device_release(struct device *dev)
 
 /*
  * Fetch a report description item from the data stream. We support long
- * items, though they are not used yet.
+ * items, though there are not yet any defined uses for them.
  */
 
 static u8 *fetch_item(__u8 *start, __u8 *end, struct hid_item *item)
@@ -751,6 +774,7 @@ static u8 *fetch_item(__u8 *start, __u8 *end, struct hid_item *item)
 	item->format = HID_ITEM_FORMAT_SHORT;
 	item->size = b & 3;
 
+	/* Map size values 0,1,2,3 to actual sizes 0,1,2,4 */
 	switch (item->size) {
 	case 0:
 		return start;
@@ -769,7 +793,7 @@ static u8 *fetch_item(__u8 *start, __u8 *end, struct hid_item *item)
 		return start;
 
 	case 3:
-		item->size++;
+		item->size = 4;
 		if ((end - start) < 4)
 			return NULL;
 		item->data.u32 = get_unaligned_le32(start);
@@ -820,6 +844,13 @@ static void hid_scan_collection(struct hid_parser *parser, unsigned type)
 
 	if ((parser->global.usage_page << 16) >= HID_UP_MSVENDOR)
 		parser->scan_flags |= HID_SCAN_FLAG_VENDOR_SPECIFIC;
+
+	if ((parser->global.usage_page << 16) == HID_UP_GOOGLEVENDOR)
+		for (i = 0; i < parser->local.usage_index; i++)
+			if (parser->local.usage[i] ==
+					(HID_UP_GOOGLEVENDOR | 0x0001))
+				parser->device->group =
+					HID_GROUP_VIVALDI;
 }
 
 static int hid_scan_main(struct hid_parser *parser, struct hid_item *item)
@@ -1326,19 +1357,15 @@ alloc_err:
 EXPORT_SYMBOL_GPL(hid_open_report);
 
 /*
- * Convert a signed n-bit integer to signed 32-bit integer. Common
- * cases are done through the compiler, the screwed things has to be
- * done by hand.
+ * Convert a signed n-bit integer to signed 32-bit integer.
  */
 
 static s32 snto32(__u32 value, unsigned n)
 {
-	switch (n) {
-	case 8:  return ((__s8)value);
-	case 16: return ((__s16)value);
-	case 32: return ((__s32)value);
-	}
-	return value & (1 << (n - 1)) ? value | (~0U << n) : value;
+	if (!value || !n)
+		return 0;
+
+	return sign_extend32(value, n - 1);
 }
 
 s32 hid_snto32(__u32 value, unsigned n)
@@ -2027,6 +2054,9 @@ int hid_connect(struct hid_device *hdev, unsigned int connect_mask)
 		break;
 	case BUS_I2C:
 		bus = "I2C";
+		break;
+	case BUS_VIRTUAL:
+		bus = "VIRTUAL";
 		break;
 	default:
 		bus = "<UNKNOWN>";

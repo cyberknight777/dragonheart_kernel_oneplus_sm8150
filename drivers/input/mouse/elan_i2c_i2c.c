@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
+#include <linux/slab.h>
 #include <linux/sched.h>
 #include <asm/unaligned.h>
 
@@ -46,6 +47,8 @@
 #define ETP_I2C_RESOLUTION_CMD		0x0108
 #define ETP_I2C_PRESSURE_CMD		0x010A
 #define ETP_I2C_IAP_VERSION_CMD		0x0110
+#define ETP_I2C_IC_TYPE_P0_CMD		0x0110
+#define ETP_I2C_IAP_VERSION_P0_CMD	0x0111
 #define ETP_I2C_SET_CMD			0x0300
 #define ETP_I2C_POWER_CMD		0x0307
 #define ETP_I2C_FW_CHECKSUM_CMD		0x030F
@@ -56,6 +59,8 @@
 #define ETP_I2C_CALIBRATE_CMD		0x0316
 #define ETP_I2C_MAX_BASELINE_CMD	0x0317
 #define ETP_I2C_MIN_BASELINE_CMD	0x0318
+#define ETP_I2C_IAP_TYPE_REG		0x0040
+#define ETP_I2C_IAP_TYPE_CMD		0x0304
 
 #define ETP_I2C_REPORT_LEN		34
 #define ETP_I2C_DESC_LENGTH		30
@@ -252,7 +257,13 @@ static int elan_i2c_get_pattern(struct i2c_client *client, u8 *pattern)
 		dev_err(&client->dev, "failed to get pattern: %d\n", error);
 		return error;
 	}
-	*pattern = val[1];
+
+	/*
+	 * Not all versions of firmware implement "get pattern" command.
+	 * When this command is not implemented the device will respond
+	 * with 0xFF 0xFF, which we will treat as "old" pattern 0.
+	 */
+	*pattern = val[0] == 0xFF && val[1] == 0xFF ? 0 : val[1];
 
 	return 0;
 }
@@ -262,6 +273,7 @@ static int elan_i2c_get_version(struct i2c_client *client,
 {
 	int error;
 	u8 pattern_ver;
+	u16 cmd;
 	u8 val[3];
 
 	error = elan_i2c_get_pattern(client, &pattern_ver);
@@ -270,17 +282,21 @@ static int elan_i2c_get_version(struct i2c_client *client,
 		return error;
 	}
 
-	error = elan_i2c_read_cmd(client,
-				  iap ? ETP_I2C_IAP_VERSION_CMD :
-					ETP_I2C_FW_VERSION_CMD,
-				  val);
+	if (!iap)
+		cmd = ETP_I2C_FW_VERSION_CMD;
+	else if (pattern_ver == 0)
+		cmd = ETP_I2C_IAP_VERSION_P0_CMD;
+	else
+		cmd = ETP_I2C_IAP_VERSION_CMD;
+
+	error = elan_i2c_read_cmd(client, cmd, val);
 	if (error) {
 		dev_err(&client->dev, "failed to get %s version: %d\n",
 			iap ? "IAP" : "FW", error);
 		return error;
 	}
 
-	if (pattern_ver == 0x01)
+	if (pattern_ver >= 0x01)
 		*version = iap ? val[1] : val[0];
 	else
 		*version = val[0];
@@ -301,7 +317,7 @@ static int elan_i2c_get_sm_version(struct i2c_client *client,
 		return error;
 	}
 
-	if (pattern_ver == 0x01) {
+	if (pattern_ver >= 0x01) {
 		error = elan_i2c_read_cmd(client, ETP_I2C_IC_TYPE_CMD, val);
 		if (error) {
 			dev_err(&client->dev, "failed to get ic type: %d\n",
@@ -327,7 +343,14 @@ static int elan_i2c_get_sm_version(struct i2c_client *client,
 			return error;
 		}
 		*version = val[0];
-		*ic_type = val[1];
+
+		error = elan_i2c_read_cmd(client, ETP_I2C_IC_TYPE_P0_CMD, val);
+		if (error) {
+			dev_err(&client->dev, "failed to get ic type: %d\n",
+				error);
+			return error;
+		}
+		*ic_type = val[0];
 
 		error = elan_i2c_read_cmd(client, ETP_I2C_NSM_VERSION_CMD,
 					  val);
@@ -510,7 +533,43 @@ static int elan_i2c_set_flash_key(struct i2c_client *client)
 	return 0;
 }
 
-static int elan_i2c_prepare_fw_update(struct i2c_client *client)
+static int elan_read_write_iap_type(struct i2c_client *client, u16 fw_page_size)
+{
+	int error;
+	u16 constant;
+	u8 val[3];
+	int retry = 3;
+
+	do {
+		error = elan_i2c_write_cmd(client, ETP_I2C_IAP_TYPE_CMD,
+					   fw_page_size / 2);
+		if (error) {
+			dev_err(&client->dev,
+				"cannot write iap type: %d\n", error);
+			return error;
+		}
+
+		error = elan_i2c_read_cmd(client, ETP_I2C_IAP_TYPE_CMD, val);
+		if (error) {
+			dev_err(&client->dev,
+				"failed to read iap type register: %d\n",
+				error);
+			return error;
+		}
+		constant = le16_to_cpup((__le16 *)val);
+		dev_dbg(&client->dev, "iap type reg: 0x%04x\n", constant);
+
+		if (constant == fw_page_size / 2)
+			return 0;
+
+	} while (--retry > 0);
+
+	dev_err(&client->dev, "cannot set iap type\n");
+	return -EIO;
+}
+
+static int elan_i2c_prepare_fw_update(struct i2c_client *client, u16 ic_type,
+				      u8 iap_version, u16 fw_page_size)
 {
 	struct device *dev = &client->dev;
 	int error;
@@ -550,6 +609,12 @@ static int elan_i2c_prepare_fw_update(struct i2c_client *client)
 		return -EIO;
 	}
 
+	if (ic_type >= 0x0D && iap_version >= 1) {
+		error = elan_read_write_iap_type(client, fw_page_size);
+		if (error)
+			return error;
+	}
+
 	/* Set flash key again */
 	error = elan_i2c_set_flash_key(client);
 	if (error)
@@ -575,45 +640,52 @@ static int elan_i2c_prepare_fw_update(struct i2c_client *client)
 	return 0;
 }
 
-static int elan_i2c_write_fw_block(struct i2c_client *client,
+static int elan_i2c_write_fw_block(struct i2c_client *client, u16 fw_page_size,
 				   const u8 *page, u16 checksum, int idx)
 {
 	struct device *dev = &client->dev;
-	u8 page_store[ETP_FW_PAGE_SIZE + 4];
+	u8 *page_store;
 	u8 val[3];
 	u16 result;
 	int ret, error;
 
+	page_store = kmalloc(fw_page_size + 4, GFP_KERNEL);
+	if (!page_store)
+		return -ENOMEM;
+
 	page_store[0] = ETP_I2C_IAP_REG_L;
 	page_store[1] = ETP_I2C_IAP_REG_H;
-	memcpy(&page_store[2], page, ETP_FW_PAGE_SIZE);
+	memcpy(&page_store[2], page, fw_page_size);
 	/* recode checksum at last two bytes */
-	put_unaligned_le16(checksum, &page_store[ETP_FW_PAGE_SIZE + 2]);
+	put_unaligned_le16(checksum, &page_store[fw_page_size + 2]);
 
-	ret = i2c_master_send(client, page_store, sizeof(page_store));
-	if (ret != sizeof(page_store)) {
+	ret = i2c_master_send(client, page_store, fw_page_size + 4);
+	if (ret != fw_page_size + 4) {
 		error = ret < 0 ? ret : -EIO;
 		dev_err(dev, "Failed to write page %d: %d\n", idx, error);
-		return error;
+		goto exit;
 	}
 
 	/* Wait for F/W to update one page ROM data. */
-	msleep(35);
+	msleep(fw_page_size == ETP_FW_PAGE_SIZE_512 ? 50 : 35);
 
 	error = elan_i2c_read_cmd(client, ETP_I2C_IAP_CTRL_CMD, val);
 	if (error) {
 		dev_err(dev, "Failed to read IAP write result: %d\n", error);
-		return error;
+		goto exit;
 	}
 
 	result = le16_to_cpup((__le16 *)val);
 	if (result & (ETP_FW_IAP_PAGE_ERR | ETP_FW_IAP_INTF_ERR)) {
 		dev_err(dev, "IAP reports failed write: %04hx\n",
 			result);
-		return -EIO;
+		error = -EIO;
+		goto exit;
 	}
 
-	return 0;
+exit:
+	kfree(page_store);
+	return error;
 }
 
 static int elan_i2c_finish_fw_update(struct i2c_client *client,

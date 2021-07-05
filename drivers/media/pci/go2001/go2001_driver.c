@@ -273,17 +273,19 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 	struct sg_table *sgt;
 	u64 dma_addr;
 	u32 dma_len;
-	int plane, sgi;
+	int plane, sgi, listi;
 	int ret;
 
 	go2001_trace(gdev);
 	BUG_ON(gbuf->mapped);
 
 	for (plane = 0; plane < vb->num_planes; ++plane) {
+		size_t data_offset = vb->planes[plane].data_offset;
+
 		dma_desc = &gbuf->dma_desc[plane];
 		WARN_ON(!IS_ALIGNED(dma_desc->map_addr, 16));
 		sgt = vb2_dma_sg_plane_desc(vb, plane);
-		if (!IS_ALIGNED(sgt->sgl->offset, 8) ||
+		if (!IS_ALIGNED(data_offset + sgt->sgl->offset, 8) ||
 				!IS_ALIGNED(vb2_plane_size(vb, plane), 8)) {
 			go2001_err(gdev, "Plane address/size not aligned "
 					"%d/%lu\n", sgt->sgl->offset,
@@ -306,17 +308,39 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 		go2001_dbg(gdev, 3, "Plane %d: mmap list size: %zu\n",
 				plane, dma_desc->list_size);
 
+		listi = 0;
 		mmap_list = dma_desc->mmap_list;
-		for_each_sg(sgt->sgl, sg, dma_desc->num_entries, sgi) {
-			dma_addr = sg_dma_address(sg);
+		for_each_sg(sgt->sgl, sg, sgt->nents, sgi) {
 			dma_len = sg_dma_len(sg);
 
-			mmap_list[sgi].dma_addr = cpu_to_le64(dma_addr);
-			mmap_list[sgi].size = cpu_to_le32(dma_len);
+			if (dma_len <= data_offset) {
+				/*
+				 * We only map the part of the buffer with
+				 * actual data, so skip chunks that are
+				 * entirely before the plane data_offset.
+				 */
+				data_offset -= dma_len;
+				continue;
+			}
+
+			/*
+			 * At this point data_offset is within the current
+			 * chunk.
+			 */
+			dma_len -= data_offset;
+			dma_addr = sg_dma_address(sg) + data_offset;
+			data_offset = 0;
+
+			mmap_list[listi].dma_addr = cpu_to_le64(dma_addr);
+			mmap_list[listi].size = cpu_to_le32(dma_len);
 
 			go2001_dbg(gdev, 4, "Chunk %d: 0x%08llx, size %d\n",
 					sgi, dma_addr, dma_len);
+
+			++listi;
 		}
+
+		dma_desc->num_entries = listi;
 	}
 
 	ret = go2001_map_buffer(ctx, gbuf);
