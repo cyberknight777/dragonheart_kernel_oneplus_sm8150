@@ -447,12 +447,17 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	ieee80211_hw_set(hw, CHANCTX_STA_CSA);
 	ieee80211_hw_set(hw, SUPPORT_FAST_XMIT);
 	ieee80211_hw_set(hw, SUPPORTS_CLONED_SKBS);
-	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
 	ieee80211_hw_set(hw, NEEDS_UNIQUE_STA_ADDR);
 	ieee80211_hw_set(hw, DEAUTH_NEED_MGD_TX_PREP);
 	ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
 	ieee80211_hw_set(hw, BUFF_MMPDU_TXQ);
 	ieee80211_hw_set(hw, STA_MMPDU_TXQ);
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (!mvm->trans->dbg_cfg.amsdu_in_ampdu_disabled)
+		ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
+#else
+	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
+#endif
 	/*
 	 * On older devices, enabling TX A-MSDU occasionally leads to
 	 * something getting messed up, the command read from the FIFO
