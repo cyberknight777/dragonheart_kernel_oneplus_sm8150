@@ -1263,7 +1263,7 @@ static u8 iwl_mvm_eval_dsm_rfi(struct iwl_mvm *mvm)
 {
 	u8 value;
 
-	int ret = iwl_acpi_get_dsm_u8((&mvm->fwrt)->dev, 0, DSM_RFI_FUNC_ENABLE,
+	int ret = iwl_acpi_get_dsm_u8(mvm->fwrt.dev, 0, DSM_RFI_FUNC_ENABLE,
 				      &iwl_rfi_guid, &value);
 	if (ret < 0) {
 		IWL_DEBUG_RADIO(mvm, "Failed to get DSM RFI, ret=%d\n", ret);
@@ -1291,18 +1291,18 @@ static void iwl_mvm_lari_cfg(struct iwl_mvm *mvm)
 
 	cmd.config_bitmap = iwl_acpi_get_lari_config_bitmap(&mvm->fwrt);
 
-	ret = iwl_acpi_get_dsm_u32((&mvm->fwrt)->dev, 0, DSM_FUNC_11AX_ENABLEMENT,
+	ret = iwl_acpi_get_dsm_u32(mvm->fwrt.dev, 0, DSM_FUNC_11AX_ENABLEMENT,
 				   &iwl_guid, &value);
 	if (!ret)
 		cmd.oem_11ax_allow_bitmap = cpu_to_le32(value);
 
-	ret = iwl_acpi_get_dsm_u32((&mvm->fwrt)->dev, 0,
+	ret = iwl_acpi_get_dsm_u32(mvm->fwrt.dev, 0,
 				   DSM_FUNC_ENABLE_UNII4_CHAN,
 				   &iwl_guid, &value);
 	if (!ret)
 		cmd.oem_unii4_allow_bitmap = cpu_to_le32(value);
 
-	ret = iwl_acpi_get_dsm_u32((&mvm->fwrt)->dev, 0,
+	ret = iwl_acpi_get_dsm_u32(mvm->fwrt.dev, 0,
 				   DSM_FUNC_ACTIVATE_CHANNEL,
 				   &iwl_guid, &value);
 	if (!ret)
