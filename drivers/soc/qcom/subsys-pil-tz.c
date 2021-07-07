@@ -31,7 +31,6 @@
 
 #include <linux/soc/qcom/smem.h>
 #include <linux/soc/qcom/smem_state.h>
-#include <linux/project_info.h>
 
 #include "peripheral-loader.h"
 
@@ -869,7 +868,6 @@ static void log_failure_reason(const struct pil_tz_data *d)
 
 	strlcpy(reason, smem_reason, min(size, (size_t)MAX_SSR_REASON_LEN));
 	pr_err("%s subsystem failure reason: %s.\n", name, reason);
-	subsys_store_crash_reason(d->subsys, reason);
 }
 
 static int subsys_shutdown(const struct subsys_desc *subsys, bool force_stop)

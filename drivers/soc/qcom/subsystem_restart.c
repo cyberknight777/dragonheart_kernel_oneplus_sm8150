@@ -1627,11 +1627,7 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		if (!(strcmp(name, "esoc0"))) {
 			pr_err("[OEM_MDM] SDX5x %s force SSR to get dump\n",
 					name);
-			oem_set_esoc_ssr(1);
 			__subsystem_restart_dev(dev);
-		} else if (is_oem_esoc_ssr() == 1) {
-			pr_err(
-			"[OEM_MDM] Skip SS crash because SDX5x has collapsed\n");
 		} else {
 			__pm_stay_awake(&dev->ssr_wlock);
 			schedule_work(&dev->device_restart_work);
