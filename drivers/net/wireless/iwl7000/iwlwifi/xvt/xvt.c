@@ -832,7 +832,7 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	u32 n_profiles;
 	int ret;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, PHY_OPS_GROUP,
-					   GEO_TX_POWER_LIMIT,
+					   PER_CHAIN_LIMIT_OFFSET_CMD,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, ops) !=
@@ -893,7 +893,8 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 		return 0;
 
 	return iwl_xvt_send_cmd_pdu(xvt,
-				    WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT),
+				    WIDE_ID(PHY_OPS_GROUP,
+					    PER_CHAIN_LIMIT_OFFSET_CMD),
 				    0, len, &cmd);
 }
 #else /* CONFIG_ACPI */
