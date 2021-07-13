@@ -5334,6 +5334,7 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.l2h_th_ini_cs = 60,
 	.l2h_th_ini_ad = 45,
 	.rx_ldpc = true,
+	.tx_stbc = true,
 
 #ifdef CONFIG_PM
 	.wow_fw_name = "rtw88/rtw8822c_wow_fw.bin",
