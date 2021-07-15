@@ -1920,7 +1920,7 @@ out:
 	return ret;
 }
 
-static void
+void
 ieee80211_process_tdls_channel_switch(struct ieee80211_sub_if_data *sdata,
 				      struct sk_buff *skb)
 {
@@ -1969,40 +1969,6 @@ void ieee80211_teardown_tdls_peers(struct ieee80211_sub_if_data *sdata)
 					    GFP_ATOMIC);
 	}
 	rcu_read_unlock();
-}
-
-void ieee80211_tdls_chsw_work(struct work_struct *wk)
-{
-	struct ieee80211_local *local =
-		container_of(wk, struct ieee80211_local, tdls_chsw_work);
-	struct ieee80211_sub_if_data *sdata;
-	struct sk_buff *skb;
-	struct ieee80211_tdls_data *tf;
-
-#if CFG80211_VERSION >= KERNEL_VERSION(5,12,0)
-	wiphy_lock(local->hw.wiphy);
-#else
-	rtnl_lock();
-#endif
-	while ((skb = skb_dequeue(&local->skb_queue_tdls_chsw))) {
-		tf = (struct ieee80211_tdls_data *)skb->data;
-		list_for_each_entry(sdata, &local->interfaces, list) {
-			if (!ieee80211_sdata_running(sdata) ||
-			    sdata->vif.type != NL80211_IFTYPE_STATION ||
-			    !ether_addr_equal(tf->da, sdata->vif.addr))
-				continue;
-
-			ieee80211_process_tdls_channel_switch(sdata, skb);
-			break;
-		}
-
-		kfree_skb(skb);
-	}
-#if CFG80211_VERSION >= KERNEL_VERSION(5,12,0)
-	wiphy_unlock(local->hw.wiphy);
-#else
-	rtnl_unlock();
-#endif
 }
 
 void ieee80211_tdls_handle_disconnect(struct ieee80211_sub_if_data *sdata,

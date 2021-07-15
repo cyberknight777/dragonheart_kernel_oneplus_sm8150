@@ -5569,7 +5569,7 @@ void ieee80211_iterate_active_interfaces_atomic(struct ieee80211_hw *hw,
  *
  * This function iterates over the interfaces associated with a given
  * hardware that are currently active and calls the callback for them.
- * This version can only be used while holding the RTNL.
+ * This version can only be used while holding the wiphy mutex.
  *
  * @hw: the hardware struct of which the interfaces should be iterated over
  * @iter_flags: iteration flags, see &enum ieee80211_interface_iteration_flags
@@ -6228,6 +6228,11 @@ enum rate_control_capabilities {
 	 * otherwise the NSS difference doesn't bother us.
 	 */
 	RATE_CTRL_CAPA_VHT_EXT_NSS_BW = BIT(0),
+	/**
+	 * @RATE_CTRL_CAPA_AMPDU_TRIGGER:
+	 * mac80211 should start A-MPDU sessions on tx
+	 */
+	RATE_CTRL_CAPA_AMPDU_TRIGGER = BIT(1),
 };
 
 struct rate_control_ops {
@@ -6436,7 +6441,12 @@ bool ieee80211_tx_prepare_skb(struct ieee80211_hw *hw,
 
 /**
  * ieee80211_parse_tx_radiotap - Sanity-check and parse the radiotap header
- *				 of injected frames
+ *				 of injected frames.
+ *
+ * To accurately parse and take into account rate and retransmission fields,
+ * you must initialize the chandef field in the ieee80211_tx_info structure
+ * of the skb before calling this function.
+ *
  * @skb: packet injected by userspace
  * @dev: the &struct device of this 802.11 device
  */
@@ -6615,9 +6625,6 @@ static inline void ieee80211_txq_schedule_end(struct ieee80211_hw *hw, u8 ac)
 {
 }
 
-void __ieee80211_schedule_txq(struct ieee80211_hw *hw,
-			      struct ieee80211_txq *txq, bool force);
-
 /**
  * ieee80211_schedule_txq - schedule a TXQ for transmission
  *
@@ -6630,11 +6637,7 @@ void __ieee80211_schedule_txq(struct ieee80211_hw *hw,
  * The driver may call this function if it has buffered packets for
  * this TXQ internally.
  */
-static inline void
-ieee80211_schedule_txq(struct ieee80211_hw *hw, struct ieee80211_txq *txq)
-{
-	__ieee80211_schedule_txq(hw, txq, true);
-}
+void ieee80211_schedule_txq(struct ieee80211_hw *hw, struct ieee80211_txq *txq);
 
 /**
  * ieee80211_return_txq - return a TXQ previously acquired by ieee80211_next_txq()
@@ -6646,12 +6649,8 @@ ieee80211_schedule_txq(struct ieee80211_hw *hw, struct ieee80211_txq *txq)
  * The driver may set force=true if it has buffered packets for this TXQ
  * internally.
  */
-static inline void
-ieee80211_return_txq(struct ieee80211_hw *hw, struct ieee80211_txq *txq,
-		     bool force)
-{
-	__ieee80211_schedule_txq(hw, txq, force);
-}
+void ieee80211_return_txq(struct ieee80211_hw *hw, struct ieee80211_txq *txq,
+			  bool force);
 
 /**
  * ieee80211_txq_may_transmit - check whether TXQ is allowed to transmit
@@ -6791,4 +6790,22 @@ struct sk_buff *ieee80211_get_fils_discovery_tmpl(struct ieee80211_hw *hw,
 struct sk_buff *
 ieee80211_get_unsol_bcast_probe_resp_tmpl(struct ieee80211_hw *hw,
 					  struct ieee80211_vif *vif);
+
+/**
+ * ieee80211_is_tx_data - check if frame is a data frame
+ *
+ * The function is used to check if a frame is a data frame. Frames with
+ * hardware encapsulation enabled are data frames.
+ *
+ * @skb: the frame to be transmitted.
+ */
+static inline bool ieee80211_is_tx_data(struct sk_buff *skb)
+{
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+	struct ieee80211_hdr *hdr = (void *) skb->data;
+
+	return info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP ||
+	       ieee80211_is_data(hdr->frame_control);
+}
+
 #endif /* MAC80211_H */

@@ -1571,6 +1571,20 @@ static inline void skb_list_del_init(struct sk_buff *skb)
 	__list_del_entry((struct list_head *)&skb->next);
 	skb_mark_not_on_list(skb);
 }
+
+#define rb_root_cached rb_root
+#define rb_first_cached rb_first
+static inline void rb_insert_color_cached(struct rb_node *node,
+					  struct rb_root_cached *root,
+					  bool leftmost)
+{
+	rb_insert_color(node, root);
+}
+#define rb_erase_cached rb_erase
+#define RB_ROOT_CACHED RB_ROOT
+#define rb_root_node(root) (root)->rb_node
+#else
+#define rb_root_node(root) (root)->rb_root.rb_node
 #endif /* < 4.14 */
 
 #if LINUX_VERSION_IS_LESS(4,20,0)

@@ -716,10 +716,13 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	spin_lock_init(&local->queue_stop_reason_lock);
 
 	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
-		INIT_LIST_HEAD(&local->active_txqs[i]);
-		spin_lock_init(&local->active_txq_lock[i]);
-		local->aql_txq_limit_low[i] = IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L;
-		local->aql_txq_limit_high[i] =
+		struct airtime_sched_info *air_sched = &local->airtime[i];
+
+		air_sched->active_txqs = RB_ROOT_CACHED;
+		INIT_LIST_HEAD(&air_sched->active_list);
+		spin_lock_init(&air_sched->lock);
+		air_sched->aql_txq_limit_low = IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L;
+		air_sched->aql_txq_limit_high =
 			IEEE80211_DEFAULT_AQL_TXQ_LIMIT_H;
 	}
 
@@ -749,8 +752,6 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	INIT_WORK(&local->sched_scan_stopped_work,
 		  ieee80211_sched_scan_stopped_work);
 
-	INIT_WORK(&local->tdls_chsw_work, ieee80211_tdls_chsw_work);
-
 	spin_lock_init(&local->ack_status_lock);
 	idr_init(&local->ack_status_frames);
 
@@ -767,7 +768,6 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 
 	skb_queue_head_init(&local->skb_queue);
 	skb_queue_head_init(&local->skb_queue_unreliable);
-	skb_queue_head_init(&local->skb_queue_tdls_chsw);
 
 	ieee80211_alloc_led_names(local);
 
@@ -1429,7 +1429,6 @@ void ieee80211_unregister_hw(struct ieee80211_hw *hw)
 	cancel_delayed_work_sync(&local->roc_work);
 	cancel_work_sync(&local->restart_work);
 	cancel_work_sync(&local->reconfig_filter);
-	cancel_work_sync(&local->tdls_chsw_work);
 	flush_work(&local->sched_scan_stopped_work);
 	flush_work(&local->radar_detected_work);
 
@@ -1441,7 +1440,6 @@ void ieee80211_unregister_hw(struct ieee80211_hw *hw)
 		wiphy_warn(local->hw.wiphy, "skb_queue not empty\n");
 	skb_queue_purge(&local->skb_queue);
 	skb_queue_purge(&local->skb_queue_unreliable);
-	skb_queue_purge(&local->skb_queue_tdls_chsw);
 
 	wiphy_unregister(local->hw.wiphy);
 	destroy_workqueue(local->workqueue);

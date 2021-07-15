@@ -692,7 +692,7 @@ static void ieee80211_add_vht_ie(struct ieee80211_sub_if_data *sdata,
 		cap &= ~IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE;
 
 	/*
-	 * If some other vif is using the MU-MIMO capablity we cannot associate
+	 * If some other vif is using the MU-MIMO capability we cannot associate
 	 * using MU-MIMO - this will lead to contradictions in the group-id
 	 * mechanism.
 	 * Ownership is defined since association request, in order to avoid
@@ -1198,11 +1198,6 @@ void ieee80211_send_nullfunc(struct ieee80211_local *local,
 	struct ieee80211_hdr_3addr *nullfunc;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 
-	/* Don't send NDPs when STA is connected HE */
-	if (sdata->vif.type == NL80211_IFTYPE_STATION &&
-	    !(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
-		return;
-
 	skb = ieee80211_nullfunc_get(&local->hw, &sdata->vif,
 		!ieee80211_hw_check(&local->hw, DOESNT_SUPPORT_QOS_NDP));
 	if (!skb)
@@ -1232,10 +1227,6 @@ static void ieee80211_send_4addr_nullfunc(struct ieee80211_local *local,
 	__le16 fc;
 
 	if (WARN_ON(sdata->vif.type != NL80211_IFTYPE_STATION))
-		return;
-
-	/* Don't send NDPs when connected HE */
-	if (!(sdata->u.mgd.flags & IEEE80211_STA_DISABLE_HE))
 		return;
 
 	skb = dev_alloc_skb(local->hw.extra_tx_headroom + 30);
@@ -2658,10 +2649,7 @@ static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 
 	if (ieee80211_hw_check(&sdata->local->hw, REPORTS_TX_ACK_STATUS)) {
 		ifmgd->nullfunc_failed = false;
-		if (!(ifmgd->flags & IEEE80211_STA_DISABLE_HE))
-			ifmgd->probe_send_count--;
-		else
-			ieee80211_send_nullfunc(sdata->local, sdata, false);
+		ieee80211_send_nullfunc(sdata->local, sdata, false);
 	} else {
 		int ssid_len;
 
@@ -6052,6 +6040,7 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
 		ieee80211_report_disconnect(sdata, frame_buf,
 					    sizeof(frame_buf), true,
 					    req->reason_code, false);
+		drv_mgd_complete_tx(sdata->local, sdata, &info);
 		return 0;
 	}
 

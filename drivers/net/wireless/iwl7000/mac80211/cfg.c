@@ -1522,6 +1522,40 @@ static void sta_apply_mesh_params(struct ieee80211_local *local,
 #endif
 }
 
+#if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
+static void sta_apply_airtime_params(struct ieee80211_local *local,
+				     struct sta_info *sta,
+				     struct station_parameters *params)
+{
+	u8 ac;
+
+	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
+		struct airtime_sched_info *air_sched = &local->airtime[ac];
+		struct airtime_info *air_info = &sta->airtime[ac];
+		struct txq_info *txqi;
+		u8 tid;
+
+		spin_lock_bh(&air_sched->lock);
+		for (tid = 0; tid < IEEE80211_NUM_TIDS + 1; tid++) {
+			if (air_info->weight == params->airtime_weight ||
+			    !sta->sta.txq[tid] ||
+			    ac != ieee80211_ac_from_tid(tid))
+				continue;
+
+			airtime_weight_set(air_info, params->airtime_weight);
+
+			txqi = to_txq_info(sta->sta.txq[tid]);
+			if (RB_EMPTY_NODE(&txqi->schedule_order))
+				continue;
+
+			ieee80211_update_airtime_weight(local, air_sched,
+							0, true);
+		}
+		spin_unlock_bh(&air_sched->lock);
+	}
+}
+#endif
+
 static int sta_apply_parameters(struct ieee80211_local *local,
 				struct sta_info *sta,
 				struct station_parameters *params)
@@ -1718,8 +1752,9 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 
 #if CFG80211_VERSION >= KERNEL_VERSION(5,2,0)
 	if (params->airtime_weight)
-		sta->airtime_weight = params->airtime_weight;
+		sta_apply_airtime_params(local, sta, params);
 #endif
+
 	/* set the STA state after all sta info from usermode has been set */
 	if (test_sta_flag(sta, WLAN_STA_TDLS_PEER) ||
 	    set & BIT(NL80211_STA_FLAG_ASSOCIATED)) {
@@ -1787,15 +1822,7 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	    test_sta_flag(sta, WLAN_STA_ASSOC))
 		rate_control_rate_init(sta);
 
-	err = sta_info_insert_rcu(sta);
-	if (err) {
-		rcu_read_unlock();
-		return err;
-	}
-
-	rcu_read_unlock();
-
-	return 0;
+	return sta_info_insert(sta);
 }
 
 static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
