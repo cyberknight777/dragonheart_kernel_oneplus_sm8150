@@ -4,7 +4,7 @@
  *
  * Portions of this file
  * Copyright(c) 2015 - 2016 Intel Deutschland GmbH
- * Copyright (C) 2018 - 2020 Intel Corporation
+ * Copyright (C) 2018 - 2021 Intel Corporation
  */
 
 #include <linux/ieee80211.h>
@@ -445,6 +445,11 @@ ieee80211_chan_width_to_rx_bw(enum nl80211_chan_width width)
 	case NL80211_CHAN_WIDTH_160:
 	case NL80211_CHAN_WIDTH_80P80:
 		return IEEE80211_STA_RX_BW_160;
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+		return IEEE80211_STA_RX_BW_320;
 	default:
 		WARN_ON_ONCE(1);
 		return IEEE80211_STA_RX_BW_20;

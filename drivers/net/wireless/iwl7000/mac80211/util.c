@@ -3080,6 +3080,13 @@ u8 *ieee80211_ie_build_ht_oper(u8 *pos, struct ieee80211_sta_ht_cap *ht_cap,
 		else
 			ht_oper->ht_param = IEEE80211_HT_PARAM_CHA_SEC_BELOW;
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+		/* HT information element should not be included on 6GHz */
+		WARN_ON(1);
+		return pos;
 	default:
 		ht_oper->ht_param = IEEE80211_HT_PARAM_CHA_SEC_NONE;
 		break;
@@ -3119,6 +3126,13 @@ void ieee80211_ie_build_wide_bw_cs(u8 *pos,
 	case NL80211_CHAN_WIDTH_80P80:
 		*pos++ = IEEE80211_VHT_CHANWIDTH_80P80MHZ;
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+		/* The behavior is not defined for 320 MHz channels */
+		WARN_ON(1);
+		fallthrough;
 	default:
 		*pos++ = IEEE80211_VHT_CHANWIDTH_USE_HT;
 	}
@@ -3171,6 +3185,13 @@ u8 *ieee80211_ie_build_vht_oper(u8 *pos, struct ieee80211_sta_vht_cap *vht_cap,
 	case NL80211_CHAN_WIDTH_80:
 		vht_oper->chan_width = IEEE80211_VHT_CHANWIDTH_80MHZ;
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+		/* VHT information element should not be included on 6GHz */
+		WARN_ON(1);
+		return pos;
 	default:
 		vht_oper->chan_width = IEEE80211_VHT_CHANWIDTH_USE_HT;
 		break;
@@ -3231,6 +3252,16 @@ u8 *ieee80211_ie_build_he_oper(u8 *pos, struct cfg80211_chan_def *chandef)
 		he_6ghz_op->ccfs1 = 0;
 
 	switch (chandef->width) {
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+		/*
+		 * TODO: mesh operation is not defined over 6GHz 320 MHz
+		 * channels.
+		 */
+		WARN_ON(1);
+		break;
 	case NL80211_CHAN_WIDTH_160:
 		/* Convert 160 MHz channel width to new style as interop
 		 * workaround.
@@ -3421,22 +3452,25 @@ bool ieee80211_chandef_vht_oper(struct ieee80211_hw *hw, u32 vht_cap_info,
 #if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
 bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
 				    const struct ieee80211_he_operation *he_oper,
+				    const struct ieee80211_eht_operation *eht_oper,
 				    struct cfg80211_chan_def *chandef){
 	return true;
 }
 #else
 bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
 				    const struct ieee80211_he_operation *he_oper,
+				    const struct ieee80211_eht_operation *eht_oper,
 				    struct cfg80211_chan_def *chandef)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_supported_band *sband;
 	enum nl80211_iftype iftype = ieee80211_vif_type_p2p(&sdata->vif);
 	const struct ieee80211_sta_he_cap *he_cap;
+	const struct ieee80211_sta_eht_cap *eht_cap;
 	struct cfg80211_chan_def he_chandef = *chandef;
 	const struct ieee80211_he_6ghz_oper *he_6ghz_oper;
-	bool support_80_80, support_160;
-	u8 he_phy_cap;
+	bool support_80_80, support_160, support_320;
+	u8 he_phy_cap, eht_phy_cap;
 	u32 freq;
 
 	if (!nl80211_is_6ghz(chandef->chan->band))
@@ -3465,6 +3499,12 @@ bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
 		return false;
 	}
 
+	eht_cap = ieee80211_get_eht_iftype_cap(sband, iftype);
+	if (!eht_cap) {
+		sdata_info(sdata, "Missing iftype sband data/EHT cap");
+		eht_oper = NULL;
+	}
+
 	he_6ghz_oper = ieee80211_he_6ghz_oper(he_oper);
 
 	if (!he_6ghz_oper) {
@@ -3474,47 +3514,89 @@ bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
 		return false;
 	}
 
+	/*
+	 * The EHT operation IE does not contain the primary channel so the
+	 * primary channel frequency should be taken from the 6 GHz operation
+	 * information.
+	 */
 	freq = ieee80211_channel_to_frequency(he_6ghz_oper->primary,
 					      NL80211_BAND_6GHZ);
 	he_chandef.chan = ieee80211_get_channel(sdata->local->hw.wiphy, freq);
 
-	switch (u8_get_bits(he_6ghz_oper->control,
-			    IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH)) {
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_20MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_20;
-		break;
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_40MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_40;
-		break;
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_80MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_80;
-		break;
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_80;
-		if (!he_6ghz_oper->ccfs1)
+	if (!eht_oper) {
+		switch (u8_get_bits(he_6ghz_oper->control,
+				    IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH)) {
+		case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_20MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_20;
 			break;
-		if (abs(he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0) == 8) {
-			if (support_160)
-				he_chandef.width = NL80211_CHAN_WIDTH_160;
-		} else {
-			if (support_80_80)
-				he_chandef.width = NL80211_CHAN_WIDTH_80P80;
+		case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_40MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_40;
+			break;
+		case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_80MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_80;
+			break;
+		case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_80;
+			if (!he_6ghz_oper->ccfs1)
+				break;
+			if (abs(he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0) == 8) {
+				if (support_160)
+					he_chandef.width = NL80211_CHAN_WIDTH_160;
+			} else {
+				if (support_80_80)
+					he_chandef.width = NL80211_CHAN_WIDTH_80P80;
+			}
+			break;
 		}
-		break;
-	}
 
-	if (he_chandef.width == NL80211_CHAN_WIDTH_160) {
-		he_chandef.center_freq1 =
-			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
-						       NL80211_BAND_6GHZ);
-	} else {
-		he_chandef.center_freq1 =
-			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs0,
-						       NL80211_BAND_6GHZ);
-		if (support_80_80 || support_160)
-			he_chandef.center_freq2 =
+		if (he_chandef.width == NL80211_CHAN_WIDTH_160) {
+			he_chandef.center_freq1 =
 				ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
 							       NL80211_BAND_6GHZ);
+		} else {
+			he_chandef.center_freq1 =
+				ieee80211_channel_to_frequency(he_6ghz_oper->ccfs0,
+							       NL80211_BAND_6GHZ);
+			if (support_80_80 || support_160)
+				he_chandef.center_freq2 =
+					ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
+								       NL80211_BAND_6GHZ);
+		}
+	} else {
+		eht_phy_cap = eht_cap->eht_cap_elem.phy_cap_info[0];
+		support_320 =
+			eht_phy_cap & IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ;
+
+		switch (u8_get_bits(eht_oper->chan_width,
+				    IEEE80211_EHT_OPER_CHAN_WIDTH)) {
+		case IEEE80211_EHT_OPER_CHAN_WIDTH_20MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_20;
+			break;
+		case IEEE80211_EHT_OPER_CHAN_WIDTH_40MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_40;
+			break;
+		case IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ:
+			he_chandef.width = NL80211_CHAN_WIDTH_80;
+			break;
+		case IEEE80211_EHT_OPER_CHAN_WIDTH_160MHZ:
+			if (support_160)
+				he_chandef.width = NL80211_CHAN_WIDTH_160;
+			else
+				he_chandef.width = NL80211_CHAN_WIDTH_80;
+			break;
+		case IEEE80211_EHT_OPER_CHAN_WIDTH_320MHZ:
+			if (support_320)
+				he_chandef.width = NL80211_CHAN_WIDTH_320;
+			else if (support_160)
+				he_chandef.width = NL80211_CHAN_WIDTH_160;
+			else
+				he_chandef.width = NL80211_CHAN_WIDTH_80;
+			break;
+		}
+
+		he_chandef.center_freq1 =
+			ieee80211_channel_to_frequency(eht_oper->ccfs,
+						       NL80211_BAND_6GHZ);
 	}
 
 	if (!cfg80211_chandef_valid(&he_chandef)) {
@@ -3997,6 +4079,18 @@ u32 ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
 		c->width = NL80211_CHAN_WIDTH_80;
 		ret = IEEE80211_STA_DISABLE_80P80MHZ |
 		      IEEE80211_STA_DISABLE_160MHZ;
+		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
+		/* n_P20 */
+		tmp = (150 + c->chan->center_freq - c->center_freq1) / 20;
+		/* n_P160 */
+		tmp /= 80;
+		c->center_freq1 = c->center_freq1 - 80 + 160 * tmp;
+		c->width = NL80211_CHAN_WIDTH_160;
+		ret = IEEE80211_STA_DISABLE_320MHZ;
 		break;
 	default:
 	case NL80211_CHAN_WIDTH_20_NOHT:

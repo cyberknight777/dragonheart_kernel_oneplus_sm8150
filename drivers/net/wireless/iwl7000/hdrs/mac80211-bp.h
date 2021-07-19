@@ -55,7 +55,38 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 
 #if CFG80211_VERSION <= KERNEL_VERSION(9,9,9)
 #define IEEE80211_CHAN_NO_HE 0
+#define IEEE80211_CHAN_NO_EHT 0
+
 #define NL80211_RRF_NO_HE 0
+
+#define NL80211_CHAN_WIDTH_320 13
+
+#define IEEE80211_EHT_PPE_THRES_MAX_LEN	61
+
+/**
+ * struct ieee80211_sta_eht_cap - STA's EHT capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11be EHT capabilities for a STA.
+ *
+ * @has_he: true iff HE data is valid.
+ * @eht_cap_elem: Fixed portion of the eht capabilities element.
+ * @eht_mcs_nss_supp: The supported NSS/MCS combinations.
+ * @eht_ppe_thres: Holds the PPE Thresholds data.
+ */
+struct ieee80211_sta_eht_cap {
+	bool has_eht;
+	struct ieee80211_eht_cap_elem eht_cap_elem;
+	struct ieee80211_eht_mcs_nss_supp eht_mcs_nss_supp;
+	u8 eht_ppe_thres[IEEE80211_EHT_PPE_THRES_MAX_LEN];
+};
+
+static inline const struct ieee80211_sta_eht_cap *
+ieee80211_get_eht_iftype_cap(const struct ieee80211_supported_band *sband,
+			     enum nl80211_iftype iftype)
+{
+	return NULL;
+}
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(3,19,0)

@@ -218,6 +218,8 @@ static enum nl80211_chan_width ieee80211_get_sta_bw(struct sta_info *sta)
 		 * might be smaller than the configured bw (160).
 		 */
 		return NL80211_CHAN_WIDTH_160;
+	case IEEE80211_STA_RX_BW_320:
+		return NL80211_CHAN_WIDTH_320;
 	default:
 		WARN_ON(1);
 		return NL80211_CHAN_WIDTH_20;
@@ -423,7 +425,7 @@ static void ieee80211_change_chanctx(struct ieee80211_local *local,
 {
 	u32 changed;
 
-	/* expected to handle only 20/40/80/160 channel widths */
+	/* expected to handle only 20/40/80/160/320 channel widths */
 	switch (chandef->width) {
 	case NL80211_CHAN_WIDTH_20_NOHT:
 	case NL80211_CHAN_WIDTH_20:
@@ -431,6 +433,10 @@ static void ieee80211_change_chanctx(struct ieee80211_local *local,
 	case NL80211_CHAN_WIDTH_80:
 	case NL80211_CHAN_WIDTH_80P80:
 	case NL80211_CHAN_WIDTH_160:
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		break;
 	default:
 		WARN_ON(1);
