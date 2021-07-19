@@ -565,7 +565,7 @@ static int qti_haptics_config_play_rate_us(struct qti_hap_chip *chip,
 		rc = qti_haptics_read(chip, REG_HAP_LRA_AUTO_RES, val, 2);
 		if (rc < 0)
 			dev_err(chip->dev, "read lra_auto_res failed, rc=%d\n", rc);
-		dev_info(chip->dev, "haptic val[0]=0x%x,val[1]=0x%x",val[0],val[1]);
+		dev_dbg(chip->dev, "haptic val[0]=0x%x,val[1]=0x%x",val[0],val[1]);
 		val[1] = ((val[1] & 0xF0) >> 4);
 	rc = qti_haptics_write(chip, addr, val, 2);
 	if (rc < 0)
@@ -912,7 +912,7 @@ static int qti_haptics_upload_effect(struct input_dev *dev,
 		level = effect->u.constant.level;
 		tmp = level * config->vmax_mv;
 		play->vmax_mv = tmp / 0x7fff;
-		dev_info(chip->dev, "upload constant effect, length = %dus, vmax_mv=%d\n",
+		dev_dbg(chip->dev, "upload constant effect, length = %dus, vmax_mv=%d\n",
 				play->length_us, play->vmax_mv);
 
 		rc = qti_haptics_load_constant_waveform(chip);
@@ -951,7 +951,7 @@ static int qti_haptics_upload_effect(struct input_dev *dev,
 		tmp = level * chip->predefined[i].vmax_mv;
 		play->vmax_mv = tmp / 0x7fff;
 
-		dev_info(chip->dev, "upload effect %d, vmax_mv=%d\n",
+		dev_dbg(chip->dev, "upload effect %d, vmax_mv=%d\n",
 				chip->predefined[i].id, play->vmax_mv);
 		rc = qti_haptics_load_predefined_effect(chip, i);
 		if (rc < 0) {
@@ -1003,7 +1003,7 @@ static int qti_haptics_playback(struct input_dev *dev, int effect_id, int val)
 	unsigned long nsecs;
 	int rc = 0;
 
-	dev_info(chip->dev, "playback, val = %d\n", val);
+	dev_dbg(chip->dev, "playback, val = %d\n", val);
 	if (!!val) {
 		rc = qti_haptics_module_en(chip, true);
 		if (rc < 0)
@@ -2006,7 +2006,7 @@ static ssize_t op_haptic_rf_read(struct file *file,
 	val[1] = ((val[1] & 0xF0) >> 4);
 	tmp = (val[1] << 8) | (val[0] & 0xFF);
 	g_qti_chip->resonant_frequency = ((19200/96)*1000)/tmp;
-	dev_info(g_qti_chip->dev, "resonant_frequency=%d\n", g_qti_chip->resonant_frequency);
+	dev_dbg(g_qti_chip->dev, "resonant_frequency=%d\n", g_qti_chip->resonant_frequency);
 	ret = snprintf(page, 255, "%d", g_qti_chip->resonant_frequency);
 	ret = simple_read_from_buffer(user_buf,
 			count, ppos, page, strlen(page));
