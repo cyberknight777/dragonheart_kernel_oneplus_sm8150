@@ -81,7 +81,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "sane_ctype.h"
+#include <linux/ctype.h>
 
 #define DEFAULT_SEPARATOR	" "
 #define CNTR_NOT_SUPPORTED	"<not supported>"

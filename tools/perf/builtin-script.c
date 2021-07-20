@@ -43,7 +43,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "sane_ctype.h"
+#include <linux/ctype.h>
 
 static char const		*script_name;
 static char const		*generate_script_lang;
