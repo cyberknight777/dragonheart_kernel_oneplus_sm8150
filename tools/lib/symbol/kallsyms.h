@@ -18,6 +18,8 @@ static inline u8 kallsyms2elf_binding(char type)
 	return isupper(type) ? STB_GLOBAL : STB_LOCAL;
 }
 
+int hex2u64(const char *ptr, u64 *long_val);
+
 u8 kallsyms2elf_type(char type);
 
 int kallsyms__parse(const char *filename, void *arg,
