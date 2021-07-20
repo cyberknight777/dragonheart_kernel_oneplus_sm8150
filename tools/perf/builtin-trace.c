@@ -58,7 +58,7 @@
 #include <linux/stringify.h>
 #include <linux/time64.h>
 
-#include "sane_ctype.h"
+#include <linux/ctype.h>
 
 #ifndef O_CLOEXEC
 # define O_CLOEXEC		02000000

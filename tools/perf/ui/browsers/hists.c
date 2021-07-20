@@ -28,7 +28,7 @@
 #include "string2.h"
 #include "units.h"
 
-#include "sane_ctype.h"
+#include <linux/ctype.h>
 
 extern void hist_browser__init_hpp(void);
 

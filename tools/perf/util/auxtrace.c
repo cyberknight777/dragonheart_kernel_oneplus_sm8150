@@ -58,7 +58,7 @@
 #include "intel-pt.h"
 #include "intel-bts.h"
 
-#include "sane_ctype.h"
+#include <linux/ctype.h>
 #include "symbol/kallsyms.h"
 
 int auxtrace_mmap__mmap(struct auxtrace_mmap *mm,

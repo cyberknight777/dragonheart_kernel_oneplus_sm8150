@@ -28,7 +28,7 @@
 #include <linux/kernel.h>
 #include <sys/utsname.h>
 
-#include "sane_ctype.h"
+#include <linux/ctype.h>
 
 const char 	*disassembler_style;
 const char	*objdump_path;
