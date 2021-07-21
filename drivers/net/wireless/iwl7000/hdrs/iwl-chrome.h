@@ -75,9 +75,9 @@ static inline u64 ktime_get_real_ns(void)
  * We still keep them in the correct directory so if they don't exist in
  * the kernel (e.g. bitfield.h won't) the preprocessor can find them.
  */
+#include <hdrs/linux/bitfield.h>
 #include <hdrs/linux/ieee80211.h>
 #include <hdrs/linux/average.h>
-#include <hdrs/linux/bitfield.h>
 #include <hdrs/net/ieee80211_radiotap.h>
 #define IEEE80211RADIOTAP_H 1 /* older kernels used this include protection */
 

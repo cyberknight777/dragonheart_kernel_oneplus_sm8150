@@ -928,7 +928,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	int result, i;
 	enum nl80211_band band;
 	int channels, max_bitrates;
-	bool supp_ht, supp_vht, supp_he;
+	bool supp_ht, supp_vht, supp_he, supp_eht;
 	struct cfg80211_chan_def dflt_chandef = {};
 
 	if (ieee80211_hw_check(hw, QUEUE_CONTROL) &&
@@ -996,6 +996,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	supp_ht = false;
 	supp_vht = false;
 	supp_he = false;
+	supp_eht = false;
 	for (band = 0; band < NUM_NL80211_BANDS; band++) {
 		struct ieee80211_supported_band *sband;
 
@@ -1040,11 +1041,18 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 								      i);
 
 			supp_he = supp_he || (iftd && iftd->he_cap.has_he);
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+			supp_eht = supp_eht || iftd->eht_cap.has_eht;
+#endif
 		}
 
 		/* HT, VHT, HE require QoS, thus >= 4 queues */
 		if (WARN_ON(local->hw.queues < IEEE80211_NUM_ACS &&
 			    (supp_ht || supp_vht || supp_he)))
+			return -EINVAL;
+
+		/* EHT requires HE support */
+		if (WARN_ON(supp_eht && !supp_he))
 			return -EINVAL;
 
 		if (!sband->ht_cap.ht_supported)
@@ -1157,6 +1165,12 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 			3 + sizeof(struct ieee80211_he_cap_elem) +
 			sizeof(struct ieee80211_he_mcs_nss_supp) +
 			IEEE80211_HE_PPE_THRES_MAX_LEN;
+
+		if (supp_eht)
+			local->scan_ies_len +=
+				3 + sizeof(struct ieee80211_eht_cap_elem) +
+				sizeof(struct ieee80211_eht_mcs_nss_supp) +
+				IEEE80211_EHT_PPE_THRES_MAX_LEN;
 	}
 
 	if (!local->ops->hw_scan) {

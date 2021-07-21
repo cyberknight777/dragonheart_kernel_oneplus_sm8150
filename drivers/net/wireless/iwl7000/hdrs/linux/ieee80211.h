@@ -18,6 +18,7 @@
 #include <linux/types.h>
 #include <linux/if_ether.h>
 #include <linux/etherdevice.h>
+#include <linux/bitfield.h>
 #include <asm/byteorder.h>
 #include <asm/unaligned.h>
 
@@ -2161,6 +2162,8 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 #define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G	0x04
 #define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G		0x08
 #define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_80PLUS80_MHZ_IN_5G	0x10
+#define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL		0x1e
+
 #define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_RU_MAPPING_IN_2G	0x20
 #define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_RU_MAPPING_IN_5G	0x40
 #define IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK			0xfe
@@ -2668,6 +2671,61 @@ ieee80211_he_spr_size(const u8 *he_spr_ie)
 #define IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ  2
 #define IEEE80211_EHT_OPER_CHAN_WIDTH_160MHZ 3
 #define IEEE80211_EHT_OPER_CHAN_WIDTH_320MHZ 4
+
+/* Calculate 802.11be EHT capabilities IE Tx/Rx EHT MCS NSS Support Field size */
+static inline u8
+ieee80211_eht_mcs_nss_size(const struct ieee80211_he_cap_elem *he_cap,
+			   const struct ieee80211_eht_cap_elem *eht_cap)
+{
+	u8 count = 0;
+
+	if (!(he_cap->phy_cap_info[0] &
+	      IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL))
+		return 4;
+
+	if (he_cap->phy_cap_info[0] &
+	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_80MHZ_IN_5G)
+		count += 3;
+
+	if (he_cap->phy_cap_info[0] &
+	    IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G)
+		count += 3;
+
+	if (eht_cap->phy_cap_info[0] & IEEE80211_EHT_PHY_CAP0_320MHZ_IN_6GHZ)
+		count += 3;
+
+	return count;
+}
+
+/* 802.11be EHT PPE Thresholds */
+#define IEEE80211_EHT_PPE_THRES_NSS_POS               0
+#define IEEE80211_EHT_PPE_THRES_NSS_MASK              0xf
+#define IEEE80211_EHT_PPE_THRES_RU_INDEX_BITMASK_MASK 0x1f0
+#define IEEE80211_EHT_PPE_THRES_INFO_PPET_SIZE	      3
+
+/*
+ * Calculate 802.11be EHT capabilities IE EHT field size
+ */
+static inline u8
+ieee80211_eht_ppe_size(u16 ppe_thres_hdr, const u8 *phy_cap_info)
+{
+	u32 n;
+
+	if (!(phy_cap_info[5] &
+	      IEEE80211_EHT_PHY_CAP5_PPE_THRESHOLD_PRESENT))
+		return 0;
+
+	n = hweight8(ppe_thres_hdr &
+		     IEEE80211_EHT_PPE_THRES_RU_INDEX_BITMASK_MASK);
+	n *= 1 + u16_get_bits(ppe_thres_hdr, IEEE80211_EHT_PPE_THRES_NSS_MASK);
+
+	/*
+	 * Each pair is 6 bits, and we need to add the 9 "header" bits to the
+	 * total size.
+	 */
+	n = n * IEEE80211_EHT_PPE_THRES_INFO_PPET_SIZE * 2 + 9;
+	return DIV_ROUND_UP(n, 8);
+}
 
 #define LISTEN_INT_USF	GENMASK(15, 14)
 #define LISTEN_INT_UI	GENMASK(13, 0)
