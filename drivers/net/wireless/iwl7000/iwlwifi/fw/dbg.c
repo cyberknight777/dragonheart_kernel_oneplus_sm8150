@@ -1167,6 +1167,13 @@ static int iwl_dump_ini_dev_mem_iter(struct iwl_fw_runtime *fwrt,
 	iwl_trans_read_mem_bytes(fwrt->trans, addr, range->data,
 				 le32_to_cpu(reg->dev_addr.size));
 
+	if ((le32_to_cpu(reg->id) & IWL_FW_INI_REGION_V2_MASK) ==
+		IWL_FW_INI_HW_SMEM_REGION_ID &&
+	    fwrt->sanitize_ops && fwrt->sanitize_ops->frob_txf)
+		fwrt->sanitize_ops->frob_txf(fwrt->sanitize_ctx,
+					     range->data,
+					     le32_to_cpu(reg->dev_addr.size));
+
 	return sizeof(*range) + le32_to_cpu(range->range_data_size);
 }
 
