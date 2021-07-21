@@ -804,8 +804,10 @@ iwl_fw_error_dump_file(struct iwl_fw_runtime *fwrt,
 
 	/* reading RXF/TXF sizes */
 	if (test_bit(STATUS_FW_ERROR, &fwrt->trans->status)) {
-		fifo_len = iwl_fw_rxf_len(fwrt, mem_cfg);
-		fifo_len += iwl_fw_txf_len(fwrt, mem_cfg);
+		if (!IS_ENABLED(CPTCFG_IWLWIFI_DONT_DUMP_FIFOS)) {
+			fifo_len = iwl_fw_rxf_len(fwrt, mem_cfg);
+			fifo_len += iwl_fw_txf_len(fwrt, mem_cfg);
+		}
 
 		/* Make room for PRPH registers */
 		if (iwl_fw_dbg_type_on(fwrt, IWL_FW_ERROR_DUMP_PRPH))
