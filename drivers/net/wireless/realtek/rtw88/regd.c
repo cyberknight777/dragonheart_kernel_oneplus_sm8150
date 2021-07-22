@@ -465,6 +465,8 @@ void rtw_regd_notifier(struct wiphy *wiphy, struct regulatory_request *request)
 	struct rtw_regd next_regd = {0};
 	bool hdl;
 
+	rtw_replace_radar_flag_with_no_ir(hw);
+
 	hdl = rtw_regd_state_hdl(rtwdev, &next_regd, request);
 	if (!hdl) {
 		rtw_dbg(rtwdev, RTW_DBG_REGD,
