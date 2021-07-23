@@ -2251,7 +2251,7 @@ static int __drm_mode_atomic_ioctl(struct drm_device *dev, void *data,
 			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT))
 		return -EINVAL;
 
-	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY)) {
+	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY) && (time_before(jiffies, last_input_time + msecs_to_jiffies(3000)))) {
 	  if (active_mode() == 2) {
 	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
 	    cpu_input_boost_kick_max(25);
