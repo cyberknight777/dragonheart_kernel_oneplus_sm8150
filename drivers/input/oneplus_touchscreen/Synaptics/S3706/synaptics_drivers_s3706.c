@@ -15,7 +15,6 @@
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/machine.h>
 #include <linux/regulator/consumer.h>
-#include <linux/pm_qos.h>
 #ifdef CONFIG_FB
 #include <linux/fb.h>
 #include <linux/notifier.h>
@@ -28,8 +27,6 @@ static int synaptics_get_chip_info(void *chip_data);
 static int synaptics_mode_switch(void *chip_data, work_mode mode, bool flag);
 static int synaptics_power_control(void *chip_data, bool enable);
 int gf_opticalfp_irq_handler(int event);
-#define PM_QOS_VALUE_TP 200
-struct pm_qos_request pm_qos_req_tp;
 struct touchpanel_data *syna_tp;
 
 
@@ -123,7 +120,6 @@ static int synaptics_get_touch_points(void *chip_data, struct point_info *points
 		points[i].status = buf[i*8];
 	}
 	kfree(buf);
-	pm_qos_remove_request(&pm_qos_req_tp);
 	return obj_attention;
 }
 
@@ -390,11 +386,8 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable, int is_s
 	int touchhold_flag = 0;
 	struct chip_data_s3706 *chip_info = (struct chip_data_s3706 *)chip_data;
 	touchold_buffer = (uint8_t *)kzalloc(10,GFP_KERNEL);
-	pm_qos_add_request(&pm_qos_req_tp, PM_QOS_CPU_DMA_LATENCY,
-			PM_QOS_VALUE_TP);
 #ifdef CONFIG_SYNAPTIC_RED
 	if (chip_info->enable_remote) {
-		pm_qos_remove_request(&pm_qos_req_tp);
 		kfree(touchold_buffer);
 		return IRQ_IGNORE;
 	}
@@ -405,7 +398,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable, int is_s
 	if (ret < 0) {
 		TPD_INFO("%s, i2c read error, ret = %d\n",
 				__func__, ret);
-		pm_qos_remove_request(&pm_qos_req_tp);
 		kfree(touchold_buffer);
 		return IRQ_EXCEPTION;
 	}
@@ -420,7 +412,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable, int is_s
 			if (ret < 0) {
 				TPD_INFO("%s,i2c error,ret = %d\n",
 						__func__, ret);
-				pm_qos_remove_request(&pm_qos_req_tp);
 				kfree(touchold_buffer);
 				return IRQ_EXCEPTION;
 			}
@@ -438,7 +429,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable, int is_s
 	if (device_status) {
 		TPD_INFO("%s, interrupt_status = 0x%x, device_status = 0x%x\n",
 				__func__, interrupt_status, device_status);
-		pm_qos_remove_request(&pm_qos_req_tp);
 		kfree(touchold_buffer);
 		return IRQ_EXCEPTION;
 	}
@@ -448,7 +438,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable, int is_s
 				kfree(touchold_buffer);
 				return IRQ_GESTURE;
 			} else {
-				pm_qos_remove_request(&pm_qos_req_tp);
 				kfree(touchold_buffer);
 				return IRQ_IGNORE;
 			}
@@ -466,7 +455,6 @@ static u8 synaptics_trigger_reason(void *chip_data, int gesture_enable, int is_s
 		TPD_INFO("interrupt_status is %d\n", interrupt_status);
 		SET_BIT(result_event, IRQ_FACE_STATE);
 	}
-	pm_qos_remove_request(&pm_qos_req_tp);
 	kfree(touchold_buffer);
 	return result_event;
 }
@@ -1021,7 +1009,6 @@ static int synaptics_get_gesture_info(void *chip_data, struct gesture_info * ges
 		gesture_buffer = NULL;
 		kfree(coordinate_buf);
 		coordinate_buf = NULL;
-		pm_qos_remove_request(&pm_qos_req_tp);
 		return -EINVAL;
 	}
 	/*get gesture type*/
@@ -1077,7 +1064,6 @@ static int synaptics_get_gesture_info(void *chip_data, struct gesture_info * ges
 		case TOUCHHOLD_DOWN:
 			gf_opticalfp_irq_handler(1);
 			TPD_INFO("touchhold down\n");
-			pm_qos_remove_request(&pm_qos_req_tp);
 			kfree(gesture_buffer);
 			gesture_buffer = NULL;
 			kfree(coordinate_buf);
@@ -1086,7 +1072,6 @@ static int synaptics_get_gesture_info(void *chip_data, struct gesture_info * ges
 		case TOUCHHOLD_UP:
 			gf_opticalfp_irq_handler(0);
 			TPD_INFO("touchhold up\n");
-			pm_qos_remove_request(&pm_qos_req_tp);
 			kfree(gesture_buffer);
 			gesture_buffer = NULL;
 			kfree(coordinate_buf);
@@ -1124,7 +1109,6 @@ static int synaptics_get_gesture_info(void *chip_data, struct gesture_info * ges
 	gesture_buffer = NULL;
 	kfree(coordinate_buf);
 	coordinate_buf = NULL;
-	pm_qos_remove_request(&pm_qos_req_tp);
 	return 0;
 }
 
