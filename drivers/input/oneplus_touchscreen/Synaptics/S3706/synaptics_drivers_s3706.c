@@ -5099,8 +5099,10 @@ static int synaptics_tp_probe(struct i2c_client *client, const struct i2c_device
 	synaptics_data_logger_open(chip_info);
 	mutex_unlock(&ts->mutex);
 
+#if CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 	/*step8:create synaptics related proc files*/
 	synaptics_create_proc(ts, chip_info->syna_ops);
+#endif
 
 	/*step9:Chip Related function*/
 #ifdef CONFIG_SYNAPTIC_RED

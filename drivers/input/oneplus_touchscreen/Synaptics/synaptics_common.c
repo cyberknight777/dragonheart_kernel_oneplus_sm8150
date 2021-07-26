@@ -292,6 +292,7 @@ void synaptics_limit_read(struct seq_file *s, struct touchpanel_data *ts)
 	release_firmware(fw);
 }
 
+#if CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 //proc/touchpanel/baseline_test
 static int tp_auto_test_read_func(struct seq_file *s, void *v)
 {
@@ -539,6 +540,7 @@ static const struct file_operations tp_DRT_proc_fops = {
 	.release = single_release,
 };
 
+
 int synaptics_create_proc(struct touchpanel_data *ts, struct synaptics_proc_operations *syna_ops)
 {
 	int ret = 0;
@@ -573,3 +575,4 @@ int synaptics_create_proc(struct touchpanel_data *ts, struct synaptics_proc_oper
 	}
 	return ret;
 }
+#endif
