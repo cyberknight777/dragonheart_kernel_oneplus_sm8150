@@ -401,8 +401,6 @@ struct touchpanel_data {
 	bool ctl_base_address;								/*change only for 18865*/
 	bool tx_change_order;								/*add for dvt change tx order */
 
-	bool charge_detect;
-	bool charge_detect_support;
 	bool module_id_support;								/*update firmware by lcd module id*/
     bool i2c_ready;                                     /*i2c resume status*/
     bool is_usb_checked;                                /*state of charger or usb*/
