@@ -200,9 +200,6 @@ void operate_mode_switch(struct touchpanel_data *ts)
         if (ts->glove_mode_support)
             ts->ts_ops->mode_switch(ts->chip_data, MODE_GLOVE, ts->glove_enable);
 
-		if (ts->charge_detect_support)
-			ts->ts_ops->mode_switch(ts->chip_data, MODE_CHARGE, ts->charge_detect);
-
 		if (ts->touch_hold_support)
 			ts->ts_ops->mode_switch(ts->chip_data, MODE_TOUCH_HOLD, ts->touch_hold_enable);
 
@@ -3450,57 +3447,6 @@ static const struct file_operations tp_fingerprint_int_test_fops = {
 		.owner = THIS_MODULE,
 };
 
-static ssize_t proc_charge_detect_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
-{
-	int value = 0;
-	char buf[4] = {0};
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (count > 2)
-		return count;
-	if (!ts)
-		return count;
-
-	if (copy_from_user(buf, buffer, count)) {
-		TPD_INFO("%s: read proc input error.\n", __func__);
-		return count;
-	}
-	sscanf(buf, "%d", &value);
-
-	TPD_DEBUG("%s value: %d, charge detect enable:%d\n", __func__, value, ts->charge_detect);
-	ts->charge_detect = value;
-	mutex_lock(&ts->mutex);
-	if (ts->charge_detect_support && ts->suspend_state == TP_SPEEDUP_RESUME_COMPLETE) {
-		ts->ts_ops->mode_switch(ts->chip_data, MODE_CHARGE, ts->charge_detect);
-	}
-	mutex_unlock(&ts->mutex);
-	return count;
-}
-
-static ssize_t proc_charge_detect_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
-{
-	int ret = 0;
-	char page[4] = {0};
-	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
-
-	if (!ts)
-		return count;
-
-	TPD_DEBUG("%s value: %d\n", __func__, ts->charge_detect);
-	ret = sprintf(page, "%d\n", ts->charge_detect);
-	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-// operation of /proc/touchpanel/charge_detect
-static const struct file_operations tp_charge_detect_fops = {
-	.write = proc_charge_detect_write,
-	.read  = proc_charge_detect_read,
-	.open  = simple_open,
-	.owner = THIS_MODULE,
-};
-
 //proc/touchpanel/debug_info/
 static int init_debug_info_proc(struct touchpanel_data *ts)
 {
@@ -3672,12 +3618,6 @@ static int init_debug_info_proc(struct touchpanel_data *ts)
 	ret = -ENOMEM;
 	TPD_INFO("%s: Couldn't create proc entry, %d\n", __func__, __LINE__);
 	}
-	// proc for charge detect
-	prEntry_tmp = proc_create_data("charge_detect", 0666, ts->prEntry_tp, &tp_charge_detect_fops,ts);
-	if(prEntry_tmp == NULL) {
-		ret = -ENOMEM;
-		TPD_INFO("%s: Couldn鈥檛 create proc entey, %d\n", __func__, __LINE__);
-	}
     return ret;
 }
 
@@ -3847,7 +3787,6 @@ static void init_parse_dts(struct device *dev, struct touchpanel_data *ts)
     ts->touch_hold_support 		= of_property_read_bool(np, "touch_hold_support");
 	ts->ctl_base_address		= of_property_read_bool(np, "ctrl_base_change");
 	ts->fp_coordinate_support		= of_property_read_bool(np, "fp_coordinate_support");
-	ts->charge_detect_support	= of_property_read_bool(np, "charge_detect_support");
 	ts->module_id_support		= of_property_read_bool(np, "module_id_support");
     ts->spuri_fp_touch.lcd_trigger_fp_check = of_property_read_bool(np, "lcd_trigger_fp_check");
     ts->spuri_fp_touch.lcd_resume_ok = true;
@@ -4714,7 +4653,6 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	ts->touch_hold_enable = 0;
 	ts->lcd_refresh_rate = 0;
 	ts->reject_point = 0;
-	ts->charge_detect = 0;
     ts->firmware_update_type = 0;
     ts->corner_delay_up = -1;
     if(ts->is_noflash_ic) {
