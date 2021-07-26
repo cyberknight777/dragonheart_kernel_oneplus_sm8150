@@ -1,1 +1,6 @@
 source "drivers/input/oneplus_touchscreen/Synaptics/S3706/Kconfig"
+
+config TOUCHPANEL_SYNAPTICS_TEST
+    bool "Build Synaptics Auto-testing features"
+    default n
+    depends on TOUCHPANEL_SYNAPTICS
