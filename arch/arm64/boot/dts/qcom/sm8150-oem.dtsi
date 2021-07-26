@@ -414,7 +414,6 @@
 		//edge_limit_support = <1>;
 		//spurious_fingerprint_support = <1>;
 		//charger_pump_support = <1>;
-		charge_detect_support = <1>;
 		black_gesture_support = <1>;
 		//black_gesture_test_support = <1>;
 		game_switch_support = <1>;
@@ -445,7 +444,6 @@
 		black_gesture_support = <1>;
 		face_detect_support = <1>;
 		touch_hold_support = <1>;
-		charge_detect_support = <1>;
 		module_id = <7>;
 		pinctrl-names = "pin_set_high", "pin_set_low";
 		pinctrl-0 = <&tp_irq_active &tp_rst_active &tp_1v8_active>;
