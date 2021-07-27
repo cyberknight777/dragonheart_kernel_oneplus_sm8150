@@ -337,7 +337,7 @@ MODULE_DEVICE_TABLE(pci, iwl_hw_card_ids);
 #define IWL_DEV_INFO(_device, _subdevice, _cfg, _name) \
 	_IWL_DEV_INFO(_device, _subdevice, IWL_CFG_ANY, IWL_CFG_ANY,	   \
 		      IWL_CFG_ANY, IWL_CFG_ANY, IWL_CFG_ANY, IWL_CFG_ANY,  \
-		      IWL_CFG_NO_CDB, _cfg, _name)
+		      IWL_CFG_ANY, _cfg, _name)
 
 static const struct iwl_dev_info iwl_dev_info_table[] = {
 #if IS_ENABLED(CPTCFG_IWLMVM) || IS_ENABLED(CPTCFG_IWLFMAC)
@@ -1146,7 +1146,8 @@ iwl_pci_find_dev_info(u16 device, u16 subsystem_device,
 		    dev_info->rf_type != rf_type)
 			continue;
 
-		if (dev_info->cdb != IWL_CFG_NO_CDB && !cdb)
+		if (dev_info->cdb != (u8)IWL_CFG_ANY &&
+		    dev_info->cdb != cdb)
 			continue;
 
 		if (dev_info->rf_id != (u8)IWL_CFG_ANY &&
