@@ -54,3 +54,6 @@ config HAVE_KVM_IRQ_BYPASS
 
 config HAVE_KVM_PM_NOTIFIER
        bool
+
+config HAVE_KVM_MAY_PREEMPT
+       bool

@@ -4153,6 +4153,16 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 	kvm_arch_vcpu_put(vcpu);
 }
 
+#ifdef CONFIG_HAVE_KVM_MAY_PREEMPT
+static bool
+kvm_may_preempt(struct preempt_notifier *pn, struct task_struct *prev)
+{
+	struct kvm_vcpu *vcpu = preempt_notifier_to_vcpu(pn);
+
+	return kvm_arch_may_preempt(vcpu, prev);
+}
+#endif
+
 int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 		  struct module *module)
 {
@@ -4225,6 +4235,9 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 
 	kvm_preempt_ops.sched_in = kvm_sched_in;
 	kvm_preempt_ops.sched_out = kvm_sched_out;
+#ifdef CONFIG_HAVE_KVM_MAY_PREEMPT
+	kvm_preempt_ops.may_preempt = kvm_may_preempt;
+#endif
 
 	r = kvm_init_debug();
 	if (r) {
