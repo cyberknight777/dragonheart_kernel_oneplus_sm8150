@@ -1735,6 +1735,16 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 						  sta);
 #endif
 
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+	if (params->eht_capa)
+		ieee80211_eht_cap_ie_to_sta_eht_cap(sdata, sband,
+						    (u8 *)params->he_capa,
+						    params->he_capa_len,
+						    params->eht_capa,
+						    params->eht_capa_len,
+						    sta);
+#endif
+
 	if (params->opmode_notif_used) {
 		/* returned value is only needed for rc update, but the
 		 * rc isn't initialized here yet, so ignore it
