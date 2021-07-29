@@ -259,7 +259,7 @@ static void print_wakeup_sources(void)
 	capture_reasons = false;
 
 	if (suspend_abort) {
-		pr_info("Abort: %s\n", non_irq_wake_reason);
+		pr_debug("Abort: %s\n", non_irq_wake_reason);
 		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return;
 	}
@@ -271,7 +271,7 @@ static void print_wakeup_sources(void)
 	else if (abnormal_wake)
 		pr_info("Resume caused by %s\n", non_irq_wake_reason);
 	else
-		pr_info("Resume cause unknown\n");
+		pr_debug("Resume cause unknown\n");
 
 	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
