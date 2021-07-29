@@ -6041,7 +6041,7 @@ static ssize_t fresh_rate_read(struct file *file, char __user *user_buf, size_t 
 	else
 		strcpy(fresh_rate, "-1");
 
-	pr_info("fresh_rate : %s\n", fresh_rate);
+	pr_debug("fresh_rate : %s\n", fresh_rate);
 	ret = simple_read_from_buffer(user_buf, count, ppos, fresh_rate, strlen(fresh_rate));
 	return ret;
 }
