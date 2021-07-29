@@ -3985,7 +3985,7 @@ static int usb_set_lpm_timeout(struct usb_device *udev,
 static bool usb_device_may_initiate_lpm(struct usb_device *udev,
 					enum usb3_link_state state)
 {
-	unsigned long long sel;		/* us */
+	unsigned int sel;		/* us */
 	int i, j;
 
 	if (state == USB3_LPM_U1)
@@ -4103,8 +4103,14 @@ static void usb_enable_link_state(struct usb_hcd *hcd, struct usb_device *udev,
 			 */
 			usb_set_lpm_timeout(udev, state, 0);
 			hcd->driver->disable_usb3_lpm_timeout(hcd, udev, state);
+			return;
 		}
 	}
+
+	if (state == USB3_LPM_U1)
+		udev->usb3_lpm_u1_enabled = 1;
+	else if (state == USB3_LPM_U2)
+		udev->usb3_lpm_u2_enabled = 1;
 }
 /*
  * Disable the hub-initiated U1/U2 idle timeouts, and disable device-initiated
