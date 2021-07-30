@@ -3364,7 +3364,7 @@ static void rtl8153b_runtime_enable(struct r8152 *tp, bool enable)
 		r8153b_ups_en(tp, false);
 		r8153_queue_wake(tp, false);
 		rtl_runtime_suspend_enable(tp, false);
-		if (tp->udev->speed != USB_SPEED_HIGH)
+		if (tp->udev->speed >= USB_SPEED_SUPER)
 			r8153b_u1u2en(tp, true);
 	}
 }
@@ -5017,7 +5017,7 @@ static void rtl8153b_up(struct r8152 *tp)
 
 	r8153_aldps_en(tp, true);
 
-	if (tp->udev->speed != USB_SPEED_HIGH)
+	if (tp->udev->speed >= USB_SPEED_SUPER)
 		r8153b_u1u2en(tp, true);
 }
 
@@ -5542,8 +5542,9 @@ static void r8153b_init(struct r8152 *tp)
 	ocp_data |= POLL_LINK_CHG;
 	ocp_write_word(tp, MCU_TYPE_PLA, PLA_EXTRA_STATUS, ocp_data);
 
-	if (tp->udev->speed != USB_SPEED_HIGH)
+	if (tp->udev->speed >= USB_SPEED_SUPER)
 		r8153b_u1u2en(tp, true);
+
 	usb_enable_lpm(tp->udev);
 
 	/* MAC clock speed down */
