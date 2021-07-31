@@ -261,7 +261,7 @@ static inline irqreturn_t gf_irq(int irq, void *handle)
 static inline int irq_setup(struct gf_dev *gf_dev)
 {
 	int status;
-	gf_dev->irq = gf_irq_num(gf_dev);
+	gf_dev->irq = gpio_to_irq(gf_dev->irq_gpio);
 	status = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
 			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			"gf", gf_dev);
@@ -273,15 +273,6 @@ static inline int irq_setup(struct gf_dev *gf_dev)
 	gf_dev->irq_enabled = 1;
 
 	return status;
-}
-
-static inline int gf_irq_num(struct gf_dev *gf_dev)
-{
-	if(gf_dev == NULL) {
-		return -1;
-	} else {
-		return gpio_to_irq(gf_dev->irq_gpio);
-	}
 }
 
 static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
