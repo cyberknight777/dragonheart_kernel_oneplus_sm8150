@@ -193,7 +193,6 @@ static inline int gf_power_off(struct gf_dev *gf_dev)
 }
 
 static inline int gf_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms);
-static inline int gf_irq_num(struct gf_dev *gf_dev);
 
 static inline void sendnlmsg(char *msg);
 static inline void sendnlmsg_tp(struct fp_underscreen_info *msg, int length);
