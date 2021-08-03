@@ -469,7 +469,7 @@ struct iwl_statistics_ntfy_per_mac {
 	__le32 rx_bytes;
 } __packed; /* STATISTICS_NTFY_PER_MAC_API_S_VER_1 */
 
-#define IWL_STATS_MAX_BW_INDEX 4
+#define IWL_STATS_MAX_BW_INDEX 5
 /** struct iwl_statistics_ntfy_per_phy
  * @channel_load: channel load
  * @channel_load_by_us: device contribution to MCLM
