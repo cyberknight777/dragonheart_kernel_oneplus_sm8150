@@ -1981,17 +1981,18 @@ static u32 iwl_dump_ini_mem(struct iwl_fw_runtime *fwrt, struct list_head *list,
 {
 	struct iwl_fw_ini_region_tlv *reg = (void *)reg_data->reg_tlv->data;
 	struct iwl_fw_ini_dump_entry *entry;
-	struct iwl_fw_error_dump_data *tlv;
+	struct iwl_fw_ini_error_dump_data *tlv;
 	struct iwl_fw_ini_error_dump_header *header;
-	u32 type = le32_to_cpu(reg->type), id = le32_to_cpu(reg->id);
+	u32 type = reg->type;
+	u32 id = le32_to_cpu(reg->id);
 	u32 num_of_ranges, i, size;
 	void *range;
 
 	/*
-	 * The higher part of the ID in version 2 is irrelevant for
+	 * The higher part of the ID from 2 is irrelevant for
 	 * us, so mask it out.
 	 */
-	if (le32_to_cpu(reg->hdr.version) == 2)
+	if (le32_to_cpu(reg->hdr.version) >= 2)
 		id &= IWL_FW_INI_REGION_V2_MASK;
 
 	if (!ops->get_num_of_ranges || !ops->get_size || !ops->fill_mem_hdr ||
@@ -2010,6 +2011,9 @@ static u32 iwl_dump_ini_mem(struct iwl_fw_runtime *fwrt, struct list_head *list,
 
 	tlv = (void *)entry->data;
 	tlv->type = reg->type;
+	tlv->sub_type = reg->sub_type;
+	tlv->sub_type_ver = reg->sub_type_ver;
+	tlv->reserved = reg->reserved;
 	tlv->len = cpu_to_le32(size);
 
 	IWL_DEBUG_FW(fwrt, "WRT: Collecting region: id=%d, type=%d\n", id,
@@ -2078,7 +2082,7 @@ static u32 iwl_dump_ini_info(struct iwl_fw_runtime *fwrt,
 	entry->size = size;
 
 	tlv = (void *)entry->data;
-	tlv->type = cpu_to_le32(IWL_INI_DUMP_INFO_TYPE);
+	tlv->type = IWL_INI_DUMP_INFO_TYPE;
 	tlv->len = cpu_to_le32(size - sizeof(*tlv));
 
 	dump = (void *)tlv->data;
@@ -2284,7 +2288,7 @@ static u32 iwl_dump_ini_trigger(struct iwl_fw_runtime *fwrt,
 		}
 
 		reg = (void *)reg_data.reg_tlv->data;
-		reg_type = le32_to_cpu(reg->type);
+		reg_type = reg->type;
 		if (reg_type >= ARRAY_SIZE(iwl_dump_ini_region_ops))
 			continue;
 
