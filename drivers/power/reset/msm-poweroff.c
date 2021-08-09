@@ -161,7 +161,7 @@ static void set_dload_mode(int on)
 		/* Make sure the download cookie is updated */
 		mb();
 		read_ret = __raw_readl(dload_mode_addr);
-		pr_err("[MDM] read_ret is [0x%X]\n", read_ret);
+		pr_err("[MDM] read_ret is [0x%llu]\n", read_ret);
 	}
 
 	ret = scm_set_dload_mode(on ? dload_type : 0, 0);
