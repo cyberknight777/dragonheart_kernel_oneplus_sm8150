@@ -13294,7 +13294,7 @@ QDF_STATUS sme_create_mon_session(mac_handle_t mac_handle, uint8_t *bssid,
 		msg->type = eWNI_SME_MON_INIT_SESSION;
 		msg->vdev_id = vdev_id;
 		msg->msg_len = sizeof(*msg);
-		qdf_mem_copy(msg->bss_id.bytes, bss_id, QDF_MAC_ADDR_SIZE);
+		qdf_mem_copy(msg->bss_id.bytes, bssid, QDF_MAC_ADDR_SIZE);
 		status = umac_send_mb_message_to_mac(msg);
 	}
 	return status;
