@@ -2312,20 +2312,23 @@ static int check_vma_flags(struct vm_area_struct *vma,
 	return -EFAULT;
 }
 
-static int check_vma(struct vm_area_struct *vma, struct file *vmfile,
-		struct kgsl_memdesc *memdesc)
+static int check_vma(unsigned long hostptr, u64 size)
 {
-	if (vma == NULL || vma->vm_file != vmfile)
-		return -EINVAL;
+  struct vm_area_struct *vma;
+  unsigned long cur = hostptr;
 
-	/* userspace may not know the size, in which case use the whole vma */
-	if (memdesc->size == 0)
-		memdesc->size = vma->vm_end - vma->vm_start;
-	/* range checking */
-	if (vma->vm_start != memdesc->useraddr ||
-		(memdesc->useraddr + memdesc->size) != vma->vm_end)
-		return -EINVAL;
-	return check_vma_flags(vma, memdesc->flags);
+  while (cur < (hostptr + size)) {
+    vma = find_vma(current->mm, cur);
+    if (!vma)
+      return false;
+
+    /* Don't remap memory that we already own */
+    if (vma->vm_file && vma->vm_file->f_op == &kgsl_fops)
+      return false;
+    cur = vma->vm_end;
+  }
+  return true;
+
 }
 
 static int memdesc_sg_virt(struct kgsl_memdesc *memdesc, unsigned long useraddr)
