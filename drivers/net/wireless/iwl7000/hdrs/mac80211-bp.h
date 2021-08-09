@@ -2604,7 +2604,7 @@ struct cfg80211_sar_specs {
 };
 #endif /* < 5.4.0 */
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,14,0)
 #define NL80211_EXT_FEATURE_PROT_RANGE_NEGO_AND_MEASURE -1
 
 static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
