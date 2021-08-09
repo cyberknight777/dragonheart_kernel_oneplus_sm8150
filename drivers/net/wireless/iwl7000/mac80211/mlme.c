@@ -142,97 +142,6 @@ static int ecw2cw(int ecw)
 }
 
 static u32
-ieee80211_determine_chantype_6ghz(struct ieee80211_sub_if_data *sdata,
-				  struct ieee80211_supported_band *sband,
-				  struct ieee80211_channel *channel,
-				  const struct ieee80211_he_operation *he_oper,
-				  struct cfg80211_chan_def *chandef)
-{
-#if CFG80211_VERSION < KERNEL_VERSION(5,4,0)
-	WARN_ON(1); /* should never get here due to == 6GHZ check below */
-#else
-	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	struct cfg80211_chan_def he_chandef = {};
-	const struct ieee80211_he_6ghz_oper *he_6ghz_oper;
-	u32 freq;
-
-	chandef->chan = channel;
-	chandef->width = NL80211_CHAN_WIDTH_20_NOHT;
-	chandef->center_freq1 = channel->center_freq;
-	chandef->center_freq2 = 0;
-
-	if (ifmgd->flags & IEEE80211_STA_DISABLE_HE || !he_oper) {
-		sdata_info(sdata,
-			   "HE is not used on this 6 GHz channel (%d MHz), expect issues\n",
-			   channel->center_freq);
-		return IEEE80211_STA_DISABLE_HT |
-		       IEEE80211_STA_DISABLE_VHT |
-		       IEEE80211_STA_DISABLE_HE;
-	}
-
-	he_6ghz_oper = ieee80211_he_6ghz_oper(he_oper);
-
-	if (!he_6ghz_oper) {
-		sdata_info(sdata,
-			   "HE 6GHz operation missing (on %d MHz), expect issues\n",
-			   channel->center_freq);
-		return IEEE80211_STA_DISABLE_HT |
-		       IEEE80211_STA_DISABLE_VHT |
-		       IEEE80211_STA_DISABLE_HE;
-	}
-
-	freq = ieee80211_channel_to_frequency(he_6ghz_oper->primary,
-					      NL80211_BAND_6GHZ);
-	he_chandef.chan = ieee80211_get_channel(sdata->local->hw.wiphy, freq);
-	switch (u8_get_bits(he_6ghz_oper->control,
-			    IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH)) {
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_20MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_20;
-		break;
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_40MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_40;
-		break;
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_80MHZ:
-		he_chandef.width = NL80211_CHAN_WIDTH_80;
-		break;
-	case IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ:
-		if (abs(he_6ghz_oper->ccfs1 - he_6ghz_oper->ccfs0) == 8)
-			he_chandef.width = NL80211_CHAN_WIDTH_160;
-		else
-			he_chandef.width = NL80211_CHAN_WIDTH_80P80;
-		break;
-	}
-
-	if (he_chandef.width == NL80211_CHAN_WIDTH_160) {
-		he_chandef.center_freq1 =
-			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
-						       NL80211_BAND_6GHZ);
-	} else {
-		he_chandef.center_freq1 =
-			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs0,
-						       NL80211_BAND_6GHZ);
-		he_chandef.center_freq2 =
-			ieee80211_channel_to_frequency(he_6ghz_oper->ccfs1,
-						       NL80211_BAND_6GHZ);
-	}
-	if (!cfg80211_chandef_valid(&he_chandef)) {
-		sdata_info(sdata,
-			   "HE 6GHz operation resulted in invalid chandef: %d MHz/%d/%d MHz/%d MHz\n",
-			   he_chandef.chan ? he_chandef.chan->center_freq : 0,
-			   he_chandef.width,
-			   he_chandef.center_freq1,
-			   he_chandef.center_freq2);
-		return IEEE80211_STA_DISABLE_HT |
-		       IEEE80211_STA_DISABLE_VHT |
-		       IEEE80211_STA_DISABLE_HE;
-	}
-
-	*chandef = he_chandef;
-#endif /* CFG80211_VERSION < KERNEL_VERSION(5,4,0) */
-	return 0;
-}
-
-static u32
 ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 			     struct ieee80211_supported_band *sband,
 			     struct ieee80211_channel *channel,
@@ -249,14 +158,6 @@ ieee80211_determine_chantype(struct ieee80211_sub_if_data *sdata,
 	u32 ht_cfreq, ret;
 
 	memset(chandef, 0, sizeof(*chandef));
-
-	if (nl80211_is_6ghz(channel->band)) {
-		ret = ieee80211_determine_chantype_6ghz(sdata, sband, channel,
-							he_oper, chandef);
-		vht_chandef = *chandef;
-		goto out;
-	}
-
 	chandef->chan = channel;
 	chandef->width = NL80211_CHAN_WIDTH_20_NOHT;
 	chandef->center_freq1 = channel->center_freq;
