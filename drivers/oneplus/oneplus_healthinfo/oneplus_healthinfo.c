@@ -1607,7 +1607,7 @@ static const struct file_operations proc_runtime_overload_fops = {
 static struct proc_dir_entry *oneplus_healthinfo;
 
 #ifdef CONFIG_ONEPLUS_TASKLOAD_INFO
-static void adjust_window() {
+static void adjust_window(long unsigned int) {
 	sample_window.timestamp = jiffies_64;
 	sample_window.window_index++;
 	mod_timer(&task_load_info_timer, jiffies + ohm_sample_time*HZ);  /* 5s */
