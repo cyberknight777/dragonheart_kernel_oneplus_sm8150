@@ -196,6 +196,24 @@ enum iwl_tlc_debug_types {
 }; /* TLC_MNG_DEBUG_TYPES_API_E */
 #endif /* CPTCFG_IWLWIFI_DHC */
 
+#ifdef CPTCFG_IWLWIFI_DHC
+#define MAX_DATA_IN_DHC_TLC_CMD 10
+
+/**
+ * struct iwl_dhc_tlc_dbg - fixed debug config
+ * @sta_id: bit 0 - enable/disable, bits 1 - 7 hold station id
+ * @reserved1: reserved
+ * @type: type id of %enum iwl_tlc_debug_types
+ * @data: data to send
+ */
+struct iwl_dhc_tlc_cmd {
+	u8 sta_id;
+	u8 reserved1[3];
+	__le32 type;
+	__le32 data[MAX_DATA_IN_DHC_TLC_CMD];
+} __packed; /* TLC_MNG_DEBUG_CMD_S */
+#endif /* CPTCFG_IWLWIFI_DHC */
+
 #define IWL_MAX_MCS_DISPLAY_SIZE        12
 
 struct iwl_rate_mcs_info {

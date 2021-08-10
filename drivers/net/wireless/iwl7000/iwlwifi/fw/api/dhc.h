@@ -27,6 +27,10 @@ enum iwl_dhc_umac_integration_table {
 	 */
 	DHC_INT_UMAC_TWT_OPERATION = 4,
 	/**
+	 * @DHC_INTEGRATION_TLC_DEBUG_CONFIG: TLC debug
+	 */
+	DHC_INTEGRATION_TLC_DEBUG_CONFIG = 1,
+	/**
 	 * @DHC_INT_UMAC_TWT_CONTROL: TWT hooks (like disable internal TWT triggers)
 	 */
 	DHC_INT_UMAC_TWT_CONTROL = 10,

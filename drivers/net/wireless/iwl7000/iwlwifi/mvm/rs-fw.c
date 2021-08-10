@@ -367,6 +367,39 @@ out:
 	rcu_read_unlock();
 }
 
+#ifdef CPTCFG_IWLWIFI_DHC
+int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
+		    u32 type, u32 data)
+{
+	int ret;
+	struct iwl_dhc_cmd *dhc_cmd;
+	struct iwl_dhc_tlc_cmd *dhc_tlc_cmd;
+	u32 cmd_id = iwl_cmd_id(DEBUG_HOST_COMMAND, IWL_ALWAYS_LONG_GROUP, 0);
+
+	dhc_cmd = kzalloc(sizeof(*dhc_cmd) + sizeof(*dhc_tlc_cmd), GFP_KERNEL);
+	if (!dhc_cmd)
+		return -ENOMEM;
+
+	dhc_tlc_cmd = (void *)dhc_cmd->data;
+	dhc_tlc_cmd->sta_id = lq_sta->pers.sta_id;
+	dhc_tlc_cmd->type = cpu_to_le32(type);
+	dhc_tlc_cmd->data[0] = cpu_to_le32(data);
+	dhc_cmd->length = cpu_to_le32(sizeof(*dhc_tlc_cmd) >> 2);
+	dhc_cmd->index_and_mask =
+		cpu_to_le32(DHC_TABLE_INTEGRATION | DHC_TARGET_UMAC |
+			    DHC_INTEGRATION_TLC_DEBUG_CONFIG);
+
+	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, CMD_ASYNC,
+				   sizeof(*dhc_cmd) + sizeof(*dhc_tlc_cmd),
+				   dhc_cmd);
+	if (ret)
+		IWL_ERR(mvm, "Failed to send TLC Debug command: %d\n", ret);
+
+	kfree(dhc_cmd);
+	return ret;
+}
+#endif /* CPTCFG_IWLWIFI_DHC */
+
 u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 {
 #ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
