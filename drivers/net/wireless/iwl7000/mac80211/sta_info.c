@@ -426,13 +426,11 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 		goto free_txq;
 
 
-#if CFG80211_VERSION >= KERNEL_VERSION(5,1,0)
 	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
 		skb_queue_head_init(&sta->ps_tx_buf[i]);
 		skb_queue_head_init(&sta->tx_filtered[i]);
 		init_airtime_info(&sta->airtime[i], &local->airtime[i]);
 	}
-#endif
 
 	for (i = 0; i < IEEE80211_NUM_TIDS; i++)
 		sta->last_seq_ctrl[i] = cpu_to_le16(USHRT_MAX);
