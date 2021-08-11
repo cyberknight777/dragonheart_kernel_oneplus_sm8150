@@ -1,0 +1,14 @@
+--- 
+clone: 
+  depth: 1
+kind: pipeline
+name: DragonHeart-Pipeline
+steps: 
+  - name: Kernel Pipeline
+    image: panchajanya1999/archlinux:latest
+    commands: 
+      - "export token=$TOKEN"
+      - "ci=1 bash kramel.sh img mkzip"
+    environment: 
+      TOKEN: 
+        from_secret: token
