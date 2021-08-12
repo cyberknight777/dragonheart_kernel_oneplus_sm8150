@@ -1559,6 +1559,29 @@ static int iwl_mvm_load_rt_fw(struct iwl_mvm *mvm)
 	return iwl_init_paging(&mvm->fwrt, mvm->fwrt.cur_fw_img);
 }
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+static void iwl_mvm_send_system_features_control(struct iwl_mvm *mvm)
+{
+	struct iwl_dbg_cfg *dbg_cfg = &mvm->trans->dbg_cfg;
+	struct iwl_system_features_control_cmd cmd = {
+		.features[0] = cpu_to_le32(dbg_cfg->system_features_control_1),
+		.features[1] = cpu_to_le32(dbg_cfg->system_features_control_2),
+		.features[2] = cpu_to_le32(dbg_cfg->system_features_control_3),
+		.features[3] = cpu_to_le32(dbg_cfg->system_features_control_4),
+	};
+
+	if (!dbg_cfg->system_features_control_1 &&
+	    !dbg_cfg->system_features_control_2 &&
+	    !dbg_cfg->system_features_control_3 &&
+	    !dbg_cfg->system_features_control_4)
+		return;
+
+	WARN_ON(iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(SYSTEM_GROUP,
+						  SYSTEM_FEATURES_CONTROL_CMD),
+				     0, sizeof(cmd), &cmd));
+}
+#endif
+
 int iwl_mvm_up(struct iwl_mvm *mvm)
 {
 	int ret, i;
@@ -1829,6 +1852,10 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		if (iwl_mvm_eval_dsm_rfi(mvm) == DSM_VALUE_RFI_ENABLE)
 			iwl_rfi_send_config_cmd(mvm, NULL);
 	}
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	iwl_mvm_send_system_features_control(mvm);
+#endif
 
 	IWL_DEBUG_INFO(mvm, "RT uCode started.\n");
 	return 0;

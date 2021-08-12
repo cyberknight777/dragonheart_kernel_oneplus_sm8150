@@ -175,6 +175,10 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_STR(ppag_allowed)
 	IWL_DBG_CFG(u32, MVM_6GHZ_PASSIVE_SCAN_TIMEOUT)
 	IWL_DBG_CFG(u32, MVM_6GHZ_PASSIVE_SCAN_ASSOC_TIMEOUT)
+	IWL_DBG_CFG_NODEF(u32, system_features_control_1)
+	IWL_DBG_CFG_NODEF(u32, system_features_control_2)
+	IWL_DBG_CFG_NODEF(u32, system_features_control_3)
+	IWL_DBG_CFG_NODEF(u32, system_features_control_4)
 #endif /* CPTCFG_IWLMVM */
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	IWL_DBG_CFG_NODEF(u32, dnt_out_mode)
