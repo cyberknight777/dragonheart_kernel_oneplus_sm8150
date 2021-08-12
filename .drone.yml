@@ -14,3 +14,7 @@ steps:
     environment: 
       TOKEN: 
         from_secret: token
+
+trigger:
+  event:
+  - custom
