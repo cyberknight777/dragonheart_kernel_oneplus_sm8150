@@ -78,8 +78,6 @@ ifeq ($(CONFIG_SHADOW_CALL_STACK), y)
 KBUILD_CFLAGS	+= -ffixed-x18
 endif
 
-KBUILD_CFLAGS	+= $(call cc-ifversion, -ge, 0500, -DCONFIG_ARCH_SUPPORTS_INT128)
-
 ifeq ($(CONFIG_CPU_BIG_ENDIAN), y)
 KBUILD_CPPFLAGS	+= -mbig-endian
 CHECKFLAGS	+= -D__AARCH64EB__
@@ -88,7 +86,7 @@ LD		+= -EB
 ifeq ($(ld-name),gold)
 LDFLAGS		+= -maarch64_elf64_be_vec
 else
-LDFLAGS		+= -maarch64elfb
+LDFLAGS		+= -maarch64linuxb
 endif
 UTS_MACHINE	:= aarch64_be
 else
@@ -99,7 +97,7 @@ LD		+= -EL
 ifeq ($(ld-name),gold)
 LDFLAGS		+= -maarch64_elf64_le_vec
 else
-LDFLAGS		+= -maarch64elf
+LDFLAGS		+= -maarch64linux
 endif
 UTS_MACHINE	:= aarch64
 endif
