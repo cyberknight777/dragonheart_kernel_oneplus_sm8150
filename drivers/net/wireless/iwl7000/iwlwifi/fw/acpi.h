@@ -154,10 +154,11 @@ int iwl_acpi_get_dsm_u8(struct device *dev, int rev, int func,
 int iwl_acpi_get_dsm_u32(struct device *dev, int rev, int func,
 			 const guid_t *guid, u32 *value);
 
-union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
-					 union acpi_object *data,
-					 int data_size, int *tbl_rev);
-
+union acpi_object *iwl_acpi_get_wifi_pkg_range(struct device *dev,
+					       union acpi_object *data,
+					       int min_data_size,
+					       int max_data_size,
+					       int *tbl_rev);
 /**
  * iwl_acpi_get_mcc - read MCC from ACPI, if available
  *
@@ -227,10 +228,11 @@ static inline int iwl_acpi_get_dsm_u32(struct device *dev, int rev, int func,
 	return -ENOENT;
 }
 
-static inline union acpi_object *iwl_acpi_get_wifi_pkg(struct device *dev,
-						       union acpi_object *data,
-						       int data_size,
-						       int *tbl_rev)
+static inline union acpi_object *
+iwl_acpi_get_wifi_pkg_range(struct device *dev,
+			    union acpi_object *data,
+			    int min_data_size, int max_data_size,
+			    int *tbl_rev)
 {
 	return ERR_PTR(-ENOENT);
 }
@@ -290,4 +292,14 @@ static inline __le32 iwl_acpi_get_lari_config_bitmap(struct iwl_fw_runtime *fwrt
 }
 
 #endif /* CONFIG_ACPI */
+
+static inline union acpi_object *
+iwl_acpi_get_wifi_pkg(struct device *dev,
+		      union acpi_object *data,
+		      int data_size, int *tbl_rev)
+{
+	return iwl_acpi_get_wifi_pkg_range(dev, data, data_size, data_size,
+					   tbl_rev);
+}
+
 #endif /* __iwl_fw_acpi__ */
