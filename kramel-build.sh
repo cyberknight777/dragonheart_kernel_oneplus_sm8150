@@ -160,7 +160,7 @@ KERVER=$(make kernelversion)
 COMMIT_HEAD=$(git log --oneline -1)
 
 # Set Date 
-DATE=$(TZ=GMT-8 date +"%Y%m%d-%H:%M:%S")
+DATE=$(TZ=GMT-8 date +"%Y%m%d-%H%M")
 
 #Now Its time for other stuffs like cloning, exporting, etc
 
