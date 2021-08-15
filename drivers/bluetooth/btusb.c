@@ -2652,6 +2652,8 @@ done:
 	 */
 	btintel_load_ddc_config(hdev, fwname);
 
+	hci_dev_clear_flag(hdev, HCI_QUALITY_REPORT);
+
 	/* Read the Intel version information after loading the FW  */
 	err = btintel_read_version(hdev, &ver);
 	if (err)
@@ -3510,6 +3512,9 @@ static int btusb_probe(struct usb_interface *intf,
 #endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
+
+		/* Set up the quality report callback for Intel devices */
+		hdev->set_quality_report = btintel_set_quality_report;
 	}
 
 	if (id->driver_info & BTUSB_MARVELL)
