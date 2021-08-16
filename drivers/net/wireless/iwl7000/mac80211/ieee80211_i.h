@@ -1583,6 +1583,8 @@ struct ieee802_11_elems {
 	const struct ieee80211_s1g_oper_ie *s1g_oper;
 	const struct ieee80211_s1g_bcn_compat_ie *s1g_bcn_compat;
 	const struct ieee80211_aid_response_ie *aid_resp;
+	const struct ieee80211_eht_cap_elem *eht_cap;
+	const struct ieee80211_eht_operation *eht_operation;
 
 	/* length of them, respectively */
 	u8 ext_capab_len;
@@ -1603,6 +1605,7 @@ struct ieee802_11_elems {
 	u8 perr_len;
 	u8 country_elem_len;
 	u8 bssid_index_len;
+	u8 eht_cap_len;
 
 	/* whether a parse error occurred while retrieving these elements */
 	bool parse_error;

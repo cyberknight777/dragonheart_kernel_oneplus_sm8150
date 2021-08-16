@@ -990,6 +990,16 @@ static void ieee80211_parse_extension_element(u32 *crc,
 		if (len >= sizeof(*elems->he_6ghz_capa))
 			elems->he_6ghz_capa = data;
 		break;
+	case WLAN_EID_EXT_EHT_CAPABILITY:
+		if (len >= sizeof(struct ieee80211_eht_cap_elem)) {
+			elems->eht_cap = data;
+			elems->eht_cap_len = len;
+		}
+		break;
+	case WLAN_EID_EXT_EHT_OPERATION:
+		if (len >= sizeof(*elems->eht_operation))
+			elems->eht_operation = data;
+		break;
 	}
 }
 
