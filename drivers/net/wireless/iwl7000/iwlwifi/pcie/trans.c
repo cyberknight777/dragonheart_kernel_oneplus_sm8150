@@ -130,7 +130,8 @@ out:
 	kfree(buf);
 }
 
-static void iwl_trans_pcie_sw_reset(struct iwl_trans *trans)
+static int iwl_trans_pcie_sw_reset(struct iwl_trans *trans,
+				   bool retake_ownership)
 {
 	/* Reset entire device - do controller reset (results in SHRD_HW_RST) */
 	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
@@ -140,6 +141,11 @@ static void iwl_trans_pcie_sw_reset(struct iwl_trans *trans)
 		iwl_set_bit(trans, CSR_RESET,
 			    CSR_RESET_REG_FLAG_SW_RESET);
 	usleep_range(5000, 6000);
+
+	if (retake_ownership)
+		return iwl_pcie_prepare_card_hw(trans);
+
+	return 0;
 }
 
 static void iwl_pcie_free_fw_monitor(struct iwl_trans *trans)
@@ -385,9 +391,11 @@ static void iwl_pcie_apm_lp_xtal_enable(struct iwl_trans *trans)
 	__iwl_trans_pcie_set_bit(trans, CSR_GP_CNTRL,
 				 CSR_GP_CNTRL_REG_FLAG_XTAL_ON);
 
-	iwl_trans_pcie_sw_reset(trans);
+	ret = iwl_trans_pcie_sw_reset(trans, true);
 
-	ret = iwl_finish_nic_init(trans);
+	if (!ret)
+		ret = iwl_finish_nic_init(trans);
+
 	if (WARN_ON(ret)) {
 		/* Release XTAL ON request */
 		__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
@@ -412,7 +420,10 @@ static void iwl_pcie_apm_lp_xtal_enable(struct iwl_trans *trans)
 				 apmg_xtal_cfg_reg |
 				 SHR_APMG_XTAL_CFG_XTAL_ON_REQ);
 
-	iwl_trans_pcie_sw_reset(trans);
+	ret = iwl_trans_pcie_sw_reset(trans, true);
+	if (ret)
+		IWL_ERR(trans,
+			"iwl_pcie_apm_lp_xtal_enable: failed to retake NIC ownership\n");
 
 	/* Enable LP XTAL by indirect access through CSR */
 	apmg_gp1_reg = iwl_trans_pcie_read_shr(trans, SHR_APMG_GP1_REG);
@@ -518,7 +529,7 @@ static void iwl_pcie_apm_stop(struct iwl_trans *trans, bool op_mode_leave)
 		return;
 	}
 
-	iwl_trans_pcie_sw_reset(trans);
+	iwl_trans_pcie_sw_reset(trans, false);
 
 	/*
 	 * Clear "initialization complete" bit to move adapter from
@@ -1303,7 +1314,8 @@ static void _iwl_trans_pcie_stop_device(struct iwl_trans *trans)
 	/* Stop the device, and put it in low power state */
 	iwl_pcie_apm_stop(trans, false);
 
-	iwl_trans_pcie_sw_reset(trans);
+	/* re-take ownership to prevent other users from stealing the device */
+	iwl_trans_pcie_sw_reset(trans, true);
 
 	/*
 	 * Upon stop, the IVAR table gets erased, so msi-x won't
@@ -1333,9 +1345,6 @@ static void _iwl_trans_pcie_stop_device(struct iwl_trans *trans)
 	 * interrupt
 	 */
 	iwl_enable_rfkill_int(trans);
-
-	/* re-take ownership to prevent other users from stealing the device */
-	iwl_pcie_prepare_card_hw(trans);
 }
 
 void iwl_pcie_synchronize_irqs(struct iwl_trans *trans)
@@ -1844,9 +1853,7 @@ static int iwl_pcie_gen2_force_power_gating(struct iwl_trans *trans)
 	iwl_clear_bits_prph(trans, HPM_HIPM_GEN_CFG,
 			    HPM_HIPM_GEN_CFG_CR_FORCE_ACTIVE);
 
-	iwl_trans_pcie_sw_reset(trans);
-
-	return 0;
+	return iwl_trans_pcie_sw_reset(trans, true);
 }
 
 static int _iwl_trans_pcie_start_hw(struct iwl_trans *trans)
@@ -1866,7 +1873,9 @@ static int _iwl_trans_pcie_start_hw(struct iwl_trans *trans)
 	if (err)
 		return err;
 
-	iwl_trans_pcie_sw_reset(trans);
+	err = iwl_trans_pcie_sw_reset(trans, true);
+	if (err)
+		return err;
 
 	if (trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_22000 &&
 	    trans->trans_cfg->integrated) {
