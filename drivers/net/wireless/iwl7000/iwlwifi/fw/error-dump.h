@@ -228,8 +228,8 @@ struct iwl_fw_error_dump_mem {
  */
 #define IWL_INI_DUMP_VER 1
 
-/* Use Zero as dump info type to avoid colliding with region types */
-#define IWL_INI_DUMP_INFO_TYPE 0
+/* Use bit 31 as dump info type to avoid colliding with region types */
+#define IWL_INI_DUMP_INFO_TYPE BIT(31)
 
 /**
  * struct iwl_fw_error_dump_data - data for one type

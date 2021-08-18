@@ -2082,7 +2082,7 @@ static u32 iwl_dump_ini_info(struct iwl_fw_runtime *fwrt,
 	entry->size = size;
 
 	tlv = (void *)entry->data;
-	tlv->type = IWL_INI_DUMP_INFO_TYPE;
+	tlv->type = cpu_to_le32(IWL_INI_DUMP_INFO_TYPE);
 	tlv->len = cpu_to_le32(size - sizeof(*tlv));
 
 	dump = (void *)tlv->data;
