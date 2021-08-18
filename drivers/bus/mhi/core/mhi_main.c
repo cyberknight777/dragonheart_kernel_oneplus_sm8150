@@ -122,7 +122,7 @@ static void mhi_reg_write_enqueue(struct mhi_controller *mhi_cntrl,
 
 	q_index = q_index & (REG_WRITE_QUEUE_LEN - 1);
 
-	MHI_ASSERT(mhi_cntrl->reg_write_q[q_index].valid, "queue full idx %d");
+	MHI_ASSERT(mhi_cntrl->reg_write_q[q_index].valid, "queue full");
 
 	mhi_cntrl->reg_write_q[q_index].reg_addr =  reg_addr;
 	mhi_cntrl->reg_write_q[q_index].val = val;
@@ -1382,7 +1382,7 @@ int mhi_process_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	sequence = MHI_TRE_GET_EV_TSYNC_SEQ(dev_rp);
 	remote_time = MHI_TRE_GET_EV_TIME(dev_rp);
 
-	MHI_VERB("Received TSYNC event with seq:0x%llx time:0x%llx\n",
+	MHI_VERB("Received TSYNC event with seq:0x%llx time:0x%u\n",
 		 sequence, remote_time);
 
 	read_lock_bh(&mhi_cntrl->pm_lock);
@@ -1394,7 +1394,7 @@ int mhi_process_tsync_ev_ring(struct mhi_controller *mhi_cntrl,
 	mutex_lock(&mhi_cntrl->tsync_mutex);
 
 	if (unlikely(mhi_tsync->int_sequence != sequence)) {
-		MHI_ASSERT(1, "Unexpected response:0x%llx Expected:0x%llx\n",
+		MHI_ASSERT(1, "Unexpected response:0x%llu Expected:0x%llu\n",
 			   sequence, mhi_tsync->int_sequence);
 
 		mhi_device_put(mhi_cntrl->mhi_dev,
