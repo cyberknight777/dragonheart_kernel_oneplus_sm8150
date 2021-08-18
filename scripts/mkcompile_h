@@ -40,7 +40,7 @@ else
 fi
 
 if [ -z "$KBUILD_BUILD_TIMESTAMP" ]; then
-	TIMESTAMP=`date`
+	TIMESTAMP=`TZ=GMT-8 date`
 else
 	TIMESTAMP=$KBUILD_BUILD_TIMESTAMP
 fi
