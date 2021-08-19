@@ -70,6 +70,11 @@ DEFCONFIG=dragonheart_defconfig
 # 'clang' or 'gcc'
 COMPILER=gcc
 
+# Set CCACHE
+USE_CCACHE=1
+
+export CCACHE_DIR="${KERNEL_DIR}/.ccache"
+
 # Clean source prior building. 1 is NO(default) | 0 is YES
 INCREMENTAL=1
 
