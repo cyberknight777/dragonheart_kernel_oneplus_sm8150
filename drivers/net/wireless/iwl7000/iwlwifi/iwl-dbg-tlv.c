@@ -213,7 +213,7 @@ static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 
 #ifdef CPTCFG_IWLWIFI_DONT_DUMP_FIFOS
 	if (type == IWL_FW_INI_REGION_DEVICE_MEMORY &&
-	    id == IWL_FW_INI_HW_SMEM_REGION_ID) {
+	    reg->sub_type == IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_HW_SMEM) {
 		IWL_DEBUG_FW(trans, "WRT: skipping HW-SMEM region\n");
 		return -EOPNOTSUPP;
 	}
