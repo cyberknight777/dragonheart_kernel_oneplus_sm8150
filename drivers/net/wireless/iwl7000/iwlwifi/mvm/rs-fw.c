@@ -406,13 +406,10 @@ int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
 
 u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 {
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
-#endif
 	const struct ieee80211_sta_vht_cap *vht_cap = &sta->vht_cap;
 	const struct ieee80211_sta_ht_cap *ht_cap = &sta->ht_cap;
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	if (nl80211_is_6ghz(mvmsta->vif->bss_conf.chandef.chan->band)) {
 		switch (le16_get_bits(sta->he_6ghz_capa.capa,
 				      IEEE80211_HE_6GHZ_CAP_MAX_MPDU_LEN)) {
@@ -424,7 +421,6 @@ u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 			return IEEE80211_MAX_MPDU_LEN_VHT_3895;
 		}
 	} else
-#endif
 	if (vht_cap->vht_supported) {
 		switch (vht_cap->cap & IEEE80211_VHT_CAP_MAX_MPDU_MASK) {
 		case IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_11454:

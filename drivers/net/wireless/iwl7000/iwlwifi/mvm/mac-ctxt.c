@@ -5,9 +5,7 @@
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
 #include <linux/etherdevice.h>
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 #include <linux/crc32.h>
-#endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
 #include <net/mac80211.h>
 #include "iwl-io.h"
 #include "iwl-prph.h"
@@ -966,13 +964,10 @@ static int iwl_mvm_mac_ctxt_send_beacon_v9(struct iwl_mvm *mvm,
 	struct iwl_mac_beacon_cmd beacon_cmd = {};
 	u8 rate = iwl_mvm_mac_ctxt_get_lowest_rate(info, vif);
 	u16 flags;
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	struct ieee80211_chanctx_conf *ctx;
 	int channel;
-#endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
 	flags = iwl_mvm_mac_ctxt_get_beacon_flags(mvm->fw, rate);
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	/* Enable FILS on PSC channels only */
 	rcu_read_lock();
 	ctx = rcu_dereference(vif->chanctx_conf);
@@ -990,7 +985,6 @@ static int iwl_mvm_mac_ctxt_send_beacon_v9(struct iwl_mvm *mvm,
 					      vif->bss_conf.ssid_len));
 	}
 	rcu_read_unlock();
-#endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
 
 	beacon_cmd.flags = cpu_to_le16(flags);
 	beacon_cmd.byte_cnt = cpu_to_le16((u16)beacon->len);

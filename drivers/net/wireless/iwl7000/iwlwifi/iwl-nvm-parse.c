@@ -333,14 +333,12 @@ static u32 iwl_get_channel_flags(u8 ch_num, int ch_idx, enum nl80211_band band,
 
 static int iwl_nl80211_band_from_channel_idx(int ch_idx)
 {
-	if (ch_idx >= NUM_2GHZ_CHANNELS + NUM_5GHZ_CHANNELS) {
-#ifndef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
-		/* Skip 6 GHz band/channels if UHB is unsupported */
-		return -1;
-#else
+	if (ch_idx >= NUM_2GHZ_CHANNELS + NUM_5GHZ_CHANNELS)
+#if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
 		return NL80211_BAND_6GHZ;
-#endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
-	}
+#else
+		return -1;
+#endif
 
 	if (ch_idx >= NUM_2GHZ_CHANNELS)
 		return NL80211_BAND_5GHZ;
@@ -435,13 +433,11 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 		else
 			channel->flags = 0;
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 		/* TODO: Don't put limitations on UHB devices as we still don't
 		 * have NVM for them
 		 */
 		if (cfg->uhb_supported)
 			channel->flags = 0;
-#endif
 		iwl_nvm_print_channel_flags(dev, IWL_DL_EEPROM,
 					    channel->hw_value, ch_flags);
 		IWL_DEBUG_EEPROM(dev, "Ch. %d: %ddBm\n",
@@ -829,7 +825,6 @@ static const struct ieee80211_sband_iftype_data iwl_he_eht_capa[] = {
 	},
 };
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 #if CFG80211_VERSION < KERNEL_VERSION(5,8,0)
 static void iwl_init_he_6ghz_capa(struct iwl_trans *trans,
 				  struct iwl_nvm_data *data,
@@ -883,7 +878,6 @@ static void iwl_init_he_6ghz_capa(struct iwl_trans *trans,
 		cfg80211_iftd_set_he_6ghz_capa(iftype_data,
 				               cpu_to_le16(he_6ghz_capa));
 }
-#endif
 #endif
 
 static void
@@ -1025,11 +1019,9 @@ static void iwl_init_he_hw_capab(struct iwl_trans *trans,
 		iftype_data = data->iftd.low;
 		break;
 	case NL80211_BAND_5GHZ:
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 #if CFG80211_VERSION >= KERNEL_VERSION(5,4,0)
 	case NL80211_BAND_6GHZ:
 		/* keep code in case of fall-through (spatch generated) */
-#endif
 #endif
 		iftype_data = data->iftd.high;
 		break;
@@ -1048,9 +1040,7 @@ static void iwl_init_he_hw_capab(struct iwl_trans *trans,
 		iwl_nvm_fixup_sband_iftd(trans, data, sband, &iftype_data[i],
 					 tx_chains, rx_chains, fw);
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	iwl_init_he_6ghz_capa(trans, data, sband, tx_chains, rx_chains);
-#endif
 }
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
@@ -1241,7 +1231,7 @@ static void iwl_init_sbands(struct iwl_trans *trans,
 		iwl_init_he_hw_capab(trans, data, sband, tx_chains, rx_chains,
 				     fw);
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
+#if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
 	/* 6GHz band. */
 	sband = &data->bands[NL80211_BAND_6GHZ];
 	sband->band = NL80211_BAND_6GHZ;

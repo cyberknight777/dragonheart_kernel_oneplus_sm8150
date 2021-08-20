@@ -46,13 +46,11 @@ struct iwl_nvm_data {
 	bool vht160_supported;
 	struct ieee80211_supported_band bands[NUM_NL80211_BANDS];
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	/*
 	 * iftype data for low (2.4 GHz) and high (5 and 6 GHz) bands,
 	 * we can use the same for 5 and 6 GHz bands because they have
 	 * the same data
 	 */
-#endif
 	struct {
 		struct ieee80211_sband_iftype_data low[2];
 		struct ieee80211_sband_iftype_data high[2];

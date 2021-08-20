@@ -18,7 +18,6 @@ static const struct iwl_rfi_lut_entry iwl_rfi_table[IWL_RFI_LUT_SIZE] = {
 	{cpu_to_le16(223), {114, 116, 118, 120, 122,},
 	      {PHY_BAND_5, PHY_BAND_5, PHY_BAND_5, PHY_BAND_5, PHY_BAND_5,}},
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	/* frequency 4267MHz */
 	{cpu_to_le16(256), {79, 83, 85, 87, 89, 91, 93,},
 	       {PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6,
@@ -35,14 +34,12 @@ static const struct iwl_rfi_lut_entry iwl_rfi_table[IWL_RFI_LUT_SIZE] = {
 	{cpu_to_le16(264), {111, 119, 123, 125, 129, 131, 133, 135, 143,},
 	      {PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6,
 	       PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6,}},
-#endif
 	/* LPDDR5iPOR */
 
 	/* frequency 5200MHz */
 	{cpu_to_le16(312), {36, 38, 40, 42, 50,},
 	       {PHY_BAND_5, PHY_BAND_5, PHY_BAND_5, PHY_BAND_5, PHY_BAND_5,}},
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	/* frequency 6000MHz */
 	{cpu_to_le16(360), {3, 5, 7, 9, 11, 13, 15,},
 	       {PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6,
@@ -52,7 +49,6 @@ static const struct iwl_rfi_lut_entry iwl_rfi_table[IWL_RFI_LUT_SIZE] = {
 	{cpu_to_le16(384), {79, 83, 85, 87, 89, 91, 93,},
 	       {PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6, PHY_BAND_6,
 		PHY_BAND_6, PHY_BAND_6,}},
-#endif
 };
 
 int iwl_rfi_send_config_cmd(struct iwl_mvm *mvm, struct iwl_rfi_lut_entry *rfi_table)
