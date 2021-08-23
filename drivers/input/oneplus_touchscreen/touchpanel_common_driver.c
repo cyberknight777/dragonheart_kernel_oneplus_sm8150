@@ -104,6 +104,11 @@ static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
 static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 #endif
 
+bool scr_suspended(void)
+{
+	return g_tp->is_suspended;
+}
+
 static void tp_touch_release(struct touchpanel_data *ts);
 static void tp_btnkey_release(struct touchpanel_data *ts);
 static void tp_fw_update_work(struct work_struct *work);
