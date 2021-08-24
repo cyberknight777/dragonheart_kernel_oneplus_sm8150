@@ -129,11 +129,6 @@ static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
 static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 #endif
 
-bool scr_suspended(void)
-{
-	return g_tp->is_suspended;
-}
-
 static void tp_touch_release(struct touchpanel_data *ts);
 static void tp_btnkey_release(struct touchpanel_data *ts);
 static void tp_fw_update_work(struct work_struct *work);
@@ -391,8 +386,6 @@ int sec_double_tap(struct gesture_info *gesture)
 static void tp_gesture_handle(struct touchpanel_data *ts)
 {
     struct gesture_info gesture_info_temp;
-    bool enabled = false;
-    int key = -1;
 
     if (!ts->ts_ops->get_gesture_info) {
         TPD_INFO("not support ts->ts_ops->get_gesture_info callback\n");
