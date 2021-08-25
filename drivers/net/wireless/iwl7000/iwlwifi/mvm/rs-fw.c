@@ -490,8 +490,7 @@ out:
 	rcu_read_unlock();
 }
 
-int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
-		    u32 type, u32 data)
+int iwl_rs_send_dhc(struct iwl_mvm *mvm, u8 sta_id, u32 type, u32 data)
 {
 	int ret;
 	struct iwl_dhc_cmd *dhc_cmd;
@@ -503,7 +502,7 @@ int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
 		return -ENOMEM;
 
 	dhc_tlc_cmd = (void *)dhc_cmd->data;
-	dhc_tlc_cmd->sta_id = lq_sta->pers.sta_id;
+	dhc_tlc_cmd->sta_id = sta_id;
 	dhc_tlc_cmd->type = cpu_to_le32(type);
 	dhc_tlc_cmd->data[0] = cpu_to_le32(data);
 	dhc_cmd->length = cpu_to_le32(sizeof(*dhc_tlc_cmd) >> 2);
@@ -514,10 +513,10 @@ int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
 	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, CMD_ASYNC,
 				   sizeof(*dhc_cmd) + sizeof(*dhc_tlc_cmd),
 				   dhc_cmd);
-	if (ret)
-		IWL_ERR(mvm, "Failed to send TLC Debug command: %d\n", ret);
-
 	kfree(dhc_cmd);
+
+	IWL_DEBUG_RATE(mvm, "sta_id %d, type: 0x%X, value: 0x%X, ret%d\n",
+		       sta_id, type, data, ret);
 	return ret;
 }
 
