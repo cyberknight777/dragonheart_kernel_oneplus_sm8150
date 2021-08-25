@@ -3460,63 +3460,6 @@ static void iwl_mvm_mei_host_associated(struct iwl_mvm *mvm,
 					struct ieee80211_vif *vif,
 					struct iwl_mvm_sta *mvm_sta)
 {
-#if IS_ENABLED(CONFIG_IWLMEI)
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mei_conn_info conn_info = {
-		.ssid_len = vif->bss_conf.ssid_len,
-		.channel = vif->bss_conf.chandef.chan->hw_value,
-	};
-
-	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
-		return;
-
-	if (!mvm->mei_registered)
-		return;
-
-	switch (mvm_sta->pairwise_cipher) {
-	case WLAN_CIPHER_SUITE_CCMP:
-		conn_info.pairwise_cipher = IWL_MEI_CIPHER_CCMP;
-		break;
-	case WLAN_CIPHER_SUITE_GCMP:
-		conn_info.pairwise_cipher = IWL_MEI_CIPHER_GCMP;
-		break;
-	case WLAN_CIPHER_SUITE_GCMP_256:
-		conn_info.pairwise_cipher = IWL_MEI_CIPHER_GCMP_256;
-		break;
-	case 0:
-		/* open profile */
-		break;
-	default:
-		/* cipher not supported, don't send anything to iwlmei */
-		return;
-	};
-
-	switch (mvmvif->rekey_data.akm) {
-	case WLAN_AKM_SUITE_SAE & 0xff:
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_SAE;
-		break;
-	case WLAN_AKM_SUITE_PSK & 0xff:
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_RSNA_PSK;
-		break;
-	case WLAN_AKM_SUITE_8021X & 0xff:
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_RSNA;
-		break;
-	case 0:
-		/* open profile */
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_OPEN;
-		break;
-	default:
-		/* auth method / AKM not supported */
-		/* TODO: All the FT vesions of these? */
-		return;
-	}
-
-	memcpy(conn_info.ssid, vif->bss_conf.ssid, vif->bss_conf.ssid_len);
-	memcpy(conn_info.bssid,  vif->bss_conf.bssid, ETH_ALEN);
-
-	/* TODO: add support for collocated AP data */
-	iwl_mei_host_associated(&conn_info, NULL);
-#endif
 }
 
 static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
