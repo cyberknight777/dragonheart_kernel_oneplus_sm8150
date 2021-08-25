@@ -1269,6 +1269,29 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 	return iwl_mvm_ppag_send_cmd(mvm);
 }
 
+static const struct dmi_system_id dmi_tas_approved_list[] = {
+	{ .ident = "HP",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
+		},
+	},
+	{ .ident = "SAMSUNG",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD"),
+		},
+	},
+		{ .ident = "LENOVO",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Lenovo"),
+		},
+	},
+	{ .ident = "DELL",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+		},
+	},
+};
+
 static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 {
 	int ret;
@@ -1280,6 +1303,13 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 
 	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TAS_CFG)) {
 		IWL_DEBUG_RADIO(mvm, "TAS not enabled in FW\n");
+		return;
+	}
+
+	if (!dmi_check_system(dmi_tas_approved_list)) {
+		IWL_DEBUG_RADIO(mvm,
+				"System vendor '%s' is not in the approved list, disabling TAS.\n",
+				dmi_get_system_info(DMI_SYS_VENDOR));
 		return;
 	}
 
