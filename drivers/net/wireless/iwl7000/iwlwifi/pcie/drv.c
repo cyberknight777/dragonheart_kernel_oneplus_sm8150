@@ -1056,7 +1056,7 @@ static int get_crf_id(struct iwl_trans *iwl_trans)
 	u32 wfpm_otp_cfg_addr;
 	u32 sd_reg_ver_addr;
 	u32 cdb = 0;
-	struct iwl_crf_chip_id_reg reg = {0};
+	u32 val;
 
 	if (iwl_trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210) {
 		wfpm_ctrl_addr = WFPM_CTRL_REG_GEN2;
@@ -1069,57 +1069,53 @@ static int get_crf_id(struct iwl_trans *iwl_trans)
 		sd_reg_ver_addr = SD_REG_VER;
 	}
 
-	if (iwl_trans_grab_nic_access(iwl_trans)) {
-		u32 val;
-
-		/* Enable access to peripheral registers */
-		val = iwl_read_umac_prph_no_grab(iwl_trans, wfpm_ctrl_addr);
-		val |= ENABLE_WFPM;
-		iwl_write_umac_prph_no_grab(iwl_trans, wfpm_ctrl_addr, val);
-
-		/* Read crf info */
-		val = iwl_read_prph_no_grab(iwl_trans, sd_reg_ver_addr);
-		memcpy(&reg, &val, sizeof(reg));
-
-		/* Read cdb info (also contains the jacket info if needed in the future */
-		cdb = iwl_read_umac_prph_no_grab(iwl_trans, wfpm_otp_cfg_addr);
-
-		/* Map between crf id to rf id */
-		switch (reg.type) {
-		case REG_CRF_ID_TYPE_JF_1:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_JF1 << 12);
-			break;
-		case REG_CRF_ID_TYPE_JF_2:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_JF2 << 12);
-			break;
-		case REG_CRF_ID_TYPE_HR_NONE_CDB:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_HR1 << 12);
-			break;
-		case REG_CRF_ID_TYPE_HR_CDB:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_HR2 << 12);
-			break;
-		case REG_CRF_ID_TYPE_GF:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_GF << 12);
-			break;
-		case REG_CRF_ID_TYPE_MR:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_MR << 12);
-			break;
-		case REG_CRF_ID_TYPE_FM:
-			iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_FM << 12);
-			break;
-		default:
-			ret = -EIO;
-			IWL_ERR(iwl_trans,
-				"Can find a correct rfid for crf id 0x%x\n",
-				reg.type);
-			iwl_trans_release_nic_access(iwl_trans);
-			goto out_get_crf_id;
-		}
-		iwl_trans_release_nic_access(iwl_trans);
-	} else {
+	if (!iwl_trans_grab_nic_access(iwl_trans)) {
 		IWL_ERR(iwl_trans, "Failed to grab nic access before reading crf id\n");
 		ret = -EIO;
-		goto out_get_crf_id;
+		goto out;
+	}
+
+	/* Enable access to peripheral registers */
+	val = iwl_read_umac_prph_no_grab(iwl_trans, wfpm_ctrl_addr);
+	val |= ENABLE_WFPM;
+	iwl_write_umac_prph_no_grab(iwl_trans, wfpm_ctrl_addr, val);
+
+	/* Read crf info */
+	val = iwl_read_prph_no_grab(iwl_trans, sd_reg_ver_addr);
+
+	/* Read cdb info (also contains the jacket info if needed in the future */
+	cdb = iwl_read_umac_prph_no_grab(iwl_trans, wfpm_otp_cfg_addr);
+
+	/* Map between crf id to rf id */
+	switch (REG_CRF_ID_TYPE(val)) {
+	case REG_CRF_ID_TYPE_JF_1:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_JF1 << 12);
+		break;
+	case REG_CRF_ID_TYPE_JF_2:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_JF2 << 12);
+		break;
+	case REG_CRF_ID_TYPE_HR_NONE_CDB:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_HR1 << 12);
+		break;
+	case REG_CRF_ID_TYPE_HR_CDB:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_HR2 << 12);
+		break;
+	case REG_CRF_ID_TYPE_GF:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_GF << 12);
+		break;
+	case REG_CRF_ID_TYPE_MR:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_MR << 12);
+		break;
+	case REG_CRF_ID_TYPE_FM:
+		iwl_trans->hw_rf_id = (IWL_CFG_RF_TYPE_FM << 12);
+		break;
+	default:
+		ret = -EIO;
+		IWL_ERR(iwl_trans,
+			"Can find a correct rfid for crf id 0x%x\n",
+			REG_CRF_ID_TYPE(val));
+		goto out_release;
+
 	}
 
 	/* Set CDB capabilities */
@@ -1129,9 +1125,12 @@ static int get_crf_id(struct iwl_trans *iwl_trans)
 	}
 
 	IWL_INFO(iwl_trans, "Detected RF 0x%x from crf id 0x%x\n",
-		 iwl_trans->hw_rf_id, reg.type);
+		 iwl_trans->hw_rf_id, REG_CRF_ID_TYPE(val));
 
-out_get_crf_id:
+out_release:
+	iwl_trans_release_nic_access(iwl_trans);
+
+out:
 	return ret;
 }
 

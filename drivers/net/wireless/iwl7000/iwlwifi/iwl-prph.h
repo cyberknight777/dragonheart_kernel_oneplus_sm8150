@@ -405,7 +405,7 @@ enum {
 };
 
 /*
- * struct iwl_crf_chip_id_reg
+ * CRF ID register
  *
  * type: bits 0-11
  * reserved: bits 12-18
@@ -414,14 +414,11 @@ enum {
  * step: bits 24-26
  * flavor: bits 27-31
  */
-struct iwl_crf_chip_id_reg {
-	u32 type : 12;
-	u32 reserved : 7;
-	u32 slave_exist : 1;
-	u32 dash : 4;
-	u32 step : 4;
-	u32 flavor : 4;
-};
+#define REG_CRF_ID_TYPE(val)		(((val) & 0x00000FFF) >> 0)
+#define REG_CRF_ID_SLAVE(val)		(((val) & 0x00080000) >> 19)
+#define REG_CRF_ID_DASH(val)		(((val) & 0x00F00000) >> 20)
+#define REG_CRF_ID_STEP(val)		(((val) & 0x07000000) >> 24)
+#define REG_CRF_ID_FLAVOR(val)		(((val) & 0xF8000000) >> 27)
 
 #define UREG_CHICK		(0xA05C00)
 #define UREG_CHICK_MSI_ENABLE	BIT(24)
