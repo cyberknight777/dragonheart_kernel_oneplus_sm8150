@@ -890,10 +890,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 {
 	bool is_ap = iftype_data->types_mask & BIT(NL80211_IFTYPE_AP);
 
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	if (!data->sku_cap_11be_enable || iwlwifi_mod_params.disable_11be)
-		iftype_data->eht_cap.has_eht = false;
-#endif
+		cfg_eht_cap_set_has_eht(iftype_data, false);
 
 	/* Advertise an A-MPDU exponent extension based on
 	 * operating band
@@ -919,28 +917,25 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			iftype_data->he_cap.he_cap_elem.phy_cap_info[7] |=
 				IEEE80211_HE_PHY_CAP7_MAX_NC_2;
 
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
-			if (iftype_data->eht_cap.has_eht) {
+			if (cfg_eht_cap_has_eht(iftype_data)) {
 				/*
 				 * Set the number of sounding dimensions for each
 				 * bandwidth to 1 to indicate the maximal supported
 				 * value of TXVECTOR parameter NUM_STS of 2
 				 */
-				iftype_data->eht_cap.eht_cap_elem.phy_cap_info[2] |= 0x49;
+				cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[2] |= 0x49;
 
 				/*
 				 * Set the MAX NC to 1 to indicate sounding feedback of
 				 * 2 supported by the beamfomee.
 				 */
-				iftype_data->eht_cap.eht_cap_elem.phy_cap_info[4] |= 0x10;
+				cfg_eht_cap(iftype_data)->eht_cap_elem.phy_cap_info[4] |= 0x10;
 			}
-#endif
 		}
 	} else {
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
-		if (iftype_data->eht_cap.has_eht) {
+		if (cfg_eht_cap_has_eht(iftype_data)) {
 			struct ieee80211_eht_mcs_nss_supp *mcs_nss =
-				&iftype_data->eht_cap.eht_mcs_nss_supp;
+				&cfg_eht_cap(iftype_data)->eht_mcs_nss_supp;
 
 			mcs_nss->only_20mhz.rx_tx_mcs7_max_nss = 0x11;
 			mcs_nss->only_20mhz.rx_tx_mcs9_max_nss = 0x11;
@@ -959,7 +954,6 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			mcs_nss->bw_320.rx_tx_mcs11_max_nss = 0x11;
 			mcs_nss->bw_320.rx_tx_mcs13_max_nss = 0x11;
 		}
-#endif
 
 		if (!is_ap) {
 			/* If not 2x2, we need to indicate 1x1 in the

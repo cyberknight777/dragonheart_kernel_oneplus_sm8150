@@ -1041,9 +1041,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 								      i);
 
 			supp_he = supp_he || (iftd && iftd->he_cap.has_he);
-#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
-			supp_eht = supp_eht || iftd->eht_cap.has_eht;
-#endif
+			supp_eht = supp_eht || cfg_eht_cap_has_eht(iftd);
 		}
 
 		/* HT, VHT, HE require QoS, thus >= 4 queues */

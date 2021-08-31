@@ -87,6 +87,14 @@ ieee80211_get_eht_iftype_cap(const struct ieee80211_supported_band *sband,
 {
 	return NULL;
 }
+
+#define cfg_eht_cap_has_eht(obj) (false && (obj))
+#define cfg_eht_cap_set_has_eht(obj, val) do { (void)obj; (void)val; } while (0)
+#define cfg_eht_cap(obj) ((struct ieee80211_sta_eht_cap *)((obj) ? NULL : NULL))
+#else
+#define cfg_eht_cap_has_eht(obj) (obj)->eht_cap.has_eht
+#define cfg_eht_cap_set_has_eht(obj, val) (obj)->eht_cap.has_eht = val
+#define cfg_eht_cap(obj) (&(obj)->eht_cap)
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(3,19,0)
