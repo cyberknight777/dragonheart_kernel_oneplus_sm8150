@@ -371,7 +371,6 @@ out:
 	rcu_read_unlock();
 }
 
-#ifdef CPTCFG_IWLWIFI_DHC
 int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
 		    u32 type, u32 data)
 {
@@ -402,7 +401,6 @@ int iwl_rs_send_dhc(struct iwl_mvm *mvm, struct iwl_lq_sta_rs_fw *lq_sta,
 	kfree(dhc_cmd);
 	return ret;
 }
-#endif /* CPTCFG_IWLWIFI_DHC */
 
 u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta)
 {

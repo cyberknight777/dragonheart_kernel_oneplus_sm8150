@@ -487,7 +487,6 @@ static ssize_t iwl_dbgfs_rs_data_read(struct file *file, char __user *user_buf,
 	return ret;
 }
 
-#ifdef CPTCFG_IWLWIFI_DHC
 static void iwl_rs_set_fixed_rate(struct iwl_mvm *mvm,
 				  struct iwl_lq_sta_rs_fw *lq_sta)
 {
@@ -525,7 +524,6 @@ static ssize_t iwl_dbgfs_fixed_rate_write(struct ieee80211_sta *sta,
 	iwl_rs_set_fixed_rate(mvm, lq_sta);
 	return count;
 }
-#endif /* CPTCFG_IWLWIFI_DHC */
 
 static ssize_t iwl_dbgfs_amsdu_len_write(struct ieee80211_sta *sta,
 					 char *buf, size_t count,
@@ -2313,9 +2311,7 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters_macs, 256);
 MVM_DEBUGFS_READ_FILE_OPS(sar_geo_profile);
 #endif
 
-#ifdef CPTCFG_IWLWIFI_DHC
 MVM_DEBUGFS_WRITE_STA_FILE_OPS(fixed_rate, 64);
-#endif
 MVM_DEBUGFS_READ_WRITE_STA_FILE_OPS(amsdu_len, 16);
 
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(he_sniffer_params, 32);
@@ -2464,9 +2460,7 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 
 	if (iwl_mvm_has_tlc_offload(mvm)) {
 		MVM_DEBUGFS_ADD_STA_FILE(rs_data, dir, 0400);
-#ifdef CPTCFG_IWLWIFI_DHC
 		MVM_DEBUGFS_ADD_STA_FILE(fixed_rate, dir, 0200);
-#endif
 	}
 	MVM_DEBUGFS_ADD_STA_FILE(amsdu_len, dir, 0600);
 }

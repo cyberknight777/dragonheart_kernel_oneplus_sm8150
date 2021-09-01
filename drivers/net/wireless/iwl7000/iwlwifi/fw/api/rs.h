@@ -184,7 +184,6 @@ struct iwl_tlc_update_notif {
 	__le32 amsdu_enabled;
 } __packed; /* TLC_MNG_UPDATE_NTFY_API_S_VER_2 */
 
-#ifdef CPTCFG_IWLWIFI_DHC
 /**
  * enum iwl_tlc_debug_types - debug options
  */
@@ -194,9 +193,7 @@ enum iwl_tlc_debug_types {
 	 */
 	IWL_TLC_DEBUG_FIXED_RATE,
 }; /* TLC_MNG_DEBUG_TYPES_API_E */
-#endif /* CPTCFG_IWLWIFI_DHC */
 
-#ifdef CPTCFG_IWLWIFI_DHC
 #define MAX_DATA_IN_DHC_TLC_CMD 10
 
 /**
@@ -212,7 +209,6 @@ struct iwl_dhc_tlc_cmd {
 	__le32 type;
 	__le32 data[MAX_DATA_IN_DHC_TLC_CMD];
 } __packed; /* TLC_MNG_DEBUG_CMD_S */
-#endif /* CPTCFG_IWLWIFI_DHC */
 
 #define IWL_MAX_MCS_DISPLAY_SIZE        12
 
