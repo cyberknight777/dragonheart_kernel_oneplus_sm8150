@@ -336,6 +336,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 		IWL_ERR(xvt, "Failed to start ucode: %d\n", ret);
 		iwl_fw_dbg_stop_sync(&xvt->fwrt);
 		iwl_trans_stop_device(xvt->trans);
+		return ret;
 	}
 
 	iwl_dbg_tlv_time_point(&xvt->fwrt, IWL_FW_INI_TIME_POINT_AFTER_ALIVE,
