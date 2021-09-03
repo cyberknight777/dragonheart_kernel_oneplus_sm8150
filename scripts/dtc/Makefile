@@ -14,6 +14,8 @@ dtc-objs	+= dtc-lexer.lex.o dtc-parser.tab.o
 
 HOSTCFLAGS_DTC := -I$(src) -I$(src)/libfdt
 
+HOST_EXTRACFLAGS += -DNO_YAML
+
 HOSTCFLAGS_checks.o := $(HOSTCFLAGS_DTC)
 HOSTCFLAGS_data.o := $(HOSTCFLAGS_DTC)
 HOSTCFLAGS_dtc.o := $(HOSTCFLAGS_DTC)
