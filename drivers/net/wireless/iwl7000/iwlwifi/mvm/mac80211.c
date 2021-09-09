@@ -2287,7 +2287,6 @@ static u8 iwl_mvm_he_get_ppe_val(u8 *ppe, u8 ppe_pos_bit)
 	return res;
 }
 
-#ifdef CPTCFG_IWLWIFI_DHC
 static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
 {
 	struct iwl_dhc_twt_control *dhc_twt_control;
@@ -2311,7 +2310,6 @@ static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
 
 	kfree(dhc_cmd);
 }
-#endif
 
 static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			       struct ieee80211_vif *vif, u8 sta_id)
@@ -2578,10 +2576,8 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 				 0, size, &sta_ctxt_cmd))
 		IWL_ERR(mvm, "Failed to config FW to work HE!\n");
 
-#ifdef CPTCFG_IWLWIFI_DHC
 	if (IWL_MVM_TWT_TESTMODE)
 		iwl_mvm_set_twt_testmode(mvm);
-#endif
 }
 
 static void iwl_mvm_protect_assoc(struct iwl_mvm *mvm,
