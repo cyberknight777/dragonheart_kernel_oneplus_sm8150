@@ -1654,11 +1654,11 @@ static int update_thermal_target(struct thermal_zone_device *tz,
 	int ret = -1;
 	int temperature = 0, trip = 0;
 
-	pr_info("%s::val = %ul, thermal_type = %d\n",
+	pr_info("%s::val = %lu, thermal_type = %d\n",
 			__func__, val, thermal_type);
 
 	if (val > THERMAL_MAX_MASK - 1) {
-		pr_err("%s: The input parameter is illegal, val = %ul\n",
+		pr_err("%s: The input parameter is illegal, val = %lu\n",
 					__func__, val);
 		return -EINVAL;
 	}
@@ -1699,7 +1699,7 @@ static int pa1_mmw0_thermal_qos_handler(struct notifier_block *b, unsigned long 
 	return update_thermal_target(pa1_mmw0_tz, val, 0);
 }
 
-static struct notifier_block pa1_mmw0_thermal_qos_notifier = {
+static struct notifier_block __maybe_unused pa1_mmw0_thermal_qos_notifier = {
 	.notifier_call = pa1_mmw0_thermal_qos_handler,
 };
 
@@ -1708,7 +1708,7 @@ static int xo_mmw1_thermal_qos_handler(struct notifier_block *b, unsigned long v
 	return update_thermal_target(xo_mmw1_tz, val, 0);
 }
 
-static struct notifier_block xo_mmw1_thermal_qos_notifier = {
+static struct notifier_block __maybe_unused xo_mmw1_thermal_qos_notifier = {
 	.notifier_call = xo_mmw1_thermal_qos_handler,
 };
 
@@ -1717,7 +1717,7 @@ static int modem_skin_thermal_qos_handler(struct notifier_block *b, unsigned lon
 	return update_thermal_target(modem_skin_tz, val, 0);
 }
 
-static struct notifier_block modem_skin_thermal_qos_notifier = {
+static struct notifier_block __maybe_unused modem_skin_thermal_qos_notifier = {
 	.notifier_call = modem_skin_thermal_qos_handler,
 };
 
@@ -1726,7 +1726,7 @@ static int modem_mmw2_qos_handler(struct notifier_block *b, unsigned long val, v
 	return update_thermal_target(modem_mmw2_tz, val, 0);
 }
 
-static struct notifier_block modem_mmw2_qos_notifier = {
+static struct notifier_block __maybe_unused modem_mmw2_qos_notifier = {
 	.notifier_call = modem_mmw2_qos_handler,
 };
 
@@ -1735,7 +1735,7 @@ static int msm_thermal_qos_handler(struct notifier_block *b, unsigned long val, 
 	return update_thermal_target(msm_tz, val, 0);
 }
 
-static struct notifier_block msm_thermal_qos_notifier = {
+static struct notifier_block __maybe_unused msm_thermal_qos_notifier = {
 	.notifier_call = msm_thermal_qos_handler,
 };
 
@@ -1744,7 +1744,7 @@ static int skin_thermal_qos_handler(struct notifier_block *b, unsigned long val,
 	return update_thermal_target(skin_tz, val, 1);
 }
 
-static struct notifier_block skin_thermal_qos_notifier = {
+static struct notifier_block __maybe_unused skin_thermal_qos_notifier = {
 	.notifier_call = skin_thermal_qos_handler,
 };
 
