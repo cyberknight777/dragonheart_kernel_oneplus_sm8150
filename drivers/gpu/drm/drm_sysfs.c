@@ -981,7 +981,7 @@ static ssize_t panel_serial_number_show(struct device *dev,
 			else
 				stage_string_info = "STAGE: UNKNOWN";
 
-			ret = scnprintf(buf, PAGE_SIZE, "%04d/%02d/%02d %02d:%02d:%02d\n%s\nID: %02X %02X %02X\n",
+			ret = scnprintf(buf, PAGE_SIZE, "%04d/%02d/%02d %02d:%02d:%02d\n%s\nID: %02s %02X %02X\n",
 					panel_year, panel_mon, panel_day, panel_hour, panel_min, panel_sec,
 					stage_string_info, production_string_info, panel_code_info,
 						panel_stage_info, panel_production_info);

@@ -10337,12 +10337,13 @@ int dsi_display_read_panel_id(struct dsi_display *dsi_display,
 		flags |= DSI_CTRL_CMD_LAST_COMMAND;
 	}
 	flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-    if (!m_ctrl->ctrl->vaddr)
+    if (!m_ctrl->ctrl->vaddr) {
         goto error;
 
 	cmds->msg.rx_buf = buf;
 	cmds->msg.rx_len = len;
 	retry_times = 0;
+    }
     do {
 	    rc = dsi_ctrl_cmd_transfer(m_ctrl->ctrl, &cmds->msg, flags);
 	    retry_times++;
@@ -10449,7 +10450,7 @@ static int dsi_display_get_mipi_dsi_msg(const struct mipi_dsi_msg *msg, char* bu
 	len += snprintf(buf + len, PAGE_SIZE - len, "%02X ", (unsigned int)msg->flags);
 	/* Delay */
 	len += snprintf(buf + len, PAGE_SIZE - len, "%02X ", msg->wait_ms);
-	len += snprintf(buf + len, PAGE_SIZE - len, "%02X %02X ", msg->tx_len >> 8, msg->tx_len & 0x00FF);
+	len += snprintf(buf + len, PAGE_SIZE - len, "%02lX %02lX ", msg->tx_len >> 8, msg->tx_len & 0x00FF);
 
 	/* Packet Payload */
 	for (i = 0 ; i < msg->tx_len ; i++) {
