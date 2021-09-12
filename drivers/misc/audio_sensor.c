@@ -192,7 +192,7 @@ static long share_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	struct notify_data *data = file->private_data;
 
-	pr_debug("%s: arg is %#x\n", __func__, arg);
+	pr_debug("%s: arg is %#lu\n", __func__, arg);
 
 	switch (cmd) {
 	case IOCTL_AUDIO_SEND_ACK:
