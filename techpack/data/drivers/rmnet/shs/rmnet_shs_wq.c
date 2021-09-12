@@ -546,11 +546,11 @@ void rmnet_shs_wq_update_hstat_rps_msk(struct rmnet_shs_wq_hstat_s *hstat_p)
 
 			/* Update ep tput stats while we're here */
 			if (hstat_p->skb_tport_proto == IPPROTO_TCP) {
-				rm_err("SHS_UDP: adding TCP bps %lu to ep_total %lu ep name %s",
+				rm_err("SHS_UDP: adding TCP bps %llu to ep_total %llu ep name %s",
 				       hstat_p->rx_bps, ep->tcp_rx_bps, node_p->dev->name);
 				ep->tcp_rx_bps += hstat_p->rx_bps;
 			} else if (hstat_p->skb_tport_proto == IPPROTO_UDP) {
-				rm_err("SHS_UDP: adding UDP rx_bps %lu to ep_total %lu ep name %s",
+				rm_err("SHS_UDP: adding UDP rx_bps %llu to ep_total %llu ep name %s",
 				       hstat_p->rx_bps, ep->udp_rx_bps, node_p->dev->name);
 				ep->udp_rx_bps += hstat_p->rx_bps;
 			}
@@ -2224,7 +2224,7 @@ int rmnet_shs_wq_get_max_flows_per_cluster(u16 cpu)
 	u16 start_core = 0;
 	u16 end_core = 4;
 	int max_flows = -1;
-	int cpu_flows;
+	int __maybe_unused cpu_flows;
 
 	if (cpu > MAX_CPUS) {
 		rmnet_shs_crit_err[RMNET_SHS_INVALID_CPU_ERR]++;
@@ -2235,12 +2235,6 @@ int rmnet_shs_wq_get_max_flows_per_cluster(u16 cpu)
 	if (core_mask >= big_cluster_mask) {
 		start_core = 4;
 		end_core = MAX_CPUS;
-	}
-
-	for (start_core; start_core < end_core; start_core++) {
-		cpu_flows = rmnet_shs_wq_get_num_cpu_flows(start_core);
-		if (cpu_flows > max_flows)
-			max_flows = cpu_flows;
 	}
 
 	trace_rmnet_shs_wq_low(RMNET_SHS_WQ_CPU_STATS,
@@ -2301,3 +2295,4 @@ void rmnet_shs_wq_ep_unlock_bh(void)
 {
 	spin_unlock_bh(&rmnet_shs_ep_lock);
 }
+
