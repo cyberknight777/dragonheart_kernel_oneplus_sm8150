@@ -59,7 +59,7 @@ static ssize_t infrared_power_enable_store(struct device* pdev, struct device_at
     g_infrared_state->infrared_power_enable = 0;
   }
 
-	INFRARED_LOG("infrared_power_enable : %d, enable : %d", g_infrared_state->infrared_power_enable, enable);
+	INFRARED_LOG("infrared_power_enable : %d, enable : %lu", g_infrared_state->infrared_power_enable, enable);
 
 	return count;
 }
@@ -91,7 +91,7 @@ static ssize_t infrared_shut_down_state_store(struct device* pdev, struct device
 		g_infrared_state->infrared_shutdown_state = infrared_shut_down_state;
 		INFRARED_LOG("would set infrared_shut_down_state, free_fall_irq_times : %d", g_infrared_state->infrared_shutdown_state);
 	}
-	INFRARED_LOG("infrared_shut_down_state : %d", infrared_shut_down_state);
+	INFRARED_LOG("infrared_shut_down_state : %lu", infrared_shut_down_state);
 
 	return count;
 }
@@ -122,7 +122,7 @@ static ssize_t infrared_shut_down_state2_store (struct device *pdev, struct devi
     g_infrared_state->infrared_shutdown_state2 = infrared_shut_down_state;
     INFRARED_LOG ("would set infrared_shut_down_state2 : %d", g_infrared_state->infrared_shutdown_state2);
   }
-  INFRARED_LOG ("infrared_shut_down_state : %d", infrared_shut_down_state);
+  INFRARED_LOG ("infrared_shut_down_state : %lu", infrared_shut_down_state);
 
   return count;
 }
