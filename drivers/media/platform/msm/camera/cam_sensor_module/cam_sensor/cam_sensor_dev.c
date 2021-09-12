@@ -188,10 +188,10 @@ static int cam_sensor_subdev_close(struct v4l2_subdev *sd,
 	}
 
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
-    if(!is_ftm_current_test)
+    if(!is_ftm_current_test) {
     	cam_sensor_shutdown(s_ctrl);
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
-
+    }
 	return 0;
 }
 
@@ -212,9 +212,10 @@ static long cam_sensor_init_subdev_do_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
 		rc = cam_sensor_subdev_ioctl(sd, cmd, &cmd_data);
-		if (rc < 0)
+		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "cam_sensor_subdev_ioctl failed");
 			break;
+		}
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid compat ioctl cmd_type: %d", cmd);
 		rc = -EINVAL;

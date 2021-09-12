@@ -567,7 +567,6 @@ static ssize_t OISwrite(struct file *p_file,
         CAM_INFO(CAM_OIS, "OISwrite buffer is NULL");
     else
     {
-        copy_from_user(&data, puser_buf, sizeof(char));
         CAM_INFO(CAM_OIS, "OISwrite data = 0x%x", data);
     }
 
