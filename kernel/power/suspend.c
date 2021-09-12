@@ -457,7 +457,6 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 		}
 		syscore_resume();
 	}
-Enable_irq:
 	arch_suspend_enable_irqs();
 	BUG_ON(irqs_disabled());
 
