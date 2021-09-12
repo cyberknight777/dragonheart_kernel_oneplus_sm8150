@@ -1149,9 +1149,6 @@ static ssize_t ipa3_read_stats(struct file *file, char __user *ubuf,
 		connect |= (ipa3_ctx->ep[i].valid << i);
 
 	nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
-		"sw_tx=%u\n"
-		"hw_tx=%u\n"
-		"tx_non_linear=%u\n"
 		"tx_compl=%u\n"
 		"wan_rx=%u\n"
 		"stat_compl=%u\n"
