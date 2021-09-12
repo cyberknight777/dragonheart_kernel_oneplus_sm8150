@@ -358,17 +358,17 @@ VL53L1_Error VL53L1_data_init(
 
 
 
-    if (status == VL53L1_ERROR_NONE)
+    if (status == VL53L1_ERROR_NONE) {
         status = VL53L1_init_tuning_parm_storage_struct(
 			&(pdev->tuning_parms));
+    }
 
 
 
 
 
 
-
-	if (status == VL53L1_ERROR_NONE)
+	if (status == VL53L1_ERROR_NONE) {
 		status = VL53L1_set_preset_mode(
 			Dev,
 			pdev->preset_mode,
@@ -378,7 +378,7 @@ VL53L1_Error VL53L1_data_init(
 			pdev->mm_config_timeout_us,
 			pdev->range_config_timeout_us,
 			pdev->inter_measurement_period_ms);
-
+	}
 
 
 	VL53L1_init_histogram_bin_data_struct(

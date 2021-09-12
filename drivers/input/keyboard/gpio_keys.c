@@ -397,7 +397,7 @@ static void gpio_vol_up_work_func(struct work_struct *work)
 {
 	struct gpio_button_data *bdata =
 		container_of(work, struct gpio_button_data, press_vol_up.work);
-	const struct gpio_keys_button *button = bdata->button;
+	const struct gpio_keys_button __maybe_unused *button = bdata->button;
 	struct input_dev *input = bdata->input;
 	int state;
 
