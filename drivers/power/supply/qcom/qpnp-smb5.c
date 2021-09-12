@@ -933,7 +933,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 			rc = PTR_ERR(chg->iio.op_connector_temp_chan);
 			if (rc != -EPROBE_DEFER)
 				dev_err(chg->dev,
-				"op_connector_temp_chan channel unavailable,%ld\n",
+				"op_connector_temp_chan channel unavailable,%d\n",
 				rc);
 			chg->iio.op_connector_temp_chan = NULL;
 			return rc;
@@ -949,7 +949,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 			rc = PTR_ERR(chg->iio.op_skin_therm_chan);
 			if (rc != -EPROBE_DEFER)
 				dev_err(chg->dev,
-				"op_skin_therm_chan channel unavailable,%ld\n",
+				"op_skin_therm_chan channel unavailable,%d\n",
 				rc);
 			chg->iio.op_skin_therm_chan = NULL;
 			return rc;

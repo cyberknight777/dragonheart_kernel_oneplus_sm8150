@@ -37,7 +37,7 @@ EXPORT_SYMBOL_GPL(power_supply_notifier);
 static struct device_type power_supply_dev_type;
 
 #define POWER_SUPPLY_DEFERRED_REGISTER_TIME	msecs_to_jiffies(10)
-static void power_supply_update_fsync(struct power_supply *psy)
+static void __maybe_unused power_supply_update_fsync(struct power_supply *psy)
 {
 	union power_supply_propval ret = {0, };
 

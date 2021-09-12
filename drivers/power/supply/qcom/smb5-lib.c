@@ -463,7 +463,7 @@ int op_rerun_apsd(struct smb_charger *chg)
 		return rc;
 	}
 
-	if (!val.intval)
+	if (!val.intval) {
 		return 0;
 		/* rerun APSD */
 		pr_info("OP Reruning APSD type\n");
@@ -471,6 +471,7 @@ int op_rerun_apsd(struct smb_charger *chg)
 		rc = smblib_masked_write(chg, CMD_APSD_REG,
 					APSD_RERUN_BIT,
 					APSD_RERUN_BIT);
+	}
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't rerun APSD rc = %d\n", rc);
 			return rc;
@@ -3700,11 +3701,13 @@ int smblib_get_prop_usb_voltage_now(struct smb_charger *chg,
 
 restore_adc_config:
 	 /* Restore ADC channel config */
-	if (chg->wa_flags & USBIN_ADC_WA)
+	if (chg->wa_flags & USBIN_ADC_WA) {
 		rc = smblib_write(chg, BATIF_ADC_CHANNEL_EN_REG, reg);
-		if (rc < 0)
+		if (rc < 0) {
 			smblib_err(chg, "Couldn't write ADC config rc=%d\n",
 						rc);
+		}
+	}
 
 unlock:
 	mutex_unlock(&chg->adc_lock);
@@ -5863,7 +5866,7 @@ static void smblib_handle_hvdcp_3p0_auth_done(struct smb_charger *chg,
 		if (!chg->apsd_ext_timeout &&
 				!timer_pending(&chg->apsd_timer)) {
 			smblib_dbg(chg, PR_MISC,
-				"APSD Extented timer started at %lld\n",
+				"APSD Extented timer started at %u\n",
 				jiffies_to_msecs(jiffies));
 
 			mod_timer(&chg->apsd_timer,
@@ -10779,7 +10782,7 @@ static void apsd_timer_cb(unsigned long data)
 {
 	struct smb_charger *chg = (struct smb_charger *)data;
 
-	smblib_dbg(chg, PR_MISC, "APSD Extented timer timeout at %lld\n",
+	smblib_dbg(chg, PR_MISC, "APSD Extented timer timeout at %u\n",
 			jiffies_to_msecs(jiffies));
 
 	chg->apsd_ext_timeout = true;
