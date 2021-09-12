@@ -66,12 +66,12 @@ char *parse_regs_pc(unsigned long address, int *length)
 
 void save_dump_reason_to_smem(char *info, char *function_name)
 {
-	int strl = 0, strl1 = 0, length = 0;
+	int __maybe_unused strl = 0, strl1 = 0, length = 0;
 	size_t size;
 	static int flag;
-	char buf[7], *buf1;
-	struct pt_regs *regs;
-	char *caller_function_name;
+	char buf[7], __maybe_unused *buf1;
+	struct pt_regs __maybe_unused *regs;
+	char __maybe_unused *caller_function_name;
 
 	/* Make sure save_dump_reason_to_smem() is not
 	 * called infinite times by nested panic caller fns etc
