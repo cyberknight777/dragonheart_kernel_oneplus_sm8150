@@ -3940,7 +3940,7 @@ void iwl_mvm_csa_client_absent(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	mvmsta = iwl_mvm_sta_from_staid_rcu(mvm, mvmvif->ap_sta_id);
 
-	if (!WARN_ON(!mvmsta))
+	if (mvmsta)
 		iwl_mvm_sta_modify_disable_tx(mvm, mvmsta, true);
 
 	rcu_read_unlock();
