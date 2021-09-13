@@ -774,7 +774,7 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 			      u8 lmac_id)
 {
 	int ret, size = max_t(u32, IWL_DEFAULT_QUEUE_SIZE,
-			      xvt->trans->cfg->min_256_ba_txq_size);
+			      xvt->trans->cfg->min_ba_txq_size);
 
 	ret = iwl_trans_txq_alloc(xvt->trans,
 				  cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
