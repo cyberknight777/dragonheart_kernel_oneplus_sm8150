@@ -1261,8 +1261,13 @@ static int iwl_xvt_start_tx_handler(void *data)
 	if (WARN(packets_in_cycle == 0, "invalid packets amount to send"))
 		return -EINVAL;
 
-	if (num_of_cycles == IWL_XVT_TX_MODULATED_INFINITE)
-		num_of_cycles = XVT_MAX_TX_COUNT / packets_in_cycle;
+	if (num_of_cycles == IWL_XVT_TX_MODULATED_INFINITE) {
+		u64 v = XVT_MAX_TX_COUNT;
+
+		do_div(v, packets_in_cycle);
+		num_of_cycles = v;
+	}
+
 	xvt->expected_tx_amount = packets_in_cycle * num_of_cycles;
 	num_of_iterations = num_of_cycles * num_of_frames;
 
@@ -1274,8 +1279,9 @@ static int iwl_xvt_start_tx_handler(void *data)
 		u8 frag_size = tx_start->tx_data.fragment_size;
 		struct tx_payload *payload;
 		u8 frag_array_size = ARRAY_SIZE(tx_start->tx_data.frag_num);
+		u64 tmp = i;
 
-		frame_index = i % num_of_frames;
+		frame_index = do_div(tmp, num_of_frames);
 		payload_idx = tx_start->frames_data[frame_index].payload_index;
 		payload = xvt->payloads[payload_idx];
 		hdr = (struct ieee80211_hdr *)
