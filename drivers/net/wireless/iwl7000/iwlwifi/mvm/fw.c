@@ -1251,7 +1251,8 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 {
 	/* no need to read the table, done in INIT stage */
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-	if (dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.ppag_allowed)) {
+	if (mvm->trans->dbg_cfg.ppag_allowed &&
+	    dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.ppag_allowed)) {
 		IWL_DEBUG_RADIO(mvm,
 				"System vendor matches dbg_cfg.ppag_allowed %s\n",
 				mvm->trans->dbg_cfg.ppag_allowed);
