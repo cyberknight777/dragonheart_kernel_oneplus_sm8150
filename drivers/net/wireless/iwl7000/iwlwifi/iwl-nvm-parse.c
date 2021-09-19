@@ -712,9 +712,9 @@ static const struct ieee80211_sband_iftype_data iwl_he_eht_capa[] = {
 
 			/*
 			 * PPE thresholds for NSS = 2, and RU index bitmap set
-			 * to 0x7.
+			 * to 0xc.
 			 */
-			.eht_ppe_thres = {0x71, 0x0e, 0x0e }
+			.eht_ppe_thres = {0xc1, 0x0e, 0xe0 }
 		},
 #endif
 	},
@@ -817,9 +817,9 @@ static const struct ieee80211_sband_iftype_data iwl_he_eht_capa[] = {
 
 			/*
 			 * PPE thresholds for NSS = 2, and RU index bitmap set
-			 * to 0x7.
+			 * to 0xc.
 			 */
-			.eht_ppe_thres = {0x71, 0x0e, 0x0e }
+			.eht_ppe_thres = {0xc1, 0x0e, 0xe0 }
 		},
 #endif
 	},
