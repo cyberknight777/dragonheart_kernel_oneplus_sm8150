@@ -29,6 +29,7 @@
 #define ACPI_SAR_PROFILE_NUM		4
 
 #define ACPI_NUM_GEO_PROFILES		3
+#define ACPI_NUM_GEO_PROFILES_REV3	8
 #define ACPI_GEO_PER_CHAIN_SIZE		3
 
 #define ACPI_SAR_NUM_CHAINS_REV0	2
@@ -58,13 +59,6 @@
 #define ACPI_GEO_NUM_BANDS_REV0		2
 #define ACPI_GEO_NUM_BANDS_REV2		3
 #define ACPI_GEO_NUM_CHAINS		2
-
-#define ACPI_WGDS_WIFI_DATA_SIZE_REV0	(ACPI_NUM_GEO_PROFILES *   \
-					 ACPI_GEO_NUM_BANDS_REV0 * \
-					 ACPI_GEO_PER_CHAIN_SIZE + 1)
-#define ACPI_WGDS_WIFI_DATA_SIZE_REV2	(ACPI_NUM_GEO_PROFILES *   \
-					 ACPI_GEO_NUM_BANDS_REV2 * \
-					 ACPI_GEO_PER_CHAIN_SIZE + 1)
 
 #define ACPI_WRDD_WIFI_DATA_SIZE	2
 #define ACPI_SPLC_WIFI_DATA_SIZE	2
@@ -115,8 +109,10 @@ enum iwl_dsm_funcs_rev_0 {
 	DSM_FUNC_QUERY = 0,
 	DSM_FUNC_DISABLE_SRD = 1,
 	DSM_FUNC_ENABLE_INDONESIA_5G2 = 2,
+	DSM_FUNC_ENABLE_6E = 3,
 	DSM_FUNC_11AX_ENABLEMENT = 6,
-	DSM_FUNC_ENABLE_UNII4_CHAN = 7
+	DSM_FUNC_ENABLE_UNII4_CHAN = 7,
+	DSM_FUNC_ACTIVATE_CHANNEL = 8
 };
 
 enum iwl_dsm_values_srd {
@@ -198,7 +194,8 @@ int iwl_sar_get_wgds_table(struct iwl_fw_runtime *fwrt);
 bool iwl_sar_geo_support(struct iwl_fw_runtime *fwrt);
 
 int iwl_sar_geo_init(struct iwl_fw_runtime *fwrt,
-		     struct iwl_per_chain_offset *table, u32 n_bands);
+		     struct iwl_per_chain_offset *table,
+		     u32 n_bands, u32 n_profiles);
 
 int iwl_acpi_get_tas(struct iwl_fw_runtime *fwrt, __le32 *block_list_array,
 		     int *block_list_size);

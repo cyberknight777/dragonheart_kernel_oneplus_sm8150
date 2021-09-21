@@ -104,10 +104,8 @@ iwl_mvm_vendor_attr_policy[NUM_IWL_MVM_VENDOR_ATTR] = {
 	[IWL_MVM_VENDOR_ATTR_ROAMING_FORBIDDEN] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_AUTH_MODE] = { .type = NLA_U32 },
 	[IWL_MVM_VENDOR_ATTR_CHANNEL_NUM] = { .type = NLA_U8 },
-	[IWL_MVM_VENDOR_ATTR_HOST_DISASSOC_TYPE] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_SSID] = { .type = NLA_BINARY,
 				       .len = IEEE80211_MAX_SSID_LEN },
-	[IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_BAND] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_COLLOC_CHANNEL] = { .type = NLA_U8 },
 	[IWL_MVM_VENDOR_ATTR_COLLOC_ADDR] = { .type = NLA_BINARY, .len = ETH_ALEN },
@@ -1668,7 +1666,7 @@ static int iwl_mvm_vendor_get_csme_conn_info(struct wiphy *wiphy,
 		    csme_conn_info->conn_info.ssid_len,
 		    csme_conn_info->conn_info.ssid) ||
 	    nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_STA_CIPHER,
-			csme_conn_info->conn_info.ucast_cipher) ||
+			csme_conn_info->conn_info.pairwise_cipher) ||
 	    nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_CHANNEL_NUM,
 		       csme_conn_info->conn_info.channel) ||
 	    nla_put(skb, IWL_MVM_VENDOR_ATTR_ADDR, ETH_ALEN,
@@ -1685,87 +1683,6 @@ out_unlock:
 	return cfg80211_vendor_cmd_reply(skb);
 }
 
-static int iwl_mvm_vendor_host_disassociated(struct wiphy *wiphy,
-					     struct wireless_dev *wdev,
-					     const void *data, int data_len)
-{
-	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
-	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr **tb;
-	u8 type;
-	int err = 0;
-
-	tb = iwl_mvm_parse_vendor_data(data, data_len);
-
-	if (IS_ERR(tb))
-		return PTR_ERR(tb);
-
-	if (!tb[IWL_MVM_VENDOR_ATTR_HOST_DISASSOC_TYPE]) {
-		err = -EINVAL;
-		goto free;
-	}
-
-	type = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_HOST_DISASSOC_TYPE]);
-
-	mutex_lock(&mvm->mutex);
-	iwl_mvm_mei_host_disassociated(mvm, type);
-	mutex_unlock(&mvm->mutex);
-
-free:
-	kfree(tb);
-	return err;
-}
-
-static int iwl_mvm_vendor_host_associated(struct wiphy *wiphy,
-					  struct wireless_dev *wdev,
-					  const void *data, int data_len)
-{
-	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
-	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr **tb;
-	struct iwl_mei_conn_info conn_info = {};
-	struct iwl_mei_colloc_info colloc_info = {};
-	bool colloc = false;
-	int err = 0;
-
-	tb = iwl_mvm_parse_vendor_data(data, data_len);
-	if (IS_ERR(tb))
-		return PTR_ERR(tb);
-
-	if (!tb[IWL_MVM_VENDOR_ATTR_SSID] ||
-	    !tb[IWL_MVM_VENDOR_ATTR_ADDR] ||
-	    !tb[IWL_MVM_VENDOR_ATTR_CHANNEL_NUM] ||
-	    !tb[IWL_MVM_VENDOR_ATTR_BAND] ||
-	    !tb[IWL_MVM_VENDOR_ATTR_AUTH_MODE]) {
-		err = -EINVAL;
-		goto free;
-	}
-
-	conn_info.ssid_len = nla_len(tb[IWL_MVM_VENDOR_ATTR_SSID]);
-	memcpy(conn_info.ssid, nla_data(tb[IWL_MVM_VENDOR_ATTR_SSID]), conn_info.ssid_len);
-	memcpy(conn_info.bssid, nla_data(tb[IWL_MVM_VENDOR_ATTR_ADDR]), ETH_ALEN);
-	conn_info.channel = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_CHANNEL_NUM]);
-	conn_info.band = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_BAND]);
-	conn_info.auth_mode = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_AUTH_MODE]);
-
-	if (tb[IWL_MVM_VENDOR_ATTR_STA_CIPHER])
-		conn_info.ucast_cipher = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_STA_CIPHER]);
-
-	if (tb[IWL_MVM_VENDOR_ATTR_COLLOC_CHANNEL] && tb[IWL_MVM_VENDOR_ATTR_COLLOC_ADDR]) {
-		colloc_info.channel = nla_get_u32(tb[IWL_MVM_VENDOR_ATTR_COLLOC_CHANNEL]);
-		memcpy(conn_info.bssid, nla_data(tb[IWL_MVM_VENDOR_ATTR_COLLOC_ADDR]), ETH_ALEN);
-		colloc = true;
-	}
-
-	mutex_lock(&mvm->mutex);
-	iwl_mvm_mei_host_associated(mvm, &conn_info, colloc ? &colloc_info : NULL);
-	mutex_unlock(&mvm->mutex);
-
-free:
-	kfree(tb);
-	return err;
-}
-
 static int iwl_mvm_vendor_host_get_ownership(struct wiphy *wiphy,
 					     struct wireless_dev *wdev,
 					     const void *data, int data_len)
@@ -1778,36 +1695,6 @@ static int iwl_mvm_vendor_host_get_ownership(struct wiphy *wiphy,
 	mutex_unlock(&mvm->mutex);
 
 	return 0;
-}
-
-static int iwl_mvm_vendor_set_sw_rfkill_state(struct wiphy *wiphy,
-					      struct wireless_dev *wdev,
-					      const void *data, int data_len)
-{
-	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
-	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
-	struct nlattr **tb;
-	u8 state;
-	int err = 0;
-
-	tb = iwl_mvm_parse_vendor_data(data, data_len);
-	if (IS_ERR(tb))
-		return PTR_ERR(tb);
-
-	if (!tb[IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE]) {
-		err = -EINVAL;
-		goto free;
-	}
-
-	state = nla_get_u8(tb[IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE]);
-
-	mutex_lock(&mvm->mutex);
-	iwl_mvm_mei_set_sw_rfkill_state(mvm, state);
-	mutex_unlock(&mvm->mutex);
-
-free:
-	kfree(tb);
-	return err;
 }
 
 static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
@@ -2201,53 +2088,9 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 	{
 		.info = {
 			.vendor_id = INTEL_OUI,
-			.subcmd = IWL_MVM_VENDOR_CMD_HOST_DISASSOC,
-		},
-		.doit = iwl_mvm_vendor_host_disassociated,
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			WIPHY_VENDOR_CMD_NEED_RUNNING,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-			.policy = iwl_mvm_vendor_attr_policy,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-			.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
-#endif
-	},
-	{
-		.info = {
-			.vendor_id = INTEL_OUI,
-			.subcmd = IWL_MVM_VENDOR_CMD_HOST_ASSOC,
-		},
-		.doit = iwl_mvm_vendor_host_associated,
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			WIPHY_VENDOR_CMD_NEED_RUNNING,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-			.policy = iwl_mvm_vendor_attr_policy,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-			.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
-#endif
-	},
-	{
-		.info = {
-			.vendor_id = INTEL_OUI,
 			.subcmd = IWL_MVM_VENDOR_CMD_HOST_GET_OWNERSHIP,
 		},
 		.doit = iwl_mvm_vendor_host_get_ownership,
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-		.policy = iwl_mvm_vendor_attr_policy,
-#endif
-#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
-		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
-#endif
-	},
-	{
-		.info = {
-			.vendor_id = INTEL_OUI,
-			.subcmd = IWL_MVM_VENDOR_CMD_HOST_SET_SW_RFKILL_STATE,
-		},
-		.doit = iwl_mvm_vendor_set_sw_rfkill_state,
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,

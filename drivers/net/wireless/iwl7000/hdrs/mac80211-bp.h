@@ -1632,6 +1632,13 @@ cfg80211_crypto_ciphers_group(struct cfg80211_crypto_settings *crypto,
 	WARN_ON(idx != 0);
 	return crypto->cipher_group;
 }
+
+static inline void
+cfg80211_assoc_comeback(struct net_device *netdev,
+			struct cfg80211_bss *bss, u32 timeout)
+{
+}
+
 #else
 static inline int
 cfg80211_crypto_n_ciphers_group(struct cfg80211_crypto_settings *crypto)
@@ -2108,13 +2115,13 @@ static inline bool nl80211_is_6ghz(enum nl80211_band band)
 #define ieee80211_preamble_he() BIT(NL80211_PREAMBLE_HE)
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,12,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
 #define ftm_lmr_feedback(peer)		0
 #else
 #define ftm_lmr_feedback(peer)		((peer)->ftm.lmr_feedback)
 #endif
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,14,0)
 #define ftm_bss_color(peer)		0
 #else
 #define ftm_bss_color(peer)		((peer)->ftm.bss_color)
@@ -2597,7 +2604,7 @@ struct cfg80211_sar_specs {
 };
 #endif /* < 5.4.0 */
 
-#if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
+#if CFG80211_VERSION < KERNEL_VERSION(5,14,0)
 #define NL80211_EXT_FEATURE_PROT_RANGE_NEGO_AND_MEASURE -1
 
 static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
@@ -2631,12 +2638,14 @@ static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
 }
 #endif /* < 5.13.0 */
 
-#if LINUX_VERSION_IS_LESS(5,11,0)
+#if LINUX_VERSION_IS_LESS(5,10,0)
 static inline u64 skb_get_kcov_handle(struct sk_buff *skb)
 {
 	return 0;
 }
+#endif
 
+#if LINUX_VERSION_IS_LESS(5,11,00)
 static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 					  unsigned int packets,
 					  unsigned int len)

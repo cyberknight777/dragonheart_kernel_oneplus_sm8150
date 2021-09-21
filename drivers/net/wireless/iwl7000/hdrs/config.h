@@ -13,11 +13,6 @@
  *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
- *
- * Contact Information:
- *  Intel Linux Wireless <linuxwifi@intel.com>
- * Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
- *
  *****************************************************************************/
 #ifndef __IWL_CHROME_CONFIG
 #define __IWL_CHROME_CONFIG

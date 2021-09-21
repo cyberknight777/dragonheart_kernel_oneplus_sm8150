@@ -20,6 +20,7 @@
 #include "iwl-trans.h"
 #include "iwl-op-mode.h"
 #include "iwl-phy-db.h"
+#include "iwl-nvm-parse.h"
 #include "xvt.h"
 #include "user-infc.h"
 #include "iwl-dnt-cfg.h"
@@ -1727,9 +1728,6 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 				     struct iwl_tm_data *data_out)
 {
 	struct iwl_xvt_mac_addr_info *mac_addr_info;
-	u32 mac_addr0, mac_addr1;
-	__u8 temp_mac_addr[ETH_ALEN];
-	const u8 *hw_addr;
 
 	mac_addr_info = kzalloc(sizeof(*mac_addr_info), GFP_KERNEL);
 	if (!mac_addr_info)
@@ -1744,24 +1742,18 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 			memcpy(mac_addr_info->mac_addr, xvt->nvm_mac_addr,
 			       sizeof(mac_addr_info->mac_addr));
 		} else {
-			/* read the mac address from WFMP registers */
-			mac_addr0 = iwl_read_umac_prph_no_grab(xvt->trans,
-							       WFMP_MAC_ADDR_0);
-			mac_addr1 = iwl_read_umac_prph_no_grab(xvt->trans,
-							       WFMP_MAC_ADDR_1);
-
-			hw_addr = (const u8 *)&mac_addr0;
-			temp_mac_addr[0] = hw_addr[3];
-			temp_mac_addr[1] = hw_addr[2];
-			temp_mac_addr[2] = hw_addr[1];
-			temp_mac_addr[3] = hw_addr[0];
-
-			hw_addr = (const u8 *)&mac_addr1;
-			temp_mac_addr[4] = hw_addr[1];
-			temp_mac_addr[5] = hw_addr[0];
-
-			memcpy(mac_addr_info->mac_addr, temp_mac_addr,
+			const __le16 *dummy_nvm_section = page_address(ZERO_PAGE(0));
+			struct iwl_nvm_data *data = iwl_parse_nvm_data
+				(xvt->trans, xvt->cfg, xvt->fw,
+				NULL, dummy_nvm_section, NULL, dummy_nvm_section,
+				NULL, dummy_nvm_section, 0, 0);
+			if (!data) {
+				kfree(mac_addr_info);
+				return -ENOMEM;
+			}
+			memcpy(mac_addr_info->mac_addr, data->hw_addr,
 			       sizeof(mac_addr_info->mac_addr));
+			kfree(data);
 		}
 	}
 

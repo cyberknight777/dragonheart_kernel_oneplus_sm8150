@@ -95,7 +95,6 @@ enum iwl_nvm_type {
 #define	ANT_AC		(ANT_A | ANT_C)
 #define ANT_BC		(ANT_B | ANT_C)
 #define ANT_ABC		(ANT_A | ANT_B | ANT_C)
-#define MAX_ANT_NUM 3
 
 
 static inline u8 num_of_ant(u8 mask)
@@ -512,6 +511,10 @@ extern const char iwl_ax210_killer_1675w_name[];
 extern const char iwl_ax210_killer_1675x_name[];
 extern const char iwl9560_killer_1550i_160_name[];
 extern const char iwl9560_killer_1550s_160_name[];
+extern const char iwl_ax211_killer_1675s_name[];
+extern const char iwl_ax211_killer_1675i_name[];
+extern const char iwl_ax411_killer_1690s_name[];
+extern const char iwl_ax411_killer_1690i_name[];
 extern const char iwl_ax211_name[];
 extern const char iwl_ax221_name[];
 extern const char iwl_ax231_name[];
