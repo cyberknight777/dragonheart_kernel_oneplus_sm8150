@@ -800,6 +800,8 @@ struct iwl_trans_debug {
 
 	u32 domains_bitmap;
 	u32 ucode_preset;
+	bool restart_required;
+	u32 last_tp_resetfw;
 };
 
 struct iwl_dma_ptr {
