@@ -872,33 +872,6 @@ static int rtw_debugfs_get_coex_enable(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t rtw_debugfs_set_edcca_enable(struct file *filp,
-					    const char __user *buffer,
-					    size_t count, loff_t *loff)
-{
-	struct rtw_debugfs_priv *debugfs_priv = filp->private_data;
-	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
-	char tmp[32 + 1];
-
-	rtw_debugfs_copy_from_user(tmp, sizeof(tmp), buffer, count, 1);
-
-	kstrtobool(tmp, &rtw_edcca_enabled);
-	rtw_phy_adaptivity_set_mode(rtwdev);
-
-	return count;
-}
-
-static int rtw_debugfs_get_edcca_enable(struct seq_file *m, void *v)
-{
-	struct rtw_debugfs_priv *debugfs_priv = m->private;
-	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
-	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
-
-	seq_printf(m, "EDCCA mode %d\n", dm_info->edcca_mode);
-
-	return 0;
-}
-
 static ssize_t rtw_debugfs_set_fw_crash(struct file *filp,
 					const char __user *buffer,
 					size_t count, loff_t *loff)
@@ -1157,11 +1130,6 @@ static struct rtw_debugfs_priv rtw_debug_priv_coex_info = {
 	.cb_read = rtw_debugfs_get_coex_info,
 };
 
-static struct rtw_debugfs_priv rtw_debug_priv_edcca_enable = {
-	.cb_write = rtw_debugfs_set_edcca_enable,
-	.cb_read = rtw_debugfs_get_edcca_enable,
-};
-
 static struct rtw_debugfs_priv rtw_debug_priv_fw_crash = {
 	.cb_write = rtw_debugfs_set_fw_crash,
 	.cb_read = rtw_debugfs_get_fw_crash,
@@ -1251,7 +1219,6 @@ void rtw_debugfs_init(struct rtw_dev *rtwdev)
 	}
 	rtw_debugfs_add_r(rf_dump);
 	rtw_debugfs_add_r(tx_pwr_tbl);
-	rtw_debugfs_add_rw(edcca_enable);
 	rtw_debugfs_add_rw(fw_crash);
 	rtw_debugfs_add_rw(basic_rates);
 	rtw_debugfs_add_rw(dm_cap);

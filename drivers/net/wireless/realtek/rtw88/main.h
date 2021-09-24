@@ -41,7 +41,6 @@
 extern bool rtw_bf_support;
 extern bool rtw_disable_lps_deep_mode;
 extern unsigned int rtw_debug_mask;
-extern bool rtw_edcca_enabled;
 extern const struct ieee80211_ops rtw_ops;
 
 #define RTW_MAX_CHANNEL_NUM_2G 14
@@ -330,8 +329,6 @@ enum rtw_trx_desc_rate {
 	DESC_RATE_MAX,
 };
 
-#define RTW_REGION_INVALID 0xff
-
 enum rtw_regulatory_domains {
 	RTW_REGD_FCC		= 0,
 	RTW_REGD_MKK		= 1,
@@ -546,11 +543,6 @@ struct rtw_reg_domain {
 #define RTW_REG_DOMAIN_RF_B	4
 #define RTW_REG_DOMAIN_NL	0xFF
 	u8 domain;
-};
-
-struct rtw_hw_reg_offset {
-	struct rtw_hw_reg hw_reg;
-	u8 offset;
 };
 
 struct rtw_rf_sipi_addr {
@@ -817,7 +809,6 @@ struct rtw_regulatory {
 	char alpha2[2];
 	u8 chplan;
 	u8 txpwr_regd;
-	enum nl80211_dfs_regions region;
 };
 
 struct rtw_chip_ops {
@@ -855,8 +846,6 @@ struct rtw_chip_ops {
 			      struct ieee80211_bss_conf *conf);
 	void (*cfg_csi_rate)(struct rtw_dev *rtwdev, u8 rssi, u8 cur_rate,
 			     u8 fixrate_en, u8 *new_rate);
-	void (*adaptivity_init)(struct rtw_dev *rtwdev);
-	void (*adaptivity)(struct rtw_dev *rtwdev);
 	void (*cfo_init)(struct rtw_dev *rtwdev);
 	void (*cfo_track)(struct rtw_dev *rtwdev);
 	void (*config_tx_path)(struct rtw_dev *rtwdev, u8 tx_path,
@@ -1205,10 +1194,6 @@ struct rtw_chip_info {
 	u8 bfer_su_max_num;
 	u8 bfer_mu_max_num;
 
-	struct rtw_hw_reg_offset *edcca_th;
-	s8 l2h_th_ini_cs;
-	s8 l2h_th_ini_ad;
-
 	const char *wow_fw_name;
 	const struct wiphy_wowlan_support *wowlan_stub;
 	const u8 max_sched_scan_ssids;
@@ -1532,20 +1517,6 @@ struct rtw_iqk_info {
 	} result;
 };
 
-#define EDCCA_TH_L2H_IDX 0
-#define EDCCA_TH_H2L_IDX 1
-#define EDCCA_TH_L2H_LB 48
-#define EDCCA_ADC_BACKOFF 12
-#define EDCCA_IGI_BASE 50
-#define EDCCA_IGI_L2H_DIFF 8
-#define EDCCA_L2H_H2L_DIFF 7
-#define EDCCA_L2H_H2L_DIFF_NORMAL 8
-
-enum rtw_edcca_mode {
-	RTW_EDCCA_NORMAL	= 0,
-	RTW_EDCCA_ADAPTIVITY	= 1,
-};
-
 enum rtw_rf_band {
 	RF_BAND_2G_CCK,
 	RF_BAND_2G_OFDM,
@@ -1654,8 +1625,6 @@ struct rtw_dm_info {
 	struct ewma_snr ewma_snr[RTW_SNR_NUM];
 
 	struct rtw_iqk_info iqk;
-	s8 l2h_th_ini;
-	enum rtw_edcca_mode edcca_mode;
 	u32 dm_flags; /* enum rtw_dm_cap */
 	struct rtw_gapk_info gapk;
 	bool is_bt_iqk_timeout;
