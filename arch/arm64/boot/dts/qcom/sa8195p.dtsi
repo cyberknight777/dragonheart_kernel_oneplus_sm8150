@@ -370,18 +370,12 @@
 	vdd-supply = <&pm8195_3_l5>;
 	vdda18-supply = <&pm8195_1_l12>;
 	vdda33-supply = <&pm8195_3_l16>;
-	qcom,param-override-seq = <0x01 0xb0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&usb2phy_ac_en1_default>;
 };
 
 &usb2_phy1 {
 	vdd-supply = <&pm8195_3_l5>;
 	vdda18-supply = <&pm8195_1_l12>;
 	vdda33-supply = <&pm8195_3_l16>;
-	qcom,param-override-seq = <0x01 0xb0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&usb2phy_ac_en2_default>;
 	status = "ok";
 };
 
@@ -389,9 +383,6 @@
 	vdd-supply = <&pm8195_3_l5>;
 	vdda18-supply = <&pm8195_1_l12>;
 	vdda33-supply = <&pm8195_3_l16>;
-	qcom,param-override-seq = <0x01 0xb0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&usb2phy_ac_en3_default>;
 	status = "ok";
 };
 
@@ -405,9 +396,6 @@
 	vdd-supply = <&pm8195_3_l5>;
 	vdda18-supply = <&pm8195_1_l12>;
 	vdda33-supply = <&pm8195_3_l16>;
-	qcom,param-override-seq = <0x01 0xb0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&usb2phy_ac_en4_default>;
 	status = "ok";
 };
 

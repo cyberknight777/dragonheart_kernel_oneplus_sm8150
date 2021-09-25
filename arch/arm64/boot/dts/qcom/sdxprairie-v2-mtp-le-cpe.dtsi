@@ -32,10 +32,6 @@
 	};
 };
 
-&blsp1_uart2b_hs {
-	status = "disabled";
-};
-
 &soc {
 	sound-tavil {
 		status = "disabled";
@@ -48,7 +44,6 @@
 
 &ipa_hw {
 	qcom,use-ipa-in-mhi-mode;
-	qcom,use-ipa-in-cpe-config;
 };
 
 &pcie0 {
