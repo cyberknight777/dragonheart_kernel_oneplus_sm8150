@@ -506,7 +506,3 @@
 		qcom,asm330_hrtimer;
 	};
 };
-
-&ipa_hw {
-	qcom,ipa-config-is-sa;
-};
