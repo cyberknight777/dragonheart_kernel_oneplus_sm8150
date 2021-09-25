@@ -2087,10 +2087,8 @@ static int bcm_sysport_probe(struct platform_device *pdev)
 	priv->tx_rings = devm_kcalloc(&pdev->dev, txq,
 				      sizeof(struct bcm_sysport_tx_ring),
 				      GFP_KERNEL);
-	if (!priv->tx_rings) {
-		ret = -ENOMEM;
-		goto err_free_netdev;
-	}
+	if (!priv->tx_rings)
+		return -ENOMEM;
 
 	priv->is_lite = params->is_lite;
 	priv->num_rx_desc_words = params->num_rx_desc_words;
