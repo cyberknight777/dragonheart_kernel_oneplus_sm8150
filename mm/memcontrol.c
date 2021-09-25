@@ -105,6 +105,10 @@ static const char *const mem_cgroup_lru_names[] = {
 	"active_anon",
 	"inactive_file",
 	"active_file",
+#ifdef CONFIG_MEMPLUS
+	"inactive_anon_swpcache",
+	"active_anon_swpcache",
+#endif
 	"unevictable",
 };
 
@@ -4559,7 +4563,7 @@ static struct page *mc_handle_swap_pte(struct vm_area_struct *vma,
 	struct page *page = NULL;
 	swp_entry_t ent = pte_to_swp_entry(ptent);
 
-	if (!(mc.flags & MOVE_ANON))
+	if (!(mc.flags & MOVE_ANON) || non_swap_entry(ent))
 		return NULL;
 
 	/*
@@ -4577,9 +4581,6 @@ static struct page *mc_handle_swap_pte(struct vm_area_struct *vma,
 			return NULL;
 		return page;
 	}
-
-	if (non_swap_entry(ent))
-		return NULL;
 
 	/*
 	 * Because lookup_swap_cache() updates some statistics counter,
