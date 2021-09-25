@@ -988,8 +988,9 @@ static int scale64_check_overflow(u64 mult, u64 div, u64 *base)
 	    ((int)sizeof(u64)*8 - fls64(mult) < fls64(rem)))
 		return -EOVERFLOW;
 	tmp *= mult;
+	rem *= mult;
 
-	rem = div64_u64(rem * mult, div);
+	do_div(rem, div);
 	*base = tmp + rem;
 	return 0;
 }
