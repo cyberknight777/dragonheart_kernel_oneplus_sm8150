@@ -1207,6 +1207,11 @@ int perf_event_max_stack_handler(struct ctl_table *table, int write,
 #define PERF_SECURITY_KERNEL		2
 #define PERF_SECURITY_TRACEPOINT	3
 
+static inline bool perf_paranoid_any(void)
+{
+	return sysctl_perf_event_paranoid > 2;
+}
+
 static inline int perf_is_paranoid(void)
 {
 	return sysctl_perf_event_paranoid > -1;
@@ -1447,4 +1452,11 @@ int perf_event_restart_events(unsigned int cpu);
 #define perf_event_restart_events NULL
 #endif
 
+#ifdef CONFIG_HOUSTON
+extern bool ht_perf_event_open(pid_t pid, int id);
+extern u64 ht_perf_read(struct task_struct *task, int id);
+#else
+static inline bool ht_perf_event_open(pid_t pid, int id) { return false; };
+static inline u64 ht_perf_read(struct task_struct *task, int id) { return 0; };
+#endif
 #endif /* _LINUX_PERF_EVENT_H */
