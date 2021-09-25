@@ -161,19 +161,15 @@ static int gfs2_check_sb(struct gfs2_sbd *sdp, int silent)
 		return -EINVAL;
 	}
 
-	if (sb->sb_fs_format != GFS2_FORMAT_FS ||
-	    sb->sb_multihost_format != GFS2_FORMAT_MULTI) {
-		fs_warn(sdp, "Unknown on-disk format, unable to mount\n");
-		return -EINVAL;
-	}
+	/*  If format numbers match exactly, we're done.  */
 
-	if (sb->sb_bsize < 512 || sb->sb_bsize > PAGE_SIZE ||
-	    (sb->sb_bsize & (sb->sb_bsize - 1))) {
-		pr_warn("Invalid superblock size\n");
-		return -EINVAL;
-	}
+	if (sb->sb_fs_format == GFS2_FORMAT_FS &&
+	    sb->sb_multihost_format == GFS2_FORMAT_MULTI)
+		return 0;
 
-	return 0;
+	fs_warn(sdp, "Unknown on-disk format, unable to mount\n");
+
+	return -EINVAL;
 }
 
 static void end_bio_io_page(struct bio *bio)
