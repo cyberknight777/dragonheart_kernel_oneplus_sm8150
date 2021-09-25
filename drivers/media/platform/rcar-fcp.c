@@ -106,10 +106,8 @@ int rcar_fcp_enable(struct rcar_fcp_device *fcp)
 		return 0;
 
 	ret = pm_runtime_get_sync(fcp->dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(fcp->dev);
+	if (ret < 0)
 		return ret;
-	}
 
 	return 0;
 }
