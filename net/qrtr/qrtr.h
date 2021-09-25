@@ -34,6 +34,4 @@ void qrtr_endpoint_unregister(struct qrtr_endpoint *ep);
 int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len);
 
 int qrtr_peek_pkt_size(const void *data);
-
-int qrtr_get_header_size(const void *data);
 #endif
