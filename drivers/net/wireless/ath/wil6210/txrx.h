@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2016 Qualcomm Atheros, Inc.
- * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -560,32 +560,11 @@ static inline int wil_ring_is_full(struct wil_ring *ring)
 	return wil_ring_next_tail(ring) == ring->swhead;
 }
 
-static inline __be16 wil_skb_get_protocol(struct sk_buff *skb)
-{
-	struct ethhdr *eth = (void *)skb->data;
-
-	return eth->h_proto;
-}
-
-static inline u8 *wil_skb_get_da(struct sk_buff *skb)
-{
-	struct ethhdr *eth = (void *)skb->data;
-
-	return eth->h_dest;
-}
-
-static inline u8 *wil_skb_get_sa(struct sk_buff *skb)
-{
-	struct ethhdr *eth = (void *)skb->data;
-
-	return eth->h_source;
-}
-
 static inline bool wil_need_txstat(struct sk_buff *skb)
 {
-	const u8 *da = wil_skb_get_da(skb);
+	struct ethhdr *eth = (void *)skb->data;
 
-	return is_unicast_ether_addr(da) && skb->sk &&
+	return is_unicast_ether_addr(eth->h_dest) && skb->sk &&
 	       (skb_shinfo(skb)->tx_flags & SKBTX_WIFI_STATUS);
 }
 
