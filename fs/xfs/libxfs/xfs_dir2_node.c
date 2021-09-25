@@ -212,7 +212,6 @@ __xfs_dir3_free_read(
 		xfs_buf_ioerror(*bpp, -EFSCORRUPTED);
 		xfs_verifier_error(*bpp);
 		xfs_trans_brelse(tp, *bpp);
-		*bpp = NULL;
 		return -EFSCORRUPTED;
 	}
 
