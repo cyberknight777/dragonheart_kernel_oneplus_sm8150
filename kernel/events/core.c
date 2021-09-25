@@ -51,6 +51,10 @@
 #include <linux/proc_ns.h>
 #include <linux/mount.h>
 
+#ifdef CONFIG_HOUSTON
+#include <oneplus/houston/houston_helper.h>
+#endif
+
 #include "internal.h"
 
 #include <asm/irq_regs.h>
@@ -98,7 +102,7 @@ static void remote_function(void *data)
  * retry due to any failures in smp_call_function_single(), such as if the
  * task_cpu() goes offline concurrently.
  *
- * returns @func return value or -ESRCH or -ENXIO when the process isn't running
+ * returns @func return value or -ESRCH when the process isn't running
  */
 static int
 task_function_call(struct task_struct *p, remote_function_f func, void *info)
@@ -114,8 +118,7 @@ task_function_call(struct task_struct *p, remote_function_f func, void *info)
 	for (;;) {
 		ret = smp_call_function_single(task_cpu(p), remote_function,
 					       &data, 1);
-		if (!ret)
-			ret = data.ret;
+		ret = !ret ? data.ret : -EAGAIN;
 
 		if (ret != -EAGAIN)
 			break;
@@ -431,8 +434,13 @@ static cpumask_var_t perf_online_mask;
  *   0 - disallow raw tracepoint access for unpriv
  *   1 - disallow cpu events for unpriv
  *   2 - disallow kernel profiling for unpriv
+ *   3 - disallow all unpriv perf event use
  */
+#ifdef CONFIG_SECURITY_PERF_EVENTS_RESTRICT
+int sysctl_perf_event_paranoid __read_mostly = 3;
+#else
 int sysctl_perf_event_paranoid __read_mostly = 2;
+#endif
 
 /* Minimum for 512 kiB + 1 user control page */
 int sysctl_perf_event_mlock __read_mostly = 512 + (PAGE_SIZE / 1024); /* 'free' kiB per user */
@@ -4838,6 +4846,35 @@ perf_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 
 	return ret;
 }
+
+#ifdef CONFIG_HOUSTON
+u64 ht_perf_read(struct task_struct *task, int id)
+{
+	struct perf_event* event = task->perf_events[id], *child;
+	struct perf_event_context *ctx;
+	u64 total = 0;
+
+	if (unlikely(!event))
+		return total;
+
+	ctx = perf_event_ctx_lock(event);
+	if (event->state == PERF_EVENT_STATE_ERROR)
+		goto out;
+
+	WARN_ON_ONCE(event->ctx->parent_ctx);
+	mutex_lock(&event->child_mutex);
+	(void)perf_event_read(event, false);
+	total += perf_event_count(event);
+	list_for_each_entry(child, &event->child_list, child_list) {
+		(void)perf_event_read(child, false);
+		total += perf_event_count(child);
+	}
+	mutex_unlock(&event->child_mutex);
+out:
+	perf_event_ctx_unlock(event, ctx);
+	return total;
+}
+#endif
 
 static unsigned int perf_poll(struct file *file, poll_table *wait)
 {
@@ -10387,6 +10424,82 @@ static void perf_group_shared_event(struct perf_event *event,
 }
 #endif
 
+#ifdef CONFIG_HOUSTON
+static DEFINE_MUTEX(ht_perf_event_mutex_lock);
+bool ht_perf_event_open(pid_t pid, int id)
+{
+	struct perf_event_attr attr;
+	struct perf_event *event = NULL;
+	struct task_struct *task = NULL;
+
+	mutex_lock(&ht_perf_event_mutex_lock);
+	memset(&attr, 0, sizeof(struct perf_event_attr));
+	if (id < HT_PERF_COUNT_CACHE_MISSES_L1)
+		attr.type = PERF_TYPE_HARDWARE;
+	else
+		attr.type = PERF_TYPE_RAW;
+	switch (id) {
+		case HT_PERF_COUNT_CPU_CYCLES:
+			attr.config = PERF_COUNT_HW_CPU_CYCLES; break;
+		case HT_PERF_COUNT_INSTRUCTIONS:
+			attr.config = PERF_COUNT_HW_INSTRUCTIONS; break;
+		case HT_PERF_COUNT_CACHE_MISSES_L1:
+			attr.config = 0x3; break;
+		case HT_PERF_COUNT_CACHE_MISSES_L2:
+			attr.config = 0x17; break;
+		case HT_PERF_COUNT_CACHE_MISSES_L3:
+			attr.config = 0x2a; break;
+		default: break;
+	}
+	attr.size = sizeof(struct perf_event_attr);
+	attr.disabled = 1;
+
+	task = find_lively_task_by_vpid(pid);
+	if (IS_ERR(task))
+		goto exit_directly;
+	if (task->perf_regular_activate)
+		goto err_task;
+	if (task->perf_events[id] &&task->perf_regular_activate)
+		goto err_task;
+	if (mutex_lock_interruptible(&task->signal->cred_guard_mutex))
+		goto err_task;
+
+	mutex_lock(&task->perf_event_mutex);
+	if (task->perf_events[id]) {
+		pr_warn("ht_core: task %s %d event %d has been occupied\n", task->comm, task->pid, id);
+		perf_event_disable(task->perf_events[id]);
+		perf_event_release_kernel(task->perf_events[id]);
+		task->perf_events[id] = NULL;
+		task->perf_activate &= ~(1 << id);
+	}
+	mutex_unlock(&task->perf_event_mutex);
+
+	event = perf_event_create_kernel_counter(&attr,	-1, task, NULL, NULL);
+	if (IS_ERR(event))
+		goto err_cred;
+
+	mutex_lock(&task->perf_event_mutex);
+	task->perf_events[id] = event;
+	mutex_unlock(&task->perf_event_mutex);
+
+	perf_event_enable(event);
+
+	mutex_unlock(&task->signal->cred_guard_mutex);
+	put_task_struct(task);
+	task->perf_activate |= (1 << id);
+	mutex_unlock(&ht_perf_event_mutex_lock);
+	return true;
+
+err_cred:
+	mutex_unlock(&task->signal->cred_guard_mutex);
+err_task:
+	put_task_struct(task);
+exit_directly:
+	mutex_unlock(&ht_perf_event_mutex_lock);
+	return false;
+}
+#endif
+
 /**
  * sys_perf_event_open - open a performance event, associate it to a task/cpu
  *
@@ -10416,6 +10529,9 @@ SYSCALL_DEFINE5(perf_event_open,
 	/* for future expandability... */
 	if (flags & ~PERF_FLAG_ALL)
 		return -EINVAL;
+
+	if (perf_paranoid_any() && !capable(CAP_SYS_ADMIN))
+		return -EACCES;
 
 	/* Do we allow access to perf_event_open(2) ? */
 	err = security_perf_event_open(&attr, PERF_SECURITY_OPEN);
@@ -10471,6 +10587,10 @@ SYSCALL_DEFINE5(perf_event_open,
 	if (event_fd < 0)
 		return event_fd;
 
+#ifdef CONFIG_HOUSTON
+	mutex_lock(&ht_perf_event_mutex_lock);
+#endif
+
 	if (group_fd != -1) {
 		err = perf_fget_light(group_fd, &group);
 		if (err)
@@ -10498,6 +10618,12 @@ SYSCALL_DEFINE5(perf_event_open,
 			err = PTR_ERR(task);
 			goto err_group_fd;
 		}
+#ifdef CONFIG_HOUSTON
+		if (task->perf_activate) {
+			err = -EBUSY;
+			goto err_group_fd;
+		}
+#endif
 	}
 
 	if (task && group_leader &&
@@ -10820,6 +10946,11 @@ SYSCALL_DEFINE5(perf_event_open,
 				 task, NULL, ctx, event);
 #endif
 
+#ifdef CONFIG_HOUSTON
+	if (task)
+		task->perf_regular_activate = 1;
+	mutex_unlock(&ht_perf_event_mutex_lock);
+#endif
 	return event_fd;
 
 err_locked:
@@ -10850,6 +10981,9 @@ err_group_fd:
 	fdput(group);
 err_fd:
 	put_unused_fd(event_fd);
+#ifdef CONFIG_HOUSTON
+	mutex_unlock(&ht_perf_event_mutex_lock);
+#endif
 	return err;
 }
 
