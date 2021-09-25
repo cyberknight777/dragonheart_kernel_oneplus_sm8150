@@ -306,8 +306,6 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
 {
 	struct xt_quota_mtinfo2 *q = (void *)par->matchinfo;
 	struct xt_quota_counter *e = q->master;
-	int charge = (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
-	bool no_change = q->flags & XT_QUOTA_NO_CHANGE;
 	bool ret = q->flags & XT_QUOTA_INVERT;
 
 	spin_lock_bh(&e->lock);
@@ -316,21 +314,24 @@ quota_mt2(const struct sk_buff *skb, struct xt_action_param *par)
 		 * While no_change is pointless in "grow" mode, we will
 		 * implement it here simply to have a consistent behavior.
 		 */
-		if (!no_change)
-			e->quota += charge;
-		ret = true; /* note: does not respect inversion (bug??) */
+		if (!(q->flags & XT_QUOTA_NO_CHANGE)) {
+			e->quota += (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
+		}
+		ret = true;
 	} else {
-		if (e->quota > charge) {
-			if (!no_change)
-				e->quota -= charge;
+		if (e->quota >= skb->len) {
+			if (!(q->flags & XT_QUOTA_NO_CHANGE))
+				e->quota -= (q->flags & XT_QUOTA_PACKET) ? 1 : skb->len;
 			ret = !ret;
-		} else if (e->quota) {
+		} else {
 			/* We are transitioning, log that fact. */
-			quota2_log(xt_hooknum(par),
-				   skb,
-				   xt_in(par),
-				   xt_out(par),
-				   q->name);
+			if (e->quota) {
+				quota2_log(xt_hooknum(par),
+					   skb,
+					   xt_in(par),
+					   xt_out(par),
+					   q->name);
+			}
 			/* we do not allow even small packets from now on */
 			e->quota = 0;
 		}
