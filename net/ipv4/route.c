@@ -276,7 +276,6 @@ static void *rt_cpu_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 		*pos = cpu+1;
 		return &per_cpu(rt_cache_stat, cpu);
 	}
-	(*pos)++;
 	return NULL;
 
 }
@@ -795,8 +794,6 @@ static void __ip_do_redirect(struct rtable *rt, struct sk_buff *skb, struct flow
 			if (fib_lookup(net, fl4, &res, 0) == 0) {
 				struct fib_nh *nh = &FIB_RES_NH(res);
 
-				fib_select_path(net, &res, fl4, skb);
-				nh = &FIB_RES_NH(res);
 				update_or_create_fnhe(nh, fl4->daddr, new_gw,
 						0, false,
 						jiffies + ip_rt_gc_timeout);
@@ -1013,7 +1010,6 @@ out:	kfree_skb(skb);
 static void __ip_rt_update_pmtu(struct rtable *rt, struct flowi4 *fl4, u32 mtu)
 {
 	struct dst_entry *dst = &rt->dst;
-	struct net *net = dev_net(dst->dev);
 	u32 old_mtu = ipv4_mtu(dst);
 	struct fib_result res;
 	bool lock = false;
@@ -1034,11 +1030,9 @@ static void __ip_rt_update_pmtu(struct rtable *rt, struct flowi4 *fl4, u32 mtu)
 		return;
 
 	rcu_read_lock();
-	if (fib_lookup(net, fl4, &res, 0) == 0) {
-		struct fib_nh *nh;
+	if (fib_lookup(dev_net(dst->dev), fl4, &res, 0) == 0) {
+		struct fib_nh *nh = &FIB_RES_NH(res);
 
-		fib_select_path(net, &res, fl4, NULL);
-		nh = &FIB_RES_NH(res);
 		update_or_create_fnhe(nh, fl4->daddr, 0, mtu, lock,
 				      jiffies + ip_rt_mtu_expires);
 	}
@@ -1456,7 +1450,7 @@ static bool rt_cache_route(struct fib_nh *nh, struct rtable *rt)
 	prev = cmpxchg(p, orig, rt);
 	if (prev == orig) {
 		if (orig) {
-			rt_add_uncached_list(orig);
+			dst_dev_put(&orig->dst);
 			dst_release(&orig->dst);
 		}
 	} else {
@@ -1474,7 +1468,7 @@ struct uncached_list {
 
 static DEFINE_PER_CPU_ALIGNED(struct uncached_list, rt_uncached_list);
 
-void rt_add_uncached_list(struct rtable *rt)
+static void rt_add_uncached_list(struct rtable *rt)
 {
 	struct uncached_list *ul = raw_cpu_ptr(&rt_uncached_list);
 
@@ -1485,8 +1479,14 @@ void rt_add_uncached_list(struct rtable *rt)
 	spin_unlock_bh(&ul->lock);
 }
 
-void rt_del_uncached_list(struct rtable *rt)
+static void ipv4_dst_destroy(struct dst_entry *dst)
 {
+	struct dst_metrics *p = (struct dst_metrics *)DST_METRICS_PTR(dst);
+	struct rtable *rt = (struct rtable *) dst;
+
+	if (p != &dst_default_metrics && refcount_dec_and_test(&p->refcnt))
+		kfree(p);
+
 	if (!list_empty(&rt->rt_uncached)) {
 		struct uncached_list *ul = rt->rt_uncached_list;
 
@@ -1494,17 +1494,6 @@ void rt_del_uncached_list(struct rtable *rt)
 		list_del(&rt->rt_uncached);
 		spin_unlock_bh(&ul->lock);
 	}
-}
-
-static void ipv4_dst_destroy(struct dst_entry *dst)
-{
-	struct dst_metrics *p = (struct dst_metrics *)DST_METRICS_PTR(dst);
-	struct rtable *rt = (struct rtable *)dst;
-
-	if (p != &dst_default_metrics && refcount_dec_and_test(&p->refcnt))
-		kfree(p);
-
-	rt_del_uncached_list(rt);
 }
 
 void rt_flush_dev(struct net_device *dev)
@@ -2516,6 +2505,8 @@ struct rtable *ip_route_output_key_hash_rcu(struct net *net, struct flowi4 *fl4,
 	fib_select_path(net, res, fl4, skb);
 
 	dev_out = FIB_RES_DEV(*res);
+	fl4->flowi4_oif = dev_out->ifindex;
+
 
 make_route:
 	rth = __mkroute_output(res, fl4, orig_oif, dev_out, flags);
@@ -2608,12 +2599,10 @@ struct rtable *ip_route_output_flow(struct net *net, struct flowi4 *flp4,
 	if (IS_ERR(rt))
 		return rt;
 
-	if (flp4->flowi4_proto) {
-		flp4->flowi4_oif = rt->dst.dev->ifindex;
+	if (flp4->flowi4_proto)
 		rt = (struct rtable *)xfrm_lookup_route(net, &rt->dst,
 							flowi4_to_flowi(flp4),
 							sk, 0);
-	}
 
 	return rt;
 }
