@@ -379,10 +379,12 @@ coalesce_t2(char *second_buf, struct smb_hdr *target_hdr)
 
 static void
 cifs_downgrade_oplock(struct TCP_Server_Info *server,
-		      struct cifsInodeInfo *cinode, __u32 oplock,
-		      unsigned int epoch, bool *purge_cache)
+			struct cifsInodeInfo *cinode, bool set_level2)
 {
-	cifs_set_oplock_level(cinode, oplock);
+	if (set_level2)
+		cifs_set_oplock_level(cinode, OPLOCK_READ);
+	else
+		cifs_set_oplock_level(cinode, 0);
 }
 
 static bool
