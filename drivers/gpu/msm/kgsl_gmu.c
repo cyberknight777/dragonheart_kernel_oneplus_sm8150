@@ -1821,8 +1821,6 @@ static void gmu_remove(struct kgsl_device *device)
 		gmu->fw_image = NULL;
 	}
 
-	vfree(gmu->itcm_shadow);
-
 	gmu_memory_close(gmu);
 
 	for (i = 0; i < MAX_GMU_CLKS; i++) {
