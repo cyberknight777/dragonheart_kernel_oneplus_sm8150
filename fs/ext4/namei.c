@@ -1467,8 +1467,8 @@ int ext4_search_dir(struct buffer_head *bh, char *search_buf, int buf_size,
 		    ext4_match(dir, fname, de)) {
 			/* found a match - just to be sure, do
 			 * a full check */
-			if (ext4_check_dir_entry(dir, NULL, de, bh, search_buf,
-						 buf_size, lblk, offset))
+			if (ext4_check_dir_entry(dir, NULL, de, bh, bh->b_data,
+						 bh->b_size, lblk, offset))
 				return -1;
 			*res_dir = de;
 			return 1;
@@ -1773,27 +1773,27 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsi
 		__u32 ino = le32_to_cpu(de->inode);
 		brelse(bh);
 		if (!ext4_valid_inum(dir->i_sb, ino)) {
-			EXT4_ERROR_INODE(dir, "bad inode number: %u", ino);
+			EXT4_ERROR_INODE(dir, "bad inode number: %u ,file:%s", ino, dentry->d_name.name);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
 		if (unlikely(ino == dir->i_ino)) {
-			EXT4_ERROR_INODE(dir, "'%pd' linked to parent dir",
-					 dentry);
+			EXT4_ERROR_INODE(dir, "'%pd' linked to parent dir ,file:%s",
+					 dentry, dentry->d_name.name);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
 		inode = ext4_iget(dir->i_sb, ino, EXT4_IGET_NORMAL);
 		if (inode == ERR_PTR(-ESTALE)) {
 			EXT4_ERROR_INODE(dir,
-					 "deleted inode referenced: %u",
-					 ino);
+					 "deleted inode referenced: %u ,file:%s",
+					 ino, dentry->d_name.name);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
 		if (!IS_ERR(inode) && IS_ENCRYPTED(dir) &&
 		    (S_ISDIR(inode->i_mode) || S_ISLNK(inode->i_mode)) &&
 		    !fscrypt_has_permitted_context(dir, inode)) {
 			ext4_warning(inode->i_sb,
-				     "Inconsistent encryption contexts: %lu/%lu",
-				     dir->i_ino, inode->i_ino);
+				     "Inconsistent encryption contexts: %lu/%lu ,file:%s",
+				     dir->i_ino, inode->i_ino, dentry->d_name.name);
 			iput(inode);
 			return ERR_PTR(-EPERM);
 		}
@@ -1938,7 +1938,7 @@ static struct ext4_dir_entry_2 *do_split(handle_t *handle, struct inode *dir,
 			     blocksize, hinfo, map);
 	map -= count;
 	dx_sort_map(map, count);
-	/* Ensure that neither split block is over half full */
+	/* Split the existing block in the middle, size-wise */
 	size = 0;
 	move = 0;
 	for (i = count-1; i >= 0; i--) {
@@ -1948,18 +1948,8 @@ static struct ext4_dir_entry_2 *do_split(handle_t *handle, struct inode *dir,
 		size += map[i].size;
 		move++;
 	}
-	/*
-	 * map index at which we will split
-	 *
-	 * If the sum of active entries didn't exceed half the block size, just
-	 * split it in half by count; each resulting block will have at least
-	 * half the space free.
-	 */
-	if (i > 0)
-		split = count - move;
-	else
-		split = count/2;
-
+	/* map index at which we will split */
+	split = count - move;
 	hash2 = map[split].hash;
 	continued = hash2 == map[split - 1].hash;
 	dxtrace(printk(KERN_INFO "Split block %lu at %x, %i/%i\n",
@@ -2588,7 +2578,7 @@ int ext4_generic_delete_entry(handle_t *handle,
 	de = (struct ext4_dir_entry_2 *)entry_buf;
 	while (i < buf_size - csum_size) {
 		if (ext4_check_dir_entry(dir, NULL, de, bh,
-					 entry_buf, buf_size, lblk, i))
+					 bh->b_data, bh->b_size, lblk, i))
 			return -EFSCORRUPTED;
 		if (de == de_del)  {
 			if (pde)
