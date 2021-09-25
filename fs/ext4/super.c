@@ -64,10 +64,10 @@ static int ext4_load_journal(struct super_block *, struct ext4_super_block *,
 			     unsigned long journal_devnum);
 static int ext4_show_options(struct seq_file *seq, struct dentry *root);
 static int ext4_commit_super(struct super_block *sb, int sync);
-static int ext4_mark_recovery_complete(struct super_block *sb,
+static void ext4_mark_recovery_complete(struct super_block *sb,
 					struct ext4_super_block *es);
-static int ext4_clear_journal_err(struct super_block *sb,
-				  struct ext4_super_block *es);
+static void ext4_clear_journal_err(struct super_block *sb,
+				   struct ext4_super_block *es);
 static int ext4_sync_fs(struct super_block *sb, int wait);
 static void ext4_umount_end(struct super_block *sb, int flags);
 static int ext4_remount(struct super_block *sb, int *flags, char *data);
@@ -4591,6 +4591,7 @@ no_journal:
 	if (err)
 		goto failed_mount6;
 
+	sbi->s_flags = sb->s_flags;
 	err = ext4_register_sysfs(sb);
 	if (err)
 		goto failed_mount7;
@@ -4609,9 +4610,7 @@ no_journal:
 	EXT4_SB(sb)->s_mount_state &= ~EXT4_ORPHAN_FS;
 	if (needs_recovery) {
 		ext4_msg(sb, KERN_INFO, "recovery complete");
-		err = ext4_mark_recovery_complete(sb, es);
-		if (err)
-			goto failed_mount8;
+		ext4_mark_recovery_complete(sb, es);
 	}
 	if (EXT4_SB(sb)->s_journal) {
 		if (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_JOURNAL_DATA)
@@ -4654,9 +4653,10 @@ cantfind_ext4:
 		ext4_msg(sb, KERN_ERR, "VFS: Can't find ext4 filesystem");
 	goto failed_mount;
 
+#ifdef CONFIG_QUOTA
 failed_mount8:
 	ext4_unregister_sysfs(sb);
-	kobject_put(&sbi->s_kobj);
+#endif
 failed_mount7:
 	ext4_unregister_li_request(sb);
 failed_mount6:
@@ -4798,8 +4798,7 @@ static journal_t *ext4_get_journal(struct super_block *sb,
 	struct inode *journal_inode;
 	journal_t *journal;
 
-	if (WARN_ON_ONCE(!ext4_has_feature_journal(sb)))
-		return NULL;
+	BUG_ON(!ext4_has_feature_journal(sb));
 
 	journal_inode = ext4_get_journal_inode(sb, journal_inum);
 	if (!journal_inode)
@@ -4829,8 +4828,7 @@ static journal_t *ext4_get_dev_journal(struct super_block *sb,
 	struct ext4_super_block *es;
 	struct block_device *bdev;
 
-	if (WARN_ON_ONCE(!ext4_has_feature_journal(sb)))
-		return NULL;
+	BUG_ON(!ext4_has_feature_journal(sb));
 
 	bdev = ext4_blkdev_get(j_dev, sb);
 	if (bdev == NULL)
@@ -4922,8 +4920,7 @@ static int ext4_load_journal(struct super_block *sb,
 	int err = 0;
 	int really_read_only;
 
-	if (WARN_ON_ONCE(!ext4_has_feature_journal(sb)))
-		return -EFSCORRUPTED;
+	BUG_ON(!ext4_has_feature_journal(sb));
 
 	if (journal_devnum &&
 	    journal_devnum != le32_to_cpu(es->s_journal_dev)) {
@@ -4992,12 +4989,7 @@ static int ext4_load_journal(struct super_block *sb,
 	}
 
 	EXT4_SB(sb)->s_journal = journal;
-	err = ext4_clear_journal_err(sb, es);
-	if (err) {
-		EXT4_SB(sb)->s_journal = NULL;
-		jbd2_journal_destroy(journal);
-		return err;
-	}
+	ext4_clear_journal_err(sb, es);
 
 	if (!really_read_only && journal_devnum &&
 	    journal_devnum != le32_to_cpu(es->s_journal_dev)) {
@@ -5017,6 +5009,13 @@ static int ext4_commit_super(struct super_block *sb, int sync)
 	int error = 0;
 
 	if (!sbh || block_device_ejected(sb))
+		return error;
+
+	/*
+	 * The superblock bh should be mapped, but it might not be if the
+	 * device was hot-removed. Not much we can do but fail the I/O.
+	 */
+	if (!buffer_mapped(sbh))
 		return error;
 
 	/*
@@ -5089,32 +5088,26 @@ static int ext4_commit_super(struct super_block *sb, int sync)
  * remounting) the filesystem readonly, then we will end up with a
  * consistent fs on disk.  Record that fact.
  */
-static int ext4_mark_recovery_complete(struct super_block *sb,
-				       struct ext4_super_block *es)
+static void ext4_mark_recovery_complete(struct super_block *sb,
+					struct ext4_super_block *es)
 {
-	int err;
 	journal_t *journal = EXT4_SB(sb)->s_journal;
 
 	if (!ext4_has_feature_journal(sb)) {
-		if (journal != NULL) {
-			ext4_error(sb, "Journal got removed while the fs was "
-				   "mounted!");
-			return -EFSCORRUPTED;
-		}
-		return 0;
+		BUG_ON(journal != NULL);
+		return;
 	}
 	jbd2_journal_lock_updates(journal);
-	err = jbd2_journal_flush(journal);
-	if (err < 0)
+	if (jbd2_journal_flush(journal) < 0)
 		goto out;
 
 	if (ext4_has_feature_journal_needs_recovery(sb) && sb_rdonly(sb)) {
 		ext4_clear_feature_journal_needs_recovery(sb);
 		ext4_commit_super(sb, 1);
 	}
+
 out:
 	jbd2_journal_unlock_updates(journal);
-	return err;
 }
 
 /*
@@ -5122,17 +5115,14 @@ out:
  * has recorded an error from a previous lifetime, move that error to the
  * main filesystem now.
  */
-static int ext4_clear_journal_err(struct super_block *sb,
+static void ext4_clear_journal_err(struct super_block *sb,
 				   struct ext4_super_block *es)
 {
 	journal_t *journal;
 	int j_errno;
 	const char *errstr;
 
-	if (!ext4_has_feature_journal(sb)) {
-		ext4_error(sb, "Journal got removed while the fs was mounted!");
-		return -EFSCORRUPTED;
-	}
+	BUG_ON(!ext4_has_feature_journal(sb));
 
 	journal = EXT4_SB(sb)->s_journal;
 
@@ -5157,7 +5147,6 @@ static int ext4_clear_journal_err(struct super_block *sb,
 		jbd2_journal_clear_err(journal);
 		jbd2_journal_update_sb_errno(journal);
 	}
-	return 0;
 }
 
 /*
@@ -5456,13 +5445,8 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 			    (sbi->s_mount_state & EXT4_VALID_FS))
 				es->s_state = cpu_to_le16(sbi->s_mount_state);
 
-			if (sbi->s_journal) {
-				/*
-				 * We let remount-ro finish even if marking fs
-				 * as clean failed...
-				 */
+			if (sbi->s_journal)
 				ext4_mark_recovery_complete(sb, es);
-			}
 			if (sbi->s_mmp_tsk)
 				kthread_stop(sbi->s_mmp_tsk);
 		} else {
@@ -5510,11 +5494,8 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 			 * been changed by e2fsck since we originally mounted
 			 * the partition.)
 			 */
-			if (sbi->s_journal) {
-				err = ext4_clear_journal_err(sb, es);
-				if (err)
-					goto restore_opts;
-			}
+			if (sbi->s_journal)
+				ext4_clear_journal_err(sb, es);
 			sbi->s_mount_state = le16_to_cpu(es->s_state);
 			if (!ext4_setup_super(sb, es, 0))
 				sb->s_flags &= ~MS_RDONLY;
@@ -5803,11 +5784,6 @@ static int ext4_quota_on(struct super_block *sb, int type, int format_id,
 	/* Quotafile not on the same filesystem? */
 	if (path->dentry->d_sb != sb)
 		return -EXDEV;
-
-	/* Quota already enabled for this file? */
-	if (IS_NOQUOTA(d_inode(path->dentry)))
-		return -EBUSY;
-
 	/* Journaling quota? */
 	if (EXT4_SB(sb)->s_qf_names[type]) {
 		/* Quotafile not in fs root? */
