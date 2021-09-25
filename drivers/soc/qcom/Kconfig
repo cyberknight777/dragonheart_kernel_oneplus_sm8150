@@ -768,14 +768,6 @@ config QTI_RPM_STATS_LOG
 	  the low power modes that RPM enters. The drivers outputs the message
 	  via a debugfs node.
 
-config MSM_ADSP_LOADER
-	tristate "ADSP loader support"
-	help
-	  Enable ADSP image loader.
-	  The ADSP loader brings ADSP out of reset
-	  for platforms that have ADSP.
-	  Say M if you want to enable this module.
-
 config MSM_CDSP_LOADER
 	tristate "CDSP loader support"
 	help
@@ -983,6 +975,20 @@ config QCOM_CDSP_RM
 	  CPU L3 clock for improving IO-Coherent throughput and opt for QoS mode
 	  to improve RPC latency.
 
+config PROJECT_INFO
+	bool "detect project info"
+	default n
+        help
+           detect projcet info  If unsure, say n.
+
+config RF_CABLE_DETECT
+	bool "detect RF cable connection"
+	help
+	  detect RF cable connection for different RF configuration
+	  To compile this driver as a module, choose M here: the module
+	  will be called RF cable.
+	  If unsure, say N.
+
 config QCOM_CX_IPEAK
 	bool "Common driver to handle Cx iPeak limitation"
 	help
@@ -1093,14 +1099,6 @@ config QTI_CRYPTO_TZ
 	 performing hardware based file encryption. This means keys are
 	 programmed and managed through SCM calls to TZ where ICE driver
 	 will configure keys.
-
-config SUBSYS_BACKUP
-	bool "Subsystem Backup-Restore driver"
-	help
-	  This driver helps HLOS to backup-restore the remote subsystem image.
-	  This driver implements the QMI interface and responds to the backup
-	  and restore requests from the remote subsystem.
-
 endmenu
 
 config QCOM_HYP_CORE_CTL
