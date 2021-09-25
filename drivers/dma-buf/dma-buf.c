@@ -102,57 +102,8 @@ out:
 			     dentry->d_name.name, ret > 0 ? name : "");
 }
 
-static void dma_buf_release(struct dentry *dentry)
-{
-	struct dma_buf *dmabuf;
-
-	dmabuf = dentry->d_fsdata;
-
-	spin_lock(&dentry->d_lock);
-	dentry->d_fsdata = NULL;
-	spin_unlock(&dentry->d_lock);
-	BUG_ON(dmabuf->vmapping_counter);
-
-	/*
-	 * Any fences that a dma-buf poll can wait on should be signaled
-	 * before releasing dma-buf. This is the responsibility of each
-	 * driver that uses the reservation objects.
-	 *
-	 * If you hit this BUG() it means someone dropped their ref to the
-	 * dma-buf while still having pending operation to the buffer.
-	 */
-	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
-
-	dmabuf->ops->release(dmabuf);
-
-	dma_buf_ref_destroy(dmabuf);
-
-	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
-		reservation_object_fini(dmabuf->resv);
-
-	module_put(dmabuf->owner);
-	dmabuf_dent_put(dmabuf);
-}
-
-static int dma_buf_file_release(struct inode *inode, struct file *file)
-{
-	struct dma_buf *dmabuf;
-
-	if (!is_dma_buf_file(file))
-		return -EINVAL;
-
-	dmabuf = file->private_data;
-
-	mutex_lock(&db_list.lock);
-	list_del(&dmabuf->list_node);
-	mutex_unlock(&db_list.lock);
-
-	return 0;
-}
-
 static const struct dentry_operations dma_buf_dentry_ops = {
 	.d_dname = dmabuffs_dname,
-	.d_release = dma_buf_release,
 };
 
 static struct vfsmount *dma_buf_mnt;
@@ -169,6 +120,47 @@ static struct file_system_type dma_buf_fs_type = {
 	.mount = dma_buf_fs_mount,
 	.kill_sb = kill_anon_super,
 };
+
+static int dma_buf_release(struct inode *inode, struct file *file)
+{
+	struct dma_buf *dmabuf;
+	struct dentry *dentry = file->f_path.dentry;
+
+	if (!is_dma_buf_file(file))
+		return -EINVAL;
+
+	dmabuf = file->private_data;
+
+	spin_lock(&dentry->d_lock);
+	dentry->d_fsdata = NULL;
+	spin_unlock(&dentry->d_lock);
+	BUG_ON(dmabuf->vmapping_counter);
+
+	/*
+	 * Any fences that a dma-buf poll can wait on should be signaled
+	 * before releasing dma-buf. This is the responsibility of each
+	 * driver that uses the reservation objects.
+	 *
+	 * If you hit this BUG() it means someone dropped their ref to the
+	 * dma-buf while still having pending operation to the buffer.
+	 */
+	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
+
+	mutex_lock(&db_list.lock);
+	list_del(&dmabuf->list_node);
+	mutex_unlock(&db_list.lock);
+
+	dmabuf->ops->release(dmabuf);
+
+	dma_buf_ref_destroy(dmabuf);
+
+	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
+		reservation_object_fini(dmabuf->resv);
+
+	module_put(dmabuf->owner);
+	dmabuf_dent_put(dmabuf);
+	return 0;
+}
 
 static int dma_buf_mmap_internal(struct file *file, struct vm_area_struct *vma)
 {
@@ -480,7 +472,7 @@ static void dma_buf_show_fdinfo(struct seq_file *m, struct file *file)
 }
 
 static const struct file_operations dma_buf_fops = {
-	.release	= dma_buf_file_release,
+	.release	= dma_buf_release,
 	.mmap		= dma_buf_mmap_internal,
 	.llseek		= dma_buf_llseek,
 	.poll		= dma_buf_poll,
