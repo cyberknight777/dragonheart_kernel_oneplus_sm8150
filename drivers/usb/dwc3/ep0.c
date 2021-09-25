@@ -35,6 +35,22 @@
 #include "debug.h"
 #include "gadget.h"
 #include "io.h"
+#include <linux/power/oem_external_fg.h>
+
+static struct notify_usb_enumeration_status
+		*usb_enumeration_status = NULL;
+
+void regsister_notify_usb_enumeration_status(
+	struct notify_usb_enumeration_status *status)
+{
+	if (usb_enumeration_status) {
+		usb_enumeration_status = status;
+		pr_err("multiple usb_enumeration_status called\n");
+	} else {
+		usb_enumeration_status = status;
+	}
+}
+EXPORT_SYMBOL(regsister_notify_usb_enumeration_status);
 
 static bool enable_dwc3_u1u2;
 module_param(enable_dwc3_u1u2, bool, 0644);
@@ -906,6 +922,10 @@ static int dwc3_ep0_std_request(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 		ret = dwc3_ep0_handle_feature(dwc, ctrl, 1);
 		break;
 	case USB_REQ_SET_ADDRESS:
+		if (usb_enumeration_status
+			&& usb_enumeration_status->notify_usb_enumeration) {
+			usb_enumeration_status->notify_usb_enumeration(true);
+		}
 		ret = dwc3_ep0_set_address(dwc, ctrl);
 		break;
 	case USB_REQ_SET_CONFIGURATION:
@@ -1117,16 +1137,12 @@ static void dwc3_ep0_xfer_complete(struct dwc3 *dwc,
 static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 		struct dwc3_ep *dep, struct dwc3_request *req)
 {
-	unsigned int		trb_length = 0;
 	int			ret;
 
 	req->direction = !!dep->number;
 
 	if (req->request.length == 0) {
-		if (!req->direction)
-			trb_length = dep->endpoint.maxpacket;
-
-		dwc3_ep0_prepare_one_trb(dep, dwc->bounce_addr, trb_length,
+		dwc3_ep0_prepare_one_trb(dep, dwc->ep0_trb_addr, 0,
 				DWC3_TRBCTL_CONTROL_DATA, false);
 		ret = dwc3_ep0_start_trans(dep);
 	} else if (!IS_ALIGNED(req->request.length, dep->endpoint.maxpacket)
@@ -1178,12 +1194,9 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 
 		req->trb = &dwc->ep0_trb[dep->trb_enqueue - 1];
 
-		if (!req->direction)
-			trb_length = dep->endpoint.maxpacket;
-
 		/* Now prepare one extra TRB to align transfer size */
 		dwc3_ep0_prepare_one_trb(dep, dwc->bounce_addr,
-					 trb_length, DWC3_TRBCTL_CONTROL_DATA,
+					 0, DWC3_TRBCTL_CONTROL_DATA,
 					 false);
 		ret = dwc3_ep0_start_trans(dep);
 	} else {

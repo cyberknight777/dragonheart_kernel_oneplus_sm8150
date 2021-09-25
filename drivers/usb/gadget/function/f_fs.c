@@ -269,8 +269,7 @@ static void ffs_closed(struct ffs_data *ffs);
 
 static int ffs_mutex_lock(struct mutex *mutex, unsigned nonblock)
 	__attribute__((warn_unused_result, nonnull));
-static char *ffs_prepare_buffer(const char __user *buf, size_t len,
-	size_t extra_buf_alloc)
+static char *ffs_prepare_buffer(const char __user *buf, size_t len)
 	__attribute__((warn_unused_result, nonnull));
 
 
@@ -346,7 +345,6 @@ static ssize_t ffs_ep0_write(struct file *file, const char __user *buf,
 			     size_t len, loff_t *ptr)
 {
 	struct ffs_data *ffs = file->private_data;
-	struct usb_gadget *gadget = ffs->gadget;
 	ssize_t ret;
 	char *data;
 
@@ -374,7 +372,7 @@ static ssize_t ffs_ep0_write(struct file *file, const char __user *buf,
 			break;
 		}
 
-		data = ffs_prepare_buffer(buf, len, 0);
+		data = ffs_prepare_buffer(buf, len);
 		if (IS_ERR(data)) {
 			ret = PTR_ERR(data);
 			break;
@@ -446,7 +444,7 @@ static ssize_t ffs_ep0_write(struct file *file, const char __user *buf,
 
 		spin_unlock_irq(&ffs->ev.waitq.lock);
 
-		data = ffs_prepare_buffer(buf, len, gadget->extra_buf_alloc);
+		data = ffs_prepare_buffer(buf, len);
 		if (IS_ERR(data)) {
 			ret = PTR_ERR(data);
 			break;
@@ -646,12 +644,19 @@ static int ffs_ep0_open(struct inode *inode, struct file *file)
 
 	ffs_log("state %d setup_state %d flags %lu opened %d", ffs->state,
 		ffs->setup_state, ffs->flags, atomic_read(&ffs->opened));
-
-	if (unlikely(ffs->state == FFS_CLOSING))
+	if (atomic_read(&ffs->opened)) {
+		pr_err("ep0 is already opened!\n");
 		return -EBUSY;
+	}
+
+	if (unlikely(ffs->state == FFS_CLOSING)) {
+		pr_err("FFS_CLOSING!\n");
+		return -EBUSY;
+	}
 
 	file->private_data = ffs;
 	ffs_data_opened(ffs);
+	pr_info("ep0_open success!\n");
 
 	return 0;
 }
@@ -947,7 +952,6 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 	char *data = NULL;
 	ssize_t ret, data_len = -EINVAL;
 	int halt;
-	size_t extra_buf_alloc = 0;
 
 	ffs_log("enter: %s", epfile->name);
 
@@ -1026,12 +1030,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 			data_len = usb_ep_align_maybe(gadget, ep->ep, data_len);
 		spin_unlock_irq(&epfile->ffs->eps_lock);
 
-		extra_buf_alloc = gadget->extra_buf_alloc;
-		if (!io_data->read)
-			data = kmalloc(data_len + extra_buf_alloc,
-					GFP_KERNEL);
-		else
-			data = kmalloc(data_len, GFP_KERNEL);
+		data = kmalloc(data_len, GFP_KERNEL);
 		if (unlikely(!data)) {
 			ret = -ENOMEM;
 			goto error_mutex;
@@ -4060,23 +4059,14 @@ static int ffs_mutex_lock(struct mutex *mutex, unsigned nonblock)
 		: mutex_lock_interruptible(mutex);
 }
 
-/**
- * ffs_prepare_buffer() - copy userspace buffer into kernel.
- * @buf: userspace buffer
- * @len: length of the buffer
- * @extra_alloc_buf: Extra buffer allocation if required by UDC.
- *
- * This function returns pointer to the copied buffer
- */
-static char *ffs_prepare_buffer(const char __user *buf, size_t len,
-		size_t extra_buf_alloc)
+static char *ffs_prepare_buffer(const char __user *buf, size_t len)
 {
 	char *data;
 
 	if (unlikely(!len))
 		return NULL;
 
-	data = kmalloc(len + extra_buf_alloc, GFP_KERNEL);
+	data = kmalloc(len, GFP_KERNEL);
 	if (unlikely(!data))
 		return ERR_PTR(-ENOMEM);
 
