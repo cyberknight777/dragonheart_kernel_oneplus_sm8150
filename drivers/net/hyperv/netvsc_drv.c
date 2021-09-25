@@ -365,7 +365,7 @@ static u16 netvsc_select_queue(struct net_device *ndev, struct sk_buff *skb,
 	}
 	rcu_read_unlock();
 
-	while (txq >= ndev->real_num_tx_queues)
+	while (unlikely(txq >= ndev->real_num_tx_queues))
 		txq -= ndev->real_num_tx_queues;
 
 	return txq;
@@ -500,7 +500,7 @@ static int netvsc_vf_xmit(struct net_device *net, struct net_device *vf_netdev,
 	int rc;
 
 	skb->dev = vf_netdev;
-	skb_record_rx_queue(skb, qdisc_skb_cb(skb)->slave_dev_queue_mapping);
+	skb->queue_mapping = qdisc_skb_cb(skb)->slave_dev_queue_mapping;
 
 	rc = dev_queue_xmit(skb);
 	if (likely(rc == NET_XMIT_SUCCESS || rc == NET_XMIT_CN)) {
@@ -532,13 +532,12 @@ static int netvsc_start_xmit(struct sk_buff *skb, struct net_device *net)
 	u32 hash;
 	struct hv_page_buffer pb[MAX_PAGE_BUFFER_COUNT];
 
-	/* If VF is present and up then redirect packets to it.
-	 * Skip the VF if it is marked down or has no carrier.
-	 * If netpoll is in uses, then VF can not be used either.
+	/* if VF is present and up then redirect packets
+	 * already called with rcu_read_lock_bh
 	 */
 	vf_netdev = rcu_dereference_bh(net_device_ctx->vf_netdev);
 	if (vf_netdev && netif_running(vf_netdev) &&
-	    netif_carrier_ok(vf_netdev) && !netpoll_tx_running(net))
+	    !netpoll_tx_running(net))
 		return netvsc_vf_xmit(net, vf_netdev, skb);
 
 	/* We will atmost need two pages to describe the rndis
