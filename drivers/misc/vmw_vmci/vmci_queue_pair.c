@@ -758,9 +758,8 @@ static int qp_host_get_user_memory(u64 produce_uva,
 	if (retval < (int)produce_q->kernel_if->num_pages) {
 		pr_debug("get_user_pages_fast(produce) failed (retval=%d)",
 			retval);
-		if (retval > 0)
-			qp_release_pages(produce_q->kernel_if->u.h.header_page,
-					retval, false);
+		qp_release_pages(produce_q->kernel_if->u.h.header_page,
+				 retval, false);
 		err = VMCI_ERROR_NO_MEM;
 		goto out;
 	}
@@ -771,9 +770,8 @@ static int qp_host_get_user_memory(u64 produce_uva,
 	if (retval < (int)consume_q->kernel_if->num_pages) {
 		pr_debug("get_user_pages_fast(consume) failed (retval=%d)",
 			retval);
-		if (retval > 0)
-			qp_release_pages(consume_q->kernel_if->u.h.header_page,
-					retval, false);
+		qp_release_pages(consume_q->kernel_if->u.h.header_page,
+				 retval, false);
 		qp_release_pages(produce_q->kernel_if->u.h.header_page,
 				 produce_q->kernel_if->num_pages, false);
 		err = VMCI_ERROR_NO_MEM;
