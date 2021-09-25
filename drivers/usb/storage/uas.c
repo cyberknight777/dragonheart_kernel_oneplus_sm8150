@@ -670,7 +670,8 @@ static int uas_queuecommand_lck(struct scsi_cmnd *cmnd,
 	if (devinfo->resetting) {
 		cmnd->result = DID_ERROR << 16;
 		cmnd->scsi_done(cmnd);
-		goto zombie;
+		spin_unlock_irqrestore(&devinfo->lock, flags);
+		return 0;
 	}
 
 	/* Find a free uas-tag */
@@ -705,16 +706,6 @@ static int uas_queuecommand_lck(struct scsi_cmnd *cmnd,
 		cmdinfo->state &= ~(SUBMIT_DATA_IN_URB | SUBMIT_DATA_OUT_URB);
 
 	err = uas_submit_urbs(cmnd, devinfo);
-	/*
-	 * in case of fatal errors the SCSI layer is peculiar
-	 * a command that has finished is a success for the purpose
-	 * of queueing, no matter how fatal the error
-	 */
-	if (err == -ENODEV) {
-		cmnd->result = DID_ERROR << 16;
-		cmnd->scsi_done(cmnd);
-		goto zombie;
-	}
 	if (err) {
 		/* If we did nothing, give up now */
 		if (cmdinfo->state & SUBMIT_STATUS_URB) {
@@ -725,7 +716,6 @@ static int uas_queuecommand_lck(struct scsi_cmnd *cmnd,
 	}
 
 	devinfo->cmnd[idx] = cmnd;
-zombie:
 	spin_unlock_irqrestore(&devinfo->lock, flags);
 	return 0;
 }
