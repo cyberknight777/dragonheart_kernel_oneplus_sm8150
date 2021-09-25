@@ -16,7 +16,6 @@
  * Boston, MA 021110-1307, USA.
  */
 #include <linux/sched.h>
-#include <linux/sched/mm.h>
 #include <linux/bio.h>
 #include <linux/slab.h>
 #include <linux/buffer_head.h>
@@ -4175,7 +4174,6 @@ static int btrfs_uuid_scan_kthread(void *data)
 			goto skip;
 		}
 update_tree:
-		btrfs_release_path(path);
 		if (!btrfs_is_empty_uuid(root_item.uuid)) {
 			ret = btrfs_uuid_tree_add(trans, fs_info,
 						  root_item.uuid,
@@ -4201,7 +4199,6 @@ update_tree:
 		}
 
 skip:
-		btrfs_release_path(path);
 		if (trans) {
 			ret = btrfs_end_transaction(trans);
 			trans = NULL;
@@ -4209,6 +4206,7 @@ skip:
 				break;
 		}
 
+		btrfs_release_path(path);
 		if (key.offset < (u64)-1) {
 			key.offset++;
 		} else if (key.type < BTRFS_ROOT_ITEM_KEY) {
@@ -6279,17 +6277,8 @@ static struct btrfs_device *add_missing_dev(struct btrfs_fs_devices *fs_devices,
 					    u64 devid, u8 *dev_uuid)
 {
 	struct btrfs_device *device;
-	unsigned int nofs_flag;
 
-	/*
-	 * We call this under the chunk_mutex, so we want to use NOFS for this
-	 * allocation, however we don't want to change btrfs_alloc_device() to
-	 * always do NOFS because we use it in a lot of other GFP_KERNEL safe
-	 * places.
-	 */
-	nofs_flag = memalloc_nofs_save();
 	device = btrfs_alloc_device(NULL, &devid, dev_uuid);
-	memalloc_nofs_restore(nofs_flag);
 	if (IS_ERR(device))
 		return NULL;
 

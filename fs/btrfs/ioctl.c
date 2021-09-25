@@ -655,7 +655,6 @@ static int create_snapshot(struct btrfs_root *root, struct inode *dir,
 	struct btrfs_pending_snapshot *pending_snapshot;
 	struct btrfs_trans_handle *trans;
 	int ret;
-	bool snapshot_force_cow = false;
 
 	if (!test_bit(BTRFS_ROOT_REF_COWS, &root->state))
 		return -EINVAL;
@@ -672,11 +671,6 @@ static int create_snapshot(struct btrfs_root *root, struct inode *dir,
 		goto free_pending;
 	}
 
-	/*
-	 * Force new buffered writes to reserve space even when NOCOW is
-	 * possible. This is to avoid later writeback (running dealloc) to
-	 * fallback to COW mode and unexpectedly fail with ENOSPC.
-	 */
 	atomic_inc(&root->will_be_snapshotted);
 	smp_mb__after_atomic();
 	btrfs_wait_for_no_snapshotting_writes(root);
@@ -684,14 +678,6 @@ static int create_snapshot(struct btrfs_root *root, struct inode *dir,
 	ret = btrfs_start_delalloc_inodes(root, 0);
 	if (ret)
 		goto dec_and_free;
-
-	/*
-	 * All previous writes have started writeback in NOCOW mode, so now
-	 * we force future writes to fallback to COW mode during snapshot
-	 * creation.
-	 */
-	atomic_inc(&root->snapshot_force_cow);
-	snapshot_force_cow = true;
 
 	btrfs_wait_ordered_extents(root, U64_MAX, 0, (u64)-1);
 
@@ -758,8 +744,6 @@ static int create_snapshot(struct btrfs_root *root, struct inode *dir,
 fail:
 	btrfs_subvolume_release_metadata(fs_info, &pending_snapshot->block_rsv);
 dec_and_free:
-	if (snapshot_force_cow)
-		atomic_dec(&root->snapshot_force_cow);
 	if (atomic_dec_and_test(&root->will_be_snapshotted))
 		wake_up_atomic_t(&root->will_be_snapshotted);
 free_pending:
@@ -2037,14 +2021,9 @@ static noinline int copy_to_sk(struct btrfs_path *path,
 		sh.len = item_len;
 		sh.transid = found_transid;
 
-		/*
-		 * Copy search result header. If we fault then loop again so we
-		 * can fault in the pages and -EFAULT there if there's a
-		 * problem. Otherwise we'll fault and then copy the buffer in
-		 * properly this next time through
-		 */
-		if (probe_user_write(ubuf + *sk_offset, &sh, sizeof(sh))) {
-			ret = 0;
+		/* copy search result header */
+		if (copy_to_user(ubuf + *sk_offset, &sh, sizeof(sh))) {
+			ret = -EFAULT;
 			goto out;
 		}
 
@@ -2052,14 +2031,10 @@ static noinline int copy_to_sk(struct btrfs_path *path,
 
 		if (item_len) {
 			char __user *up = ubuf + *sk_offset;
-			/*
-			 * Copy the item, same behavior as above, but reset the
-			 * * sk_offset so we copy the full thing again.
-			 */
-			if (read_extent_buffer_to_user_nofault(leaf, up,
-						item_off, item_len)) {
-				ret = 0;
-				*sk_offset -= sizeof(sh);
+			/* copy the item */
+			if (read_extent_buffer_to_user(leaf, up,
+						       item_off, item_len)) {
+				ret = -EFAULT;
 				goto out;
 			}
 
@@ -2147,11 +2122,6 @@ static noinline int search_ioctl(struct inode *inode,
 	key.offset = sk->min_offset;
 
 	while (1) {
-		ret = fault_in_pages_writeable(ubuf + sk_offset,
-					       *buf_size - sk_offset);
-		if (ret)
-			break;
-
 		ret = btrfs_search_forward(root, &key, path, sk->min_transid);
 		if (ret != 0) {
 			if (ret > 0)

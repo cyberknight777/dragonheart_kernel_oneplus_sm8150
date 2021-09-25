@@ -116,10 +116,9 @@ static void print_extent_item(struct extent_buffer *eb, int slot, int type)
 			 * offset is supposed to be a tree block which
 			 * must be aligned to nodesize.
 			 */
-			if (!IS_ALIGNED(offset, eb->fs_info->sectorsize))
-				pr_info(
-			"\t\t\t(parent %llu not aligned to sectorsize %u)\n",
-					offset, eb->fs_info->sectorsize);
+			if (!IS_ALIGNED(offset, eb->fs_info->nodesize))
+				pr_info("\t\t\t(parent %llu is NOT ALIGNED to nodesize %llu)\n",
+					offset, (unsigned long long)eb->fs_info->nodesize);
 			break;
 		case BTRFS_EXTENT_DATA_REF_KEY:
 			dref = (struct btrfs_extent_data_ref *)(&iref->offset);
@@ -134,9 +133,8 @@ static void print_extent_item(struct extent_buffer *eb, int slot, int type)
 			 * must be aligned to nodesize.
 			 */
 			if (!IS_ALIGNED(offset, eb->fs_info->nodesize))
-				pr_info(
-			"\t\t\t(parent %llu not aligned to sectorsize %u)\n",
-				     offset, eb->fs_info->sectorsize);
+				pr_info("\t\t\t(parent %llu is NOT ALIGNED to nodesize %llu)\n",
+				     offset, (unsigned long long)eb->fs_info->nodesize);
 			break;
 		default:
 			pr_cont("(extent %llu has INVALID ref type %d)\n",
