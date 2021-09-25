@@ -56,8 +56,6 @@ int sysctl_oom_dump_tasks = 1;
 int sysctl_reap_mem_on_sigkill;
 
 DEFINE_MUTEX(oom_lock);
-/* Serializes oom_score_adj and oom_score_adj_min updates */
-DEFINE_MUTEX(oom_adj_mutex);
 
 #ifdef CONFIG_NUMA
 /**
@@ -855,6 +853,12 @@ static void oom_kill_process(struct oom_control *oc, const char *message)
 
 	pr_err("%s: Kill process %d (%s) score %u or sacrifice child\n",
 		message, task_pid_nr(p), p->comm, points);
+
+	if (!strcmp("system_server", p->comm)) {
+		pr_err("%s: Kernel try to kill (%s) process, I prevent it.\n",
+				message, p->comm);
+		panic("Out of memory: panic on oom!!!\n");
+	}
 
 	/*
 	 * If any of p's children has a different mm and is eligible for kill,
