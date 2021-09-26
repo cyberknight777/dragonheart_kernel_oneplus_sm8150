@@ -521,6 +521,7 @@ static int btrtl_setup_rtl8723b(struct hci_dev *hdev,
 
 	ret = rtl_download_firmware(hdev, fw_data, ret);
 
+	hci_set_aosp_capable(hdev);
 out:
 	kfree(fw_data);
 	return ret;
