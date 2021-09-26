@@ -1200,6 +1200,8 @@ static int qca_setup(struct hci_uart *hu)
 		if (ret)
 			return ret;
 
+		hci_set_aosp_capable(hdev);
+
 		ret = qca_read_soc_version(hdev, &soc_ver);
 		if (ret)
 			return ret;
