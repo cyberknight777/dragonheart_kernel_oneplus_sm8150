@@ -771,7 +771,7 @@ static ssize_t codec_debug_write(struct file *filp,
 	const char __user *ubuf, size_t cnt, loff_t *ppos)
 {
 	char *access_str = filp->private_data;
-	char lbuf[32];
+	char lbuf[32] = {0};
 	int rc;
 	long int param[5];
 
