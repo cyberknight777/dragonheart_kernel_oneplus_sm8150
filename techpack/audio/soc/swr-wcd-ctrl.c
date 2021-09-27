@@ -297,7 +297,7 @@ copy_err:
 static ssize_t swrm_debug_read(struct file *file, char __user *ubuf,
 				size_t count, loff_t *ppos)
 {
-	char lbuf[SWR_MSTR_RD_BUF_LEN];
+        char lbuf[SWR_MSTR_RD_BUF_LEN] = {0};
 	char *access_str;
 	ssize_t ret_cnt;
 
@@ -324,7 +324,7 @@ static ssize_t swrm_debug_read(struct file *file, char __user *ubuf,
 static ssize_t swrm_debug_write(struct file *filp,
 	const char __user *ubuf, size_t cnt, loff_t *ppos)
 {
-	char lbuf[SWR_MSTR_WR_BUF_LEN];
+        char lbuf[SWR_MSTR_WR_BUF_LEN] = {0};
 	int rc;
 	u32 param[5];
 	char *access_str;

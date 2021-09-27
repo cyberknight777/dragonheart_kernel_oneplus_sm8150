@@ -6195,7 +6195,7 @@ static ssize_t afe_debug_write(struct file *filp,
 	const char __user *ubuf, size_t cnt, loff_t *ppos)
 {
 	char *lb_str = filp->private_data;
-	char lbuf[32];
+	char lbuf[32] = {0};
 	int rc;
 	unsigned long param[5];
 
