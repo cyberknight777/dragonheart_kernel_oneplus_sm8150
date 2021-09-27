@@ -5272,8 +5272,7 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		ret = msm_mi2s_set_sclk(substream, true);
 		if (ret < 0) {
 			dev_err(rtd->card->dev,
-				"%s: afe lpass clock failed ",
-				"to enable MI2S clock, err:%d\n",
+				"%s: afe lpass clock failed to enable MI2S clock, err:%d\n",
 				__func__, ret);
 			goto clean_up;
 		}
@@ -5288,8 +5287,7 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 			ret_pinctrl = msm_set_pinctrl(pinctrl_info,
 							STATE_MI2S_ACTIVE);
 			if (ret_pinctrl) {
-				pr_err("%s: MI2S TLMM pinctrl set failed %d",
-					"switching to gpio\n",
+				pr_err("%s: MI2S TLMM pinctrl set failed %d, switching to gpio\n",
 					__func__, ret_pinctrl);
 				if (pdata->mi2s_gpio_p[index])
 					msm_cdc_pinctrl_select_active_state(
@@ -5335,8 +5333,7 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 			ret_pinctrl = msm_set_pinctrl(pinctrl_info,
 							STATE_DISABLE);
 			if (ret_pinctrl) {
-				pr_err("%s: MI2S TLMM pinctrl set failed %d",
-					"switching to gpio\n",
+				pr_err("%s: MI2S TLMM pinctrl set failed %d, switching to gpio\n",
 					__func__, ret_pinctrl);
 				if (pdata->mi2s_gpio_p[index])
 					msm_cdc_pinctrl_select_sleep_state(
