@@ -160,7 +160,7 @@ static long amrwb_in_ioctl(struct file *file,
 	}
 	case AUDIO_GET_AMRWB_ENC_CONFIG: {
 		if (copy_to_user((void *)arg, audio->enc_cfg,
-				sizeof(struct msm_audio_amrwb_enc_config)))
+				 sizeof(struct msm_audio_amrwb_enc_config))) {
 			pr_err("%s: copy_to_user for AUDIO_GET_AMRWB_ENC_CONFIG failed\n",
 				__func__);
 			rc = -EFAULT;
@@ -173,6 +173,7 @@ static long amrwb_in_ioctl(struct file *file,
 				sizeof(cfg))) {
 			pr_err("%s: copy_from_user for AUDIO_SET_AMRWB_ENC_CONFIG failed\n",
 				__func__);
+		}
 			rc = -EFAULT;
 			break;
 		}
