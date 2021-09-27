@@ -915,10 +915,10 @@ exit:
 		mbhc->micbias_enable = true;
 
 	if (mbhc->mbhc_cb->mbhc_micbias_control &&
-	    !mbhc->micbias_enable)
+	    !mbhc->micbias_enable) {
 		mbhc->mbhc_cb->mbhc_micbias_control(codec, MIC_BIAS_2,
 						    MICB_DISABLE);
-
+	}
 	/*
 	 * If plug type is corrected from special headset to headphone,
 	 * clear the micbias enable flag, set micbias back to 1.8V and
