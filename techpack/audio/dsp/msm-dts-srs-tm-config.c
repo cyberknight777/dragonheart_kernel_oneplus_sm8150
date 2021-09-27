@@ -301,11 +301,12 @@ static int reg_ion_mem(void)
 	rc = msm_audio_ion_alloc(&dma_buf, ION_MEM_SIZE,
 				 &po.paddr, (size_t *)&po.size,
 				 &po.kvaddr);
-	if (rc != 0)
+	if (rc != 0) {
 		pr_err("%s: failed to allocate memory.\n", __func__);
 		pr_debug("%s: exited dma_buf = %pK, phys_addr = %lu, length = %d, vaddr = %pK, rc = 0x%x\n",
 			__func__, dma_buf, (long)po.paddr,
 			(unsigned int)po.size, po.kvaddr, rc);
+	}
 	return rc;
 }
 
