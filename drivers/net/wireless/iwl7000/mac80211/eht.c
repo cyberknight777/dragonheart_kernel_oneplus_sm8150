@@ -16,9 +16,9 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_sta_eht_cap *eht_cap = &sta->sta.eht_cap;
 	struct ieee80211_he_cap_elem *he_cap_ie_elem = (void *)he_cap_ie;
-	u8 eht_ppe_size;
+	u8 eht_ppe_size = 0;
 	u8 mcs_nss_size;
-	u8 eht_total_size;
+	u8 eht_total_size = sizeof(eht_cap->eht_cap_elem);
 	u8 *pos = (u8 *)eht_cap_ie_elem;
 
 	memset(eht_cap, 0, sizeof(*eht_cap));
@@ -30,13 +30,19 @@ ieee80211_eht_cap_ie_to_sta_eht_cap(struct ieee80211_sub_if_data *sdata,
 
 	mcs_nss_size = ieee80211_eht_mcs_nss_size(he_cap_ie_elem,
 						  eht_cap_ie_elem);
-	eht_ppe_size =
-		ieee80211_eht_ppe_size(eht_cap_ie_elem->optional[mcs_nss_size],
-				       eht_cap_ie_elem->phy_cap_info);
 
-	eht_total_size = sizeof(eht_cap->eht_cap_elem) + mcs_nss_size +
-		         eht_ppe_size;
+	eht_total_size += mcs_nss_size;
 
+	/* Calculate the PPE thresholds length only if the header is present */
+	if (eht_total_size + sizeof(u16) < eht_cap_len)
+		eht_ppe_size =
+			ieee80211_eht_ppe_size(eht_cap_ie_elem->optional[mcs_nss_size],
+					       eht_cap_ie_elem->phy_cap_info);
+	else if ((eht_cap_ie_elem->phy_cap_info[5] &
+		  IEEE80211_EHT_PHY_CAP5_PPE_THRESHOLD_PRESENT))
+		return;
+
+	eht_total_size += eht_ppe_size;
 	if (eht_cap_len < eht_total_size)
 		return;
 
