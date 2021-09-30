@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/time.h>
+#include <linux/kprofiles.h>
 
 struct cpu_sync {
 	int cpu;
@@ -191,6 +192,11 @@ static void do_input_boost(struct work_struct *work)
 {
 	unsigned int i, ret;
 	struct cpu_sync *i_sync_info;
+
+	if (active_mode() == 1) {
+		pr_info("Skipping boost as battery profile is enabled\n");
+		return;
+	}
 
 	cancel_delayed_work_sync(&input_boost_rem);
 	if (sched_boost_active) {
