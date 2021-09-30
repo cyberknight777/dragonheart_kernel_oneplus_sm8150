@@ -621,13 +621,17 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 	len += sizeof(cmd.common);
 
 	mutex_lock(&mvm->mutex);
-	err = iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD, 0, len, &cmd);
-	mutex_unlock(&mvm->mutex);
+	if (iwl_mvm_firmware_running(mvm))
+		err = iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD,
+					   0, len, &cmd);
+	else
+		err = 0;
 
 	if (err)
 		IWL_ERR(mvm, "failed to update device TX power: %d\n", err);
 	else
 		mvm->txp_cmd = cmd;
+	mutex_unlock(&mvm->mutex);
 	err = 0;
 free:
 	kfree(tb);
@@ -1826,8 +1830,7 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 			.vendor_id = INTEL_OUI,
 			.subcmd = IWL_MVM_VENDOR_CMD_SET_NIC_TXPOWER_LIMIT,
 		},
-		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-			 WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
 		.doit = iwl_vendor_set_nic_txpower_limit,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,
