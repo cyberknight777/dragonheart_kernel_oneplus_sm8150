@@ -13,6 +13,7 @@
 #include <linux/msm_drm_notify.h>
 #include <linux/slab.h>
 #include <linux/version.h>
+#include <linux/kprofiles.h>
 
 /* The sched_param struct is located elsewhere in newer kernels */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
@@ -158,7 +159,7 @@ static void update_online_cpu_policy(void)
 
 static void __cpu_input_boost_kick(struct boost_drv *b)
 {
-	if (!test_bit(SCREEN_ON, &b->state))
+        if (!test_bit(SCREEN_ON, &b->state) || active_mode() == 1)
 		return;
 
 	if (!input_boost_duration)
@@ -183,7 +184,7 @@ static void __cpu_input_boost_kick_max(struct boost_drv *b,
 	unsigned long boost_jiffies = msecs_to_jiffies(duration_ms);
 	unsigned long curr_expires, new_expires;
 
-	if (!test_bit(SCREEN_ON, &b->state))
+	if (!test_bit(SCREEN_ON, &b->state) || active_mode() == 1)
 		return;
 
 	do {
