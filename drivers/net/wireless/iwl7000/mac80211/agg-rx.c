@@ -498,12 +498,6 @@ void ieee80211_process_addba_request(struct ieee80211_local *local,
 	tid = (capab & IEEE80211_ADDBA_PARAM_TID_MASK) >> 2;
 	buf_size = (capab & IEEE80211_ADDBA_PARAM_BUF_SIZE_MASK) >> 6;
 
-	if (sta->sta.eht_cap.has_eht && elems->addba_ext_ie) {
-		u8 buf_size_1k = u8_get_bits(elems->addba_ext_ie->data,
-					     IEEE80211_ADDBA_EXT_BUF_SIZE_MASK);
-		buf_size |= buf_size_1k << IEEE80211_ADDBA_EXT_BUF_SIZE_SHIFT;
-	}
-
 	ies_len = len - offsetof(struct ieee80211_mgmt,
 				 u.action.u.addba_req.variable);
 	if (ies_len) {
@@ -511,6 +505,13 @@ void ieee80211_process_addba_request(struct ieee80211_local *local,
 					       ies_len, true, mgmt->bssid, NULL);
 		if (!elems || elems->parse_error)
 			return;
+	}
+
+	if (sta->sta.eht_cap.has_eht && elems && elems->addba_ext_ie) {
+		u8 buf_size_1k = u8_get_bits(elems->addba_ext_ie->data,
+					     IEEE80211_ADDBA_EXT_BUF_SIZE_MASK);
+
+		buf_size |= buf_size_1k << IEEE80211_ADDBA_EXT_BUF_SIZE_SHIFT;
 	}
 
 	__ieee80211_start_rx_ba_session(sta, dialog_token, timeout,
