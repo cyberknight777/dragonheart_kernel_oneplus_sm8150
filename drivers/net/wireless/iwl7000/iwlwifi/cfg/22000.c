@@ -9,7 +9,7 @@
 #include "iwl-prph.h"
 
 /* Highest firmware API version supported */
-#define IWL_22000_UCODE_API_MAX	66
+#define IWL_22000_UCODE_API_MAX	67
 
 /* Lowest firmware API version supported */
 #define IWL_22000_UCODE_API_MIN	39
@@ -367,7 +367,7 @@ const struct iwl_cfg_trans_params iwl_so_long_latency_trans_cfg = {
 	.base_params = &iwl_ax210_base_params,
 	.umac_prph_offset = 0x300000,
 	.integrated = true,
-	/* TODO: the following values need to be checked */
+	.low_latency_xtal = true,
 	.xtal_latency = 12000,
 	.ltr_delay = IWL_CFG_TRANS_LTR_DELAY_2500US,
 };
@@ -481,6 +481,14 @@ const char iwl_ax210_killer_1675w_name[] =
 	"Killer(R) Wi-Fi 6E AX1675w 160MHz Wireless Network Adapter (210D2W)";
 const char iwl_ax210_killer_1675x_name[] =
 	"Killer(R) Wi-Fi 6E AX1675x 160MHz Wireless Network Adapter (210NGW)";
+const char iwl_ax211_killer_1675s_name[] =
+	"Killer(R) Wi-Fi 6E AX1675s 160MHz Wireless Network Adapter (211NGW)";
+const char iwl_ax211_killer_1675i_name[] =
+	"Killer(R) Wi-Fi 6E AX1675i 160MHz Wireless Network Adapter (211NGW)";
+const char iwl_ax411_killer_1690s_name[] =
+	"Killer(R) Wi-Fi 6E AX1690s 160MHz Wireless Network Adapter (411D2W)";
+const char iwl_ax411_killer_1690i_name[] =
+	"Killer(R) Wi-Fi 6E AX1690i 160MHz Wireless Network Adapter (411NGW)";
 
 const struct iwl_cfg iwl_qu_b0_hr1_b0 = {
 	.fw_name_pre = IWL_QU_B_HR_B_FW_PRE,

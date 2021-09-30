@@ -12,7 +12,9 @@
  * enum iwl_dhc_table_id - DHC table operations index
  */
 enum iwl_dhc_table_id {
-	/* @DHC_TABLE_INTEGRATION: select the integration table */
+	/**
+	 * @DHC_TABLE_INTEGRATION: select the integration table
+	 */
 	DHC_TABLE_INTEGRATION	= 2 << DHC_TABLE_MASK_POS,
 };
 
@@ -20,9 +22,21 @@ enum iwl_dhc_table_id {
  * enum iwl_dhc_umac_integration_table - integration operations
  */
 enum iwl_dhc_umac_integration_table {
-	/* @DHC_INT_UMAC_TWT_OPERATION: trigger a TWT operation */
+	/**
+	 * @DHC_INT_UMAC_TWT_OPERATION: trigger a TWT operation
+	 */
 	DHC_INT_UMAC_TWT_OPERATION = 4,
-	/* @DHC_INTEGRATION_MAX: Maximum UMAC integration table entries */
+	/**
+	 * @DHC_INTEGRATION_TLC_DEBUG_CONFIG: TLC debug
+	 */
+	DHC_INTEGRATION_TLC_DEBUG_CONFIG = 1,
+	/**
+	 * @DHC_INT_UMAC_TWT_CONTROL: TWT hooks (like disable internal TWT triggers)
+	 */
+	DHC_INT_UMAC_TWT_CONTROL = 10,
+	/**
+	 * @DHC_INTEGRATION_MAX: Maximum UMAC integration table entries
+	 */
 	DHC_INTEGRATION_MAX
 };
 
@@ -118,5 +132,16 @@ struct iwl_dhc_twt_operation {
 	u8 twt_channel;
 	u8 reserved;
 }; /* DHC_TWT_OPERATION_API_S */
+
+/**
+ * struct iwl_dhc_twt_control - control TWT behavior
+ *
+ * @twt_test_mode: if 1 TWT internal triggers (e.g. PM) will be disabled
+ * @reserved: reserved
+ */
+struct iwl_dhc_twt_control {
+	u8 twt_test_mode;
+	u8 reserved[3];
+}; /* DHC_TWT_CONTROL_API_S_VER_1 */
 
 #endif /* __iwl_fw_api_dhc_h__ */

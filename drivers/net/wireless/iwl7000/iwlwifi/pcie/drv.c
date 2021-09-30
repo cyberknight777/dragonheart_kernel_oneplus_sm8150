@@ -317,6 +317,7 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 /* Ma devices */
 	{IWL_PCI_DEVICE(0x2729, PCI_ANY_ID, iwl_ma_trans_cfg)},
 	{IWL_PCI_DEVICE(0x7E40, PCI_ANY_ID, iwl_ma_trans_cfg)},
+	{IWL_PCI_DEVICE(0x7F70, PCI_ANY_ID, iwl_ma_trans_cfg)},
 
 /* Bz devices */
 	{IWL_PCI_DEVICE(0x2727, PCI_ANY_ID, iwl_bz_trans_cfg)},
@@ -350,15 +351,25 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 	IWL_DEV_INFO(0x31DC, 0x1552, iwl9560_2ac_cfg_soc, iwl9560_killer_1550i_name),
 	IWL_DEV_INFO(0xA370, 0x1551, iwl9560_2ac_cfg_soc, iwl9560_killer_1550s_name),
 	IWL_DEV_INFO(0xA370, 0x1552, iwl9560_2ac_cfg_soc, iwl9560_killer_1550i_name),
+	IWL_DEV_INFO(0x54F0, 0x1551, iwl9560_2ac_cfg_soc, iwl9560_killer_1550s_160_name),
+	IWL_DEV_INFO(0x54F0, 0x1552, iwl9560_2ac_cfg_soc, iwl9560_killer_1550i_name),
 	IWL_DEV_INFO(0x51F0, 0x1552, iwl9560_2ac_cfg_soc, iwl9560_killer_1550s_160_name),
 	IWL_DEV_INFO(0x51F0, 0x1551, iwl9560_2ac_cfg_soc, iwl9560_killer_1550i_160_name),
+	IWL_DEV_INFO(0x51F0, 0x1691, iwlax411_2ax_cfg_so_gf4_a0, iwl_ax411_killer_1690s_name),
+	IWL_DEV_INFO(0x51F0, 0x1692, iwlax411_2ax_cfg_so_gf4_a0, iwl_ax411_killer_1690i_name),
+	IWL_DEV_INFO(0x54F0, 0x1691, iwlax411_2ax_cfg_so_gf4_a0, iwl_ax411_killer_1690s_name),
+	IWL_DEV_INFO(0x54F0, 0x1692, iwlax411_2ax_cfg_so_gf4_a0, iwl_ax411_killer_1690i_name),
+	IWL_DEV_INFO(0x7A70, 0x1691, iwlax411_2ax_cfg_so_gf4_a0, iwl_ax411_killer_1690s_name),
+	IWL_DEV_INFO(0x7A70, 0x1692, iwlax411_2ax_cfg_so_gf4_a0, iwl_ax411_killer_1690i_name),
 
 	IWL_DEV_INFO(0x271C, 0x0214, iwl9260_2ac_cfg, iwl9260_1_name),
+	IWL_DEV_INFO(0x7E40, 0x1691, iwl_cfg_ma_a0_gf4_a0, iwl_ax411_killer_1690s_name),
+	IWL_DEV_INFO(0x7E40, 0x1692, iwl_cfg_ma_a0_gf4_a0, iwl_ax411_killer_1690i_name),
 
 /* AX200 */
+	IWL_DEV_INFO(0x2723, IWL_CFG_ANY, iwl_ax200_cfg_cc, iwl_ax200_name),
 	IWL_DEV_INFO(0x2723, 0x1653, iwl_ax200_cfg_cc, iwl_ax200_killer_1650w_name),
 	IWL_DEV_INFO(0x2723, 0x1654, iwl_ax200_cfg_cc, iwl_ax200_killer_1650x_name),
-	IWL_DEV_INFO(0x2723, IWL_CFG_ANY, iwl_ax200_cfg_cc, iwl_ax200_name),
 
 	/* Qu with Hr */
 	IWL_DEV_INFO(0x43F0, 0x0070, iwl_ax201_cfg_qu_hr, NULL),
@@ -454,6 +465,12 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 	IWL_DEV_INFO(0x7AF0, 0x0510, iwlax211_2ax_cfg_so_gf_a0, NULL),
 	IWL_DEV_INFO(0x7AF0, 0x0A10, iwlax211_2ax_cfg_so_gf_a0, NULL),
 
+	/* So with JF */
+	IWL_DEV_INFO(0x7A70, 0x1551, iwl9560_2ac_cfg_soc, iwl9560_killer_1550s_160_name),
+	IWL_DEV_INFO(0x7A70, 0x1552, iwl9560_2ac_cfg_soc, iwl9560_killer_1550i_160_name),
+	IWL_DEV_INFO(0x7AF0, 0x1551, iwl9560_2ac_cfg_soc, iwl9560_killer_1550s_160_name),
+	IWL_DEV_INFO(0x7AF0, 0x1552, iwl9560_2ac_cfg_soc, iwl9560_killer_1550i_160_name),
+
 	/* SnJ with HR */
 	IWL_DEV_INFO(0x2725, 0x00B0, iwlax411_2ax_cfg_sosnj_gf4_a0, NULL),
 	IWL_DEV_INFO(0x2726, 0x0090, iwlax211_cfg_snj_gf_a0, NULL),
@@ -463,6 +480,12 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 	IWL_DEV_INFO(0x2726, 0x0510, iwlax211_cfg_snj_gf_a0, NULL),
 	IWL_DEV_INFO(0x2726, 0x1651, iwl_cfg_snj_hr_b0, iwl_ax201_killer_1650s_name),
 	IWL_DEV_INFO(0x2726, 0x1652, iwl_cfg_snj_hr_b0, iwl_ax201_killer_1650i_name),
+	IWL_DEV_INFO(0x2726, 0x1671, iwlax211_cfg_snj_gf_a0, iwl_ax211_killer_1675s_name),
+	IWL_DEV_INFO(0x2726, 0x1672, iwlax211_cfg_snj_gf_a0, iwl_ax211_killer_1675i_name),
+	IWL_DEV_INFO(0x2726, 0x1691, iwlax411_2ax_cfg_sosnj_gf4_a0, iwl_ax411_killer_1690s_name),
+	IWL_DEV_INFO(0x2726, 0x1692, iwlax411_2ax_cfg_sosnj_gf4_a0, iwl_ax411_killer_1690i_name),
+	IWL_DEV_INFO(0x7F70, 0x1691, iwlax411_2ax_cfg_sosnj_gf4_a0, iwl_ax411_killer_1690s_name),
+	IWL_DEV_INFO(0x7F70, 0x1692, iwlax411_2ax_cfg_sosnj_gf4_a0, iwl_ax411_killer_1690i_name),
 
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
 		      IWL_CFG_MAC_TYPE_PU, IWL_CFG_ANY,
@@ -516,17 +539,6 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 		      IWL_CFG_RF_TYPE_JF1, IWL_CFG_RF_ID_JF1_DIV,
 		      IWL_CFG_NO_160, IWL_CFG_CORES_BT, IWL_CFG_NO_CDB,
 		      iwl9260_2ac_cfg, iwl9462_name),
-
-	_IWL_DEV_INFO(0x2526, IWL_CFG_ANY,
-		      IWL_CFG_MAC_TYPE_PNJ, IWL_CFG_ANY,
-		      IWL_CFG_RF_TYPE_JF2, IWL_CFG_RF_ID_JF,
-		      IWL_CFG_160, IWL_CFG_CORES_BT, IWL_CFG_NO_CDB,
-		      iwl9260_2ac_cfg, iwl9560_160_name),
-	_IWL_DEV_INFO(0x2526, IWL_CFG_ANY,
-		      IWL_CFG_MAC_TYPE_PNJ, IWL_CFG_ANY,
-		      IWL_CFG_RF_TYPE_JF2, IWL_CFG_RF_ID_JF,
-		      IWL_CFG_NO_160, IWL_CFG_CORES_BT, IWL_CFG_NO_CDB,
-		      iwl9260_2ac_cfg, iwl9560_name),
 
 	_IWL_DEV_INFO(0x2526, IWL_CFG_ANY,
 		      IWL_CFG_MAC_TYPE_TH, IWL_CFG_ANY,
@@ -746,9 +758,9 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 		      IWL_CFG_ANY, IWL_CFG_ANY, IWL_CFG_NO_CDB,
 		      iwl_qu_b0_hr1_b0, iwl_ax101_name),
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
-		      IWL_CFG_MAC_TYPE_QU, SILICON_C_STEP,
+		      IWL_CFG_MAC_TYPE_QU, SILICON_B_STEP,
 		      IWL_CFG_RF_TYPE_HR2, IWL_CFG_ANY,
-		      IWL_CFG_ANY, IWL_CFG_ANY, IWL_CFG_NO_CDB,
+		      IWL_CFG_NO_160, IWL_CFG_ANY, IWL_CFG_NO_CDB,
 		      iwl_qu_b0_hr_b0, iwl_ax203_name),
 
 	/* Qu C step */
@@ -760,7 +772,7 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
 		      IWL_CFG_MAC_TYPE_QU, SILICON_C_STEP,
 		      IWL_CFG_RF_TYPE_HR2, IWL_CFG_ANY,
-		      IWL_CFG_ANY, IWL_CFG_ANY, IWL_CFG_NO_CDB,
+		      IWL_CFG_NO_160, IWL_CFG_ANY, IWL_CFG_NO_CDB,
 		      iwl_qu_c0_hr_b0, iwl_ax203_name),
 
 	/* QuZ */
@@ -861,11 +873,6 @@ static const struct iwl_dev_info iwl_dev_info_table[] = {
 		      iwl_cfg_snj_a0_mr_a0, iwl_ax221_name),
 
 /* So with Hr */
-	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
-		      IWL_CFG_MAC_TYPE_SO, IWL_CFG_ANY,
-		      IWL_CFG_RF_TYPE_HR2, IWL_CFG_ANY,
-		      IWL_CFG_NO_160, IWL_CFG_ANY, IWL_CFG_NO_CDB,
-		      iwl_cfg_so_a0_hr_a0, iwl_ax203_name),
 	_IWL_DEV_INFO(IWL_CFG_ANY, IWL_CFG_ANY,
 		      IWL_CFG_MAC_TYPE_SO, IWL_CFG_ANY,
 		      IWL_CFG_RF_TYPE_HR2, IWL_CFG_ANY,
@@ -1119,13 +1126,66 @@ out_get_crf_id:
 /* PCI registers */
 #define PCI_CFG_RETRY_TIMEOUT	0x041
 
+static const struct iwl_dev_info *
+iwl_pci_find_dev_info(u16 device, u16 subsystem_device,
+		      u16 mac_type, u8 mac_step,
+		      u16 rf_type, u8 cdb, u8 rf_id, u8 no_160, u8 cores)
+{
+	int i;
+
+	for (i = ARRAY_SIZE(iwl_dev_info_table) - 1; i >= 0; i--) {
+		const struct iwl_dev_info *dev_info = &iwl_dev_info_table[i];
+
+		if (dev_info->device != (u16)IWL_CFG_ANY &&
+		    dev_info->device != device)
+			continue;
+
+		if (dev_info->subdevice != (u16)IWL_CFG_ANY &&
+		    dev_info->subdevice != subsystem_device)
+			continue;
+
+		if (dev_info->mac_type != (u16)IWL_CFG_ANY &&
+		    dev_info->mac_type != mac_type)
+			continue;
+
+		if (dev_info->mac_step != (u8)IWL_CFG_ANY &&
+		    dev_info->mac_step != mac_step)
+			continue;
+
+		if (dev_info->rf_type != (u16)IWL_CFG_ANY &&
+		    dev_info->rf_type != rf_type)
+			continue;
+
+		if (dev_info->cdb != (u8)IWL_CFG_ANY &&
+		    dev_info->cdb != cdb)
+			continue;
+
+		if (dev_info->rf_id != (u8)IWL_CFG_ANY &&
+		    dev_info->rf_id != rf_id)
+			continue;
+
+		if (dev_info->no_160 != (u8)IWL_CFG_ANY &&
+		    dev_info->no_160 != no_160)
+			continue;
+
+		if (dev_info->cores != (u8)IWL_CFG_ANY &&
+		    dev_info->cores != cores)
+			continue;
+
+		return dev_info;
+	}
+
+	return NULL;
+}
+
 static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	const struct iwl_cfg_trans_params *trans;
 	const struct iwl_cfg *cfg_7265d __maybe_unused = NULL;
+	const struct iwl_dev_info *dev_info;
 	struct iwl_trans *iwl_trans;
 	struct iwl_trans_pcie *trans_pcie;
-	int i, ret;
+	int ret;
 	const struct iwl_cfg *cfg;
 
 	trans = (void *)(ent->driver_data & ~TRANS_CFG_MARKER);
@@ -1156,7 +1216,7 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	 */
 	ret = iwl_pcie_prepare_card_hw(iwl_trans);
 	if (!ret) {
-		ret = iwl_finish_nic_init(iwl_trans, trans);
+		ret = iwl_finish_nic_init(iwl_trans);
 		if (ret)
 			goto out_free_trans;
 		if (iwl_trans_grab_nic_access(iwl_trans)) {
@@ -1180,36 +1240,18 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	    !CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id) && get_crf_id(iwl_trans))
 		goto out_free_trans;
 
-	for (i = 0; i < ARRAY_SIZE(iwl_dev_info_table); i++) {
-		const struct iwl_dev_info *dev_info = &iwl_dev_info_table[i];
-		if ((dev_info->device == (u16)IWL_CFG_ANY ||
-		     dev_info->device == pdev->device) &&
-		    (dev_info->subdevice == (u16)IWL_CFG_ANY ||
-		     dev_info->subdevice == pdev->subsystem_device) &&
-		    (dev_info->mac_type == (u16)IWL_CFG_ANY ||
-		     dev_info->mac_type ==
-		     CSR_HW_REV_TYPE(iwl_trans->hw_rev)) &&
-		    (dev_info->mac_step == (u8)IWL_CFG_ANY ||
-		     dev_info->mac_step ==
-		     CSR_HW_REV_STEP(iwl_trans->hw_rev)) &&
-		    (dev_info->rf_type == (u16)IWL_CFG_ANY ||
-		     dev_info->rf_type ==
-		     CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id)) &&
-		    (dev_info->cdb == (u8)IWL_CFG_ANY ||
-		     dev_info->cdb ==
-		     CSR_HW_RFID_IS_CDB(iwl_trans->hw_rf_id)) &&
-		    (dev_info->rf_id == (u8)IWL_CFG_ANY ||
-		     dev_info->rf_id ==
-		     IWL_SUBDEVICE_RF_ID(pdev->subsystem_device)) &&
-		    (dev_info->no_160 == (u8)IWL_CFG_ANY ||
-		     dev_info->no_160 ==
-		     IWL_SUBDEVICE_NO_160(pdev->subsystem_device)) &&
-		    (dev_info->cores == (u8)IWL_CFG_ANY ||
-		     dev_info->cores ==
-		     IWL_SUBDEVICE_CORES(pdev->subsystem_device))) {
-			iwl_trans->cfg = dev_info->cfg;
-			iwl_trans->name = dev_info->name;
-		}
+	dev_info = iwl_pci_find_dev_info(pdev->device, pdev->subsystem_device,
+					 CSR_HW_REV_TYPE(iwl_trans->hw_rev),
+					 CSR_HW_REV_STEP(iwl_trans->hw_rev),
+					 CSR_HW_RFID_TYPE(iwl_trans->hw_rf_id),
+					 CSR_HW_RFID_IS_CDB(iwl_trans->hw_rf_id),
+					 IWL_SUBDEVICE_RF_ID(pdev->subsystem_device),
+					 IWL_SUBDEVICE_NO_160(pdev->subsystem_device),
+					 IWL_SUBDEVICE_CORES(pdev->subsystem_device));
+
+	if (dev_info) {
+		iwl_trans->cfg = dev_info->cfg;
+		iwl_trans->name = dev_info->name;
 	}
 
 #if IS_ENABLED(CPTCFG_IWLMVM)

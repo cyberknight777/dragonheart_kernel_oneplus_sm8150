@@ -133,7 +133,12 @@ out:
 static void iwl_trans_pcie_sw_reset(struct iwl_trans *trans)
 {
 	/* Reset entire device - do controller reset (results in SHRD_HW_RST) */
-	iwl_set_bit(trans, CSR_RESET, CSR_RESET_REG_FLAG_SW_RESET);
+	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
+		iwl_set_bit(trans, CSR_GP_CNTRL,
+			    CSR_GP_CNTRL_REG_FLAG_SW_RESET);
+	else
+		iwl_set_bit(trans, CSR_RESET,
+			    CSR_RESET_REG_FLAG_SW_RESET);
 	usleep_range(5000, 6000);
 }
 
@@ -310,7 +315,7 @@ static int iwl_pcie_apm_init(struct iwl_trans *trans)
 	if (trans->trans_cfg->base_params->pll_cfg)
 		iwl_set_bit(trans, CSR_ANA_PLL_CFG, CSR50_ANA_PLL_CFG_VAL);
 
-	ret = iwl_finish_nic_init(trans, trans->trans_cfg);
+	ret = iwl_finish_nic_init(trans);
 	if (ret)
 		return ret;
 
@@ -382,7 +387,7 @@ static void iwl_pcie_apm_lp_xtal_enable(struct iwl_trans *trans)
 
 	iwl_trans_pcie_sw_reset(trans);
 
-	ret = iwl_finish_nic_init(trans, trans->trans_cfg);
+	ret = iwl_finish_nic_init(trans);
 	if (WARN_ON(ret)) {
 		/* Release XTAL ON request */
 		__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
@@ -462,6 +467,7 @@ void iwl_pcie_apm_stop_master(struct iwl_trans *trans)
 				   CSR_GP_CNTRL_REG_FLAG_BUS_MASTER_DISABLE_STATUS,
 				   CSR_GP_CNTRL_REG_FLAG_BUS_MASTER_DISABLE_STATUS,
 				   100);
+		msleep(100);
 	} else {
 		iwl_set_bit(trans, CSR_RESET, CSR_RESET_REG_FLAG_STOP_MASTER);
 
@@ -1116,7 +1122,7 @@ struct iwl_causes_list {
 	u8 addr;
 };
 
-static struct iwl_causes_list causes_list[] = {
+static const struct iwl_causes_list causes_list_common[] = {
 	{MSIX_FH_INT_CAUSES_D2S_CH0_NUM,	CSR_MSIX_FH_INT_MASK_AD, 0},
 	{MSIX_FH_INT_CAUSES_D2S_CH1_NUM,	CSR_MSIX_FH_INT_MASK_AD, 0x1},
 	{MSIX_FH_INT_CAUSES_S2D,		CSR_MSIX_FH_INT_MASK_AD, 0x3},
@@ -1127,30 +1133,50 @@ static struct iwl_causes_list causes_list[] = {
 	{MSIX_HW_INT_CAUSES_REG_CT_KILL,	CSR_MSIX_HW_INT_MASK_AD, 0x16},
 	{MSIX_HW_INT_CAUSES_REG_RF_KILL,	CSR_MSIX_HW_INT_MASK_AD, 0x17},
 	{MSIX_HW_INT_CAUSES_REG_PERIODIC,	CSR_MSIX_HW_INT_MASK_AD, 0x18},
-	{MSIX_HW_INT_CAUSES_REG_SW_ERR,		CSR_MSIX_HW_INT_MASK_AD, 0x29},
 	{MSIX_HW_INT_CAUSES_REG_SCD,		CSR_MSIX_HW_INT_MASK_AD, 0x2A},
 	{MSIX_HW_INT_CAUSES_REG_FH_TX,		CSR_MSIX_HW_INT_MASK_AD, 0x2B},
 	{MSIX_HW_INT_CAUSES_REG_HW_ERR,		CSR_MSIX_HW_INT_MASK_AD, 0x2D},
 	{MSIX_HW_INT_CAUSES_REG_HAP,		CSR_MSIX_HW_INT_MASK_AD, 0x2E},
 };
 
-static void iwl_pcie_map_non_rx_causes(struct iwl_trans *trans)
-{
-	struct iwl_trans_pcie *trans_pcie =  IWL_TRANS_GET_PCIE_TRANS(trans);
-	int val = trans_pcie->def_irq | MSIX_NON_AUTO_CLEAR_CAUSE;
-	int i, arr_size = ARRAY_SIZE(causes_list);
-	struct iwl_causes_list *causes = causes_list;
+static const struct iwl_causes_list causes_list_pre_bz[] = {
+	{MSIX_HW_INT_CAUSES_REG_SW_ERR,		CSR_MSIX_HW_INT_MASK_AD, 0x29},
+};
 
-	/*
-	 * Access all non RX causes and map them to the default irq.
-	 * In case we are missing at least one interrupt vector,
-	 * the first interrupt vector will serve non-RX and FBQ causes.
-	 */
+static const struct iwl_causes_list causes_list_bz[] = {
+	{MSIX_HW_INT_CAUSES_REG_SW_ERR_BZ,	CSR_MSIX_HW_INT_MASK_AD, 0x29},
+};
+
+static void iwl_pcie_map_list(struct iwl_trans *trans,
+			      const struct iwl_causes_list *causes,
+			      int arr_size, int val)
+{
+	int i;
+
 	for (i = 0; i < arr_size; i++) {
 		iwl_write8(trans, CSR_MSIX_IVAR(causes[i].addr), val);
 		iwl_clear_bit(trans, causes[i].mask_reg,
 			      causes[i].cause_num);
 	}
+}
+
+static void iwl_pcie_map_non_rx_causes(struct iwl_trans *trans)
+{
+	struct iwl_trans_pcie *trans_pcie =  IWL_TRANS_GET_PCIE_TRANS(trans);
+	int val = trans_pcie->def_irq | MSIX_NON_AUTO_CLEAR_CAUSE;
+	/*
+	 * Access all non RX causes and map them to the default irq.
+	 * In case we are missing at least one interrupt vector,
+	 * the first interrupt vector will serve non-RX and FBQ causes.
+	 */
+	iwl_pcie_map_list(trans, causes_list_common,
+			  ARRAY_SIZE(causes_list_common), val);
+	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
+		iwl_pcie_map_list(trans, causes_list_bz,
+				  ARRAY_SIZE(causes_list_bz), val);
+	else
+		iwl_pcie_map_list(trans, causes_list_pre_bz,
+				  ARRAY_SIZE(causes_list_pre_bz), val);
 }
 
 static void iwl_pcie_map_rx_causes(struct iwl_trans *trans)
@@ -1267,8 +1293,12 @@ static void _iwl_trans_pcie_stop_device(struct iwl_trans *trans)
 	}
 
 	/* Make sure (redundant) we've released our request to stay awake */
-	iwl_clear_bit(trans, CSR_GP_CNTRL,
-		      CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
+		iwl_clear_bit(trans, CSR_GP_CNTRL,
+			      CSR_GP_CNTRL_REG_FLAG_BZ_MAC_ACCESS_REQ);
+	else
+		iwl_clear_bit(trans, CSR_GP_CNTRL,
+			      CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
 
 	/* Stop the device, and put it in low power state */
 	iwl_pcie_apm_stop(trans, false);
@@ -1558,7 +1588,7 @@ static int iwl_trans_pcie_d3_resume(struct iwl_trans *trans,
 	iwl_set_bit(trans, CSR_GP_CNTRL,
 		    CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
 
-	ret = iwl_finish_nic_init(trans, trans->trans_cfg);
+	ret = iwl_finish_nic_init(trans);
 	if (ret)
 		return ret;
 
@@ -1789,7 +1819,7 @@ static int iwl_pcie_gen2_force_power_gating(struct iwl_trans *trans)
 {
 	int ret;
 
-	ret = iwl_finish_nic_init(trans, trans->trans_cfg);
+	ret = iwl_finish_nic_init(trans);
 	if (ret < 0)
 		return ret;
 
@@ -2200,9 +2230,12 @@ static void iwl_trans_pcie_release_nic_access(struct iwl_trans *trans)
 
 	if (trans_pcie->cmd_hold_nic_awake)
 		goto out;
-
-	__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
-				   CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+	if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
+		__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
+					   CSR_GP_CNTRL_REG_FLAG_BZ_MAC_ACCESS_REQ);
+	else
+		__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
+					   CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
 	/*
 	 * Above we read the CSR_GP_CNTRL register, which will flush
 	 * any previous writes, but we need the write that clears the
@@ -3263,9 +3296,11 @@ static int iwl_trans_get_fw_monitor_len(struct iwl_trans *trans, u32 *len)
 	return 0;
 }
 
-static struct iwl_trans_dump_data
-*iwl_trans_pcie_dump_data(struct iwl_trans *trans,
-			  u32 dump_mask)
+static struct iwl_trans_dump_data *
+iwl_trans_pcie_dump_data(struct iwl_trans *trans,
+			 u32 dump_mask,
+			 const struct iwl_dump_sanitize_ops *sanitize_ops,
+			 void *sanitize_ctx)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_fw_error_dump_data *data;
@@ -3365,6 +3400,10 @@ static struct iwl_trans_dump_data
 				txcmd->caplen = cpu_to_le32(caplen);
 				memcpy(txcmd->data, cmdq->entries[idx].cmd,
 				       caplen);
+				if (sanitize_ops && sanitize_ops->frob_hcmd)
+					sanitize_ops->frob_hcmd(sanitize_ctx,
+								txcmd->data,
+								caplen);
 				txcmd = (void *)((u8 *)txcmd->data + caplen);
 			}
 
@@ -3425,7 +3464,10 @@ static void iwl_trans_pcie_sync_nmi(struct iwl_trans *trans)
 
 	if (trans_pcie->msix_enabled) {
 		inta_addr = CSR_MSIX_HW_INT_CAUSES_AD;
-		sw_err_bit = MSIX_HW_INT_CAUSES_REG_SW_ERR;
+		if (trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_BZ)
+			sw_err_bit = MSIX_HW_INT_CAUSES_REG_SW_ERR_BZ;
+		else
+			sw_err_bit = MSIX_HW_INT_CAUSES_REG_SW_ERR;
 	} else {
 		inta_addr = CSR_INT;
 		sw_err_bit = CSR_INT_BIT_SW_ERR;

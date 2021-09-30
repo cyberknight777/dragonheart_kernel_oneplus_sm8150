@@ -786,21 +786,22 @@ enum rfkill_hard_block_reasons {
 	RFKILL_HARD_BLOCK_SIGNAL        = 1 << 0,
 	RFKILL_HARD_BLOCK_NOT_OWNER     = 1 << 1,
 };
-#else
+#endif /* < v5.11 */
 
+#if LINUX_VERSION_IS_LESS(5,13,0)
 /* This will get enum rfkill_hard_block_reasons used below */
 #include <uapi/linux/rfkill.h>
 
-#endif /* < 5.11 */
-/*
- * TODO: remove this when the patch below is included in the base kernel:
- * cfg80211: allow to specifying a reason for hw_rfkill
- *
- * Then we can also remove the else clause above
- */
 static inline void
 wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
 				 enum rfkill_hard_block_reasons reason)
 {
 	wiphy_rfkill_set_hw_state(wiphy, blocked);
 }
+
+#endif /* < v5.13 */
+
+#if LINUX_VERSION_IS_LESS(5,14,0)
+/* make this code disappear, rfkill moved from rdev to wiphy */
+#define rfkill_blocked(__rkfill) false
+#endif /* < v5.11 */

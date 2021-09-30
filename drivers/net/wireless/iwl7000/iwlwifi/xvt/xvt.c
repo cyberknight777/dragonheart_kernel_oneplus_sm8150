@@ -24,7 +24,6 @@
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
-MODULE_AUTHOR(DRV_AUTHOR);
 MODULE_LICENSE("GPL");
 
 #define TX_QUEUE_CFG_TID (6)
@@ -190,7 +189,8 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	xvt->trans = trans;
 	xvt->dev = trans->dev;
 
-	iwl_fw_runtime_init(&xvt->fwrt, trans, fw, NULL, NULL, dbgfs_dir);
+	iwl_fw_runtime_init(&xvt->fwrt, trans, fw, NULL, NULL,
+			    NULL, NULL, dbgfs_dir);
 
 	mutex_init(&xvt->mutex);
 	spin_lock_init(&xvt->notif_lock);
@@ -829,6 +829,7 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
 	u32 n_bands;
+	u32 n_profiles;
 	int ret;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, PHY_OPS_GROUP,
 					   GEO_TX_POWER_LIMIT,
@@ -837,30 +838,52 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, ops) !=
 		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, ops) ||
 		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, ops) !=
-		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, ops));
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, ops) ||
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, ops) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v4, ops) ||
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v4, ops) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v5, ops));
 	/* the ops field is at the same spot for all versions, so set in v1 */
 	cmd.v1.ops = cpu_to_le32(IWL_PER_CHAIN_OFFSET_SET_TABLES);
 
-	if (cmd_ver == 3) {
+	if (cmd_ver == 5) {
+		len = sizeof(cmd.v5);
+		n_bands = ARRAY_SIZE(cmd.v5.table[0]);
+		cmd.v5.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+		n_profiles = ACPI_NUM_GEO_PROFILES_REV3;
+	} else if (cmd_ver == 4) {
+		len = sizeof(cmd.v4);
+		n_bands = ARRAY_SIZE(cmd.v4.table[0]);
+		cmd.v4.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+		n_profiles = ACPI_NUM_GEO_PROFILES_REV3;
+	} else if (cmd_ver == 3) {
 		len = sizeof(cmd.v3);
 		n_bands = ARRAY_SIZE(cmd.v3.table[0]);
 		cmd.v3.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+		n_profiles = ACPI_NUM_GEO_PROFILES;
 	} else if (fw_has_api(&xvt->fwrt.fw->ucode_capa,
 			      IWL_UCODE_TLV_API_SAR_TABLE_VER)) {
 		len =  sizeof(cmd.v2);
 		n_bands = ARRAY_SIZE(cmd.v2.table[0]);
 		cmd.v2.table_revision = cpu_to_le32(xvt->fwrt.geo_rev);
+		n_profiles = ACPI_NUM_GEO_PROFILES;
 	} else {
 		len = sizeof(cmd.v1);
 		n_bands = ARRAY_SIZE(cmd.v1.table[0]);
+		n_profiles = ACPI_NUM_GEO_PROFILES;
 	}
 
 	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, table) !=
 		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, table) ||
 		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v2, table) !=
-		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, table));
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, table) ||
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v3, table) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v4, table) ||
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v4, table) !=
+		     offsetof(struct iwl_geo_tx_power_profiles_cmd_v5, table));
 	/* the table is at the same position for all versions, so set use v1 */
-	ret = iwl_sar_geo_init(&xvt->fwrt, &cmd.v1.table[0][0], n_bands);
+	ret = iwl_sar_geo_init(&xvt->fwrt, &cmd.v1.table[0][0],
+			       n_bands, n_profiles);
 
 	/*
 	 * It is a valid scenario to not support SAR, or miss wgds table,

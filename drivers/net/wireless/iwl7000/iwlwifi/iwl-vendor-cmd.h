@@ -115,14 +115,7 @@
  *	for TM protocol or public action frame for FTM protocol, from peer device.
  *	&IWL_MVM_VENDOR_ATTR_TIME_SYNC_* specifies the details.
  * @IWL_MVM_VENDOR_CMD_GET_CSME_CONN_INFO: reports CSME connection info.
- * @IWL_MVM_VENDOR_CMD_HOST_DISASSOC: reports host disconnection and sets disassoc
- *	type with one of the options in &iwl_vendor_host_disconnect_type.
- * @IWL_MVM_VENDOR_CMD_HOST_ASSOC: reports host association info, including SSID,
- *	bssid, channel info, auth type which is on of the options in
- *	&iwl_vendor_auth_akm_mode, and cipher suite.
  * @IWL_MVM_VENDOR_CMD_HOST_GET_OWNERSHIP: host ask for ownership on the device.
- * @IWL_MVM_VENDOR_CMD_HOST_SET_SW_RFKILL_STATE: set SW RF kill state
- *	with on of the options in &iwl_vendor_sw_rfkill_state.
  * @IWL_MVM_VENDOR_CMD_ROAMING_FORBIDDEN_EVENT: notifies if roaming is allowed.
  *	contains a &IWL_MVM_VENDOR_ATTR_ROAMING_FORBIDDEN and a
  *	&IWL_MVM_VENDOR_ATTR_VIF_ADDR attribute.
@@ -184,10 +177,7 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_TIME_SYNC_MSMT_CFM_EVENT		= 0x2b,
 	IWL_MVM_VENDOR_CMD_TIME_SYNC_MSMT_EVENT			= 0x2c,
 	IWL_MVM_VENDOR_CMD_GET_CSME_CONN_INFO			= 0x2d,
-	IWL_MVM_VENDOR_CMD_HOST_DISASSOC			= 0x2e,
-	IWL_MVM_VENDOR_CMD_HOST_ASSOC				= 0x2f,
 	IWL_MVM_VENDOR_CMD_HOST_GET_OWNERSHIP			= 0x30,
-	IWL_MVM_VENDOR_CMD_HOST_SET_SW_RFKILL_STATE		= 0x31,
 	IWL_MVM_VENDOR_CMD_ROAMING_FORBIDDEN_EVENT		= 0x32,
 	IWL_MVM_VENDOR_CMD_PPAG_GET_TABLE                       = 0x33,
 	IWL_MVM_VENDOR_CMD_SAR_GET_TABLE                        = 0x34,
@@ -653,18 +643,6 @@ enum iwl_mvm_vendor_time_sync_protocol_type {
 	IWL_MVM_VENDOR_TIME_SYNC_PROTOCOL_FTM = BIT(1),
 };
 
-/**
- * enum iwl_vendor_host_disconnect_type - host disconnection type.
- * @IWL_VENDOR_DISCONNECT_TYPE_UNKNOWN: unknown.
- * @IWL_VENDOR_DISCONNECT_TYPE_TEMPORARY: temporary host disconnection.
- * @IWL_VENDOR_DISCONNECT_TYPE_LONG: long disconnection.
- */
-enum iwl_vendor_host_disconnect_type {
-	IWL_VENDOR_DISCONNECT_TYPE_UNKNOWN,
-	IWL_VENDOR_DISCONNECT_TYPE_TEMPORARY,
-	IWL_VENDOR_DISCONNECT_TYPE_LONG,
-};
-
 enum iwl_vendor_auth_akm_mode {
 	IWL_VENDOR_AUTH_OPEN,
 	IWL_VENDOR_AUTH_SHARED,
@@ -674,16 +652,6 @@ enum iwl_vendor_auth_akm_mode {
 	IWL_VENDOR_AUTH_RSNA_PSK,
 	IWL_VENDOR_AUTH_SAE = 0x9,
 	IWL_VENDOR_AUTH_MAX,
-};
-
-/**
- * enum iwl_vendor_sw_rfkill_state - sw rfkill states
- * @IWL_VENDOR_SW_RFKILL_ON: sw rfkill is on.
- * @IWL_VENDOR_SW_RFKILL_OFF: sw rfkill is off
- */
-enum iwl_vendor_sw_rfkill_state {
-	IWL_VENDOR_SW_RFKILL_ON,
-	IWL_VENDOR_SW_RFKILL_OFF,
 };
 
 /**
@@ -870,10 +838,6 @@ enum iwl_vendor_sw_rfkill_state {
  * @IWL_MVM_VENDOR_ATTR_AUTH_MODE: u32 attribute. Authentication mode type
  *	as specified in &enum iwl_vendor_auth_akm_mode.
  * @IWL_MVM_VENDOR_ATTR_CHANNEL_NUM: u8 attribute. Contains channel number.
- * @IWL_MVM_VENDOR_ATTR_HOST_DISASSOC_TYPE: u8 attribute. Host disassociation
- *	type as specified in &enum iwl_vendor_host_disconnect_type.
- * @IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE: u8 attribute. SW rf kill state as
- *	specified in &enum iwl_vendor_sw_rfkill_state.
  * @IWL_MVM_VENDOR_ATTR_BAND: u8 attribute.
  *	0 for 2.4 GHz band, 1 for 5.2GHz band and 2 for 6GHz band.
  * @IWL_MVM_VENDOR_ATTR_COLLOC_CHANNEL: u32 attribute. Channel number of
@@ -1004,8 +968,6 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_ROAMING_FORBIDDEN			= 0x64,
 	IWL_MVM_VENDOR_ATTR_AUTH_MODE				= 0x65,
 	IWL_MVM_VENDOR_ATTR_CHANNEL_NUM				= 0x66,
-	IWL_MVM_VENDOR_ATTR_HOST_DISASSOC_TYPE			= 0x67,
-	IWL_MVM_VENDOR_ATTR_SW_RFKILL_STATE			= 0x68,
 	IWL_MVM_VENDOR_ATTR_BAND				= 0x69,
 	IWL_MVM_VENDOR_ATTR_COLLOC_CHANNEL			= 0x70,
 	IWL_MVM_VENDOR_ATTR_COLLOC_ADDR				= 0x71,
