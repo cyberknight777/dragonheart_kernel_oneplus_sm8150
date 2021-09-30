@@ -498,8 +498,8 @@ void ieee80211_process_addba_request(struct ieee80211_local *local,
 	tid = (capab & IEEE80211_ADDBA_PARAM_TID_MASK) >> 2;
 	buf_size = (capab & IEEE80211_ADDBA_PARAM_BUF_SIZE_MASK) >> 6;
 
-	if (sta->sta.eht_cap.has_eht && elems.addba_ext_ie) {
-		u8 buf_size_1k = u8_get_bits(elems.addba_ext_ie->data,
+	if (sta->sta.eht_cap.has_eht && elems->addba_ext_ie) {
+		u8 buf_size_1k = u8_get_bits(elems->addba_ext_ie->data,
 					     IEEE80211_ADDBA_EXT_BUF_SIZE_MASK);
 		buf_size |= buf_size_1k << IEEE80211_ADDBA_EXT_BUF_SIZE_SHIFT;
 	}
