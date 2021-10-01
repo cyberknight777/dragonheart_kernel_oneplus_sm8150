@@ -11,26 +11,26 @@ unsigned int enabled = 0;
 module_param(enabled, uint, 0664);
 
 
-unsigned int active_mode(void) {
-	if (enabled == 1) {
-		pr_info("changing active mode to level 1\n");
-		return 1;
-	}
-
-	if (enabled == 2) {
-		pr_info("changing active mode to level 2\n");
-		return 2;
-	}
-
-	if (enabled == 3) {
-		pr_info("changing active mode to level 3\n");
-		return 3;
-	}
-
-	else {
-		pr_info("Invalid value passed, falling back to level 0\n");
-		return 0;
-	}
+unsigned int active_mode(void)
+{
+  switch(enabled)
+    {
+    case 1:
+      pr_info("changing active mode to level 1\n");
+      return 1;
+      break;
+    case 2:
+      pr_info("changing active mode to level 2\n");
+      return 2;
+      break;
+    case 3:
+      pr_info("changing active mode to level 3\n");
+      return 3;
+      break;
+    default:
+      pr_info("Invalid value passed, falling back to level 0\n");
+      return 0;
+    }
 }
 
 MODULE_LICENSE("GPL");
