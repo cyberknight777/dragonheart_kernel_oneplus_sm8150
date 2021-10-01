@@ -504,7 +504,7 @@ void ieee80211_process_addba_request(struct ieee80211_local *local,
 		elems = ieee802_11_parse_elems(mgmt->u.action.u.addba_req.variable,
 					       ies_len, true, mgmt->bssid, NULL);
 		if (!elems || elems->parse_error)
-			return;
+			goto free;
 	}
 
 	if (sta->sta.eht_cap.has_eht && elems && elems->addba_ext_ie) {
@@ -518,6 +518,7 @@ void ieee80211_process_addba_request(struct ieee80211_local *local,
 					start_seq_num, ba_policy, tid,
 					buf_size, true, false,
 					elems ? elems->addba_ext_ie : NULL);
+free:
 	kfree(elems);
 }
 
