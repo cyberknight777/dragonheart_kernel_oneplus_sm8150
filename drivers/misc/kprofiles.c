@@ -7,7 +7,7 @@
 #include <linux/moduleparam.h>
 #include <linux/kprofiles.h>
 
-static unsigned int enabled = 0;
+static unsigned int enabled = 1;
 module_param(enabled, uint, 0664);
 
 inline unsigned int active_mode(void)
