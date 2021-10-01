@@ -194,7 +194,6 @@ static void do_input_boost(struct work_struct *work)
 	struct cpu_sync *i_sync_info;
 
 	if (active_mode() == 1) {
-		pr_info("Skipping boost as battery profile is enabled\n");
 		return;
 	}
 
