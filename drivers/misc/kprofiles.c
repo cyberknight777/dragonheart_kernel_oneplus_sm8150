@@ -16,19 +16,15 @@ unsigned int active_mode(void)
   switch(enabled)
     {
     case 1:
-      pr_info("changing active mode to level 1\n");
       return 1;
       break;
     case 2:
-      pr_info("changing active mode to level 2\n");
       return 2;
       break;
     case 3:
-      pr_info("changing active mode to level 3\n");
       return 3;
       break;
     default:
-      pr_info("Invalid value passed, falling back to level 0\n");
       return 0;
     }
 }
