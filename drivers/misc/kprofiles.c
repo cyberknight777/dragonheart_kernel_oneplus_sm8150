@@ -10,8 +10,7 @@
 static unsigned int enabled = 0;
 module_param(enabled, uint, 0664);
 
-
-unsigned int active_mode(void)
+inline unsigned int active_mode(void)
 {
   switch(enabled)
     {
