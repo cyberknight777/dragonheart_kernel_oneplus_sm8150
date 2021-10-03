@@ -348,7 +348,8 @@ static void rs_fw_eht_set_enabled_rates(const struct ieee80211_sta *sta,
 
 	/* the station support only a single receive chain */
 	if (sta->smps_mode == IEEE80211_SMPS_STATIC || sta->rx_nss < 2)
-		memset(cmd->ht_rates[IWL_TLC_NSS_2], 0, IWL_TLC_MCS_PER_BW_NUM_V4);
+		memset(cmd->ht_rates[IWL_TLC_NSS_2], 0,
+		       sizeof(cmd->ht_rates[IWL_TLC_NSS_2]));
 }
 
 static void rs_fw_set_supp_rates(struct ieee80211_sta *sta,
