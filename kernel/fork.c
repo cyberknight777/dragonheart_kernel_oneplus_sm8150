@@ -2217,7 +2217,7 @@ long _do_fork(unsigned long clone_flags,
 	/* Boost DDR bus to the max when userspace launches an app according to set kernel profile */
 	if (task_is_zygote(current) && active_mode() == 2) {
 	  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
-	} else if (task_is_zygote(current) && active_mode() == 0 || active_mode() == 3) {
+	} else if (task_is_zygote(current) && (active_mode() == 0) || (active_mode() == 3)) {
 	  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50);
 	}
 
