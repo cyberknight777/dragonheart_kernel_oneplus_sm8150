@@ -667,6 +667,7 @@ static void esdfs_kill_sb(struct super_block *sb)
 		put_user_ns(ESDFS_SB(sb)->base_ns);
 	if (sb->s_fs_info) {
 		kfree(ESDFS_SB(sb)->dl_loc);
+		kfree(ESDFS_SB(sb)->dl_name.name);
 		path_put(&ESDFS_SB(sb)->dl_path);
 	}
 
