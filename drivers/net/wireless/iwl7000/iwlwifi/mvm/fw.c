@@ -558,7 +558,7 @@ static int iwl_mvm_sgom_init(struct iwl_mvm *mvm)
 					SAR_OFFSET_MAPPING_TABLE_CMD,
 					IWL_FW_CMD_VER_UNKNOWN);
 
-	if (cmd_ver != 1) {
+	if (cmd_ver != 2) {
 		IWL_DEBUG_RADIO(mvm, "command version is unsupported. version = %d\n",
 				cmd_ver);
 		return 0;
