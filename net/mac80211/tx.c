@@ -1397,10 +1397,6 @@ static void ieee80211_txq_enqueue(struct ieee80211_local *local,
 	struct fq *fq = &local->fq;
 	struct fq_tin *tin = &txqi->tin;
 
-	WARN_ONCE(skb_headroom(skb) < local->hw.extra_tx_headroom,
-		  "Insufficient headroom (%d bytes, need %d)\n",
-		  skb_headroom(skb), local->hw.extra_tx_headroom);
-
 	ieee80211_set_skb_enqueue_time(skb);
 	fq_tin_enqueue(fq, tin, skb,
 		       fq_skb_free_func,
