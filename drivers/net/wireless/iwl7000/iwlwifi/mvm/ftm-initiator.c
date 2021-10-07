@@ -543,7 +543,7 @@ iwl_mvm_ftm_put_target(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		rcu_read_lock();
 
 		sta = rcu_dereference(mvm->fw_id_to_mac_id[mvmvif->ap_sta_id]);
-		if (sta->mfp)
+		if (sta->mfp && (ftm_trigger_based(peer) || ftm_non_trigger_based(peer)))
 			FTM_PUT_FLAG(PMF);
 
 		rcu_read_unlock();
