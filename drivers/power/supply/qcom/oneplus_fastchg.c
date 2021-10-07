@@ -1055,7 +1055,7 @@ static int dash_read(struct fastchg_device_info *di)
 		bit = gpio_get_value(di->ap_data);
 		data |= bit<<(6-i);
 	}
-	pr_err("recv data:0x%x\n", data);
+	pr_debug("recv data:0x%x\n", data);
 	return data;
 }
 
@@ -1254,7 +1254,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				onplus_get_batt_remaining_capacity();
 				soc = onplus_get_battery_soc();
 				current_now = onplus_get_average_current();
-				pr_err("volt:%d,temp:%d,remain_cap:%d,soc:%d,current:%d\n",
+				pr_debug("volt:%d,temp:%d,remain_cap:%d,soc:%d,current:%d\n",
 				volt, temp, remain_cap, soc, current_now);
 				if (!di->batt_psy)
 					di->batt_psy =
