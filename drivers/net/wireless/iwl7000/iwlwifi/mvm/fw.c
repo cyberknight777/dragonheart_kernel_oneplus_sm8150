@@ -1318,6 +1318,14 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 		return;
 	}
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.tas_allowed &&
+	    dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.tas_allowed)) {
+		IWL_DEBUG_RADIO(mvm,
+				"System vendor matches dbg_cfg.tas_allowed %s\n",
+				mvm->trans->dbg_cfg.tas_allowed);
+	} else
+#endif
 	if (!dmi_check_system(dmi_tas_approved_list)) {
 		IWL_DEBUG_RADIO(mvm,
 				"System vendor '%s' is not in the approved list, disabling TAS.\n",
