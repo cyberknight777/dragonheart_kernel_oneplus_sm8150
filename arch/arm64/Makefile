@@ -74,7 +74,15 @@ else
 KBUILD_CFLAGS	+= -mgeneral-regs-only
 endif
 ifeq ($(CONFIG_ARCH_SM8150), y)
-KBUILD_CFLAGS  += -mcpu=cortex-a76.cortex-a55
+ifeq ($(cc-name),gcc)
+KBUILD_CFLAGS  += $(GC_FLAGS)
+KBUILD_AFLAGS  += $(GC_FLAGS)
+KBUILD_LDFLAGS += $(GC_FLAGS)
+else
+KBUILD_CFLAGS  += $(CL_FLAGS)
+KBUILD_AFLAGS  += $(CL_FLAGS)
+KBUILD_LDFLAGS += $(CL_FLAGS)
+endif
 endif
 KBUILD_CFLAGS	+= $(lseinstr) $(brokengasinst)
 KBUILD_CFLAGS	+= -fno-asynchronous-unwind-tables
