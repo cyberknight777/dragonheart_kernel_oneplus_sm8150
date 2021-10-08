@@ -73,7 +73,10 @@ KBUILD_CFLAGS	+= -mno-implicit-float
 else
 KBUILD_CFLAGS	+= -mgeneral-regs-only
 ifeq ($(CONFIG_ARCH_SM8150), y)
-KBUILD_CFLAGS  += -mcpu=cortex-a76.cortex-a55
+OPT_FLAGS += -O3 -mcpu=cortex-a76.cortex-a55+crypto+crc
+KBUILD_CFLAGS  += $(OPT_FLAGS)
+KBUILD_AFLAGS  += $(OPT_FLAGS)
+KBUILD_LDFLAGS += $(OPT_FLAGS)
 endif
 endif
 KBUILD_CFLAGS	+= $(lseinstr) $(brokengasinst)
