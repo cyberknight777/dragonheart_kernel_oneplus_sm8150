@@ -88,17 +88,11 @@ PTTG=1
 DEF_REG=0
 
 # Files/artifacts
-FILES=Image.gz-dtb
+FILES=Image
 
 # Build dtbo.img (select this only if your source has support to building dtbo.img)
 # 1 is YES | 0 is NO(default)
-BUILD_DTBO=0
-	if [ $BUILD_DTBO = 1 ]
-	then 
-		# Set this to your dtbo path. 
-		# Defaults in folder out/arch/arm64/boot/dts
-		DTBO_PATH="xiaomi/violet-sm6150-overlay.dtbo"
-	fi
+BUILD_DTBO=1
 
 # Sign the zipfile
 # 1 is YES | 0 is NO
@@ -305,8 +299,8 @@ build_kernel() {
 			then
 				msg "|| Building DTBO ||"
 				tg_post_msg "<code>Building DTBO..</code>"
-				python2 "$KERNEL_DIR/scripts/ufdt/libufdt/utils/src/mkdtboimg.py" \
-					create "$KERNEL_DIR/out/arch/arm64/boot/dtbo.img" --page_size=4096 "$KERNEL_DIR/out/arch/arm64/boot/dts/$DTBO_PATH"
+				make -j"$PROCS" O=out \
+					"${MAKE[@]}" 2>&1 dtbo.img dtb.img | tee dtbo.log
 			fi
 				gen_zip
 			else
@@ -326,6 +320,7 @@ gen_zip() {
 	if [ $BUILD_DTBO = 1 ]
 	then
 		mv "$KERNEL_DIR"/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
+		mv "$KERNEL_DIR"/out/arch/arm64/boot/dtb.img AnyKernel3/dtb.img
 	fi
 	cdir AnyKernel3
 	zip -r $ZIPNAME-$DEVICE-$VERSION . -x ".git*" -x "README.md" -x "*.zip"
