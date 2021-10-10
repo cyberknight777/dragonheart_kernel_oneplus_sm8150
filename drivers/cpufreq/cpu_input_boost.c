@@ -210,6 +210,11 @@ static int cpu_notifier_cb(struct notifier_block *nb, unsigned long action,
 		policy->min = CONFIG_IDLE_MIN_FREQ_PERF;
 		return NOTIFY_OK;
 	}
+	else if (cpumask_test_cpu(policy->cpu, cpu_prime_mask) &&
+		        test_bit(SCREEN_OFF, &b->state)) {
+	        policy->min = CONFIG_IDLE_MIN_FREQ_PERFP;
+		return NOTIFY_OK;
+	}
 
 	/*
 	 * Boost to policy->max if the boost frequency is higher. When
