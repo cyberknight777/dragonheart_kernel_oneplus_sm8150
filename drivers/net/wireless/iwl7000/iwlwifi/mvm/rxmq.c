@@ -131,11 +131,28 @@ static int iwl_mvm_create_skb(struct iwl_mvm *mvm, struct sk_buff *skb,
 
 	/*
 	 * For non monitor interface strip the bytes the RADA might not have
-	 * removed. As monitor interface cannot exist with other interfaces,
+	 * removed. As monitor interface cannot exist with other interfaces
 	 * this removal is safe.
 	 */
-	if (len > mic_crc_len && !ieee80211_hw_check(mvm->hw, RX_INCLUDES_FCS))
+	if (mic_crc_len && !ieee80211_hw_check(mvm->hw, RX_INCLUDES_FCS)) {
+		u32 pkt_flags = le32_to_cpu(pkt->len_n_flags);
+
+		/*
+		 * If RADA was not enabled then decryption was not performed so
+		 * the MIC cannot be removed.
+		 */
+		if (!(pkt_flags & FH_RSCSR_RADA_EN)) {
+			if (WARN_ON(crypt_len > mic_crc_len))
+				return -EINVAL;
+
+			mic_crc_len -= crypt_len;
+		}
+
+		if (WARN_ON(mic_crc_len > len))
+			return -EINVAL;
+
 		len -= mic_crc_len;
+	}
 
 	/* If frame is small enough to fit in skb->head, pull it completely.
 	 * If not, only pull ieee80211_hdr (including crypto if present, and
