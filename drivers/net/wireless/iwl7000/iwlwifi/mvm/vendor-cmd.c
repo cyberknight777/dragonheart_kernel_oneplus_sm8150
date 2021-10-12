@@ -454,20 +454,20 @@ static int iwl_vendor_rfim_get_table(struct wiphy *wiphy,
 
 	if (resp->status != RFI_FREQ_TABLE_OK) {
 		ret = -EINVAL;
-		goto out;
+		goto err;
 	}
 
-	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(rfim_info));
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(*rfim_info) + 100);
 	if (!skb) {
 		ret = -ENOMEM;
-		goto out;
+		goto err;
 	}
 
 	rfim_info = nla_nest_start(skb, IWL_MVM_VENDOR_ATTR_RFIM_INFO |
 					NLA_F_NESTED);
 	if (!rfim_info) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	for (i = 0; i < 4; i++) {
@@ -480,14 +480,16 @@ static int iwl_vendor_rfim_get_table(struct wiphy *wiphy,
 			    sizeof(resp->table[i].bands),
 			    resp->table[i].bands)) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 	}
 
 	nla_nest_end(skb, rfim_info);
 
-	ret = cfg80211_vendor_cmd_reply(skb);
-out:
+	kfree(resp);
+	return cfg80211_vendor_cmd_reply(skb);
+
+err:
 	kfree_skb(skb);
 	kfree(resp);
 	return ret;
