@@ -328,10 +328,10 @@ gen_zip() {
 		mv "$KERNEL_DIR"/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 	fi
 	cdir AnyKernel3
-	zip -r $ZIPNAME-$DEVICE-"$DATE" . -x ".git*" -x "README.md" -x "*.zip"
+	zip -r $ZIPNAME-$DEVICE-$VERSION . -x ".git*" -x "README.md" -x "*.zip"
 
 	## Prepare a final zip variable
-	ZIP_FINAL="$ZIPNAME-$DEVICE-$DATE"
+	ZIP_FINAL="$ZIPNAME-$DEVICE-$VERSION"
 
 	if [ $SIGN = 1 ]
 	then
