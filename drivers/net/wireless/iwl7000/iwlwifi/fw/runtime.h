@@ -159,7 +159,8 @@ struct iwl_fw_runtime {
 #ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	bool geo_enabled;
 #endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
-	union iwl_ppag_table_cmd ppag_table;
+	struct iwl_ppag_chain ppag_chains[IWL_NUM_CHAIN_LIMITS];
+	u32 ppag_flags;
 	u32 ppag_ver;
 	struct iwl_sar_offset_mapping_cmd sgom_table;
 	bool sgom_enabled;

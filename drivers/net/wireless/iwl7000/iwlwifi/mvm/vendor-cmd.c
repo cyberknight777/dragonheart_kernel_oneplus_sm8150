@@ -1087,10 +1087,9 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 	struct sk_buff *skb = NULL;
 	struct nlattr *nl_table;
 	int ret, per_chain_size, chain;
-	s8 *gain;
 
 	/* if ppag is disabled */
-	if (!mvm->fwrt.ppag_table.v1.flags)
+	if (!mvm->fwrt.ppag_flags)
 		return -ENOENT;
 
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, 180);
@@ -1104,18 +1103,12 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 		goto out;
 	}
 
-	if (mvm->fwrt.ppag_ver == 0) {
-		gain = mvm->fwrt.ppag_table.v1.gain[0];
-		per_chain_size = IWL_NUM_SUB_BANDS_V1;
-	} else {
-		gain = mvm->fwrt.ppag_table.v2.gain[0];
-		per_chain_size = IWL_NUM_SUB_BANDS_V2;
-	}
+	per_chain_size = (mvm->fwrt.ppag_ver == 0) ?
+		IWL_NUM_SUB_BANDS_V1 : IWL_NUM_SUB_BANDS_V2;
 
 	for (chain = 0; chain < IWL_NUM_CHAIN_LIMITS; chain++) {
-		int idx = chain * per_chain_size;
-
-		if (nla_put(skb, chain + 1, per_chain_size, &gain[idx])) {
+		if (nla_put(skb, chain + 1, per_chain_size,
+			    &mvm->fwrt.ppag_chains[chain].subbands[0])) {
 			ret = -ENOBUFS;
 			goto out;
 		}
