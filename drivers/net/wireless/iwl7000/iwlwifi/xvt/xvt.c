@@ -950,18 +950,36 @@ static int iwl_xvt_sar_init(struct iwl_xvt *xvt)
 				"WRDS SAR BIOS table invalid or unavailable. (%d)\n",
 				ret);
 		/*
-		 * If not available, don't fail and don't bother with EWRD.
-		 * Return 1 to tell that we can't use WGDS either.
-		 */
-		return 1;
-	}
+		 * If not available, don't fail and don't bother with EWRD and
+		 * WGDS */
+		if (!iwl_sar_get_wgds_table(&xvt->fwrt)) {
+			/*
+			 * If basic SAR is not available, we check for WGDS,
+			 * which should *not* be available either.  If it is
+			 * available, issue an error, because we can't use SAR
+			 * Geo without basic SAR.
+			 */
+			IWL_ERR(xvt, "BIOS contains WGDS but no WRDS\n");
+		}
+	} else {
+		ret = iwl_sar_get_ewrd_table(&xvt->fwrt);
+		/* if EWRD is not available, we can still use
+		 * WRDS, so don't fail */
+		if (ret < 0)
+			IWL_DEBUG_RADIO(xvt,
+					"EWRD SAR BIOS table invalid or unavailable. (%d)\n",
+					ret);
 
-	ret = iwl_sar_get_ewrd_table(&xvt->fwrt);
-	/* if EWRD is not available, we can still use WRDS, so don't fail */
-	if (ret < 0)
-		IWL_DEBUG_RADIO(xvt,
-				"EWRD SAR BIOS table invalid or unavailable. (%d)\n",
-				ret);
+		/* read geo SAR table */
+		if (iwl_sar_geo_support(&xvt->fwrt)) {
+			ret = iwl_sar_get_wgds_table(&xvt->fwrt);
+			if (ret < 0)
+				IWL_DEBUG_RADIO(xvt,
+						"Geo SAR BIOS table invalid or unavailable. (%d)\n",
+						ret);
+			/* we don't fail if the table is not available */
+		}
+	}
 
 	ret = iwl_xvt_sar_select_profile(xvt, 1, 1);
 	/*
