@@ -845,7 +845,7 @@ static u16 rtw_get_rsvd_page_probe_req_size(struct rtw_dev *rtwdev,
 			continue;
 		if ((!ssid && !rsvd_pkt->ssid) ||
 		    rtw_ssid_equal(rsvd_pkt->ssid, ssid))
-			size = rsvd_pkt->skb->len;
+			size = rsvd_pkt->probe_req_size;
 	}
 
 	return size;
@@ -1073,6 +1073,8 @@ static struct sk_buff *rtw_get_rsvd_page_skb(struct ieee80211_hw *hw,
 							 ssid->ssid_len, 0);
 		else
 			skb_new = ieee80211_probereq_get(hw, vif->addr, NULL, 0, 0);
+		if (skb_new)
+			rsvd_pkt->probe_req_size = (u16)skb_new->len;
 		break;
 	case RSVD_NLO_INFO:
 		skb_new = rtw_nlo_info_get(hw);
@@ -1574,29 +1576,16 @@ free:
 	return ret;
 }
 
-int rtw_dump_drv_rsvd_page(struct rtw_dev *rtwdev,
-			   u32 offset, u32 size, u32 *buf)
+static void rtw_fw_read_fifo_page(struct rtw_dev *rtwdev, u32 offset, u32 size,
+				  u32 *buf, u32 residue, u16 start_pg)
 {
-	struct rtw_fifo_conf *fifo = &rtwdev->fifo;
-	u32 residue, i;
-	u16 start_pg;
+	u32 i;
 	u16 idx = 0;
 	u16 ctl;
 	u8 rcr;
 
-	if (size & 0x3) {
-		rtw_warn(rtwdev, "should be 4-byte aligned\n");
-		return -EINVAL;
-	}
-
-	offset += fifo->rsvd_boundary << TX_PAGE_SIZE_SHIFT;
-	residue = offset & (FIFO_PAGE_SIZE - 1);
-	start_pg = offset >> FIFO_PAGE_SIZE_SHIFT;
-	start_pg += RSVD_PAGE_START_ADDR;
-
 	rcr = rtw_read8(rtwdev, REG_RCR + 2);
 	ctl = rtw_read16(rtwdev, REG_PKTBUF_DBG_CTRL) & 0xf000;
-
 	/* disable rx clock gate */
 	rtw_write8(rtwdev, REG_RCR, rcr | BIT(3));
 
@@ -1618,12 +1607,71 @@ int rtw_dump_drv_rsvd_page(struct rtw_dev *rtwdev,
 out:
 	rtw_write16(rtwdev, REG_PKTBUF_DBG_CTRL, ctl);
 	rtw_write8(rtwdev, REG_RCR + 2, rcr);
+}
+
+static void rtw_fw_read_fifo(struct rtw_dev *rtwdev, enum rtw_fw_fifo_sel sel,
+			     u32 offset, u32 size, u32 *buf)
+{
+	struct rtw_chip_info *chip = rtwdev->chip;
+	u32 start_pg, residue;
+
+	if (sel >= RTW_FW_FIFO_MAX) {
+		rtw_dbg(rtwdev, RTW_DBG_FW, "wrong fw fifo sel\n");
+		return;
+	}
+	if (sel == RTW_FW_FIFO_SEL_RSVD_PAGE)
+		offset += rtwdev->fifo.rsvd_boundary << TX_PAGE_SIZE_SHIFT;
+	residue = offset & (FIFO_PAGE_SIZE - 1);
+	start_pg = (offset >> FIFO_PAGE_SIZE_SHIFT) + chip->fw_fifo_addr[sel];
+
+	rtw_fw_read_fifo_page(rtwdev, offset, size, buf, residue, start_pg);
+}
+
+static bool rtw_fw_dump_check_size(struct rtw_dev *rtwdev,
+				   enum rtw_fw_fifo_sel sel,
+				   u32 start_addr, u32 size)
+{
+	switch (sel) {
+	case RTW_FW_FIFO_SEL_TX:
+	case RTW_FW_FIFO_SEL_RX:
+		if ((start_addr + size) > rtwdev->chip->fw_fifo_addr[sel])
+			return false;
+		/*fall through*/
+	default:
+		return true;
+	}
+}
+
+int rtw_fw_dump_fifo(struct rtw_dev *rtwdev, u8 fifo_sel, u32 addr, u32 size,
+		     u32 *buffer)
+{
+	if (!rtwdev->chip->fw_fifo_addr[0]) {
+		rtw_dbg(rtwdev, RTW_DBG_FW, "chip not support dump fw fifo\n");
+		return -ENOTSUPP;
+	}
+
+	if (size == 0 || !buffer)
+		return -EINVAL;
+
+	if (size & 0x3) {
+		rtw_dbg(rtwdev, RTW_DBG_FW, "not 4byte alignment\n");
+		return -EINVAL;
+	}
+
+	if (!rtw_fw_dump_check_size(rtwdev, fifo_sel, addr, size)) {
+		rtw_dbg(rtwdev, RTW_DBG_FW, "fw fifo dump size overflow\n");
+		return -EINVAL;
+	}
+
+	rtw_fw_read_fifo(rtwdev, fifo_sel, addr, size, buffer);
+
 	return 0;
 }
 
 static void __rtw_fw_update_pkt(struct rtw_dev *rtwdev, u8 pkt_id, u16 size,
 				u8 location)
 {
+	struct rtw_chip_info *chip = rtwdev->chip;
 	u8 h2c_pkt[H2C_PKT_SIZE] = {0};
 	u16 total_size = H2C_PKT_HDR_SIZE + H2C_PKT_UPDATE_PKT_LEN;
 
@@ -1634,6 +1682,7 @@ static void __rtw_fw_update_pkt(struct rtw_dev *rtwdev, u8 pkt_id, u16 size,
 	UPDATE_PKT_SET_LOCATION(h2c_pkt, location);
 
 	/* include txdesc size */
+	size += chip->tx_pkt_desc_sz;
 	UPDATE_PKT_SET_SIZE(h2c_pkt, size);
 
 	rtw_fw_send_h2c_packet(rtwdev, h2c_pkt);
@@ -1643,7 +1692,7 @@ void rtw_fw_update_pkt_probe_req(struct rtw_dev *rtwdev,
 				 struct cfg80211_ssid *ssid)
 {
 	u8 loc;
-	u32 size;
+	u16 size;
 
 	loc = rtw_get_rsvd_page_probe_req_location(rtwdev, ssid);
 	if (!loc) {
