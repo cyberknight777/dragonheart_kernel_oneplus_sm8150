@@ -15,11 +15,17 @@
 #include <linux/cpufreq.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/kprofiles.h>
 
 static void cpufreq_gov_performance_limits(struct cpufreq_policy *policy)
 {
+  if (active_mode() == 2 || active_mode() == 3 || active_mode() == 0) {
 	pr_debug("setting to %u kHz\n", policy->max);
 	__cpufreq_driver_target(policy, policy->max, CPUFREQ_RELATION_H);
+  } else {
+       pr_debug("setting to %u kHz\n", policy->min);
+       __cpufreq_driver_target(policy, policy->min, CPUFREQ_RELATION_H);
+  }
 }
 
 static struct cpufreq_governor cpufreq_gov_performance = {
