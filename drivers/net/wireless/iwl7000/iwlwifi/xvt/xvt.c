@@ -485,25 +485,12 @@ static void iwl_xvt_rx_ba_notif(struct iwl_xvt *xvt,
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
 		struct iwl_mvm_compressed_ba_notif *ba_res = (void *)pkt->data;
-		u8 tid;
 		u16 queue;
 		u16 tfd_idx;
 
 		if (!le16_to_cpu(ba_res->tfd_cnt))
 			goto out;
 
-		/*
-		 * TODO:
-		 * When supporting multi TID aggregations - we need to move
-		 * next_reclaimed to be per TXQ and not per TID or handle it
-		 * in a different way.
-		 * This will go together with SN and AddBA offload and cannot
-		 * be handled properly for now.
-		 */
-		WARN_ON(le16_to_cpu(ba_res->ra_tid_cnt) != 1);
-		tid = ba_res->ra_tid[0].tid;
-		if (tid == IWL_MGMT_TID)
-			tid = IWL_MAX_TID_COUNT;
 		queue = le16_to_cpu(ba_res->tfd[0].q_num);
 		tfd_idx = le16_to_cpu(ba_res->tfd[0].tfd_index);
 
