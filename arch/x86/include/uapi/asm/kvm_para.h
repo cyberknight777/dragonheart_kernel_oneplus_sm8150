@@ -26,6 +26,7 @@
 #define KVM_FEATURE_PV_EOI		6
 #define KVM_FEATURE_PV_UNHALT		7
 #define KVM_FEATURE_ASYNC_PF_VMEXIT	10
+#define KVM_FEATURE_HOST_SUSPEND_TIME	30
 #define KVM_FEATURE_PREEMPT_COUNT	31
 
 /* The last 8 bits are used to indicate how to interpret the flags field
@@ -43,6 +44,7 @@
 #define MSR_KVM_ASYNC_PF_EN 0x4b564d02
 #define MSR_KVM_STEAL_TIME  0x4b564d03
 #define MSR_KVM_PV_EOI_EN      0x4b564d04
+#define MSR_KVM_HOST_SUSPEND_TIME      0x4b564d98
 #define MSR_KVM_PREEMPT_COUNT	0x4b564d99
 
 struct kvm_steal_time {
@@ -61,6 +63,10 @@ struct kvm_clock_pairing {
 	__u64 tsc;
 	__u32 flags;
 	__u32 pad[9];
+};
+
+struct kvm_suspend_time {
+	__u64   suspend_time_ns;
 };
 
 #define KVM_STEAL_ALIGNMENT_BITS 5
