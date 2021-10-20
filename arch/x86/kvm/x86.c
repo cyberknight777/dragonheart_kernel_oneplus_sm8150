@@ -1042,8 +1042,7 @@ static u32 emulated_msrs[] = {
 	HV_X64_MSR_VP_RUNTIME,
 	HV_X64_MSR_SCONTROL,
 	HV_X64_MSR_STIMER0_CONFIG,
-	HV_X64_MSR_APIC_ASSIST_PAGE, MSR_KVM_ASYNC_PF_EN, MSR_KVM_STEAL_TIME,
-	MSR_KVM_PV_EOI_EN,
+	MSR_KVM_HOST_SUSPEND_TIME,
 #ifdef CONFIG_KVM_HETEROGENEOUS_RT
 	MSR_KVM_PREEMPT_COUNT,
 #endif
@@ -2461,6 +2460,15 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 			vcpu->arch.preempt_count.enabled = 1;
 		break;
 #endif
+	case MSR_KVM_HOST_SUSPEND_TIME:
+		if (!(data & KVM_MSR_ENABLED))
+			break;
+
+		if (kvm_init_suspend_time_ghc(vcpu->kvm, data & ~1ULL))
+			return 1;
+
+		vcpu->kvm->arch.msr_suspend_time = data;
+		break;
 	case MSR_IA32_MCG_CTL:
 	case MSR_IA32_MCG_STATUS:
 	case MSR_IA32_MC0_CTL ... MSR_IA32_MCx_CTL(KVM_MAX_MCE_BANKS) - 1:
@@ -2706,6 +2714,9 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		msr_info->data = vcpu->arch.preempt_count.msr_val;
 		break;
 #endif
+	case MSR_KVM_HOST_SUSPEND_TIME:
+		msr_info->data = vcpu->kvm->arch.msr_suspend_time;
+		break;
 	case MSR_IA32_P5_MC_ADDR:
 	case MSR_IA32_P5_MC_TYPE:
 	case MSR_IA32_MCG_CAP:
@@ -7103,6 +7114,93 @@ void kvm_vcpu_reload_apic_access_page(struct kvm_vcpu *vcpu)
 }
 EXPORT_SYMBOL_GPL(kvm_vcpu_reload_apic_access_page);
 
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+bool virt_suspend_time_enabled(struct kvm *kvm)
+{
+	return kvm->arch.msr_suspend_time & KVM_MSR_ENABLED;
+}
+
+/*
+ * Do per-vcpu suspend time adjustment (tsc) and
+ * make an interrupt to notify it.
+ */
+static void vcpu_do_suspend_time_adjustment(struct kvm_vcpu *vcpu,
+					    u64 total_ns)
+{
+	struct kvm_lapic_irq irq = {
+		.delivery_mode = APIC_DM_FIXED,
+		.vector = HYPERVISOR_CALLBACK_VECTOR
+	};
+	u64 last_suspend_duration = 0;
+	s64 adj;
+
+	spin_lock(&vcpu->suspend_time_ns_lock);
+	if (total_ns > vcpu->suspend_time_ns) {
+		last_suspend_duration = total_ns - vcpu->suspend_time_ns;
+		vcpu->suspend_time_ns = total_ns;
+	}
+	spin_unlock(&vcpu->suspend_time_ns_lock);
+
+	if (!last_suspend_duration) {
+		/* It looks like the suspend is not happened yet. Retry. */
+		kvm_make_request(KVM_REQ_SUSPEND_TIME_ADJ, vcpu);
+		return;
+	}
+
+	adj = __this_cpu_read(cpu_tsc_khz) *
+		div_u64(last_suspend_duration, 1000000);
+	adjust_tsc_offset_host(vcpu, -adj);
+	/*
+	 * This request should be processed before
+	 * the first vmenter after resume to avoid
+	 * an unadjusted TSC value is observed.
+	 */
+	kvm_make_request(KVM_REQ_MASTERCLOCK_UPDATE, vcpu);
+	kvm_write_suspend_time(vcpu->kvm);
+	if (!kvm_apic_set_irq(vcpu, &irq, NULL))
+		pr_err("kvm: failed to set suspend time irq\n");
+}
+
+/*
+ * Do kvm-wide suspend time adjustment (kvm-clock).
+ */
+static void kvm_do_suspend_time_adjustment(struct kvm *kvm, u64 total_ns)
+{
+	spin_lock(&kvm->suspend_time_ns_lock);
+	if (total_ns > kvm->suspend_time_ns) {
+		u64 last_suspend_duration = total_ns - kvm->suspend_time_ns;
+		/*
+		 * Move the offset of kvm_clock here as if it is stopped
+		 * during the suspension.
+		 */
+		kvm->arch.kvmclock_offset -= last_suspend_duration;
+
+		/* suspend_time is accumulated per VM. */
+		kvm->suspend_time_ns += last_suspend_duration;
+		/*
+		 * This adjustment will be reflected to the struct provided
+		 * from the guest via MSR_KVM_HOST_SUSPEND_TIME before
+		 * the notification interrupt is injected.
+		 */
+		kvm_make_all_cpus_request(kvm, KVM_REQ_CLOCK_UPDATE);
+	}
+	spin_unlock(&kvm->suspend_time_ns_lock);
+}
+
+static void kvm_adjust_suspend_time(struct kvm_vcpu *vcpu)
+{
+	u64 total_ns = kvm_total_suspend_time(vcpu->kvm);
+	/* Do kvm-wide adjustment (kvm-clock) */
+	kvm_do_suspend_time_adjustment(vcpu->kvm, total_ns);
+	/* Do per-vcpu adjustment (tsc) */
+	vcpu_do_suspend_time_adjustment(vcpu, total_ns);
+}
+#else
+static void kvm_adjust_suspend_time(struct kvm_vcpu *vcpu)
+{
+}
+#endif
+
 /*
  * Returns 1 to let vcpu_run() continue the guest execution loop without
  * exiting to the userspace.  Otherwise, the value will be returned to the
@@ -7118,6 +7216,8 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	bool req_immediate_exit = false;
 
 	if (kvm_request_pending(vcpu)) {
+		if (kvm_check_request(KVM_REQ_SUSPEND_TIME_ADJ, vcpu))
+			kvm_adjust_suspend_time(vcpu);
 		if (kvm_check_request(KVM_REQ_MMU_RELOAD, vcpu))
 			kvm_mmu_unload(vcpu);
 		if (kvm_check_request(KVM_REQ_MIGRATE_TIMER, vcpu))

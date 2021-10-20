@@ -823,6 +823,8 @@ struct kvm_arch {
 	bool ept_identity_pagetable_done;
 	gpa_t ept_identity_map_addr;
 
+	u64 msr_suspend_time;
+
 	unsigned long irq_sources_bitmap;
 	s64 kvmclock_offset;
 	raw_spinlock_t tsc_write_lock;

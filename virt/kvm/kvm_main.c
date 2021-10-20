@@ -320,6 +320,11 @@ int kvm_vcpu_init(struct kvm_vcpu *vcpu, struct kvm *kvm, unsigned id)
 	kvm_vcpu_set_dy_eligible(vcpu, false);
 	vcpu->preempted = false;
 
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+	vcpu->suspend_time_ns = kvm->suspend_time_ns;
+	spin_lock_init(&vcpu->suspend_time_ns_lock);
+#endif
+
 	r = kvm_arch_vcpu_init(vcpu);
 	if (r < 0)
 		goto fail_free_run;
@@ -557,11 +562,69 @@ static int kvm_init_mmu_notifier(struct kvm *kvm)
 #endif /* CONFIG_MMU_NOTIFIER && KVM_ARCH_WANT_MMU_NOTIFIER */
 
 #ifdef CONFIG_HAVE_KVM_PM_NOTIFIER
+static int kvm_suspend_notifier(struct kvm *kvm)
+{
+	struct kvm_vcpu *vcpu;
+	int i;
+
+	if (!virt_suspend_time_enabled(kvm))
+		return NOTIFY_DONE;
+
+	mutex_lock(&kvm->lock);
+	kvm_for_each_vcpu(i, vcpu, kvm)
+		kvm_make_request(KVM_REQ_SUSPEND_TIME_ADJ, vcpu);
+	mutex_unlock(&kvm->lock);
+
+	return NOTIFY_DONE;
+}
+
+static int kvm_resume_notifier(struct kvm *kvm)
+{
+	struct kvm_vcpu *vcpu;
+	int i;
+
+	if (!virt_suspend_time_enabled(kvm))
+		return NOTIFY_DONE;
+
+	mutex_lock(&kvm->lock);
+	kvm_for_each_vcpu(i, vcpu, kvm) {
+		/*
+		 * Clear KVM_REQ_SUSPEND_TIME_ADJ if the suspend injection is
+		 * not needed (e.g. suspend failure)
+		 * The following condition is also true when the adjustment is
+		 * already done and it is safe to clear the request again here.
+		 */
+		if (kvm_total_suspend_time(kvm) ==
+		    vcpu_suspend_time_injected(vcpu))
+			kvm_clear_request(KVM_REQ_SUSPEND_TIME_ADJ, vcpu);
+	}
+	mutex_unlock(&kvm->lock);
+
+	return NOTIFY_DONE;
+}
+
+static int kvm_pm_notifier(struct kvm *kvm, unsigned long state)
+{
+	switch (state) {
+	case PM_HIBERNATION_PREPARE:
+	case PM_SUSPEND_PREPARE:
+		return kvm_suspend_notifier(kvm);
+	case PM_POST_HIBERNATION:
+	case PM_POST_SUSPEND:
+		return kvm_resume_notifier(kvm);
+	}
+
+	return NOTIFY_DONE;
+}
+
 static int kvm_pm_notifier_call(struct notifier_block *bl,
 				unsigned long state,
 				void *unused)
 {
 	struct kvm *kvm = container_of(bl, struct kvm, pm_notifier);
+
+	if (kvm_pm_notifier(kvm, state) != NOTIFY_DONE)
+		return NOTIFY_BAD;
 
 	return kvm_arch_pm_notifier(kvm, state);
 }
@@ -587,6 +650,26 @@ static void kvm_destroy_pm_notifier(struct kvm *kvm)
 {
 }
 #endif /* CONFIG_HAVE_KVM_PM_NOTIFIER */
+
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+void kvm_write_suspend_time(struct kvm *kvm)
+{
+	struct kvm_suspend_time st;
+
+	st.suspend_time_ns = kvm->suspend_time_ns;
+	kvm_write_guest_cached(kvm, &kvm->suspend_time_ghc, &st, sizeof(st));
+}
+
+int kvm_init_suspend_time_ghc(struct kvm *kvm, gpa_t gpa)
+{
+	if (kvm_gfn_to_hva_cache_init(kvm, &kvm->suspend_time_ghc, gpa,
+				      sizeof(struct kvm_suspend_time)))
+		return 1;
+
+	kvm_write_suspend_time(kvm);
+	return 0;
+}
+#endif
 
 static struct kvm_memslots *kvm_alloc_memslots(void)
 {
@@ -739,6 +822,11 @@ static struct kvm *kvm_create_vm(unsigned long type)
 
 #ifdef CONFIG_HAVE_KVM_IRQFD
 	INIT_HLIST_HEAD(&kvm->irq_ack_notifier_list);
+#endif
+
+#ifdef CONFIG_KVM_VIRT_SUSPEND_TIMING
+	spin_lock_init(&kvm->suspend_time_ns_lock);
+	kvm->base_offs_boot_ns = ktime_get_offs_boot_ns();
 #endif
 
 	BUILD_BUG_ON(KVM_MEM_SLOTS_NUM > SHRT_MAX);
