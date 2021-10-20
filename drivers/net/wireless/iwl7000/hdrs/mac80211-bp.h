@@ -2720,6 +2720,14 @@ static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 #define cfg80211_unregister_netdevice(n) unregister_netdevice(n)
 #define cfg80211_sched_scan_stopped_locked(w, r) cfg80211_sched_scan_stopped_rtnl(w, r)
 #define ASSOC_REQ_DISABLE_HE BIT(4)
+static inline void __iwl7000_cfg80211_unregister_wdev(struct wireless_dev *wdev)
+{
+	if (wdev->netdev)
+		unregister_netdevice(wdev->netdev);
+	else
+		cfg80211_unregister_wdev(wdev);
+}
+#define cfg80211_unregister_wdev __iwl7000_cfg80211_unregister_wdev
 #endif /* < 5.12 */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
