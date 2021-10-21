@@ -3697,11 +3697,8 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 	} else if (!ieee80211_sta_wmm_params(local, sdata, elems->wmm_param,
 					     elems->wmm_param_len,
 					     elems->mu_edca_param_set)) {
-		/* still enable QoS since we might have HT/VHT
-		 * and wmm parameter are present
-		 */
-		if (elems->wmm_param)
-			ieee80211_set_wmm_default(sdata, false, true);
+		/* still enable QoS since we might have HT/VHT */
+		ieee80211_set_wmm_default(sdata, false, true);
 		/* set the disable-WMM flag in this case to disable
 		 * tracking WMM parameter changes in the beacon if
 		 * the parameters weren't actually valid. Doing so
