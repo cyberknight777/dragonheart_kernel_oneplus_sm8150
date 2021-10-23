@@ -63,7 +63,7 @@ ARCH=arm64
 MODEL="OnePlus 7 Series"
 
 # The codename of the device
-DEVICE="op7"
+DEVICE="op7-sdcardfs"
 
 # The defconfig which should be used. Get it from config.gz from
 # your device or check source
