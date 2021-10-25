@@ -128,7 +128,6 @@
  */
 
 #include "../workqueue_internal.h"
-#include <uapi/linux/sched/types.h>
 #include <linux/sched/loadavg.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
@@ -141,11 +140,16 @@
 #include <linux/file.h>
 #include <linux/poll.h>
 #include <linux/psi.h>
+#include <linux/oom.h>
 #include "sched.h"
+
+#define CREATE_TRACE_POINTS
+#include <trace/events/psi.h>
 
 static int psi_bug __read_mostly;
 
 DEFINE_STATIC_KEY_FALSE(psi_disabled);
+DEFINE_STATIC_KEY_TRUE(psi_cgroups_enabled);
 
 #ifdef CONFIG_PSI_DEFAULT_DISABLED
 static bool psi_enable;
@@ -188,7 +192,7 @@ static void group_init(struct psi_group *group)
 		seqcount_init(&per_cpu_ptr(group->pcpu, cpu)->seq);
 	group->avg_last_update = sched_clock();
 	group->avg_next_update = group->avg_last_update + psi_period;
-	INIT_DELAYED_WORK(&group->avgs_work, psi_avgs_work);
+	INIT_DEFERRABLE_WORK(&group->avgs_work, psi_avgs_work);
 	mutex_init(&group->avgs_lock);
 	/* Init trigger-related members */
 	atomic_set(&group->poll_scheduled, 0);
@@ -209,6 +213,9 @@ void __init psi_init(void)
 		static_branch_enable(&psi_disabled);
 		return;
 	}
+
+	if (!cgroup_psi_enabled())
+		static_branch_disable(&psi_cgroups_enabled);
 
 	psi_period = jiffies_to_nsecs(PSI_FREQ);
 	group_init(&psi_system);
@@ -443,6 +450,41 @@ static void psi_avgs_work(struct work_struct *work)
 	mutex_unlock(&group->avgs_lock);
 }
 
+#ifdef CONFIG_PSI_FTRACE
+
+#define TOKB(x) ((x) * (PAGE_SIZE / 1024))
+
+static void trace_event_helper(struct psi_group *group)
+{
+	struct zone *zone;
+	unsigned long wmark;
+	unsigned long free;
+	unsigned long cma;
+	unsigned long file;
+
+	u64 mem_some_delta = group->total[PSI_POLL][PSI_MEM_SOME] -
+			group->polling_total[PSI_MEM_SOME];
+	u64 mem_full_delta = group->total[PSI_POLL][PSI_MEM_FULL] -
+			group->polling_total[PSI_MEM_FULL];
+
+	for_each_populated_zone(zone) {
+		wmark = TOKB(high_wmark_pages(zone));
+		free = TOKB(zone_page_state(zone, NR_FREE_PAGES));
+		cma = TOKB(zone_page_state(zone, NR_FREE_CMA_PAGES));
+		file = TOKB(zone_page_state(zone, NR_ZONE_ACTIVE_FILE) +
+			zone_page_state(zone, NR_ZONE_INACTIVE_FILE));
+
+		trace_psi_window_vmstat(
+			mem_some_delta, mem_full_delta, zone->name, wmark,
+			free, cma, file);
+	}
+}
+#else
+static void trace_event_helper(struct psi_group *group)
+{
+}
+#endif /* CONFIG_PSI_FTRACE */
+
 /* Trigger tracking window manupulations */
 static void window_reset(struct psi_window *win, u64 now, u64 value,
 			 u64 prev_growth)
@@ -535,17 +577,92 @@ static u64 update_triggers(struct psi_group *group, u64 now)
 		if (now < t->last_event_time + t->win.size)
 			continue;
 
+		trace_psi_event(t->state, t->threshold);
+
 		/* Generate an event */
-		if (cmpxchg(&t->event, 0, 1) == 0)
+		if (cmpxchg(&t->event, 0, 1) == 0) {
+			if (!strcmp(t->comm, ULMK_MAGIC))
+				mod_timer(&t->wdog_timer, jiffies +
+					  nsecs_to_jiffies(2 * t->win.size));
 			wake_up_interruptible(&t->event_wait);
+		}
 		t->last_event_time = now;
 	}
 
+	trace_event_helper(group);
 	if (new_stall)
 		memcpy(group->polling_total, total,
 				sizeof(group->polling_total));
 
 	return now + group->poll_min_period;
+}
+
+/*
+ * Allows sending more than one event per window.
+ */
+void psi_emergency_trigger(void)
+{
+	struct psi_group *group = &psi_system;
+	struct psi_trigger *t;
+	u64 now;
+
+	if (static_branch_likely(&psi_disabled))
+		return;
+
+	/*
+	 * In unlikely case that OOM was triggered while adding/
+	 * removing triggers.
+	 */
+	if (!mutex_trylock(&group->trigger_lock))
+		return;
+
+	now = sched_clock();
+	list_for_each_entry(t, &group->triggers, node) {
+		if (strcmp(t->comm, ULMK_MAGIC))
+			continue;
+		trace_psi_event(t->state, t->threshold);
+
+		/* Generate an event */
+		if (cmpxchg(&t->event, 0, 1) == 0) {
+			mod_timer(&t->wdog_timer, jiffies +
+					  nsecs_to_jiffies(2 * t->win.size));
+			wake_up_interruptible(&t->event_wait);
+		}
+		t->last_event_time = now;
+	}
+	mutex_unlock(&group->trigger_lock);
+}
+
+/*
+ * Return true if any trigger is active.
+ */
+bool psi_is_trigger_active(void)
+{
+	struct psi_group *group = &psi_system;
+	struct psi_trigger *t;
+	bool trigger_active = false;
+	u64 now;
+
+	if (static_branch_likely(&psi_disabled))
+		return false;
+
+	/*
+	 * In unlikely case that OOM was triggered while adding/
+	 * removing triggers.
+	 */
+	if (!mutex_trylock(&group->trigger_lock))
+		return true;
+
+	now = sched_clock();
+	list_for_each_entry(t, &group->triggers, node) {
+		if (strcmp(t->comm, ULMK_MAGIC))
+			continue;
+
+		if (now <= t->last_event_time + t->win.size)
+			trigger_active = true;
+	}
+	mutex_unlock(&group->trigger_lock);
+	return trigger_active;
 }
 
 /*
@@ -723,23 +840,23 @@ static u32 psi_group_change(struct psi_group *group, int cpu,
 
 static struct psi_group *iterate_groups(struct task_struct *task, void **iter)
 {
+	if (*iter == &psi_system)
+		return NULL;
+
 #ifdef CONFIG_CGROUPS
-	struct cgroup *cgroup = NULL;
+	if (static_branch_likely(&psi_cgroups_enabled)) {
+		struct cgroup *cgroup = NULL;
 
-	if (!*iter)
-		cgroup = task->cgroups->dfl_cgrp;
-	else if (*iter == &psi_system)
-		return NULL;
-	else
-		cgroup = cgroup_parent(*iter);
+		if (!*iter)
+			cgroup = task->cgroups->dfl_cgrp;
+		else
+			cgroup = cgroup_parent(*iter);
 
-	if (cgroup && cgroup_parent(cgroup)) {
-		*iter = cgroup;
-		return cgroup_psi(cgroup);
+		if (cgroup && cgroup_parent(cgroup)) {
+			*iter = cgroup;
+			return cgroup_psi(cgroup);
+		}
 	}
-#else
-	if (*iter)
-		return NULL;
 #endif
 	*iter = &psi_system;
 	return &psi_system;
@@ -1048,6 +1165,8 @@ struct psi_trigger *psi_trigger_create(struct psi_group *group,
 	t->last_event_time = 0;
 	init_waitqueue_head(&t->event_wait);
 	kref_init(&t->refcount);
+	get_task_comm(t->comm, current);
+	timer_setup(&t->wdog_timer, ulmk_watchdog_fn, TIMER_DEFERRABLE);
 
 	mutex_lock(&group->trigger_lock);
 
@@ -1120,6 +1239,7 @@ static void psi_trigger_destroy(struct kref *ref)
 		}
 	}
 
+	del_timer_sync(&t->wdog_timer);
 	mutex_unlock(&group->trigger_lock);
 
 	/*
@@ -1159,21 +1279,21 @@ void psi_trigger_replace(void **trigger_ptr, struct psi_trigger *new)
 		kref_put(&old->refcount, psi_trigger_destroy);
 }
 
-unsigned int psi_trigger_poll(void **trigger_ptr, struct file *file,
-			      poll_table *wait)
+__poll_t psi_trigger_poll(void **trigger_ptr,
+				struct file *file, poll_table *wait)
 {
-	unsigned int ret = DEFAULT_POLLMASK;
+	__poll_t ret = DEFAULT_POLLMASK;
 	struct psi_trigger *t;
 
 	if (static_branch_likely(&psi_disabled))
-		return DEFAULT_POLLMASK | POLLERR | POLLPRI;
+		return DEFAULT_POLLMASK | EPOLLERR | EPOLLPRI;
 
 	rcu_read_lock();
 
 	t = rcu_dereference(*(void __rcu __force **)trigger_ptr);
 	if (!t) {
 		rcu_read_unlock();
-		return DEFAULT_POLLMASK | POLLERR | POLLPRI;
+		return DEFAULT_POLLMASK | EPOLLERR | EPOLLPRI;
 	}
 	kref_get(&t->refcount);
 
@@ -1181,8 +1301,11 @@ unsigned int psi_trigger_poll(void **trigger_ptr, struct file *file,
 
 	poll_wait(file, &t->event_wait, wait);
 
-	if (cmpxchg(&t->event, 1, 0) == 1)
-		ret |= POLLPRI;
+	if (cmpxchg(&t->event, 1, 0) == 1) {
+		ret |= EPOLLPRI;
+		if (!strcmp(t->comm, ULMK_MAGIC))
+			ulmk_watchdog_pet(&t->wdog_timer);
+	}
 
 	kref_put(&t->refcount, psi_trigger_destroy);
 
@@ -1240,7 +1363,7 @@ static ssize_t psi_cpu_write(struct file *file, const char __user *user_buf,
 	return psi_write(file, user_buf, nbytes, PSI_CPU);
 }
 
-static unsigned int psi_fop_poll(struct file *file, poll_table *wait)
+static __poll_t psi_fop_poll(struct file *file, poll_table *wait)
 {
 	struct seq_file *seq = file->private_data;
 
