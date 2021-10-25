@@ -117,9 +117,9 @@ static int binderfs_binder_device_create(struct inode *ref_inode,
 	/* Reserve new minor number for the new device. */
 	mutex_lock(&binderfs_minors_mutex);
 	if (++info->device_count <= info->mount_opts.max)
-		minor = ida_alloc_max(&binderfs_minors,
-				      use_reserve ? BINDERFS_MAX_MINOR :
-						    BINDERFS_MAX_MINOR_CAPPED,
+	        minor = ida_simple_get(&binderfs_minors, 0,
+				      use_reserve ? BINDERFS_MAX_MINOR + 1:
+						    BINDERFS_MAX_MINOR_CAPPED + 1,
 				      GFP_KERNEL);
 	else
 		minor = -ENOSPC;
@@ -201,7 +201,7 @@ err:
 	kfree(device);
 	mutex_lock(&binderfs_minors_mutex);
 	--info->device_count;
-	ida_free(&binderfs_minors, minor);
+	ida_remove(&binderfs_minors, minor);
 	mutex_unlock(&binderfs_minors_mutex);
 	iput(inode);
 
@@ -255,7 +255,7 @@ static void binderfs_evict_inode(struct inode *inode)
 
 	mutex_lock(&binderfs_minors_mutex);
 	--info->device_count;
-	ida_free(&binderfs_minors, device->miscdev.minor);
+	ida_remove(&binderfs_minors, device->miscdev.minor);
 	mutex_unlock(&binderfs_minors_mutex);
 
 	if (refcount_dec_and_test(&device->ref)) {
@@ -430,9 +430,9 @@ static int binderfs_binder_ctl_create(struct super_block *sb)
 
 	/* Reserve a new minor number for the new device. */
 	mutex_lock(&binderfs_minors_mutex);
-	minor = ida_alloc_max(&binderfs_minors,
-			      use_reserve ? BINDERFS_MAX_MINOR :
-					    BINDERFS_MAX_MINOR_CAPPED,
+	minor = ida_simple_get(&binderfs_minors, 0,
+			      use_reserve ? BINDERFS_MAX_MINOR + 1:
+					    BINDERFS_MAX_MINOR_CAPPED + 1,
 			      GFP_KERNEL);
 	mutex_unlock(&binderfs_minors_mutex);
 	if (minor < 0) {
