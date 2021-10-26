@@ -870,9 +870,7 @@ read_table:
 	}
 
 	fwrt->geo_num_profiles = num_profiles;
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	fwrt->geo_enabled = true;
-#endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 	ret = 0;
 out_free:
 	kfree(data);
