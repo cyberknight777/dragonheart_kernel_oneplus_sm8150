@@ -194,6 +194,13 @@ static void remove_monitor_on_suspend(struct hci_dev *hdev, int handle)
 			/* All monitors have been removed */
 			msft->suspending = false;
 			hci_update_background_scan(hdev);
+
+			if (test_bit(SUSPEND_SET_ADV_FILTER,
+				     hdev->suspend_tasks)) {
+				clear_bit(SUSPEND_SET_ADV_FILTER,
+					  hdev->suspend_tasks);
+				wake_up(&hdev->suspend_wait_q);
+			}
 			return;
 		}
 
