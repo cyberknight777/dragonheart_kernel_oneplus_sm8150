@@ -1414,7 +1414,7 @@ static int kill_as_cred_perm(const struct cred *cred,
 }
 
 /* like kill_pid_info(), but doesn't use uid/euid of "current" */
-int kill_pid_info_as_cred(int sig, struct siginfo *info, struct pid *pid,
+extern int kill_pid_info_as_cred(int sig, struct siginfo *info, struct pid *pid,
 			 const struct cred *cred, u32 secid)
 {
 	int ret = -EINVAL;
@@ -1534,7 +1534,7 @@ force_sig(int sig, struct task_struct *p)
  * the problem was already a SIGSEGV, we'll want to
  * make sure we don't even try to deliver the signal..
  */
-int
+extern void
 force_sigsegv(int sig, struct task_struct *p)
 {
 	if (sig == SIGSEGV) {
@@ -1609,7 +1609,7 @@ void sigqueue_free(struct sigqueue *q)
 		__sigqueue_free(q);
 }
 
-int send_sigqueue(struct sigqueue *q, struct task_struct *t, int group)
+extern int send_sigqueue(struct sigqueue *q, struct task_struct *t, int group)
 {
 	int sig = q->info.si_signo;
 	struct sigpending *pending;

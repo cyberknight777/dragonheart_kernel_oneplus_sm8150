@@ -46,6 +46,7 @@ extern unsigned int sysctl_sched_many_wakeup_threshold;
 extern unsigned int sysctl_sched_walt_rotate_big_tasks;
 extern unsigned int sysctl_sched_min_task_util_for_boost;
 extern unsigned int sysctl_sched_min_task_util_for_colocation;
+extern unsigned int sysctl_sched_little_cluster_coloc_fmin_khz;
 extern unsigned int sysctl_sched_asym_cap_sibling_freq_match_pct;
 extern unsigned int sysctl_sched_coloc_downmigrate_ns;
 extern unsigned int sysctl_sched_task_unfilter_period;
@@ -100,13 +101,12 @@ extern unsigned int sysctl_numa_balancing_scan_period_min;
 extern unsigned int sysctl_numa_balancing_scan_period_max;
 extern unsigned int sysctl_numa_balancing_scan_size;
 
-#ifdef CONFIG_SCHED_DEBUG
 extern __read_mostly unsigned int sysctl_sched_migration_cost;
-extern __read_mostly unsigned int sysctl_sched_nr_migrate;
-
 int sched_proc_update_handler(struct ctl_table *table, int write,
-		void __user *buffer, size_t *length,
-		loff_t *ppos);
+                void __user *buffer, size_t *length,
+                loff_t *ppos);
+#ifdef CONFIG_SCHED_DEBUG
+extern __read_mostly unsigned int sysctl_sched_nr_migrate;
 #endif
 
 extern int sched_boost_handler(struct ctl_table *table, int write,
@@ -162,7 +162,7 @@ extern char sched_lib_name[LIB_PATH_LENGTH];
 extern unsigned int sched_lib_mask_force;
 extern bool is_sched_lib_based_app(pid_t pid);
 
-#if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
+#if defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
 extern unsigned int sysctl_sched_energy_aware;
 extern int sched_energy_aware_handler(struct ctl_table *table, int write,
 				 void __user *buffer, size_t *lenp,

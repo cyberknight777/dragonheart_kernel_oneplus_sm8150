@@ -45,7 +45,6 @@
 #include <linux/ctype.h>
 #include <linux/debugfs.h>
 #include <linux/delayacct.h>
-#include <linux/energy_model.h>
 #include <linux/init_task.h>
 #include <linux/kprobes.h>
 #include <linux/kthread.h>
@@ -2084,7 +2083,6 @@ extern void deactivate_task(struct rq *rq, struct task_struct *p, int flags);
 extern void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags);
 
 extern const_debug unsigned int sysctl_sched_nr_migrate;
-extern const_debug unsigned int sysctl_sched_migration_cost;
 
 #ifdef CONFIG_SCHED_HRTICK
 

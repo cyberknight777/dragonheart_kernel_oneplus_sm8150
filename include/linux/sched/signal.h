@@ -327,8 +327,8 @@ extern void force_sigsegv(int sig, struct task_struct *p);
 extern int force_sig_info(int, struct siginfo *, struct task_struct *);
 extern int __kill_pgrp_info(int sig, struct siginfo *info, struct pid *pgrp);
 extern int kill_pid_info(int sig, struct siginfo *info, struct pid *pid);
-extern int kill_pid_info_as_cred(int, struct siginfo *, struct pid *,
-				const struct cred *);
+extern int kill_pid_info_as_cred(int sig, struct siginfo *info, struct pid *pid,
+				const struct cred *cred, u32 secid);
 extern int kill_pgrp(struct pid *pid, int sig, int priv);
 extern int kill_pid(struct pid *pid, int sig, int priv);
 extern __must_check bool do_notify_parent(struct task_struct *, int);
@@ -338,7 +338,7 @@ extern int send_sig(int, struct task_struct *, int);
 extern int zap_other_threads(struct task_struct *p);
 extern struct sigqueue *sigqueue_alloc(void);
 extern void sigqueue_free(struct sigqueue *);
-extern int send_sigqueue(struct sigqueue *, struct pid *, enum pid_type);
+extern int send_sigqueue(struct sigqueue *q, struct task_struct *t, int group);
 extern int do_sigaction(int, struct k_sigaction *, struct k_sigaction *);
 
 static inline int restart_syscall(void)

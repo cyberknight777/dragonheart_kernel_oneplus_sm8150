@@ -404,7 +404,7 @@ static inline void free_signal_struct(struct signal_struct *sig)
 	 * pgd_dtor so postpone it to the async context
 	 */
 	if (sig->oom_mm)
-		mmdrop_async(sig->oom_mm);
+		mmput_async(sig->oom_mm);
 	kmem_cache_free(signal_cachep, sig);
 }
 
@@ -1167,7 +1167,7 @@ static int wait_for_vfork_done(struct task_struct *child,
  * restoring the old one. . .
  * Eric Biederman 10 January 1998
  */
-static void mm_release(struct task_struct *tsk, struct mm_struct *mm)
+extern void mm_release(struct task_struct *tsk, struct mm_struct *mm)
 {
 	uprobe_free_utask(tsk);
 
@@ -2073,7 +2073,7 @@ static __latent_entropy struct task_struct *copy_process(
 				p->signal->flags |= SIGNAL_UNKILLABLE;
 			}
 
-			p->signal->leader_pid = pid;
+			p->signal->leader = pid;
 			p->signal->tty = tty_kref_get(current->signal->tty);
 			/*
 			 * Inherit has_child_subreaper flag under the same

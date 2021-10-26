@@ -532,7 +532,7 @@ pid_t __task_pid_nr_ns(struct task_struct *task, enum pid_type type,
 		ns = task_active_pid_ns(current);
 	if (likely(pid_alive(task))) {
 		if (type != PIDTYPE_PID) {
-			if (type == __PIDTYPE_TGID)
+			if (type == PIDTYPE_TGID)
 				type = PIDTYPE_PID;
 			task = task->group_leader;
 		}

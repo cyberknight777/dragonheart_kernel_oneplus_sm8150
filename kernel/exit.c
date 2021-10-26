@@ -498,7 +498,7 @@ static void exit_mm(void)
 	struct core_state *core_state;
 	int mm_released;
 
-	exit_mm_release(current, mm);
+	mm_release(current, mm);
 	if (!mm)
 		return;
 	sync_mm_rss(mm);
@@ -1013,14 +1013,6 @@ struct wait_opts {
 	wait_queue_entry_t		child_wait;
 	int			notask_error;
 };
-
-static inline
-struct pid *task_pid_type(struct task_struct *task, enum pid_type type)
-{
-	if (type != PIDTYPE_PID)
-		task = task->group_leader;
-	return task->pids[type].pid;
-}
 
 static int eligible_pid(struct wait_opts *wo, struct task_struct *p)
 {

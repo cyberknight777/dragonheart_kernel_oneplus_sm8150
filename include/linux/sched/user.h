@@ -4,7 +4,6 @@
 
 #include <linux/uidgid.h>
 #include <linux/atomic.h>
-#include <linux/refcount.h>
 #include <linux/ratelimit.h>
 
 struct key;
@@ -13,7 +12,7 @@ struct key;
  * Some day this will be a full-fledged user tracking system..
  */
 struct user_struct {
-	refcount_t __count;	/* reference count */
+	atomic_t __count;	/* reference count */
 	atomic_t processes;	/* How many processes does this user have? */
 	atomic_t sigpending;	/* How many pending signals does this user have? */
 #ifdef CONFIG_FANOTIFY
@@ -60,7 +59,7 @@ extern struct user_struct root_user;
 extern struct user_struct * alloc_uid(kuid_t);
 static inline struct user_struct *get_uid(struct user_struct *u)
 {
-	refcount_inc(&u->__count);
+	atomic_inc(&u->__count);
 	return u;
 }
 extern void free_uid(struct user_struct *);

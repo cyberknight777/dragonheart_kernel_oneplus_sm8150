@@ -12,7 +12,7 @@ enum pid_type
 	PIDTYPE_SID,
 	PIDTYPE_MAX,
 	/* only valid to __task_pid_nr_ns() */
-	__PIDTYPE_TGID
+	PIDTYPE_TGID
 };
 
 /*

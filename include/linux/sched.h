@@ -244,6 +244,8 @@ enum migrate_types {
 	RQ_TO_GROUP,
 };
 
+extern cpumask_var_t                    cpu_isolated_map;
+
 #ifdef CONFIG_HOTPLUG_CPU
 extern int sched_isolate_count(const cpumask_t *mask, bool include_offline);
 extern int sched_isolate_cpu(int cpu);
@@ -1000,7 +1002,7 @@ struct task_struct {
 	pid_t				pid;
 	pid_t				tgid;
 
-#ifdef CONFIG_STACKPROTECTOR
+#ifdef CONFIG_CC_STACKPROTECTOR
 	/* Canary value for the -fstack-protector GCC feature: */
 	unsigned long			stack_canary;
 #endif
@@ -1034,7 +1036,7 @@ struct task_struct {
 
 	/* PID/PID hash table linkage. */
 	struct pid			*thread_pid;
-	struct hlist_node		pid_links[PIDTYPE_MAX];
+	struct pid_link	           pids[PIDTYPE_MAX];
 	struct list_head		thread_group;
 	struct list_head		thread_node;
 
@@ -1266,6 +1268,8 @@ struct task_struct {
 #endif
 	struct list_head		pi_state_list;
 	struct futex_pi_state		*pi_state_cache;
+        struct mutex                    futex_exit_mutex;
+        unsigned int                    futex_state;
 #endif
 #ifdef CONFIG_PERF_EVENTS
 	struct perf_event_context	*perf_event_ctxp[perf_nr_task_contexts];
@@ -1479,7 +1483,7 @@ struct task_struct {
 	void				*security;
 #endif
 	/* task is frozen/stopped (used by the cgroup freezer) */
-	ANDROID_KABI_USE(1, unsigned frozen:1);
+        unsigned frozen:1;
 
 	/*
 	 * New fields for task_struct should be added above here, so that
@@ -1500,7 +1504,7 @@ struct task_struct {
 
 static inline struct pid *task_pid(struct task_struct *task)
 {
-	return task->thread_pid;
+	return task->pids[PIDTYPE_PID].pid;
 }
 
 /*
@@ -1682,6 +1686,7 @@ extern struct pid *cad_pid;
 #define PF_NO_SETAFFINITY	0x04000000	/* Userland is not allowed to meddle with cpus_allowed */
 #define PF_MCE_EARLY		0x08000000      /* Early kill for mce process policy */
 #define PF_WAKE_UP_IDLE         0x10000000	/* TTWU on an idle CPU */
+#define PF_PERF_CRITICAL       0x10000000      /* Thread is performance-critical */
 #define PF_MUTEX_TESTER		0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP		0x40000000	/* Freezer should not count it as freezable */
 #define PF_SUSPEND_TASK		0x80000000      /* This thread called freeze_processes() and should not be frozen */
