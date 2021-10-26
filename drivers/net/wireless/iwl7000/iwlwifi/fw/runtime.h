@@ -156,9 +156,7 @@ struct iwl_fw_runtime {
 	struct iwl_geo_profile geo_profiles[ACPI_NUM_GEO_PROFILES_REV3];
 	u32 geo_rev;
 	u32 geo_num_profiles;
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	bool geo_enabled;
-#endif /* CPTCFG_IWLMVM_VENDOR_CMDS */
 	struct iwl_ppag_chain ppag_chains[IWL_NUM_CHAIN_LIMITS];
 	u32 ppag_flags;
 	u32 ppag_ver;
