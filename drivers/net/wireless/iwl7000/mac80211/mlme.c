@@ -5255,8 +5255,9 @@ static int ieee80211_prep_channel(struct ieee80211_sub_if_data *sdata,
 
 		vht_cap = ieee80211_bss_get_ie(cbss, WLAN_EID_VHT_CAPABILITY);
 		if (!vht_cap || vht_cap[1] < sizeof(struct ieee80211_vht_cap)) {
-			sdata_info(sdata,
-				   "bad/missing VHT capabilities, disabling VHT\n");
+			if (vht_cap)
+				sdata_info(sdata,
+					   "bad VHT capabilities, disabling VHT\n");
 			ifmgd->flags |= IEEE80211_STA_DISABLE_VHT;
 			vht_oper = NULL;
 		}
