@@ -422,14 +422,17 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 	static const u16 init_complete[] = { INIT_COMPLETE_NOTIF };
 	int err, ret;
 
+	xvt->state = IWL_XVT_STATE_OPERATIONAL;
+
+	if (!(xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME))
+		return 0;
+
 	err = iwl_xvt_send_cmd_pdu(xvt,
 				   WIDE_ID(REGULATORY_AND_NVM_GROUP,
 					   NVM_ACCESS_COMPLETE), 0,
 				   sizeof(nvm_complete), &nvm_complete);
 	if (err)
 		goto init_error;
-
-	xvt->state = IWL_XVT_STATE_OPERATIONAL;
 
 	iwl_init_notification_wait(&xvt->notif_wait,
 				   &init_complete_wait,
