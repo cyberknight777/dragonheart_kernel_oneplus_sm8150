@@ -657,10 +657,10 @@ void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	}
 }
 
-int __pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
+int __pte_alloc(struct mm_struct *mm, pmd_t *pmd)
 {
 	spinlock_t *ptl;
-	pgtable_t new = pte_alloc_one(mm, address);
+	pgtable_t new = pte_alloc_one(mm, pmd);
 	if (!new)
 		return -ENOMEM;
 
@@ -1248,8 +1248,7 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	unsigned long next;
 	unsigned long addr = vma->vm_start;
 	unsigned long end = vma->vm_end;
-	unsigned long mmun_start;	/* For mmu_notifiers */
-	unsigned long mmun_end;		/* For mmu_notifiers */
+	struct mmu_notifier_range range;
 	bool is_cow;
 	int ret;
 
@@ -1283,11 +1282,11 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	 * is_cow_mapping() returns true.
 	 */
 	is_cow = is_cow_mapping(vma->vm_flags);
-	mmun_start = addr;
-	mmun_end   = end;
-	if (is_cow)
-		mmu_notifier_invalidate_range_start(src_mm, mmun_start,
-						    mmun_end);
+	if (is_cow) {
+		mmu_notifier_range_init(&range, MMU_NOTIFY_PROTECTION_PAGE,
+					0, vma, src_mm, addr, end);
+		mmu_notifier_invalidate_range_start(&range);
+	}
 
 	ret = 0;
 	dst_pgd = pgd_offset(dst_mm, addr);
@@ -1304,7 +1303,7 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	} while (dst_pgd++, src_pgd++, addr = next, addr != end);
 
 	if (is_cow)
-		mmu_notifier_invalidate_range_end(src_mm, mmun_start, mmun_end);
+		mmu_notifier_invalidate_range_end(&range);
 	return ret;
 }
 
@@ -1615,12 +1614,15 @@ void unmap_vmas(struct mmu_gather *tlb,
 		struct vm_area_struct *vma, unsigned long start_addr,
 		unsigned long end_addr)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct mmu_notifier_range range;
 
-	mmu_notifier_invalidate_range_start(mm, start_addr, end_addr);
+	mmu_notifier_range_init(&range, MMU_NOTIFY_UNMAP, 0, vma, vma->vm_mm,
+				start_addr, end_addr);
+	mmu_notifier_invalidate_range_start(&range);
 	for ( ; vma && vma->vm_start < end_addr; vma = vma->vm_next)
 		unmap_single_vma(tlb, vma, start_addr, end_addr, NULL);
-	mmu_notifier_invalidate_range_end(mm, start_addr, end_addr);
+	mmu_notifier_invalidate_range_end(&range);
+
 }
 
 /**
@@ -1634,18 +1636,18 @@ void unmap_vmas(struct mmu_gather *tlb,
 void zap_page_range(struct vm_area_struct *vma, unsigned long start,
 		unsigned long size)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct mmu_notifier_range range;
 	struct mmu_gather tlb;
-	unsigned long end = start + size;
-
 	lru_add_drain();
-	tlb_gather_mmu(&tlb, mm, start, end);
-	update_hiwater_rss(mm);
-	mmu_notifier_invalidate_range_start(mm, start, end);
-	for ( ; vma && vma->vm_start < end; vma = vma->vm_next)
-		unmap_single_vma(&tlb, vma, start, end, NULL);
-	mmu_notifier_invalidate_range_end(mm, start, end);
-	tlb_finish_mmu(&tlb, start, end);
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, vma->vm_mm,
+				start, start + size);
+	tlb_gather_mmu(&tlb, vma->vm_mm, start, range.end);
+	update_hiwater_rss(vma->vm_mm);
+	mmu_notifier_invalidate_range_start(&range);
+	for ( ; vma && vma->vm_start < range.end; vma = vma->vm_next)
+		unmap_single_vma(&tlb, vma, start, range.end, NULL);
+	mmu_notifier_invalidate_range_end(&range);
+	tlb_finish_mmu(&tlb, start, range.end);
 }
 
 /**
@@ -1660,17 +1662,17 @@ void zap_page_range(struct vm_area_struct *vma, unsigned long start,
 static void zap_page_range_single(struct vm_area_struct *vma, unsigned long address,
 		unsigned long size, struct zap_details *details)
 {
-	struct mm_struct *mm = vma->vm_mm;
+	struct mmu_notifier_range range;
 	struct mmu_gather tlb;
-	unsigned long end = address + size;
-
 	lru_add_drain();
-	tlb_gather_mmu(&tlb, mm, address, end);
-	update_hiwater_rss(mm);
-	mmu_notifier_invalidate_range_start(mm, address, end);
-	unmap_single_vma(&tlb, vma, address, end, details);
-	mmu_notifier_invalidate_range_end(mm, address, end);
-	tlb_finish_mmu(&tlb, address, end);
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, vma->vm_mm,
+				address, address + size);
+	tlb_gather_mmu(&tlb, vma->vm_mm, address, range.end);
+	update_hiwater_rss(vma->vm_mm);
+	mmu_notifier_invalidate_range_start(&range);
+	unmap_single_vma(&tlb, vma, address, range.end, details);
+	mmu_notifier_invalidate_range_end(&range);
+	tlb_finish_mmu(&tlb, address, range.end);
 }
 
 /**
@@ -1834,7 +1836,7 @@ static int insert_pfn(struct vm_area_struct *vma, unsigned long addr,
 				goto out_unlock;
 			}
 			entry = pte_mkyoung(*pte);
-			entry = maybe_mkwrite(pte_mkdirty(entry), vma->vm_flags);
+			entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 			if (ptep_set_access_flags(vma, addr, pte, entry, 1))
 				update_mmu_cache(vma, addr, pte);
 		}
@@ -1849,7 +1851,7 @@ static int insert_pfn(struct vm_area_struct *vma, unsigned long addr,
 
 	if (mkwrite) {
 		entry = pte_mkyoung(entry);
-		entry = maybe_mkwrite(pte_mkdirty(entry), vma->vm_flags);
+		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 	}
 
 	set_pte_at(mm, addr, pte, entry);
@@ -1882,7 +1884,7 @@ out:
 int vm_insert_pfn(struct vm_area_struct *vma, unsigned long addr,
 			unsigned long pfn)
 {
-	return vm_insert_pfn_prot(vma, addr, pfn, vma->vm_page_prot);
+	return vmf_insert_pfn_prot(vma, addr, pfn, vma->vm_page_prot);
 }
 EXPORT_SYMBOL(vm_insert_pfn);
 
@@ -2623,7 +2625,7 @@ static inline void wp_page_reuse(struct vm_fault *vmf)
 
 	flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));
 	entry = pte_mkyoung(vmf->orig_pte);
-	entry = maybe_mkwrite(pte_mkdirty(entry), vmf->vma_flags);
+	entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 	if (ptep_set_access_flags(vma, vmf->address, vmf->pte, entry, 1))
 		update_mmu_cache(vma, vmf->address, vmf->pte);
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
@@ -2653,8 +2655,7 @@ static int wp_page_copy(struct vm_fault *vmf)
 	struct page *new_page = NULL;
 	pte_t entry;
 	int page_copied = 0;
-	const unsigned long mmun_start = vmf->address & PAGE_MASK;
-	const unsigned long mmun_end = mmun_start + PAGE_SIZE;
+	struct mmu_notifier_range range;
 	struct mem_cgroup *memcg;
 	int ret = VM_FAULT_OOM;
 
@@ -2679,7 +2680,10 @@ static int wp_page_copy(struct vm_fault *vmf)
 
 	__SetPageUptodate(new_page);
 
-	mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
+	mmu_notifier_range_init(&range, MMU_NOTIFY_CLEAR, 0, vma, mm,
+				vmf->address & PAGE_MASK,
+				(vmf->address & PAGE_MASK) + PAGE_SIZE);
+	mmu_notifier_invalidate_range_start(&range);
 
 	/*
 	 * Re-check the pte - we dropped the lock
@@ -2700,7 +2704,7 @@ static int wp_page_copy(struct vm_fault *vmf)
 		}
 		flush_cache_page(vma, vmf->address, pte_pfn(vmf->orig_pte));
 		entry = mk_pte(new_page, vmf->vma_page_prot);
-		entry = maybe_mkwrite(pte_mkdirty(entry), vmf->vma_flags);
+		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 		/*
 		 * Clear the pte entry and flush it first, before updating the
 		 * pte with the new entry. This will avoid a race condition
@@ -2755,7 +2759,7 @@ static int wp_page_copy(struct vm_fault *vmf)
 		put_page(new_page);
 
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
-	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+	mmu_notifier_invalidate_range_only_end(&range);
 	if (old_page) {
 		/*
 		 * Don't let another task, with possibly unlocked vma,
@@ -3232,7 +3236,7 @@ int do_swap_page(struct vm_fault *vmf)
 	dec_mm_counter_fast(vma->vm_mm, MM_SWAPENTS);
 	pte = mk_pte(page, vmf->vma_page_prot);
 	if ((vmf->flags & FAULT_FLAG_WRITE) && reuse_swap_page(page, NULL)) {
-		pte = maybe_mkwrite(pte_mkdirty(pte), vmf->vma_flags);
+		pte = maybe_mkwrite(pte_mkdirty(pte), vma);
 		vmf->flags &= ~FAULT_FLAG_WRITE;
 		ret |= VM_FAULT_WRITE;
 		exclusive = RMAP_EXCLUSIVE;
@@ -3327,7 +3331,7 @@ static int do_anonymous_page(struct vm_fault *vmf)
 	 *
 	 * Here we only have down_read(mmap_sem).
 	 */
-	if (pte_alloc(vma->vm_mm, vmf->pmd, vmf->address))
+	if (pte_alloc(vma->vm_mm, vmf->pmd))
 		return VM_FAULT_OOM;
 
 	/* See the comment in pte_alloc_one_map() */
@@ -3509,7 +3513,7 @@ static int pte_alloc_one_map(struct vm_fault *vmf)
 		pmd_populate(vma->vm_mm, vmf->pmd, vmf->prealloc_pte);
 		spin_unlock(vmf->ptl);
 		vmf->prealloc_pte = NULL;
-	} else if (unlikely(pte_alloc(vma->vm_mm, vmf->pmd, vmf->address))) {
+	} else if (unlikely(pte_alloc(vma->vm_mm, vmf->pmd))) {
 		return VM_FAULT_OOM;
 	}
 map_pte:
@@ -3677,7 +3681,7 @@ int alloc_set_pte(struct vm_fault *vmf, struct mem_cgroup *memcg,
 	flush_icache_page(vma, page);
 	entry = mk_pte(page, vmf->vma_page_prot);
 	if (write)
-		entry = maybe_mkwrite(pte_mkdirty(entry), vmf->vma_flags);
+		entry = maybe_mkwrite(pte_mkdirty(entry), vma);
 
 	if (vmf->flags & FAULT_FLAG_PREFAULT_OLD)
 		entry = pte_mkold(entry);
@@ -4777,9 +4781,9 @@ int __pmd_alloc(struct mm_struct *mm, pud_t *pud, unsigned long address)
 }
 #endif /* __PAGETABLE_PMD_FOLDED */
 
-static int __follow_pte_pmd(struct mm_struct *mm, unsigned long address,
-			    unsigned long *start, unsigned long *end,
-			    pte_t **ptepp, pmd_t **pmdpp, spinlock_t **ptlp)
+int __follow_pte_pmd(struct mm_struct *mm, unsigned long address,
+		     struct mmu_notifier_range *range, pte_t **ptepp, 
+		     pmd_t **pmdpp, spinlock_t **ptlp)
 {
 	pgd_t *pgd;
 	p4d_t *p4d;
@@ -4805,30 +4809,30 @@ static int __follow_pte_pmd(struct mm_struct *mm, unsigned long address,
 	if (pmd_huge(*pmd)) {
 		if (!pmdpp)
 			goto out;
-
-		if (start && end) {
-			*start = address & PMD_MASK;
-			*end = *start + PMD_SIZE;
-			mmu_notifier_invalidate_range_start(mm, *start, *end);
-		}
+		if (range) {
+                        mmu_notifier_range_init(range, MMU_NOTIFY_CLEAR, 0,
+                                                NULL, mm, address & PMD_MASK,
+                                                (address & PMD_MASK) + PMD_SIZE);
+                        mmu_notifier_invalidate_range_start(range);
+                }
 		*ptlp = pmd_lock(mm, pmd);
 		if (pmd_huge(*pmd)) {
 			*pmdpp = pmd;
 			return 0;
 		}
 		spin_unlock(*ptlp);
-		if (start && end)
-			mmu_notifier_invalidate_range_end(mm, *start, *end);
+		if (range)
+                        mmu_notifier_invalidate_range_end(range);
 	}
 
 	if (pmd_none(*pmd) || unlikely(pmd_bad(*pmd)))
 		goto out;
-
-	if (start && end) {
-		*start = address & PAGE_MASK;
-		*end = *start + PAGE_SIZE;
-		mmu_notifier_invalidate_range_start(mm, *start, *end);
-	}
+	if (range) {
+                mmu_notifier_range_init(range, MMU_NOTIFY_CLEAR, 0, NULL, mm,
+                                        address & PAGE_MASK,
+                                        (address & PAGE_MASK) + PAGE_SIZE);
+                mmu_notifier_invalidate_range_start(range);
+        }
 	ptep = pte_offset_map_lock(mm, pmd, address, ptlp);
 	if (!pte_present(*ptep))
 		goto unlock;
@@ -4836,33 +4840,33 @@ static int __follow_pte_pmd(struct mm_struct *mm, unsigned long address,
 	return 0;
 unlock:
 	pte_unmap_unlock(ptep, *ptlp);
-	if (start && end)
-		mmu_notifier_invalidate_range_end(mm, *start, *end);
+	if (range)
+                mmu_notifier_invalidate_range_end(range);
 out:
 	return -EINVAL;
 }
 
-static inline int follow_pte(struct mm_struct *mm, unsigned long address,
+inline int follow_pte(struct mm_struct *mm, unsigned long address,
 			     pte_t **ptepp, spinlock_t **ptlp)
 {
 	int res;
 
 	/* (void) is needed to make gcc happy */
 	(void) __cond_lock(*ptlp,
-			   !(res = __follow_pte_pmd(mm, address, NULL, NULL,
+			   !(res = __follow_pte_pmd(mm, address, NULL,
 						    ptepp, NULL, ptlp)));
 	return res;
 }
 
 int follow_pte_pmd(struct mm_struct *mm, unsigned long address,
-			     unsigned long *start, unsigned long *end,
-			     pte_t **ptepp, pmd_t **pmdpp, spinlock_t **ptlp)
+		   struct mmu_notifier_range *range, pte_t **ptepp, 
+		   pmd_t **pmdpp, spinlock_t **ptlp)
 {
 	int res;
 
 	/* (void) is needed to make gcc happy */
 	(void) __cond_lock(*ptlp,
-			   !(res = __follow_pte_pmd(mm, address, start, end,
+			   !(res = __follow_pte_pmd(mm, address, range,
 						    ptepp, pmdpp, ptlp)));
 	return res;
 }

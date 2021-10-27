@@ -6,7 +6,6 @@
 #include <linux/spinlock.h>
 #include <linux/mm_types.h>
 #include <linux/srcu.h>
-#include <linux/android_kabi.h>
 
 struct mmu_notifier;
 struct mmu_notifier_ops;
@@ -230,10 +229,6 @@ struct mmu_notifier_ops {
 	struct mmu_notifier *(*alloc_notifier)(struct mm_struct *mm);
 	void (*free_notifier)(struct mmu_notifier *mn);
 
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
-	ANDROID_KABI_RESERVE(3);
-	ANDROID_KABI_RESERVE(4);
 };
 
 /*
@@ -254,8 +249,6 @@ struct mmu_notifier {
 	struct rcu_head rcu;
 	unsigned int users;
 
-	ANDROID_KABI_RESERVE(1);
-	ANDROID_KABI_RESERVE(2);
 };
 
 static inline int mm_has_notifiers(struct mm_struct *mm)
