@@ -836,7 +836,7 @@ static void iwl_parse_dbg_tlv_assert_tables(struct iwl_drv *drv,
 		     sizeof(region->special_mem))
 		return;
 
-	region = (void *)tlv->data;
+	region = (const void *)tlv->data;
 	addr = le32_to_cpu(region->special_mem.base_addr);
 	addr += le32_to_cpu(region->special_mem.offset);
 	addr &= ~FW_ADDR_CACHE_CONTROL;
@@ -908,7 +908,7 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 	if (ucode->magic == cpu_to_le32(IWL_TLV_FW_DBG_MAGIC)) {
 		size_t dbg_data_ofs = offsetof(struct iwl_tlv_ucode_header,
 					       human_readable);
-		data = (void *)ucode_raw->data + dbg_data_ofs;
+		data = (const void *)ucode_raw->data + dbg_data_ofs;
 		len -= dbg_data_ofs;
 
 		goto fw_dbg_conf;
@@ -1560,7 +1560,7 @@ fw_dbg_conf:
 
 	if (len) {
 		IWL_ERR(drv, "invalid TLV after parsing: %zd\n", len);
-		iwl_print_hex_dump(drv, IWL_DL_FW, (u8 *)data, len);
+		iwl_print_hex_dump(drv, IWL_DL_FW, data, len);
 		return -EINVAL;
 	}
 
