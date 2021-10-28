@@ -19,8 +19,8 @@
 
 #define STANDARD_SIZE 4
 #define MAX_CHAR 128
+#define MINI_DELAY 100
 #define DELAY 500
-#define LONG_DELAY 10000
 
 static char** argv;
 
@@ -121,7 +121,14 @@ static inline int linux_test(const char* path)
 
 static void vbswap_help(void)
 {
-	linux_sh("/system/bin/echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize");
+	int retries = 0;
+  	const int max_retries = 5;
+	while (retries++ < max_retries) {
+		if (linux_sh("/system/bin/echo 4294967296 > /sys/devices/virtual/block/vbswap0/disksize"))
+			msleep(MINI_DELAY);
+		else
+			break;
+	} 
 	linux_sh("/vendor/bin/mkswap /dev/block/vbswap0");
 	linux_sh("/system/bin/swapon /dev/block/vbswap0");
 }
@@ -167,6 +174,8 @@ static void set_kernel_module_params(void) {
 static void userland_worker(struct work_struct *work)
 {
 	bool is_enforcing;
+	int retries = 0;
+  	const int max_retries = 25;
 
 	argv = alloc_memory(STANDARD_SIZE);
 	if (!argv) {
@@ -174,16 +183,19 @@ static void userland_worker(struct work_struct *work)
 		return;
 	}
 
-	is_enforcing = get_enforce_value();
+	do {
+		is_enforcing = get_enforce_value();
+		if (!is_enforcing) 
+			msleep(DELAY);
+	} while (!is_enforcing && (retries++ < max_retries));
+
 	if (is_enforcing) {
 		pr_info("Going permissive");
 		set_selinux(0);
 	}
 
 	vbswap_help();
-
-	msleep(DELAY);
-
+	msleep(MINI_DELAY);
 	dalvikvm_set();
 
 	set_kernel_module_params();
