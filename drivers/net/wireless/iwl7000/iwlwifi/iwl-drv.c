@@ -908,7 +908,7 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 	if (ucode->magic == cpu_to_le32(IWL_TLV_FW_DBG_MAGIC)) {
 		size_t dbg_data_ofs = offsetof(struct iwl_tlv_ucode_header,
 					       human_readable);
-		data = (const void *)ucode_raw->data + dbg_data_ofs;
+		data = (const void *)(ucode_raw->data + dbg_data_ofs);
 		len -= dbg_data_ofs;
 
 		goto fw_dbg_conf;
