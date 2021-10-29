@@ -461,9 +461,7 @@ struct touchpanel_data {
 #if defined(TPD_USE_EINT)
     struct hrtimer         timer;                       /*using polling instead of IRQ*/
 #endif
-#if defined(CONFIG_FB)
-    struct notifier_block fb_notif;                     /*register to control suspend/resume*/
-#endif
+    struct notifier_block msm_drm_notif;                     /*register to control suspend/resume*/
 
     struct mutex           mutex;                       /*mutex for lock i2c related flow*/
     struct mutex           mutex_earsense;
