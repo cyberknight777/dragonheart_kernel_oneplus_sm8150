@@ -15,10 +15,7 @@
 
 /*********PART1:Head files**********************/
 #include <linux/i2c.h>
-#ifdef CONFIG_FB
-#include <linux/fb.h>
-#include <linux/notifier.h>
-#endif
+#include <linux/msm_drm_notify.h>
 #include <linux/version.h>
 
 #include "../synaptics_common.h"
@@ -374,7 +371,7 @@ struct synaptics_rmi4_device_info {
  * @rmi4_irq_enable_mutex: mutex for enabling/disabling interrupt
  * @rb_work: work for rebuilding input device
  * @rb_workqueue: workqueue for rebuilding input device
- * @fb_notifier: framebuffer notifier client
+ * @msm_drm_notifier: msm drm notifier client
  * @reset_work: work for issuing reset after display framebuffer ready
  * @reset_workqueue: workqueue for issuing reset after display framebuffer ready
  * @early_suspend: early suspend power management
@@ -408,7 +405,7 @@ struct synaptics_rmi4_device_info {
  * @suspend: flag to indicate whether in suspend state
  * @sensor_sleep: flag to indicate sleep state of sensor
  * @stay_awake: flag to indicate whether to stay awake during suspend
- * @fb_ready: flag to indicate whether display framebuffer in ready state
+ * @msm_drm_ready: flag to indicate whether display framebuffer in ready state
  * @f11_wakeup_gesture: flag to indicate support for wakeup gestures in F$11
  * @f12_wakeup_gesture: flag to indicate support for wakeup gestures in F$12
  * @enable_wakeup_gesture: flag to indicate usage of wakeup gestures
@@ -439,11 +436,9 @@ struct synaptics_rmi4_data {
         struct mutex rmi4_irq_enable_mutex;
         struct delayed_work rb_work;
         struct workqueue_struct *rb_workqueue;
-#ifdef CONFIG_FB
-        struct notifier_block fb_notifier;
+        struct notifier_block msm_drm_notifier;
         struct work_struct reset_work;
         struct workqueue_struct *reset_workqueue;
-#endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
         struct early_suspend early_suspend;
 #endif
@@ -479,7 +474,7 @@ struct synaptics_rmi4_data {
         bool suspend;
         bool sensor_sleep;
         bool stay_awake;
-        bool fb_ready;
+        bool msm_drm_ready;
         bool f11_wakeup_gesture;
         bool f12_wakeup_gesture;
         bool enable_wakeup_gesture;
