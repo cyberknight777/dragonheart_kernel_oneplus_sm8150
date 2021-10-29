@@ -18,14 +18,7 @@
 #include <linux/hrtimer.h>
 #endif
 
-#ifdef CONFIG_FB
-#include <linux/fb.h>
-#include <linux/notifier.h>
-#endif
-
-#ifdef CONFIG_DRM_MSM
 #include <linux/msm_drm_notify.h>
-#endif
 
 #include "touchpanel_common.h"
 #include "util_interface/touch_interfaces.h"
@@ -100,9 +93,7 @@ void esd_handle_switch(struct esd_information *esd_info, bool flag);
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
 #endif
 
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
-static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
-#endif
+static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 
 static void tp_touch_release(struct touchpanel_data *ts);
 static void tp_btnkey_release(struct touchpanel_data *ts);
@@ -4526,19 +4517,11 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     }
 
     //step14 : suspend && resume fuction register
-#if defined(CONFIG_DRM_MSM)
-    ts->fb_notif.notifier_call = fb_notifier_callback;
-    ret = msm_drm_register_client(&ts->fb_notif);
+    ts->msm_drm_notif.notifier_call = msm_drm_notifier_callback;
+    ret = msm_drm_register_client(&ts->msm_drm_notif);
     if (ret) {
-        TPD_INFO("Unable to register fb_notifier: %d\n", ret);
+        TPD_INFO("Unable to register msm_drm_notifier: %d\n", ret);
     }
-#elif defined(CONFIG_FB)
-    ts->fb_notif.notifier_call = fb_notifier_callback;
-    ret = fb_register_client(&ts->fb_notif);
-    if (ret) {
-        TPD_INFO("Unable to register fb_notifier: %d\n", ret);
-    }
-#endif/*CONFIG_FB*/
 
     //step15 : workqueue create(speedup_resume)
     ts->speedup_resume_wq = create_singlethread_workqueue("speedup_resume_wq");
@@ -4951,20 +4934,15 @@ static void speedup_resume(struct work_struct *work)
     complete(&ts->pm_complete);
 }
 
-#if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
-static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
     int *blank;
     int timed_out = -1;
-    struct fb_event *evdata = data;
-    struct touchpanel_data *ts = container_of(self, struct touchpanel_data, fb_notif);
+    struct msm_drm_notifier *evdata = data;
+    struct touchpanel_data *ts = container_of(self, struct touchpanel_data, msm_drm_notif);
 
-    //to aviod some kernel bug (at fbmem.c some local veriable are not initialized)
-#ifdef CONFIG_DRM_MSM
+    //to avoidd some kernel bug (at fbmem.c some local veriable are not initialized)
     if(event != MSM_DRM_EARLY_EVENT_BLANK && event != MSM_DRM_EVENT_BLANK)
-#else
-    if(event != FB_EARLY_EVENT_BLANK && event != FB_EVENT_BLANK)
-#endif
         return 0;
 
     if (evdata && evdata->data && ts && ts->chip_data) {
@@ -5044,7 +5022,6 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
 
     return 0;
 }
-#endif
 
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
 void tp_i2c_suspend(struct touchpanel_data *ts)
