@@ -15,10 +15,7 @@
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/machine.h>
 #include <linux/regulator/consumer.h>
-#ifdef CONFIG_FB
-#include <linux/fb.h>
-#include <linux/notifier.h>
-#endif
+#include <linux/msm_drm_notify.h>
 #include "synaptics_s3706.h"
 
 static struct chip_data_s3706 *g_chip_info = NULL;
