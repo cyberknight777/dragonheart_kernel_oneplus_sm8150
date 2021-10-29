@@ -32,10 +32,7 @@
 #include <linux/timer.h>
 #include <linux/time.h>
 
-#ifdef CONFIG_FB
-#include <linux/fb.h>
-#include <linux/notifier.h>
-#endif
+#include <linux/msm_drm_notify.h>
 
 #include <linux/input/mt.h>
 
@@ -149,9 +146,7 @@ static int synaptics_rmi4_i2c_read_word(struct i2c_client* client,
 static int synaptics_init_panel(struct synaptics_ts_data *ts);
 static void checkCMD(void);
 
-#if defined(CONFIG_FB)
-static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
-#endif
+static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 static int synaptics_soft_reset(struct synaptics_ts_data *ts);
 static void synaptics_hard_reset(struct synaptics_ts_data *ts);
 
@@ -209,9 +204,7 @@ struct synaptics_ts_data {
     struct work_struct judge_key_status_work ;
 #endif
     struct input_dev *input_dev;
-#if defined(CONFIG_FB)
-    struct notifier_block fb_notif;
-#endif
+    struct notifier_block msm_drm_notif;
 
     /******power*******/
     struct regulator *vdd_2v8;
@@ -2057,13 +2050,11 @@ static int synaptics_ts_probe(struct i2c_client *client, const struct i2c_device
     if (ret < 0) {
         TPD_INFO("synaptics_input_init failed!\n");
     }
-#if defined(CONFIG_FB)
     ts->suspended = 0;
-    ts->fb_notif.notifier_call = fb_notifier_callback;
-    ret = fb_register_client(&ts->fb_notif);
+    ts->msm_drm_notif.notifier_call = msm_drm_notifier_callback;
+    ret = msm_drm_register_client(&ts->msm_drm_notif);
     if (ret)
-        TPD_INFO("Unable to register fb_notifier: %d\n", ret);
-#endif
+        TPD_INFO("Unable to register msm_drm_notifier: %d\n", ret);
     if (gpio_is_valid(ts->irq_gpio)) {
         /* configure touchscreen irq gpio */
         ret = gpio_request(ts->irq_gpio, "s1302_int");
@@ -2127,10 +2118,8 @@ static int synaptics_ts_remove(struct i2c_client *client)
     unregister_remote_device_s1302();
 #endif
 
-#if defined(CONFIG_FB)
-    if (fb_unregister_client(&ts->fb_notif))
-        dev_err(&client->dev, "Error occurred while unregistering fb_notifier.\n");
-#endif
+    if (msm_drm_unregister_client(&ts->msm_drm_notif))
+        dev_err(&client->dev, "Error occurred while unregistering msm_drm_notifier.\n");
     input_unregister_device(ts->input_dev);
     input_free_device(ts->input_dev);
     kfree(ts);
@@ -2243,26 +2232,25 @@ ERR_RESUME:
     return ;
 }
 
-#if defined(CONFIG_FB)
-static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
-    struct fb_event *evdata = data;
+    struct msm_drm_notifier *evdata = data;
     int *blank;
 
-    struct synaptics_ts_data *ts = container_of(self, struct synaptics_ts_data, fb_notif);
+    struct synaptics_ts_data *ts = container_of(self, struct synaptics_ts_data, msm_drm_notif);
 
-    if (FB_EVENT_BLANK != event)
+    if (MSM_DRM_EVENT_BLANK != event)
         return 0;
-    if ((evdata) && (evdata->data) && (ts) && (ts->client) && (event == FB_EVENT_BLANK)) {
+    if ((evdata) && (evdata->data) && (ts) && (ts->client) && (event == MSM_DRM_EVENT_BLANK)) {
         blank = evdata->data;
-        if (*blank == FB_BLANK_UNBLANK) {
+        if (*blank == MSM_DRM_BLANK_UNBLANK) {
             TPD_DEBUG("%s going TP resume\n", __func__);
             if (ts->suspended == 1) {
                 synaptics_ts_resume(&ts->client->dev);
                 ts->suspended = 0;
             }
 
-        } else if (*blank == FB_BLANK_POWERDOWN) {
+        } else if (*blank == MSM_DRM_BLANK_POWERDOWN) {
             TPD_DEBUG("%s : going TP suspend\n", __func__);
             if (ts->suspended == 0) {
                 ts->suspended = 1;
