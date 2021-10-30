@@ -14,9 +14,6 @@
  */
 #define pr_fmt(fmt)		KBUILD_MODNAME ": " fmt
 
-#define CONFIG_MSM_RDM_NOTIFY
-#undef CONFIG_FB
-
 #include <linux/clk.h>
 #include <linux/compat.h>
 #include <linux/cpufreq.h>
@@ -25,7 +22,7 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/errno.h>
-#include <linux/fb.h>
+#include <linux/msm_drm_notify.h>
 #include <linux/fs.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
