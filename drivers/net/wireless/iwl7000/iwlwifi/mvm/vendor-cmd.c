@@ -1100,7 +1100,7 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 				   NLA_F_NESTED);
 	if (!nl_table) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	per_chain_size = (mvm->fwrt.ppag_ver == 0) ?
@@ -1110,7 +1110,7 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 		if (nla_put(skb, chain + 1, per_chain_size,
 			    &mvm->fwrt.ppag_chains[chain].subbands[0])) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 	}
 
@@ -1120,11 +1120,11 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_PPAG_NUM_SUB_BANDS,
 			per_chain_size)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1163,7 +1163,7 @@ static int iwl_mvm_vendor_sar_get_table(struct wiphy *wiphy,
 		nl_profile = nla_nest_start(skb, prof + 1);
 		if (!nl_profile) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 
 		/* put info per chain */
@@ -1171,7 +1171,7 @@ static int iwl_mvm_vendor_sar_get_table(struct wiphy *wiphy,
 			if (nla_put(skb, chain + 1, ACPI_SAR_NUM_SUB_BANDS_REV2,
 				    mvm->fwrt.sar_profiles[prof].chains[chain].subbands)) {
 				ret = -ENOBUFS;
-				goto out;
+				goto err;
 			}
 		}
 
@@ -1184,10 +1184,10 @@ static int iwl_mvm_vendor_sar_get_table(struct wiphy *wiphy,
 
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_SAR_VER, fw_ver)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1213,7 +1213,7 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 	nl_table = nla_nest_start(skb, IWL_MVM_VENDOR_ATTR_GEO_SAR_TABLE);
 	if (!nl_table) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	/* get each profile */
@@ -1222,7 +1222,7 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 
 		if (!nl_profile) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 
 		/* put into the skb the info for profile i+1
@@ -1230,7 +1230,7 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 		ret = iwl_mvm_vendor_put_geo_profile(mvm, skb, i + 1);
 		if (ret < 0) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 		nla_nest_end(skb, nl_profile);
 	}
@@ -1238,11 +1238,11 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_GEO_SAR_VER, mvm->fwrt.geo_rev)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1269,11 +1269,11 @@ static int iwl_mvm_vendor_sgom_get_table(struct wiphy *wiphy,
 	table = mvm->fwrt.sgom_table.offset_map[0];
 	if (nla_put(skb, IWL_MVM_VENDOR_ATTR_SGOM_TABLE, size, table)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
