@@ -808,14 +808,14 @@ void iwl_xvt_txq_disable(struct iwl_xvt *xvt)
 #ifdef CONFIG_ACPI
 static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 {
+	u32 cmd_id = WIDE_ID(PHY_OPS_GROUP, PER_CHAIN_LIMIT_OFFSET_CMD);
 	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
 	u32 n_bands;
 	u32 n_profiles;
 	u32 sk = 0;
 	int ret;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, PHY_OPS_GROUP,
-					   PER_CHAIN_LIMIT_OFFSET_CMD,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, cmd_id,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, ops) !=
@@ -886,10 +886,7 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 	if (ret)
 		return 0;
 
-	return iwl_xvt_send_cmd_pdu(xvt,
-				    WIDE_ID(PHY_OPS_GROUP,
-					    PER_CHAIN_LIMIT_OFFSET_CMD),
-				    0, len, &cmd);
+	return iwl_xvt_send_cmd_pdu(xvt, cmd_id, 0, len, &cmd);
 }
 #else /* CONFIG_ACPI */
 static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
@@ -900,14 +897,14 @@ static int iwl_xvt_sar_geo_init(struct iwl_xvt *xvt)
 
 int iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 {
+	u32 cmd_id = REDUCE_TX_POWER_CMD;
 	struct iwl_dev_tx_power_cmd cmd = {
 		.common.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
 	};
 	__le16 *per_chain;
 	u16 len = 0;
 	u32 n_subbands;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, LONG_GROUP,
-					   REDUCE_TX_POWER_CMD,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(xvt->fw, cmd_id,
 					   IWL_FW_CMD_VER_UNKNOWN);
 	if (cmd_ver == 6) {
 		len = sizeof(cmd.v6);
@@ -937,7 +934,7 @@ int iwl_xvt_sar_select_profile(struct iwl_xvt *xvt, int prof_a, int prof_b)
 		return -ENOENT;
 
 	IWL_DEBUG_RADIO(xvt, "Sending REDUCE_TX_POWER_CMD per chain\n");
-	return iwl_xvt_send_cmd_pdu(xvt, REDUCE_TX_POWER_CMD, 0, len, &cmd);
+	return iwl_xvt_send_cmd_pdu(xvt, cmd_id, 0, len, &cmd);
 }
 
 static int iwl_xvt_sar_init(struct iwl_xvt *xvt)

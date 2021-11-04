@@ -94,8 +94,7 @@ int iwl_mvm_start_nan(struct ieee80211_hw *hw,
 		return -EINVAL;
 
 	/* This function should not be called when using ADD_STA ver >=12 */
-	WARN_ON_ONCE(iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
-					   ADD_STA, 0) >= 12);
+	WARN_ON_ONCE(iwl_fw_lookup_cmd_ver(mvm->fw, ADD_STA, 0) >= 12);
 
 	ieee80211_nan_set_band(conf, NL80211_BAND_2GHZ);
 	cmd = kzalloc(iwl_mvm_nan_cfg_cmd_len(hw), GFP_KERNEL);
