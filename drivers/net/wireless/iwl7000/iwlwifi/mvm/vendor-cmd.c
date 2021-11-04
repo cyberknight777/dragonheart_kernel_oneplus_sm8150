@@ -1458,7 +1458,7 @@ static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_host_cmd hcmd = {
-		.id = iwl_cmd_id(FIPS_TEST_VECTOR_CMD, LEGACY_GROUP, 0),
+		.id = WIDE_ID(LEGACY_GROUP, FIPS_TEST_VECTOR_CMD),
 		.flags = CMD_WANT_SKB,
 		.dataflags = { IWL_HCMD_DFL_NOCOPY },
 	};
@@ -1648,8 +1648,8 @@ static int iwl_mvm_time_sync_measurement_config(struct wiphy *wiphy,
 
 	mutex_lock(&mvm->mutex);
 	err = iwl_mvm_send_cmd_pdu(mvm,
-				   iwl_cmd_id(WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD,
-					      DATA_PATH_GROUP, 0),
+				   WIDE_ID(DATA_PATH_GROUP,
+					   WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD),
 				   0, sizeof(cmd), &cmd);
 	mutex_unlock(&mvm->mutex);
 

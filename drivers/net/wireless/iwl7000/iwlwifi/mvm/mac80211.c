@@ -2331,8 +2331,7 @@ static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
 	dhc_cmd->index_and_mask = cpu_to_le32(DHC_TABLE_INTEGRATION |
 					      DHC_TARGET_UMAC |
 					      DHC_INT_UMAC_TWT_CONTROL);
-	if (iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(DEBUG_HOST_COMMAND,
-						 IWL_ALWAYS_LONG_GROUP, 0),
+	if (iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(IWL_ALWAYS_LONG_GROUP, DEBUG_HOST_COMMAND),
 				 0, cmd_size, dhc_cmd))
 		IWL_ERR(mvm, "Failed to set TWT testmode!\n");
 
@@ -2599,8 +2598,7 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 
 	sta_ctxt_cmd.flags = cpu_to_le32(flags);
 
-	if (iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(STA_HE_CTXT_CMD,
-						 DATA_PATH_GROUP, 0),
+	if (iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(DATA_PATH_GROUP, STA_HE_CTXT_CMD),
 				 0, size, &sta_ctxt_cmd))
 		IWL_ERR(mvm, "Failed to config FW to work HE!\n");
 

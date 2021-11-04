@@ -760,8 +760,8 @@ static ssize_t iwl_dbgfs_twt_setup_write(struct ieee80211_vif *vif, char *buf,
 			    DHC_INT_UMAC_TWT_OPERATION);
 
 	mutex_lock(&mvm->mutex);
-	ret = iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(DEBUG_HOST_COMMAND,
-						   IWL_ALWAYS_LONG_GROUP, 0),
+	ret = iwl_mvm_send_cmd_pdu(mvm,
+				   WIDE_ID(IWL_ALWAYS_LONG_GROUP, DEBUG_HOST_COMMAND),
 				   0, sizeof(*cmd) + sizeof(*dhc_twt_cmd),
 				   cmd);
 	mutex_unlock(&mvm->mutex);

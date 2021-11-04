@@ -83,7 +83,7 @@ static int iwl_mvm_send_dqa_cmd(struct iwl_mvm *mvm)
 	struct iwl_dqa_enable_cmd dqa_cmd = {
 		.cmd_queue = cpu_to_le32(IWL_MVM_DQA_CMD_QUEUE),
 	};
-	u32 cmd_id = iwl_cmd_id(DQA_ENABLE_CMD, DATA_PATH_GROUP, 0);
+	u32 cmd_id = WIDE_ID(DATA_PATH_GROUP, DQA_ENABLE_CMD);
 	int ret;
 
 	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, sizeof(dqa_cmd), &dqa_cmd);
@@ -1939,8 +1939,8 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		ether_addr_copy(cmd.peer_addr, mvm->time_msmt_peer_addr);
 
 		err = iwl_mvm_send_cmd_pdu(mvm,
-					   iwl_cmd_id(WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD,
-						      DATA_PATH_GROUP, 0),
+					   WIDE_ID(DATA_PATH_GROUP,
+						   WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD),
 					   0, sizeof(cmd), &cmd);
 		if (err)
 			IWL_ERR(mvm, "Failed to re-configure time sync on FW restart: %d\n",

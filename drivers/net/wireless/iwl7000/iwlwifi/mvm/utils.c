@@ -486,8 +486,7 @@ void iwl_mvm_send_low_latency_cmd(struct iwl_mvm *mvm,
 		cmd.low_latency_tx = 1;
 	}
 
-	if (iwl_mvm_send_cmd_pdu(mvm, iwl_cmd_id(LOW_LATENCY_CMD,
-						 MAC_CONF_GROUP, 0),
+	if (iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(MAC_CONF_GROUP, LOW_LATENCY_CMD),
 				 0, sizeof(cmd), &cmd))
 		IWL_ERR(mvm, "Failed to send low latency command\n");
 }
@@ -1200,8 +1199,7 @@ int iwl_mvm_send_csi_cmd(struct iwl_mvm *mvm)
 			cpu_to_le32(mvm->csi_cfg.interval),
 		.num_filter_addrs = cpu_to_le32(mvm->csi_cfg.num_filter_addrs),
 	};
-	u32 id = iwl_cmd_id(CHEST_COLLECTOR_FILTER_CONFIG_CMD,
-			    DATA_PATH_GROUP, 0);
+	u32 id = WIDE_ID(DATA_PATH_GROUP, CHEST_COLLECTOR_FILTER_CONFIG_CMD);
 	unsigned int size = sizeof(cfg);
 	int i;
 
