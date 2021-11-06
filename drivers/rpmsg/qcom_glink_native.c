@@ -2052,7 +2052,7 @@ struct qcom_glink *qcom_glink_native_probe(struct device *dev,
 	if (vm_support)
 		irqflags = IRQF_TRIGGER_RISING;
 	else
-		irqflags = IRQF_NO_SUSPEND | IRQF_SHARED;
+		irqflags = IRQF_SHARED;
 
 	for (i = 0; i < ARRAY_SIZE(sub_name); i++) {
 		if (strcmp(sub_name[i].g_name, glink->name) == 0) {
