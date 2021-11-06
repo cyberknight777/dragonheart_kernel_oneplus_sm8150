@@ -5,17 +5,17 @@
 /*******Part0:LOG TAG Declear********************/
 
 #define TPD_DEVICE "synaptics_common"
-#define TPD_INFO(a, arg...)  pr_err("[TP]"TPD_DEVICE ": " a, ##arg)
+#define TPD_INFO(a, arg...)  pr_debug("[TP]"TPD_DEVICE ": " a, ##arg)
 #define TPD_DEBUG(a, arg...)\
 	do{\
 		if (LEVEL_DEBUG == tp_debug)\
-		pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
+		pr_debug("[TP]"TPD_DEVICE ": " a, ##arg);\
 	}while(0)
 
 #define TPD_DETAIL(a, arg...)\
 	do{\
 		if (LEVEL_BASIC != tp_debug)\
-		pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
+		pr_debug("[TP]"TPD_DEVICE ": " a, ##arg);\
 	}while(0)
 
 
@@ -43,7 +43,7 @@ int synaptics_get_limit_data(char *type, const unsigned char *fw_image)
 	offset = sizeof(struct limit_info);
 	for (i = 0; i < count; i++) {
 		limit_block = (struct limit_block *)(fw_image + offset);
-		pr_info("name: %s, size: %d, offset %d\n", limit_block->name, limit_block->size, offset);
+		pr_debug("name: %s, size: %d, offset %d\n", limit_block->name, limit_block->size, offset);
 		if (strncmp(limit_block->name, type, MAX_LIMIT_NAME_SIZE) == 0) {
 			break;
 		}
@@ -107,7 +107,7 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->boot_config.size = length;
 			image_info->boot_config.data = content;
 			image_info->boot_config.flash_addr = flash_addr;
-			pr_info("Boot config size = %d, address = 0x%08x\n", length, flash_addr);
+			pr_debug("Boot config size = %d, address = 0x%08x\n", length, flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
 					APP_CODE_ID,
 					strlen(APP_CODE_ID))) {
@@ -118,7 +118,7 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->app_firmware.size = length;
 			image_info->app_firmware.data = content;
 			image_info->app_firmware.flash_addr = flash_addr;
-			pr_info("Application firmware size = %d address = 0x%08x\n", length, flash_addr);
+			pr_debug("Application firmware size = %d address = 0x%08x\n", length, flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
 					APP_CONFIG_ID,
 					strlen(APP_CONFIG_ID))) {
@@ -129,7 +129,7 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->app_config.size = length;
 			image_info->app_config.data = content;
 			image_info->app_config.flash_addr = flash_addr;
-			pr_info("Application config size = %d address = 0x%08x\n",length, flash_addr);
+			pr_debug("Application config size = %d address = 0x%08x\n",length, flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
 					DISP_CONFIG_ID,
 					strlen(DISP_CONFIG_ID))) {
@@ -140,7 +140,7 @@ int synaptics_parse_header_v2(struct image_info *image_info, const unsigned char
 			image_info->disp_config.size = length;
 			image_info->disp_config.data = content;
 			image_info->disp_config.flash_addr = flash_addr;
-			pr_info("Display config size = %d address = 0x%08x\n", length, flash_addr);
+			pr_debug("Display config size = %d address = 0x%08x\n", length, flash_addr);
 		}
 	}
 	return 0;
@@ -205,7 +205,7 @@ void synaptics_print_limit_v2(struct seq_file *s, struct touchpanel_data *ts, co
 	offset = sizeof(struct limit_info);
 	for (i = 0; i < count; i++) {
 		limit_block = (struct limit_block *)(data + offset);
-		pr_info("name: %s, size: %d, offset %d\n", limit_block->name, limit_block->size, offset);
+		pr_debug("name: %s, size: %d, offset %d\n", limit_block->name, limit_block->size, offset);
 
 		seq_printf(s, "%s\n", limit_block->name);
 
