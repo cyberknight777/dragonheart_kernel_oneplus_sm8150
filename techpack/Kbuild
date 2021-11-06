@@ -13,3 +13,4 @@ TECHPACK?=y
 
 obj-y += stub/ audio/ data/
 header-y += stub/include/uapi/ audio/include/uapi/
+subdir-ccflags-y += -Os
