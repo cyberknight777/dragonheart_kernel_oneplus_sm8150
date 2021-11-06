@@ -17,3 +17,5 @@ ifeq ($(CONFIG_SND),y)
 endif
 
 soundcore-objs  := sound_core.o
+
+subdir-ccflags-y := -Os
