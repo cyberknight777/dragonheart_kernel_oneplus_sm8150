@@ -1221,6 +1221,12 @@ static ssize_t oneplus_display_set_forcescreenfp(struct device *dev,
 	return count;
 }
 
+int oneplus_panel_status = 0;
+static ssize_t op_display_get_power_status(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", oneplus_panel_status);
+}
 
 static ssize_t op_display_get_dimlayer_enable(struct device *dev,
 				struct device_attribute *attr, char *buf)
