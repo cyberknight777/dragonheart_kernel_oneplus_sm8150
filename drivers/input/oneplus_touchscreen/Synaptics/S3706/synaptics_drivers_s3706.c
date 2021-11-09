@@ -1206,6 +1206,7 @@ unsigned char GetLogicalPin(unsigned char p_pin, uint8_t RX_NUM, uint8_t * rx_ph
 	return 0xff;
 }
 
+#ifdef CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 static int synaptics_capacity_test(struct seq_file *s, struct chip_data_s3706 *chip_info, struct syna_testdata *syna_testdata, struct test_header *ph, uint8_t *raw_data, uint8_t *data_buf)
 {
 	int ret = 0;
@@ -1381,7 +1382,6 @@ static int synaptics_capacity_test(struct seq_file *s, struct chip_data_s3706 *c
 	return error_count;
 }
 
-#if 0
 static int synaptics_auto_test_rt25(struct seq_file *s, struct chip_data_s3706 *chip_info, struct syna_testdata *syna_testdata)
 {
 	int ret = 0;
@@ -1910,7 +1910,6 @@ static int synaptics_auto_test_rt155(struct seq_file *s, struct chip_data_s3706 
 
 	return error_count;
 }
-#endif
 
 static void synaptics_auto_test(struct seq_file *s, void *chip_data, struct syna_testdata *syna_testdata)
 {
@@ -2046,6 +2045,7 @@ END:
 	TPD_INFO("auto test is disabled\n");
 #endif
 }
+#endif
 
 static void synaptics_baseline_read(struct seq_file *s, void *chip_data)
 {
@@ -5018,9 +5018,11 @@ static struct touchpanel_operations synaptics_ops = {
 	.get_face_state             = synaptics_get_face_state,
 };
 
+#ifdef CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 static struct synaptics_proc_operations synaptics_proc_ops = {
-	.auto_test         = synaptics_auto_test,
+       .auto_test         = synaptics_auto_test,
 };
+#endif
 
 static struct debug_info_proc_operations debug_info_proc_ops = {
 	.limit_read        = synaptics_limit_read,
@@ -5069,7 +5071,9 @@ static int synaptics_tp_probe(struct i2c_client *client, const struct i2c_device
 
 	/*step3:binding client && dev for easy operate*/
 	chip_info->client = client;
+#ifdef CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 	chip_info->syna_ops = &synaptics_proc_ops;
+#endif
 	ts->debug_info_ops = &debug_info_proc_ops;
 	ts->client = client;
 	ts->irq = client->irq;
@@ -5099,7 +5103,7 @@ static int synaptics_tp_probe(struct i2c_client *client, const struct i2c_device
 	synaptics_data_logger_open(chip_info);
 	mutex_unlock(&ts->mutex);
 
-#if CONFIG_TOUCHPANEL_SYNAPTICS_TEST
+#ifdef CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 	/*step8:create synaptics related proc files*/
 	synaptics_create_proc(ts, chip_info->syna_ops);
 #endif
