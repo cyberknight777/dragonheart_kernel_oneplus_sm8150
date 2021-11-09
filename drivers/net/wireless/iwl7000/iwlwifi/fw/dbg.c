@@ -1701,7 +1701,7 @@ iwl_dump_ini_mon_smem_fill_header(struct iwl_fw_runtime *fwrt,
 static void *
 iwl_dump_ini_mon_dbgi_fill_header(struct iwl_fw_runtime *fwrt,
 				  struct iwl_dump_ini_region_data *reg_data,
-				  void *data)
+				  void *data, u32 data_len)
 {
 	struct iwl_fw_ini_monitor_dump *mon_dump = (void *)data;
 
