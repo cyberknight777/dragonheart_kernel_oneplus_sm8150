@@ -292,7 +292,7 @@ void synaptics_limit_read(struct seq_file *s, struct touchpanel_data *ts)
 	release_firmware(fw);
 }
 
-#if CONFIG_TOUCHPANEL_SYNAPTICS_TEST
+#ifdef CONFIG_TOUCHPANEL_SYNAPTICS_TEST
 //proc/touchpanel/baseline_test
 static int tp_auto_test_read_func(struct seq_file *s, void *v)
 {
