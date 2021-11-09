@@ -32,8 +32,8 @@
 #define SPI_READ_MASK(a)	(a & 0x7F)
 #define DUMMY_BYTES (1)
 #define SPI_TANSFER_LEN		512
-#define TPD_DEVICE "touch_interface"
-#define TPD_INFO(a, arg...)  pr_debug("[TP]"TPD_DEVICE ": " a, ##arg)
+#define TPD_DEVICE_INT "touch_interface"
+#define TPD_INFO_INT(a, arg...)  pr_debug("[TP]"TPD_DEVICE_INT ": " a, ##arg)
 #define FIX_I2C_LENGTH 256
 static bool register_is_16bit = 0;
 
@@ -101,12 +101,12 @@ static inline int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsi
 		if (read_buf_size < length) {
 			if (read_buf) {
 				kfree(read_buf);
-				TPD_INFO("read block_1,free onec\n");
+				TPD_INFO_INT("read block_1,free onec\n");
 			}
 			read_buf =kzalloc(length, GFP_KERNEL);
 			if(!read_buf) {
 				read_buf_size = 0;
-				TPD_INFO("read block kzaloc faied\n");
+				TPD_INFO_INT("read block kzaloc faied\n");
 				return -ENOMEM;
 			}
 			read_buf_size = length;
@@ -120,7 +120,7 @@ static inline int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsi
 				GFP_KERNEL | GFP_DMA);
 			if(!read_buf) {
 				read_buf_size = 0;
-				TPD_INFO("read block kzaloc faied\n");
+				TPD_INFO_INT("read block kzaloc faied\n");
 				return -ENOMEM;
 			}
 			read_buf_size = FIX_I2C_LENGTH;
@@ -130,7 +130,7 @@ static inline int touch_i2c_read_block(struct i2c_client* client, u16 addr, unsi
 						GFP_KERNEL | GFP_DMA);
 				if (!read_buf) {
 					read_buf_size = 0;
-					TPD_INFO("read block kzaloc faied\n");
+					TPD_INFO_INT("read block kzaloc faied\n");
 					return -ENOMEM;
 				}
 				read_buf_size = FIX_I2C_LENGTH;
@@ -380,7 +380,7 @@ static inline int touch_i2c_read(struct i2c_client *client, char *writebuf, int 
     int retry = 0;
 
     if (client == NULL) {
-        TPD_INFO("%s: i2c_client == NULL!\n", __func__);
+        TPD_INFO_INT("%s: i2c_client == NULL!\n", __func__);
         return -1;
     }
 
@@ -430,7 +430,7 @@ static inline int touch_i2c_read(struct i2c_client *client, char *writebuf, int 
         }
 
         if (retry == MAX_I2C_RETRY_TIME) {
-            TPD_INFO("%s: i2c_transfer(read) over retry limit\n", __func__);
+            TPD_INFO_INT("%s: i2c_transfer(read) over retry limit\n", __func__);
             retval = -EIO;
         }
     }
@@ -453,7 +453,7 @@ static inline int touch_i2c_write(struct i2c_client *client, char *writebuf, int
     int retry = 0;
 
     if (client == NULL) {
-        TPD_INFO("%s: i2c_client == NULL!", __func__);
+        TPD_INFO_INT("%s: i2c_client == NULL!", __func__);
         return -1;
     }
 
@@ -476,7 +476,7 @@ static inline int touch_i2c_write(struct i2c_client *client, char *writebuf, int
             msleep(20);
         }
         if (retry == MAX_I2C_RETRY_TIME) {
-            TPD_INFO("%s: i2c_transfer(write) over retry limit\n", __func__);
+            TPD_INFO_INT("%s: i2c_transfer(write) over retry limit\n", __func__);
             retval = -EIO;
         }
     }
@@ -553,7 +553,7 @@ static inline int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint
 	}
 
 	if (unlikely(retries == 5)) {
-		TPD_INFO("read error, ret=%d\n", ret);
+		TPD_INFO_INT("read error, ret=%d\n", ret);
 		ret = -EIO;
 	} else {
 		memcpy((buf+1), (rbuf+2), (len-1));
@@ -583,7 +583,7 @@ static inline int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uin
 	}
 
 	if (unlikely(retries == 5)) {
-		TPD_INFO("error, ret=%d\n", ret);
+		TPD_INFO_INT("error, ret=%d\n", ret);
 		ret = -EIO;
 	}
 

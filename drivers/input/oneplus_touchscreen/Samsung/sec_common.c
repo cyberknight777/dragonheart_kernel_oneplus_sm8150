@@ -505,10 +505,10 @@ static int calibrate_data_read_func(struct seq_file *s, void *v)
     struct sec_proc_operations *sec_ops = (struct sec_proc_operations *)ts->private_data;
 
     if (!sec_ops->calibration_data)
-        return 0;
+      return 0;
 
-	if (ts->is_suspended)
-		return 0;
+    if (ts->is_suspended)
+      return 0;
     disable_irq_nosync(ts->irq);
     mutex_lock(&ts->mutex);
     if (!ts->touch_count) {
