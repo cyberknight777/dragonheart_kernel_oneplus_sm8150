@@ -631,9 +631,14 @@ int iwl_pcie_prepare_card_hw(struct iwl_trans *trans)
 			}
 
 			if (iwl_mei_is_connected()) {
-				IWL_WARN(trans,
-					 "Couldn't prepare the card but SAP is connected\n");
+				IWL_DEBUG_INFO(trans,
+					       "Couldn't prepare the card but SAP is connected\n");
 				trans->csme_own = true;
+				if (trans->trans_cfg->device_family !=
+				    IWL_DEVICE_FAMILY_9000)
+					IWL_ERR(trans,
+						"SAP not supported for this NIC family\n");
+
 				return -EBUSY;
 			}
 
