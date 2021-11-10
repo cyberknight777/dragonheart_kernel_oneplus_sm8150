@@ -5238,7 +5238,7 @@ static void __exit tp_driver_exit(void)
 	return;
 }
 
-module_init(tp_driver_init);
+device_initcall_sync(tp_driver_init);
 module_exit(tp_driver_exit);
 
 MODULE_DESCRIPTION("Touchscreen Driver");
