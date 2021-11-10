@@ -1659,9 +1659,12 @@ void iwl_mvm_channel_switch_error_notif(struct iwl_mvm *mvm,
 	u32 id = le32_to_cpu(notif->mac_id);
 	u32 csa_err_mask = le32_to_cpu(notif->csa_err_mask);
 
+	rcu_read_lock();
 	vif = iwl_mvm_rcu_dereference_vif_id(mvm, id, true);
-	if (!vif)
+	if (!vif) {
+		rcu_read_unlock();
 		return;
+	}
 
 	IWL_DEBUG_INFO(mvm, "FW reports CSA error: mac_id=%u, csa_err_mask=%u\n",
 		       id, csa_err_mask);
@@ -1669,6 +1672,7 @@ void iwl_mvm_channel_switch_error_notif(struct iwl_mvm *mvm,
 			    CS_ERR_LONG_DELAY_AFTER_CS |
 			    CS_ERR_TX_BLOCK_TIMER_EXPIRED))
 		ieee80211_channel_switch_disconnect(vif, true);
+	rcu_read_unlock();
 }
 
 void iwl_mvm_rx_missed_vap_notif(struct iwl_mvm *mvm,
