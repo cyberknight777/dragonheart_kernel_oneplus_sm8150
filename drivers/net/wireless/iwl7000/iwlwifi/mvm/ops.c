@@ -2069,6 +2069,8 @@ void iwl_mvm_nic_restart(struct iwl_mvm *mvm, bool fw_error)
 			IWL_DEBUG_INFO(mvm, "FW restart requested after debug collection\n");
 			mvm->fwrt.trans->dbg.restart_required = FALSE;
 			ieee80211_restart_hw(mvm->hw);
+		} else if (mvm->trans->trans_cfg->device_family <= IWL_DEVICE_FAMILY_8000) {
+			ieee80211_restart_hw(mvm->hw);
 		}
 	}
 }
