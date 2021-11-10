@@ -2278,7 +2278,7 @@ static void __exit tc_driver_exit(void)
     return;
 }
 
-module_init(tc_driver_init);
+device_initcall_sync(tc_driver_init);
 module_exit(tc_driver_exit);
 
 MODULE_DESCRIPTION("Synaptics S1302 Touchscreen Driver");
