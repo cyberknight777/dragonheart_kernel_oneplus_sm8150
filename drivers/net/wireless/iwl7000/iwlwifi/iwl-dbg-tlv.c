@@ -211,6 +211,14 @@ static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 		return -EOPNOTSUPP;
 	}
 
+#ifdef CPTCFG_IWLWIFI_DONT_DUMP_FIFOS
+	if (type == IWL_FW_INI_REGION_DEVICE_MEMORY &&
+	    id == IWL_FW_INI_HW_SMEM_REGION_ID) {
+		IWL_DEBUG_FW(trans, "WRT: skipping HW-SMEM region\n");
+		return -EOPNOTSUPP;
+	}
+#endif
+
 	active_reg = &trans->dbg.active_regions[id];
 	if (*active_reg) {
 		IWL_WARN(trans, "WRT: Overriding region id %u\n", id);
@@ -221,6 +229,14 @@ static int iwl_dbg_tlv_alloc_region(struct iwl_trans *trans,
 	*active_reg = kmemdup(tlv, tlv_len, GFP_KERNEL);
 	if (!*active_reg)
 		return -ENOMEM;
+
+#ifdef CPTCFG_IWLWIFI_DONT_DUMP_FIFOS
+	if (type == IWL_FW_INI_REGION_TXF || type == IWL_FW_INI_REGION_RXF) {
+		struct iwl_fw_ini_region_tlv *reg = (void *)(*active_reg)->data;
+
+		reg->fifos.hdr_only = cpu_to_le32(1);
+	}
+#endif
 
 	IWL_DEBUG_FW(trans, "WRT: Enabling region id %u type %u\n", id, type);
 
