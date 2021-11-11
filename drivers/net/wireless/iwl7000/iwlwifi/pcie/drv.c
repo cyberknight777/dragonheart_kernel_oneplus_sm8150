@@ -1201,6 +1201,9 @@ iwl_pci_find_dev_info(u16 device, u16 subsystem_device,
 {
 	int i;
 
+	if (ARRAY_SIZE(iwl_dev_info_table) == 0)
+		return NULL;
+
 	for (i = ARRAY_SIZE(iwl_dev_info_table) - 1; i >= 0; i--) {
 		const struct iwl_dev_info *dev_info = &iwl_dev_info_table[i];
 
