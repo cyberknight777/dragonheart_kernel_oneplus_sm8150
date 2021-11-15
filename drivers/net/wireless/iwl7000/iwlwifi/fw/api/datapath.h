@@ -479,7 +479,7 @@ enum iwl_rx_baid_action {
 
 /**
  * struct iwl_rx_baid_alloc_cfg_cmd - BAID allocation/config command
- * @sta_id: station ID
+ * @sta_id_mask: station ID mask
  * @tid: the TID for this session
  * @reserved: reserved
  * @action: the action, from &enum iwl_rx_baid_action
@@ -487,7 +487,7 @@ enum iwl_rx_baid_action {
  * @win_size: RX BA session window size
  */
 struct iwl_rx_baid_alloc_cfg_cmd {
-	__le32 sta_id;
+	__le32 sta_id_mask;
 	u8 tid;
 	u8 reserved;
 	__le16 action;

@@ -2603,7 +2603,7 @@ static int iwl_mvm_fw_baid_op_cmd(struct iwl_mvm *mvm,
 				  u16 buf_size)
 {
 	struct iwl_rx_baid_alloc_cfg_cmd cmd = {
-		.sta_id = cpu_to_le32(mvm_sta->sta_id),
+		.sta_id_mask = cpu_to_le32(BIT(mvm_sta->sta_id)),
 		.tid = tid,
 		.ssn = cpu_to_le16(ssn),
 		.win_size = cpu_to_le16(buf_size),
