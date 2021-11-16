@@ -98,6 +98,7 @@
 #include <linux/kprofiles.h>
 
 #include <linux/devfreq_boost.h>
+#include <linux/cpu_input_boost.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <linux/uaccess.h>
@@ -2234,8 +2235,10 @@ long _do_fork(unsigned long clone_flags,
 	/* Boost DDR bus to the max when userspace launches an app according to set kernel profile */
 	if (task_is_zygote(current) && (active_mode() == 2)) {
 	  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
+	  cpu_input_boost_kick_max(25);
 	} else if (task_is_zygote(current) && ((active_mode() == 3) || (active_mode() == 0))) {
 	  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50);
+	  cpu_input_boost_kick_max(50);
 	} else if (task_is_zygote(current) && (active_mode() == 1)) {
 	  pr_info("Battery profile detected! Skipping DDR bus boost...\n");
 	}
