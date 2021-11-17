@@ -1233,11 +1233,11 @@ iwl_dbg_tlv_tp_trigger(struct iwl_fw_runtime *fwrt, bool sync,
 		} else if (le32_to_cpu(dump_data.trig->reset_fw) ==
 			   IWL_FW_INI_RESET_FW_MODE_STOP_AND_RELOAD_FW) {
 			IWL_DEBUG_INFO(fwrt, "WRT: stop and reload firmware\n");
-				       fwrt->trans->dbg.restart_required = TRUE;
+			fwrt->trans->dbg.restart_required = TRUE;
 		} else if (le32_to_cpu(dump_data.trig->reset_fw) ==
 			   IWL_FW_INI_RESET_FW_MODE_STOP_FW_ONLY) {
 			IWL_DEBUG_INFO(fwrt, "WRT: stop only and no reload firmware\n");
-				       fwrt->trans->dbg.restart_required = FALSE;
+			fwrt->trans->dbg.restart_required = FALSE;
 			fwrt->trans->dbg.last_tp_resetfw =
 				le32_to_cpu(dump_data.trig->reset_fw);
 		} else if (le32_to_cpu(dump_data.trig->reset_fw) ==
