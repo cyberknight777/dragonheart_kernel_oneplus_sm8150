@@ -5012,7 +5012,7 @@ static u8 ieee80211_max_rx_chains(struct ieee80211_sub_if_data *sdata,
 	const struct ieee80211_he_cap_elem *he_cap;
 	const struct element *he_cap_elem;
 	u16 mcs_80_map, mcs_160_map;
-	u8 i, mcs_nss_size;
+	int i, mcs_nss_size;
 	bool support_160;
 	u8 chains = 1;
 
