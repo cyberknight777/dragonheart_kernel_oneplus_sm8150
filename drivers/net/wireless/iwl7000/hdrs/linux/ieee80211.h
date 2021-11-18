@@ -3197,13 +3197,9 @@ enum ieee80211_eid_ext {
 	WLAN_EID_EXT_SHORT_SSID_LIST = 58,
 	WLAN_EID_EXT_HE_6GHZ_CAPA = 59,
 	WLAN_EID_EXT_UL_MU_POWER_CAPA = 60,
-
-	/*
-	 * TODO: the actual ANA assignments for these IE IDs are not defined yet
-	 * in Draft P802.11be_D1.0. For now use these values.
-	 */
-	WLAN_EID_EXT_EHT_CAPABILITY = 253,
-	WLAN_EID_EXT_EHT_OPERATION = 254,
+	WLAN_EID_EXT_EHT_OPERATION = 106,
+	WLAN_EID_EXT_EHT_MULTI_LINK = 107,
+	WLAN_EID_EXT_EHT_CAPABILITY = 108,
 };
 
 /* Action category code */
