@@ -1970,14 +1970,26 @@ struct ieee80211_eht_mcs_nss_supp {
 };
 
 /**
- * struct ieee80211_eht_cap_elem - eht capabilities element
+ * struct ieee80211_eht_cap_elem_fixed - EHT capabilities fixed data
  *
- * This structure is the "eht capabilities element" fixed fields as
+ * This structure is the "EHT capabilities element" fixed fields as
  * described in P802.11be_D1.0 section 9.4.2.295a
+ *
+ * @mac_cap_info: MAC capabilities
+ * @phy_cap_info: PHY capabilities
  */
-struct ieee80211_eht_cap_elem {
+struct ieee80211_eht_cap_elem_fixed {
 	u8 mac_cap_info[2];
 	u8 phy_cap_info[8];
+} __packed;
+
+/**
+ * struct ieee80211_eht_cap_elem - EHT capabilities element
+ * @fixed: fixed parts, see &ieee80211_eht_cap_elem_fixed
+ * @optional: optional parts
+ */
+struct ieee80211_eht_cap_elem {
+	struct ieee80211_eht_cap_elem_fixed fixed;
 
 	/*
 	 * Followed by:
@@ -2680,7 +2692,7 @@ ieee80211_he_spr_size(const u8 *he_spr_ie)
 /* Calculate 802.11be EHT capabilities IE Tx/Rx EHT MCS NSS Support Field size */
 static inline u8
 ieee80211_eht_mcs_nss_size(const struct ieee80211_he_cap_elem *he_cap,
-			   const struct ieee80211_eht_cap_elem *eht_cap)
+			   const struct ieee80211_eht_cap_elem_fixed *eht_cap)
 {
 	u8 count = 0;
 
