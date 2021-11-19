@@ -30,7 +30,7 @@
 //#include <linux/project_info.h>
 
 #define DRV_NAME	"tri_state_key"
-#define KEY_LOG(fmt, args...)	printk(KERN_INFO DRV_NAME" %s : "fmt, __FUNCTION__, ##args)
+#define KEY_LOG(fmt, args...)	pr_debug(DRV_NAME" %s : "fmt, __FUNCTION__, ##args)
 /*
  *
  *					KEY1(GPIO1)	KEY2(GPIO92)
@@ -84,7 +84,7 @@ static int set_gpio_by_pinctrl(void)
 extern int aw8697_op_haptic_stop(void);
 /*op add to fix GCE-7551 end*/
 
-static void extcon_dev_work(struct work_struct *work)
+static inline void extcon_dev_work(struct work_struct *work)
 {
 	int key[3] = {0, 0, 0};
 	int hw_version = 0;
@@ -163,19 +163,19 @@ static void extcon_dev_work(struct work_struct *work)
 }
 
 
-static irqreturn_t extcon_dev_interrupt(int irq, void *_dev)
+static inline irqreturn_t extcon_dev_interrupt(int irq, void *_dev)
 {
 	schedule_work(&extcon_data->work);
 	return IRQ_HANDLED;
 }
 
-static void timer_handle(unsigned long arg)
+static inline void timer_handle(unsigned long arg)
 {
 	schedule_work(&extcon_data->work);
 }
 
 #ifdef CONFIG_OF
-static int extcon_dev_get_devtree_pdata(struct device *dev)
+static inline int extcon_dev_get_devtree_pdata(struct device *dev)
 {
 	struct device_node *node;
 
@@ -212,7 +212,7 @@ extcon_dev_get_devtree_pdata(struct device *dev)
 }
 #endif
 
-static int tristate_dev_probe(struct platform_device *pdev)
+static inline int tristate_dev_probe(struct platform_device *pdev)
 {
 	struct device *dev;
 	int ret = 0;
@@ -348,7 +348,7 @@ err_extcon_dev_register:
 	return ret;
 }
 
-static int tristate_dev_remove(struct platform_device *pdev)
+static inline int tristate_dev_remove(struct platform_device *pdev)
 {
 	cancel_work_sync(&extcon_data->work);
 	gpio_free(extcon_data->key1_gpio);
