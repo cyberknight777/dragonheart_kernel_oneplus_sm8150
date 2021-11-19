@@ -32,12 +32,12 @@
 #define IST8801_I2C_BUF_SIZE				(17)
 
 #define TRI_KEY_TAG                  "[tri_state_key] "
-#define TRI_KEY_ERR(fmt, args...)    printk(KERN_ERR TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
-#define TRI_KEY_LOG(fmt, args...)    printk(KERN_INFO TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
+#define TRI_KEY_ERR(fmt, args...)    printk(KERN_DEBUG TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
+#define TRI_KEY_LOG(fmt, args...)    printk(KERN_DEBUG TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
 #define TRI_KEY_DEBUG(fmt, args...)\
 	do{\
 		if (LEVEL_DEBUG == tri_key_debug)\
-			printk(KERN_INFO TRI_KEY_TAG " %s: " fmt, __FUNCTION__, ##args);\
+			printk(KERN_DEBUG TRI_KEY_TAG " %s: " fmt, __FUNCTION__, ##args);\
 	}while(0)
 
 
@@ -63,7 +63,7 @@ static struct hall_srs ist8801_ranges_2[] = {
 static DEFINE_MUTEX(ist8801_i2c_mutex);
 __attribute__((weak)) void ist8801_reconfig(ist8801_data_t *chip) {return;}
 
-static int ist8801_i2c_read_block(ist8801_data_t *ist8801_data, u8 addr, u8 *data, u8 len)
+static inline int ist8801_i2c_read_block(ist8801_data_t *ist8801_data, u8 addr, u8 *data, u8 len)
 {
 	u8 reg_addr = addr;
 	int err = 0;
@@ -103,7 +103,7 @@ static int ist8801_i2c_read_block(ist8801_data_t *ist8801_data, u8 addr, u8 *dat
 
 }
 
-static int ist8801_i2c_write_block(ist8801_data_t *ist8801_data, u8 addr, u8 *data, u8 len)
+static inline int ist8801_i2c_write_block(ist8801_data_t *ist8801_data, u8 addr, u8 *data, u8 len)
 {
 	int err = 0;
 	int idx = 0;
@@ -172,7 +172,7 @@ static int ist8801_i2c_write_block(ist8801_data_t *ist8801_data, u8 addr, u8 *da
 	return err;
 }
 
-static void ist8801_short_to_2byte(ist8801_data_t *ist8801_data, short x, u8 *hbyte, u8 *lbyte)
+static inline void ist8801_short_to_2byte(ist8801_data_t *ist8801_data, short x, u8 *hbyte, u8 *lbyte)
 {
 	unsigned short temp;
 
@@ -185,7 +185,7 @@ static void ist8801_short_to_2byte(ist8801_data_t *ist8801_data, short x, u8 *hb
 	*hbyte = (temp & 0xff00) >> 8;
 }
 
-static short ist8801_2byte_to_short(ist8801_data_t *ist8801_data, u8 hbyte, u8 lbyte)
+static inline short ist8801_2byte_to_short(ist8801_data_t *ist8801_data, u8 hbyte, u8 lbyte)
 {
 	short x = 0;
 	x =(short) ((hbyte<<8) | lbyte);
@@ -193,7 +193,7 @@ static short ist8801_2byte_to_short(ist8801_data_t *ist8801_data, u8 hbyte, u8 l
 	return x;
 }
 #if ENABLE_FILTER
-static void moving_average_0(u8 *data_hi,u8 *data_lo,u8 mode)
+static inline void moving_average_0(u8 *data_hi,u8 *data_lo,u8 mode)
 {
 	static int first_0 = 0;
 	int x,y;
@@ -234,7 +234,7 @@ static void moving_average_0(u8 *data_hi,u8 *data_lo,u8 mode)
 
 #endif
 
-static int ist8801_get_id(ist8801_data_t *ist8801_data)
+static inline int ist8801_get_id(ist8801_data_t *ist8801_data)
 {
 	u8 data = 0;
 	ist8801_i2c_read_block(ist8801_data,IST8801_REG_DID,&data,1);
@@ -244,7 +244,7 @@ static int ist8801_get_id(ist8801_data_t *ist8801_data)
 	return data;
 }
 
-static int ist8801_get_data(short *data)
+static inline int ist8801_get_data(short *data)
 {
 	int err = 0;
 	u8 buf[3] = {0};
@@ -282,7 +282,7 @@ static int ist8801_get_data(short *data)
 	return 0;
 }
 
-static void ist8801_dump_reg(u8* buf)
+static inline void ist8801_dump_reg(u8* buf)
 {
 	int i, err;
 	u8 val;
@@ -319,7 +319,7 @@ static void ist8801_dump_reg(u8* buf)
 	TRI_KEY_LOG("%s \n",buf);
 }
 
-static int ist8801_set_reg(int reg, int val)
+static inline int ist8801_set_reg(int reg, int val)
 {
 	u8 data = (u8)val;
 
@@ -334,7 +334,7 @@ static int ist8801_set_reg(int reg, int val)
 }
 
 
-static bool ist8801_is_power_on(void)
+static inline bool ist8801_is_power_on(void)
 {
 	if (g_ist8801_data == NULL) {
 		TRI_KEY_LOG("g_ist8801_data NULL \n");
@@ -392,7 +392,7 @@ static int ist8801_set_power_gpio_up(ist8801_data_t *ist8801_data)
 */
 
 /* vdd / vid power control */
-static int ist8801_set_power(ist8801_data_t *ist8801_data, bool on)
+static inline int ist8801_set_power(ist8801_data_t *ist8801_data, bool on)
 {
 	int ret = 0;
 
@@ -491,7 +491,7 @@ static int ist8801_set_frequency(ist8801_data_t *ist8801_data,int frequency)
         return 0;
 }
 */
-static int ist8801_clear_interrupt(ist8801_data_t *ist8801_data)
+static inline int ist8801_clear_interrupt(ist8801_data_t *ist8801_data)
 {
     int ret = 0;
 
@@ -520,7 +520,7 @@ IST8801_ADC_BIT_NUM
 15-bit:0x02 : threshold range: 16383~-16384
 16-bit: other : threshold range: 32767~-32768
 */
-static bool ist8801_down_update_threshold(int position, short lowthd, short highthd)
+static inline bool ist8801_down_update_threshold(int position, short lowthd, short highthd)
 {
 	u8 lthh, lthl, hthh, hthl;
 	int err = 0;
@@ -553,7 +553,7 @@ static bool ist8801_down_update_threshold(int position, short lowthd, short high
 	}
 }
 
-static int ist8801_set_operation_mode(ist8801_data_t *ist8801_data, int mode)
+static inline int ist8801_set_operation_mode(ist8801_data_t *ist8801_data, int mode)
 {
 	u8 opf = 0;
 	u8 ifcntl = 0;
@@ -612,7 +612,7 @@ static int ist8801_set_operation_mode(ist8801_data_t *ist8801_data, int mode)
 
 
 /* functions for interrupt handler */
-static irqreturn_t ist8801_down_irq_handler(int irq, void *dev_id)
+static inline irqreturn_t ist8801_down_irq_handler(int irq, void *dev_id)
 {
 	TRI_KEY_LOG("call \n");
 
@@ -627,7 +627,7 @@ static irqreturn_t ist8801_down_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int ist8801_setup_eint(ist8801_data_t *ist8801_data)
+static inline int ist8801_setup_eint(ist8801_data_t *ist8801_data)
 {
 	int ret = 0;
 
@@ -647,7 +647,7 @@ static int ist8801_setup_eint(ist8801_data_t *ist8801_data)
 	return 0;
 }
 
-static int ist8801_set_detection_mode(u8 mode)
+static inline int ist8801_set_detection_mode(u8 mode)
 {
 	u8 data = 0;
 	int err = 0;
@@ -705,7 +705,7 @@ static int ist8801_set_detection_mode(u8 mode)
 	return 0;
 }
 
-static int ist8801_enable_irq(bool enable)
+static inline int ist8801_enable_irq(bool enable)
 {
 	if (g_ist8801_data == NULL) {
 		TRI_KEY_LOG("g_ist8801_data NULL \n");
@@ -721,7 +721,7 @@ static int ist8801_enable_irq(bool enable)
 	return 0;
 }
 
-static int ist8801_clear_irq(void)
+static inline int ist8801_clear_irq(void)
 {
 	if (g_ist8801_data == NULL) {
 		TRI_KEY_LOG("g_ist8801_data NULL \n");
@@ -733,7 +733,7 @@ static int ist8801_clear_irq(void)
 	return 0;
 }
 
-static int ist8801_get_irq_state(void)
+static inline int ist8801_get_irq_state(void)
 {
 	if (g_ist8801_data == NULL) {
 		TRI_KEY_LOG("g_ist8801_data NULL \n");
@@ -743,7 +743,7 @@ static int ist8801_get_irq_state(void)
 	return ((g_ist8801_data->reg.map.intsrs & IST8801_DETECTION_MODE_INTERRUPT) ? 1 : 0);
 }
 
-static void ist8801_set_sensitivity(char *value)
+static inline void ist8801_set_sensitivity(char *value)
 {
 	int i = 0;
 	uint8_t rwdata;
@@ -835,7 +835,7 @@ IST8801_ADC_BIT_NUM
 15-bit:0x02
 16-bit: other
 */
-static int ist8801_reset_device(ist8801_data_t *ist8801_data)
+static inline int ist8801_reset_device(ist8801_data_t *ist8801_data)
 {
 	int err = 0;
 	u8 data =0;
@@ -915,7 +915,7 @@ static int ist8801_reset_device(ist8801_data_t *ist8801_data)
 	return err;
 }
 
-static int ist8801_parse_dts(struct device *dev, ist8801_data_t *p_data)
+static inline int ist8801_parse_dts(struct device *dev, ist8801_data_t *p_data)
 {
 	struct device_node *np = dev->of_node;
 	int rc = 0;
@@ -1001,7 +1001,7 @@ struct dhall_operations  ist8801_down_ops = {
 
 };
 
-static int ist8801_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static inline int ist8801_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	ist8801_data_t *p_data = NULL;
 	u8 dev_id = 0xFF;
@@ -1060,12 +1060,12 @@ fail:
 	return -ENXIO;
 }
 
-static int ist8801_i2c_remove(struct i2c_client *client)
+static inline int ist8801_i2c_remove(struct i2c_client *client)
 {
 	return 0;
 }
 
-static int ist8801_i2c_suspend(struct device *dev)
+static inline int ist8801_i2c_suspend(struct device *dev)
 {
 	int ret = 0 ;
 
@@ -1075,7 +1075,7 @@ static int ist8801_i2c_suspend(struct device *dev)
 	return 0;
 }
 
-static int ist8801_i2c_resume(struct device *dev)
+static inline int ist8801_i2c_resume(struct device *dev)
 {
 	int ret = 0 ;
 
