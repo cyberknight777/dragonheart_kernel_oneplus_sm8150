@@ -82,7 +82,7 @@ static int   m1120_down_power_init(dhall_data_t* dhall_data);
  /*********************************************************************
                         function about i2c
  **********************************************************************/
-static int m1120_down_i2c_read_block(dhall_data_t* dhall_data, u8 addr, u8 *data, u8 len)
+static inline int m1120_down_i2c_read_block(dhall_data_t* dhall_data, u8 addr, u8 *data, u8 len)
 {
 	u8 reg_addr = addr;
 	int err = 0;
@@ -129,7 +129,7 @@ static int m1120_down_i2c_read_block(dhall_data_t* dhall_data, u8 addr, u8 *data
 
 }
 
-static int m1120_down_i2c_write_block(dhall_data_t* dhall_data, u8 addr, u8 *data, u8 len)
+static inline int m1120_down_i2c_write_block(dhall_data_t* dhall_data, u8 addr, u8 *data, u8 len)
 {
 	int err = 0;
 	int idx = 0;
@@ -201,7 +201,7 @@ static int m1120_down_i2c_write_block(dhall_data_t* dhall_data, u8 addr, u8 *dat
 	return err;
 }
 
-static void m1120_down_short_to_2byte(dhall_data_t* dhall_data, short x, u8 *hbyte, u8 *lbyte)
+static inline void m1120_down_short_to_2byte(dhall_data_t* dhall_data, short x, u8 *hbyte, u8 *lbyte)
 {
     dhall_data_t* p_hall_data = dhall_data;
 
@@ -242,7 +242,7 @@ static void m1120_down_short_to_2byte(dhall_data_t* dhall_data, short x, u8 *hby
 	}
 }
 
-static short m1120_down_2byte_to_short(dhall_data_t* dhall_data, u8 hbyte, u8 lbyte)
+static inline short m1120_down_2byte_to_short(dhall_data_t* dhall_data, u8 hbyte, u8 lbyte)
 {
 	short x = 0;
     dhall_data_t* p_hall_data = dhall_data;
@@ -272,7 +272,7 @@ static short m1120_down_2byte_to_short(dhall_data_t* dhall_data, u8 hbyte, u8 lb
  /*********************************************************************
                         internal interrupt function
  **********************************************************************/
-static irqreturn_t m1120_down_irq_handler(int irq, void *dev_id)
+static inline irqreturn_t m1120_down_irq_handler(int irq, void *dev_id)
 {
 	MOTOR_LOG("call \n");
 
@@ -287,7 +287,7 @@ static irqreturn_t m1120_down_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int m1120_down_clear_interrupt(dhall_data_t* dhall_data)
+static inline int m1120_down_clear_interrupt(dhall_data_t* dhall_data)
 {
     int err = -1;
     u8 data = 0x00;
@@ -307,7 +307,7 @@ static int m1120_down_clear_interrupt(dhall_data_t* dhall_data)
  /*********************************************************************
                         internal power control function
  **********************************************************************/
-static int m1120_down_power_ctl(dhall_data_t* dhall_data, bool on)
+static inline int m1120_down_power_ctl(dhall_data_t* dhall_data, bool on)
 {
     int err = -1;
     dhall_data_t* p_hall_data = dhall_data;
@@ -349,7 +349,7 @@ static int m1120_down_power_ctl(dhall_data_t* dhall_data, bool on)
 // }
 
 
-static int m1120_down_set_operation_mode(dhall_data_t* dhall_data, int mode)
+static inline int m1120_down_set_operation_mode(dhall_data_t* dhall_data, int mode)
 {
     dhall_data_t* p_hall_data = dhall_data;
     u8 opf = p_hall_data->reg.map.opf;
@@ -390,7 +390,7 @@ static int m1120_down_set_operation_mode(dhall_data_t* dhall_data, int mode)
     return err;
 }
 
-static bool m1120_down_get_enable(dhall_data_t* dhall_data)
+static inline bool m1120_down_get_enable(dhall_data_t* dhall_data)
 {
     dhall_data_t* p_hall_data = dhall_data;
     int enable = -1;
@@ -408,7 +408,7 @@ static bool m1120_down_get_enable(dhall_data_t* dhall_data)
     return enable > 0 ? true : false;
 }
 
-static void m1120_down_set_enable(dhall_data_t* dhall_data, bool enable)
+static inline void m1120_down_set_enable(dhall_data_t* dhall_data, bool enable)
 {
     dhall_data_t* p_hall_data = dhall_data;
     int p_enable = enable ? 1 : 0;
@@ -439,7 +439,7 @@ static void m1120_down_set_enable(dhall_data_t* dhall_data, bool enable)
  /*********************************************************************
                 interface implement for onplus_motor.c
  **********************************************************************/
-static bool m1120_down_get_enable_state(void)
+static inline bool m1120_down_get_enable_state(void)
 {
     if (g_hall_data == NULL) {
 		MOTOR_LOG("m1120_down_get_enable_state failed, g_hall_data == NULL \n");
@@ -449,7 +449,7 @@ static bool m1120_down_get_enable_state(void)
     return m1120_down_get_enable(g_hall_data) ;
 }
 
-static int m1120_down_set_enable_state(bool enable)
+static inline int m1120_down_set_enable_state(bool enable)
 {
     if (g_hall_data == NULL) {
 		MOTOR_LOG("m1120_down_set_enable_state failed, g_hall_data == NULL \n");
@@ -462,7 +462,7 @@ static int m1120_down_set_enable_state(bool enable)
     return 0;
 }
 
-static bool m1120_down_is_power_on(void)
+static inline bool m1120_down_is_power_on(void)
 {
     if (g_hall_data == NULL) {
 		MOTOR_LOG("get m1120_down_is_power_on state failed, g_hall_data == NULL \n");
@@ -471,7 +471,7 @@ static bool m1120_down_is_power_on(void)
 
     return g_hall_data->power_enabled > 0 ? true : false;
 }
-static int m1120_down_get_real_data(short* data)
+static inline int m1120_down_get_real_data(short* data)
 { 
     int err = 0;
 	u8 buf[3] = {0};
@@ -503,7 +503,7 @@ static int m1120_down_get_real_data(short* data)
 	return 0;
 }
 
-static int m1120_down_get_abs_data(short* data)
+static inline int m1120_down_get_abs_data(short* data)
 { 
     short value = 0;
     int err = -1;
@@ -522,7 +522,7 @@ static int m1120_down_get_abs_data(short* data)
 	return 0;
 }
 
-static int m1120_down_set_detection_mode(u8 mode)
+static inline int m1120_down_set_detection_mode(u8 mode)
 {
 	u8 data = 0;
 	int err = 0;
@@ -575,7 +575,7 @@ static int m1120_down_set_detection_mode(u8 mode)
 
     return 0;    
 }
-static int m1120_down_enable_irq(bool enable)
+static inline int m1120_down_enable_irq(bool enable)
 {
     if(g_hall_data == NULL) {
         MOTOR_ERR("g_hall_data == NULL");
@@ -591,7 +591,7 @@ static int m1120_down_enable_irq(bool enable)
     return 0;
 }
 
-static int m1120_down_clear_irq(void)
+static inline int m1120_down_clear_irq(void)
 {
     if(g_hall_data == NULL) {
         MOTOR_ERR("g_hall_data == NULL");
@@ -602,7 +602,7 @@ static int m1120_down_clear_irq(void)
     return 0;
 }
 
-static int m1120_down_get_irq_state(void)
+static inline int m1120_down_get_irq_state(void)
 {
     if(g_hall_data == NULL) {
         MOTOR_ERR("g_hall_data == NULL");
@@ -612,7 +612,7 @@ static int m1120_down_get_irq_state(void)
     return ((g_hall_data->reg.map.intsrs & M1120_DETECTION_MODE_INTERRUPT) ? 1 : 0);   
 }
 
-static bool m1120_down_update_threshold(int position, short lowthd, short highthd)
+static inline bool m1120_down_update_threshold(int position, short lowthd, short highthd)
 {
     
     u8 lthh, lthl, hthh, hthl;
@@ -644,7 +644,7 @@ static bool m1120_down_update_threshold(int position, short lowthd, short highth
     return true;
 }
 
-static void m1120_down_dump_reg(u8* buf)
+static inline void m1120_down_dump_reg(u8* buf)
 {
     int i, err;
 	u8 val;
@@ -674,7 +674,7 @@ static void m1120_down_dump_reg(u8* buf)
     return ;  
 }
 
-static int m1120_down_set_reg(int reg, int val)
+static inline int m1120_down_set_reg(int reg, int val)
 {
     u8 data = (u8)val;
 
@@ -689,7 +689,7 @@ static int m1120_down_set_reg(int reg, int val)
     return 0;  
 }
 
-static void m1120_down_set_sensitive(hall_sensitive_t sensitive)
+static inline void m1120_down_set_sensitive(hall_sensitive_t sensitive)
 {
     int err = 0;
     u8  data = 0x00;
@@ -739,7 +739,7 @@ struct oneplus_hall_operations  m1120_down_ops = {
  /*********************************************************************
                         init function
  **********************************************************************/
-static int m1120_down_init_device(dhall_data_t* hall_data)
+static inline int m1120_down_init_device(dhall_data_t* hall_data)
 {
     int err = -1;
     dhall_data_t* p_hall_data = hall_data;
@@ -766,7 +766,7 @@ static int m1120_down_init_device(dhall_data_t* hall_data)
     return 0;
 }
 
-static int m1120_down_reset_device(dhall_data_t* dhall_data)
+static inline int m1120_down_reset_device(dhall_data_t* dhall_data)
 {
     int err = 0;
     u8  id = 0xFF, data = 0x00;
@@ -827,7 +827,7 @@ static int m1120_down_reset_device(dhall_data_t* dhall_data)
     return err;
 }
 
-static int m1120_down_power_init(dhall_data_t* dhall_data)
+static inline int m1120_down_power_init(dhall_data_t* dhall_data)
 {
     int err = -1;
     dhall_data_t* p_hall_data = dhall_data;
@@ -860,7 +860,7 @@ reg_vdd_put:
     return err;
 }
 
-static int m1120_down_parse_dt(dhall_data_t* dhall_data)
+static inline int m1120_down_parse_dt(dhall_data_t* dhall_data)
 {
     struct device_node *np = NULL;
     u32 temp_val;
@@ -893,7 +893,7 @@ static int m1120_down_parse_dt(dhall_data_t* dhall_data)
 
     return 0;
 }
-static int m1120_down_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static inline int m1120_down_i2c_drv_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
     dhall_data_t* p_hall_data;
     int           err = 0;
@@ -971,7 +971,7 @@ error_0:
     return err;
 }
 
-static int m1120_down_i2c_drv_remove(struct i2c_client *client)
+static inline int m1120_down_i2c_drv_remove(struct i2c_client *client)
 {
     dhall_data_t* p_hall_data = i2c_get_clientdata(client);
 
