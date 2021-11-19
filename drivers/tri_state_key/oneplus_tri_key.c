@@ -50,12 +50,12 @@
 #include "../extcon/extcon.h"
 
 #define TRI_KEY_TAG                  "[tri_state_key] "
-#define TRI_KEY_ERR(fmt, args...)    printk(KERN_ERR TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
-#define TRI_KEY_LOG(fmt, args...)    printk(KERN_INFO TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
+#define TRI_KEY_ERR(fmt, args...)    pr_debug(TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
+#define TRI_KEY_LOG(fmt, args...)    pr_debug(TRI_KEY_TAG" %s : "fmt, __FUNCTION__, ##args)
 #define TRI_KEY_DEBUG(fmt, args...)\
 	do{\
 		if (LEVEL_DEBUG == tri_key_debug)\
-			printk(KERN_INFO TRI_KEY_TAG " %s: " fmt, __FUNCTION__, ##args);\
+			pr_debug(TRI_KEY_TAG " %s: " fmt, __FUNCTION__, ##args);\
 	}while(0)
 
 enum {
@@ -101,7 +101,7 @@ static short calib_upHall_UD_distance = 0, calib_dnHall_UD_distance = 0;
 
 
 
-int oneplus_register_hall(const char *name, struct dhall_operations *ops)
+inline int oneplus_register_hall(const char *name, struct dhall_operations *ops)
 {
 	if (!name || !ops) {
 		TRI_KEY_ERR("name is NULL or ops is NULL, would not register digital hall \n");
@@ -151,7 +151,7 @@ int oneplus_register_hall(const char *name, struct dhall_operations *ops)
 	return 0;
 }
 
-int oneplus_hall_enable_irq (unsigned int id, bool enable)
+inline int oneplus_hall_enable_irq (unsigned int id, bool enable)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -181,7 +181,7 @@ int oneplus_hall_enable_irq (unsigned int id, bool enable)
 	return -EINVAL;
 }
 
-int oneplus_hall_clear_irq (unsigned int id)
+inline int oneplus_hall_clear_irq (unsigned int id)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -208,7 +208,7 @@ int oneplus_hall_clear_irq (unsigned int id)
 	return -EINVAL;
 }
 
-int oneplus_hall_get_data(unsigned int id)
+inline int oneplus_hall_get_data(unsigned int id)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -233,7 +233,7 @@ int oneplus_hall_get_data(unsigned int id)
 
 }
 
-bool oneplus_hall_update_threshold(unsigned int id, int position, short lowthd, short highthd)
+inline bool oneplus_hall_update_threshold(unsigned int id, int position, short lowthd, short highthd)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -258,7 +258,7 @@ bool oneplus_hall_update_threshold(unsigned int id, int position, short lowthd, 
 
 }
 
-int oneplus_hall_set_detection_mode(unsigned int id, u8 mode)
+inline int oneplus_hall_set_detection_mode(unsigned int id, u8 mode)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -283,7 +283,7 @@ int oneplus_hall_set_detection_mode(unsigned int id, u8 mode)
 
 }
 
-int oneplus_hall_get_irq_state(unsigned int id)
+inline int oneplus_hall_get_irq_state(unsigned int id)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -310,7 +310,7 @@ int oneplus_hall_get_irq_state(unsigned int id)
 
 
 
-void oneplus_hall_dump_regs(unsigned int id, u8 *buf)
+inline void oneplus_hall_dump_regs(unsigned int id, u8 *buf)
 {
 	if (!g_the_chip)
 		return;
@@ -336,7 +336,7 @@ void oneplus_hall_dump_regs(unsigned int id, u8 *buf)
 	}
 }
 
-int oneplus_hall_set_reg(unsigned int id, int reg, int val)
+inline int oneplus_hall_set_reg(unsigned int id, int reg, int val)
 {
 	if (!g_the_chip)
 		return -EINVAL;
@@ -361,7 +361,7 @@ int oneplus_hall_set_reg(unsigned int id, int reg, int val)
 
 }
 
-bool oneplus_hall_is_power_on(void)
+inline bool oneplus_hall_is_power_on(void)
 {
 	if (!g_the_chip || !g_the_chip->dhall_down_ops || !g_the_chip->dhall_down_ops->is_power_on
 					|| !g_the_chip->dhall_up_ops || !g_the_chip->dhall_up_ops->is_power_on) {
@@ -374,7 +374,7 @@ bool oneplus_hall_is_power_on(void)
 	}
 
 }
-static void reboot_get_position(struct extcon_dev_data *chip)
+static inline void reboot_get_position(struct extcon_dev_data *chip)
 {
 	short delta;
 	short up_data1;
@@ -394,7 +394,7 @@ static void reboot_get_position(struct extcon_dev_data *chip)
 	last_position = chip->position;
 }
 
-static int interf_get_position(struct extcon_dev_data *chip)
+static inline int interf_get_position(struct extcon_dev_data *chip)
 {
 	short delta0;
 	short delta1;
@@ -444,7 +444,7 @@ static int interf_get_position(struct extcon_dev_data *chip)
 
 }
 
-static int get_position(struct extcon_dev_data *chip)
+static inline int get_position(struct extcon_dev_data *chip)
 {
 	short diff;
 	diff = chip->dhall_data1 - chip->dhall_data0;
@@ -501,7 +501,7 @@ static int get_position(struct extcon_dev_data *chip)
 	return 0;
 }
 
-static int judge_interference(struct extcon_dev_data *chip)
+static inline int judge_interference(struct extcon_dev_data *chip)
 {
 	short delta;
 	short sum;
@@ -695,7 +695,7 @@ static int judge_interference(struct extcon_dev_data *chip)
 
 
 
-static int oneplus_get_data(struct extcon_dev_data *chip)
+static inline int oneplus_get_data(struct extcon_dev_data *chip)
 {
 	int res = 0;
 	mutex_lock(&chip->mtx);
@@ -710,7 +710,7 @@ static int oneplus_get_data(struct extcon_dev_data *chip)
 	return res;
 }
 
-static int reupdata_threshold(struct extcon_dev_data *chip)
+static inline int reupdata_threshold(struct extcon_dev_data *chip)
 {
 	int res = 0;
 	int tolen = 22;
@@ -822,7 +822,7 @@ fail:
 	return res;
 }
 
-static void report_key_value(struct extcon_dev_data *chip)
+static inline void report_key_value(struct extcon_dev_data *chip)
 {
 	if (chip->position == DOWN_STATE) {
 		extcon_set_state_sync(chip->edev, 1, 0);
@@ -850,7 +850,7 @@ static void report_key_value(struct extcon_dev_data *chip)
 		TRI_KEY_LOG("no report\n");
 }
 
-static int report_calibration_location(struct extcon_dev_data *chip)
+static inline int report_calibration_location(struct extcon_dev_data *chip)
 {
 	oneplus_get_data(chip);
 	get_position(chip);
@@ -866,7 +866,7 @@ err:
 }
 
 //note:work in irq context
-int oneplus_hall_irq_handler(unsigned int id)
+inline int oneplus_hall_irq_handler(unsigned int id)
 {
 	TRI_KEY_LOG("%d tri_key:call :%s\n", id, __func__);
 	if (!g_the_chip) {
@@ -879,7 +879,7 @@ int oneplus_hall_irq_handler(unsigned int id)
 }
 
 
-static void tri_key_dev_work(struct work_struct *work)
+static inline void tri_key_dev_work(struct work_struct *work)
 {
 	struct extcon_dev_data *chip = container_of(work,
 			struct extcon_dev_data, dwork);
@@ -1030,7 +1030,7 @@ FINAL:
 	mutex_unlock(&chip->mtx);
 }
 
-static ssize_t dhall_data_show(struct device *dev,
+static inline ssize_t dhall_data_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	//int fb = -1;
@@ -1088,7 +1088,7 @@ static ssize_t dhall_data_show(struct device *dev,
 }
 
 
-static ssize_t tri_state_show(struct device *dev,
+static inline ssize_t tri_state_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	//int position =-1;
@@ -1104,13 +1104,13 @@ static ssize_t tri_state_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->state);
 }
 
-static enum hrtimer_restart tri_key_status_timeout(struct hrtimer *timer)
+static inline enum hrtimer_restart tri_key_status_timeout(struct hrtimer *timer)
 {
 	schedule_work(&tri_key_timeout_work);
 	return HRTIMER_NORESTART;
 }
 
-static void tri_key_timeout_work_func(struct work_struct *work)
+static inline void tri_key_timeout_work_func(struct work_struct *work)
 {
 	oneplus_get_data(g_the_chip);
 	judge_interference(g_the_chip);
@@ -1133,20 +1133,20 @@ static void tri_key_timeout_work_func(struct work_struct *work)
 }
 
 
-static short Sum(short value0, short value1)
+static inline short Sum(short value0, short value1)
 {
     short sum = 0;
 	sum = value0 + value1;
 	return sum;
 }
-static short Minus(short value0, short value1)
+static inline short Minus(short value0, short value1)
 {
 	short minus = 0;
 	minus = value0 - value1;
 	return minus;
 }
 
-void initialCalibValue(short calib_dnHall_UpV, short calib_dnHall_MdV,
+inline void initialCalibValue(short calib_dnHall_UpV, short calib_dnHall_MdV,
 			short calib_dnHall_DnV, short calib_upHall_UpV,
 			short calib_upHall_MdV, short calib_upHall_DnV)
 {
@@ -1165,7 +1165,7 @@ void initialCalibValue(short calib_dnHall_UpV, short calib_dnHall_MdV,
 }
 
 
-static ssize_t hall_data_calib_show(struct device *dev,
+static inline ssize_t hall_data_calib_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
 	if (!g_the_chip) {
@@ -1178,7 +1178,7 @@ static ssize_t hall_data_calib_show(struct device *dev,
 		g_the_chip->dnHall_DnV, g_the_chip->upHall_DnV);
 }
 
-static ssize_t hall_data_calib_store(struct device *pdev,
+static inline ssize_t hall_data_calib_store(struct device *pdev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	int data[6] = {0};
@@ -1208,7 +1208,7 @@ static ssize_t hall_data_calib_store(struct device *pdev,
 	report_calibration_location(g_the_chip);
 	return count;
 }
-static ssize_t hall_dump_regs_show(struct device *dev,
+static inline ssize_t hall_dump_regs_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
 	u8 _buf[1024] = {0};
@@ -1219,9 +1219,9 @@ static ssize_t hall_dump_regs_show(struct device *dev,
 	}
 
 	oneplus_hall_dump_regs(1, _buf);
-	return sprintf(buf, "%s\n %s\n", _buf);
+	return sprintf(buf, "%s\n", _buf);
 }
-static ssize_t hall_debug_info_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+static inline ssize_t hall_debug_info_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	int tmp = 0;
 	char buffer[4] = {0};
@@ -1237,17 +1237,17 @@ static ssize_t hall_debug_info_store(struct device *dev, struct device_attribute
 
 	return count;
 }
-static ssize_t hall_debug_info_show(struct device *dev, struct device_attribute *attr, char *buf)
+static inline ssize_t hall_debug_info_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", tri_key_debug);
 }
 
-static ssize_t hall_set_value_show(struct device *dev, struct device_attribute *attr, char *buf)
+static inline ssize_t hall_set_value_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d,%d\n", tol1, tol2);
 }
 
-static ssize_t hall_set_value_store(struct device *pdev, struct device_attribute *attr, const char *buf, size_t count)
+static inline ssize_t hall_set_value_store(struct device *pdev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	int tmp[2] = {0};
 	char buffer[6] = {0};
@@ -1288,7 +1288,7 @@ static struct attribute_group tri_key_attribute_group = {
 	.attrs = tri_key_attributes
 };
 
-static int tri_key_platform_probe(struct platform_device *pdev)
+static inline int tri_key_platform_probe(struct platform_device *pdev)
 {
 	struct extcon_dev_data *chip = NULL;
 	int err = 0;
@@ -1388,7 +1388,7 @@ err_extcon_dev_register:
 
 }
 
-static int tri_key_platform_remove(struct platform_device *pdev)
+static inline int tri_key_platform_remove(struct platform_device *pdev)
 {
 	if (g_the_chip) {
 		cancel_work_sync(&g_the_chip->dwork);
