@@ -36,7 +36,7 @@
 static struct oneplus_mdrv_chip *g_the_chip = NULL;
 static void drv8834_check_motor_type(struct oneplus_mdrv_chip *chip);
 
-static void drv8834_parse_dts(struct oneplus_mdrv_chip * chip)
+static inline void drv8834_parse_dts(struct oneplus_mdrv_chip * chip)
 {
 	struct device_node *np = chip->dev->of_node;
 	int rc = 0;
@@ -161,7 +161,7 @@ static void drv8834_parse_dts(struct oneplus_mdrv_chip * chip)
 			chip->dir_gpio, chip->m0_gpio, chip->m1_gpio, chip->step_gpio);
 }
 
-static int drv8834_init_dir_switch(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_init_dir_switch(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -199,7 +199,7 @@ static int drv8834_init_dir_switch(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_init_pwm_config(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_init_pwm_config(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -222,7 +222,7 @@ static int drv8834_init_pwm_config(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_init_boost(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_init_boost(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -245,7 +245,7 @@ static int drv8834_init_boost(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_init_m1_gpio(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_init_m1_gpio(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -268,7 +268,7 @@ static int drv8834_init_m1_gpio(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_init_sleep_gpio(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_init_sleep_gpio(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -291,7 +291,7 @@ static int drv8834_init_sleep_gpio(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_init_dir_gpio(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_init_dir_gpio(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -314,7 +314,7 @@ static int drv8834_init_dir_gpio(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_change_m0_config(struct oneplus_mdrv_chip * chip ,int config)
+static inline int drv8834_change_m0_config(struct oneplus_mdrv_chip * chip ,int config)
 {
 	int ret = 0;
 
@@ -348,7 +348,7 @@ static int drv8834_change_m0_config(struct oneplus_mdrv_chip * chip ,int config)
 	return 0;
 }
 
-static int drv8834_change_vref_config(struct oneplus_mdrv_chip * chip ,int config)
+static inline int drv8834_change_vref_config(struct oneplus_mdrv_chip * chip ,int config)
 {
 	int ret = 0;
 
@@ -385,7 +385,7 @@ static int drv8834_change_vref_config(struct oneplus_mdrv_chip * chip ,int confi
 	return 0;
 }
 
-static int drv8834_hardware_init(struct oneplus_mdrv_chip * chip)
+static inline int drv8834_hardware_init(struct oneplus_mdrv_chip * chip)
 {
 	int ret = 0;
 
@@ -459,7 +459,7 @@ static int drv8834_hardware_init(struct oneplus_mdrv_chip * chip)
 
 }
 
-static int drv8834_set_power(int mode)
+static inline int drv8834_set_power(int mode)
 {
 	static bool first_init = true;
 
@@ -492,7 +492,7 @@ static int drv8834_set_power(int mode)
 	return 0;
 }
 
-static int drv8834_set_direction(int dir)
+static inline int drv8834_set_direction(int dir)
 {
 	if (g_the_chip == NULL || !gpio_is_valid(g_the_chip->dir_gpio)) {
 		MOTOR_LOG("g_the_chip null or dir_gpio invalid\n");
@@ -523,7 +523,7 @@ static int drv8834_set_direction(int dir)
 	return 0;
 }
 
-static int drv8834_set_working_mode (int mode)
+static inline int drv8834_set_working_mode (int mode)
 {
 	int ret = 0;
 
@@ -614,7 +614,7 @@ static int drv8834_set_working_mode (int mode)
 }
 
 
-static int drv8834_calculate_pwm_count(int L, int mode)
+static inline int drv8834_calculate_pwm_count(int L, int mode)
 {
 	int pwm_count = 0;
 	int mdmode = 0;
@@ -643,7 +643,7 @@ static int drv8834_calculate_pwm_count(int L, int mode)
 	return pwm_count;
 }
 
-static int drv8834_pwm_config(int duty_ns, int period_ns)
+static inline int drv8834_pwm_config(int duty_ns, int period_ns)
 {
 	int pwm_count = 0;
 	int mdmode = 0;
@@ -663,7 +663,7 @@ static int drv8834_pwm_config(int duty_ns, int period_ns)
 	return pwm_config(g_the_chip->pwm_dev, duty_ns, period_ns);
 }
 
-static int drv8834_pwm_enable(void)
+static inline int drv8834_pwm_enable(void)
 {
 	if (g_the_chip == NULL || IS_ERR(g_the_chip->pwm_dev)) {
 		MOTOR_LOG("g_the_chip null or pwm_dev not exist!\n");
@@ -673,7 +673,7 @@ static int drv8834_pwm_enable(void)
 	return pwm_enable(g_the_chip->pwm_dev);
 }
 
-static int drv8834_pwm_disable(void)
+static inline int drv8834_pwm_disable(void)
 {
 	if (g_the_chip == NULL || IS_ERR(g_the_chip->pwm_dev)) {
 		MOTOR_LOG("g_the_chip null or pwm_dev not exist!\n");
@@ -684,7 +684,7 @@ static int drv8834_pwm_disable(void)
 	return 0;
 }
 
-static int drv8834_get_motor_type(void)
+static inline int drv8834_get_motor_type(void)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip null \n");
@@ -694,7 +694,7 @@ static int drv8834_get_motor_type(void)
 	return g_the_chip->motor_type;
 }
 
-static void drv8834_check_motor_type(struct oneplus_mdrv_chip *chip)
+static inline void drv8834_check_motor_type(struct oneplus_mdrv_chip *chip)
 {
     /*if (is_project(ONEPLUS_17107) && get_PCB_Version() == HW_VERSION__12) { // fi 6 motor
         chip->motor_type = MOTOR_FI6;
@@ -706,7 +706,7 @@ static void drv8834_check_motor_type(struct oneplus_mdrv_chip *chip)
     MOTOR_LOG("motor_type %d \n",chip->motor_type);
 }
 
-static int  drv8834_get_all_config(int* config ,int count)
+static inline int  drv8834_get_all_config(int* config ,int count)
 {
 	if (g_the_chip == NULL || count > 6) {
 		MOTOR_LOG("g_the_chip null \n");
@@ -719,7 +719,7 @@ static int  drv8834_get_all_config(int* config ,int count)
 	config[3] = gpio_get_value(g_the_chip->m1_gpio);
 	config[4] = gpio_get_value(g_the_chip->dir_gpio);
 
-	MOTOR_ERR("config change %d %d %d %d %d %d\n", config[0], config[1],
+	MOTOR_ERR("config change %d %d %d %d %d \n", config[0], config[1],
 		config[2], config[3], config[4]);
 
 	return 0;
@@ -738,7 +738,7 @@ struct oneplus_motor_operations  drv8834_ops = {
 	.get_motor_type = drv8834_get_motor_type,
 };
 
-static int drv8834_platform_probe(struct platform_device *pdev)
+static inline int drv8834_platform_probe(struct platform_device *pdev)
 {
 	struct oneplus_mdrv_chip *chip = NULL;
 	int ret = 0;
@@ -770,7 +770,7 @@ static int drv8834_platform_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int drv8834_platform_remove(struct platform_device *pdev)
+static inline int drv8834_platform_remove(struct platform_device *pdev)
 {
 	if (g_the_chip) {
 		gpio_free(g_the_chip->boost_gpio);
