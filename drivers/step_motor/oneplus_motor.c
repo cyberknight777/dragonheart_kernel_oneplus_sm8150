@@ -26,8 +26,6 @@
 #include <linux/proc_fs.h>
 #include <linux/hrtimer.h>
 #include <linux/alarmtimer.h>
-#include <linux/notifier.h>
-#include <linux/fb.h>
 #include <linux/string.h>
 #include <linux/syscalls.h>
 //#include <linux/jiffies.h>
@@ -51,9 +49,9 @@ static DEFINE_MUTEX(motor_running_mutex);
 static DEFINE_MUTEX(position_detect_mutex);
 static DEFINE_MUTEX(motor_start_mutex);
 
-/************************fb_notifier************************/
+/************************msm_drm_notifier************************/
 static void oneplus_motor_notify_state(unsigned long val);
-static int  fb_notifier_callback(struct notifier_block* nb, unsigned long event, void*  data);
+static int  msm_drm_notifier_callback(struct notifier_block* nb, unsigned long event, void*  data);
 
 /************************digital_hall control interface************************/
 bool        oneplus_dhall_is_power_on(void);
@@ -198,7 +196,7 @@ static void  motor_platform_shutdown(struct platform_device* pdev);
 
 
 /*********************************************************************
-						 fb_notifier
+						 msm_drm_notifier
 **********************************************************************/
 static void oneplus_motor_notify_state(unsigned long val)
 {
@@ -208,8 +206,7 @@ static void oneplus_motor_notify_state(unsigned long val)
     motor_notifier_call_chain(val);
 }
 
-#ifdef CONFIG_DRM_MSM
-static int fb_notifier_callback(struct notifier_block* nb, unsigned long event, void* data)
+static inline int msm_drm_notifier_callback(struct notifier_block* nb, unsigned long event, void* data)
 {
 	int blank;
 	struct msm_drm_notifier* evdata = data;
@@ -236,36 +233,11 @@ static int fb_notifier_callback(struct notifier_block* nb, unsigned long event, 
 
 	return 0;
 }
-#else
-static int fb_notifier_callback(struct notifier_block* nb, unsigned long event, void* data)
-{
-	int blank;
-	struct fb_event* evdata = data;
-
-	if (g_the_chip == NULL) {
-		return 0;
-	}
-
-	if (evdata && evdata->data) {
-		if (event == FB_EVENT_BLANK) {
-			blank =* (int* )evdata->data;
-			if (blank == FB_BLANK_UNBLANK) {
-				g_the_chip->led_on = true;
-				MOTOR_LOG("led_on %d\n", g_the_chip->led_on);
-			} else if (blank == FB_BLANK_POWERDOWN) {
-				g_the_chip->led_on = false;
-				MOTOR_LOG("led_on %d\n", g_the_chip->led_on);
-			}
-		}
-	}
-	return 0;
-}
-#endif /*CONFIG_DRM_MSM*/
 
 /*********************************************************************
 						 digital_hall control interface
 **********************************************************************/
-bool oneplus_dhall_is_power_on(void)
+inline bool oneplus_dhall_is_power_on(void)
 {
 	if (g_the_chip == NULL || g_the_chip->hall_down_ops == NULL 
 						|| g_the_chip->hall_down_ops->is_power_on == NULL
@@ -284,7 +256,7 @@ bool oneplus_dhall_is_power_on(void)
 
 }
 
-static int oneplus_hall_set_enable_state(unsigned int id, bool enable)
+static inline int oneplus_hall_set_enable_state(unsigned int id, bool enable)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -315,7 +287,7 @@ static int oneplus_hall_set_enable_state(unsigned int id, bool enable)
 	return -EINVAL;
 }
 
-static bool oneplus_hall_get_enable_state(unsigned int id)
+static inline bool oneplus_hall_get_enable_state(unsigned int id)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -346,7 +318,7 @@ static bool oneplus_hall_get_enable_state(unsigned int id)
 	return false;
 }
 
-static int oneplus_hall_get_abs_data(unsigned int id)
+static inline int oneplus_hall_get_abs_data(unsigned int id)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -376,7 +348,7 @@ static int oneplus_hall_get_abs_data(unsigned int id)
 	return -EINVAL;
 }
 
-int oneplus_hall_get_real_data(unsigned int id)
+inline int oneplus_hall_get_real_data(unsigned int id)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -408,7 +380,7 @@ int oneplus_hall_get_real_data(unsigned int id)
 	return -EINVAL;
 }
 
-int oneplus_dhall_set_sensitive(unsigned int id, hall_sensitive_t sensitive)
+inline int oneplus_dhall_set_sensitive(unsigned int id, hall_sensitive_t sensitive)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -442,7 +414,7 @@ int oneplus_dhall_set_sensitive(unsigned int id, hall_sensitive_t sensitive)
 	return 0;
 }
 
-int oneplus_dhall_set_detection_mode(unsigned int id, u8 mode)
+inline int oneplus_dhall_set_detection_mode(unsigned int id, u8 mode)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -476,7 +448,7 @@ int oneplus_dhall_set_detection_mode(unsigned int id, u8 mode)
 
 
 //should use in irq handle
-int oneplus_hall_enable_irq (unsigned int id, bool enable)
+inline int oneplus_hall_enable_irq (unsigned int id, bool enable)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -507,7 +479,7 @@ int oneplus_hall_enable_irq (unsigned int id, bool enable)
 	return -EINVAL;
 }
 
-int oneplus_hall_clear_irq (unsigned int id)
+inline int oneplus_hall_clear_irq (unsigned int id)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -541,7 +513,7 @@ int oneplus_hall_clear_irq (unsigned int id)
 	return -EINVAL;
 }
 
-int oneplus_dhall_get_irq_state(unsigned int id)
+inline int oneplus_dhall_get_irq_state(unsigned int id)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -573,7 +545,7 @@ int oneplus_dhall_get_irq_state(unsigned int id)
 	return -EINVAL;
 }
 
-static int oneplus_hall_update_threshold(unsigned int id, int position, short lowthd, short highthd)
+static inline int oneplus_hall_update_threshold(unsigned int id, int position, short lowthd, short highthd)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -614,7 +586,7 @@ static int oneplus_hall_update_threshold(unsigned int id, int position, short lo
 	return -EINVAL;
 }
 
-void oneplus_dhall_dump_regs(unsigned int id, u8* buf)
+inline void oneplus_dhall_dump_regs(unsigned int id, u8* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -649,7 +621,7 @@ void oneplus_dhall_dump_regs(unsigned int id, u8* buf)
 	return;
 }
 
-int oneplus_dhall_set_reg(unsigned int id, int reg, int val)
+inline int oneplus_dhall_set_reg(unsigned int id, int reg, int val)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -684,7 +656,7 @@ int oneplus_dhall_set_reg(unsigned int id, int reg, int val)
 /*********************************************************************
             			step_motor control interface
 **********************************************************************/
-static int oneplus_motor_set_power(motor_power mode)
+static inline int oneplus_motor_set_power(motor_power mode)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL
 			   || g_the_chip->motor_ops->set_power == NULL) {
@@ -697,7 +669,7 @@ static int oneplus_motor_set_power(motor_power mode)
 	}
 }
 
-static int oneplus_motor_set_direction (int dir)
+static inline int oneplus_motor_set_direction (int dir)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops->set_direction == NULL) {
 
@@ -708,7 +680,7 @@ static int oneplus_motor_set_direction (int dir)
 	}
 }
 
-static int oneplus_motor_set_working_mode (int mode)
+static inline int oneplus_motor_set_working_mode (int mode)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL 
 			|| g_the_chip->motor_ops->set_working_mode == NULL) {
@@ -734,7 +706,7 @@ static int oneplus_motor_set_working_mode (int mode)
 
 // }
 
-static int oneplus_motor_pwm_config(int duty_ns, int period_ns)
+static inline int oneplus_motor_pwm_config(int duty_ns, int period_ns)
 {
 	MOTOR_LOG("duty_ns : %d, period_ns : %d\n", duty_ns, period_ns);
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL
@@ -748,7 +720,7 @@ static int oneplus_motor_pwm_config(int duty_ns, int period_ns)
 
 }
 
-static int oneplus_motor_pwm_enable(void)
+static inline int oneplus_motor_pwm_enable(void)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL
 			|| g_the_chip->motor_ops->pwm_enable == NULL) {
@@ -761,7 +733,7 @@ static int oneplus_motor_pwm_enable(void)
 
 }
 
-static int oneplus_motor_pwm_disable(void)
+static inline int oneplus_motor_pwm_disable(void)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL
 		 || g_the_chip->motor_ops->pwm_disable == NULL) {
@@ -774,7 +746,7 @@ static int oneplus_motor_pwm_disable(void)
 
 }
 
-int oneplus_motor_get_all_config(int* config ,int count)
+inline int oneplus_motor_get_all_config(int* config ,int count)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL 
 		|| g_the_chip->motor_ops->get_all_config == NULL) {
@@ -788,7 +760,7 @@ int oneplus_motor_get_all_config(int* config ,int count)
 }
 
 
-int oneplus_get_motor_type(void)
+inline int oneplus_get_motor_type(void)
 {
 	if (g_the_chip == NULL || g_the_chip->motor_ops == NULL	
 			 || g_the_chip->motor_ops->get_motor_type == NULL) {
@@ -801,7 +773,7 @@ int oneplus_get_motor_type(void)
 
 }
 
-static void oneplus_set_motor_work_mode_para(int motor_work_mode)
+static inline void oneplus_set_motor_work_mode_para(int motor_work_mode)
 {
 	int mode = 0;
 	static int mode_pre = -1;
@@ -853,7 +825,7 @@ static void oneplus_set_motor_work_mode_para(int motor_work_mode)
 /*********************************************************************
             combine digital_hall and step_motor for logical process
 **********************************************************************/
-static void manual_to_auto_up_work(struct work_struct *work)
+static inline void manual_to_auto_up_work(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
   	struct oneplus_motor_chip *chip = container_of(dwork, struct oneplus_motor_chip, up_work);
@@ -878,7 +850,7 @@ static void manual_to_auto_up_work(struct work_struct *work)
 	oneplus_motor_set_awake(chip, HALL_DATA_LOCK, false);
 }
 
-static void manual_to_auto_down_work(struct work_struct* work)
+static inline void manual_to_auto_down_work(struct work_struct* work)
 {
 	struct delayed_work* dwork = to_delayed_work(work);
   	struct oneplus_motor_chip* chip = container_of(dwork, struct oneplus_motor_chip, down_work);
@@ -913,7 +885,7 @@ static void manual_to_auto_down_work(struct work_struct* work)
 	return;
 }
 
-static void oneplus_set_motor_speed(int speed)
+static inline void oneplus_set_motor_speed(int speed)
 {
 	long long period_ns = 0;
 	unsigned long duty_ns = 0;
@@ -998,12 +970,12 @@ static void oneplus_set_motor_speed(int speed)
 	duty_ns = (unsigned long)(period_ns/2);
 	g_the_chip->pwm_duty = duty_ns;
 	g_the_chip->pwm_period = period_ns;
-	MOTOR_LOG("pwm_duty : %d, pwm_period : %d", g_the_chip->pwm_duty, g_the_chip->pwm_period);
+	MOTOR_LOG("pwm_duty : %lu, pwm_period : %lu", g_the_chip->pwm_duty, g_the_chip->pwm_period);
 
 	return;
 }
 
-static void oneplus_change_motor_speed(int speed)
+static inline void oneplus_change_motor_speed(int speed)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip == NULL \n");
@@ -1030,7 +1002,7 @@ static void oneplus_change_motor_speed(int speed)
 	return;
 }
 
-static void oneplus_set_motor_direction(int direction)
+static inline void oneplus_set_motor_direction(int direction)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip == NULL \n");
@@ -1041,7 +1013,7 @@ static void oneplus_set_motor_direction(int direction)
 		g_the_chip->motor_direction = !!direction;
 }
 
-static void oneplus_set_motor_move_state(int move_state)
+static inline void oneplus_set_motor_move_state(int move_state)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip == NULL \n");
@@ -1053,7 +1025,7 @@ static void oneplus_set_motor_move_state(int move_state)
 	}
 }
 
-static bool oneplus_motor_run_check(struct oneplus_motor_chip* chip)
+static inline bool oneplus_motor_run_check(struct oneplus_motor_chip* chip)
 {
 	//TO DO : remove temporary, for debug
 
@@ -1074,7 +1046,7 @@ static bool oneplus_motor_run_check(struct oneplus_motor_chip* chip)
 	return true;
 }
 
-static void oneplus_motor_control(int on ,int speed ,int direction)
+static inline void oneplus_motor_control(int on ,int speed ,int direction)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip == NULL \n");
@@ -1121,7 +1093,7 @@ static void oneplus_motor_control(int on ,int speed ,int direction)
 	return;
 }
 
-static void oneplus_motor_start(void)
+static inline void oneplus_motor_start(void)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip ==NULL \n");
@@ -1133,7 +1105,7 @@ static void oneplus_motor_start(void)
 	return;
 }
 
-static void oneplus_motor_stop(void)
+static inline void oneplus_motor_stop(void)
 {
 	int on = 0;
 	int speed = 0;
@@ -1145,7 +1117,7 @@ static void oneplus_motor_stop(void)
 	return;
 }
 
-static void oneplus_motor_downward(void)
+static inline void oneplus_motor_downward(void)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip == NULL \n");
@@ -1155,7 +1127,7 @@ static void oneplus_motor_downward(void)
 	oneplus_motor_control(1, g_the_chip->motor_speed, MOTOR_DOWN);
 }
 
-static void motor_run_work(struct work_struct* work)
+static inline void motor_run_work(struct work_struct* work)
 {
 	struct oneplus_motor_chip* chip = container_of(work, struct oneplus_motor_chip, motor_work);
 	unsigned long intsecond = 0;
@@ -1239,7 +1211,7 @@ static void motor_run_work(struct work_struct* work)
 			if (chip->motor_direction == 1) {//camera up
 				value = chip->camera_up_step_count * MOTOR_STOP_TIMEOUT;
 
-				MOTOR_LOG("motor up, use step count, value : %d", value);
+				MOTOR_LOG("motor up, use step count, value : %lld", value);
 
 				nsecond = do_div(value, 1000000000);//value = value/1000000000 ,nsecond = value % 1000000000
 				intsecond = (unsigned long) value;
@@ -1257,7 +1229,7 @@ static void motor_run_work(struct work_struct* work)
 				value = (chip->speed_up_pwm_count * chip->pwm_period)+
 						 ((chip->camera_up_step_count - chip->speed_up_pwm_count) * MOTOR_STOP_TIMEOUT);
 
-				MOTOR_LOG("motor up, use step count, value : %d", value);
+				MOTOR_LOG("motor up, use step count, value : %lld", value);
 
 				nsecond = do_div(value, 1000000000);//value = value/1000000000 ,nsecond = value % 1000000000
 				intsecond = (unsigned long) value;
@@ -1267,7 +1239,7 @@ static void motor_run_work(struct work_struct* work)
 				value = (chip->speed_up_pwm_count * chip->pwm_period)+
 						 ((chip->camera_up_step_count - chip->speed_up_pwm_count + 20 * 32) * MOTOR_STOP_TIMEOUT);
 
-				MOTOR_LOG("motor up, use step count, value : %d", value);
+				MOTOR_LOG("motor up, use step count, value : %lld", value);
 
 				nsecond = do_div(value, 1000000000);//value = value/1000000000 ,nsecond = value % 1000000000
 				intsecond = (unsigned long) value;
@@ -1285,7 +1257,7 @@ static void motor_run_work(struct work_struct* work)
 		value = chip->speed_up_pwm_count * chip->pwm_period;
 		nsecond = do_div(value, 1000000000);//value = value/1000000000 ,nsecond = value % 1000000000
 		intsecond = (unsigned long) value;
-		MOTOR_LOG("time value = %llu nsecond = %lu intsecond = %lu, chip->speed_up_pwm_count = %d,chip->pwm_period = %d \n", 
+		MOTOR_LOG("time value = %llu nsecond = %lu intsecond = %lu, chip->speed_up_pwm_count = %d,chip->pwm_period = %lu \n", 
 		                value, nsecond, intsecond, chip->speed_up_pwm_count, chip->pwm_period);
 		hrtimer_start(&chip->speed_up_timer, ktime_set(intsecond, nsecond), HRTIMER_MODE_REL);
 		mutex_unlock(&motor_start_mutex);
@@ -1391,7 +1363,7 @@ static void motor_run_work(struct work_struct* work)
 	mutex_unlock(&motor_running_mutex);
 }
 
-static void  free_fall_irq_check_work_func(struct work_struct* work)
+static inline void  free_fall_irq_check_work_func(struct work_struct* work)
 {
 	struct delayed_work* dwork = to_delayed_work(work);
 	struct oneplus_motor_chip* chip = container_of(dwork, struct oneplus_motor_chip, free_fall_irq_check_work);
@@ -1421,7 +1393,7 @@ static void  free_fall_irq_check_work_func(struct work_struct* work)
 
 	return;
 }
-static void  camera_position_detect_work(struct work_struct* work)
+static inline void  camera_position_detect_work(struct work_struct* work)
 {
   	int            hall_delta_pre = 0;
   	int            hall_delta = 0;
@@ -1532,7 +1504,7 @@ static void  camera_position_detect_work(struct work_struct* work)
 	    do_gettimeofday(&current_time);
 		distance_time = (current_time.tv_sec - chip->motor_start_time.tv_sec) * 1000000 + 
 		                (current_time.tv_usec - chip->motor_start_time.tv_usec);
-		MOTOR_LOG("distance_time : %d, current_time.tv_sec : %lu, current_time.tv_usec : %lu", 
+		MOTOR_LOG("distance_time : %lu, current_time.tv_sec : %lu, current_time.tv_usec : %lu", 
 		           distance_time, (unsigned long)current_time.tv_sec, (unsigned long)current_time.tv_usec);
 
     	//stop motor algo
@@ -1609,7 +1581,7 @@ static void  camera_position_detect_work(struct work_struct* work)
 	return;
 }
 
-static int write_hall_data_to_file(short* hall_up_data, short* hall_down_data, int buf_len, int direction, bool append)
+static inline int write_hall_data_to_file(short* hall_up_data, short* hall_down_data, int buf_len, int direction, bool append)
 {
 	int  fd = -1;
 	int  i = 0;
@@ -1658,7 +1630,7 @@ static int write_hall_data_to_file(short* hall_up_data, short* hall_down_data, i
 	return 0;
 }
 
-static enum hrtimer_restart motor_stop_timer_func(struct hrtimer* hrtimer)
+static inline enum hrtimer_restart motor_stop_timer_func(struct hrtimer* hrtimer)
 {
 	MOTOR_LOG("force_move : %d \n", g_the_chip->force_move);
 
@@ -1677,7 +1649,7 @@ static enum hrtimer_restart motor_stop_timer_func(struct hrtimer* hrtimer)
 	return HRTIMER_NORESTART;
 }
 
-static enum hrtimer_restart motor_speed_up_timer_func(struct hrtimer* hrtimer)
+static inline enum hrtimer_restart motor_speed_up_timer_func(struct hrtimer* hrtimer)
 {
 	MOTOR_LOG("call \n");
 
@@ -1691,7 +1663,7 @@ static enum hrtimer_restart motor_speed_up_timer_func(struct hrtimer* hrtimer)
 	return HRTIMER_NORESTART;
 }
 
-static enum alarmtimer_restart motor_reset_timer_func(struct alarm* alrm, ktime_t now)
+static inline enum alarmtimer_restart motor_reset_timer_func(struct alarm* alrm, ktime_t now)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip == NULL \n");
@@ -1713,7 +1685,7 @@ static enum alarmtimer_restart motor_reset_timer_func(struct alarm* alrm, ktime_
 	return ALARMTIMER_NORESTART;
 }
 
-static void oneplus_motor_set_awake(struct oneplus_motor_chip* chip, int id ,bool awake)
+static inline void oneplus_motor_set_awake(struct oneplus_motor_chip* chip, int id ,bool awake)
 {
 	static int awake_count = 0;
 	static int wakelock_holder = 0;
@@ -1789,7 +1761,7 @@ static void oneplus_motor_set_awake(struct oneplus_motor_chip* chip, int id ,boo
 #endif
 }
 
-static void report_position_state(struct oneplus_motor_chip* chip, camera_position_state_event state_event)
+static inline void report_position_state(struct oneplus_motor_chip* chip, camera_position_state_event state_event)
 {
 	if (chip == NULL) {
 		MOTOR_ERR("chip == NULL \n");
@@ -1851,7 +1823,7 @@ static void report_position_state(struct oneplus_motor_chip* chip, camera_positi
 
 
 //note:work in irq context
-int oneplus_dhall_irq_handler(unsigned int id)
+inline int oneplus_dhall_irq_handler(unsigned int id)
 {
 	MOTOR_LOG("call, id : %d \n", id);
 	if (g_the_chip == NULL) {
@@ -1870,7 +1842,7 @@ int oneplus_dhall_irq_handler(unsigned int id)
 	return 0;
 }
 
-static void oneplus_motor_irq_monitor(struct oneplus_motor_chip* chip)
+static inline void oneplus_motor_irq_monitor(struct oneplus_motor_chip* chip)
 {
 	if (!chip->irq_monitor_started) {
 		MOTOR_LOG("start \n");
@@ -1880,7 +1852,7 @@ static void oneplus_motor_irq_monitor(struct oneplus_motor_chip* chip)
 	}
 }
 
-static irqreturn_t oneplus_free_fall_detect_handler(int irq, void* dev_id)
+static inline irqreturn_t oneplus_free_fall_detect_handler(int irq, void* dev_id)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_LOG("g_the_chip ==NULL \n");
@@ -1904,7 +1876,7 @@ static irqreturn_t oneplus_free_fall_detect_handler(int irq, void* dev_id)
 /*********************************************************************
             node operation by MotorManagerService and user
 **********************************************************************/
-static ssize_t motor_direction_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_direction_store(struct device* pdev, struct device_attribute* attr,
 			   const char* buf, size_t count)
 {
 	unsigned long direction = 0;
@@ -1916,7 +1888,7 @@ static ssize_t motor_direction_store(struct device* pdev, struct device_attribut
 	}
 
 	err = sscanf(buf, "%lu", &direction);
-	MOTOR_LOG("direction : %d, motor_started : %d", direction,g_the_chip->motor_started);
+	MOTOR_LOG("direction : %lu, motor_started : %d", direction,g_the_chip->motor_started);
 	if (g_the_chip->motor_started) {
 		MOTOR_ERR("g_the_chip->motor_started != 0\n");
 		return count;
@@ -1929,7 +1901,7 @@ static ssize_t motor_direction_store(struct device* pdev, struct device_attribut
 	return count;;
 }
 
-static ssize_t motor_direction_show(struct device* dev,
+static inline ssize_t motor_direction_show(struct device* dev,
 				  struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
@@ -1940,13 +1912,13 @@ static ssize_t motor_direction_show(struct device* dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->motor_direction);
 }
 
-static ssize_t motor_enable_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_enable_store(struct device* pdev, struct device_attribute* attr,
 					const char* buff, size_t count)
 {
 	unsigned long enable = 0;
 
 	if (sscanf(buff, "%lu", &enable) == 1) {
-		MOTOR_ERR("motor_enable_store enable : %d\n", enable);
+		MOTOR_ERR("motor_enable_store enable : %lu\n", enable);
 		if (enable) {
 			MOTOR_ERR("oneplus_motor_start \n");
 			oneplus_motor_start();
@@ -1959,7 +1931,7 @@ static ssize_t motor_enable_store(struct device* pdev, struct device_attribute* 
 	return count;
 }
 
-static ssize_t step_count_store(struct device *pdev, struct device_attribute *attr,
+static inline ssize_t step_count_store(struct device *pdev, struct device_attribute *attr,
 		                        const char *buff, size_t count)
 {
 	unsigned long step_count = 0;
@@ -1974,16 +1946,16 @@ static ssize_t step_count_store(struct device *pdev, struct device_attribute *at
 	if (sscanf(buff, "%lu", &step_count) == 1) {
 		g_the_chip->camera_up_step_count = step_count * 32;
 
-		MOTOR_LOG("would set step_count, step_count : %d, g_the_chip->step_count : %d \n", 
+		MOTOR_LOG("would set step_count, step_count : %lu, g_the_chip->step_count : %d \n", 
 							             step_count, g_the_chip->camera_up_step_count);
 	} else {
-		MOTOR_LOG("would not set step_count, step_count : %d", step_count);
+		MOTOR_LOG("would not set step_count, step_count : %lu", step_count);
 	}
 
 	return count;
 }
 
-static ssize_t step_count_show(struct device *dev,struct device_attribute *attr, char *buf)
+static inline ssize_t step_count_show(struct device *dev,struct device_attribute *attr, char *buf)
 {
 	int  step_count = 0;
 
@@ -1997,7 +1969,7 @@ static ssize_t step_count_show(struct device *dev,struct device_attribute *attr,
 	return sprintf(buf, "%d\n",step_count);
 }
 
-static ssize_t save_hall_data_store(struct device *pdev, struct device_attribute *attr,
+static inline ssize_t save_hall_data_store(struct device *pdev, struct device_attribute *attr,
 		                            const char *buff, size_t count)
 {
 	unsigned long save_hall_data_to_file = 0;
@@ -2012,16 +1984,16 @@ static ssize_t save_hall_data_store(struct device *pdev, struct device_attribute
 	if (sscanf(buff, "%lu", &save_hall_data_to_file) == 1) {
 		g_the_chip->save_hall_data_to_file = save_hall_data_to_file > 0 ? true : false;
 
-		MOTOR_LOG("would set save_hall_data_to_file, save_hall_data_to_file : %d, g_the_chip->save_hall_data_to_file : %d \n", 
+		MOTOR_LOG("would set save_hall_data_to_file, save_hall_data_to_file : %lu, g_the_chip->save_hall_data_to_file : %d \n", 
 							 save_hall_data_to_file, g_the_chip->save_hall_data_to_file);
 	} else {
-		MOTOR_LOG("would not set step_count, save_hall_data_to_file : %d", save_hall_data_to_file);
+		MOTOR_LOG("would not set step_count, save_hall_data_to_file : %lu", save_hall_data_to_file);
 	}
 
 	return count;
 }
 
-static ssize_t save_hall_data_show(struct device *dev,struct device_attribute *attr, char *buf)
+static inline ssize_t save_hall_data_show(struct device *dev,struct device_attribute *attr, char *buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2031,7 +2003,7 @@ static ssize_t save_hall_data_show(struct device *dev,struct device_attribute *a
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->save_hall_data_to_file);
 }
 
-static ssize_t hall_data_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t hall_data_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2046,7 +2018,7 @@ static ssize_t hall_data_show(struct device* dev,struct device_attribute* attr, 
 	return sprintf(buf, "%d,%d\n", g_the_chip->hall_down_data, g_the_chip->hall_up_data);
 }
 
-static ssize_t motor_move_state_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t motor_move_state_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2056,7 +2028,7 @@ static ssize_t motor_move_state_show(struct device* dev, struct device_attribute
 	return sprintf(buf, "%d\n", g_the_chip->move_state);
 }
 
-static ssize_t hall_calibration_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t hall_calibration_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	int step_count = 0;
 
@@ -2081,7 +2053,7 @@ static ssize_t hall_calibration_show(struct device* dev, struct device_attribute
 						g_the_chip->hall_sensitive);
 }
 
-static ssize_t hall_calibration_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t hall_calibration_store(struct device* pdev, struct device_attribute* attr,
 						              const char* buff, size_t count)
 {
 	int data[12] = {0};
@@ -2142,7 +2114,7 @@ static ssize_t hall_calibration_store(struct device* pdev, struct device_attribu
 
 }
 
-static ssize_t stall_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t stall_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2154,7 +2126,7 @@ static ssize_t stall_show(struct device* dev, struct device_attribute* attr, cha
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->is_stall);
 }
 
-static ssize_t stall_steps_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t stall_steps_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2166,7 +2138,7 @@ static ssize_t stall_steps_show(struct device* dev, struct device_attribute* att
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->stall_steps);
 }
 
-static ssize_t stall_mode_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t stall_mode_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2178,7 +2150,7 @@ static ssize_t stall_mode_show(struct device* dev, struct device_attribute* attr
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->stall_mode);
 }
 
-static ssize_t  motor_test_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t  motor_test_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2190,7 +2162,7 @@ static ssize_t  motor_test_show(struct device* dev, struct device_attribute* att
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->is_motor_test);
 }
 
-static ssize_t motor_test_store(struct device* pdev, struct device_attribute* attr, const char* buff, size_t count)
+static inline ssize_t motor_test_store(struct device* pdev, struct device_attribute* attr, const char* buff, size_t count)
 {
 	int test = 0;
 
@@ -2207,7 +2179,7 @@ static ssize_t motor_test_store(struct device* pdev, struct device_attribute* at
 	return count;
 }
 
-static ssize_t hall_irq_count_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t hall_irq_count_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2217,7 +2189,7 @@ static ssize_t hall_irq_count_show(struct device* dev, struct device_attribute* 
 	return sprintf(buf, "%d,%d\n",g_the_chip->hall_down_irq_count, g_the_chip->hall_up_irq_count);
 }
 
-static ssize_t motor_mode_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_mode_store(struct device* pdev, struct device_attribute* attr,
 			   const char* buff, size_t count)
 {
 	int mdmode = 0;
@@ -2238,7 +2210,7 @@ static ssize_t motor_mode_store(struct device* pdev, struct device_attribute* at
 	return count;
 }
 
-static ssize_t  motor_mode_show(struct device* dev,
+static inline ssize_t  motor_mode_show(struct device* dev,
 				  struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
@@ -2249,7 +2221,7 @@ static ssize_t  motor_mode_show(struct device* dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->motor_work_mode);
 }
 
-static ssize_t motor_manual2auto_switch_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t motor_manual2auto_switch_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	int manual2auto_switch = 0;
 
@@ -2264,7 +2236,7 @@ static ssize_t motor_manual2auto_switch_show(struct device* dev, struct device_a
 	return sprintf(buf, "%d\n",manual2auto_switch);
 }
 
-static ssize_t motor_manual2auto_switch_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_manual2auto_switch_store(struct device* pdev, struct device_attribute* attr,
 						const char* buff, size_t count)
 {
 	int data[1] = {0};
@@ -2294,7 +2266,7 @@ static ssize_t motor_manual2auto_switch_store(struct device* pdev, struct device
 	return count;
 }
 
-static ssize_t motor_sw_switch_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_sw_switch_store(struct device* pdev, struct device_attribute* attr,
 						             const char* buff, size_t count)
 {
 	unsigned long sw_switch = 0;
@@ -2311,7 +2283,7 @@ static ssize_t motor_sw_switch_store(struct device* pdev, struct device_attribut
 	return count;
 }
 
-static ssize_t  motor_sw_switch_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t  motor_sw_switch_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2320,12 +2292,12 @@ static ssize_t  motor_sw_switch_show(struct device* dev, struct device_attribute
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->motor_switch);
 }
 
-static ssize_t motor_force_move_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_force_move_store(struct device* pdev, struct device_attribute* attr,
 					                  const char* buff, size_t count)
 {
 	unsigned long enable = 0;
 
-	MOTOR_LOG("call, enable : %d");
+	MOTOR_LOG("call, enable");
 
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2344,7 +2316,7 @@ static ssize_t motor_force_move_store(struct device* pdev, struct device_attribu
 	return count;
 }
 
-static ssize_t hall_detect_switch_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t hall_detect_switch_store(struct device* pdev, struct device_attribute* attr,
 						                const char* buff, size_t count)
 {
 	unsigned long sw_switch = 0;
@@ -2364,7 +2336,7 @@ static ssize_t hall_detect_switch_store(struct device* pdev, struct device_attri
 	return count;
 }
 
-static ssize_t  hall_detect_switch_show(struct device* dev,
+static inline ssize_t  hall_detect_switch_show(struct device* dev,
 				  struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
@@ -2375,7 +2347,7 @@ static ssize_t  hall_detect_switch_show(struct device* dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->hall_detect_switch);
 }
 
-static ssize_t  motor_all_config_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t  motor_all_config_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	int config[6] = {0};
 
@@ -2390,7 +2362,7 @@ static ssize_t  motor_all_config_show(struct device* dev, struct device_attribut
 			                         config[0], config[1], config[2],config[3], config[4], config[5]);
 }
 
-static ssize_t  motor_position_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t  motor_position_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	int config[6] = {0};
 
@@ -2402,7 +2374,7 @@ static ssize_t  motor_position_show(struct device* dev, struct device_attribute*
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->position);
 }
 
-static ssize_t hall_all_reg_show(struct device* dev, struct device_attribute* attr, char* buf)
+static inline ssize_t hall_all_reg_show(struct device* dev, struct device_attribute* attr, char* buf)
 {
 	u8 _buf[1024] = {0};
 
@@ -2411,7 +2383,7 @@ static ssize_t hall_all_reg_show(struct device* dev, struct device_attribute* at
 	return sprintf(buf, "%s\n", _buf);
 }
 
-static ssize_t motor_change_speed_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_change_speed_store(struct device* pdev, struct device_attribute* attr,
 										const char* buff, size_t count)
 {
 	unsigned long speed = 0;
@@ -2428,7 +2400,7 @@ static ssize_t motor_change_speed_store(struct device* pdev, struct device_attri
 	return count;
 }
 
-static ssize_t motor_speed_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_speed_store(struct device* pdev, struct device_attribute* attr,
 			                     const char* buff, size_t count)
 {
 
@@ -2450,14 +2422,14 @@ static ssize_t motor_speed_store(struct device* pdev, struct device_attribute* a
 			g_the_chip->test_speed = speed;
 			MOTOR_LOG("would set speed, test_speed : %d", g_the_chip->test_speed);
 		} else {
-			MOTOR_LOG("speed (%d) parameter is invalid, would not set speed", speed);
+			MOTOR_LOG("speed (%lu) parameter is invalid, would not set speed", speed);
 		}
 	}
 
 	return count;
 }
 
-static ssize_t motor_speed_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t motor_speed_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2468,7 +2440,7 @@ static ssize_t motor_speed_show(struct device* dev,struct device_attribute* attr
 }
 
 //slow down speed
-static ssize_t motor_slow_down_speed_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t motor_slow_down_speed_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2486,14 +2458,14 @@ static ssize_t motor_slow_down_speed_store(struct device* pdev, struct device_at
 			g_the_chip->slow_down_speed = slow_down_speed;
 			MOTOR_LOG("would set slow_down_speed, slow_down_speed : %d", g_the_chip->slow_down_speed);
 		} else {
-			MOTOR_LOG("slow_down_speed (%d) parameter is invalid, would not set slow_down_speed", slow_down_speed);
+			MOTOR_LOG("slow_down_speed (%lu) parameter is invalid, would not set slow_down_speed", slow_down_speed);
 		}
 	}
 
 	return count;
 }
 
-static ssize_t motor_slow_down_speed_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t motor_slow_down_speed_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2504,7 +2476,7 @@ static ssize_t motor_slow_down_speed_show(struct device* dev,struct device_attri
 }
 
 //deltad range
-static ssize_t deltad_range_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t deltad_range_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2525,7 +2497,7 @@ static ssize_t deltad_range_store(struct device* pdev, struct device_attribute* 
 	return count;
 }
 
-static ssize_t deltad_range_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t deltad_range_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2535,7 +2507,7 @@ static ssize_t deltad_range_show(struct device* dev,struct device_attribute* att
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->deltad_range);
 }
 
-static ssize_t begin_stop_detect_percent_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t begin_stop_detect_percent_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2553,12 +2525,12 @@ static ssize_t begin_stop_detect_percent_store(struct device* pdev, struct devic
 		MOTOR_LOG("would set begin_stop_detect_percent, begin_stop_detect_percent : %d",
 				 g_the_chip->begin_stop_detect_percent);
 	} 
-	MOTOR_LOG("begin_stop_detect_percent : %d", begin_stop_detect_percent);
+	MOTOR_LOG("begin_stop_detect_percent : %lu", begin_stop_detect_percent);
 
 	return count;
 }
 
-static ssize_t begin_stop_detect_percent_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t begin_stop_detect_percent_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2568,7 +2540,7 @@ static ssize_t begin_stop_detect_percent_show(struct device* dev,struct device_a
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->begin_stop_detect_percent);
 }
 
-static ssize_t factory_mode_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t factory_mode_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2585,12 +2557,12 @@ static ssize_t factory_mode_store(struct device* pdev, struct device_attribute* 
 		g_the_chip->is_factory_mode = is_factory_mode;
 		MOTOR_LOG("would set is_factory_mode, is_factory_mode : %d", g_the_chip->is_factory_mode);
 	} 
-	MOTOR_LOG("is_factory_mode : %d", is_factory_mode);
+	MOTOR_LOG("is_factory_mode : %lu", is_factory_mode);
 
 	return count;
 }
 
-static ssize_t factory_mode_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t factory_mode_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2600,7 +2572,7 @@ static ssize_t factory_mode_show(struct device* dev,struct device_attribute* att
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->is_factory_mode);
 }
 
-static ssize_t free_fall_irq_times_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t free_fall_irq_times_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2617,12 +2589,12 @@ static ssize_t free_fall_irq_times_store(struct device* pdev, struct device_attr
 		g_the_chip->free_fall_irq_times = free_fall_irq_times;
 		MOTOR_LOG("would set free_fall_irq_times, free_fall_irq_times : %d", g_the_chip->free_fall_irq_times);
 	} 
-	MOTOR_LOG("free_fall_irq_times : %d", free_fall_irq_times);
+	MOTOR_LOG("free_fall_irq_times : %lu", free_fall_irq_times);
 
 	return count;
 }
 
-static ssize_t free_fall_irq_times_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t free_fall_irq_times_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2632,7 +2604,7 @@ static ssize_t free_fall_irq_times_show(struct device* dev,struct device_attribu
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->free_fall_irq_times);
 }
 
-static ssize_t infrared_shut_down_state_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t infrared_shut_down_state_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2649,12 +2621,12 @@ static ssize_t infrared_shut_down_state_store(struct device* pdev, struct device
 		g_the_chip->infrared_shut_down_state = infrared_shut_down_state;
 		MOTOR_LOG("would set infrared_shut_down_state, free_fall_irq_times : %d", g_the_chip->infrared_shut_down_state);
 	} 
-	MOTOR_LOG("infrared_shut_down_state : %d", infrared_shut_down_state);
+	MOTOR_LOG("infrared_shut_down_state : %lu", infrared_shut_down_state);
 
 	return count;
 }
 
-static ssize_t infrared_shut_down_state_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t infrared_shut_down_state_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2664,7 +2636,7 @@ static ssize_t infrared_shut_down_state_show(struct device* dev,struct device_at
 	return snprintf(buf, PAGE_SIZE, "%d\n", g_the_chip->infrared_shut_down_state);
 }
 
-static ssize_t hall_sensitive_store(struct device* pdev, struct device_attribute* attr,
+static inline ssize_t hall_sensitive_store(struct device* pdev, struct device_attribute* attr,
 			                               const char* buff, size_t count)
 {
 
@@ -2686,12 +2658,12 @@ static ssize_t hall_sensitive_store(struct device* pdev, struct device_attribute
 		oneplus_dhall_set_sensitive(HALL_UP, g_the_chip->hall_sensitive);
 	}
 
-	MOTOR_LOG("hall_sensitive : %d", hall_sensitive);
+	MOTOR_LOG("hall_sensitive : %lu", hall_sensitive);
 
 	return count;
 }
 
-static ssize_t hall_sensitive_show(struct device* dev,struct device_attribute* attr, char* buf)
+static inline ssize_t hall_sensitive_show(struct device* dev,struct device_attribute* attr, char* buf)
 {
 	if (g_the_chip == NULL) {
 		MOTOR_ERR("g_the_chip == NULL \n");
@@ -2784,7 +2756,7 @@ static struct attribute_group __attribute_group = {
 /*********************************************************************
             digital_hall and step_motor register ops function
 **********************************************************************/
-int oneplus_register_dhall(const char* name, struct oneplus_hall_operations* ops)
+inline int oneplus_register_dhall(const char* name, struct oneplus_hall_operations* ops)
 {
 	if(name == NULL || ops == NULL) {
 		MOTOR_ERR("name == NULL || ops == NULL, would not register digital hall \n");
@@ -2825,7 +2797,7 @@ int oneplus_register_dhall(const char* name, struct oneplus_hall_operations* ops
 	return 0;
 }
 
-int oneplus_register_motor(const char*  name, struct oneplus_motor_operations* ops)
+inline int oneplus_register_motor(const char*  name, struct oneplus_motor_operations* ops)
 {
 	if(name == NULL || ops == NULL) {
 		MOTOR_ERR("name == NULL || ops == NULL, would not register step motor \n");
@@ -2856,7 +2828,7 @@ int oneplus_register_motor(const char*  name, struct oneplus_motor_operations* o
 /*********************************************************************
 						 init function
 **********************************************************************/
-static int oneplus_input_dev_init(struct oneplus_motor_chip* chip)
+static inline int oneplus_input_dev_init(struct oneplus_motor_chip* chip)
 {
 	struct input_dev* dev;
 	int err;
@@ -2892,7 +2864,7 @@ static int oneplus_input_dev_init(struct oneplus_motor_chip* chip)
 	return 0;
 }
 
-static int oneplus_motor_chip_init(struct oneplus_motor_chip* chip)
+static inline int oneplus_motor_chip_init(struct oneplus_motor_chip* chip)
 {
 	MOTOR_LOG("call \n");
 
@@ -2983,7 +2955,7 @@ static int oneplus_motor_chip_init(struct oneplus_motor_chip* chip)
 	return 0;
 }
 
-static void oneplus_motor_awake_init(struct oneplus_motor_chip* chip)
+static inline void oneplus_motor_awake_init(struct oneplus_motor_chip* chip)
 {
 	if (chip == NULL) {
 		MOTOR_ERR("chip == NULL \n");
@@ -2998,7 +2970,7 @@ static void oneplus_motor_awake_init(struct oneplus_motor_chip* chip)
 }
 
 
-static void oneplus_motor_free_fall_register(struct oneplus_motor_chip*  chip)
+static inline void oneplus_motor_free_fall_register(struct oneplus_motor_chip*  chip)
 {
 	struct device_node* np = NULL;
 	int err = 0;
@@ -3042,7 +3014,7 @@ static void oneplus_motor_free_fall_register(struct oneplus_motor_chip*  chip)
 	MOTOR_LOG("gpio %d irq:%d \n",chip->free_fall_gpio, chip->free_fall_irq);
 }
 
-static void oneplus_motor_reset_check(struct oneplus_motor_chip* chip)
+static inline void oneplus_motor_reset_check(struct oneplus_motor_chip* chip)
 {
     oneplus_hall_get_abs_data(HALL_DOWN);
 	
@@ -3059,7 +3031,7 @@ static void oneplus_motor_reset_check(struct oneplus_motor_chip* chip)
 
 }
 
-static void oneplus_parameter_init(struct oneplus_motor_chip* chip)
+static inline void oneplus_parameter_init(struct oneplus_motor_chip* chip)
 {
 	u32 id = 0;
 	struct device_node* np = NULL;
@@ -3105,7 +3077,7 @@ static void oneplus_parameter_init(struct oneplus_motor_chip* chip)
 
 }
 
-static int motor_platform_probe(struct platform_device* pdev)
+static inline int motor_platform_probe(struct platform_device* pdev)
 {
 	struct oneplus_motor_chip* chip = NULL;
 	struct proc_dir_entry* dir = NULL;
@@ -3183,12 +3155,8 @@ static int motor_platform_probe(struct platform_device* pdev)
 	INIT_DELAYED_WORK(&chip->free_fall_irq_check_work, free_fall_irq_check_work_func);
 	INIT_WORK(&chip->motor_work, motor_run_work);
 
-	chip->fb_notify.notifier_call = fb_notifier_callback;
-	#ifdef CONFIG_DRM_MSM
-	msm_drm_register_client(&chip->fb_notify);
-	#else
-	fb_register_client(&chip->fb_notify);
-	#endif
+	chip->msm_drm_notify.notifier_call = msm_drm_notifier_callback;
+	msm_drm_register_client(&chip->msm_drm_notify);
 
 	oneplus_motor_reset_check(g_the_chip);
 
@@ -3204,7 +3172,7 @@ sysfs_create_fail:
 	return -EINVAL;
 }
 
-static int motor_platform_remove(struct platform_device* pdev)
+static inline int motor_platform_remove(struct platform_device* pdev)
 {
 	if (g_the_chip) {
 		sysfs_remove_group(&pdev->dev.kobj, &__attribute_group);
@@ -3216,7 +3184,7 @@ static int motor_platform_remove(struct platform_device* pdev)
 	return 0;
 }
 
-static int motor_platform_suspend(struct platform_device* pdev, pm_message_t state)
+static inline int motor_platform_suspend(struct platform_device* pdev, pm_message_t state)
 {
 	if (g_the_chip) {
 		atomic_set(&g_the_chip->in_suspend, 1);
@@ -3224,14 +3192,14 @@ static int motor_platform_suspend(struct platform_device* pdev, pm_message_t sta
 	return 0;
 }
 
-static int motor_platform_resume(struct platform_device* pdev)
+static inline int motor_platform_resume(struct platform_device* pdev)
 {
 	if (g_the_chip) {
 		atomic_set(&g_the_chip->in_suspend, 0);
 	}
 	return 0;
 }
-static void motor_platform_shutdown(struct platform_device* pdev)
+static inline void motor_platform_shutdown(struct platform_device* pdev)
 {
 	MOTOR_LOG("call \n");
 	if (g_the_chip) {
