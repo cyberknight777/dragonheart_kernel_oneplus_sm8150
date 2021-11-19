@@ -13,8 +13,8 @@
 #include <linux/version.h>
 
 #define MOTOR_TAG                  "[oneplus_motor] "
-#define MOTOR_ERR(fmt, args...)    printk(KERN_ERR MOTOR_TAG" %s : "fmt,__FUNCTION__,##args)
-#define MOTOR_LOG(fmt, args...)    printk(KERN_INFO MOTOR_TAG" %s : "fmt,__FUNCTION__,##args)
+#define MOTOR_ERR(fmt, args...)    pr_debug(MOTOR_TAG" %s : "fmt,__FUNCTION__,##args)
+#define MOTOR_LOG(fmt, args...)    pr_debug(MOTOR_TAG" %s : "fmt,__FUNCTION__,##args)
 
 //camera state event to report
 #define MOTOR_EVENT_TYPE			EV_KEY
@@ -255,7 +255,7 @@ struct oneplus_motor_chip {
 	bool		                      stop_timer_trigger;
 	struct hrtimer 					  speed_up_timer;
 	struct alarm    				  reset_timer;
-	struct notifier_block 			  fb_notify;
+	struct notifier_block 			  msm_drm_notify;
 	struct oneplus_hall_operations*   hall_up_ops;
 	struct oneplus_hall_operations*   hall_down_ops;
 	struct oneplus_motor_operations*  motor_ops;
