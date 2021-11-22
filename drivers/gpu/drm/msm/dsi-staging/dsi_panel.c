@@ -27,6 +27,7 @@
 #include "dsi_parser.h"
 #include <linux/pm_wakeup.h>
 #include <linux/project_info.h>
+#include <linux/moduleparam.h>
 #include <linux/msm_drm_notify.h>
 #include <linux/notifier.h>
 #include <linux/string.h>
@@ -61,6 +62,8 @@
 #define DEFAULT_PANEL_PREFILL_LINES	25
 #define TICKS_IN_MICRO_SECOND		1000000
 
+bool is_android_12;
+module_param(is_android_12, bool, 0644);
 
 enum dsi_dsc_ratio_type {
 	DSC_8BPC_8BPP,
@@ -4684,7 +4687,8 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		       panel->name, rc);
 
 	panel->need_power_on_backlight = true;
-	oneplus_panel_status = 3; // DISPLAY_POWER_DOZE
+	if (is_android_12)
+	  oneplus_panel_status = 3; // DISPLAY_POWER_DOZE
 
 exit:
 	mutex_unlock(&panel->panel_lock);
@@ -4708,7 +4712,8 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
-	oneplus_panel_status = 4; // DISPLAY_POWER_DOZE_SUSPEND
+	if (is_android_12)
+	  oneplus_panel_status = 4; // DISPLAY_POWER_DOZE_SUSPEND
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4739,7 +4744,8 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 	if (rc)
 		pr_err("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
-	oneplus_panel_status = 2; // DISPLAY_POWER_ON
+	if (is_android_12)
+	  oneplus_panel_status = 2; // DISPLAY_POWER_ON
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -5122,12 +5128,16 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	}
 
 	panel->panel_initialized = true;
-	oneplus_panel_status = 2; // DISPLAY_POWER_ON
+	if (is_android_12)
+	  oneplus_panel_status = 2; // DISPLAY_POWER_ON
 	pr_err("dsi_panel_enable aod_mode =%d\n",panel->aod_mode);
 
-	oneplus_dimlayer_hbm_enable = backup_dimlayer_hbm;
-	oneplus_dim_status = backup_dim_status;
-	pr_err("Restore dim when panel goes on");
+	if (is_android_12)
+	  {
+	    oneplus_dimlayer_hbm_enable = backup_dimlayer_hbm;
+	    oneplus_dim_status = backup_dim_status;
+	    pr_err("Restore dim when panel goes on");
+	  }
 
 	blank = MSM_DRM_BLANK_UNBLANK_CHARGE;
 	notifier_data.data = &blank;
@@ -5203,9 +5213,12 @@ int dsi_panel_disable(struct dsi_panel *panel)
 
 	/* Avoid sending panel off commands when ESD recovery is underway */
 	if (!atomic_read(&panel->esd_recovery_pending)) {
-		oneplus_dimlayer_hbm_enable = false;
-		oneplus_dim_status = 0;
-		pr_err("Kill dim when panel goes off");
+	  if (is_android_12)
+	    {
+	      oneplus_dimlayer_hbm_enable = false;
+	      oneplus_dim_status = 0;
+	      pr_err("Kill dim when panel goes off");
+	    }
 		HBM_flag = false;
 	if(panel->aod_mode==2){
 			panel->aod_status=1;
@@ -5239,7 +5252,8 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	}
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
-	oneplus_panel_status = 0; // DISPLAY_POWER_OFF
+	if (is_android_12)
+	  oneplus_panel_status = 0; // DISPLAY_POWER_OFF
 
 	mutex_unlock(&panel->panel_lock);
 	printk(KERN_ERR"dsi_panel_disable --\n");
