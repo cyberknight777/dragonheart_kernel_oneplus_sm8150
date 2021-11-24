@@ -5065,11 +5065,12 @@ static u8 ieee80211_max_rx_chains(struct ieee80211_sub_if_data *sdata,
 	if (!he_cap_elem || he_cap_elem->datalen < sizeof(*he_cap))
 		return chains;
 
-	he_cap = (void *)(he_cap_elem->data);
+	/* skip one byte ext_tag_id */
+	he_cap = (void *)(he_cap_elem->data + 1);
 	mcs_nss_size = ieee80211_he_mcs_nss_size(he_cap);
 
 	/* invalid HE IE */
-	if (he_cap_elem->datalen < mcs_nss_size + sizeof(*he_cap))
+	if (he_cap_elem->datalen < 1 + mcs_nss_size + sizeof(*he_cap))
 		return chains;
 
 	/* mcs_nss is right after he_cap info */
