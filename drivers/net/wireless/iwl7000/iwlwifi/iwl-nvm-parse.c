@@ -2139,7 +2139,8 @@ struct iwl_nvm_data *iwl_get_nvm(struct iwl_trans *trans,
 		goto err_free;
 	}
 
-	IWL_INFO(trans, "base HW address: %pM\n", nvm->hw_addr);
+	IWL_INFO(trans, "base HW address: %pM OTP minor version: 0x%x\n",
+		 nvm->hw_addr, iwl_read_prph(trans, REG_OTP_MINOR));
 
 	/* Initialize general data */
 	nvm->nvm_version = le16_to_cpu(rsp->general.nvm_version);
