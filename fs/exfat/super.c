@@ -15,6 +15,7 @@
 #include <linux/nls.h>
 #include <linux/buffer_head.h>
 #include <linux/parser.h>
+#include <linux/magic.h>
 
 #include "exfat_fs.h"
 
