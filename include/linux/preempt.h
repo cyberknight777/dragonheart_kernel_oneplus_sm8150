@@ -287,6 +287,9 @@ struct preempt_notifier;
  * @sched_out: we've just been preempted
  *    notifier: struct preempt_notifier for the task being preempted
  *    next: the task that's kicking us out
+ * @may_preempt: is it ok to preempt us?
+ *    notifier: struct preempt_notifier for the task being scheduled
+ *    prev: our task
  *
  * Please note that sched_in and out are called under different
  * contexts.  sched_out is called with rq lock held and irq disabled
@@ -297,6 +300,10 @@ struct preempt_ops {
 	void (*sched_in)(struct preempt_notifier *notifier, int cpu);
 	void (*sched_out)(struct preempt_notifier *notifier,
 			  struct task_struct *next);
+#ifdef CONFIG_HAVE_KVM_MAY_PREEMPT
+	bool (*may_preempt)(struct preempt_notifier *notifier,
+	   struct task_struct *prev);
+#endif
 };
 
 /**

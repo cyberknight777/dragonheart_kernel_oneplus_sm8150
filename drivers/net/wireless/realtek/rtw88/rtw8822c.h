@@ -162,6 +162,7 @@ const struct rtw_table name ## _tbl = {			\
 #define GET_PHY_STAT_P1_RXSNR_B(phy_stat)                                      \
 	le32_get_bits(*((__le32 *)(phy_stat) + 0x06), GENMASK(15, 8))
 
+#define RTW8822C_EDCCA_MAX	0x7f
 #define REG_ANAPARLDO_POW_MAC	0x0029
 #define BIT_LDOE25_PON		BIT(0)
 #define XCAP_MASK		GENMASK(6, 0)

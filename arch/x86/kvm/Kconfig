@@ -89,6 +89,18 @@ config KVM_MMU_AUDIT
 	 This option adds a R/W kVM module parameter 'mmu_audit', which allows
 	 auditing of KVM MMU events at runtime.
 
+config KVM_HETEROGENEOUS_RT
+	bool "Support for heterogeneous real-time VCPU configurations"
+	depends on KVM
+	select HAVE_KVM_MAY_PREEMPT
+	help
+	 Allows some VCPUs to be real-time. Without this option, if some
+	 VCPUs are real-time while others are not, extremely long latencies
+	 might be experienced. Needs guest with CONFIG_PREEMPT_COUNT_REPORTING
+	 enabled.
+
+         If in doubt, say "N".
+
 # OK, it's a little counter-intuitive to do this, but it puts it neatly under
 # the virtualization menu.
 source drivers/vhost/Kconfig

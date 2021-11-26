@@ -624,6 +624,7 @@ out_free:
 		put_user_ns(sbi->dl_ns);
 	if (sbi->base_ns)
 		put_user_ns(sbi->base_ns);
+	kfree(sbi->dl_loc);
 	kfree(ESDFS_SB(sb));
 	sb->s_fs_info = NULL;
 out_pput:
@@ -664,8 +665,11 @@ static void esdfs_kill_sb(struct super_block *sb)
 		put_user_ns(ESDFS_SB(sb)->dl_ns);
 	if (sb->s_fs_info && ESDFS_SB(sb)->base_ns)
 		put_user_ns(ESDFS_SB(sb)->base_ns);
-	if (sb->s_fs_info)
+	if (sb->s_fs_info) {
+		kfree(ESDFS_SB(sb)->dl_loc);
+		kfree(ESDFS_SB(sb)->dl_name.name);
 		path_put(&ESDFS_SB(sb)->dl_path);
+	}
 
 	kill_anon_super(sb);
 }

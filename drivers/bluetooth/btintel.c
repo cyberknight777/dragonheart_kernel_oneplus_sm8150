@@ -777,7 +777,6 @@ void btintel_reset_to_bootloader(struct hci_dev *hdev)
 }
 EXPORT_SYMBOL_GPL(btintel_reset_to_bootloader);
 
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
 int btintel_read_debug_features(struct hci_dev *hdev,
 				struct intel_debug_features *features)
 {
@@ -858,9 +857,8 @@ int btintel_set_debug_features(struct hci_dev *hdev,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(btintel_set_debug_features);
 
-int btintel_reset_debug_features(struct hci_dev *hdev,
+static int btintel_reset_debug_features(struct hci_dev *hdev,
 				 const struct intel_debug_features *features)
 {
 	u8 mask[11] = { 0x0a, 0x92, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -900,7 +898,6 @@ int btintel_reset_debug_features(struct hci_dev *hdev,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(btintel_reset_debug_features);
 
 int btintel_set_quality_report(struct hci_dev *hdev, bool enable)
 {
@@ -925,7 +922,6 @@ int btintel_set_quality_report(struct hci_dev *hdev, bool enable)
 	return err;
 }
 EXPORT_SYMBOL_GPL(btintel_set_quality_report);
-#endif
 
 MODULE_AUTHOR("Marcel Holtmann <marcel@holtmann.org>");
 MODULE_DESCRIPTION("Bluetooth support for Intel devices ver " VERSION);

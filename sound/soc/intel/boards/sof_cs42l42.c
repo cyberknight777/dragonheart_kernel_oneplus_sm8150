@@ -128,7 +128,7 @@ static int sof_cs42l42_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	int clk_freq, ret;
 
-	clk_freq = 3072000; /* BCLK freq */
+	clk_freq = 2400000; /* BCLK freq */
 
 	/* Configure sysclk for codec */
 	ret = snd_soc_dai_set_sysclk(codec_dai, 0,
