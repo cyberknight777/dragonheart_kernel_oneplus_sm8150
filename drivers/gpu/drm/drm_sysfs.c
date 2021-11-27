@@ -39,7 +39,6 @@
 #define DSI_PANEL_SAMSUNG_SOFEF03F_M 2
 extern char gamma_para[2][413];
 extern char dsi_panel_name;
-extern bool is_android_12;
 /**
  * DOC: overview
  *
