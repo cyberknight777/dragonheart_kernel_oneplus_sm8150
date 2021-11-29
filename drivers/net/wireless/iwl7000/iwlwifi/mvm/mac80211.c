@@ -2339,7 +2339,8 @@ static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
 
 static void iwl_mvm_parse_ppe(struct iwl_mvm *mvm,
 			      struct iwl_he_pkt_ext_v2 *pkt_ext, u8 nss,
-			      u8 ru_index_bitmap, u8 *ppe, u8 ppe_pos_bit)
+			      u8 ru_index_bitmap, u8 *ppe, u8 ppe_pos_bit,
+			      bool inheritance)
 {
 	int i;
 
@@ -2365,14 +2366,25 @@ static void iwl_mvm_parse_ppe(struct iwl_mvm *mvm,
 		     bw++) {
 			ru_index_tmp >>= 1;
 
-			if (!(ru_index_tmp & 1))
-				continue;
+			/*
+			* According to the 11be spec, if for a specific BW the PPE Thresholds
+			* isn't present - it should inherit the thresholds from the last
+			* BW for which we had PPE Thresholds. In 11ax though, we don't have
+			* this inheritance - continue in this case
+			*/
+			if (!(ru_index_tmp & 1)) {
+				if (inheritance)
+					goto set_thresholds;
+				else
+					continue;
+			}
 
 			high_th = iwl_mvm_he_get_ppe_val(ppe, ppe_pos_bit);
 			ppe_pos_bit += IEEE80211_PPE_THRES_INFO_PPET_SIZE;
 			low_th = iwl_mvm_he_get_ppe_val(ppe, ppe_pos_bit);
 			ppe_pos_bit += IEEE80211_PPE_THRES_INFO_PPET_SIZE;
 
+set_thresholds:
 			pkt_ext->pkt_ext_qam_th[i][bw][0] = low_th;
 			pkt_ext->pkt_ext_qam_th[i][bw][1] = high_th;
 		}
@@ -2381,7 +2393,8 @@ static void iwl_mvm_parse_ppe(struct iwl_mvm *mvm,
 
 static void iwl_mvm_set_pkt_ext_from_he_ppe(struct iwl_mvm *mvm,
 					    struct ieee80211_sta *sta,
-					    struct iwl_he_pkt_ext_v2 *pkt_ext)
+					    struct iwl_he_pkt_ext_v2 *pkt_ext,
+					    bool inheritance)
 {
 	u8 nss = (sta->he_cap.ppe_thres[0] & IEEE80211_PPE_THRES_NSS_MASK) + 1;
 	u8 *ppe = &sta->he_cap.ppe_thres[0];
@@ -2391,7 +2404,8 @@ static void iwl_mvm_set_pkt_ext_from_he_ppe(struct iwl_mvm *mvm,
 	/* Starting after PPE header */
 	u8 ppe_pos_bit = IEEE80211_HE_PPE_THRES_INFO_HEADER_SIZE;
 
-	iwl_mvm_parse_ppe(mvm, pkt_ext, nss, ru_index_bitmap, ppe, ppe_pos_bit);
+	iwl_mvm_parse_ppe(mvm, pkt_ext, nss, ru_index_bitmap, ppe, ppe_pos_bit,
+			  inheritance);
 }
 
 static void iwl_mvm_set_pkt_ext_from_nominal_padding(struct iwl_he_pkt_ext_v2 *pkt_ext,
@@ -2402,16 +2416,18 @@ static void iwl_mvm_set_pkt_ext_from_nominal_padding(struct iwl_he_pkt_ext_v2 *p
 	int high_th = -1;
 	int i;
 
+	/* all the macros are the same for EHT and HE */
 	switch (nominal_padding) {
-	case IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_0US:
+	case IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_0US:
 		low_th = IWL_HE_PKT_EXT_NONE;
 		high_th = IWL_HE_PKT_EXT_NONE;
 		break;
-	case IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_8US:
+	case IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_8US:
 		low_th = IWL_HE_PKT_EXT_BPSK;
 		high_th = IWL_HE_PKT_EXT_NONE;
 		break;
-	case IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_16US:
+	case IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_16US:
+	case IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_20US:
 		low_th = IWL_HE_PKT_EXT_NONE;
 		high_th = IWL_HE_PKT_EXT_BPSK;
 		break;
@@ -2431,6 +2447,31 @@ static void iwl_mvm_set_pkt_ext_from_nominal_padding(struct iwl_he_pkt_ext_v2 *p
 		}
 
 		*flags |= STA_CTXT_HE_PACKET_EXT;
+	}
+}
+
+static void iwl_mvm_get_optimal_ppe_info(struct iwl_he_pkt_ext_v2 *pkt_ext,
+					 u8 nominal_padding)
+{
+	int i;
+
+	for (i = 0; i < MAX_HE_SUPP_NSS; i++) {
+		u8 bw;
+
+		for (bw = 0; bw < ARRAY_SIZE(pkt_ext->pkt_ext_qam_th[i]);
+		     bw++) {
+			u8 *qam_th = &pkt_ext->pkt_ext_qam_th[i][bw][0];
+
+			if (nominal_padding >
+			    IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_8US &&
+			    qam_th[1] == IWL_HE_PKT_EXT_NONE)
+				qam_th[1] = IWL_HE_PKT_EXT_4096QAM;
+			else if (nominal_padding ==
+				 IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_8US &&
+				 qam_th[0] == IWL_HE_PKT_EXT_NONE &&
+				 qam_th[1] == IWL_HE_PKT_EXT_NONE)
+				qam_th[0] = IWL_HE_PKT_EXT_4096QAM;
+		}
 	}
 }
 
@@ -2457,6 +2498,7 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	struct ieee80211_chanctx_conf *chanctx_conf;
 	const struct ieee80211_supported_band *sband;
 	void *cmd;
+	u8 nominal_padding;
 
 	if (!fw_has_api(&mvm->fw->ucode_capa, IWL_UCODE_TLV_API_MBSSID_HE))
 		ver = 1;
@@ -2546,22 +2588,96 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 	memset(&sta_ctxt_cmd.pkt_ext, IWL_HE_PKT_EXT_NONE,
 	       sizeof(sta_ctxt_cmd.pkt_ext));
 
-	/* If PPE Thresholds exist, parse them into a FW-familiar format. */
-	if (sta->he_cap.he_cap_elem.phy_cap_info[6] &
-		IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
-		iwl_mvm_set_pkt_ext_from_he_ppe(mvm, sta,
-						&sta_ctxt_cmd.pkt_ext);
-		flags |= STA_CTXT_HE_PACKET_EXT;
-	/* PPE Thresholds doesn't exist - set the API PPE values
-	* according to Common Nominal Packet Padding fiels. */
-	} else {
-		u8 nominal_padding =
-			u8_get_bits(sta->he_cap.he_cap_elem.phy_cap_info[9],
-				    IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_MASK);
-		if (nominal_padding != IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_RESERVED)
+	if (cfg_eht_cap_has_eht(sta)) {
+		nominal_padding =
+			u8_get_bits(cfg_eht_cap(sta)->eht_cap_elem.phy_cap_info[5],
+				    IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL);
+
+		/* If PPE Thresholds exists, parse them into a FW-familiar format. */
+		if (cfg_eht_cap(sta)->eht_cap_elem.phy_cap_info[5] &
+		    IEEE80211_EHT_PHY_CAP5_PPE_THRESHOLD_PRESENT) {
+			u8 nss = (cfg_eht_cap(sta)->eht_ppe_thres[0] &
+				  IEEE80211_EHT_PPE_THRES_NSS_MASK) + 1;
+			u8 *ppe = &cfg_eht_cap(sta)->eht_ppe_thres[0];
+			u8 ru_index_bitmap =
+				u16_get_bits(*ppe,
+					     IEEE80211_EHT_PPE_THRES_RU_INDEX_BITMASK_MASK);
+			 /* Starting after PPE header */
+			u8 ppe_pos_bit = IEEE80211_EHT_PPE_THRES_INFO_HEADER_SIZE;
+
+			iwl_mvm_parse_ppe(mvm,
+					  &sta_ctxt_cmd.pkt_ext,
+					  nss, ru_index_bitmap, ppe,
+					  ppe_pos_bit, true);
+			flags |= STA_CTXT_HE_PACKET_EXT;
+		/* EHT PPE Thresholds doesn't exist - set the API according to HE PPE Tresholds*/
+		} else if (sta->he_cap.he_cap_elem.phy_cap_info[6] &
+			   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
+			struct iwl_he_pkt_ext_v2 *pkt_ext =
+				&sta_ctxt_cmd.pkt_ext;
+
+			/*
+			* Even though HE Capabilities IE doesn't contain PPE
+			* Thresholds for BW 320Mhz, thresholds for this BW will
+			* be filled in with the same values as 160Mhz, due to
+			* the inheritance, as required.
+			*/
+			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, sta, pkt_ext,
+							true);
+
+			/*
+			* According to the requirements, for MCSs 12-13 the maximum value between
+			* HE PPE Threshold and Common Nominal Packet Padding needs to be taken
+			*/
+			iwl_mvm_get_optimal_ppe_info(pkt_ext, nominal_padding);
+
+			flags |= STA_CTXT_HE_PACKET_EXT;
+
+		/*
+		* if PPE Thresholds doesn't present in both EHT IE and HE IE -
+		* take the Thresholds from Common Nominal Packet Padding field
+		*/
+		} else {
 			iwl_mvm_set_pkt_ext_from_nominal_padding(&sta_ctxt_cmd.pkt_ext,
 								 nominal_padding,
 								 &flags);
+		}
+	} else if (sta->he_cap.has_he) {
+		/* If PPE Thresholds exist, parse them into a FW-familiar format. */
+		if (sta->he_cap.he_cap_elem.phy_cap_info[6] &
+			IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
+			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, sta,
+							&sta_ctxt_cmd.pkt_ext,
+							false);
+			flags |= STA_CTXT_HE_PACKET_EXT;
+		/*
+		* PPE Thresholds doesn't exist - set the API PPE values
+		* according to Common Nominal Packet Padding field.
+		*/
+		} else {
+			nominal_padding =
+				u8_get_bits(sta->he_cap.he_cap_elem.phy_cap_info[9],
+					    IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_MASK);
+			if (nominal_padding != IEEE80211_HE_PHY_CAP9_NOMINAL_PKT_PADDING_RESERVED)
+				iwl_mvm_set_pkt_ext_from_nominal_padding(&sta_ctxt_cmd.pkt_ext,
+									 nominal_padding,
+									 &flags);
+		}
+	}
+
+	for (i = 0; i < MAX_HE_SUPP_NSS; i++) {
+		int bw;
+
+		for (bw = 0;
+		     bw < ARRAY_SIZE(sta_ctxt_cmd.pkt_ext.pkt_ext_qam_th[i]);
+		     bw++) {
+			u8 *qam_th =
+				&sta_ctxt_cmd.pkt_ext.pkt_ext_qam_th[i][bw][0];
+
+			IWL_DEBUG_HT(mvm,
+				     "PPE table: nss[%d] bw[%d] PPET8 = %d, PPET16 = %d\n",
+				     i, bw, qam_th[0], qam_th[1]);
+		}
 	}
 
 	if (sta->he_cap.he_cap_elem.mac_cap_info[2] &
@@ -2733,8 +2849,10 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 	 * interface was added.
 	 */
 	if (changes & BSS_CHANGED_ASSOC && bss_conf->assoc) {
-		if (vif->bss_conf.he_support &&
-		    !iwlwifi_mod_params.disable_11ax)
+		if ((vif->bss_conf.he_support &&
+		     !iwlwifi_mod_params.disable_11ax) ||
+		    (vif->bss_conf.eht_support &&
+		     !iwlwifi_mod_params.disable_11be))
 			iwl_mvm_cfg_he_sta(mvm, vif, mvmvif->ap_sta_id);
 
 		iwl_mvm_mac_ctxt_recalc_tsf_id(mvm, vif);
@@ -2742,8 +2860,11 @@ static void iwl_mvm_bss_info_changed_station(struct iwl_mvm *mvm,
 
 	/* Update MU EDCA params */
 	if (changes & BSS_CHANGED_QOS && mvmvif->associated &&
-	    bss_conf->assoc && vif->bss_conf.he_support &&
-	    !iwlwifi_mod_params.disable_11ax)
+	    bss_conf->assoc &&
+	    ((vif->bss_conf.he_support &&
+	      !iwlwifi_mod_params.disable_11ax) ||
+	     (vif->bss_conf.eht_support &&
+	      !iwlwifi_mod_params.disable_11be)))
 		iwl_mvm_cfg_he_sta(mvm, vif, mvmvif->ap_sta_id);
 
 	/*
@@ -3683,8 +3804,10 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 			vif->bss_conf.he_support = sta->he_cap.has_he;
 			mvmvif->ap_assoc_sta_count++;
 			iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
-			if (vif->bss_conf.he_support &&
-			    !iwlwifi_mod_params.disable_11ax)
+			if ((vif->bss_conf.he_support &&
+			     !iwlwifi_mod_params.disable_11ax) ||
+			    (vif->bss_conf.eht_support &&
+			     !iwlwifi_mod_params.disable_11be))
 				iwl_mvm_cfg_he_sta(mvm, vif, mvm_sta->sta_id);
 		} else if (vif->type == NL80211_IFTYPE_STATION) {
 			vif->bss_conf.he_support = sta->he_cap.has_he;

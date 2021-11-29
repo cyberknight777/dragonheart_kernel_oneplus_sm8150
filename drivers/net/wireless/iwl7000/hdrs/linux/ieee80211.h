@@ -2661,6 +2661,10 @@ ieee80211_he_spr_size(const u8 *he_spr_ie)
 #define IEEE80211_EHT_PHY_CAP5_TX_LESS_242_TONE_RU_SUPP    0x02
 #define IEEE80211_EHT_PHY_CAP5_RX_LESS_242_TONE_RU_SUPP    0x04
 #define IEEE80211_EHT_PHY_CAP5_PPE_THRESHOLD_PRESENT       0x08
+#define IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_0US	   0
+#define IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_8US	   1
+#define IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_16US	   2
+#define IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_20US	   3
 #define IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL              0x30
 
 /* Maximum number of supported EHT LTF is split between octet 5
@@ -2721,6 +2725,7 @@ ieee80211_eht_mcs_nss_size(const struct ieee80211_he_cap_elem *he_cap,
 #define IEEE80211_EHT_PPE_THRES_NSS_MASK              0xf
 #define IEEE80211_EHT_PPE_THRES_RU_INDEX_BITMASK_MASK 0x1f0
 #define IEEE80211_EHT_PPE_THRES_INFO_PPET_SIZE	      3
+#define IEEE80211_EHT_PPE_THRES_INFO_HEADER_SIZE      9
 
 /*
  * Calculate 802.11be EHT capabilities IE EHT field size
