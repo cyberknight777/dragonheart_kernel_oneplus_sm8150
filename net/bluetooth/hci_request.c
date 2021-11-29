@@ -1137,6 +1137,7 @@ static void hci_req_prepare_adv_monitor_suspend(struct hci_request *req,
 			msft_resume(hdev);
 		break;
 	default:
+		clear_bit(SUSPEND_SET_ADV_FILTER, hdev->suspend_tasks);
 		return;
 	}
 }
