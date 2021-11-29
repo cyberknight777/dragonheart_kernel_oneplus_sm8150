@@ -9,7 +9,7 @@
  * Copyright (c) 2006, Michael Wu <flamingice@sourmilk.net>
  * Copyright (c) 2013 - 2014 Intel Mobile Communications GmbH
  * Copyright (c) 2016 - 2017 Intel Deutschland GmbH
- * Copyright (c) 2018 - 2021 Intel Corporation
+ * Copyright (c) 2018 - 2022 Intel Corporation
  */
 
 #ifndef LINUX_IEEE80211_H
@@ -2361,6 +2361,7 @@ ieee80211_he_mcs_nss_size(const struct ieee80211_he_cap_elem *he_cap)
 #define IEEE80211_PPE_THRES_RU_INDEX_BITMASK_MASK		0x78
 #define IEEE80211_PPE_THRES_RU_INDEX_BITMASK_POS		(3)
 #define IEEE80211_PPE_THRES_INFO_PPET_SIZE			(3)
+#define IEEE80211_HE_PPE_THRES_INFO_HEADER_SIZE			(7)
 
 /*
  * Calculate 802.11ax HE capabilities IE PPE field size
