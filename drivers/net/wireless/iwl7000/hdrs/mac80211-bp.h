@@ -55,7 +55,46 @@ csa_counter_offsets_presp(struct cfg80211_csa_settings *s)
 
 #if CFG80211_VERSION <= KERNEL_VERSION(9,9,9)
 #define IEEE80211_CHAN_NO_HE 0
+#define IEEE80211_CHAN_NO_EHT 0
+
 #define NL80211_RRF_NO_HE 0
+
+#define NL80211_CHAN_WIDTH_320 13
+
+#define IEEE80211_EHT_PPE_THRES_MAX_LEN	61
+
+/**
+ * struct ieee80211_sta_eht_cap - STA's EHT capabilities
+ *
+ * This structure describes most essential parameters needed
+ * to describe 802.11be EHT capabilities for a STA.
+ *
+ * @has_he: true iff HE data is valid.
+ * @eht_cap_elem: Fixed portion of the eht capabilities element.
+ * @eht_mcs_nss_supp: The supported NSS/MCS combinations.
+ * @eht_ppe_thres: Holds the PPE Thresholds data.
+ */
+struct ieee80211_sta_eht_cap {
+	bool has_eht;
+	struct ieee80211_eht_cap_elem eht_cap_elem;
+	struct ieee80211_eht_mcs_nss_supp eht_mcs_nss_supp;
+	u8 eht_ppe_thres[IEEE80211_EHT_PPE_THRES_MAX_LEN];
+};
+
+static inline const struct ieee80211_sta_eht_cap *
+ieee80211_get_eht_iftype_cap(const struct ieee80211_supported_band *sband,
+			     enum nl80211_iftype iftype)
+{
+	return NULL;
+}
+
+#define cfg_eht_cap_has_eht(obj) (false && (obj))
+#define cfg_eht_cap_set_has_eht(obj, val) do { (void)obj; (void)val; } while (0)
+#define cfg_eht_cap(obj) ((struct ieee80211_sta_eht_cap *)((obj) ? NULL : NULL))
+#else
+#define cfg_eht_cap_has_eht(obj) (obj)->eht_cap.has_eht
+#define cfg_eht_cap_set_has_eht(obj, val) (obj)->eht_cap.has_eht = val
+#define cfg_eht_cap(obj) (&(obj)->eht_cap)
 #endif
 
 #if CFG80211_VERSION < KERNEL_VERSION(3,19,0)
@@ -1572,6 +1611,20 @@ static inline void skb_list_del_init(struct sk_buff *skb)
 	__list_del_entry((struct list_head *)&skb->next);
 	skb_mark_not_on_list(skb);
 }
+
+#define rb_root_cached rb_root
+#define rb_first_cached rb_first
+static inline void rb_insert_color_cached(struct rb_node *node,
+					  struct rb_root_cached *root,
+					  bool leftmost)
+{
+	rb_insert_color(node, root);
+}
+#define rb_erase_cached rb_erase
+#define RB_ROOT_CACHED RB_ROOT
+#define rb_root_node(root) (root)->rb_node
+#else
+#define rb_root_node(root) (root)->rb_root.rb_node
 #endif /* < 4.14 */
 
 #if LINUX_VERSION_IS_LESS(4,20,0)
@@ -2667,6 +2720,14 @@ static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 #define cfg80211_unregister_netdevice(n) unregister_netdevice(n)
 #define cfg80211_sched_scan_stopped_locked(w, r) cfg80211_sched_scan_stopped_rtnl(w, r)
 #define ASSOC_REQ_DISABLE_HE BIT(4)
+static inline void __iwl7000_cfg80211_unregister_wdev(struct wireless_dev *wdev)
+{
+	if (wdev->netdev)
+		unregister_netdevice(wdev->netdev);
+	else
+		cfg80211_unregister_wdev(wdev);
+}
+#define cfg80211_unregister_wdev __iwl7000_cfg80211_unregister_wdev
 #endif /* < 5.12 */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
