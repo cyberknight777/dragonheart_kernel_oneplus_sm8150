@@ -788,7 +788,12 @@ static void iwl_dbg_tlv_update_drams(struct iwl_fw_runtime *fwrt)
 	bool dram_alloc = false;
 	struct iwl_dram_data *frags =
 		&fwrt->trans->dbg.fw_mon_ini[IWL_FW_INI_ALLOCATION_ID_DBGC1].frags[0];
-	struct iwl_dram_info *dram_info = frags->block;
+	struct iwl_dram_info *dram_info;
+
+	if (!frags || !frags->block)
+		return;
+
+	dram_info = frags->block;
 
 	if (!fw_has_capa(&fwrt->fw->ucode_capa,
 			 IWL_UCODE_TLV_CAPA_DRAM_FRAG_SUPPORT))
