@@ -2760,7 +2760,7 @@ err:
 			clkdev_drop(rt5682s->dai_clks_lookup[i]);
 	} while (i-- > 0);
 
-	return 0;
+	return ret;
 }
 
 static int rt5682s_dai_probe_clks(struct snd_soc_component *component)
