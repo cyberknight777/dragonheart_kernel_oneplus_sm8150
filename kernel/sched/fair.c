@@ -12234,6 +12234,15 @@ static void task_fork_fair(struct task_struct *p)
 	}
 	place_entity(cfs_rq, se, 1);
 
+#ifdef CONFIG_KPROFILES
+	/* Execute child process before parent after fork according to set kernel profile */
+	if (active_mode() == 1)
+	  sysctl_sched_child_runs_first = 0;
+	else if (active_mode() == 0 || active_mode() == 2 || active_mode() == 3)
+	  sysctl_sched_child_runs_first = 1;
+#endif
+
+
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
 		/*
 		 * Upon rescheduling, sched_class::put_prev_task() will place
