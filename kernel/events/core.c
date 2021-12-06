@@ -50,6 +50,7 @@
 #include <linux/sched/mm.h>
 #include <linux/proc_ns.h>
 #include <linux/mount.h>
+#include <linux/kprofiles.h>
 
 #include "internal.h"
 
@@ -500,6 +501,18 @@ int perf_cpu_time_max_percent_handler(struct ctl_table *table, int write,
 				loff_t *ppos)
 {
 	int ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+
+#ifdef CONFIG_KPROFILES
+	/* Limit max perf event processing time according to set kernel profile */
+	if (active_mode() == 1)
+	  sysctl_perf_cpu_time_max_percent = 2;
+	else if (active_mode() == 2)
+	  sysctl_perf_cpu_time_max_percent = 5;
+	else if (active_mode() == 3)
+	  sysctl_perf_cpu_time_max_percent = 15;
+	else
+	  sysctl_perf_cpu_time_max_percent = DEFAULT_CPU_TIME_MAX_PERCENT;
+#endif
 
 	if (ret || !write)
 		return ret;
