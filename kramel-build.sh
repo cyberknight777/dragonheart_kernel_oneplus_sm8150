@@ -271,6 +271,7 @@ build_kernel() {
 			AR=llvm-ar \
 			NM=llvm-nm \
 			OBJDUMP=llvm-objdump \
+			OBJCOPY=llvm-objcopy \
 			STRIP=llvm-strip
 		)
 	elif [ $COMPILER = "gcc" ]
