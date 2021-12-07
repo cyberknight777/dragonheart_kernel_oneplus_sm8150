@@ -1659,14 +1659,13 @@ iwl_mvm_umac_scan_cfg_channels_v6(struct iwl_mvm *mvm,
 }
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,10,0)
-static int
+static void
 iwl_mvm_umac_scan_fill_6g_chan_list(struct iwl_mvm *mvm,
 				    struct iwl_mvm_scan_params *params,
 				    struct iwl_scan_probe_params_v4 *pp){
-	return 0;
 }
 #else
-static int
+static void
 iwl_mvm_umac_scan_fill_6g_chan_list(struct iwl_mvm *mvm,
 				    struct iwl_mvm_scan_params *params,
 				     struct iwl_scan_probe_params_v4 *pp)
@@ -1735,7 +1734,6 @@ iwl_mvm_umac_scan_fill_6g_chan_list(struct iwl_mvm *mvm,
 
 	pp->short_ssid_num = idex_s;
 	pp->bssid_num = idex_b;
-	return 0;
 }
 #endif
 
@@ -2447,9 +2445,7 @@ static int iwl_mvm_scan_umac_v14_and_above(struct iwl_mvm *mvm,
 	cp->n_aps_override[0] = IWL_SCAN_ADWELL_N_APS_GO_FRIENDLY;
 	cp->n_aps_override[1] = IWL_SCAN_ADWELL_N_APS_SOCIAL_CHS;
 
-	ret = iwl_mvm_umac_scan_fill_6g_chan_list(mvm, params, pb);
-	if (ret)
-		return ret;
+	iwl_mvm_umac_scan_fill_6g_chan_list(mvm, params, pb);
 
 	iwl_mvm_umac_scan_cfg_channels_v6_6g(params,
 					     params->n_channels,
