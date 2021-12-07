@@ -71,7 +71,7 @@ DEFCONFIG=dragonheart_defconfig
 
 # Specify compiler. 
 # 'clang' or 'gcc'
-COMPILER=gcc
+COMPILER=clang
 
 # Clean source prior building. 1 is NO(default) | 0 is YES
 INCREMENTAL=1
@@ -267,7 +267,9 @@ build_kernel() {
 			CROSS_COMPILE=aarch64-linux-gnu- \
 			CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
 			CC=clang \
+			LD=ld.lld \
 			AR=llvm-ar \
+			NM=llvm-nm \
 			OBJDUMP=llvm-objdump \
 			STRIP=llvm-strip
 		)
