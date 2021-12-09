@@ -933,7 +933,9 @@ static void iwl_mvm_mei_roaming_forbidden(void *priv, bool forbidden)
 	if (!mvm->hw_registered || !mvm->csme_vif)
 		return;
 
+#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
 	iwl_mvm_send_roaming_forbidden_event(mvm, mvm->csme_vif, forbidden);
+#endif
 }
 
 static void iwl_mvm_sap_connected_wk(struct work_struct *wk)
