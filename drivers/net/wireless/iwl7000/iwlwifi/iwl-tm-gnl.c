@@ -184,10 +184,6 @@ static int iwl_tm_validate_sram_write_req(struct iwl_tm_gnl_dev *dev,
 	if (iwl_tm_gnl_valid_hw_addr(cmd_in->offset))
 		return 0;
 
-	if ((cmd_in->offset < IWL_ABS_PRPH_START)  &&
-	    (cmd_in->offset >= IWL_ABS_PRPH_START + PRPH_END))
-		return 0;
-
 	return -EINVAL;
 }
 
@@ -213,10 +209,6 @@ static int iwl_tm_validate_sram_read_req(struct iwl_tm_gnl_dev *dev,
 	cmd_in = data_in->data;
 
 	if (iwl_tm_gnl_valid_hw_addr(cmd_in->offset))
-		return 0;
-
-	if ((cmd_in->offset < IWL_ABS_PRPH_START)  &&
-	    (cmd_in->offset >= IWL_ABS_PRPH_START + PRPH_END))
 		return 0;
 
 	return -EINVAL;
