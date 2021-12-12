@@ -452,6 +452,12 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 	if (err)
 		goto init_error;
 
+	ret = iwl_xvt_init_ppag_tables(xvt);
+	if (ret < 0) {
+		err = ret;
+		goto init_error;
+	}
+
 	ret = iwl_xvt_init_sar_tables(xvt);
 	if (ret < 0) {
 		err = ret;
