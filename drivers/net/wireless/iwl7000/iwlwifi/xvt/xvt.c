@@ -1011,3 +1011,40 @@ int iwl_xvt_init_sar_tables(struct iwl_xvt *xvt)
 
 	return ret;
 }
+
+static int iwl_xvt_ppag_send_cmd(struct iwl_xvt *xvt)
+{
+	union iwl_ppag_table_cmd cmd;
+	int ret, cmd_size;
+
+	ret = iwl_read_ppag_table(&xvt->fwrt, &cmd, &cmd_size);
+	if (ret < 0)
+		return ret;
+
+	IWL_DEBUG_RADIO(xvt, "Sending PER_PLATFORM_ANT_GAIN_CMD\n");
+	ret = iwl_xvt_send_cmd_pdu(xvt, WIDE_ID(PHY_OPS_GROUP,
+						PER_PLATFORM_ANT_GAIN_CMD),
+				   0, cmd_size, &cmd);
+	if (ret < 0)
+		IWL_ERR(xvt, "failed to send PER_PLATFORM_ANT_GAIN_CMD (%d)\n",
+			ret);
+
+	return ret;
+}
+
+int iwl_xvt_init_ppag_tables(struct iwl_xvt *xvt)
+{
+	int ret;
+
+	ret = iwl_acpi_get_ppag_table(&xvt->fwrt);
+	if (ret < 0) {
+		IWL_DEBUG_RADIO(xvt,
+				"PPAG BIOS table invalid or unavailable. (%d)\n",
+				ret);
+	}
+
+	if (!(iwl_acpi_is_ppag_approved(&xvt->fwrt)))
+		return 0;
+
+	return iwl_xvt_ppag_send_cmd(xvt);
+}
