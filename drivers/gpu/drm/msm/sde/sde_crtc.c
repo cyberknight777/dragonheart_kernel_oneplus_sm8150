@@ -44,6 +44,7 @@
 #include "sde_trace.h"
 #include <linux/msm_drm_notify.h>
 #include <linux/notifier.h>
+#include <linux/userland.h>
 
 
 #include <linux/err.h>
@@ -126,9 +127,6 @@ static struct sde_crtc_custom_events custom_events[] = {
 /* default line padding ratio limitation */
 #define MAX_VPADDING_RATIO_M		63
 #define MAX_VPADDING_RATIO_N		15
-
-unsigned int is_a12 = 1;
-module_param(is_a12, uint, 0444);
 
 static inline struct sde_kms *_sde_crtc_get_kms(struct drm_crtc *crtc)
 {
