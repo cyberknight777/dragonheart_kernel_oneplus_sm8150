@@ -2003,7 +2003,7 @@ struct ieee80211_eht_cap_elem {
  * struct ieee80211_eht_operation - eht operation element
  *
  * This structure is the "eht operation element" fields as
- * described in P802.11be_D1.0 section 9.4.2.295c
+ * described in P802.11be_D1.2 section 9.4.2.295c
  *
  * TODO: the actual layout of the EHT operation element is not clearly defined
  * in the specification. For now assume the below layout.
@@ -2011,6 +2011,7 @@ struct ieee80211_eht_cap_elem {
 struct ieee80211_eht_operation {
 	u8 chan_width;
 	u8 ccfs;
+	u8 present_bm;
 } __packed;
 
 /* 802.11ac VHT Capabilities */
