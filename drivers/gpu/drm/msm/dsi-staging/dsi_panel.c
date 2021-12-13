@@ -258,8 +258,6 @@ const char *gamma_cmd_set_map[DSI_GAMMA_CMD_SET_MAX] = {
 int gamma_read_flag = GAMMA_READ_SUCCESS;
 int dsi_panel_hw_type = DSI_PANEL_SAMSUNG_S6E3FC2X01;
 
-extern unsigned int is_a12;
-
 int dsi_dsc_create_pps_buf_cmd(struct msm_display_dsc_info *dsc, char *buf,
 				int pps_id)
 {
