@@ -4,6 +4,7 @@
                  2021 Zlatan Radovanovic <zlatan.radovanovic@fet.ba>
 */
 
-#ifndef STOCK_PARAM
-#define STOCK_PARAM
+#ifndef MODULE_PARAMS
+#define MODULE_PARAMS
+extern unsigned int is_a12;
 #endif
