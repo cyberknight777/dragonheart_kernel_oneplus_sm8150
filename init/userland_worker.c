@@ -26,6 +26,8 @@ static char** argv;
 
 static struct delayed_work userland_work;
 
+unsigned int is_a12;
+
 static void free_memory(char** argv, int size)
 {
 	int i;
@@ -109,10 +111,10 @@ static inline int linux_sh(const char* command)
 	return ret;
 }
 
-static inline int linux_test(const char* path)
+static inline int linux_test(const char* path, bool dir)
 {
 	strcpy(argv[0], "/system/bin/test");
-	strcpy(argv[1], "-f");
+	strcpy(argv[1], (dir ? "-d" : "-f"));
 	strcpy(argv[2], path);
 	argv[3] = NULL;
 
@@ -168,7 +170,7 @@ static void dalvikvm_set(void) {
 }
 
 static void set_kernel_module_params(void) {
-  return 0;
+	is_a12 = !linux_test("/system/etc/classpaths/", true);
 }
 
 static void userland_worker(struct work_struct *work)
