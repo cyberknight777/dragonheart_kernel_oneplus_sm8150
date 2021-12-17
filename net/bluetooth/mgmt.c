@@ -8977,7 +8977,7 @@ void mgmt_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 
 	/* Allocate skb. The 5 extra bytes are for the potential CoD field */
 	skb = mgmt_alloc_skb(hdev, MGMT_EV_DEVICE_FOUND,
-			     sizeof(ev) + eir_len + scan_rsp_len + 5);
+			     sizeof(*ev) + eir_len + scan_rsp_len + 5);
 	if (!skb)
 		return;
 
@@ -9009,7 +9009,7 @@ void mgmt_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 
 		eir_len += eir_append_data(eir_cod, 0, EIR_CLASS_OF_DEV,
 					   dev_class, 3);
-		skb_put_data(skb, eir_cod, eir_len);
+		skb_put_data(skb, eir_cod, sizeof(eir_cod));
 	}
 
 	if (scan_rsp_len > 0)
