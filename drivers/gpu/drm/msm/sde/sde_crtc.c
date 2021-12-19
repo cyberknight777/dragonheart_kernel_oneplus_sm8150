@@ -1448,7 +1448,7 @@ static u32 _sde_crtc_get_displays_affected(struct drm_crtc *crtc,
 	bool is_ppsplit = false;
 
 	if (!crtc || !state) {
-		pr_err("Invalid crtc or state\n");
+		pr_debug("Invalid crtc or state\n");
 		return 0;
 	}
 
@@ -3525,7 +3525,7 @@ ssize_t oneplus_display_notify_fp_press(struct device *dev,
 		return count;
 		}
 
-	pr_err("notify fingerpress %d\n", onscreenfp_status );
+	pr_debug("notify fingerpress %d\n", onscreenfp_status );
 	oneplus_onscreenfp_status = onscreenfp_status;
 
 	drm_modeset_lock_all(drm_dev);
@@ -3587,7 +3587,7 @@ int oneplus_aod_dc = 0;
 		dim_status = 0;
 
 	if (dsi_display->panel->aod_status == 0 && (dim_status == 2)) {
-		pr_err("fp set it in normal status\n");
+		pr_debug("fp set it in normal status\n");
 		if (dim_status == oneplus_dim_status)
 			return count;
 		oneplus_dim_status = dim_status;
@@ -3616,10 +3616,10 @@ int oneplus_aod_dc = 0;
 	if (oneplus_dim_status == 1 && HBM_flag) {
 		rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_HBM_ON_5);
 		if (rc) {
-			pr_err("failed to send DSI_CMD_SET_HBM_ON_5 cmds, rc=%d\n", rc);
+			pr_debug("failed to send DSI_CMD_SET_HBM_ON_5 cmds, rc=%d\n", rc);
 			return rc;
 		}
-		pr_err("Notify dim not commit,send DSI_CMD_SET_HBM_ON_5 cmds\n");
+		pr_debug("Notify dim not commit,send DSI_CMD_SET_HBM_ON_5 cmds\n");
 		return count;
 	}
 	drm_modeset_lock_all(drm_dev);
@@ -3670,7 +3670,7 @@ static int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_sta
 	cstate = to_sde_crtc_state(crtc_state);
 
 	if (cstate->num_dim_layers == SDE_MAX_DIM_LAYERS - 1) {
-		pr_err("failed to get available dim layer for custom\n");
+		pr_debug("failed to get available dim layer for custom\n");
 		return -EINVAL;
 	}
 
@@ -5836,7 +5836,7 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 		if (is_a12) {
 			oneplus_dim_status = 0;
 			oneplus_dimlayer_hbm_enable = false;
-			pr_err("current dim = %d, oneplus_dimlayer_hbm_enable = %d\n", oneplus_dim_status, oneplus_dimlayer_hbm_enable);
+			pr_debug("current dim = %d, oneplus_dimlayer_hbm_enable = %d\n", oneplus_dim_status, oneplus_dimlayer_hbm_enable);
 		}
 	}
 
