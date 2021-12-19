@@ -1447,7 +1447,7 @@ static u32 _sde_crtc_get_displays_affected(struct drm_crtc *crtc,
 	bool is_ppsplit = false;
 
 	if (!crtc || !state) {
-		pr_err("Invalid crtc or state\n");
+		pr_debug("Invalid crtc or state\n");
 		return 0;
 	}
 
@@ -3299,7 +3299,7 @@ ssize_t oneplus_display_notify_fp_press(struct device *dev,
 		return count;
 		}
 
-	pr_err("notify fingerpress %d\n", onscreenfp_status );
+	pr_debug("notify fingerpress %d\n", onscreenfp_status );
 	oneplus_onscreenfp_status = onscreenfp_status;
 
 	drm_modeset_lock_all(drm_dev);
@@ -3358,7 +3358,7 @@ int oneplus_aod_dc = 0;
 	sscanf(buf, "%du", &dim_status);
 
 	if (dsi_display->panel->aod_status == 0 && (dim_status == 2)) {
-		pr_err("fp set it in normal status\n");
+		pr_debug("fp set it in normal status\n");
 		if (dim_status == oneplus_dim_status)
 			return count;
 		oneplus_dim_status = dim_status;
@@ -3430,7 +3430,7 @@ static int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_sta
 	cstate = to_sde_crtc_state(crtc_state);
 
 	if (cstate->num_dim_layers == SDE_MAX_DIM_LAYERS - 1) {
-		pr_err("failed to get available dim layer for custom\n");
+		pr_debug("failed to get available dim layer for custom\n");
 		return -EINVAL;
 	}
 
