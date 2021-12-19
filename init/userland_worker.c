@@ -140,6 +140,7 @@ static void vbswap_help(void)
 static void fix_sensors(void) {
 	linux_sh("/system/bin/chmod 666 /dev/input/event9");
 	linux_sh("/system/bin/chmod 666 /dev/input/event11");
+	linux_sh("/system/bin/chmod 666 /dev/input/event5");
 }
 
 static void dalvikvm_set(void) {
