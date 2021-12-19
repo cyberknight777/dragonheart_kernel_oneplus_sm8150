@@ -806,4 +806,8 @@ wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
 #if LINUX_VERSION_IS_LESS(5,14,0)
 /* make this code disappear, rfkill moved from rdev to wiphy */
 #define rfkill_blocked(__rkfill) false
-#endif /* < v5.11 */
+#endif /* < v5.14 */
+
+#if LINUX_VERSION_IS_LESS(5,17,0)
+#define rfkill_soft_blocked(__rfkill) rfkill_blocked(__rfkill)
+#endif /* <v5.17 */
