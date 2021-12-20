@@ -1247,6 +1247,7 @@ tp_irq_active: tp_irq_active {
 		pmsg-size=	   <0x200000>;
 		devinfo-size=  <0x01000>;
 		ecc-size=	   <0x0>;
+		max-reason =       <0x4>;
 	};
 
 	mtp_mem: mtp_mem@ac300000 {
