@@ -717,6 +717,7 @@
 			record-size = <0x80000>;
 			console-size = <0x400000>;
 			pmsg-size = <0x400000>;
+			max-reason = <0x4>;
 		};
 
 		adsp_mem: adsp_region {
