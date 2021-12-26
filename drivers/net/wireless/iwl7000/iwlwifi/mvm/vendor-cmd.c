@@ -217,7 +217,7 @@ static int iwl_mvm_set_country(struct wiphy *wiphy,
 	regd = iwl_mvm_get_regdomain(wiphy,
 				     nla_data(tb[IWL_MVM_VENDOR_ATTR_COUNTRY]),
 				     iwl_mvm_is_wifi_mcc_supported(mvm) ?
-				     MCC_SOURCE_3G_LTE_HOST :
+				     MCC_SOURCE_MCC_API :
 				     MCC_SOURCE_OLD_FW, NULL);
 	if (IS_ERR_OR_NULL(regd)) {
 		retval = -EIO;
