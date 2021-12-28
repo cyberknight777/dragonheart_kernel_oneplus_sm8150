@@ -191,16 +191,16 @@ static void iwl_mvm_scan_iterator(void *_data, u8 *mac,
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_scan_iter_data *data = _data;
-	struct iwl_mvm_vif *curr_mvmvif =
-		iwl_mvm_vif_from_mac80211(data->current_vif);
+	struct iwl_mvm_vif *curr_mvmvif;
 
 	if (vif->type != NL80211_IFTYPE_P2P_DEVICE && mvmvif->phy_ctxt &&
 	    mvmvif->phy_ctxt->id < NUM_PHY_CTX)
 		data->global_cnt += 1;
 
-	/* exclude the given vif */
-	if (vif == data->current_vif)
+	if (!data->current_vif || vif == data->current_vif)
 		return;
+
+	curr_mvmvif = iwl_mvm_vif_from_mac80211(data->current_vif);
 
 	if (vif->type == NL80211_IFTYPE_AP && vif->p2p &&
 	    mvmvif->phy_ctxt && curr_mvmvif->phy_ctxt &&
