@@ -457,7 +457,10 @@ ieee80211_chan_width_to_rx_bw(enum nl80211_chan_width width)
 	case NL80211_CHAN_WIDTH_80P80:
 		return IEEE80211_STA_RX_BW_160;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		return IEEE80211_STA_RX_BW_320;

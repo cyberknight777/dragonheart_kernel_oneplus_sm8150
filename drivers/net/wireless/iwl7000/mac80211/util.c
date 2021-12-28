@@ -3114,7 +3114,10 @@ u8 *ieee80211_ie_build_ht_oper(u8 *pos, struct ieee80211_sta_ht_cap *ht_cap,
 			ht_oper->ht_param = IEEE80211_HT_PARAM_CHA_SEC_BELOW;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* HT information element should not be included on 6GHz */
@@ -3160,7 +3163,10 @@ void ieee80211_ie_build_wide_bw_cs(u8 *pos,
 		*pos++ = IEEE80211_VHT_CHANWIDTH_80P80MHZ;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* The behavior is not defined for 320 MHz channels */
@@ -3219,7 +3225,10 @@ u8 *ieee80211_ie_build_vht_oper(u8 *pos, struct ieee80211_sta_vht_cap *vht_cap,
 		vht_oper->chan_width = IEEE80211_VHT_CHANWIDTH_80MHZ;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* VHT information element should not be included on 6GHz */
@@ -3286,7 +3295,10 @@ u8 *ieee80211_ie_build_he_oper(u8 *pos, struct cfg80211_chan_def *chandef)
 
 	switch (chandef->width) {
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/*
@@ -4114,7 +4126,10 @@ u32 ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
 		      IEEE80211_STA_DISABLE_160MHZ;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* n_P20 */

@@ -22,7 +22,10 @@ u8 iwl_mvm_get_channel_width(struct cfg80211_chan_def *chandef)
 	case NL80211_CHAN_WIDTH_160:
 		return IWL_PHY_CHANNEL_MODE160;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		return IWL_PHY_CHANNEL_MODE320;
