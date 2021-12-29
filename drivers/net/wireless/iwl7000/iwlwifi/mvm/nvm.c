@@ -430,11 +430,6 @@ iwl_mvm_update_mcc(struct iwl_mvm *mvm, const char *alpha2,
 
 	cmd.len[0] = sizeof(struct iwl_mcc_update_cmd);
 
-#ifdef CPTCFG_IWLMVM_VENDOR_CMDS
-	if (src_id == MCC_SOURCE_MCC_API)
-		mcc_update_cmd.key = cpu_to_le32(0xDEADBEE1);
-#endif
-
 	IWL_DEBUG_LAR(mvm, "send MCC update to FW with '%c%c' src = %d\n",
 		      alpha2[0], alpha2[1], src_id);
 
