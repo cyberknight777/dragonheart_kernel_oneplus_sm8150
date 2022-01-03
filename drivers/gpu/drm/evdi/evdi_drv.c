@@ -293,7 +293,7 @@ static int evdi_add_device(struct evdi_context *ctx, struct device *parent)
 	return 0;
 }
 
-int evdi_driver_setup_early(struct drm_device *dev)
+static int evdi_drm_device_setup(struct drm_device *dev)
 {
 	struct platform_device *platdev = NULL;
 	struct evdi_device *evdi;
@@ -363,7 +363,7 @@ static int evdi_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(dev))
 		return PTR_ERR(dev);
 
-	ret = evdi_driver_setup_early(dev);
+	ret = evdi_drm_device_setup(dev);
 	if (ret)
 		goto err_free;
 
@@ -375,8 +375,6 @@ static int evdi_platform_probe(struct platform_device *pdev)
 		data->symlinked = false;
 		platform_set_drvdata(pdev, data);
 	}
-
-	evdi_driver_setup_late(dev);
 
 	return 0;
 
