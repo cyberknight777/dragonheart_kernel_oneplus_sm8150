@@ -228,7 +228,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	if (!dsi_panel_initialized(panel)) {
 		panel->hbm_backlight = bl_lvl;
 		panel->bl_config.bl_level = bl_lvl;
-		pr_err("HBM_backight =%d\n",panel->hbm_backlight);
+		pr_debug("HBM_backight =%d\n",panel->hbm_backlight);
 		rc = -EINVAL;
 		goto error;
 	}
@@ -237,31 +237,31 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		if (bl_lvl != 0 && panel->bl_config.bl_level == 0) {
 			if (panel->naive_display_p3_mode) {
 				mdelay(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_ON);
 			}
 			if (panel->naive_display_wide_color_mode) {
 				mdelay(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON);
 			}
 			if (panel->naive_display_srgb_color_mode) {
 				mdelay(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON);
 			}
 			if (panel->naive_display_customer_srgb_mode) {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_OFF);
 			}
 			if (panel->naive_display_customer_p3_mode) {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_OFF);
 			}
 		}
@@ -271,38 +271,38 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		if (bl_lvl != 0 && panel->bl_config.bl_level == 0) {
 			if (panel->naive_display_p3_mode) {
 				mdelay(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_ON);
 			}
 			if (panel->naive_display_wide_color_mode) {
 				mdelay(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON);
 			}
 			if (panel->naive_display_srgb_color_mode) {
 				mdelay(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON);
 			}
 			if (panel->naive_display_loading_effect_mode) {
-				pr_err("Send DSI_CMD_LOADING_EFFECT_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_EFFECT_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_EFFECT_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_EFFECT_OFF cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
 			}
 			if (panel->naive_display_customer_srgb_mode) {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
 				//rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_OFF);
 			}
 			if (panel->naive_display_customer_p3_mode) {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
 				//rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_OFF);
 			}
 		}
@@ -312,38 +312,38 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		if (bl_lvl != 0 && panel->bl_config.bl_level == 0) {
 			if (panel->naive_display_p3_mode) {
 				msleep(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_P3_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_ON);
 			}
 			if (panel->naive_display_wide_color_mode) {
 				msleep(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_WIDE_COLOR_ON);
 			}
 			if (panel->naive_display_srgb_color_mode) {
 				msleep(20);
-				pr_err("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
+				pr_debug("Send DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_SRGB_COLOR_ON);
 			}
 			if (panel->naive_display_loading_effect_mode) {
-				pr_err("Send DSI_CMD_LOADING_EFFECT_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_EFFECT_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_EFFECT_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_EFFECT_OFF cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
 			}
 			if (panel->naive_display_customer_srgb_mode) {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_RGB_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_RGB_OFF cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_RGB_OFF);
 			}
 			if (panel->naive_display_customer_p3_mode) {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_P3_ON cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_ON);
 			} else {
-				pr_err("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
+				pr_debug("Send DSI_CMD_LOADING_CUSTOMER_P3_OFF cmds\n");
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_OFF);
 			}
 		}
@@ -363,14 +363,14 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
 	if (rc) {
-		pr_err("[%s] failed to enable DSI core clocks, rc=%d\n",
+		pr_debug("[%s] failed to enable DSI core clocks, rc=%d\n",
 		       dsi_display->name, rc);
 		goto error;
 	}
 
 	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
 	if (rc)
-		pr_err("unable to set backlight\n");
+		pr_debug("unable to set backlight\n");
 
 	if (bl_lvl > 1023 && panel->bl_config.bl_level <= 1023)
 		rc = dsi_panel_set_hbm_mode(panel, 5);
@@ -381,7 +381,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_OFF);
 	if (rc) {
-		pr_err("[%s] failed to disable DSI core clocks, rc=%d\n",
+		pr_debug("[%s] failed to disable DSI core clocks, rc=%d\n",
 		       dsi_display->name, rc);
 		goto error;
 	}
