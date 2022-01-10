@@ -2,7 +2,7 @@
 
 #define INFRARED_TAG                  "[oneplus_infrared] "
 #define INFRARED_ERR(fmt, args...)    printk(KERN_ERR INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
-#define INFRARED_LOG(fmt, args...)    printk(KERN_INFO INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
+#define INFRARED_LOG(fmt, args...)    printk(KERN_DEBUG INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
 
 
 typedef struct oneplus_infrared_state {
