@@ -109,7 +109,7 @@
 #define CSR_IPC_SLEEP_CONTROL_SUSPEND	0x3
 #define CSR_IPC_SLEEP_CONTROL_RESUME	0
 
-/* Doorbell - since Bz
+/* Doorbell NMI (since Bz)
  * connected to UREG_DOORBELL_TO_ISR6 (lower 16 bits only)
  */
 #define CSR_DOORBELL_VECTOR	(CSR_BASE + 0x130)

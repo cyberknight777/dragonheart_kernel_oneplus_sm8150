@@ -2095,10 +2095,6 @@ static void iwl_trans_pcie_removal_wk(struct work_struct *wk)
 	struct iwl_trans_pcie_removal *removal =
 		container_of(wk, struct iwl_trans_pcie_removal, work);
 	struct pci_dev *pdev = removal->pdev;
-
-#if LINUX_VERSION_IS_LESS(3,14,0)
-	dev_err(&pdev->dev, "Device gone - can't remove on old kernels.\n");
-#else
 	static char *prop[] = {"EVENT=INACCESSIBLE", NULL};
 
 	dev_err(&pdev->dev, "Device gone - attempting removal\n");
@@ -2107,7 +2103,6 @@ static void iwl_trans_pcie_removal_wk(struct work_struct *wk)
 	pci_dev_put(pdev);
 	pci_stop_and_remove_bus_device(pdev);
 	pci_unlock_rescan_remove();
-#endif /* LINUX_VERSION_IS_LESS(3,14,0) */
 
 	kfree(removal);
 	module_put(THIS_MODULE);
@@ -3636,15 +3631,9 @@ struct iwl_trans *iwl_trans_pcie_alloc(struct pci_dev *pdev,
 	pci_set_master(pdev);
 
 	addr_size = trans->txqs.tfd.addr_size;
-	ret = pci_set_dma_mask(pdev, DMA_BIT_MASK(addr_size));
-	if (!ret)
-		ret = pci_set_consistent_dma_mask(pdev,
-						  DMA_BIT_MASK(addr_size));
+	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(addr_size));
 	if (ret) {
-		ret = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
-		if (!ret)
-			ret = pci_set_consistent_dma_mask(pdev,
-							  DMA_BIT_MASK(32));
+		ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
 		/* both attempts failed: */
 		if (ret) {
 			dev_err(&pdev->dev, "No suitable DMA available\n");

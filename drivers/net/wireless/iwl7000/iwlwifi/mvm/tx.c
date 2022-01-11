@@ -1340,6 +1340,7 @@ const char *iwl_mvm_get_tx_fail_reason(u32 status)
 #undef TX_STATUS_POSTPONE
 }
 #endif /* CPTCFG_IWLWIFI_DEBUG */
+
 static int iwl_mvm_get_hwrate_chan_width(u32 chan_width)
 {
 	switch (chan_width) {

@@ -66,6 +66,37 @@ static inline u64 ktime_get_real_ns(void)
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0) */
 
+#ifndef DECLARE_FLEX_ARRAY
+/**
+ * __DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
+ *
+ * @TYPE: The type of each flexible array element
+ * @NAME: The name of the flexible array member
+ *
+ * In order to have a flexible array member in a union or alone in a
+ * struct, it needs to be wrapped in an anonymous struct with at least 1
+ * named member, but that member can be empty.
++ */
+#define __DECLARE_FLEX_ARRAY(TYPE, NAME)       \
+	struct {			       \
+		struct { } __empty_ ## NAME;   \
+		TYPE NAME[];		       \
+	}
+
+/**
+ * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
+ *
+ * @TYPE: The type of each flexible array element
+ * @NAME: The name of the flexible array member
+ *
+ * In order to have a flexible array member in a union or alone in a
+ * struct, it needs to be wrapped in an anonymous struct with at least 1
+ * named member, but that member can be empty.
+ */
+#define DECLARE_FLEX_ARRAY(TYPE, NAME) \
+	__DECLARE_FLEX_ARRAY(TYPE, NAME)
+#endif
+
 /*
  * Need to include these here, otherwise we get the regular kernel ones
  * pre-including them makes it work, even though later the kernel ones
