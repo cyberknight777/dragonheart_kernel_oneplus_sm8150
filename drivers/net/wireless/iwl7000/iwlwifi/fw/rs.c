@@ -215,6 +215,8 @@ int rs_pretty_print_rate(char *buf, int bufsz, const u32 rate)
 		type = "HT";
 	else if (format == RATE_MCS_HE_MSK)
 		type = "HE";
+	else if (format == RATE_MCS_EHT_MSK)
+		type = "EHT";
 	else
 		type = "Unknown"; /* shouldn't happen */
 

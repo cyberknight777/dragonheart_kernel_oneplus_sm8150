@@ -961,15 +961,16 @@ static int iwl_mvm_vendor_set_dynamic_txp_profile(struct wiphy *wiphy,
 	mvm->fwrt.sar_chain_a_profile = chain_a;
 	mvm->fwrt.sar_chain_b_profile = chain_b;
 
+	mutex_lock(&mvm->mutex);
 	if (!iwl_mvm_firmware_running(mvm)) {
 		err = 0;
-		goto free;
+		goto unlock;
+	} else {
+		err = iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
 	}
 
-	mutex_lock(&mvm->mutex);
-	err = iwl_mvm_sar_select_profile(mvm, chain_a, chain_b);
+unlock:
 	mutex_unlock(&mvm->mutex);
-
 free:
 	kfree(tb);
 	if (err > 0)
@@ -1244,6 +1245,37 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 	nla_nest_end(skb, nl_table);
 
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_GEO_SAR_VER, mvm->fwrt.geo_rev)) {
+		ret = -ENOBUFS;
+		goto out;
+	}
+
+	return cfg80211_vendor_cmd_reply(skb);
+out:
+	kfree_skb(skb);
+	return ret;
+}
+
+static int iwl_mvm_vendor_sgom_get_table(struct wiphy *wiphy,
+					 struct wireless_dev *wdev,
+					 const void *data,
+					 int data_len)
+{
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct sk_buff *skb;
+	u8 *table;
+	int size, ret = 0;
+
+	if (!mvm->fwrt.sgom_enabled)
+		return -ENOENT;
+
+	size = sizeof(mvm->fwrt.sgom_table.offset_map);
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, size + 50);
+	if (!skb)
+		return -ENOMEM;
+
+	table = mvm->fwrt.sgom_table.offset_map[0];
+	if (nla_put(skb, IWL_MVM_VENDOR_ATTR_SGOM_TABLE, size, table)) {
 		ret = -ENOBUFS;
 		goto out;
 	}
@@ -1952,6 +1984,20 @@ static const struct wiphy_vendor_command iwl_mvm_vendor_commands[] = {
 		},
 		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
 		.doit = iwl_mvm_vendor_geo_sar_get_table,
+#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
+		.policy = iwl_mvm_vendor_attr_policy,
+#endif
+#if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
+		.maxattr = MAX_IWL_MVM_VENDOR_ATTR,
+#endif
+	},
+	{
+		.info = {
+			.vendor_id = INTEL_OUI,
+			.subcmd = IWL_MVM_VENDOR_CMD_SGOM_GET_TABLE,
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV,
+		.doit = iwl_mvm_vendor_sgom_get_table,
 #if CFG80211_VERSION >= KERNEL_VERSION(5,3,0)
 		.policy = iwl_mvm_vendor_attr_policy,
 #endif

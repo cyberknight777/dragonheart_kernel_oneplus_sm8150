@@ -375,7 +375,6 @@ static const u8 he_if_types_ext_capa_sta[] = {
 	 [0] = WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING,
 	 [2] = WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT,
 	 [7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
-	 [9] = WLAN_EXT_CAPA10_TWT_REQUESTER_SUPPORT,
 };
 #endif
 
@@ -629,9 +628,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 
 	hw->wiphy->flags |= WIPHY_FLAG_AP_UAPSD;
 	hw->wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH;
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	hw->wiphy->flags |= WIPHY_FLAG_SPLIT_SCAN_6GHZ;
-#endif
 
 	if (false) {
 		hw->wiphy->interface_modes |= 0;
@@ -707,7 +704,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			hw->wiphy->bands[NL80211_BAND_5GHZ]->vht_cap.cap |=
 				IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE;
 	}
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
+#if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_PSC_CHAN_SUPPORT) &&
 	    mvm->nvm_data->bands[NL80211_BAND_6GHZ].n_channels)
@@ -783,14 +780,21 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	}
 
 	if (iwl_mvm_is_oce_supported(mvm)) {
+		u8 scan_ver = iwl_fw_lookup_cmd_ver(mvm->fw,
+						    IWL_ALWAYS_LONG_GROUP,
+						    SCAN_REQ_UMAC, 0);
+
 		wiphy_ext_feature_set(hw->wiphy,
 			NL80211_EXT_FEATURE_ACCEPT_BCAST_PROBE_RESP);
 		wiphy_ext_feature_set(hw->wiphy,
 			NL80211_EXT_FEATURE_FILS_MAX_CHANNEL_TIME);
 		wiphy_ext_feature_set(hw->wiphy,
-			NL80211_EXT_FEATURE_OCE_PROBE_REQ_DEFERRAL_SUPPRESSION);
-		wiphy_ext_feature_set(hw->wiphy,
 			NL80211_EXT_FEATURE_OCE_PROBE_REQ_HIGH_TX_RATE);
+
+		/* Old firmware also supports probe deferral and suppression */
+		if (scan_ver < 15)
+			wiphy_ext_feature_set(hw->wiphy,
+					      NL80211_EXT_FEATURE_OCE_PROBE_REQ_DEFERRAL_SUPPRESSION);
 	}
 
 #if CFG80211_VERSION >= KERNEL_VERSION(4,8,0)
@@ -886,8 +890,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 
 	hw->netdev_features |= mvm->cfg->features;
 	if (!iwl_mvm_is_csum_supported(mvm))
-		hw->netdev_features &= ~(IWL_TX_CSUM_NETIF_FLAGS |
-					 NETIF_F_RXCSUM);
+		hw->netdev_features &= ~IWL_CSUM_NETIF_FLAGS_MASK;
 
 	if (mvm->cfg->vht_mu_mimo_supported)
 		wiphy_ext_feature_set(hw->wiphy,
@@ -1308,9 +1311,7 @@ int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
 	iwl_dbg_tlv_time_point(&mvm->fwrt, IWL_FW_INI_TIME_POINT_PERIODIC,
 			       NULL);
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	mvm->last_reset_or_resume_time_jiffies = jiffies;
-#endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
 
 	if (ret && test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
 		/* Something went wrong - we need to finish some cleanup
@@ -1574,6 +1575,15 @@ static void iwl_mvm_abort_channel_switch(struct ieee80211_hw *hw,
 							  mvmvif->color)),
 		.action = cpu_to_le32(FW_CTXT_ACTION_REMOVE),
 	};
+
+	/*
+	 * In the new flow since FW is in charge of the timing,
+	 * if driver has canceled the channel switch he will receive the
+	 * CHANNEL_SWITCH_START_NOTIF notification from FW and then cancel it
+	 */
+	if (iwl_fw_lookup_notif_ver(mvm->fw, MAC_CONF_GROUP,
+				    CHANNEL_SWITCH_ERROR_NOTIF, 0))
+		return;
 
 	IWL_DEBUG_MAC80211(mvm, "Abort CSA on mac %d\n", mvmvif->id);
 
@@ -2282,7 +2292,6 @@ static u8 iwl_mvm_he_get_ppe_val(u8 *ppe, u8 ppe_pos_bit)
 	return res;
 }
 
-#ifdef CPTCFG_IWLWIFI_DHC
 static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
 {
 	struct iwl_dhc_twt_control *dhc_twt_control;
@@ -2306,7 +2315,6 @@ static void iwl_mvm_set_twt_testmode(struct iwl_mvm *mvm)
 
 	kfree(dhc_cmd);
 }
-#endif
 
 static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 			       struct ieee80211_vif *vif, u8 sta_id)
@@ -2573,10 +2581,8 @@ static void iwl_mvm_cfg_he_sta(struct iwl_mvm *mvm,
 				 0, size, &sta_ctxt_cmd))
 		IWL_ERR(mvm, "Failed to config FW to work HE!\n");
 
-#ifdef CPTCFG_IWLWIFI_DHC
 	if (IWL_MVM_TWT_TESTMODE)
 		iwl_mvm_set_twt_testmode(mvm);
-#endif
 }
 
 static void iwl_mvm_protect_assoc(struct iwl_mvm *mvm,
@@ -3455,63 +3461,6 @@ static void iwl_mvm_mei_host_associated(struct iwl_mvm *mvm,
 					struct ieee80211_vif *vif,
 					struct iwl_mvm_sta *mvm_sta)
 {
-#if IS_ENABLED(CONFIG_IWLMEI)
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_mei_conn_info conn_info = {
-		.ssid_len = vif->bss_conf.ssid_len,
-		.channel = vif->bss_conf.chandef.chan->hw_value,
-	};
-
-	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
-		return;
-
-	if (!mvm->mei_registered)
-		return;
-
-	switch (mvm_sta->pairwise_cipher) {
-	case WLAN_CIPHER_SUITE_CCMP:
-		conn_info.pairwise_cipher = IWL_MEI_CIPHER_CCMP;
-		break;
-	case WLAN_CIPHER_SUITE_GCMP:
-		conn_info.pairwise_cipher = IWL_MEI_CIPHER_GCMP;
-		break;
-	case WLAN_CIPHER_SUITE_GCMP_256:
-		conn_info.pairwise_cipher = IWL_MEI_CIPHER_GCMP_256;
-		break;
-	case 0:
-		/* open profile */
-		break;
-	default:
-		/* cipher not supported, don't send anything to iwlmei */
-		return;
-	};
-
-	switch (mvmvif->rekey_data.akm) {
-	case WLAN_AKM_SUITE_SAE & 0xff:
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_SAE;
-		break;
-	case WLAN_AKM_SUITE_PSK & 0xff:
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_RSNA_PSK;
-		break;
-	case WLAN_AKM_SUITE_8021X & 0xff:
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_RSNA;
-		break;
-	case 0:
-		/* open profile */
-		conn_info.auth_mode = IWL_MEI_AKM_AUTH_OPEN;
-		break;
-	default:
-		/* auth method / AKM not supported */
-		/* TODO: All the FT vesions of these? */
-		return;
-	}
-
-	memcpy(conn_info.ssid, vif->bss_conf.ssid, vif->bss_conf.ssid_len);
-	memcpy(conn_info.bssid,  vif->bss_conf.bssid, ETH_ALEN);
-
-	/* TODO: add support for collocated AP data */
-	iwl_mei_host_associated(&conn_info, NULL);
-#endif
 }
 
 static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
@@ -3674,6 +3623,11 @@ static int iwl_mvm_mac_sta_state(struct ieee80211_hw *hw,
 				     true);
 	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
 		   new_state == IEEE80211_STA_ASSOC) {
+		/* once we move into assoc state, need to update rate scale to
+		 * disable using wide bandwidth
+		 */
+		iwl_mvm_rs_rate_init(mvm, sta, mvmvif->phy_ctxt->channel->band,
+				     false);
 		if (!sta->tdls) {
 			/* Multicast data frames are no longer allowed */
 			iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
@@ -4239,7 +4193,7 @@ static int iwl_mvm_send_aux_roc_cmd(struct iwl_mvm *mvm,
 	/* Set the channel info data */
 	iwl_mvm_set_chan_info(mvm, &aux_roc_req.channel_info, channel->hw_value,
 			      iwl_mvm_phy_band_from_nl80211(channel->band),
-			      PHY_VHT_CHANNEL_MODE20,
+			      IWL_PHY_CHANNEL_MODE20,
 			      0);
 
 	/* Set the time and duration */
@@ -5174,6 +5128,15 @@ static int iwl_mvm_pre_channel_switch(struct ieee80211_hw *hw,
 		break;
 	case NL80211_IFTYPE_STATION:
 		/*
+		 * In the new flow FW is in charge of timing the switch so there
+		 * is no need for all of this
+		 */
+		if (iwl_fw_lookup_notif_ver(mvm->fw, MAC_CONF_GROUP,
+					    CHANNEL_SWITCH_ERROR_NOTIF,
+					    0))
+			break;
+
+		/*
 		 * We haven't configured the firmware to be associated yet since
 		 * we don't know the dtim period. In this case, the firmware can't
 		 * track the beacons.
@@ -5243,6 +5206,14 @@ static void iwl_mvm_channel_switch_rx_beacon(struct ieee80211_hw *hw,
 		.cs_count = chsw->count,
 		.cs_mode = chsw->block_tx,
 	};
+
+	/*
+	 * In the new flow FW is in charge of timing the switch so there is no
+	 * need for all of this
+	 */
+	if (iwl_fw_lookup_notif_ver(mvm->fw, MAC_CONF_GROUP,
+				    CHANNEL_SWITCH_ERROR_NOTIF, 0))
+		return;
 
 	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_CS_MODIFY))
 		return;

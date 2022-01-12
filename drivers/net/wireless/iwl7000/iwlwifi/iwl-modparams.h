@@ -64,6 +64,7 @@ enum iwl_uapsd_disable {
  * @disable_msix: disable MSI-X and fall back to MSI on PCIe, default = false.
  * @remove_when_gone: remove an inaccessible device from the PCIe bus.
  * @enable_ini: enable new FW debug infratructure (INI TLVs)
+ * @disable_11be: disable EHT capabilities, default = false.
  */
 struct iwl_mod_params {
 	int swcrypto;
@@ -90,6 +91,7 @@ struct iwl_mod_params {
 	bool disable_msix;
 	bool remove_when_gone;
 	bool enable_ini;
+	bool disable_11be;
 
 };
 

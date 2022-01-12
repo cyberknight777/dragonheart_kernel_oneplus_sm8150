@@ -131,6 +131,11 @@ void iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 					IWL_TM_USER_CMD_NOTIF_CT_KILL,
 					data, size, GFP_ATOMIC);
 		break;
+	case STATISTICS_NOTIFICATION:
+		iwl_xvt_user_send_notif(xvt,
+					IWL_TM_USER_CMD_NOTIF_STATISTICS,
+					data, size, GFP_ATOMIC);
+		break;
 	case REPLY_RX_PHY_CMD:
 		IWL_DEBUG_INFO(xvt,
 			       "REPLY_RX_PHY_CMD received but not handled\n");
@@ -417,14 +422,17 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 	static const u16 init_complete[] = { INIT_COMPLETE_NOTIF };
 	int err, ret;
 
+	xvt->state = IWL_XVT_STATE_OPERATIONAL;
+
+	if (!(xvt->sw_stack_cfg.load_mask & IWL_XVT_LOAD_MASK_RUNTIME))
+		return 0;
+
 	err = iwl_xvt_send_cmd_pdu(xvt,
 				   WIDE_ID(REGULATORY_AND_NVM_GROUP,
 					   NVM_ACCESS_COMPLETE), 0,
 				   sizeof(nvm_complete), &nvm_complete);
 	if (err)
 		goto init_error;
-
-	xvt->state = IWL_XVT_STATE_OPERATIONAL;
 
 	iwl_init_notification_wait(&xvt->notif_wait,
 				   &init_complete_wait,
@@ -1256,8 +1264,13 @@ static int iwl_xvt_start_tx_handler(void *data)
 	if (WARN(packets_in_cycle == 0, "invalid packets amount to send"))
 		return -EINVAL;
 
-	if (num_of_cycles == IWL_XVT_TX_MODULATED_INFINITE)
-		num_of_cycles = XVT_MAX_TX_COUNT / packets_in_cycle;
+	if (num_of_cycles == IWL_XVT_TX_MODULATED_INFINITE) {
+		u64 v = XVT_MAX_TX_COUNT;
+
+		do_div(v, packets_in_cycle);
+		num_of_cycles = v;
+	}
+
 	xvt->expected_tx_amount = packets_in_cycle * num_of_cycles;
 	num_of_iterations = num_of_cycles * num_of_frames;
 
@@ -1269,8 +1282,9 @@ static int iwl_xvt_start_tx_handler(void *data)
 		u8 frag_size = tx_start->tx_data.fragment_size;
 		struct tx_payload *payload;
 		u8 frag_array_size = ARRAY_SIZE(tx_start->tx_data.frag_num);
+		u64 tmp = i;
 
-		frame_index = i % num_of_frames;
+		frame_index = do_div(tmp, num_of_frames);
 		payload_idx = tx_start->frames_data[frame_index].payload_index;
 		payload = xvt->payloads[payload_idx];
 		hdr = (struct ieee80211_hdr *)

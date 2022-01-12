@@ -99,12 +99,10 @@ struct iwl_mvm_phy_ctxt {
 
 	enum nl80211_chan_width width;
 
-	/*
-	 * TODO: This should probably be removed. Currently here only for rate
-	 * scaling algorithm
-	 */
 	struct ieee80211_channel *channel;
 
+	/* track for RLC config command */
+	u32 center_freq1;
 };
 
 struct iwl_mvm_time_event_data {
@@ -1218,10 +1216,8 @@ struct iwl_mvm {
 	__le16 cur_aid;
 	u8 cur_bssid[ETH_ALEN];
 
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 	unsigned long last_6ghz_passive_scan_jiffies;
 	unsigned long last_reset_or_resume_time_jiffies;
-#endif /* CPTCFG_IWLWIFI_WIFI_6_SUPPORT */
 };
 
 /* Extract MVM priv from op_mode and _hw */
@@ -1784,8 +1780,10 @@ void iwl_mvm_probe_resp_data_notif(struct iwl_mvm *mvm,
 				   struct iwl_rx_cmd_buffer *rxb);
 void iwl_mvm_rx_missed_vap_notif(struct iwl_mvm *mvm,
 				 struct iwl_rx_cmd_buffer *rxb);
-void iwl_mvm_channel_switch_noa_notif(struct iwl_mvm *mvm,
-				      struct iwl_rx_cmd_buffer *rxb);
+void iwl_mvm_channel_switch_start_notif(struct iwl_mvm *mvm,
+					struct iwl_rx_cmd_buffer *rxb);
+void iwl_mvm_channel_switch_error_notif(struct iwl_mvm *mvm,
+					struct iwl_rx_cmd_buffer *rxb);
 /* Bindings */
 int iwl_mvm_binding_add_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 int iwl_mvm_binding_remove_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
@@ -2251,9 +2249,7 @@ static inline u8 iwl_mvm_phy_band_from_nl80211(enum nl80211_band band)
 	case NL80211_BAND_6GHZ:
 		/* keep code in case of fall-through (spatch generated) */
 #endif
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
 		return PHY_BAND_6;
-#endif
 	default:
 		WARN_ONCE(1, "Unsupported band (%u)\n", band);
 		return PHY_BAND_5;

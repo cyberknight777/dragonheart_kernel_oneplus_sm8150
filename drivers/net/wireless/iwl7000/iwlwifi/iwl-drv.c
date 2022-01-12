@@ -340,6 +340,9 @@ static void iwl_dealloc_ucode(struct iwl_drv *drv)
 
 	for (i = 0; i < IWL_UCODE_TYPE_MAX; i++)
 		iwl_free_fw_img(drv, drv->fw.img + i);
+
+	/* clear the data for the aborted load case */
+	memset(&drv->fw, 0, sizeof(drv->fw));
 }
 
 static int iwl_alloc_fw_desc(struct iwl_drv *drv, struct fw_desc *desc,
@@ -376,8 +379,8 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 #endif
 
 	if (drv->trans->trans_cfg->device_family == IWL_DEVICE_FAMILY_9000 &&
-	    (CSR_HW_REV_STEP(drv->trans->hw_rev) != SILICON_B_STEP &&
-	     CSR_HW_REV_STEP(drv->trans->hw_rev) != SILICON_C_STEP)) {
+	    (drv->trans->hw_rev_step != SILICON_B_STEP &&
+	     drv->trans->hw_rev_step != SILICON_C_STEP)) {
 		IWL_ERR(drv,
 			"Only HW steps B and C are currently supported (0x%0x)\n",
 			drv->trans->hw_rev);
@@ -819,6 +822,66 @@ static void iwl_drv_set_dump_exclude(struct iwl_drv *drv,
 
 	excl->addr = le32_to_cpu(fw->addr) & ~FW_ADDR_CACHE_CONTROL;
 	excl->size = le32_to_cpu(fw->size);
+}
+
+static void iwl_parse_dbg_tlv_assert_tables(struct iwl_drv *drv,
+					    const struct iwl_ucode_tlv *tlv)
+{
+	const struct iwl_fw_ini_region_tlv *region;
+	u32 length = le32_to_cpu(tlv->length);
+	u32 addr;
+
+	if (length < offsetof(typeof(*region), special_mem) +
+		     sizeof(region->special_mem))
+		return;
+
+	region = (void *)tlv->data;
+	addr = le32_to_cpu(region->special_mem.base_addr);
+	addr += le32_to_cpu(region->special_mem.offset);
+	addr &= ~FW_ADDR_CACHE_CONTROL;
+
+	if (region->type != IWL_FW_INI_REGION_SPECIAL_DEVICE_MEMORY)
+		return;
+
+	switch (region->sub_type) {
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_UMAC_ERROR_TABLE:
+		drv->trans->dbg.umac_error_event_table = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_UMAC;
+		break;
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_LMAC_1_ERROR_TABLE:
+		drv->trans->dbg.lmac_error_event_table[0] = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_LMAC1;
+		break;
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_LMAC_2_ERROR_TABLE:
+		drv->trans->dbg.lmac_error_event_table[1] = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_LMAC2;
+		break;
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_TCM_1_ERROR_TABLE:
+		drv->trans->dbg.tcm_error_event_table[0] = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_TCM1;
+		break;
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_TCM_2_ERROR_TABLE:
+		drv->trans->dbg.tcm_error_event_table[1] = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_TCM2;
+		break;
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_RCM_1_ERROR_TABLE:
+		drv->trans->dbg.rcm_error_event_table[0] = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_RCM1;
+		break;
+	case IWL_FW_INI_REGION_DEVICE_MEMORY_SUBTYPE_RCM_2_ERROR_TABLE:
+		drv->trans->dbg.rcm_error_event_table[1] = addr;
+		drv->trans->dbg.error_event_table_tlv_status |=
+			IWL_ERROR_EVENT_TABLE_RCM2;
+		break;
+	default:
+		break;
+	}
 }
 
 static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
@@ -1434,21 +1497,12 @@ fw_dbg_conf:
 				IWL_ERROR_EVENT_TABLE_LMAC1;
 			break;
 			}
-		case IWL_UCODE_TLV_TCM_DEBUG_ADDRS: {
-			struct iwl_fw_tcm_error_addr *ptr = (void *)tlv_data;
-
-			if (tlv_len != sizeof(*ptr))
-				goto invalid_tlv_len;
-			drv->trans->dbg.tcm_error_event_table =
-				le32_to_cpu(ptr->addr) & ~FW_ADDR_CACHE_CONTROL;
-			drv->trans->dbg.error_event_table_tlv_status |=
-				IWL_ERROR_EVENT_TABLE_TCM;
-			break;
-			}
+		case IWL_UCODE_TLV_TYPE_REGIONS:
+			iwl_parse_dbg_tlv_assert_tables(drv, tlv);
+			fallthrough;
 		case IWL_UCODE_TLV_TYPE_DEBUG_INFO:
 		case IWL_UCODE_TLV_TYPE_BUFFER_ALLOCATION:
 		case IWL_UCODE_TLV_TYPE_HCMD:
-		case IWL_UCODE_TLV_TYPE_REGIONS:
 		case IWL_UCODE_TLV_TYPE_TRIGGERS:
 		case IWL_UCODE_TLV_TYPE_CONF_SET:
 			if (iwlwifi_mod_params.enable_ini)
@@ -1649,6 +1703,7 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	int i;
 	bool load_module = false;
 	bool usniffer_images = false;
+	bool failure = true;
 
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	const struct firmware *fw_dbg_config;
@@ -1945,6 +2000,7 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	 */
 	if (load_module)
 		request_module("%s", op->name);
+	failure = false;
 	goto free;
 
  try_again:
@@ -1960,6 +2016,9 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	complete(&drv->request_firmware_complete);
 	device_release_driver(drv->trans->dev);
  free:
+	if (failure)
+		iwl_dealloc_ucode(drv);
+
 	if (pieces) {
 		for (i = 0; i < ARRAY_SIZE(pieces->img); i++)
 			kfree(pieces->img[i].sec);
@@ -2278,4 +2337,7 @@ module_param_named(remove_when_gone,
 		   iwlwifi_mod_params.remove_when_gone, bool, 0444);
 MODULE_PARM_DESC(remove_when_gone,
 		 "Remove dev from PCIe bus if it is deemed inaccessible (default: false)");
+
+module_param_named(disable_11be, iwlwifi_mod_params.disable_11be, bool, 0444);
+MODULE_PARM_DESC(disable_11be, "Disable EHT capabilities (default: false)");
 

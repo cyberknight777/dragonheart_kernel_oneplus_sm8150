@@ -36,6 +36,9 @@
 #define IWL_PPAG_MASK 3
 #define IWL_PPAG_ETSI_MASK BIT(0)
 
+#define IWL_TAS_US_MCC 0x5553
+#define IWL_TAS_CANADA_MCC 0x4341
+
 struct iwl_mvm_alive_data {
 	bool valid;
 	u32 scd_base_addr;
@@ -127,13 +130,15 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 	struct iwl_lmac_alive *lmac2 = NULL;
 	u16 status;
 	u32 lmac_error_event_table, umac_error_table;
+	u32 version = iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP,
+					      UCODE_ALIVE_NTFY, 0);
 
 	/*
 	 * For v5 and above, we can check the version, for older
 	 * versions we need to check the size.
 	 */
-	if (iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP,
-				    UCODE_ALIVE_NTFY, 0) == 5) {
+	if (version == 5 || version == 6) {
+		/* v5 and v6 are compatible (only IMR addition) */
 		struct iwl_alive_ntf_v5 *palive;
 
 		if (pkt_len < sizeof(*palive))
@@ -525,7 +530,6 @@ static void iwl_mvm_phy_filter_init(struct iwl_mvm *mvm,
 			cpu_to_le32(IWL_MVM_PHY_FILTER_CHAIN_D);
 	}
 }
-
 #else /* CONFIG_ACPI */
 
 static void iwl_mvm_phy_filter_init(struct iwl_mvm *mvm,
@@ -533,6 +537,49 @@ static void iwl_mvm_phy_filter_init(struct iwl_mvm *mvm,
 {
 }
 #endif /* CONFIG_ACPI */
+
+#if defined(CONFIG_ACPI) && defined(CONFIG_EFI)
+static int iwl_mvm_sgom_init(struct iwl_mvm *mvm)
+{
+	u8 cmd_ver;
+	int ret;
+	struct iwl_host_cmd cmd = {
+		.id = WIDE_ID(REGULATORY_AND_NVM_GROUP,
+			      SAR_OFFSET_MAPPING_TABLE_CMD),
+		.flags = 0,
+		.data[0] = &mvm->fwrt.sgom_table,
+		.len[0] =  sizeof(mvm->fwrt.sgom_table),
+		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
+	};
+
+	if (!mvm->fwrt.sgom_enabled) {
+		IWL_DEBUG_RADIO(mvm, "SGOM table is disabled\n");
+		return 0;
+	}
+
+	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, REGULATORY_AND_NVM_GROUP,
+					SAR_OFFSET_MAPPING_TABLE_CMD,
+					IWL_FW_CMD_VER_UNKNOWN);
+
+	if (cmd_ver != 2) {
+		IWL_DEBUG_RADIO(mvm, "command version is unsupported. version = %d\n",
+				cmd_ver);
+		return 0;
+	}
+
+	ret = iwl_mvm_send_cmd(mvm, &cmd);
+	if (ret < 0)
+		IWL_ERR(mvm, "failed to send SAR_OFFSET_MAPPING_CMD (%d)\n", ret);
+
+	return ret;
+}
+#else
+
+static int iwl_mvm_sgom_init(struct iwl_mvm *mvm)
+{
+	return 0;
+}
+#endif
 
 static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 {
@@ -879,7 +926,7 @@ int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
 	int ret;
 	struct iwl_host_cmd cmd;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, PHY_OPS_GROUP,
-					   GEO_TX_POWER_LIMIT,
+					   PER_CHAIN_LIMIT_OFFSET_CMD,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	/* the ops field is at the same spot for all versions, so set in v1 */
@@ -902,7 +949,7 @@ int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
 		return -EOPNOTSUPP;
 
 	cmd = (struct iwl_host_cmd){
-		.id =  WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT),
+		.id =  WIDE_ID(PHY_OPS_GROUP, PER_CHAIN_LIMIT_OFFSET_CMD),
 		.len = { len, },
 		.flags = CMD_WANT_SKB,
 		.data = { &geo_tx_cmd },
@@ -930,9 +977,10 @@ static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 	u16 len;
 	u32 n_bands;
 	u32 n_profiles;
+	u32 sk = 0;
 	int ret;
 	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, PHY_OPS_GROUP,
-					   GEO_TX_POWER_LIMIT,
+					   PER_CHAIN_LIMIT_OFFSET_CMD,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, ops) !=
@@ -989,22 +1037,30 @@ static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 	if (ret)
 		return 0;
 
+	/* Only set to South Korea if the table revision is 1 */
+	if (mvm->fwrt.geo_rev == 1)
+		sk = 1;
+
 	/*
-	 * Set the revision on versions that contain it.
+	 * Set the table_revision to South Korea (1) or not (0).  The
+	 * element name is misleading, as it doesn't contain the table
+	 * revision number, but whether the South Korea variation
+	 * should be used.
 	 * This must be done after calling iwl_sar_geo_init().
 	 */
 	if (cmd_ver == 5)
-		cmd.v5.table_revision = cpu_to_le32(mvm->fwrt.geo_rev);
+		cmd.v5.table_revision = cpu_to_le32(sk);
 	else if (cmd_ver == 4)
-		cmd.v4.table_revision = cpu_to_le32(mvm->fwrt.geo_rev);
+		cmd.v4.table_revision = cpu_to_le32(sk);
 	else if (cmd_ver == 3)
-		cmd.v3.table_revision = cpu_to_le32(mvm->fwrt.geo_rev);
+		cmd.v3.table_revision = cpu_to_le32(sk);
 	else if (fw_has_api(&mvm->fwrt.fw->ucode_capa,
 			    IWL_UCODE_TLV_API_SAR_TABLE_VER))
-		cmd.v2.table_revision = cpu_to_le32(mvm->fwrt.geo_rev);
+		cmd.v2.table_revision = cpu_to_le32(sk);
 
 	return iwl_mvm_send_cmd_pdu(mvm,
-				    WIDE_ID(PHY_OPS_GROUP, GEO_TX_POWER_LIMIT),
+				    WIDE_ID(PHY_OPS_GROUP,
+					    PER_CHAIN_LIMIT_OFFSET_CMD),
 				    0, len, &cmd);
 }
 
@@ -1206,7 +1262,8 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 {
 	/* no need to read the table, done in INIT stage */
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-	if (dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.ppag_allowed)) {
+	if (mvm->trans->dbg_cfg.ppag_allowed &&
+	    dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.ppag_allowed)) {
 		IWL_DEBUG_RADIO(mvm,
 				"System vendor matches dbg_cfg.ppag_allowed %s\n",
 				mvm->trans->dbg_cfg.ppag_allowed);
@@ -1224,11 +1281,56 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 	return iwl_mvm_ppag_send_cmd(mvm);
 }
 
+static const struct dmi_system_id dmi_tas_approved_list[] = {
+	{ .ident = "HP",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
+		},
+	},
+	{ .ident = "SAMSUNG",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD"),
+		},
+	},
+		{ .ident = "LENOVO",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Lenovo"),
+		},
+	},
+	{ .ident = "DELL",
+	  .matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+		},
+	},
+
+	/* keep last */
+	{}
+};
+
+static bool iwl_mvm_add_to_tas_block_list(__le32 *list, __le32 *le_size, unsigned int mcc)
+{
+	int i;
+	u32 size = le32_to_cpu(*le_size);
+
+	/* Verify that there is room for another country */
+	if (size >= IWL_TAS_BLOCK_LIST_MAX)
+		return false;
+
+	for (i = 0; i < size; i++) {
+		if (list[i] == cpu_to_le32(mcc))
+			return true;
+	}
+
+	list[size++] = cpu_to_le32(mcc);
+	*le_size = cpu_to_le32(size);
+	return true;
+}
+
 static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 {
 	int ret;
-	struct iwl_tas_config_cmd cmd = {};
-	int list_size;
+	struct iwl_tas_config_cmd_v3 cmd = {};
+	int cmd_size;
 
 	BUILD_BUG_ON(ARRAY_SIZE(cmd.block_list_array) <
 		     APCI_WTAS_BLACK_LIST_MAX);
@@ -1238,7 +1340,7 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 		return;
 	}
 
-	ret = iwl_acpi_get_tas(&mvm->fwrt, cmd.block_list_array, &list_size);
+	ret = iwl_acpi_get_tas(&mvm->fwrt, &cmd);
 	if (ret < 0) {
 		IWL_DEBUG_RADIO(mvm,
 				"TAS table invalid or unavailable. (%d)\n",
@@ -1246,15 +1348,40 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 		return;
 	}
 
-	if (list_size < 0)
+	if (ret == 0)
 		return;
 
-	/* list size if TAS enabled can only be non-negative */
-	cmd.block_list_size = cpu_to_le32((u32)list_size);
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	if (mvm->trans->dbg_cfg.tas_allowed &&
+	    dmi_match(DMI_SYS_VENDOR, mvm->trans->dbg_cfg.tas_allowed)) {
+		IWL_DEBUG_RADIO(mvm,
+				"System vendor matches dbg_cfg.tas_allowed %s\n",
+				mvm->trans->dbg_cfg.tas_allowed);
+	} else
+#endif
+	if (!dmi_check_system(dmi_tas_approved_list)) {
+		IWL_DEBUG_RADIO(mvm,
+				"System vendor '%s' is not in the approved list, disabling TAS in US and Canada.\n",
+				dmi_get_system_info(DMI_SYS_VENDOR));
+		if ((!iwl_mvm_add_to_tas_block_list(cmd.block_list_array,
+						    &cmd.block_list_size, IWL_TAS_US_MCC)) ||
+		    (!iwl_mvm_add_to_tas_block_list(cmd.block_list_array,
+						    &cmd.block_list_size, IWL_TAS_CANADA_MCC))) {
+			IWL_DEBUG_RADIO(mvm,
+					"Unable to add US/Canada to TAS block list, disabling TAS\n");
+			return;
+		}
+	}
+
+	cmd_size = iwl_fw_lookup_cmd_ver(mvm->fw, REGULATORY_AND_NVM_GROUP,
+					 TAS_CONFIG,
+					 IWL_FW_CMD_VER_UNKNOWN) < 3 ?
+		sizeof(struct iwl_tas_config_cmd_v2) :
+		sizeof(struct iwl_tas_config_cmd_v3);
 
 	ret = iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(REGULATORY_AND_NVM_GROUP,
 						TAS_CONFIG),
-				   0, sizeof(cmd), &cmd);
+				   0, cmd_size, &cmd);
 	if (ret < 0)
 		IWL_DEBUG_RADIO(mvm, "failed to send TAS_CONFIG (%d)\n", ret);
 }
@@ -1452,6 +1579,7 @@ static u8 iwl_mvm_eval_dsm_rfi(struct iwl_mvm *mvm)
 void iwl_mvm_get_acpi_tables(struct iwl_mvm *mvm)
 {
 }
+
 #endif /* CONFIG_ACPI */
 
 void iwl_mvm_send_recovery_cmd(struct iwl_mvm *mvm, u32 flags)
@@ -1555,6 +1683,29 @@ static int iwl_mvm_load_rt_fw(struct iwl_mvm *mvm)
 
 	return iwl_init_paging(&mvm->fwrt, mvm->fwrt.cur_fw_img);
 }
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+static void iwl_mvm_send_system_features_control(struct iwl_mvm *mvm)
+{
+	struct iwl_dbg_cfg *dbg_cfg = &mvm->trans->dbg_cfg;
+	struct iwl_system_features_control_cmd cmd = {
+		.features[0] = cpu_to_le32(dbg_cfg->system_features_control_1),
+		.features[1] = cpu_to_le32(dbg_cfg->system_features_control_2),
+		.features[2] = cpu_to_le32(dbg_cfg->system_features_control_3),
+		.features[3] = cpu_to_le32(dbg_cfg->system_features_control_4),
+	};
+
+	if (!dbg_cfg->system_features_control_1 &&
+	    !dbg_cfg->system_features_control_2 &&
+	    !dbg_cfg->system_features_control_3 &&
+	    !dbg_cfg->system_features_control_4)
+		return;
+
+	WARN_ON(iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(SYSTEM_GROUP,
+						  SYSTEM_FEATURES_CONTROL_CMD),
+				     0, sizeof(cmd), &cmd));
+}
+#endif
 
 int iwl_mvm_up(struct iwl_mvm *mvm)
 {
@@ -1816,6 +1967,10 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	else if (ret < 0)
 		goto error;
 
+	ret = iwl_mvm_sgom_init(mvm);
+	if (ret)
+		goto error;
+
 	iwl_mvm_tas_init(mvm);
 	iwl_mvm_leds_sync(mvm);
 
@@ -1826,6 +1981,10 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		if (iwl_mvm_eval_dsm_rfi(mvm) == DSM_VALUE_RFI_ENABLE)
 			iwl_rfi_send_config_cmd(mvm, NULL);
 	}
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	iwl_mvm_send_system_features_control(mvm);
+#endif
 
 	IWL_DEBUG_INFO(mvm, "RT uCode started.\n");
 	return 0;

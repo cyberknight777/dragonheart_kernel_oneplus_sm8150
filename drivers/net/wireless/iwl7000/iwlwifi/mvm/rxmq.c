@@ -172,8 +172,12 @@ static int iwl_mvm_create_skb(struct iwl_mvm *mvm, struct sk_buff *skb,
 	 * in the cases the hardware didn't handle, since it's rare to see
 	 * such packets, even though the hardware did calculate the checksum
 	 * in this case, just starting after the MAC header instead.
+	 *
+	 * Starting from Bz hardware, it calculates starting directly after
+	 * the MAC header, so that matches mac80211's expectation.
 	 */
-	if (skb->ip_summed == CHECKSUM_COMPLETE) {
+	if (skb->ip_summed == CHECKSUM_COMPLETE &&
+	    mvm->trans->trans_cfg->device_family < IWL_DEVICE_FAMILY_BZ) {
 		struct {
 			u8 hdr[6];
 			__be16 type;
@@ -188,6 +192,9 @@ static int iwl_mvm_create_skb(struct iwl_mvm *mvm, struct sk_buff *skb,
 			      shdr->type != htons(ETH_P_PAE) &&
 			      shdr->type != htons(ETH_P_TDLS))))
 			skb->ip_summed = CHECKSUM_NONE;
+		else
+			/* mac80211 assumes full CSUM including SNAP header */
+			skb_postpush_rcsum(skb, shdr, sizeof(*shdr));
 	}
 
 	fraglen = len - headlen;
@@ -1610,7 +1617,7 @@ static inline u8 iwl_mvm_nl80211_band_from_rx_msdu(u8 phy_band)
 		return NL80211_BAND_2GHZ;
 	case PHY_BAND_5:
 		return NL80211_BAND_5GHZ;
-#ifdef CPTCFG_IWLWIFI_WIFI_6_SUPPORT
+#if CFG80211_VERSION >= KERNEL_VERSION(5,10,0)
 	case PHY_BAND_6:
 		return NL80211_BAND_6GHZ;
 #endif
