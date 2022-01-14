@@ -3393,15 +3393,11 @@ static int read_exp_features_info(struct sock *sk, struct hci_dev *hdev,
 		idx++;
 	}
 #endif
-
-	if (hdev) {
-		if (test_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks) &&
-		    (hdev->le_states[4] & 0x08) &&	/* Central */
-		    (hdev->le_states[4] & 0x40) &&	/* Peripheral */
-		    (hdev->le_states[3] & 0x10))	/* Simultaneous */
-			flags = BIT(0);
-		else
-			flags = 0;
+	if (hdev && hci_dev_le_state_simultaneous(hdev)) {
+		// This is temporary until the kernel is brought up to date
+		// with upstream and has the remaining controller flags
+		// preceding HCI_LE_SIMULTANEOUS_ROLES.
+		flags = BIT(0);
 
 		memcpy(rp->features[idx].uuid, simult_central_periph_uuid, 16);
 		rp->features[idx].flags = cpu_to_le32(flags);
