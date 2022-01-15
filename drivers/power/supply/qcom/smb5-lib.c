@@ -7981,6 +7981,9 @@ static void set_usb_switch(struct smb_charger *chg, bool enable)
 
 	if (chg->pd_active) {
 		pr_info("%s:pd_active return\n", __func__);
+		if (chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH ||
+				chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_MEDIUM)
+			chg->disconnect_pd = true;
 		return;
 	}
 
