@@ -656,12 +656,10 @@ out_free:
 			goto err_free;
 		}
 	}
-
-	/* RTL8822CE supports the Microsoft vendor extension and uses 0xFCF0
-	 * for VsMsftOpCode.
+	/* Both RTL8822B and RTL8852A support only one tracking device
+	 * per condition in firmware, the use of MSFT HCI extension is
+	 * eliminated. See b/200993792 for more details.
 	 */
-	if (lmp_subver == RTL_ROM_LMP_8822B)
-		hci_set_msft_opcode(hdev, 0xFCF0);
 
 	return btrtl_dev;
 
