@@ -3349,7 +3349,7 @@ static ssize_t aw8697_level_store(struct device *dev,
     if (rc < 0)
         return rc;
 
-    if (val < 0 || val > 10)
+    if (val < 0 || val > 3)
         val = 3;
 
     pr_info("%s: value=%d\n", __FUNCTION__, val);
