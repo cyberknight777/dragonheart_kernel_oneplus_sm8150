@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2005-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2005-2014, 2018-2022 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
@@ -1788,7 +1788,7 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 			iwl_trans_txq_alloc(xvt->trans,
 					    cpu_to_le16(flags),
 					    cmd->sta_id, cmd->tid,
-					    SCD_QUEUE_CFG, size, 0);
+					    size, 0);
 		if (queue_id < 0)
 			return queue_id;
 	} else {

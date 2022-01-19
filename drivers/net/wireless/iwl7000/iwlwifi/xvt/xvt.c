@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2005-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2005-2014, 2018-2022 Intel Corporation
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
 #include <linux/module.h>
@@ -779,8 +779,7 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 
 	ret = iwl_trans_txq_alloc(xvt->trans,
 				  cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-				  sta_id, TX_QUEUE_CFG_TID, SCD_QUEUE_CFG,
-				  size, 0);
+				  sta_id, TX_QUEUE_CFG_TID, size, 0);
 	/* ret is positive when func returns the allocated the queue number */
 	if (ret > 0) {
 		xvt->tx_meta_data[lmac_id].queue = ret;
