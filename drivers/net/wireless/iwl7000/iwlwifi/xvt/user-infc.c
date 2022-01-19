@@ -1782,9 +1782,9 @@ static int iwl_xvt_get_mac_addr_info(struct iwl_xvt *xvt,
 	return 0;
 }
 
-static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
+static int iwl_xvt_add_txq(struct iwl_xvt *xvt, u32 sta_mask,
 			   struct iwl_scd_txq_cfg_cmd *cmd,
-			   u16 ssn, u16 flags, int size)
+			   u16 ssn, u32 flags, int size)
 {
 	int queue_id = cmd->scd_queue, ret;
 
@@ -1793,7 +1793,7 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 		queue_id =
 			iwl_trans_txq_alloc(xvt->trans,
 					    flags & ~TX_QUEUE_CFG_ENABLE_QUEUE,
-					    BIT(cmd->sta_id), cmd->tid,
+					    sta_mask, cmd->tid,
 					    size, 0);
 		if (queue_id < 0)
 			return queue_id;
@@ -1855,9 +1855,9 @@ static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 	return 0;
 }
 
-static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
-			      struct iwl_xvt_driver_command_req *req,
-			      struct iwl_xvt_driver_command_resp *resp)
+static int iwl_xvt_config_txq_old(struct iwl_xvt *xvt,
+				  struct iwl_xvt_driver_command_req *req,
+				  struct iwl_xvt_driver_command_resp *resp)
 {
 	struct iwl_xvt_txq_config *conf =
 		(struct iwl_xvt_txq_config *)req->input_data;
@@ -1885,8 +1885,9 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 		if (WARN(error, "failed to remove queue"))
 			return error;
 	} else {
-		queue_id = iwl_xvt_add_txq(xvt, &cmd, conf->ssn,
-					   conf->flags, conf->queue_size);
+		queue_id = iwl_xvt_add_txq(xvt, BIT(conf->sta_id), &cmd,
+					   conf->ssn, conf->flags,
+					   conf->queue_size);
 		if (queue_id < 0)
 			return queue_id;
 	}
@@ -1897,6 +1898,85 @@ static int iwl_xvt_config_txq(struct iwl_xvt *xvt,
 	resp->length = sizeof(txq_resp);
 
 	return 0;
+}
+
+static int iwl_xvt_modify_txq(struct iwl_xvt *xvt, u32 queue, u32 sta_mask)
+{
+	u32 new_cmd_id = WIDE_ID(DATA_PATH_GROUP, SCD_QUEUE_CONFIG_CMD);
+
+	struct iwl_scd_queue_cfg_cmd modify_cmd = {
+		.operation = cpu_to_le32(IWL_SCD_QUEUE_MODIFY),
+		.u.modify.queue = cpu_to_le32(queue),
+		.u.modify.sta_mask = cpu_to_le32(sta_mask),
+	};
+
+	return iwl_xvt_send_cmd_pdu(xvt, new_cmd_id, 0,
+				    sizeof(modify_cmd),
+				    &modify_cmd);
+}
+
+static int iwl_xvt_config_txq_mld(struct iwl_xvt *xvt,
+				  struct iwl_xvt_driver_command_req *req,
+				  struct iwl_xvt_driver_command_resp *resp)
+{
+	struct iwl_xvt_txq_cfg_mld *conf = (void *)req->input_data;
+	struct iwl_xvt_txq_cfg_mld_resp txq_resp = {
+		.sta_mask = conf->sta_mask,
+		.tid = conf->tid,
+		.queue_id = conf->queue_id,
+	};
+	struct iwl_scd_txq_cfg_cmd legacy_cmd = {
+		.scd_queue = conf->queue_id,
+	};
+	int ret;
+
+	if (req->max_out_length < sizeof(txq_resp))
+		return -ENOBUFS;
+
+	switch (conf->action) {
+	case TX_QUEUE_CFG_REMOVE:
+		ret = iwl_xvt_remove_txq(xvt, &legacy_cmd);
+		if (ret)
+			return ret;
+		break;
+	case TX_QUEUE_CFG_ADD:
+		ret = iwl_xvt_add_txq(xvt, conf->sta_mask, &legacy_cmd, 0,
+				      conf->flags, conf->queue_size);
+		if (ret < 0)
+			return ret;
+		txq_resp.queue_id = ret;
+		break;
+	case TX_QUEUE_CFG_MODIFY:
+		ret = iwl_xvt_modify_txq(xvt, conf->queue_id, conf->sta_mask);
+		if (ret < 0)
+			return ret;
+		break;
+	}
+
+	memcpy(resp->resp_data, &txq_resp, sizeof(txq_resp));
+	resp->length = sizeof(txq_resp);
+
+	return 0;
+}
+
+static int iwl_xvt_config_txq(struct iwl_xvt *xvt, u32 req_len,
+			      struct iwl_xvt_driver_command_req *req,
+			      struct iwl_xvt_driver_command_resp *resp)
+{
+	switch (req_len) {
+	case sizeof(*req) + sizeof(struct iwl_xvt_txq_config):
+	/* some tools might have dword-alignment on this struct */
+	case sizeof(*req) + sizeof(struct iwl_xvt_txq_config) + 2:
+		return iwl_xvt_config_txq_old(xvt, req, resp);
+	case sizeof(*req) + sizeof(struct iwl_xvt_txq_cfg_mld):
+		return iwl_xvt_config_txq_mld(xvt, req, resp);
+	default:
+		IWL_ERR(xvt, "bad request length %d\n", req_len);
+		IWL_ERR(xvt, "expected %zu or %zu\n",
+			sizeof(*req) + sizeof(struct iwl_xvt_txq_config),
+			sizeof(*req) + sizeof(struct iwl_xvt_txq_cfg_mld));
+		return -EINVAL;
+	}
 }
 
 static int
@@ -1976,7 +2056,7 @@ static int iwl_xvt_handle_driver_cmd(struct iwl_xvt *xvt,
 	/* resp->length and resp->resp_data should be set in command handler */
 	switch (cmd_id) {
 	case IWL_DRV_CMD_CONFIG_TX_QUEUE:
-		err = iwl_xvt_config_txq(xvt, req, resp);
+		err = iwl_xvt_config_txq(xvt, data_in->len, req, resp);
 		break;
 	case IWL_DRV_CMD_SET_TX_PAYLOAD:
 		err = iwl_xvt_set_tx_payload(xvt, req);

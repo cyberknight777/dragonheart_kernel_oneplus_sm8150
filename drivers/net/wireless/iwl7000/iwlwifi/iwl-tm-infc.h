@@ -558,9 +558,10 @@ struct iwl_xvt_mac_addr_info {
 	__u8 mac_addr[ETH_ALEN];
 } __packed __aligned(4);
 
-enum {
+enum iwl_tx_queue_action {
 	TX_QUEUE_CFG_REMOVE,
 	TX_QUEUE_CFG_ADD,
+	TX_QUEUE_CFG_MODIFY,
 };
 
 /**
@@ -627,7 +628,7 @@ struct iwl_xvt_txq_config {
 	u16 flags;
 	u16 reserved2;
 	int queue_size;
-} __packed __aligned(4);
+} __packed;
 
 /**
  * iwl_xvt_txq_config_resp - response from IWL_DRV_CMD_CONFIG_TX_QUEUE
@@ -640,6 +641,38 @@ struct iwl_xvt_txq_config_resp {
 	u8 sta_id;
 	u8 tid;
 	u8 scd_queue;
+	u8 reserved;
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_txq_cfg_mld - add/modify/remove TX queue
+ * @action: see &enum iwl_tx_queue_action
+ * @tid: TID (add only)
+ * @queue_id: queue ID (modify & remove)
+ * @sta_mask: station mask (add & modify)
+ * @flags: flags for the command (add)
+ * @queue_size: queue size, must be a power of two
+ */
+struct iwl_xvt_txq_cfg_mld {
+	u8 action;
+	u8 tid;
+	u16 queue_id;
+	u32 sta_mask;
+	u32 flags;
+	u32 queue_size;
+} __packed;
+
+/**
+ * iwl_xvt_txq_cfg_mld_resp - response from IWL_DRV_CMD_CONFIG_TX_QUEUE
+ * @sta_mask: taken from command
+ * @tid: taken from command
+ * @queue_id: queue number assigned to this RA -TID
+ * @reserved: (padding)
+ */
+struct iwl_xvt_txq_cfg_mld_resp {
+	u32 sta_mask;
+	u16 queue_id;
+	u8 tid;
 	u8 reserved;
 } __packed __aligned(4);
 
