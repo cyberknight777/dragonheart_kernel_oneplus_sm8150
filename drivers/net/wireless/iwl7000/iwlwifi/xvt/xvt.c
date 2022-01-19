@@ -242,6 +242,12 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	trans_cfg.fw_reset_handshake = fw_has_capa(&xvt->fw->ucode_capa,
 						   IWL_UCODE_TLV_CAPA_FW_RESET_HANDSHAKE);
 
+	trans_cfg.queue_alloc_cmd_ver =
+		iwl_fw_lookup_cmd_ver(xvt->fw,
+				      WIDE_ID(DATA_PATH_GROUP,
+					      SCD_QUEUE_CONFIG_CMD),
+				      0);
+
 	/* Configure transport layer */
 	iwl_trans_configure(xvt->trans, &trans_cfg);
 	trans->command_groups = trans_cfg.command_groups;
@@ -777,9 +783,8 @@ int iwl_xvt_allocate_tx_queue(struct iwl_xvt *xvt, u8 sta_id,
 	int ret, size = max_t(u32, IWL_DEFAULT_QUEUE_SIZE,
 			      xvt->trans->cfg->min_ba_txq_size);
 
-	ret = iwl_trans_txq_alloc(xvt->trans,
-				  cpu_to_le16(TX_QUEUE_CFG_ENABLE_QUEUE),
-				  sta_id, TX_QUEUE_CFG_TID, size, 0);
+	ret = iwl_trans_txq_alloc(xvt->trans, 0,
+				  BIT(sta_id), TX_QUEUE_CFG_TID, size, 0);
 	/* ret is positive when func returns the allocated the queue number */
 	if (ret > 0) {
 		xvt->tx_meta_data[lmac_id].queue = ret;

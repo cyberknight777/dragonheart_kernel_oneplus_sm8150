@@ -1792,8 +1792,8 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 		/*TODO: add support for second lmac*/
 		queue_id =
 			iwl_trans_txq_alloc(xvt->trans,
-					    cpu_to_le16(flags),
-					    cmd->sta_id, cmd->tid,
+					    flags & ~TX_QUEUE_CFG_ENABLE_QUEUE,
+					    BIT(cmd->sta_id), cmd->tid,
 					    size, 0);
 		if (queue_id < 0)
 			return queue_id;
@@ -1817,9 +1817,20 @@ static int iwl_xvt_add_txq(struct iwl_xvt *xvt,
 static int iwl_xvt_remove_txq(struct iwl_xvt *xvt,
 			      struct iwl_scd_txq_cfg_cmd *cmd)
 {
+	u32 new_cmd_id = WIDE_ID(DATA_PATH_GROUP, SCD_QUEUE_CONFIG_CMD);
 	int ret = 0;
 
-	if (iwl_xvt_is_unified_fw(xvt)) {
+	if (iwl_fw_lookup_cmd_ver(xvt->fw, new_cmd_id, 0) == 3) {
+		struct iwl_scd_queue_cfg_cmd remove_cmd = {
+			.operation = cpu_to_le32(IWL_SCD_QUEUE_REMOVE),
+			.u.remove.queue = cpu_to_le32(cmd->scd_queue),
+		};
+
+		ret = iwl_xvt_send_cmd_pdu(xvt, new_cmd_id, 0,
+					   sizeof(remove_cmd),
+					   &remove_cmd);
+		iwl_trans_txq_free(xvt->trans, cmd->scd_queue);
+	} else if (iwl_xvt_is_unified_fw(xvt)) {
 		struct iwl_tx_queue_cfg_cmd queue_cfg_cmd = {
 			.flags = 0,
 			.sta_id = cmd->sta_id,
