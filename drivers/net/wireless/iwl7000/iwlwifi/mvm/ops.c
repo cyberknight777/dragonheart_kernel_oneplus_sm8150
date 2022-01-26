@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2022 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -919,6 +919,9 @@ static void iwl_mvm_me_conn_status(void *priv, const struct iwl_mei_conn_info *c
 static void iwl_mvm_mei_rfkill(void *priv, bool blocked)
 {
 	struct iwl_mvm *mvm = priv;
+
+	if (!IWL_MVM_MEI_REPORT_RFKILL)
+		return;
 
 	mvm->mei_rfkill_blocked = blocked;
 	if (!mvm->hw_registered)
