@@ -5,7 +5,7 @@
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2008-2010 Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2015  Intel Mobile Communications GmbH
- * Copyright 2018-2019, 2021  Intel Corporation
+ * Copyright 2018-2019, 2021 - 2022 Intel Corporation
  */
 
 #include <linux/export.h>
@@ -634,6 +634,8 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 		u64 cookie = IEEE80211_SKB_CB(skb)->ack.cookie;
 		struct ieee80211_sub_if_data *sdata;
 		struct ieee80211_hdr *hdr = (void *)skb->data;
+		bool is_valid_ack_signal =
+			!!(info->status.flags & IEEE80211_TX_STATUS_ACK_SIGNAL_VALID);
 
 		rcu_read_lock();
 		sdata = ieee80211_sdata_from_skb(local, skb);
@@ -651,7 +653,7 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 				cfg80211_probe_status(sdata->dev, hdr->addr1,
 						      cookie, acked,
 						      info->status.ack_signal,
-						      info->status.is_valid_ack_signal,
+						      is_valid_ack_signal,
 						      GFP_ATOMIC);
 #else
 				cfg80211_probe_status(sdata->dev, hdr->addr1,
@@ -1118,7 +1120,7 @@ void ieee80211_tx_status_ext(struct ieee80211_hw *hw,
 	struct ieee80211_supported_band *sband;
 	struct sta_info *sta = NULL;
 	int rates_idx, retry_count;
-	bool acked, noack_success;
+	bool acked, noack_success, ack_signal_valid;
 	u16 tx_time_est;
 
 	if (pubsta) {
@@ -1149,6 +1151,8 @@ void ieee80211_tx_status_ext(struct ieee80211_hw *hw,
 
 	acked = !!(info->flags & IEEE80211_TX_STAT_ACK);
 	noack_success = !!(info->flags & IEEE80211_TX_STAT_NOACK_TRANSMITTED);
+	ack_signal_valid =
+		!!(info->status.flags & IEEE80211_TX_STATUS_ACK_SIGNAL_VALID);
 
 	if (pubsta) {
 		struct ieee80211_sub_if_data *sdata = sta->sdata;
@@ -1177,7 +1181,7 @@ void ieee80211_tx_status_ext(struct ieee80211_hw *hw,
 				    unlikely(sdata->u.mgd.probe_send_count > 0))
 					sdata->u.mgd.probe_send_count = 0;
 
-				if (info->status.is_valid_ack_signal) {
+				if (ack_signal_valid) {
 					sta->status_stats.last_ack_signal =
 							 (s8)info->status.ack_signal;
 					sta->status_stats.ack_signal_filled = true;
