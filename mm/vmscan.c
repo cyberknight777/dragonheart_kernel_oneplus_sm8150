@@ -164,34 +164,6 @@ int vm_swappiness = 60;
  */
 unsigned long vm_total_pages;
 
-/*
- * Low watermark used to prevent fscache thrashing during low memory.
- */
-int min_filelist_kbytes;
-
-int min_filelist_kbytes_handler(struct ctl_table *table, int write,
-				void __user *buf, size_t *len, loff_t *pos)
-{
-	size_t written;
-
-	if (!lru_gen_enabled() || write)
-		return proc_dointvec(table, write, buf, len, pos);
-
-	if (!*len || *pos) {
-		*len = 0;
-		return 0;
-	}
-
-	written = min_t(size_t, 2, *len);
-	if (copy_to_user(buf, "0\n", written))
-		return -EFAULT;
-
-	*len = written;
-	*pos = written;
-
-	return 0;
-}
-
 static LIST_HEAD(shrinker_list);
 static DECLARE_RWSEM(shrinker_rwsem);
 
@@ -249,17 +221,6 @@ unsigned long zone_reclaimable_pages(struct zone *zone)
 
 	nr = zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_FILE) +
 		zone_page_state_snapshot(zone, NR_ZONE_ACTIVE_FILE);
-
-	if (!lru_gen_enabled()) {
-		u64 pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-
-		pages_min *= zone->managed_pages;
-		do_div(pages_min, totalram_pages);
-		if (nr < pages_min)
-			nr = 0;
-		else
-			nr -= pages_min;
-	}
 
 	if (get_nr_swap_pages() > 0)
 		nr += zone_page_state_snapshot(zone, NR_ZONE_INACTIVE_ANON) +
@@ -2261,21 +2222,6 @@ static bool inactive_list_is_low(struct lruvec *lruvec, bool file,
 	return inactive * inactive_ratio < active;
 }
 
-/*
- * Check low watermark used to prevent fscache thrashing during low memory.
- */
-static int file_is_low(struct lruvec *lruvec, struct pglist_data *pgdat)
-{
-	unsigned long pages_min, pgdatfile;
-
-	pages_min = min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
-		node_page_state(pgdat, NR_INACTIVE_FILE);
-
-	return pgdatfile < pages_min;
-}
-
-
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
 {
@@ -2323,12 +2269,11 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	 * Do not scan file pages when swap is allowed by __GFP_IO and
 	 * it's global reclaim and file page count is low.
 	 */
-	if ((sc->gfp_mask & __GFP_IO) && global_reclaim(sc) &&
-	    file_is_low(lruvec, pgdat)) {
+	if (sc->gfp_mask & __GFP_IO) {
 		scan_balance = SCAN_ANON;
 		goto out;
 	}
-
+	
 	/* If we have no swap space, do not bother scanning anon pages. */
 	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
 		scan_balance = SCAN_FILE;
