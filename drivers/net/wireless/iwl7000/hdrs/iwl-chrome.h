@@ -4,7 +4,7 @@
  *
  * ChromeOS backport definitions
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2021 Intel Corporation
+ * Copyright (C) 2018-2022 Intel Corporation
  */
 
 #include <linux/version.h>
@@ -841,4 +841,10 @@ wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
 
 #if LINUX_VERSION_IS_LESS(5,17,0)
 #define rfkill_soft_blocked(__rfkill) rfkill_blocked(__rfkill)
+
+static inline void __noreturn
+kthread_complete_and_exit(struct completion *c, long ret)
+{
+	complete_and_exit(c, ret);
+}
 #endif /* <v5.17 */

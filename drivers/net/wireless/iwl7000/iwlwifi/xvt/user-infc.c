@@ -12,6 +12,7 @@
 #include <linux/if_ether.h>
 #include <linux/etherdevice.h>
 #include <linux/limits.h>
+#include <linux/kthread.h>
 
 #include "iwl-drv.h"
 #include "iwl-prph.h"
@@ -1351,7 +1352,7 @@ on_exit:
 		kfree(xvt->payloads[i]);
 		xvt->payloads[i] = NULL;
 	}
-	do_exit(err);
+	kthread_complete_and_exit(&xvt->tx_task_completion, err);
 }
 
 static int iwl_xvt_modulated_tx_handler(void *data)
@@ -1417,7 +1418,7 @@ static int iwl_xvt_modulated_tx_handler(void *data)
 
 	xvt_tx->tx_task_operating = false;
 	kfree(data);
-	do_exit(err);
+	kthread_complete_and_exit(task_data->completion, err);
 }
 
 static int iwl_xvt_modulated_tx_infinite_stop(struct iwl_xvt *xvt,
@@ -1430,6 +1431,7 @@ static int iwl_xvt_modulated_tx_infinite_stop(struct iwl_xvt *xvt,
 	if (xvt_tx->tx_mod_thread && xvt_tx->tx_task_operating) {
 		err = kthread_stop(xvt_tx->tx_mod_thread);
 		xvt_tx->tx_mod_thread = NULL;
+		wait_for_completion(&xvt_tx->tx_mod_thread_completion);
 	}
 
 	return err;
@@ -1496,6 +1498,7 @@ static int iwl_xvt_start_tx(struct iwl_xvt *xvt,
 	memcpy(&task_data->tx_start_data, req->input_data,
 	       sizeof(struct iwl_xvt_tx_start));
 
+	init_completion(&xvt->tx_task_completion);
 	xvt->tx_task = kthread_run(iwl_xvt_start_tx_handler,
 				   task_data, "start enhanced tx command");
 	if (!xvt->tx_task) {
@@ -1514,6 +1517,7 @@ static int iwl_xvt_stop_tx(struct iwl_xvt *xvt)
 	if (xvt->tx_task && xvt->is_enhanced_tx) {
 		err = kthread_stop(xvt->tx_task);
 		xvt->tx_task = NULL;
+		wait_for_completion(&xvt->tx_task_completion);
 	}
 
 	return err;
@@ -1593,6 +1597,8 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 		}
 	}
 
+	task_data->completion = &xvt_tx->tx_mod_thread_completion;
+	init_completion(task_data->completion);
 	xvt_tx->tx_mod_thread = kthread_run(iwl_xvt_modulated_tx_handler,
 					   task_data, "tx mod infinite");
 	if (!xvt_tx->tx_mod_thread) {

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
 /*
- * Copyright (C) 2010-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2010-2014, 2018-2022 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
  */
@@ -454,11 +454,13 @@ struct iwl_tm_mod_tx_request {
  * @lmac_id:	lmac index
  * @xvt:	pointer to the xvt op mode
  * @tx_req:	pointer to data of transmission request
+ * @completion: the completion to signal when the thread exits
  */
 struct iwl_xvt_tx_mod_task_data {
 	__u32 lmac_id;
 	struct iwl_xvt *xvt;
 	struct iwl_tm_mod_tx_request tx_req;
+	struct completion *completion;
 } __packed __aligned(4);
 
 /**
