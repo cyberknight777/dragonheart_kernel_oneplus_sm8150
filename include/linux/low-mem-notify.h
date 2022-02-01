@@ -37,10 +37,13 @@ static inline unsigned long get_available_file_mem(void)
 			global_node_page_state(NR_ACTIVE_FILE) +
 			global_node_page_state(NR_INACTIVE_FILE);
 	unsigned long dirty_mem = global_node_page_state(NR_FILE_DIRTY);
-	unsigned long clean_file_mem = file_mem > dirty_mem ?
-			file_mem - dirty_mem : 0;
+	unsigned long min_file_mem = lru_gen_enabled() ?
+				     0 : min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	unsigned long clean_file_mem = file_mem - dirty_mem;
 	/* Conservatively estimate the amount of available_file_mem */
-	return clean_file_mem;
+	unsigned long available_file_mem = (clean_file_mem > min_file_mem) ?
+			(clean_file_mem - min_file_mem) : 0;
+	return available_file_mem;
 }
 
 /*
@@ -59,12 +62,9 @@ static inline unsigned long get_available_anon_mem(void)
 static inline unsigned long get_available_mem_adj(void)
 {
 	/* free_mem is completely unallocated; clean file-backed memory
-	 * (file_mem - dirty_mem) is easy to reclaim.
-	 * totalreserve_pages is the reserve of pages that
-	 * are not available to user space. totalreserve_pages is high watermark
-	 * + lowmem_reserve and extra_free_kbytes raises the high watermark.
-	 * Nullify the effect of extra_free_kbytes by excluding it from the
-	 * reserved pages.
+	 * (file_mem - dirty_mem) is easy to reclaim, except for the last
+	 * min_filelist_kbytes. totalreserve_pages is the reserve of pages that
+	 * are not available to user space.
 	 */
 	unsigned long raw_free_mem = global_zone_page_state(NR_FREE_PAGES);
 	unsigned long free_mem = (raw_free_mem > totalreserve_pages) ?
