@@ -1091,7 +1091,7 @@ bool btintel_pull_quality_report_data(struct sk_buff *skb)
 
 	/* A telemetry event contains at least one intel_tlv subevent. */
 	if (skb->len < sizeof(struct intel_tlv)) {
-		BT_ERR("Telemetry event length %d too short (at least %u)",
+		BT_ERR("Telemetry event length %u too short (at least %zu)",
 		       skb->len, sizeof(struct intel_tlv));
 		return false;
 	}
