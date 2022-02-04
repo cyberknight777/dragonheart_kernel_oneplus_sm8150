@@ -253,7 +253,7 @@ bool aosp_pull_quality_report_data(struct sk_buff *skb)
 	 * the Vendor Specific Parameter (vsp) field.
 	 */
 	if (skb->len < bqr_data_len) {
-		BT_ERR("AOSP evt data len %d too short (%u expected)",
+		BT_ERR("AOSP evt data len %u too short (%zu expected)",
 		       skb->len, bqr_data_len);
 		return false;
 	}
