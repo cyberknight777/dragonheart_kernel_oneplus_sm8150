@@ -468,8 +468,7 @@ static inline struct sk_buff *bt_skb_sendmmsg(struct sock *sk,
 
 		tmp = bt_skb_sendmsg(sk, msg, len, mtu, headroom, tailroom);
 		if (IS_ERR_OR_NULL(tmp)) {
-			kfree_skb(skb);
-			return tmp;
+			return skb;
 		}
 
 		len -= tmp->len;
