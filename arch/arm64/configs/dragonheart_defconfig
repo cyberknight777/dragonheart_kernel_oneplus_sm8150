@@ -5311,8 +5311,8 @@ CONFIG_VM_FRAGMENT_MONITOR=y
 #
 # Qualcomm RmNet extensions
 #
-CONFIG_RMNET_PERF=m
-CONFIG_RMNET_SHS=m
+CONFIG_RMNET_PERF=y
+CONFIG_RMNET_SHS=y
 
 #
 # Firmware Drivers
