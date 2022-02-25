@@ -24,8 +24,6 @@
 #include <linux/profile.h>
 #include <linux/rtmutex.h>
 #include <linux/sched/cputime.h>
-#include <linux/sched/signal.h>
-#include <linux/sched/xacct.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -113,11 +111,13 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 		uid_entry->active_utime = 0;
 	}
 
+	read_lock(&tasklist_lock);
 	do_each_thread(temp, task) {
 		uid = from_kuid_munged(user_ns, task_uid(task));
 		if (!uid_entry || uid_entry->uid != uid)
 			uid_entry = find_or_register_uid(uid);
 		if (!uid_entry) {
+			read_unlock(&tasklist_lock);
 			rt_mutex_unlock(&uid_lock);
 			pr_err("%s: failed to find the uid_entry for uid %d\n",
 				__func__, uid);
@@ -127,13 +127,15 @@ static int uid_cputime_show(struct seq_file *m, void *v)
 		uid_entry->active_utime += utime;
 		uid_entry->active_stime += stime;
 	} while_each_thread(temp, task);
+	read_unlock(&tasklist_lock);
 
 	hash_for_each(hash_table, bkt, uid_entry, hash) {
-		u64 total_utime = uid_entry->utime + uid_entry->active_utime;
-		u64 total_stime = uid_entry->stime + uid_entry->active_stime;
+		u64 total_utime = uid_entry->utime +
+							uid_entry->active_utime;
+		u64 total_stime = uid_entry->stime +
+							uid_entry->active_stime;
 		seq_printf(m, "%d: %llu %llu\n", uid_entry->uid,
-			(unsigned long long)div_u64(total_utime, NSEC_PER_USEC),
-			(unsigned long long)div_u64(total_stime, NSEC_PER_USEC));
+			ktime_to_ms(total_utime), ktime_to_ms(total_stime));
 	}
 
 	rt_mutex_unlock(&uid_lock);
