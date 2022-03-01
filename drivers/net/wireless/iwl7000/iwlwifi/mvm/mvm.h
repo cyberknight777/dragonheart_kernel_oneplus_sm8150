@@ -2219,6 +2219,7 @@ void iwl_mvm_sta_add_debugfs(struct ieee80211_hw *hw,
 
 /* 11ax Softap Test Mode */
 
+bool iwl_rfi_supported(struct iwl_mvm *mvm);
 int iwl_rfi_send_config_cmd(struct iwl_mvm *mvm,
 			    struct iwl_rfi_lut_entry *rfi_table);
 struct iwl_rfi_freq_table_resp_cmd *iwl_rfi_get_freq_table(struct iwl_mvm *mvm);

@@ -429,8 +429,7 @@ static int iwl_vendor_rfim_get_capa(struct wiphy *wiphy,
 
 	if (mvm->trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210 &&
 	    mvm->trans->trans_cfg->integrated) {
-		if (fw_has_capa(&mvm->fw->ucode_capa,
-				IWL_UCODE_TLV_CAPA_RFIM_SUPPORT))
+		if (iwl_rfi_supported(mvm))
 			capa = IWL_MVM_RFIM_CAPA_ALL;
 		else
 			capa = IWL_MVM_RFIM_CAPA_CNVI;
