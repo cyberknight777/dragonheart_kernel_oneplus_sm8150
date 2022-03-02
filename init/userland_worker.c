@@ -27,6 +27,8 @@ static char** argv;
 static struct delayed_work userland_work;
 
 unsigned int is_a12;
+unsigned int fod_new = 1;
+module_param(fod_new, uint, 0644);
 
 static void free_memory(char** argv, int size)
 {
