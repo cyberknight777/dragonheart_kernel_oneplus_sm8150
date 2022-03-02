@@ -274,7 +274,7 @@ int fscrypt_get_encryption_info(struct inode *inode)
 	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (res < 0) {
 		if (!fscrypt_dummy_context_enabled(inode) ||
-		    inode->i_sb->s_cop->is_encrypted(inode))
+		    IS_ENCRYPTED(inode))
 			return res;
 		/* Fake up a context for an unencrypted directory */
 		memset(&ctx, 0, sizeof(ctx));
@@ -369,19 +369,9 @@ out:
 }
 EXPORT_SYMBOL(fscrypt_get_encryption_info);
 
-void fscrypt_put_encryption_info(struct inode *inode, struct fscrypt_info *ci)
+void fscrypt_put_encryption_info(struct inode *inode)
 {
-	struct fscrypt_info *prev;
-
-	if (ci == NULL)
-		ci = ACCESS_ONCE(inode->i_crypt_info);
-	if (ci == NULL)
-		return;
-
-	prev = cmpxchg(&inode->i_crypt_info, ci, NULL);
-	if (prev != ci)
-		return;
-
-	put_crypt_info(ci);
+	put_crypt_info(inode->i_crypt_info);
+	inode->i_crypt_info = NULL;
 }
 EXPORT_SYMBOL(fscrypt_put_encryption_info);

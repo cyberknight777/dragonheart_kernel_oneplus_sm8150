@@ -2117,6 +2117,53 @@ static int rtw8822c_mac_init(struct rtw_dev *rtwdev)
 	return 0;
 }
 
+#define FWCD_SIZE_REG_8822C 0x2000
+#define FWCD_SIZE_DMEM_8822C 0x10000
+#define FWCD_SIZE_IMEM_8822C 0x10000
+#define FWCD_SIZE_EMEM_8822C 0x20000
+#define FWCD_SIZE_ROM_8822C 0x10000
+
+static const u32 __fwcd_segs_8822c[] = {
+	FWCD_SIZE_REG_8822C,
+	FWCD_SIZE_DMEM_8822C,
+	FWCD_SIZE_IMEM_8822C,
+	FWCD_SIZE_EMEM_8822C,
+	FWCD_SIZE_ROM_8822C,
+};
+
+static const struct rtw_fwcd_segs rtw8822c_fwcd_segs = {
+	.segs = __fwcd_segs_8822c,
+	.num = ARRAY_SIZE(__fwcd_segs_8822c),
+};
+
+static int rtw8822c_dump_fw_crash(struct rtw_dev *rtwdev)
+{
+#define __dump_fw_8822c(_dev, _mem) \
+	rtw_dump_fw(_dev, OCPBASE_ ## _mem ## _88XX, \
+		    FWCD_SIZE_ ## _mem ## _8822C, RTW_FWCD_ ## _mem)
+	int ret;
+
+	ret = rtw_dump_reg(rtwdev, 0x0, FWCD_SIZE_REG_8822C);
+	if (ret)
+		return ret;
+	ret = __dump_fw_8822c(rtwdev, DMEM);
+	if (ret)
+		return ret;
+	ret = __dump_fw_8822c(rtwdev, IMEM);
+	if (ret)
+		return ret;
+	ret = __dump_fw_8822c(rtwdev, EMEM);
+	if (ret)
+		return ret;
+	ret = __dump_fw_8822c(rtwdev, ROM);
+	if (ret)
+		return ret;
+
+	return 0;
+
+#undef __dump_fw_8822c
+}
+
 static void rtw8822c_rstb_3wire(struct rtw_dev *rtwdev, bool enable)
 {
 	if (enable) {
@@ -2494,6 +2541,7 @@ static void query_phy_status_page0(struct rtw_dev *rtwdev, u8 *phy_status,
 	s8 rx_power[RTW_RF_PATH_MAX];
 	s8 min_rx_power = -120;
 	u8 rssi;
+	u8 channel;
 	int path;
 
 	rx_power[RF_PATH_A] = GET_PHY_STAT_P0_PWDB_A(phy_status);
@@ -2513,6 +2561,11 @@ static void query_phy_status_page0(struct rtw_dev *rtwdev, u8 *phy_status,
 
 	rx_power[RF_PATH_A] -= 110;
 	rx_power[RF_PATH_B] -= 110;
+
+	channel = GET_PHY_STAT_P0_CHANNEL(phy_status);
+	if (channel == 0)
+		channel = rtwdev->hal.current_channel;
+	rtw_set_rx_freq_band(pkt_stat, channel);
 
 	pkt_stat->rx_power[RF_PATH_A] = rx_power[RF_PATH_A];
 	pkt_stat->rx_power[RF_PATH_B] = rx_power[RF_PATH_B];
@@ -2539,6 +2592,7 @@ static void query_phy_status_page1(struct rtw_dev *rtwdev, u8 *phy_status,
 	u8 evm_dbm = 0;
 	u8 rssi;
 	int path;
+	u8 channel;
 
 	if (pkt_stat->rate > DESC_RATE11M && pkt_stat->rate < DESC_RATEMCS0)
 		rxsc = GET_PHY_STAT_P1_L_RXSC(phy_status);
@@ -2551,6 +2605,9 @@ static void query_phy_status_page1(struct rtw_dev *rtwdev, u8 *phy_status,
 		bw = RTW_CHANNEL_WIDTH_80;
 	else
 		bw = RTW_CHANNEL_WIDTH_20;
+
+	channel = GET_PHY_STAT_P1_CHANNEL(phy_status);
+	rtw_set_rx_freq_band(pkt_stat, channel);
 
 	pkt_stat->rx_power[RF_PATH_A] = GET_PHY_STAT_P1_PWDB_A(phy_status) - 110;
 	pkt_stat->rx_power[RF_PATH_B] = GET_PHY_STAT_P1_PWDB_B(phy_status) - 110;
@@ -4454,12 +4511,14 @@ static void rtw8822c_pwr_track(struct rtw_dev *rtwdev)
 
 static void rtw8822c_adaptivity_init(struct rtw_dev *rtwdev)
 {
-	rtw_phy_set_edcca_th(rtwdev, 0x7f, 0x7f);
+	rtw_phy_set_edcca_th(rtwdev, RTW8822C_EDCCA_MAX, RTW8822C_EDCCA_MAX);
+
 	/* mac edcca state setting */
-	rtw_write32_mask(rtwdev, REG_TX_PTCL_CTRL, BIT_DIS_EDCCA, 0);
-	rtw_write32_mask(rtwdev, REG_RD_CTRL, BIT_EDCCA_MSK_CNTDOWN_EN, 1);
+	rtw_write32_clr(rtwdev, REG_TX_PTCL_CTRL, BIT_DIS_EDCCA);
+	rtw_write32_set(rtwdev, REG_RD_CTRL, BIT_EDCCA_MSK_CNTDOWN_EN);
+
 	/* edcca decistion opt */
-	rtw_write32_mask(rtwdev, REG_EDCCA_DECISION, BIT_EDCCA_OPTION, 0);
+	rtw_write32_clr(rtwdev, REG_EDCCA_DECISION, BIT_EDCCA_OPTION);
 }
 
 static void rtw8822c_adaptivity(struct rtw_dev *rtwdev)
@@ -4883,6 +4942,7 @@ static struct rtw_chip_ops rtw8822c_ops = {
 	.query_rx_desc		= rtw8822c_query_rx_desc,
 	.set_channel		= rtw8822c_set_channel,
 	.mac_init		= rtw8822c_mac_init,
+	.dump_fw_crash		= rtw8822c_dump_fw_crash,
 	.read_rf		= rtw_phy_read_rf,
 	.write_rf		= rtw_phy_write_rf_reg_mix,
 	.set_tx_power_index	= rtw8822c_set_tx_power_index,
@@ -5243,6 +5303,7 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.ptct_efuse_size = 124,
 	.txff_size = 262144,
 	.rxff_size = 24576,
+	.fw_rxff_size = 12288,
 	.txgi_factor = 2,
 	.is_pwr_by_rate_dec = false,
 	.max_power_index = 0x7f,
@@ -5281,10 +5342,11 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.lck_threshold = 8,
 	.bfer_su_max_num = 2,
 	.bfer_mu_max_num = 1,
+	.rx_ldpc = true,
+	.tx_stbc = true,
 	.edcca_th = rtw8822c_edcca_th,
 	.l2h_th_ini_cs = 60,
 	.l2h_th_ini_ad = 45,
-	.rx_ldpc = true,
 
 #ifdef CONFIG_PM
 	.wow_fw_name = "rtw88/rtw8822c_wow_fw.bin",
@@ -5320,6 +5382,9 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 
 	.coex_info_hw_regs_num = ARRAY_SIZE(coex_info_hw_regs_8822c),
 	.coex_info_hw_regs = coex_info_hw_regs_8822c,
+
+	.fw_fifo_addr = {0x780, 0x700, 0x780, 0x660, 0x650, 0x680},
+	.fwcd_segs = &rtw8822c_fwcd_segs,
 };
 EXPORT_SYMBOL(rtw8822c_hw_spec);
 

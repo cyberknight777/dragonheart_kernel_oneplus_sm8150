@@ -2,13 +2,14 @@
 /*
  * fscrypt_supp.h
  *
- * This is included by filesystems configured with encryption support.
+ * Do not include this file directly. Use fscrypt.h instead!
  */
+#ifndef _LINUX_FSCRYPT_H
+#error "Incorrect include of linux/fscrypt_supp.h!"
+#endif
 
 #ifndef _LINUX_FSCRYPT_SUPP_H
 #define _LINUX_FSCRYPT_SUPP_H
-
-#include <linux/fscrypt_common.h>
 
 /* crypto.c */
 extern void fscrypt_enqueue_decrypt_work(struct work_struct *);
@@ -21,20 +22,6 @@ extern int fscrypt_decrypt_page(const struct inode *, struct page *, unsigned in
 				unsigned int, u64);
 extern void fscrypt_restore_control_page(struct page *);
 
-extern const struct dentry_operations fscrypt_d_ops;
-
-static inline void fscrypt_set_d_op(struct dentry *dentry)
-{
-	d_set_d_op(dentry, &fscrypt_d_ops);
-}
-
-static inline void fscrypt_set_encrypted_dentry(struct dentry *dentry)
-{
-	spin_lock(&dentry->d_lock);
-	dentry->d_flags |= DCACHE_ENCRYPTED_WITH_KEY;
-	spin_unlock(&dentry->d_lock);
-}
-
 /* policy.c */
 extern int fscrypt_ioctl_set_policy(struct file *, const void __user *);
 extern int fscrypt_ioctl_get_policy(struct file *, void __user *);
@@ -43,7 +30,7 @@ extern int fscrypt_inherit_context(struct inode *, struct inode *,
 					void *, bool);
 /* keyinfo.c */
 extern int fscrypt_get_encryption_info(struct inode *);
-extern void fscrypt_put_encryption_info(struct inode *, struct fscrypt_info *);
+extern void fscrypt_put_encryption_info(struct inode *);
 
 /* fname.c */
 extern int fscrypt_setup_filename(struct inode *, const struct qstr *,
@@ -144,5 +131,17 @@ extern void fscrypt_enqueue_decrypt_bio(struct fscrypt_ctx *ctx,
 extern void fscrypt_pullback_bio_page(struct page **, bool);
 extern int fscrypt_zeroout_range(const struct inode *, pgoff_t, sector_t,
 				 unsigned int);
+
+/* hooks.c */
+extern int fscrypt_file_open(struct inode *inode, struct file *filp);
+extern int __fscrypt_prepare_link(struct inode *inode, struct inode *dir,
+				  struct dentry *dentry);
+extern int __fscrypt_prepare_rename(struct inode *old_dir,
+				    struct dentry *old_dentry,
+				    struct inode *new_dir,
+				    struct dentry *new_dentry,
+				    unsigned int flags);
+extern int __fscrypt_prepare_lookup(struct inode *dir, struct dentry *dentry,
+				    struct fscrypt_name *fname);
 
 #endif	/* _LINUX_FSCRYPT_SUPP_H */

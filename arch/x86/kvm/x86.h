@@ -308,4 +308,6 @@ static inline bool kvm_mwait_in_guest(void)
 	return true;
 }
 
+int kvm_vcpu_dont_preempt(struct kvm_vcpu *vcpu);
+
 #endif

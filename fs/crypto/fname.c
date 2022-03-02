@@ -304,13 +304,8 @@ int fscrypt_fname_disk_to_usr(struct inode *inode,
 					   oname->name);
 		return 0;
 	}
-	if (hash) {
-		digested_name.hash = hash;
-		digested_name.minor_hash = minor_hash;
-	} else {
-		digested_name.hash = 0;
-		digested_name.minor_hash = 0;
-	}
+	digested_name.hash = hash;
+	digested_name.minor_hash = minor_hash;
 	memcpy(digested_name.digest,
 	       FSCRYPT_FNAME_DIGEST(iname->name, iname->len),
 	       FSCRYPT_FNAME_DIGEST_SIZE);
@@ -383,8 +378,7 @@ int fscrypt_setup_filename(struct inode *dir, const struct qstr *iname,
 	memset(fname, 0, sizeof(struct fscrypt_name));
 	fname->usr_fname = iname;
 
-	if (!dir->i_sb->s_cop->is_encrypted(dir) ||
-				fscrypt_is_dot_dotdot(iname)) {
+	if (!IS_ENCRYPTED(dir) || fscrypt_is_dot_dotdot(iname)) {
 		fname->disk_name.name = (unsigned char *)iname->name;
 		fname->disk_name.len = iname->len;
 		return 0;
@@ -407,6 +401,7 @@ int fscrypt_setup_filename(struct inode *dir, const struct qstr *iname,
 	}
 	if (!lookup)
 		return -ENOKEY;
+	fname->is_ciphertext_name = true;
 
 	/*
 	 * We don't have the key and we are doing a lookup; decode the

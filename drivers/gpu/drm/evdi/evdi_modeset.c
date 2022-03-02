@@ -47,6 +47,8 @@ static void evdi_crtc_atomic_flush(
 	struct drm_crtc_state *state = crtc->state;
 	struct evdi_device *evdi = crtc->dev->dev_private;
 	unsigned long flags;
+	bool notify_mode_changed;
+	bool notify_dpms;
 
 	if (state->event) {
 		spin_lock_irqsave(&crtc->dev->event_lock, flags);
@@ -54,10 +56,15 @@ static void evdi_crtc_atomic_flush(
 		state->event = NULL;
 		spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 	}
-	if (state->mode_changed && state->active)
+	notify_mode_changed = state->active &&
+		(state->mode_changed || evdi_painter_needs_full_modeset(evdi));
+	notify_dpms = state->active_changed ||
+		      evdi_painter_needs_full_modeset(evdi);
+
+	if (notify_mode_changed)
 		evdi_painter_mode_changed_notify(evdi, &state->adjusted_mode);
 
-	if (state->active_changed)
+	if (notify_dpms)
 		evdi_painter_dpms_notify(evdi,
 			state->active ? DRM_MODE_DPMS_ON : DRM_MODE_DPMS_OFF);
 
@@ -331,31 +338,11 @@ static int evdi_crtc_init(struct drm_device *dev)
 	return 0;
 }
 
-static int evdi_atomic_check(struct drm_device *dev,
-				struct drm_atomic_state *state)
-{
-	struct drm_crtc *crtc;
-	struct drm_crtc_state *crtc_state = NULL;
-	int i;
-	struct evdi_device *evdi = dev->dev_private;
-
-
-	if (evdi_painter_needs_full_modeset(evdi)) {
-		for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
-			crtc_state->active_changed = true;
-			crtc_state->mode_changed = true;
-		}
-	}
-
-	return drm_atomic_helper_check(dev, state);
-}
-
-
 static const struct drm_mode_config_funcs evdi_mode_funcs = {
 	.fb_create = evdi_fb_user_fb_create,
 	.output_poll_changed = NULL,
 	.atomic_commit = drm_atomic_helper_commit,
-	.atomic_check = evdi_atomic_check
+	.atomic_check = drm_atomic_helper_check
 };
 
 void evdi_modeset_init(struct drm_device *dev)

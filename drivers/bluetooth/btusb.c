@@ -2652,10 +2652,7 @@ done:
 	 */
 	btintel_load_ddc_config(hdev, fwname);
 
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
 	hci_dev_clear_flag(hdev, HCI_QUALITY_REPORT);
-	bt_dev_dbg(hdev, "HCI_QUALITY_REPORT cleared");
-#endif
 
 	/* Read the Intel version information after loading the FW  */
 	err = btintel_read_version(hdev, &ver);
@@ -2919,6 +2916,11 @@ static int btusb_setup_qca_download_fw(struct hci_dev *hdev,
 
 	sent += size;
 	count -= size;
+
+	/* ep2 need time to switch from function acl to function dfu,
+	 * so we add 20ms delay here.
+	 */
+	msleep(20);
 
 	while (count) {
 		size = min_t(size_t, count, QCA_DFU_PACKET_LEN);
@@ -3497,9 +3499,6 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
-		hdev->set_quality_report = btintel_set_quality_report;
-#endif
 
 		if (btusb_find_altsetting(data, 6))
 			hdev->wbs_pkt_len = hci_packet_size_usb_alt[6];
@@ -3513,6 +3512,9 @@ static int btusb_probe(struct usb_interface *intf,
 #endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
+
+		/* Set up the quality report callback for Intel devices */
+		hdev->set_quality_report = btintel_set_quality_report;
 	}
 
 	if (id->driver_info & BTUSB_MARVELL)

@@ -162,7 +162,7 @@ void rtw_tx_report_purge_timer(struct timer_list *t)
 	if (skb_queue_len(&tx_report->queue) == 0)
 		return;
 
-	rtw_dbg(rtwdev, RTW_DBG_TX, "purge skb(s) not reported by firmware\n");
+	rtw_warn(rtwdev, "failed to get tx report from firmware\n");
 
 	spin_lock_irqsave(&tx_report->q_lock, flags);
 	skb_queue_purge(&tx_report->queue);
@@ -583,33 +583,12 @@ static int rtw_txq_push_skb(struct rtw_dev *rtwdev,
 static struct sk_buff *rtw_txq_dequeue(struct rtw_dev *rtwdev,
 				       struct rtw_txq *rtwtxq)
 {
-	struct rtw_chip_info *chip = rtwdev->chip;
 	struct ieee80211_txq *txq = rtwtxq_to_txq(rtwtxq);
 	struct sk_buff *skb;
-	int headroom_needed;
 
-	do {
-		skb = ieee80211_tx_dequeue(rtwdev->hw, txq);
-		if (!skb)
-			return NULL;
-
-		headroom_needed = chip->tx_pkt_desc_sz - skb_headroom(skb);
-		if (WARN_ONCE(headroom_needed > 0,
-			      "Insufficient headroom (%d bytes, need %d)\n",
-			      skb_headroom(skb), chip->tx_pkt_desc_sz)) {
-			if (skb_cloned(skb)) {
-				netdev_warn(skb->dev, "skb is cloned\n");
-				skb = skb_unshare(skb, GFP_ATOMIC);
-				if (!skb)
-					continue;
-				headroom_needed = chip->tx_pkt_desc_sz - skb_headroom(skb);
-			}
-			if (pskb_expand_head(skb, headroom_needed, 0, GFP_ATOMIC) < 0) {
-				kfree_skb(skb);
-				continue;
-			}
-		}
-	} while (!skb);
+	skb = ieee80211_tx_dequeue(rtwdev->hw, txq);
+	if (!skb)
+		return NULL;
 
 	return skb;
 }

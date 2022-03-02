@@ -1118,29 +1118,28 @@ static void suspend_req_complete(struct hci_dev *hdev, u8 status, u16 opcode)
 		clear_bit(SUSPEND_SCAN_DISABLE, hdev->suspend_tasks);
 		wake_up(&hdev->suspend_wait_q);
 	}
-
-	if (test_bit(SUSPEND_SET_ADV_FILTER, hdev->suspend_tasks)) {
-		clear_bit(SUSPEND_SET_ADV_FILTER, hdev->suspend_tasks);
-		wake_up(&hdev->suspend_wait_q);
-	}
 }
 
-static void hci_req_add_set_adv_filter_enable(struct hci_request *req,
-					      bool enable)
+static void hci_req_prepare_adv_monitor_suspend(struct hci_request *req,
+						bool suspending)
 {
 	struct hci_dev *hdev = req->hdev;
 
+	/* No need to block when enabling since it's on resume path */
+	if (hdev->suspended && suspending)
+		set_bit(SUSPEND_SET_ADV_FILTER, hdev->suspend_tasks);
+
 	switch (hci_get_adv_monitor_offload_ext(hdev)) {
 	case HCI_ADV_MONITOR_EXT_MSFT:
-		msft_req_add_set_filter_enable(req, enable);
+		if (suspending)
+			msft_suspend(hdev);
+		else
+			msft_resume(hdev);
 		break;
 	default:
+		clear_bit(SUSPEND_SET_ADV_FILTER, hdev->suspend_tasks);
 		return;
 	}
-
-	/* No need to block when enabling since it's on resume path */
-	if (hdev->suspended && !enable)
-		set_bit(SUSPEND_SET_ADV_FILTER, hdev->suspend_tasks);
 }
 
 /* Call with hci_dev_lock */
@@ -1207,7 +1206,7 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 		}
 
 		/* Disable advertisement filters */
-		hci_req_add_set_adv_filter_enable(&req, false);
+		hci_req_prepare_adv_monitor_suspend(&req, true);
 
 		/* Prevent disconnects from causing scanning to be re-enabled */
 		hdev->scanning_paused = true;
@@ -1249,7 +1248,7 @@ void hci_req_prepare_suspend(struct hci_dev *hdev, enum suspended_state next)
 		/* Reset passive/background scanning to normal */
 		__hci_update_background_scan(&req);
 		/* Enable all of the advertisement filters */
-		hci_req_add_set_adv_filter_enable(&req, true);
+		hci_req_prepare_adv_monitor_suspend(&req, false);
 
 		/* Unpause directed advertising */
 		hdev->advertising_paused = false;
@@ -1973,10 +1972,26 @@ void hci_req_clear_adv_instance(struct hci_dev *hdev, struct sock *sk,
 						false);
 }
 
+/* TODO(b:210940077): This is currently only in Chromium repo. If we want to
+ * upstream this, please consider to refactor le_scan_restart as well.
+ */
+static void __hci_req_le_scan_enable(struct hci_request *req)
+{
+	struct hci_dev *hdev = req->hdev;
+	struct hci_cp_le_set_scan_enable cp;
+
+	memset(&cp, 0, sizeof(cp));
+	cp.enable = LE_SCAN_ENABLE;
+	cp.filter_dup = hci_is_adv_monitoring(hdev) ?
+			LE_SCAN_FILTER_DUP_ENABLE : LE_SCAN_FILTER_DUP_DISABLE;
+	hci_req_add(req, HCI_OP_LE_SET_SCAN_ENABLE, sizeof(cp), &cp);
+}
+
 static void set_random_addr(struct hci_request *req, bdaddr_t *rpa)
 {
 	struct hci_dev *hdev = req->hdev;
 	bool adv_enabled = hci_dev_test_flag(hdev, HCI_LE_ADV);
+	bool scan_enabled = hci_dev_test_flag(hdev, HCI_LE_SCAN);
 
 	/* If we're initiating an LE connection or actively scanning, we can't
 	 * go ahead and change the random address at this time. This is because
@@ -2004,7 +2019,18 @@ static void set_random_addr(struct hci_request *req, bdaddr_t *rpa)
 		hci_dev_clear_flag(hdev, HCI_LE_ADV);
 	}
 
+	/* For some controller, ex. Intel ThP2, it is not allowed to set random
+	 * address while passive scan is enabled. Pause LE scan for updating
+	 * random address.
+	 */
+	if (scan_enabled)
+		hci_req_add_le_scan_disable(req);
+
 	hci_req_add(req, HCI_OP_LE_SET_RANDOM_ADDR, 6, rpa);
+
+	/* Re-enable passive scan */
+	if (scan_enabled)
+		__hci_req_le_scan_enable(req);
 
 	/* Re-enable previously-active advertisements */
 	if (adv_enabled)
@@ -2622,6 +2648,13 @@ static int active_scan(struct hci_request *req, unsigned long opt)
 	if (hci_dev_test_flag(hdev, HCI_LE_SCAN)) {
 		hci_req_add_le_scan_disable(req);
 		cancel_interleave_scan(hdev);
+
+		/* Clear the HCI_LE_SCAN bit temporarily so that the
+		 * hci_update_random_address knows that it's safe to go ahead
+		 * and write a new random address. The flag will be set back on
+		 * as soon as the SET_SCAN_ENABLED HCI command completes.
+		 */
+		hci_dev_clear_flag(hdev, HCI_LE_SCAN);
 	}
 
 	/* All active scans will be done with either a resolvable private

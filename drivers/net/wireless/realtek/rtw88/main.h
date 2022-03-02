@@ -22,6 +22,9 @@
 #define RTW_MAX_SEC_CAM_NUM		32
 #define MAX_PG_CAM_BACKUP_NUM		8
 
+#define RTW_SCAN_MAX_SSIDS		4
+#define RTW_SCAN_MAX_IE_LEN		128
+
 #define RTW_MAX_PATTERN_NUM		12
 #define RTW_MAX_PATTERN_MASK_SIZE	16
 #define RTW_MAX_PATTERN_SIZE		128
@@ -81,11 +84,9 @@ struct rtw_hci {
 	 IS_CH_5G_BAND_3(channel) || IS_CH_5G_BAND_4(channel))
 
 enum rtw_supported_band {
-	RTW_BAND_2G = 1 << 0,
-	RTW_BAND_5G = 1 << 1,
-	RTW_BAND_60G = 1 << 2,
-
-	RTW_BAND_MAX,
+	RTW_BAND_2G = BIT(NL80211_BAND_2GHZ),
+	RTW_BAND_5G = BIT(NL80211_BAND_5GHZ),
+	RTW_BAND_60G = BIT(NL80211_BAND_60GHZ),
 };
 
 /* now, support upto 80M bw */
@@ -330,8 +331,6 @@ enum rtw_trx_desc_rate {
 	DESC_RATE_MAX,
 };
 
-#define RTW_REGION_INVALID 0xff
-
 enum rtw_regulatory_domains {
 	RTW_REGD_FCC		= 0,
 	RTW_REGD_MKK		= 1,
@@ -364,6 +363,7 @@ enum rtw_flags {
 	RTW_FLAG_BUSY_TRAFFIC,
 	RTW_FLAG_WOWLAN,
 	RTW_FLAG_RESTARTING,
+	RTW_FLAG_RESTART_TRIGGERING,
 	RTW_FLAG_USE_LOWEST_RATE,
 
 	NUM_OF_RTW_FLAGS,
@@ -548,16 +548,16 @@ struct rtw_reg_domain {
 	u8 domain;
 };
 
-struct rtw_hw_reg_offset {
-	struct rtw_hw_reg hw_reg;
-	u8 offset;
-};
-
 struct rtw_rf_sipi_addr {
 	u32 hssi_1;
 	u32 hssi_2;
 	u32 lssi_read;
 	u32 lssi_read_pi;
+};
+
+struct rtw_hw_reg_offset {
+	struct rtw_hw_reg hw_reg;
+	u8 offset;
 };
 
 struct rtw_backup_info {
@@ -637,6 +637,8 @@ struct rtw_rx_pkt_stat {
 	s8 rx_snr[RTW_RF_PATH_MAX];
 	u8 rx_evm[RTW_RF_PATH_MAX];
 	s8 cfo_tail[RTW_RF_PATH_MAX];
+	u16 freq;
+	u8 band;
 
 	struct rtw_sta_info *si;
 	struct ieee80211_vif *vif;
@@ -807,6 +809,8 @@ struct rtw_vif {
 	struct list_head rsvd_page_list;
 	struct ieee80211_tx_queue_params tx_params[IEEE80211_NUM_ACS];
 	const struct rtw_vif_port *conf;
+	struct cfg80211_scan_request *scan_req;
+	struct ieee80211_scan_ies *scan_ies;
 
 	struct rtw_traffic_stats stats;
 
@@ -815,13 +819,27 @@ struct rtw_vif {
 
 struct rtw_regulatory {
 	char alpha2[2];
-	u8 chplan;
-	u8 txpwr_regd;
-	enum nl80211_dfs_regions region;
+	u8 txpwr_regd_2g;
+	u8 txpwr_regd_5g;
+};
+
+enum rtw_regd_state {
+	RTW_REGD_STATE_WORLDWIDE,
+	RTW_REGD_STATE_PROGRAMMED,
+	RTW_REGD_STATE_SETTING,
+
+	RTW_REGD_STATE_NR,
+};
+
+struct rtw_regd {
+	enum rtw_regd_state state;
+	const struct rtw_regulatory *regulatory;
+	enum nl80211_dfs_regions dfs_region;
 };
 
 struct rtw_chip_ops {
 	int (*mac_init)(struct rtw_dev *rtwdev);
+	int (*dump_fw_crash)(struct rtw_dev *rtwdev);
 	void (*shutdown)(struct rtw_dev *rtwdev);
 	int (*read_efuse)(struct rtw_dev *rtwdev, u8 *map);
 	void (*phy_set_param)(struct rtw_dev *rtwdev);
@@ -1111,6 +1129,26 @@ enum rtw_wlan_cpu {
 	RTW_WCPU_11N,
 };
 
+enum rtw_fw_fifo_sel {
+	RTW_FW_FIFO_SEL_TX,
+	RTW_FW_FIFO_SEL_RX,
+	RTW_FW_FIFO_SEL_RSVD_PAGE,
+	RTW_FW_FIFO_SEL_REPORT,
+	RTW_FW_FIFO_SEL_LLT,
+	RTW_FW_FIFO_SEL_RXBUF_FW,
+
+	RTW_FW_FIFO_MAX,
+};
+
+enum rtw_fwcd_item {
+	RTW_FWCD_TLV,
+	RTW_FWCD_REG,
+	RTW_FWCD_ROM,
+	RTW_FWCD_IMEM,
+	RTW_FWCD_DMEM,
+	RTW_FWCD_EMEM,
+};
+
 /* hardware configuration for each IC */
 struct rtw_chip_info {
 	struct rtw_chip_ops *ops;
@@ -1127,6 +1165,7 @@ struct rtw_chip_info {
 	u32 ptct_efuse_size;
 	u32 txff_size;
 	u32 rxff_size;
+	u32 fw_rxff_size;
 	u8 band;
 	u8 page_size;
 	u8 csi_buf_pg_num;
@@ -1135,7 +1174,11 @@ struct rtw_chip_info {
 	u8 txgi_factor;
 	bool is_pwr_by_rate_dec;
 	bool rx_ldpc;
+	bool tx_stbc;
 	u8 max_power_index;
+
+	u16 fw_fifo_addr[RTW_FW_FIFO_MAX];
+	const struct rtw_fwcd_segs *fwcd_segs;
 
 	u8 default_1ss_tx_path;
 
@@ -1506,20 +1549,6 @@ struct rtw_iqk_info {
 	} result;
 };
 
-#define EDCCA_TH_L2H_IDX 0
-#define EDCCA_TH_H2L_IDX 1
-#define EDCCA_TH_L2H_LB 48
-#define EDCCA_ADC_BACKOFF 12
-#define EDCCA_IGI_BASE 50
-#define EDCCA_IGI_L2H_DIFF 8
-#define EDCCA_L2H_H2L_DIFF 7
-#define EDCCA_L2H_H2L_DIFF_NORMAL 8
-
-enum rtw_edcca_mode {
-	RTW_EDCCA_NORMAL	= 0,
-	RTW_EDCCA_ADAPTIVITY	= 1,
-};
-
 enum rtw_rf_band {
 	RF_BAND_2G_CCK,
 	RF_BAND_2G_OFDM,
@@ -1540,6 +1569,20 @@ struct rtw_gapk_info {
 	s8 fianl_offset[RF_GAIN_NUM][RTW_RF_PATH_MAX];
 	u8 read_txgain;
 	u8 channel;
+};
+
+#define EDCCA_TH_L2H_IDX 0
+#define EDCCA_TH_H2L_IDX 1
+#define EDCCA_TH_L2H_LB 48
+#define EDCCA_ADC_BACKOFF 12
+#define EDCCA_IGI_BASE 50
+#define EDCCA_IGI_L2H_DIFF 8
+#define EDCCA_L2H_H2L_DIFF 7
+#define EDCCA_L2H_H2L_DIFF_NORMAL 8
+
+enum rtw_edcca_mode {
+	RTW_EDCCA_NORMAL	= 0,
+	RTW_EDCCA_ADAPTIVITY	= 1,
 };
 
 struct rtw_cfo_track {
@@ -1628,12 +1671,12 @@ struct rtw_dm_info {
 	struct ewma_snr ewma_snr[RTW_SNR_NUM];
 
 	struct rtw_iqk_info iqk;
-	s8 l2h_th_ini;
-	enum rtw_edcca_mode edcca_mode;
 	u32 dm_flags; /* enum rtw_dm_cap */
 	struct rtw_gapk_info gapk;
 	bool is_bt_iqk_timeout;
 
+	s8 l2h_th_ini;
+	enum rtw_edcca_mode edcca_mode;
 	u8 scan_density;
 };
 
@@ -1646,7 +1689,6 @@ struct rtw_efuse {
 	u8 addr[ETH_ALEN];
 	u8 channel_plan;
 	u8 country_code[2];
-	bool country_worldwide;
 	u8 rf_board_option;
 	u8 rfe_option;
 	u8 power_track_type;
@@ -1737,10 +1779,25 @@ struct rtw_fifo_conf {
 	const struct rtw_rqpn *rqpn;
 };
 
+struct rtw_fwcd_desc {
+	u32 size;
+	u8 *next;
+	u8 *data;
+};
+
+struct rtw_fwcd_segs {
+	const u32 *segs;
+	u8 num;
+};
+
+#define FW_CD_TYPE 0xffff
+#define FW_CD_LEN 4
+#define FW_CD_VAL 0xaabbccdd
 struct rtw_fw_state {
 	const struct firmware *firmware;
 	struct rtw_dev *rtwdev;
 	struct completion completion;
+	struct rtw_fwcd_desc fwcd_desc;
 	u16 version;
 	u8 sub_version;
 	u8 sub_index;
@@ -1763,6 +1820,7 @@ struct rtw_hal {
 
 	u8 ps_mode;
 	u8 current_channel;
+	u8 current_primary_channel_index;
 	u8 current_band_width;
 	u8 current_band_type;
 
@@ -1813,12 +1871,37 @@ struct rtw_path_div {
 	u16 path_b_cnt;
 };
 
+struct rtw_chan_info {
+	int pri_ch_idx;
+	int action_id;
+	int bw;
+	u8 extra_info;
+	u8 channel;
+	u16 timeout;
+};
+
+struct rtw_chan_list {
+	u32 buf_size;
+	u32 ch_num;
+	u32 size;
+	u16 addr;
+};
+
+struct rtw_hw_scan_info {
+	struct ieee80211_vif *scanning_vif;
+	u8 probe_pg_size;
+	u8 op_pri_ch_idx;
+	u8 op_chan;
+	u8 op_bw;
+};
+
 struct rtw_dev {
 	struct ieee80211_hw *hw;
 	struct device *dev;
 
 	struct rtw_hci hci;
 
+	struct rtw_hw_scan_info scan_info;
 	struct rtw_chip_info *chip;
 	struct rtw_hal hal;
 	struct rtw_fifo_conf fifo;
@@ -1826,7 +1909,7 @@ struct rtw_dev {
 	struct rtw_efuse efuse;
 	struct rtw_sec_desc sec;
 	struct rtw_traffic_stats stats;
-	struct rtw_regulatory regd;
+	struct rtw_regd regd;
 	struct rtw_bf_info bf_info;
 
 	struct rtw_dm_info dm_info;
@@ -1847,6 +1930,7 @@ struct rtw_dev {
 	/* c2h cmd queue & handler work */
 	struct sk_buff_head c2h_queue;
 	struct work_struct c2h_work;
+	struct work_struct ips_work;
 	struct work_struct fw_recovery_work;
 
 	/* used to protect txqs list */
@@ -1954,11 +2038,25 @@ static inline bool rtw_chip_has_rx_ldpc(struct rtw_dev *rtwdev)
 	return rtwdev->chip->rx_ldpc;
 }
 
+static inline bool rtw_chip_has_tx_stbc(struct rtw_dev *rtwdev)
+{
+	return rtwdev->chip->tx_stbc;
+}
+
 static inline void rtw_release_macid(struct rtw_dev *rtwdev, u8 mac_id)
 {
 	clear_bit(mac_id, rtwdev->mac_id_map);
 }
 
+static inline int rtw_chip_dump_fw_crash(struct rtw_dev *rtwdev)
+{
+	if (rtwdev->chip->ops->dump_fw_crash)
+		return rtwdev->chip->ops->dump_fw_crash(rtwdev);
+
+	return 0;
+}
+
+void rtw_set_rx_freq_band(struct rtw_rx_pkt_stat *pkt_stat, u8 channel);
 void rtw_get_channel_params(struct cfg80211_chan_def *chandef,
 			    struct rtw_channel_params *ch_param);
 bool check_hw_ready(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 target);
@@ -1972,6 +2070,10 @@ void rtw_vif_port_config(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
 			 u32 config);
 void rtw_tx_report_purge_timer(struct timer_list *t);
 void rtw_update_sta_info(struct rtw_dev *rtwdev, struct rtw_sta_info *si);
+void rtw_core_scan_start(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
+			 const u8 *mac_addr, bool hw_scan);
+void rtw_core_scan_complete(struct rtw_dev *rtwdev, struct ieee80211_vif *vif,
+			    bool hw_scan);
 int rtw_core_start(struct rtw_dev *rtwdev);
 void rtw_core_stop(struct rtw_dev *rtwdev);
 int rtw_chip_info_setup(struct rtw_dev *rtwdev);
@@ -1988,5 +2090,8 @@ void rtw_sta_remove(struct rtw_dev *rtwdev, struct ieee80211_sta *sta,
 		    bool fw_exist);
 void rtw_fw_recovery(struct rtw_dev *rtwdev);
 void rtw_core_fw_scan_notify(struct rtw_dev *rtwdev, bool start);
+int rtw_dump_fw(struct rtw_dev *rtwdev, const u32 ocp_src, u32 size,
+		u32 fwcd_item);
+int rtw_dump_reg(struct rtw_dev *rtwdev, const u32 addr, const u32 size);
 
 #endif

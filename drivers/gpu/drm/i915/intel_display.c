@@ -13032,41 +13032,6 @@ intel_cleanup_plane_fb(struct drm_plane *plane,
 	}
 }
 
-int
-skl_max_scale(const struct intel_crtc_state *crtc_state,
-	      u32 pixel_format)
-{
-	struct intel_crtc *crtc = to_intel_crtc(crtc_state->base.crtc);
-	struct drm_i915_private *dev_priv = to_i915(crtc->base.dev);
-	int max_scale, mult;
-	int crtc_clock, max_dotclk, tmpclk1, tmpclk2;
-
-	if (!crtc_state->base.enable)
-		return DRM_PLANE_HELPER_NO_SCALING;
-
-	crtc_clock = crtc_state->base.adjusted_mode.crtc_clock;
-	max_dotclk = to_intel_atomic_state(crtc_state->base.state)->cdclk.logical.cdclk;
-
-	if (IS_GEMINILAKE(dev_priv) || INTEL_GEN(dev_priv) >= 10)
-		max_dotclk *= 2;
-
-	if (WARN_ON_ONCE(!crtc_clock || max_dotclk < crtc_clock))
-		return DRM_PLANE_HELPER_NO_SCALING;
-
-	/*
-	 * skl max scale is lower of:
-	 *    close to 3 but not 3, -1 is for that purpose
-	 *            or
-	 *    cdclk/crtc_clock
-	 */
-	mult = pixel_format == DRM_FORMAT_NV12 ? 2 : 3;
-	tmpclk1 = (1 << 16) * mult - 1;
-	tmpclk2 = (1 << 8) * ((max_dotclk << 8) / crtc_clock);
-	max_scale = min(tmpclk1, tmpclk2);
-
-	return max_scale;
-}
-
 static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 				    struct drm_crtc_state *old_crtc_state)
 {

@@ -862,7 +862,7 @@ static int smsc95xx_get_link_ksettings(struct net_device *net,
 	struct smsc95xx_priv *pdata = (struct smsc95xx_priv *)(dev->data[0]);
 	int retval;
 
-	retval = usbnet_get_link_ksettings(net, cmd);
+	retval = usbnet_get_link_ksettings_mii(net, cmd);
 
 	cmd->base.eth_tp_mdix = pdata->mdix_ctrl;
 	cmd->base.eth_tp_mdix_ctrl = pdata->mdix_ctrl;
@@ -880,7 +880,7 @@ static int smsc95xx_set_link_ksettings(struct net_device *net,
 	if (pdata->mdix_ctrl != cmd->base.eth_tp_mdix_ctrl)
 		set_mdix_status(net, cmd->base.eth_tp_mdix_ctrl);
 
-	retval = usbnet_set_link_ksettings(net, cmd);
+	retval = usbnet_set_link_ksettings_mii(net, cmd);
 
 	return retval;
 }
