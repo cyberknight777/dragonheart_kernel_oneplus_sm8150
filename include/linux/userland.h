@@ -7,4 +7,5 @@
 #ifndef MODULE_PARAMS
 #define MODULE_PARAMS
 extern unsigned int is_a12;
+extern unsigned int fod_new;
 #endif

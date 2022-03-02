@@ -20,6 +20,7 @@
 
 #include <linux/debugfs.h>
 #include <linux/dma-buf.h>
+#include <linux/userland.h>
 #include <uapi/drm/sde_drm.h>
 #include <uapi/drm/msm_drm_pp.h>
 
@@ -4393,7 +4394,7 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 	const struct sde_format_extended *format_list;
 	struct sde_kms_info *info;
 	struct sde_plane *psde = to_sde_plane(plane);
-	int zpos_max = INT_MAX;
+	int zpos_max = fod_new ? INT_MAX : 255;
 	int zpos_def = 0;
 	char feature_name[256];
 
@@ -4410,6 +4411,25 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 	}
 
 	psde->catalog = catalog;
+
+	if (!fod_new) {
+	  if (sde_is_custom_client()) {
+	    if (catalog->mixer_count &&
+		catalog->mixer[0].sblk->maxblendstages) {
+	      zpos_max = catalog->mixer[0].sblk->maxblendstages - 1;
+
+	      if (catalog->has_base_layer &&
+		  (zpos_max > SDE_STAGE_MAX - 1))
+		zpos_max = SDE_STAGE_MAX - 1;
+	      else if (zpos_max > SDE_STAGE_MAX - SDE_STAGE_0 - 1)
+		zpos_max = SDE_STAGE_MAX - SDE_STAGE_0 - 1;
+	    }
+	  } else if (plane->type != DRM_PLANE_TYPE_PRIMARY) {
+	    /* reserve zpos == 0 for primary planes */
+	    zpos_def = drm_plane_index(plane) + 1;
+	  }
+	}
+
 
 	msm_property_install_range(&psde->property_info, "zpos",
 		0x0, 0, zpos_max, zpos_def, PLANE_PROP_ZPOS);
@@ -4855,6 +4875,7 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 	struct sde_plane_state *pstate;
 	struct drm_property *fod_property;
 	int fod_val = 0;
+
 	int idx, ret = -EINVAL;
 
 	SDE_DEBUG_PLANE(psde, "\n");
@@ -4865,25 +4886,31 @@ static int sde_plane_atomic_set_property(struct drm_plane *plane,
 		SDE_ERROR_PLANE(psde, "invalid state\n");
 	} else {
 		pstate = to_sde_plane_state(state);
-		idx = msm_property_index(&psde->property_info,
-				property);
-		if (idx == PLANE_PROP_ZPOS) {
-			if (val & FOD_PRESSED_LAYER_ZORDER) {
-				val &= ~FOD_PRESSED_LAYER_ZORDER;
-				fod_val = 2; // pressed
-			}
+		if (fod_new) {
+		  idx = msm_property_index(&psde->property_info,
+					   property);
+		  if (idx == PLANE_PROP_ZPOS) {
+		    if (val & FOD_PRESSED_LAYER_ZORDER) {
+		      val &= ~FOD_PRESSED_LAYER_ZORDER;
+		      fod_val = 2; // pressed
+		    }
 
-			fod_property = psde->property_info.
-					property_array[PLANE_PROP_CUSTOM];
-			ret = msm_property_atomic_set(&psde->property_info,
-					&pstate->property_state,
-					fod_property, fod_val);
-			if (ret)
-				SDE_ERROR("failed to set fod prop");
+		    fod_property = psde->property_info.
+		      property_array[PLANE_PROP_CUSTOM];
+		    ret = msm_property_atomic_set(&psde->property_info,
+						  &pstate->property_state,
+						  fod_property, fod_val);
+		    if (ret)
+		      SDE_ERROR("failed to set fod prop");
+		  }
 		}
 		ret = msm_property_atomic_set(&psde->property_info,
 				&pstate->property_state, property, val);
 		if (!ret) {
+		  if (!fod_new) {
+		    idx = msm_property_index(&psde->property_info,
+					     property);
+		  }
 			switch (idx) {
 			case PLANE_PROP_INPUT_FENCE:
 				_sde_plane_set_input_fence(psde, pstate, val);
