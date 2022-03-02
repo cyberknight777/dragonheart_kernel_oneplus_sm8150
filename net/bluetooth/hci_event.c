@@ -3167,6 +3167,15 @@ static void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *skb,
 		break;
 
 	case HCI_OP_LE_DEL_FROM_ACCEPT_LIST:
+		/* CHROMIUM-only dirty fix for b/219952140. Pretend the error
+		 * doesn't happen so we can continue to the next commands.
+		 * TODO b/219952140: replace with proper fix
+		 */
+		if (*status) {
+			bt_dev_warn(hdev, "Ignoring accept list removal err");
+			*status = 0;
+		}
+
 		hci_cc_le_del_from_accept_list(hdev, skb);
 		break;
 
