@@ -7,6 +7,7 @@ steps:
   - name: Kernel Pipeline
     image: panchajanya1999/archlinux:latest
     commands: 
+      - wget http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo6_6.2+20201114-2build1_amd64.deb -O libtinfo6.deb && dpkg-deb -R libtinfo6.deb libtinfo && cp libtinfo/lib/x86_64-linux-gnu/libtinfo.so.6.2 /usr/lib/libtinfo.so.6
       - "export token=$TOKEN"
       - "ci=1 bash kramel.sh img mkzip"
     environment: 
