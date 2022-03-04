@@ -36,9 +36,9 @@ if [[ "${COMPILER}" = gcc ]]; then
 		CROSS_COMPILE=aarch64-elf-
 		CROSS_COMPILE_ARM32=arm-eabi-
 		LD=aarch64-elf-"${LINKER}"
-		AR=aarch64-elf-ar
-		OBJDUMP=aarch64-elf-objdump
-		STRIP=aarch64-elf-strip
+		AR=llvm-ar
+		OBJDUMP=llvm-objdump
+		STRIP=llvm-strip
 		CC=aarch64-elf-gcc
 	)
 elif [[ "${COMPILER}" = clang ]]; then
