@@ -31,9 +31,19 @@
 #include "wcd-mbhc-v2.h"
 #include "pdata.h"
 
+#include <asoc/wcd934x_registers.h>
+
+#if 1
+#define WCD_MBHC_ADC_HS_THRESHOLD_MV    2550
+#else
 #define WCD_MBHC_ADC_HS_THRESHOLD_MV    1700
+#endif
 #define WCD_MBHC_ADC_HPH_THRESHOLD_MV   75
+#if 1
+#define WCD_MBHC_ADC_MICBIAS_MV         2700
+#else
 #define WCD_MBHC_ADC_MICBIAS_MV         1800
+#endif
 #define WCD_MBHC_FAKE_INS_RETRY         4
 
 static int wcd_mbhc_get_micbias(struct wcd_mbhc *mbhc)
@@ -654,6 +664,17 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	output_mv = wcd_measure_adc_continuous(mbhc);
 	plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
 
+	if ((plug_type == MBHC_PLUG_TYPE_HEADPHONE) &&
+		(!wcd_swch_level_remove(mbhc))) {
+		if (mbhc->mbhc_cfg->swap_gnd_mic &&
+				mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+			pr_info("%s: switch again, it's headset\n", __func__);
+		}
+		msleep(10);
+		output_mv = wcd_measure_adc_continuous(mbhc);
+		plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+	}
+
 	/*
 	 * Report plug type if it is either headset or headphone
 	 * else start the 3 sec loop
@@ -890,6 +911,9 @@ enable_supply:
 	if (mbhc->mbhc_cb->mbhc_micbias_control)
 		wcd_mbhc_adc_update_fsm_source(mbhc, plug_type);
 exit:
+	if (plug_type == MBHC_PLUG_TYPE_HEADSET)
+		mbhc->micbias_enable = true;
+
 	if (mbhc->mbhc_cb->mbhc_micbias_control &&
 	    !mbhc->micbias_enable)
 		mbhc->mbhc_cb->mbhc_micbias_control(codec, MIC_BIAS_2,
@@ -948,6 +972,8 @@ exit:
 static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 {
 	struct wcd_mbhc *mbhc = data;
+	struct snd_soc_codec *codec = mbhc->codec;
+	struct snd_soc_component component = codec->component;
 	unsigned long timeout;
 	int adc_threshold, output_mv, retry = 0;
 	bool hphpa_on = false;
@@ -955,6 +981,17 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
+
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x0) < 0)
+		pr_err("%s: reg update fail!\n", __func__);
+	else
+		pr_debug("%s: reg update success!\n", __func__);
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x12) < 0)
+		pr_err("%s: reg update fail!\n", __func__);
+	else
+		pr_debug("%s: reg update success!\n", __func__);
+
+	goto exit;
 
 	timeout = jiffies +
 		  msecs_to_jiffies(WCD_FAKE_REMOVAL_MIN_PERIOD_MS);
@@ -1047,10 +1084,22 @@ exit:
 static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 {
 	struct wcd_mbhc *mbhc = data;
+	struct snd_soc_codec *codec = mbhc->codec;
+	struct snd_soc_component component = codec->component;
 	u8 clamp_state = 0;
 	u8 clamp_retry = WCD_MBHC_FAKE_INS_RETRY;
 
 	pr_debug("%s: enter\n", __func__);
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x0) < 0)
+		pr_err("%s: reg update fail!\n", __func__);
+	else
+		pr_debug("%s: reg update success!\n", __func__);
+
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x12) < 0)
+		pr_err("%s: reg update fail!\n", __func__);
+	else
+		pr_debug("%s: reg update success!\n", __func__);
+	goto done;
 
 	/*
 	 * ADC COMPLETE and ELEC_REM interrupts are both enabled for HEADPHONE,
@@ -1077,6 +1126,13 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	} while (--clamp_retry);
 
 	WCD_MBHC_RSC_LOCK(mbhc);
+
+	if (mbhc->use_usbc_detect && wcd_swch_level_remove(mbhc)) {
+		pr_warn("%s: Switch level is low ", __func__);
+		WCD_MBHC_RSC_UNLOCK(mbhc);
+		return IRQ_HANDLED;
+	}
+
 	/*
 	 * If current plug is headphone then there is no chance to
 	 * get ADC complete interrupt, so connected cable should be
@@ -1106,6 +1162,7 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	mbhc->btn_press_intr = false;
 	wcd_mbhc_adc_detect_plug_type(mbhc);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+done:
 	pr_debug("%s: leave\n", __func__);
 	return IRQ_HANDLED;
 }
