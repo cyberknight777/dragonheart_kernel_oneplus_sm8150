@@ -5621,6 +5621,72 @@ unlock:
 	hci_dev_unlock(hdev);
 }
 
+void hci_handle_userchannel_packet(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	struct hci_event_hdr *hdr = (void *)skb->data;
+	struct hci_ev_conn_complete *cc_ev;
+	struct hci_ev_sync_conn_complete *scc_ev;
+	struct hci_ev_disconn_complete *dcc_ev;
+
+	struct hci_conn *conn;
+	u8 event = hdr->evt;
+	int conn_type;
+
+	skb_pull(skb, HCI_EVENT_HDR_SIZE);
+
+	switch (event) {
+	case HCI_EV_CONN_COMPLETE:
+		cc_ev = (void *)skb->data;
+		if (!cc_ev->status) {
+			conn_type = (cc_ev->link_type == ACL_LINK) ? ACL_LINK :
+								     SCO_LINK;
+
+			conn = hci_conn_hash_lookup_ba(hdev, conn_type,
+						       &cc_ev->bdaddr);
+			if (!conn) {
+				conn = hci_conn_add(hdev, conn_type,
+						    &cc_ev->bdaddr, 0);
+			}
+
+			if (conn) {
+				conn->handle = __le16_to_cpu(cc_ev->handle);
+				conn->type = conn_type;
+				bt_dev_dbg(hdev, "%d handle(%d) type (%d)",
+					   event, conn->handle, conn->type);
+
+				if (conn->type == SCO_LINK && hdev->notify)
+					hdev->notify(hdev, HCI_NOTIFY_ENABLE_SCO_CVSD);
+			}
+		}
+		break;
+	case HCI_EV_SYNC_CONN_COMPLETE:
+		scc_ev = (void *)skb->data;
+		if (!scc_ev->status) {
+			conn = hci_conn_hash_lookup_ba(hdev, SCO_LINK,
+						       &scc_ev->bdaddr);
+			if (!conn) {
+				conn = hci_conn_add(hdev, SCO_LINK,
+						    &scc_ev->bdaddr, 0);
+			}
+
+			if (conn && hdev->notify)
+				hdev->notify(hdev, HCI_NOTIFY_ENABLE_SCO_CVSD);
+		}
+		break;
+	case HCI_EV_DISCONN_COMPLETE:
+		dcc_ev = (void *)skb->data;
+		conn = hci_conn_hash_lookup_handle(hdev,
+						   __le16_to_cpu(dcc_ev->handle));
+		if (conn)
+			hci_conn_del(conn);
+		break;
+	default:
+		break;
+	}
+
+	kfree_skb(skb);
+}
+
 void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct hci_event_hdr *hdr = (void *) skb->data;

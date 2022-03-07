@@ -4866,7 +4866,15 @@ static void hci_rx_work(struct work_struct *work)
 		 */
 		if (hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
 		    !test_bit(HCI_INIT, &hdev->flags)) {
-			kfree_skb(skb);
+			/* If the device has been opened in HCI_USER_CHANNEL,
+			 * we still want to process event packets for connection
+			 * management. We need to keep track of how many
+			 * connections are up and notify the driver.
+			 */
+			if (hci_skb_pkt_type(skb) == HCI_EVENT_PKT)
+				hci_handle_userchannel_packet(hdev, skb);
+			else
+				kfree_skb(skb);
 			continue;
 		}
 
