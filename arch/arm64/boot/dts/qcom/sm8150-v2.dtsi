@@ -1334,15 +1334,15 @@
 			qcom,silver-khz = <1708800>;
 			qcom,gold-khz = <2419200>;
 			qcom,prime-khz = <2841600>;
-			qcom,trip-deg = <55000>;
+			qcom,trip-deg = <62000>;
 		};
 
 		zone@1 {
 			reg = <1>;
 			qcom,silver-khz = <1708800>;
 			qcom,gold-khz = <2323200>;
-			qcom,prime-khz = <2841600>;
-			qcom,trip-deg = <60000>;
+			qcom,prime-khz = <2534400>;
+			qcom,trip-deg = <66000>;
 		};
 
 		zone@2 {
@@ -1350,31 +1350,31 @@
 			qcom,silver-khz = <1708800>;
 			qcom,gold-khz = <2016000>;
 			qcom,prime-khz = <2534400>;
-			qcom,trip-deg = <65000>;
+			qcom,trip-deg = <69000>;
 		};
 
 		zone@3 {
 			reg = <3>;
 			qcom,silver-khz = <1708800>;
-			qcom,gold-khz = <1804800>;
+			qcom,gold-khz = <2016000>;
 			qcom,prime-khz = <2534400>;
-			qcom,trip-deg = <67000>;
+			qcom,trip-deg = <71000>;
 		};
 
 		zone@4 {
 			reg = <4>;
 			qcom,silver-khz = <1708800>;
-			qcom,gold-khz = <1708800>;
+			qcom,gold-khz = <1804800>;
 			qcom,prime-khz = <2227200>;
-			qcom,trip-deg = <69000>;
+			qcom,trip-deg = <73000>;
 		};
 
 		zone@5 {
 			reg = <5>;
 			qcom,silver-khz = <1708800>;
-			qcom,gold-khz = <1401600>;
+			qcom,gold-khz = <1804800>;
 			qcom,prime-khz = <1804800>;
-			qcom,trip-deg = <72000>;
+			qcom,trip-deg = <74000>;
 		};
 
 		zone@6 {
@@ -1382,7 +1382,7 @@
 			qcom,silver-khz = <1708800>;
 			qcom,gold-khz = <1401600>;
 			qcom,prime-khz = <1804800>;
-			qcom,trip-deg = <74000>;
+			qcom,trip-deg = <75000>;
 		};
 
 		zone@7 {
@@ -1404,7 +1404,7 @@
 		zone@9 {
 			reg = <9>;
 			qcom,silver-khz = <1708800>;
-			qcom,gold-khz = <1171200>;
+			qcom,gold-khz = <1401600>;
 			qcom,prime-khz = <1497600>;
 			qcom,trip-deg = <80000>;
 		};
@@ -1412,7 +1412,7 @@
 		zone@10 {
 			reg = <10>;
 			qcom,silver-khz = <1708800>;
-			qcom,gold-khz = <1171200>;
+			qcom,gold-khz = <1401600>;
 			qcom,prime-khz = <1497600>;
 			qcom,trip-deg = <82000>;
 		};
@@ -1420,7 +1420,7 @@
 		zone@11 {
 			reg = <11>;
 			qcom,silver-khz = <1708800>;
-			qcom,gold-khz = <1171200>;
+			qcom,gold-khz = <1401600>;
 			qcom,prime-khz = <1497600>;
 			qcom,trip-deg = <85000>;
 		};
