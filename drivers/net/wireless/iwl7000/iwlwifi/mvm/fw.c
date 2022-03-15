@@ -12,8 +12,6 @@
 #include "iwl-op-mode.h"
 #include "fw/img.h"
 #include "iwl-debug.h"
-#include "iwl-csr.h" /* for iwl_mvm_rx_card_state_notif */
-#include "iwl-io.h" /* for iwl_mvm_rx_card_state_notif */
 #include "iwl-prph.h"
 #include "fw/acpi.h"
 #include "fw/pnvm.h"
@@ -30,11 +28,6 @@
 
 #define MVM_UCODE_ALIVE_TIMEOUT	(HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
 #define MVM_UCODE_CALIB_TIMEOUT	(2 * HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
-
-#define UCODE_VALID_OK	cpu_to_le32(0x1)
-
-#define IWL_PPAG_MASK 3
-#define IWL_PPAG_ETSI_MASK BIT(0)
 
 #define IWL_TAS_US_MCC 0x5553
 #define IWL_TAS_CANADA_MCC 0x4341
@@ -85,7 +78,7 @@ static int iwl_mvm_send_dqa_cmd(struct iwl_mvm *mvm)
 	struct iwl_dqa_enable_cmd dqa_cmd = {
 		.cmd_queue = cpu_to_le32(IWL_MVM_DQA_CMD_QUEUE),
 	};
-	u32 cmd_id = iwl_cmd_id(DQA_ENABLE_CMD, DATA_PATH_GROUP, 0);
+	u32 cmd_id = WIDE_ID(DATA_PATH_GROUP, DQA_ENABLE_CMD);
 	int ret;
 
 	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, sizeof(dqa_cmd), &dqa_cmd);
@@ -133,12 +126,30 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 	u32 version = iwl_fw_lookup_notif_ver(mvm->fw, LEGACY_GROUP,
 					      UCODE_ALIVE_NTFY, 0);
 
-	/*
-	 * For v5 and above, we can check the version, for older
-	 * versions we need to check the size.
-	 */
-	if (version == 5 || version == 6) {
-		/* v5 and v6 are compatible (only IMR addition) */
+	if (version == 6) {
+		struct iwl_alive_ntf_v6 *palive;
+
+		if (pkt_len < sizeof(*palive))
+			return false;
+
+		palive = (void *)pkt->data;
+		mvm->trans->dbg.imr_data.imr_enable =
+			le32_to_cpu(palive->imr.enabled);
+		mvm->trans->dbg.imr_data.imr_size =
+			le32_to_cpu(palive->imr.size);
+		mvm->trans->dbg.imr_data.imr2sram_remainbyte =
+			mvm->trans->dbg.imr_data.imr_size;
+		mvm->trans->dbg.imr_data.imr_base_addr =
+			palive->imr.base_addr;
+		mvm->trans->dbg.imr_data.imr_curr_addr =
+			le64_to_cpu(mvm->trans->dbg.imr_data.imr_base_addr);
+		IWL_DEBUG_FW(mvm, "IMR Enabled: 0x0%x  size 0x0%x Address 0x%016llx\n",
+			     mvm->trans->dbg.imr_data.imr_enable,
+			     mvm->trans->dbg.imr_data.imr_size,
+			     le64_to_cpu(mvm->trans->dbg.imr_data.imr_base_addr));
+	}
+
+	if (version >= 5) {
 		struct iwl_alive_ntf_v5 *palive;
 
 		if (pkt_len < sizeof(*palive))
@@ -557,8 +568,7 @@ static int iwl_mvm_sgom_init(struct iwl_mvm *mvm)
 		return 0;
 	}
 
-	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, REGULATORY_AND_NVM_GROUP,
-					SAR_OFFSET_MAPPING_TABLE_CMD,
+	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd.id,
 					IWL_FW_CMD_VER_UNKNOWN);
 
 	if (cmd_ver != 2) {
@@ -583,6 +593,7 @@ static int iwl_mvm_sgom_init(struct iwl_mvm *mvm)
 
 static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 {
+	u32 cmd_id = PHY_CONFIGURATION_CMD;
 	struct iwl_phy_cfg_cmd_v3 phy_cfg_cmd;
 	enum iwl_ucode_type ucode_type = mvm->fwrt.cur_fw_img;
 	struct iwl_phy_specific_cfg phy_filters = {};
@@ -643,8 +654,7 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 	phy_cfg_cmd.calib_control.flow_trigger =
 		mvm->fw->default_calib[ucode_type].flow_trigger;
 
-	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, IWL_ALWAYS_LONG_GROUP,
-					PHY_CONFIGURATION_CMD,
+	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd_id,
 					IWL_FW_CMD_VER_UNKNOWN);
 	if (cmd_ver == 3) {
 		iwl_mvm_phy_filter_init(mvm, &phy_filters);
@@ -722,8 +732,7 @@ static int iwl_send_phy_cfg_cmd(struct iwl_mvm *mvm)
 		       phy_cfg_cmd.phy_cfg);
 	cmd_size = (cmd_ver == 3) ? sizeof(struct iwl_phy_cfg_cmd_v3) :
 				    sizeof(struct iwl_phy_cfg_cmd_v1);
-	return iwl_mvm_send_cmd_pdu(mvm, PHY_CONFIGURATION_CMD, 0,
-				    cmd_size, &phy_cfg_cmd);
+	return iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, cmd_size, &phy_cfg_cmd);
 }
 
 int iwl_run_init_mvm_ucode(struct iwl_mvm *mvm)
@@ -846,7 +855,7 @@ out:
 		mvm->nvm_data->bands[0].n_channels = 1;
 		mvm->nvm_data->bands[0].n_bitrates = 1;
 		mvm->nvm_data->bands[0].bitrates =
-			(void *)mvm->nvm_data->channels + 1;
+			(void *)((u8 *)mvm->nvm_data->channels + 1);
 		mvm->nvm_data->bands[0].bitrates->hw_value = 10;
 	}
 
@@ -870,6 +879,7 @@ static int iwl_mvm_config_ltr(struct iwl_mvm *mvm)
 
 int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 {
+	u32 cmd_id = REDUCE_TX_POWER_CMD;
 	struct iwl_dev_tx_power_cmd cmd = {
 		.common.set_mode = cpu_to_le32(IWL_TX_POWER_MODE_SET_CHAINS),
 	};
@@ -877,8 +887,7 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 	int ret;
 	u16 len = 0;
 	u32 n_subbands;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
-					   REDUCE_TX_POWER_CMD,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd_id,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	if (cmd_ver == 6) {
@@ -915,7 +924,7 @@ int iwl_mvm_sar_select_profile(struct iwl_mvm *mvm, int prof_a, int prof_b)
 	iwl_mei_set_power_limit(per_chain);
 
 	IWL_DEBUG_RADIO(mvm, "Sending REDUCE_TX_POWER_CMD per chain\n");
-	return iwl_mvm_send_cmd_pdu(mvm, REDUCE_TX_POWER_CMD, 0, len, &cmd);
+	return iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, len, &cmd);
 }
 
 int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
@@ -924,9 +933,12 @@ int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
 	struct iwl_geo_tx_power_profiles_resp *resp;
 	u16 len;
 	int ret;
-	struct iwl_host_cmd cmd;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, PHY_OPS_GROUP,
-					   PER_CHAIN_LIMIT_OFFSET_CMD,
+	struct iwl_host_cmd cmd = {
+		.id = WIDE_ID(PHY_OPS_GROUP, PER_CHAIN_LIMIT_OFFSET_CMD),
+		.flags = CMD_WANT_SKB,
+		.data = { &geo_tx_cmd },
+	};
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd.id,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	/* the ops field is at the same spot for all versions, so set in v1 */
@@ -948,12 +960,7 @@ int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
 	if (!iwl_sar_geo_support(&mvm->fwrt))
 		return -EOPNOTSUPP;
 
-	cmd = (struct iwl_host_cmd){
-		.id =  WIDE_ID(PHY_OPS_GROUP, PER_CHAIN_LIMIT_OFFSET_CMD),
-		.len = { len, },
-		.flags = CMD_WANT_SKB,
-		.data = { &geo_tx_cmd },
-	};
+	cmd.len[0] = len;
 
 	ret = iwl_mvm_send_cmd(mvm, &cmd);
 	if (ret) {
@@ -973,14 +980,14 @@ int iwl_mvm_get_sar_geo_profile(struct iwl_mvm *mvm)
 
 static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 {
+	u32 cmd_id = WIDE_ID(PHY_OPS_GROUP, PER_CHAIN_LIMIT_OFFSET_CMD);
 	union iwl_geo_tx_power_profiles_cmd cmd;
 	u16 len;
 	u32 n_bands;
 	u32 n_profiles;
 	u32 sk = 0;
 	int ret;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, PHY_OPS_GROUP,
-					   PER_CHAIN_LIMIT_OFFSET_CMD,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd_id,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	BUILD_BUG_ON(offsetof(struct iwl_geo_tx_power_profiles_cmd_v1, ops) !=
@@ -1058,205 +1065,28 @@ static int iwl_mvm_sar_geo_init(struct iwl_mvm *mvm)
 			    IWL_UCODE_TLV_API_SAR_TABLE_VER))
 		cmd.v2.table_revision = cpu_to_le32(sk);
 
-	return iwl_mvm_send_cmd_pdu(mvm,
-				    WIDE_ID(PHY_OPS_GROUP,
-					    PER_CHAIN_LIMIT_OFFSET_CMD),
-				    0, len, &cmd);
-}
-
-static int iwl_mvm_get_ppag_table(struct iwl_mvm *mvm)
-{
-	union acpi_object *wifi_pkg, *data, *flags;
-	int i, j, ret, tbl_rev, num_sub_bands;
-	int idx = 2;
-	s8 *gain;
-
-	/*
-	 * The 'flags' field is the same in v1 and in v2 so we can just
-	 * use v1 to access it.
-	 */
-	mvm->fwrt.ppag_table.v1.flags = cpu_to_le32(0);
-
-	data = iwl_acpi_get_object(mvm->dev, ACPI_PPAG_METHOD);
-	if (IS_ERR(data))
-		return PTR_ERR(data);
-
-	/* try to read ppag table rev 2 or 1 (both have the same data size) */
-	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
-					 ACPI_PPAG_WIFI_DATA_SIZE_V2, &tbl_rev);
-	if (!IS_ERR(wifi_pkg)) {
-		if (tbl_rev == 1 || tbl_rev == 2) {
-			num_sub_bands = IWL_NUM_SUB_BANDS_V2;
-			gain = mvm->fwrt.ppag_table.v2.gain[0];
-			mvm->fwrt.ppag_ver = tbl_rev;
-			IWL_DEBUG_RADIO(mvm,
-					"Reading PPAG table v2 (tbl_rev=%d)\n",
-					tbl_rev);
-			goto read_table;
-		} else {
-			ret = -EINVAL;
-			goto out_free;
-		}
-	}
-
-	/* try to read ppag table revision 0 */
-	wifi_pkg = iwl_acpi_get_wifi_pkg(mvm->dev, data,
-					 ACPI_PPAG_WIFI_DATA_SIZE_V1, &tbl_rev);
-	if (!IS_ERR(wifi_pkg)) {
-		if (tbl_rev != 0) {
-			ret = -EINVAL;
-			goto out_free;
-		}
-		num_sub_bands = IWL_NUM_SUB_BANDS_V1;
-		gain = mvm->fwrt.ppag_table.v1.gain[0];
-		mvm->fwrt.ppag_ver = 0;
-		IWL_DEBUG_RADIO(mvm, "Reading PPAG table v1 (tbl_rev=0)\n");
-		goto read_table;
-	}
-	ret = PTR_ERR(wifi_pkg);
-	goto out_free;
-
-read_table:
-	flags = &wifi_pkg->package.elements[1];
-
-	if (flags->type != ACPI_TYPE_INTEGER) {
-		ret = -EINVAL;
-		goto out_free;
-	}
-
-	mvm->fwrt.ppag_table.v1.flags = cpu_to_le32(flags->integer.value &
-						    IWL_PPAG_MASK);
-
-	if (!mvm->fwrt.ppag_table.v1.flags) {
-		ret = 0;
-		goto out_free;
-	}
-
-	/*
-	 * read, verify gain values and save them into the PPAG table.
-	 * first sub-band (j=0) corresponds to Low-Band (2.4GHz), and the
-	 * following sub-bands to High-Band (5GHz).
-	 */
-	for (i = 0; i < IWL_NUM_CHAIN_LIMITS; i++) {
-		for (j = 0; j < num_sub_bands; j++) {
-			union acpi_object *ent;
-
-			ent = &wifi_pkg->package.elements[idx++];
-			if (ent->type != ACPI_TYPE_INTEGER) {
-				ret = -EINVAL;
-				goto out_free;
-			}
-
-			gain[i * num_sub_bands + j] = ent->integer.value;
-
-			if ((j == 0 &&
-			     (gain[i * num_sub_bands + j] > ACPI_PPAG_MAX_LB ||
-			      gain[i * num_sub_bands + j] < ACPI_PPAG_MIN_LB)) ||
-			    (j != 0 &&
-			     (gain[i * num_sub_bands + j] > ACPI_PPAG_MAX_HB ||
-			      gain[i * num_sub_bands + j] < ACPI_PPAG_MIN_HB))) {
-				mvm->fwrt.ppag_table.v1.flags = cpu_to_le32(0);
-				ret = -EINVAL;
-				goto out_free;
-			}
-		}
-	}
-
-	ret = 0;
-out_free:
-	kfree(data);
-	return ret;
+	return iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, len, &cmd);
 }
 
 int iwl_mvm_ppag_send_cmd(struct iwl_mvm *mvm)
 {
-	u8 cmd_ver;
-	int i, j, ret, num_sub_bands, cmd_size;
-	s8 *gain;
+	union iwl_ppag_table_cmd cmd;
+	int ret, cmd_size;
 
-	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_SET_PPAG)) {
-		IWL_DEBUG_RADIO(mvm,
-				"PPAG capability not supported by FW, command not sent.\n");
-		return 0;
-	}
-	if (!mvm->fwrt.ppag_table.v1.flags) {
-		IWL_DEBUG_RADIO(mvm, "PPAG not enabled, command not sent.\n");
-		return 0;
-	}
+	ret = iwl_read_ppag_table(&mvm->fwrt, &cmd, &cmd_size);
+	if(ret < 0)
+		return ret;
 
-	cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, PHY_OPS_GROUP,
-					PER_PLATFORM_ANT_GAIN_CMD,
-					IWL_FW_CMD_VER_UNKNOWN);
-	if (cmd_ver == 1) {
-		num_sub_bands = IWL_NUM_SUB_BANDS_V1;
-		gain = mvm->fwrt.ppag_table.v1.gain[0];
-		cmd_size = sizeof(mvm->fwrt.ppag_table.v1);
-		if (mvm->fwrt.ppag_ver == 1 || mvm->fwrt.ppag_ver == 2) {
-			IWL_DEBUG_RADIO(mvm,
-					"PPAG table rev is %d but FW supports v1, sending truncated table\n",
-					mvm->fwrt.ppag_ver);
-			mvm->fwrt.ppag_table.v1.flags &=
-				cpu_to_le32(IWL_PPAG_ETSI_MASK);
-		}
-	} else if (cmd_ver == 2 || cmd_ver == 3) {
-		num_sub_bands = IWL_NUM_SUB_BANDS_V2;
-		gain = mvm->fwrt.ppag_table.v2.gain[0];
-		cmd_size = sizeof(mvm->fwrt.ppag_table.v2);
-		if (mvm->fwrt.ppag_ver == 0) {
-			IWL_DEBUG_RADIO(mvm,
-					"PPAG table is v1 but FW supports v2, sending padded table\n");
-		} else if (cmd_ver == 2 && mvm->fwrt.ppag_ver == 2) {
-			IWL_DEBUG_RADIO(mvm,
-					"PPAG table is v3 but FW supports v2, sending partial bitmap.\n");
-			mvm->fwrt.ppag_table.v1.flags &=
-				cpu_to_le32(IWL_PPAG_ETSI_MASK);
-		}
-	} else {
-		IWL_DEBUG_RADIO(mvm, "Unsupported PPAG command version\n");
-		return 0;
-	}
-
-	for (i = 0; i < IWL_NUM_CHAIN_LIMITS; i++) {
-		for (j = 0; j < num_sub_bands; j++) {
-			IWL_DEBUG_RADIO(mvm,
-					"PPAG table: chain[%d] band[%d]: gain = %d\n",
-					i, j, gain[i * num_sub_bands + j]);
-		}
-	}
 	IWL_DEBUG_RADIO(mvm, "Sending PER_PLATFORM_ANT_GAIN_CMD\n");
 	ret = iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(PHY_OPS_GROUP,
 						PER_PLATFORM_ANT_GAIN_CMD),
-				   0, cmd_size, &mvm->fwrt.ppag_table);
+				   0, cmd_size, &cmd);
 	if (ret < 0)
 		IWL_ERR(mvm, "failed to send PER_PLATFORM_ANT_GAIN_CMD (%d)\n",
 			ret);
 
 	return ret;
 }
-
-static const struct dmi_system_id dmi_ppag_approved_list[] = {
-	{ .ident = "HP",
-	  .matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "HP"),
-		},
-	},
-	{ .ident = "SAMSUNG",
-	  .matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD"),
-		},
-	},
-	{ .ident = "MSFT",
-	  .matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "Microsoft Corporation"),
-		},
-	},
-	{ .ident = "ASUS",
-	  .matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTek COMPUTER INC."),
-		},
-	},
-	{}
-};
 
 static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 {
@@ -1270,13 +1100,9 @@ static int iwl_mvm_ppag_init(struct iwl_mvm *mvm)
 		return iwl_mvm_ppag_send_cmd(mvm);
 	}
 #endif
-	if (!dmi_check_system(dmi_ppag_approved_list)) {
-		IWL_DEBUG_RADIO(mvm,
-				"System vendor '%s' is not in the approved list, disabling PPAG.\n",
-				dmi_get_system_info(DMI_SYS_VENDOR));
-		mvm->fwrt.ppag_table.v1.flags = cpu_to_le32(0);
+
+	if (!(iwl_acpi_is_ppag_approved(&mvm->fwrt)))
 		return 0;
-	}
 
 	return iwl_mvm_ppag_send_cmd(mvm);
 }
@@ -1328,11 +1154,12 @@ static bool iwl_mvm_add_to_tas_block_list(__le32 *list, __le32 *le_size, unsigne
 
 static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 {
+	u32 cmd_id = WIDE_ID(REGULATORY_AND_NVM_GROUP, TAS_CONFIG);
 	int ret;
-	struct iwl_tas_config_cmd_v3 cmd = {};
-	int cmd_size;
+	union iwl_tas_config_cmd cmd = {};
+	int cmd_size, fw_ver;
 
-	BUILD_BUG_ON(ARRAY_SIZE(cmd.block_list_array) <
+	BUILD_BUG_ON(ARRAY_SIZE(cmd.v3.block_list_array) <
 		     APCI_WTAS_BLACK_LIST_MAX);
 
 	if (!fw_has_capa(&mvm->fw->ucode_capa, IWL_UCODE_TLV_CAPA_TAS_CFG)) {
@@ -1340,7 +1167,10 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 		return;
 	}
 
-	ret = iwl_acpi_get_tas(&mvm->fwrt, &cmd);
+	fw_ver = iwl_fw_lookup_cmd_ver(mvm->fw, cmd_id,
+				       IWL_FW_CMD_VER_UNKNOWN);
+
+	ret = iwl_acpi_get_tas(&mvm->fwrt, &cmd, fw_ver);
 	if (ret < 0) {
 		IWL_DEBUG_RADIO(mvm,
 				"TAS table invalid or unavailable. (%d)\n",
@@ -1363,25 +1193,24 @@ static void iwl_mvm_tas_init(struct iwl_mvm *mvm)
 		IWL_DEBUG_RADIO(mvm,
 				"System vendor '%s' is not in the approved list, disabling TAS in US and Canada.\n",
 				dmi_get_system_info(DMI_SYS_VENDOR));
-		if ((!iwl_mvm_add_to_tas_block_list(cmd.block_list_array,
-						    &cmd.block_list_size, IWL_TAS_US_MCC)) ||
-		    (!iwl_mvm_add_to_tas_block_list(cmd.block_list_array,
-						    &cmd.block_list_size, IWL_TAS_CANADA_MCC))) {
+		if ((!iwl_mvm_add_to_tas_block_list(cmd.v4.block_list_array,
+						    &cmd.v4.block_list_size,
+							IWL_TAS_US_MCC)) ||
+		    (!iwl_mvm_add_to_tas_block_list(cmd.v4.block_list_array,
+						    &cmd.v4.block_list_size,
+							IWL_TAS_CANADA_MCC))) {
 			IWL_DEBUG_RADIO(mvm,
 					"Unable to add US/Canada to TAS block list, disabling TAS\n");
 			return;
 		}
 	}
 
-	cmd_size = iwl_fw_lookup_cmd_ver(mvm->fw, REGULATORY_AND_NVM_GROUP,
-					 TAS_CONFIG,
-					 IWL_FW_CMD_VER_UNKNOWN) < 3 ?
+	/* v4 is the same size as v3, so no need to differentiate here */
+	cmd_size = fw_ver < 3 ?
 		sizeof(struct iwl_tas_config_cmd_v2) :
 		sizeof(struct iwl_tas_config_cmd_v3);
 
-	ret = iwl_mvm_send_cmd_pdu(mvm, WIDE_ID(REGULATORY_AND_NVM_GROUP,
-						TAS_CONFIG),
-				   0, cmd_size, &cmd);
+	ret = iwl_mvm_send_cmd_pdu(mvm, cmd_id, 0, cmd_size, &cmd);
 	if (ret < 0)
 		IWL_DEBUG_RADIO(mvm, "failed to send TAS_CONFIG (%d)\n", ret);
 }
@@ -1448,8 +1277,9 @@ static void iwl_mvm_lari_cfg(struct iwl_mvm *mvm)
 	    cmd.chan_state_active_bitmap) {
 		size_t cmd_size;
 		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw,
-						   REGULATORY_AND_NVM_GROUP,
-						   LARI_CONFIG_CHANGE, 1);
+						   WIDE_ID(REGULATORY_AND_NVM_GROUP,
+							   LARI_CONFIG_CHANGE),
+						   1);
 		if (cmd_ver == 5)
 			cmd_size = sizeof(struct iwl_lari_config_change_cmd_v5);
 		else if (cmd_ver == 4)
@@ -1489,7 +1319,7 @@ void iwl_mvm_get_acpi_tables(struct iwl_mvm *mvm)
 	int ret;
 
 	/* read PPAG table */
-	ret = iwl_mvm_get_ppag_table(mvm);
+	ret = iwl_acpi_get_ppag_table(&mvm->fwrt);
 	if (ret < 0) {
 		IWL_DEBUG_RADIO(mvm,
 				"PPAG BIOS table invalid or unavailable. (%d)\n",
@@ -1808,9 +1638,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	 * internal aux station for all aux activities that don't
 	 * requires a dedicated data queue.
 	 */
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
-				  ADD_STA,
-				  0) < 12) {
+	if (iwl_fw_lookup_cmd_ver(mvm->fw, ADD_STA, 0) < 12) {
 		 /*
 		  * In old version the aux station uses mac id like other
 		  * station and not lmac id
@@ -1905,7 +1733,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	if (le32_to_cpu(mvm->txp_cmd.common.set_mode) ==
 	    IWL_TX_POWER_MODE_SET_DEVICE) {
 		int len;
-		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
+		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw,
 						   REDUCE_TX_POWER_CMD,
 						   IWL_FW_CMD_VER_UNKNOWN);
 
@@ -1941,8 +1769,8 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		ether_addr_copy(cmd.peer_addr, mvm->time_msmt_peer_addr);
 
 		err = iwl_mvm_send_cmd_pdu(mvm,
-					   iwl_cmd_id(WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD,
-						      DATA_PATH_GROUP, 0),
+					   WIDE_ID(DATA_PATH_GROUP,
+						   WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD),
 					   0, sizeof(cmd), &cmd);
 		if (err)
 			IWL_ERR(mvm, "Failed to re-configure time sync on FW restart: %d\n",
@@ -2030,9 +1858,7 @@ int iwl_mvm_load_d3_fw(struct iwl_mvm *mvm)
 	for (i = 0; i < mvm->fw->ucode_capa.num_stations; i++)
 		RCU_INIT_POINTER(mvm->fw_id_to_mac_id[i], NULL);
 
-	if (iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
-				  ADD_STA,
-				  0) < 12) {
+	if (iwl_fw_lookup_cmd_ver(mvm->fw, ADD_STA, 0) < 12) {
 		/*
 		 * Add auxiliary station for scanning.
 		 * Newer versions of this command implies that the fw uses
@@ -2050,20 +1876,6 @@ int iwl_mvm_load_d3_fw(struct iwl_mvm *mvm)
  error:
 	iwl_mvm_stop_device(mvm);
 	return ret;
-}
-
-void iwl_mvm_rx_card_state_notif(struct iwl_mvm *mvm,
-				 struct iwl_rx_cmd_buffer *rxb)
-{
-	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	struct iwl_card_state_notif *card_state_notif = (void *)pkt->data;
-	u32 flags = le32_to_cpu(card_state_notif->flags);
-
-	IWL_DEBUG_RF_KILL(mvm, "Card state received: HW:%s SW:%s CT:%s\n",
-			  (flags & HW_CARD_DISABLED) ? "Kill" : "On",
-			  (flags & SW_CARD_DISABLED) ? "Kill" : "On",
-			  (flags & CT_KILL_CARD_DISABLED) ?
-			  "Reached" : "Not reached");
 }
 
 void iwl_mvm_rx_mfuart_notif(struct iwl_mvm *mvm,
