@@ -575,7 +575,6 @@ static int exfat_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	exfat_set_volume_dirty(sb);
 	err = exfat_add_entry(dir, dentry->d_name.name, &cdir, TYPE_FILE,
 		&info);
-	exfat_clear_volume_dirty(sb);
 	if (err)
 		goto unlock;
 
@@ -833,7 +832,6 @@ static int exfat_unlink(struct inode *dir, struct dentry *dentry)
 
 	/* This doesn't modify ei */
 	ei->dir.dir = DIR_DELETED;
-	exfat_clear_volume_dirty(sb);
 
 	inode_inc_iversion(dir);
 	dir->i_mtime = dir->i_atime = current_time(dir);
@@ -866,7 +864,6 @@ static int exfat_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	exfat_set_volume_dirty(sb);
 	err = exfat_add_entry(dir, dentry->d_name.name, &cdir, TYPE_DIR,
 		&info);
-	exfat_clear_volume_dirty(sb);
 	if (err)
 		goto unlock;
 
@@ -996,7 +993,6 @@ static int exfat_rmdir(struct inode *dir, struct dentry *dentry)
 		goto unlock;
 	}
 	ei->dir.dir = DIR_DELETED;
-	exfat_clear_volume_dirty(sb);
 
 	inode_inc_iversion(dir);
 	dir->i_mtime = dir->i_atime = current_time(dir);
@@ -1331,7 +1327,6 @@ del_out:
 		 */
 		new_ei->dir.dir = DIR_DELETED;
 	}
-	exfat_clear_volume_dirty(sb);
 out:
 	return ret;
 }
