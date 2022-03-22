@@ -428,8 +428,13 @@ static int iwl_vendor_rfim_get_capa(struct wiphy *wiphy,
 		return -ENOMEM;
 
 	if (mvm->trans->trans_cfg->device_family >= IWL_DEVICE_FAMILY_AX210 &&
-	    mvm->trans->trans_cfg->integrated)
-		capa = IWL_MVM_RFIM_CAPA_ALL;
+	    mvm->trans->trans_cfg->integrated) {
+		if (fw_has_capa(&mvm->fw->ucode_capa,
+				IWL_UCODE_TLV_CAPA_RFIM_SUPPORT))
+			capa = IWL_MVM_RFIM_CAPA_ALL;
+		else
+			capa = IWL_MVM_RFIM_CAPA_CNVI;
+	}
 
 	if (nla_put_u8(skb, IWL_MVM_VENDOR_ATTR_RFIM_CAPA, capa)) {
 		kfree_skb(skb);
@@ -573,8 +578,7 @@ static int iwl_vendor_set_nic_txpower_limit(struct wiphy *wiphy,
 	struct nlattr **tb;
 	int len;
 	int err;
-	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP,
-					   REDUCE_TX_POWER_CMD,
+	u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw, REDUCE_TX_POWER_CMD,
 					   IWL_FW_CMD_VER_UNKNOWN);
 
 	tb = iwl_mvm_parse_vendor_data(data, data_len);
@@ -1091,10 +1095,9 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 	struct sk_buff *skb = NULL;
 	struct nlattr *nl_table;
 	int ret, per_chain_size, chain;
-	s8 *gain;
 
 	/* if ppag is disabled */
-	if (!mvm->fwrt.ppag_table.v1.flags)
+	if (!mvm->fwrt.ppag_flags)
 		return -ENOENT;
 
 	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, 180);
@@ -1105,23 +1108,17 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 				   NLA_F_NESTED);
 	if (!nl_table) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
-	if (mvm->fwrt.ppag_ver == 0) {
-		gain = mvm->fwrt.ppag_table.v1.gain[0];
-		per_chain_size = IWL_NUM_SUB_BANDS_V1;
-	} else {
-		gain = mvm->fwrt.ppag_table.v2.gain[0];
-		per_chain_size = IWL_NUM_SUB_BANDS_V2;
-	}
+	per_chain_size = (mvm->fwrt.ppag_ver == 0) ?
+		IWL_NUM_SUB_BANDS_V1 : IWL_NUM_SUB_BANDS_V2;
 
 	for (chain = 0; chain < IWL_NUM_CHAIN_LIMITS; chain++) {
-		int idx = chain * per_chain_size;
-
-		if (nla_put(skb, chain + 1, per_chain_size, &gain[idx])) {
+		if (nla_put(skb, chain + 1, per_chain_size,
+			    &mvm->fwrt.ppag_chains[chain].subbands[0])) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 	}
 
@@ -1131,11 +1128,11 @@ static int iwl_mvm_vendor_ppag_get_table(struct wiphy *wiphy,
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_PPAG_NUM_SUB_BANDS,
 			per_chain_size)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1174,7 +1171,7 @@ static int iwl_mvm_vendor_sar_get_table(struct wiphy *wiphy,
 		nl_profile = nla_nest_start(skb, prof + 1);
 		if (!nl_profile) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 
 		/* put info per chain */
@@ -1182,7 +1179,7 @@ static int iwl_mvm_vendor_sar_get_table(struct wiphy *wiphy,
 			if (nla_put(skb, chain + 1, ACPI_SAR_NUM_SUB_BANDS_REV2,
 				    mvm->fwrt.sar_profiles[prof].chains[chain].subbands)) {
 				ret = -ENOBUFS;
-				goto out;
+				goto err;
 			}
 		}
 
@@ -1190,15 +1187,15 @@ static int iwl_mvm_vendor_sar_get_table(struct wiphy *wiphy,
 	}
 	nla_nest_end(skb, nl_table);
 
-	fw_ver = iwl_fw_lookup_cmd_ver(mvm->fw, LONG_GROUP, REDUCE_TX_POWER_CMD,
+	fw_ver = iwl_fw_lookup_cmd_ver(mvm->fw, REDUCE_TX_POWER_CMD,
 				       IWL_FW_CMD_VER_UNKNOWN);
 
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_SAR_VER, fw_ver)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1224,7 +1221,7 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 	nl_table = nla_nest_start(skb, IWL_MVM_VENDOR_ATTR_GEO_SAR_TABLE);
 	if (!nl_table) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	/* get each profile */
@@ -1233,7 +1230,7 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 
 		if (!nl_profile) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 
 		/* put into the skb the info for profile i+1
@@ -1241,7 +1238,7 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 		ret = iwl_mvm_vendor_put_geo_profile(mvm, skb, i + 1);
 		if (ret < 0) {
 			ret = -ENOBUFS;
-			goto out;
+			goto err;
 		}
 		nla_nest_end(skb, nl_profile);
 	}
@@ -1249,11 +1246,11 @@ static int iwl_mvm_vendor_geo_sar_get_table(struct wiphy *wiphy,
 
 	if (nla_put_u32(skb, IWL_MVM_VENDOR_ATTR_GEO_SAR_VER, mvm->fwrt.geo_rev)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1280,11 +1277,11 @@ static int iwl_mvm_vendor_sgom_get_table(struct wiphy *wiphy,
 	table = mvm->fwrt.sgom_table.offset_map[0];
 	if (nla_put(skb, IWL_MVM_VENDOR_ATTR_SGOM_TABLE, size, table)) {
 		ret = -ENOBUFS;
-		goto out;
+		goto err;
 	}
 
 	return cfg80211_vendor_cmd_reply(skb);
-out:
+err:
 	kfree_skb(skb);
 	return ret;
 }
@@ -1469,7 +1466,7 @@ static int iwl_mvm_vendor_test_fips(struct wiphy *wiphy,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	struct iwl_host_cmd hcmd = {
-		.id = iwl_cmd_id(FIPS_TEST_VECTOR_CMD, LEGACY_GROUP, 0),
+		.id = WIDE_ID(LEGACY_GROUP, FIPS_TEST_VECTOR_CMD),
 		.flags = CMD_WANT_SKB,
 		.dataflags = { IWL_HCMD_DFL_NOCOPY },
 	};
@@ -1659,8 +1656,8 @@ static int iwl_mvm_time_sync_measurement_config(struct wiphy *wiphy,
 
 	mutex_lock(&mvm->mutex);
 	err = iwl_mvm_send_cmd_pdu(mvm,
-				   iwl_cmd_id(WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD,
-					      DATA_PATH_GROUP, 0),
+				   WIDE_ID(DATA_PATH_GROUP,
+					   WNM_80211V_TIMING_MEASUREMENT_CONFIG_CMD),
 				   0, sizeof(cmd), &cmd);
 	mutex_unlock(&mvm->mutex);
 
