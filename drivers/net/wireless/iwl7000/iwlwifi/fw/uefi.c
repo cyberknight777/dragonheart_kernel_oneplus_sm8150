@@ -75,7 +75,7 @@ out:
 static void *iwl_uefi_reduce_power_section(struct iwl_trans *trans,
 					   const u8 *data, size_t len)
 {
-	const struct iwl_ucode_tlv *tlv;
+	struct iwl_ucode_tlv *tlv;
 	u8 *reduce_power_data = NULL, *tmp;
 	u32 size = 0;
 
@@ -85,7 +85,7 @@ static void *iwl_uefi_reduce_power_section(struct iwl_trans *trans,
 		u32 tlv_len, tlv_type;
 
 		len -= sizeof(*tlv);
-		tlv = (const void *)data;
+		tlv = (void *)data;
 
 		tlv_len = le32_to_cpu(tlv->length);
 		tlv_type = le32_to_cpu(tlv->type);
@@ -93,7 +93,6 @@ static void *iwl_uefi_reduce_power_section(struct iwl_trans *trans,
 		if (len < tlv_len) {
 			IWL_ERR(trans, "invalid TLV len: %zd/%u\n",
 				len, tlv_len);
-			kfree(reduce_power_data);
 			reduce_power_data = ERR_PTR(-EINVAL);
 			goto out;
 		}
@@ -113,7 +112,6 @@ static void *iwl_uefi_reduce_power_section(struct iwl_trans *trans,
 				IWL_DEBUG_FW(trans,
 					     "Couldn't allocate (more) reduce_power_data\n");
 
-				kfree(reduce_power_data);
 				reduce_power_data = ERR_PTR(-ENOMEM);
 				goto out;
 			}
@@ -143,10 +141,6 @@ static void *iwl_uefi_reduce_power_section(struct iwl_trans *trans,
 done:
 	if (!size) {
 		IWL_DEBUG_FW(trans, "Empty REDUCE_POWER, skipping.\n");
-		/* Better safe than sorry, but 'reduce_power_data' should
-		 * always be NULL if !size.
-		 */
-		kfree(reduce_power_data);
 		reduce_power_data = ERR_PTR(-ENOENT);
 		goto out;
 	}
@@ -160,7 +154,7 @@ out:
 static void *iwl_uefi_reduce_power_parse(struct iwl_trans *trans,
 					 const u8 *data, size_t len)
 {
-	const struct iwl_ucode_tlv *tlv;
+	struct iwl_ucode_tlv *tlv;
 	void *sec_data;
 
 	IWL_DEBUG_FW(trans, "Parsing REDUCE_POWER data\n");
@@ -169,7 +163,7 @@ static void *iwl_uefi_reduce_power_parse(struct iwl_trans *trans,
 		u32 tlv_len, tlv_type;
 
 		len -= sizeof(*tlv);
-		tlv = (const void *)data;
+		tlv = (void *)data;
 
 		tlv_len = le32_to_cpu(tlv->length);
 		tlv_type = le32_to_cpu(tlv->type);
@@ -181,8 +175,8 @@ static void *iwl_uefi_reduce_power_parse(struct iwl_trans *trans,
 		}
 
 		if (tlv_type == IWL_UCODE_TLV_PNVM_SKU) {
-			const struct iwl_sku_id *sku_id =
-				(const void *)(data + sizeof(*tlv));
+			struct iwl_sku_id *sku_id =
+				(void *)(data + sizeof(*tlv));
 
 			IWL_DEBUG_FW(trans,
 				     "Got IWL_UCODE_TLV_PNVM_SKU len %d\n",

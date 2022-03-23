@@ -4,7 +4,6 @@
  * Copyright (c) 2006	Jiri Benc <jbenc@suse.cz>
  * Copyright 2007	Johannes Berg <johannes@sipsolutions.net>
  * Copyright (C) 2015	Intel Deutschland GmbH
- * Copyright (C) 2021   Intel Corporation
  */
 
 #include <linux/kobject.h>
@@ -23,6 +22,7 @@ static ssize_t key_##name##_read(struct file *file,			\
 	return mac80211_format_buffer(userbuf, count, ppos, 		\
 				      format_string, key->prop);	\
 }
+#define KEY_READ_D(name) KEY_READ(name, name, "%d\n")
 #define KEY_READ_X(name) KEY_READ(name, name, "0x%x\n")
 
 #define KEY_OPS(name)							\

@@ -386,7 +386,6 @@ static int iwl_xvt_get_sw_config(struct iwl_xvt *xvt,
 
 static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 {
-	u32 cmd_id = PHY_CONFIGURATION_CMD;
 	struct iwl_phy_cfg_cmd_v3 *calib_cmd_cfg =
 		&xvt->sw_stack_cfg.fw_calib_cmd_cfg[ucode_type];
 	int err;
@@ -400,13 +399,15 @@ static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 		calib_cmd_cfg->calib_control.event_trigger = 0;
 		calib_cmd_cfg->calib_control.flow_trigger = 0;
 	}
-	cmd_size = iwl_fw_lookup_cmd_ver(xvt->fw, cmd_id,
+	cmd_size = iwl_fw_lookup_cmd_ver(xvt->fw, IWL_ALWAYS_LONG_GROUP,
+					 PHY_CONFIGURATION_CMD,
 					 IWL_FW_CMD_VER_UNKNOWN) == 3 ?
 					    sizeof(struct iwl_phy_cfg_cmd_v3) :
 					    sizeof(struct iwl_phy_cfg_cmd_v1);
 
 	/* Sending calibration configuration control data */
-	err = iwl_xvt_send_cmd_pdu(xvt, cmd_id, 0, cmd_size, calib_cmd_cfg);
+	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, 0,
+				   cmd_size, calib_cmd_cfg);
 	if (err)
 		IWL_ERR(xvt, "Error (%d) running INIT calibrations control\n",
 			err);
@@ -450,12 +451,6 @@ static int iwl_xvt_continue_init_unified(struct iwl_xvt *xvt)
 				    XVT_UCODE_CALIB_TIMEOUT);
 	if (err)
 		goto init_error;
-
-	ret = iwl_xvt_init_ppag_tables(xvt);
-	if (ret < 0) {
-		err = ret;
-		goto init_error;
-	}
 
 	ret = iwl_xvt_init_sar_tables(xvt);
 	if (ret < 0) {
