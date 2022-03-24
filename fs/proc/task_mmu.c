@@ -18,6 +18,7 @@
 #include <linux/page_idle.h>
 #include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
+#include <linux/random.h>
 #include <linux/mm_inline.h>
 
 #include <asm/elf.h>
@@ -1852,6 +1853,7 @@ enum reclaim_type {
 };
 
 struct walk_data {
+	unsigned long nr_to_try;
 	enum reclaim_type type;
 };
 
@@ -1979,6 +1981,8 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 		if (type != RECLAIM_SHMEM && page_mapcount(page) > 1)
 			goto huge_unlock;
 
+		if (!data->nr_to_try)
+			goto huge_unlock;
 		if (next - addr != HPAGE_PMD_SIZE) {
 			int err;
 
@@ -1996,6 +2000,19 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 		if (isolate_lru_page(page))
 			goto huge_unlock;
 
+		/*
+		 * Reclaim the whole huge page even if it would make us go
+		 * over our limit. The alternative would be to split the
+		 * huge page, but if we try to do that pmd_trans_unstable()
+		 * below would fail, and we wouldn't progress.
+		 */
+		data->nr_to_try -= min_t(unsigned long, data->nr_to_try,
+		    hpage_nr_pages(page));
+
+		/* Clear all the references to make sure it gets reclaimed */
+		pmdp_test_and_clear_young(vma, addr, pmd);
+		ClearPageReferenced(page);
+		test_and_clear_page_young(page);
 		list_add(&page->lru, &page_list);
 huge_unlock:
 		spin_unlock(ptl);
@@ -2009,6 +2026,8 @@ regular_page:
 
 	orig_pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 	for (pte = orig_pte; addr < end; pte++, addr += PAGE_SIZE) {
+		if (!data->nr_to_try)
+			break;
 		ptent = *pte;
 		if (!pte_present(ptent))
 			continue;
@@ -2053,6 +2072,7 @@ regular_page:
 			continue;
 
 		isolated++;
+		data->nr_to_try--;
 		list_add(&page->lru, &page_list);
 		if (isolated >= SWAP_CLUSTER_MAX) {
 			pte_unmap_unlock(orig_pte, ptl);
@@ -2076,9 +2096,10 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	struct task_struct *task;
 	char buffer[PROC_NUMBUF];
 	struct mm_struct *mm;
-	struct vm_area_struct *vma;
+	struct vm_area_struct *start, *vma;
 	enum reclaim_type type;
-	char *type_buf;
+	unsigned long num;
+	char *tok, *type_buf;
 
 	memset(buffer, 0, sizeof(buffer));
 	if (count > sizeof(buffer) - 1)
@@ -2088,18 +2109,23 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		return -EFAULT;
 
 	type_buf = strstrip(buffer);
-	if (!strcmp(type_buf, "file"))
+	tok = strsep(&type_buf, " ");
+	if (!strcmp(tok, "file"))
 		type = RECLAIM_FILE;
-	else if (!strcmp(type_buf, "anon"))
+	else if (!strcmp(tok, "anon"))
 		type = RECLAIM_ANON;
 #ifdef CONFIG_SHMEM
-	else if (!strcmp(type_buf, "shmem"))
+	else if (!strcmp(tok, "shmem"))
 		type = RECLAIM_SHMEM;
 #endif
-	else if (!strcmp(type_buf, "all"))
+	else if (!strcmp(tok, "all"))
 		type = RECLAIM_ALL;
 	else
 		return -EINVAL;
+
+	tok = strsep(&type_buf, " ");
+	if (!tok || kstrtol(tok, 10, &num) < 0)
+		num = ULONG_MAX;
 
 	task = get_proc_task(file->f_path.dentry->d_inode);
 	if (!task)
@@ -2109,6 +2135,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	if (mm) {
 		struct walk_data reclaim_data = {
 			.type = type,
+			.nr_to_try = num,
 		};
 
 		struct mm_walk reclaim_walk = {
@@ -2118,7 +2145,27 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		};
 
 		down_read(&mm->mmap_sem);
-		for (vma = mm->mmap; vma; vma = vma->vm_next) {
+
+		if (num != ULONG_MAX) {
+			unsigned int start_idx;
+
+			/*
+			 * Try to start at a random VMA to avoid always
+			 * reclaiming the same pages.
+			 */
+			start_idx = get_random_int() % mm->map_count;
+			for (start = mm->mmap; start_idx && start; start_idx--,
+			    start = start->vm_next);
+			BUG_ON(!start);
+		} else
+			start = mm->mmap;
+
+		for (vma = start; vma && vma->vm_next != start;
+		    (vma = vma->vm_next ? vma->vm_next :
+		    /* Only loop around if we didn't start at mm->mmap. */
+		    (start != mm->mmap ? mm->mmap : NULL))) {
+			if (!reclaim_data.nr_to_try)
+				break;
 			if (is_vm_hugetlb_page(vma))
 				continue;
 
@@ -2150,8 +2197,26 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 				reclaim_walk.pmd_entry = deactivate_pte_range;
 			}
 
-			walk_page_range(vma->vm_start, vma->vm_end,
-					&reclaim_walk);
+			/*
+			 * Use a random start address if we are limited in order
+			 * to avoid always hitting the same pages when we only
+			 * have a few eligible mappings.
+			 */
+			if (num != ULONG_MAX) {
+				unsigned long idx, start;
+
+				idx = (vma->vm_end - vma->vm_start) / PAGE_SIZE;
+				idx = idx ? (get_random_int() % idx) : 0;
+				start = vma->vm_start + PAGE_SIZE * idx;
+
+				walk_page_range(start, vma->vm_end,
+				    &reclaim_walk);
+				if (start != vma->vm_start)
+					walk_page_range(vma->vm_start, start,
+					    &reclaim_walk);
+			} else
+				walk_page_range(vma->vm_start, vma->vm_end,
+				    &reclaim_walk);
 		}
 		flush_tlb_mm(mm);
 		up_read(&mm->mmap_sem);
