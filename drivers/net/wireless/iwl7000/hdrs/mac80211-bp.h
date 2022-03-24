@@ -2741,6 +2741,9 @@ static inline void __iwl7000_cfg80211_unregister_wdev(struct wireless_dev *wdev)
 		cfg80211_unregister_wdev(wdev);
 }
 #define cfg80211_unregister_wdev __iwl7000_cfg80211_unregister_wdev
+#define lockdep_is_wiphy_held(wiphy) 0
+#else
+#define lockdep_is_wiphy_held(wiphy) lockdep_is_held(&(wiphy)->mtx)
 #endif /* < 5.12 */
 
 #if CFG80211_VERSION < KERNEL_VERSION(5,18,0)
