@@ -141,10 +141,10 @@ img() {
 	echo -e "\n\e[1;93m[*] Building Kernel! \e[0m" | pv -qL 30
 	BUILD_START=$(date +"%s")
 	make "${MAKE[@]}" $CONFIG
-	time make -j"$PROCS" "${MAKE[@]}" Image.gz-dtb 2>&1 | tee log.txt
+	time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img dtb.img 2>&1 | tee log.txt
 	BUILD_END=$(date +"%s")
 	DIFF=$((BUILD_END - BUILD_START))
-	if [ -f "${KDIR}/out/arch/arm64/boot/Image.gz-dtb" ]; then
+	if [ -f "${KDIR}/out/arch/arm64/boot/Image" ]; then
 		tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
 		echo -e "\n\e[1;32m[✓] Built Kernel! \e[0m" | pv -qL 30
 	else
@@ -172,7 +172,9 @@ mod() {
 mkzip() {
 	tg "*Building zip!*"
 	echo -e "\n\e[1;32m[*] Building zip! \e[0m" | pv -qL 30
-	mv "${KDIR}"/out/arch/arm64/boot/Image.gz-dtb "${KDIR}"/anykernel3-dragonheart
+	mv "${KDIR}"/out/arch/arm64/boot/dtbo.img "${KDIR}"/anykernel3-dragonheart
+	mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart
+	mv "${KDIR}"/out/arch/arm64/boot/Image "${KDIR}"/anykernel3-dragonheart
 	cd "${KDIR}"/anykernel3-dragonheart || exit 1
 	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m" | pv -qL 30
