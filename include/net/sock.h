@@ -2476,4 +2476,7 @@ static inline void sk_pacing_shift_update(struct sock *sk, int val)
 	sk->sk_pacing_shift = val;
 }
 
+/* On 32bit arches, an skb frag is limited to 2^15 */
+#define SKB_FRAG_PAGE_ORDER	get_order(32768)
+
 #endif	/* _SOCK_H */
