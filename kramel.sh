@@ -191,6 +191,15 @@ rgn() {
     cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
 }
 
+upr() {
+    make "${MAKE[@]}" $CONFIG
+    source "${KDIR}"/out/.config
+    sed -i "s#${CONFIG_LOCALVERSION}#-DragonHeart-${1}#" out/.config
+    cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
+    git add arch/arm64/configs/$CONFIG
+    git commit -S -s -m "dragonheart_defconfig: Bump to \`${1}\`"
+}
+
 helpmenu() {
 	echo -e "\e[1m
 usage: kver=<version number> zipn=<zip name> ./kramel.sh <arg>
@@ -200,6 +209,7 @@ example: kver=420 zipn=Kernel-Beta ./kramel.sh mcfg img
 example: kver=69420 zipn=Kernel-Beta ./kramel.sh mcfg img mkzip
 example: kver=1 zipn=Kernel-Beta ./kramel.sh --obj=drivers/android/binder.o
 example: kver=2 zipn=Kernel-Beta ./kramel.sh --obj=kernel/sched/
+example: kver=3 zipn=Kernel-Beta ./kramel.sh --upr=r16
 
 	 mcfg   Runs make menuconfig
 	 img    Builds Kernel
@@ -208,6 +218,7 @@ example: kver=2 zipn=Kernel-Beta ./kramel.sh --obj=kernel/sched/
 	 mkzip  Builds anykernel3 zip
 	 --obj  Builds specific driver/subsystem
 	 rgn    Regenerates defconfig
+	 --upr  Uprevs kernel version in defconfig
 \e[0m"
 }
 
@@ -244,6 +255,16 @@ for arg in "$@"; do
 		;;
 	"rgn")
 	        rgn
+	        ;;
+
+	"--upr="*)
+	A="${arg#*=}"
+	if [[ -z "$A" ]]
+	then
+	    echo "Use --upr=something"
+	    exit 1
+	fi
+	        upr "$A"
 	        ;;
 
 	"help")
