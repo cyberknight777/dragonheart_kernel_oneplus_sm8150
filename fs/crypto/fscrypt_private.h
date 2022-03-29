@@ -12,7 +12,8 @@
 #ifndef _FSCRYPT_PRIVATE_H
 #define _FSCRYPT_PRIVATE_H
 
-#include <linux/fscrypt_supp.h>
+#define __FS_HAS_ENCRYPTION 1
+#include <linux/fscrypt.h>
 #include <crypto/hash.h>
 
 /* Encryption parameters */
@@ -91,6 +92,7 @@ extern int fscrypt_do_page_crypto(const struct inode *inode,
 				  gfp_t gfp_flags);
 extern struct page *fscrypt_alloc_bounce_page(struct fscrypt_ctx *ctx,
 					      gfp_t gfp_flags);
+extern const struct dentry_operations fscrypt_d_ops;
 
 /* keyinfo.c */
 extern void __exit fscrypt_essiv_cleanup(void);

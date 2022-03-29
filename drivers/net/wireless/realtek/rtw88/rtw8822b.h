@@ -140,6 +140,8 @@ _rtw_write32s_mask(struct rtw_dev *rtwdev, u32 addr, u32 mask, u32 data)
 #define GET_PHY_STAT_P1_RXSNR_B(phy_stat)                                      \
 	le32_get_bits(*((__le32 *)(phy_stat) + 0x06), GENMASK(15, 8))
 
+#define RTW8822B_EDCCA_MAX	0x7f
+#define RTW8822B_EDCCA_SRC_DEF	1
 #define REG_HTSTFWT	0x800
 #define REG_RXPSEL	0x808
 #define BIT_RX_PSEL_RST		(BIT(28) | BIT(29))

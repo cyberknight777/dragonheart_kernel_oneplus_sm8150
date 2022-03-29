@@ -4303,12 +4303,72 @@ go_again:
 	return -EINVAL;
 }
 
-static void
-intel_dp_retrain_link(struct intel_dp *intel_dp)
+static bool
+intel_dp_needs_link_retrain(struct intel_dp *intel_dp)
 {
-	struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+	u8 link_status[DP_LINK_STATUS_SIZE];
+
+	if (!intel_dp_get_link_status(intel_dp, link_status)) {
+		DRM_ERROR("Failed to get link status\n");
+		return false;
+	}
+
+	/*
+	 * Validate the cached values of intel_dp->link_rate and
+	 * intel_dp->lane_count before attempting to retrain.
+	 */
+	if (!intel_dp_link_params_valid(intel_dp, intel_dp->link_rate,
+					intel_dp->lane_count))
+		return false;
+
+	/* Retrain if Channel EQ or CR not ok */
+	return !drm_dp_channel_eq_ok(link_status, intel_dp->lane_count);
+}
+
+int intel_dp_retrain_link(struct intel_encoder *encoder,
+			  struct drm_modeset_acquire_ctx *ctx)
+{
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
-	struct intel_crtc *crtc = to_intel_crtc(encoder->base.crtc);
+	struct intel_dp *intel_dp = enc_to_intel_dp(&encoder->base);
+	struct intel_connector *connector = intel_dp->attached_connector;
+	struct drm_connector_state *conn_state;
+	struct intel_crtc_state *crtc_state;
+	struct intel_crtc *crtc;
+	int ret;
+
+	/* FIXME handle the MST connectors as well */
+
+	if (!connector || connector->base.status != connector_status_connected)
+		return 0;
+
+	ret = drm_modeset_lock(&dev_priv->drm.mode_config.connection_mutex,
+			       ctx);
+	if (ret)
+		return ret;
+
+	conn_state = connector->base.state;
+
+	crtc = to_intel_crtc(conn_state->crtc);
+	if (!crtc)
+		return 0;
+
+	ret = drm_modeset_lock(&crtc->base.mutex, ctx);
+	if (ret)
+		return ret;
+
+	crtc_state = to_intel_crtc_state(crtc->base.state);
+
+	WARN_ON(!intel_crtc_has_dp_encoder(crtc_state));
+
+	if (!crtc_state->base.active)
+		return 0;
+
+	if (conn_state->commit &&
+	    !try_wait_for_completion(&conn_state->commit->hw_done))
+		return 0;
+
+	if (!intel_dp_needs_link_retrain(intel_dp))
+		return 0;
 
 	/* Suppress underruns caused by re-training */
 	intel_set_cpu_fifo_underrun_reporting(dev_priv, crtc->pipe, false);
@@ -4326,43 +4386,49 @@ intel_dp_retrain_link(struct intel_dp *intel_dp)
 	if (crtc->config->has_pch_encoder)
 		intel_set_pch_fifo_underrun_reporting(dev_priv,
 						      intel_crtc_pch_transcoder(crtc), true);
+
+	return 0;
 }
 
-static void
-intel_dp_check_link_status(struct intel_dp *intel_dp)
+/*
+ * If display is now connected check links status,
+ * there has been known issues of link loss triggering
+ * long pulse.
+ *
+ * Some sinks (eg. ASUS PB287Q) seem to perform some
+ * weird HPD ping pong during modesets. So we can apparently
+ * end up with HPD going low during a modeset, and then
+ * going back up soon after. And once that happens we must
+ * retrain the link to get a picture. That's in case no
+ * userspace component reacted to intermittent HPD dip.
+ */
+static bool intel_dp_hotplug(struct intel_encoder *encoder,
+			     struct intel_connector *connector)
 {
-	struct intel_encoder *intel_encoder = &dp_to_dig_port(intel_dp)->base;
-	struct drm_device *dev = intel_dp_to_dev(intel_dp);
-	u8 link_status[DP_LINK_STATUS_SIZE];
+	struct drm_modeset_acquire_ctx ctx;
+	bool changed;
+	int ret;
 
-	WARN_ON(!drm_modeset_is_locked(&dev->mode_config.connection_mutex));
+	changed = intel_encoder_hotplug(encoder, connector);
 
-	if (!intel_dp_get_link_status(intel_dp, link_status)) {
-		DRM_ERROR("Failed to get link status\n");
-		return;
+	drm_modeset_acquire_init(&ctx, 0);
+
+	for (;;) {
+		ret = intel_dp_retrain_link(encoder, &ctx);
+
+		if (ret == -EDEADLK) {
+			drm_modeset_backoff(&ctx);
+			continue;
+		}
+
+		break;
 	}
 
-	if (!intel_encoder->base.crtc)
-		return;
+	drm_modeset_drop_locks(&ctx);
+	drm_modeset_acquire_fini(&ctx);
+	WARN(ret, "Acquiring modeset locks failed with %i\n", ret);
 
-	if (!to_intel_crtc(intel_encoder->base.crtc)->active)
-		return;
-
-	/*
-	 * Validate the cached values of intel_dp->link_rate and
-	 * intel_dp->lane_count before attempting to retrain.
-	 */
-	if (!intel_dp_link_params_valid(intel_dp, intel_dp->link_rate,
-					intel_dp->lane_count))
-		return;
-
-	/* Retrain if Channel EQ or CR not ok */
-	if (!drm_dp_channel_eq_ok(link_status, intel_dp->lane_count)) {
-		DRM_DEBUG_KMS("%s: channel EQ not ok, retraining\n",
-			      intel_encoder->base.name);
-
-		intel_dp_retrain_link(intel_dp);
-	}
+	return changed;
 }
 
 /*
@@ -4381,7 +4447,6 @@ intel_dp_check_link_status(struct intel_dp *intel_dp)
 static bool
 intel_dp_short_pulse(struct intel_dp *intel_dp)
 {
-	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 	struct intel_encoder *intel_encoder = &dp_to_dig_port(intel_dp)->base;
 	u8 sink_irq_vector = 0;
 	u8 old_sink_count = intel_dp->sink_count;
@@ -4421,9 +4486,10 @@ intel_dp_short_pulse(struct intel_dp *intel_dp)
 			DRM_DEBUG_DRIVER("CP or sink specific irq unhandled\n");
 	}
 
-	drm_modeset_lock(&dev->mode_config.connection_mutex, NULL);
-	intel_dp_check_link_status(intel_dp);
-	drm_modeset_unlock(&dev->mode_config.connection_mutex);
+	/* defer to the hotplug work for link retraining if needed */
+	if (intel_dp_needs_link_retrain(intel_dp))
+		return false;
+
 	if (intel_dp->compliance.test_type == DP_TEST_LINK_TRAINING) {
 		DRM_DEBUG_KMS("Link Training Compliance Test requested\n");
 		/* Send a Hotplug Uevent to userspace to start modeset */
@@ -4748,7 +4814,8 @@ intel_dp_unset_edid(struct intel_dp *intel_dp)
 }
 
 static int
-intel_dp_long_pulse(struct intel_connector *intel_connector)
+intel_dp_long_pulse(struct intel_connector *intel_connector,
+		    struct drm_modeset_acquire_ctx *ctx)
 {
 	struct drm_connector *connector = &intel_connector->base;
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
@@ -4821,7 +4888,7 @@ intel_dp_long_pulse(struct intel_connector *intel_connector)
 	} else {
 		/*
 		 * If display is now connected check links status,
-		 * there has been known issues of link loss triggerring
+		 * there has been known issues of link loss triggering
 		 * long pulse.
 		 *
 		 * Some sinks (eg. ASUS PB287Q) seem to perform some
@@ -4831,7 +4898,17 @@ intel_dp_long_pulse(struct intel_connector *intel_connector)
 		 * retrain the link to get a picture. That's in case no
 		 * userspace component reacted to intermittent HPD dip.
 		 */
-		intel_dp_check_link_status(intel_dp);
+		struct intel_encoder *encoder = &dp_to_dig_port(intel_dp)->base;
+
+		int ret;
+		struct drm_i915_private *dev_priv = to_i915(connector->dev);
+
+		ret = intel_dp_retrain_link(encoder, ctx);
+		if (ret) {
+			intel_display_power_put(dev_priv,
+						intel_dp->aux_power_domain);
+			return ret;
+		}
 	}
 
 	/*
@@ -4883,7 +4960,7 @@ intel_dp_detect(struct drm_connector *connector,
 
 	/* If full detect is not performed yet, do a full detect */
 	if (!intel_dp->detect_done)
-		status = intel_dp_long_pulse(intel_dp->attached_connector);
+		status = intel_dp_long_pulse(intel_dp->attached_connector, ctx);
 
 	intel_dp->detect_done = false;
 
@@ -6442,6 +6519,7 @@ bool intel_dp_init(struct drm_i915_private *dev_priv,
 			     "DP %c", port_name(port)))
 		goto err_encoder_init;
 
+	intel_encoder->hotplug = intel_dp_hotplug;
 	intel_encoder->compute_config = intel_dp_compute_config;
 	intel_encoder->get_hw_state = intel_dp_get_hw_state;
 	intel_encoder->get_config = intel_dp_get_config;

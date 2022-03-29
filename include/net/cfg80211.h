@@ -3560,6 +3560,7 @@ struct wiphy_iftype_ext_capab {
 
 /**
  * struct wiphy - wireless hardware description
+ * @mtx: mutex for the data (structures) of this device
  * @reg_notifier: the driver's regulatory notification callback,
  *	note that if your driver uses wiphy_apply_custom_regulatory()
  *	the reg_notifier's request can be passed as NULL
@@ -3721,6 +3722,8 @@ struct wiphy_iftype_ext_capab {
  *	(i.e. BIT(NL80211_BAND_2GHZ)).
  */
 struct wiphy {
+	struct mutex mtx;
+
 	/* assign these fields before you register the wiphy */
 
 	/* permanent MAC address(es) */

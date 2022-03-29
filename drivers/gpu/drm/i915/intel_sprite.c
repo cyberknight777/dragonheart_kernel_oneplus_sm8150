@@ -1144,6 +1144,22 @@ vlv_sprite_check(struct intel_crtc_state *crtc_state,
 	return 0;
 }
 
+static int skl_plane_max_scale(struct drm_i915_private *dev_priv,
+			       const struct drm_framebuffer *fb)
+{
+	/*
+	 * We don't yet know the final source width nor
+	 * whether we can use the HQ scaler mode. Assume
+	 * the best case.
+	 * FIXME need to properly check this later.
+	 */
+	if (INTEL_GEN(dev_priv) >= 10 || IS_GEMINILAKE(dev_priv) ||
+	    !drm_format_info_is_yuv_semiplanar(fb->format))
+		return 0x30000 - 1;
+	else
+		return 0x20000 - 1;
+}
+
 int skl_plane_check(struct intel_crtc_state *crtc_state,
 		    struct intel_plane_state *plane_state)
 {
@@ -1157,8 +1173,7 @@ int skl_plane_check(struct intel_crtc_state *crtc_state,
 		const struct drm_framebuffer *fb = plane_state->base.fb;
 
 		min_scale = 1;
-		max_scale = skl_max_scale(crtc_state,
-					  fb ? fb->format->format : 0);
+		max_scale = skl_plane_max_scale(dev_priv, fb);
 	} else {
 		min_scale = DRM_PLANE_HELPER_NO_SCALING;
 		max_scale = DRM_PLANE_HELPER_NO_SCALING;
