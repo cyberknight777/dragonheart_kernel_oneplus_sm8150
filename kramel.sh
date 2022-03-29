@@ -186,6 +186,11 @@ obj() {
         time make -j"$PROCS" "${MAKE[@]}" "$1"
 }
 
+rgn() {
+    make "${MAKE[@]}" $CONFIG
+    cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
+}
+
 helpmenu() {
 	echo -e "\e[1m
 usage: kver=<version number> zipn=<zip name> ./kramel.sh <arg>
@@ -201,7 +206,8 @@ example: kver=2 zipn=Kernel-Beta ./kramel.sh --obj=kernel/sched/
 	 dtb    Builds dtb(o).img
 	 mod    Builds out-of-tree modules
 	 mkzip  Builds anykernel3 zip
-	 --obj    Builds specific driver/subsystem
+	 --obj  Builds specific driver/subsystem
+	 rgn    Regenerates defconfig
 \e[0m"
 }
 
@@ -236,6 +242,9 @@ for arg in "$@"; do
         fi
                 obj "$ABC"
 		;;
+	"rgn")
+	        rgn
+	        ;;
 
 	"help")
 		helpmenu
