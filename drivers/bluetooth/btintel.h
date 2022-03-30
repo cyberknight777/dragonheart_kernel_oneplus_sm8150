@@ -314,7 +314,7 @@ static inline bool btintel_is_quality_report_evt(struct sk_buff *skb)
 	return false;
 }
 
-static inline bool btintel_pull_quality_report_data(struct sk_buff *skb);
+static inline bool btintel_pull_quality_report_data(struct sk_buff *skb)
 {
 	return false;
 }
