@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
 /*
- * Copyright (C) 2012-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2022 Intel Corporation
  * Copyright (C) 2017 Intel Deutschland GmbH
  */
 #ifndef __iwl_fw_api_rs_h__
@@ -131,7 +131,7 @@ enum IWL_TLC_MCS_PER_BW {
 };
 
 /**
- * struct tlc_config_cmd - TLC configuration
+ * struct iwl_tlc_config_cmd_v3 - TLC configuration
  * @sta_id: station id
  * @reserved1: reserved
  * @max_ch_width: max supported channel width from @enum iwl_tlc_mng_cfg_cw
@@ -166,7 +166,7 @@ struct iwl_tlc_config_cmd_v3 {
 } __packed; /* TLC_MNG_CONFIG_CMD_API_S_VER_3 */
 
 /**
- * struct tlc_config_cmd - TLC configuration
+ * struct iwl_tlc_config_cmd_v4 - TLC configuration
  * @sta_id: station id
  * @reserved1: reserved
  * @max_ch_width: max supported channel width from &enum iwl_tlc_mng_cfg_cw
@@ -232,6 +232,34 @@ enum iwl_tlc_debug_types {
 	 *  @IWL_TLC_DEBUG_FIXED_RATE: set fixed rate for rate scaling
 	 */
 	IWL_TLC_DEBUG_FIXED_RATE,
+	/**
+	 * @IWL_TLC_DEBUG_AGG_DURATION_LIM: time limit for a BA
+	 * session, in usec
+	 */
+	IWL_TLC_DEBUG_AGG_DURATION_LIM,
+	/**
+	 * @IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM: set max number of frames
+	 * in an aggregation
+	 */
+	IWL_TLC_DEBUG_AGG_FRAME_CNT_LIM,
+	/**
+	 * @IWL_TLC_DEBUG_TPC_ENABLED: enable or disable tpc
+	 */
+	IWL_TLC_DEBUG_TPC_ENABLED,
+	/**
+	 * @IWL_TLC_DEBUG_TPC_STATS: get number of frames Tx'ed in each
+	 * tpc step
+	 */
+	IWL_TLC_DEBUG_TPC_STATS,
+	/**
+	 * @IWL_TLC_DEBUG_RTS_DISABLE: disable RTS (bool true/false).
+	 */
+	IWL_TLC_DEBUG_RTS_DISABLE,
+	/**
+	 * @IWL_TLC_DEBUG_TYPES_NUM: number of types. Used to define the max
+	 * type id in %struct iwl_dhc_tlc_cmd
+	 */
+	IWL_TLC_DEBUG_TYPES_NUM,
 }; /* TLC_MNG_DEBUG_TYPES_API_E */
 
 #define MAX_DATA_IN_DHC_TLC_CMD 10
@@ -774,7 +802,6 @@ struct iwl_lq_cmd {
 
 u8 iwl_fw_rate_idx_to_plcp(int idx);
 u32 iwl_new_rate_from_v1(u32 rate_v1);
-u32 iwl_legacy_rate_to_fw_idx(u32 rate_n_flags);
 const struct iwl_rate_mcs_info *iwl_rate_mcs(int idx);
 const char *iwl_rs_pretty_ant(u8 ant);
 const char *iwl_rs_pretty_bw(int bw);
