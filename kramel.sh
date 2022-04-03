@@ -196,8 +196,10 @@ upr() {
     source "${KDIR}"/out/.config
     sed -i "s#${CONFIG_LOCALVERSION}#-DragonHeart-${1}#" out/.config
     cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
+if [ "${ci}" != 1 ];then
     git add arch/arm64/configs/$CONFIG
     git commit -S -s -m "dragonheart_defconfig: Bump to \`${1}\`"
+fi
 }
 
 helpmenu() {
