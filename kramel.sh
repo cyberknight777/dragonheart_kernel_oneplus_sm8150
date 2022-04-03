@@ -224,6 +224,10 @@ example: kver=3 zipn=Kernel-Beta ./kramel.sh --upr=r16
 \e[0m"
 }
 
+if [ "${ci}" == 1 ];then
+	upr "${version}"
+fi
+
 if [[ -z $* ]]; then
 	helpmenu
 	exit 1
