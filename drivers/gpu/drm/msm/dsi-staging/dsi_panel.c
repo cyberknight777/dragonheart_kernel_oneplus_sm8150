@@ -13,6 +13,9 @@
  */
 
 #define pr_fmt(fmt)	"msm-dsi-panel:[%s:%d] " fmt, __func__, __LINE__
+#undef pr_info
+#undef pr_debug
+
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
