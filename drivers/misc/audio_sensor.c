@@ -59,7 +59,7 @@ static ssize_t audio_write(struct file *file,
 	if (sscanf(kbuf, "%d", &state))
 		audio_data.state = state;
 
-	pr_info("%s: audio_data.state is %#x\n", __func__, audio_data.state);
+	pr_debug("%s: audio_data.state is %#x\n", __func__, audio_data.state);
 	atomic_set(&audio_data.read_ready, 1);
 	wake_up(&audio_data.wait);
 
@@ -93,28 +93,28 @@ static unsigned int audio_poll(struct file *file,
 {
 	unsigned int mask = 0;
 
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	poll_wait(file, &audio_data.wait, table);
 
 	if (atomic_read(&audio_data.read_ready))
 		mask |= POLLIN | POLLRDNORM;
 
-	pr_info("%s: exit mask is %#x\n", __func__, mask);
+	pr_debug_once("%s: exit mask is %#x\n", __func__, mask);
 	return mask;
 }
 
 
 static int audio_close(struct inode *inode, struct file *file)
 {
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	return 0;
 }
 
 static int audio_open(struct inode *inode, struct file *file)
 {
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	file->private_data = (void *)&audio_data;
 
@@ -128,7 +128,7 @@ static ssize_t sensor_write(struct file *file,
 	int state = 0;
 	char kbuf[4];
 
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	len = len > ARRAY_SIZE(kbuf) ?
 			ARRAY_SIZE(kbuf) : len;
@@ -141,7 +141,7 @@ static ssize_t sensor_write(struct file *file,
 	if (sscanf(kbuf, "%d", &state))
 		sensor_data.state = state;
 
-	pr_debug("%s: state is %#x\n", __func__, sensor_data.state);
+	pr_debug_once("%s: state is %#x\n", __func__, sensor_data.state);
 
 	atomic_set(&sensor_data.read_ready, 1);
 	wake_up(&sensor_data.wait);
@@ -154,7 +154,7 @@ static ssize_t sensor_read(struct file *file,
 {
 	int ret = 0;
 
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	if (!atomic_read(&sensor_data.read_ready))
 		return -EAGAIN;
@@ -175,14 +175,14 @@ unsigned int sensor_poll(struct file *file, struct poll_table_struct *table)
 {
 	unsigned int mask = 0;
 
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	poll_wait(file, &sensor_data.wait, table);
 
 	if (atomic_read(&sensor_data.read_ready))
 		mask |= POLLIN | POLLRDNORM;
 
-	pr_debug("%s: exit mask is %#x\n", __func__, mask);
+	pr_debug_once("%s: exit mask is %#x\n", __func__, mask);
 	return mask;
 }
 
@@ -192,12 +192,12 @@ static long share_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	struct notify_data *data = file->private_data;
 
-	pr_debug("%s: arg is %#x\n", __func__, arg);
+	pr_debug_once("%s: arg is %#x\n", __func__, arg);
 
 	switch (cmd) {
 	case IOCTL_AUDIO_SEND_ACK:
 		data->ack = arg == 1 ? 1 : 0;  //1 success, 0 fail
-		pr_debug("%s: send ack %d\n", __func__, data->ack);
+		pr_debug_once("%s: send ack %d\n", __func__, data->ack);
 		break;
 
 	case IOCTL_SENSOR_RECEIVE_ACK:
@@ -208,7 +208,7 @@ static long share_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EAGAIN;
 		}
 
-		pr_debug("%s: receive ack %d\n", __func__, data->ack);
+		pr_debug_once("%s: receive ack %d\n", __func__, data->ack);
 		data->ack = -1; //no response
 		break;
 
@@ -230,14 +230,14 @@ static long share_compat_ioctl(struct file *file,
 
 static int sensor_close(struct inode *inode, struct file *file)
 {
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	return 0;
 }
 
 static int sensor_open(struct inode *inode, struct file *file)
 {
-	pr_debug("%s: enter\n", __func__);
+	pr_debug_once("%s: enter\n", __func__);
 
 	file->private_data = (void *)&sensor_data;
 
@@ -306,7 +306,7 @@ static int __init audio_sensor_init(void)
 	init_waitqueue_head(&audio_data.wait);
 	init_waitqueue_head(&sensor_data.wait);
 
-	pr_info("%s: success!!\n", __func__);
+	pr_info_once("%s: success!!\n", __func__);
 
 	return ret;
 }
