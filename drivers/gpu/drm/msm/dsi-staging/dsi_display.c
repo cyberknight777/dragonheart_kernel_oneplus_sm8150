@@ -13,6 +13,8 @@
  */
 
 #define pr_fmt(fmt)	"msm-dsi-display:[%s] " fmt, __func__
+#undef pr_info
+#undef pr_debug
 
 #include <linux/list.h>
 #include <linux/of.h>

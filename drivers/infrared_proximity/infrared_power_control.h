@@ -1,8 +1,8 @@
 #include <linux/alarmtimer.h>
 
 #define INFRARED_TAG                  "[oneplus_infrared] "
-#define INFRARED_ERR(fmt, args...)    printk(KERN_ERR INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
-#define INFRARED_LOG(fmt, args...)    printk(KERN_DEBUG INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
+#define INFRARED_ERR(fmt, args...)    pr_err_once(INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
+#define INFRARED_LOG(fmt, args...)    pr_debug_ratelimited(INFRARED_TAG" %s : "fmt,__FUNCTION__,##args)
 
 
 typedef struct oneplus_infrared_state {
