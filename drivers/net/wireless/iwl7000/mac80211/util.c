@@ -798,7 +798,7 @@ static void __iterate_interfaces(struct ieee80211_local *local,
 
 	sdata = rcu_dereference_check(local->monitor_sdata,
 				      lockdep_is_held(&local->iflist_mtx) ||
-				      lockdep_rtnl_is_held());
+				      lockdep_is_wiphy_held(local->hw.wiphy));
 	if (sdata &&
 	    (iter_flags & IEEE80211_IFACE_ITER_RESUME_ALL || !active_only ||
 	     sdata->flags & IEEE80211_SDATA_IN_DRIVER))
@@ -945,7 +945,12 @@ static void ieee80211_parse_extension_element(u32 *crc,
 					      struct ieee802_11_elems *elems)
 {
 	const void *data = elem->data + 1;
-	u8 len = elem->datalen - 1;
+	u8 len;
+
+	if (!elem->datalen)
+		return;
+
+	len = elem->datalen - 1;
 
 	switch (elem->data[0]) {
 	case WLAN_EID_EXT_HE_MU_EDCA:
@@ -1345,6 +1350,18 @@ _ieee802_11_parse_elems_crc(const u8 *start, size_t len, bool action,
 		case WLAN_EID_RSNX:
 			elems->rsnx = pos;
 			elems->rsnx_len = elen;
+			break;
+		case WLAN_EID_TX_POWER_ENVELOPE:
+			if (elen < 1 ||
+			    elen > sizeof(struct ieee80211_tx_pwr_env))
+				break;
+
+			if (elems->tx_pwr_env_num >= ARRAY_SIZE(elems->tx_pwr_env))
+				break;
+
+			elems->tx_pwr_env[elems->tx_pwr_env_num] = (void *)pos;
+			elems->tx_pwr_env_len[elems->tx_pwr_env_num] = elen;
+			elems->tx_pwr_env_num++;
 			break;
 		case WLAN_EID_EXTENSION:
 			ieee80211_parse_extension_element(calc_crc ?
@@ -2426,7 +2443,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 				   IEEE80211_TPT_LEDTRIG_FL_RADIO, 0);
 
 	/* add interfaces */
-	sdata = rtnl_dereference(local->monitor_sdata);
+	sdata = wiphy_dereference(local->hw.wiphy, local->monitor_sdata);
 	if (sdata) {
 		/* in HW restart it exists already */
 		WARN_ON(local->resuming);
@@ -2471,7 +2488,8 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 				WARN_ON(drv_add_chanctx(local, ctx));
 		mutex_unlock(&local->chanctx_mtx);
 
-		sdata = rtnl_dereference(local->monitor_sdata);
+		sdata = wiphy_dereference(local->hw.wiphy,
+					  local->monitor_sdata);
 		if (sdata && ieee80211_sdata_running(sdata))
 			ieee80211_assign_chanctx(local, sdata);
 	}
@@ -3113,7 +3131,10 @@ u8 *ieee80211_ie_build_ht_oper(u8 *pos, struct ieee80211_sta_ht_cap *ht_cap,
 			ht_oper->ht_param = IEEE80211_HT_PARAM_CHA_SEC_BELOW;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* HT information element should not be included on 6GHz */
@@ -3159,7 +3180,10 @@ void ieee80211_ie_build_wide_bw_cs(u8 *pos,
 		*pos++ = IEEE80211_VHT_CHANWIDTH_80P80MHZ;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* The behavior is not defined for 320 MHz channels */
@@ -3218,7 +3242,10 @@ u8 *ieee80211_ie_build_vht_oper(u8 *pos, struct ieee80211_sta_vht_cap *vht_cap,
 		vht_oper->chan_width = IEEE80211_VHT_CHANWIDTH_80MHZ;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* VHT information element should not be included on 6GHz */
@@ -3285,7 +3312,10 @@ u8 *ieee80211_ie_build_he_oper(u8 *pos, struct cfg80211_chan_def *chandef)
 
 	switch (chandef->width) {
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/*
@@ -3501,6 +3531,7 @@ bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
 	const struct ieee80211_sta_eht_cap *eht_cap;
 	struct cfg80211_chan_def he_chandef = *chandef;
 	const struct ieee80211_he_6ghz_oper *he_6ghz_oper;
+	struct ieee80211_bss_conf *bss_conf = &sdata->vif.bss_conf;
 	bool support_80_80, support_160, support_320;
 	u8 he_phy_cap, eht_phy_cap;
 	u32 freq;
@@ -3554,6 +3585,19 @@ bool ieee80211_chandef_he_6ghz_oper(struct ieee80211_sub_if_data *sdata,
 	freq = ieee80211_channel_to_frequency(he_6ghz_oper->primary,
 					      NL80211_BAND_6GHZ);
 	he_chandef.chan = ieee80211_get_channel(sdata->local->hw.wiphy, freq);
+
+	switch (u8_get_bits(he_6ghz_oper->control,
+			    IEEE80211_HE_6GHZ_OPER_CTRL_REG_INFO)) {
+	case IEEE80211_6GHZ_CTRL_REG_LPI_AP:
+		bss_conf->power_type = IEEE80211_REG_LPI_AP;
+		break;
+	case IEEE80211_6GHZ_CTRL_REG_SP_AP:
+		bss_conf->power_type = IEEE80211_REG_SP_AP;
+		break;
+	default:
+		bss_conf->power_type = IEEE80211_REG_UNSET_AP;
+		break;
+	}
 
 	if (!eht_oper) {
 		switch (u8_get_bits(he_6ghz_oper->control,
@@ -4113,7 +4157,10 @@ u32 ieee80211_chandef_downgrade(struct cfg80211_chan_def *c)
 		      IEEE80211_STA_DISABLE_160MHZ;
 		break;
 #if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
+#if CFG80211_VERSION >= KERNEL_VERSION(9,9,9)
 	case NL80211_CHAN_WIDTH_320:
+		/* keep code in case of fall-through (spatch generated) */
+#endif
 		/* keep code in case of fall-through (spatch generated) */
 #endif
 		/* n_P20 */

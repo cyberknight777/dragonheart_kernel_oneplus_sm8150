@@ -4,7 +4,7 @@
  *
  * ChromeOS backport definitions
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2021 Intel Corporation
+ * Copyright (C) 2018-2022 Intel Corporation
  */
 
 #include <linux/version.h>
@@ -65,6 +65,37 @@ static inline u64 ktime_get_real_ns(void)
 	return ktime_to_ns(ktime_get_real());
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0) */
+
+#ifndef DECLARE_FLEX_ARRAY
+/**
+ * __DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
+ *
+ * @TYPE: The type of each flexible array element
+ * @NAME: The name of the flexible array member
+ *
+ * In order to have a flexible array member in a union or alone in a
+ * struct, it needs to be wrapped in an anonymous struct with at least 1
+ * named member, but that member can be empty.
++ */
+#define __DECLARE_FLEX_ARRAY(TYPE, NAME)       \
+	struct {			       \
+		struct { } __empty_ ## NAME;   \
+		TYPE NAME[];		       \
+	}
+
+/**
+ * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
+ *
+ * @TYPE: The type of each flexible array element
+ * @NAME: The name of the flexible array member
+ *
+ * In order to have a flexible array member in a union or alone in a
+ * struct, it needs to be wrapped in an anonymous struct with at least 1
+ * named member, but that member can be empty.
+ */
+#define DECLARE_FLEX_ARRAY(TYPE, NAME) \
+	__DECLARE_FLEX_ARRAY(TYPE, NAME)
+#endif
 
 /*
  * Need to include these here, otherwise we get the regular kernel ones
@@ -695,6 +726,8 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 
 #if LINUX_VERSION_IS_LESS(5,4,0)
 #include <linux/pci-aspm.h>
+#define EXPORT_SYMBOL_NS_GPL(sym, ns) EXPORT_SYMBOL_GPL(sym)
+#define MODULE_IMPORT_NS(ns)
 #endif
 
 #if LINUX_VERSION_IS_LESS(5,5,0)
@@ -804,4 +837,14 @@ wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
 #if LINUX_VERSION_IS_LESS(5,14,0)
 /* make this code disappear, rfkill moved from rdev to wiphy */
 #define rfkill_blocked(__rkfill) false
-#endif /* < v5.11 */
+#endif /* < v5.14 */
+
+#if LINUX_VERSION_IS_LESS(5,17,0)
+#define rfkill_soft_blocked(__rfkill) rfkill_blocked(__rfkill)
+
+static inline void __noreturn
+kthread_complete_and_exit(struct completion *c, long ret)
+{
+	complete_and_exit(c, ret);
+}
+#endif /* <v5.17 */

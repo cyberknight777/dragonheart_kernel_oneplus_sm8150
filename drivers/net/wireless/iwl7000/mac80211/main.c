@@ -614,9 +614,7 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 			   NL80211_FEATURE_MAC_ON_CREATE |
 			   NL80211_FEATURE_USERSPACE_MPM |
 			   NL80211_FEATURE_FULL_AP_CLIENT_STATE;
-#if LINUX_VERSION_IS_GEQ(4,3,0)
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_FILS_STA);
-#endif
 	wiphy_ext_feature_set(wiphy,
 			      NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211);
 	wiphy_ext_feature_set(wiphy,
@@ -1040,7 +1038,7 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 			iftd = ieee80211_sband_get_iftypes_data_entry(sband,
 								      i);
 
-			supp_he = supp_he || (iftd && iftd->he_cap.has_he);
+			supp_he = supp_he || iftd->he_cap.has_he;
 			supp_eht = supp_eht || cfg_eht_cap_has_eht(iftd);
 		}
 

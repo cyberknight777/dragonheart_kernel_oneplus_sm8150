@@ -16,7 +16,7 @@
 #include "fw/acpi.h"
 
 struct iwl_fw_runtime_ops {
-	int (*dump_start)(void *ctx);
+	void (*dump_start)(void *ctx);
 	void (*dump_end)(void *ctx);
 	int (*send_hcmd)(void *ctx, struct iwl_host_cmd *host_cmd);
 	bool (*d3_debug_enable)(void *ctx);
@@ -157,7 +157,8 @@ struct iwl_fw_runtime {
 	u32 geo_rev;
 	u32 geo_num_profiles;
 	bool geo_enabled;
-	union iwl_ppag_table_cmd ppag_table;
+	struct iwl_ppag_chain ppag_chains[IWL_NUM_CHAIN_LIMITS];
+	u32 ppag_flags;
 	u32 ppag_ver;
 	struct iwl_sar_offset_mapping_cmd sgom_table;
 	bool sgom_enabled;

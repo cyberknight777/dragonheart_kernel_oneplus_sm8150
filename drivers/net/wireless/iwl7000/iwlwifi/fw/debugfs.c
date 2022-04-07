@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2012-2014, 2018-2021 Intel Corporation
+ * Copyright (C) 2012-2014, 2018-2022 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -151,7 +151,7 @@ static int iwl_dbgfs_enabled_severities_write(struct iwl_fw_runtime *fwrt,
 {
 	struct iwl_dbg_host_event_cfg_cmd event_cfg;
 	struct iwl_host_cmd hcmd = {
-		.id = iwl_cmd_id(HOST_EVENT_CFG, DEBUG_GROUP, 0),
+		.id = WIDE_ID(DEBUG_GROUP, HOST_EVENT_CFG),
 		.flags = CMD_ASYNC,
 		.data[0] = &event_cfg,
 		.len[0] = sizeof(event_cfg),
@@ -358,7 +358,7 @@ static int iwl_dbgfs_fw_info_seq_show(struct seq_file *seq, void *v)
 
 	ver = &fw->ucode_capa.cmd_versions[state->pos];
 
-	cmd_id = iwl_cmd_id(ver->cmd, ver->group, 0);
+	cmd_id = WIDE_ID(ver->group, ver->cmd);
 
 	seq_printf(seq, "  0x%04x:\n", cmd_id);
 	seq_printf(seq, "    name: %s\n",

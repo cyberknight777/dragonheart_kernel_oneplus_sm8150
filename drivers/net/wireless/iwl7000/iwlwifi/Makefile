@@ -38,6 +38,7 @@ iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TESTMODE) += iwl-tm-gnl.o iwl-dnt-cfg.o iwl-dnt-
 iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TESTMODE) += iwl-dnt-dev-if.o fw/testmode.o
 
 ccflags-y += -I$(srctree)/$(src)
+# for FreeBSD compatibility - they use most of our driver
 
 obj-$(CPTCFG_IWLMVM)	+= mvm/
 obj-$(CPTCFG_IWLXVT)	+= xvt/
