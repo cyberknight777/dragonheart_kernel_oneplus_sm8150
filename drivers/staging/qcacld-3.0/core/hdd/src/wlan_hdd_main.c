@@ -15527,7 +15527,7 @@ static ssize_t wlan_hdd_state_ctrl_param_write(struct file *filp,
 	}
 
 	if (strncmp(buf, wlan_on_str, strlen(wlan_on_str)) == 0) {
-		hdd_info("Wifi Turning On from UI\n");
+		hdd_debug("Wifi Turning On from UI\n");
 		turning_on = true;
 	}
 
@@ -15634,7 +15634,7 @@ static int  wlan_hdd_state_ctrl_param_create(void)
 		goto cdev_add_err;
 	}
 
-	pr_info("wlan_hdd_state %s major(%d) initialized",
+	pr_debug("wlan_hdd_state %s major(%d) initialized",
 		WLAN_MODULE_NAME, wlan_hdd_state_major);
 
 	return 0;
@@ -15656,7 +15656,7 @@ static void wlan_hdd_state_ctrl_param_destroy(void)
 	class_destroy(class);
 	unregister_chrdev_region(device, dev_num);
 
-	pr_info("Device node unregistered");
+	pr_debug("Device node unregistered");
 }
 
 /**
@@ -16470,7 +16470,7 @@ static void hdd_driver_unload(void)
 	QDF_STATUS status;
 	void *hif_ctx;
 
-	pr_info("%s: Unloading driver v%s\n", WLAN_MODULE_NAME,
+	pr_debug("%s: Unloading driver v%s\n", WLAN_MODULE_NAME,
 		QWLAN_VERSIONSTR);
 
 	/*
