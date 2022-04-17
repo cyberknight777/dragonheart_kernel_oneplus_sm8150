@@ -9,6 +9,7 @@
 #include <linux/fs.h>
 #include <linux/ratelimit.h>
 #include <linux/nls.h>
+#include <linux/sched/signal.h>
 
 #include "config.h"
 #include "compat.h"
