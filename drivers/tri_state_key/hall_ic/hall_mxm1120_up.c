@@ -1062,7 +1062,7 @@ static inline bool m1120_update_threshold(int position, short lowthd, short high
 
 	//if (p_m1120_data->reg.map.intsrs & M1120_VAL_INTSRS_INTTYPE_BESIDE) {
 	if (p_m1120_data->reg.map.intsrs & M1120_DETECTION_MODE_INTERRUPT) {
-		printk("up hall m1120_update_threshold, lowthd=%d, highthd=%d.\n", lowthd, highthd);
+		pr_debug_once("up hall m1120_update_threshold, lowthd=%d, highthd=%d.\n", lowthd, highthd);
 		m1120_short_to_2byte(p_m1120_data, highthd, &hthh, &hthl);
 		m1120_short_to_2byte(p_m1120_data, lowthd, &lthh, &lthl);
 
