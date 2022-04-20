@@ -653,4 +653,7 @@ static inline int tpm_read_log_of(struct tpm_chip *chip)
 
 int tpm_bios_log_setup(struct tpm_chip *chip);
 void tpm_bios_log_teardown(struct tpm_chip *chip);
+
+int tpm_devs_add(struct tpm_chip *chip);
+void tpm_devs_remove(struct tpm_chip *chip);
 #endif
