@@ -75,7 +75,7 @@ int get_param_by_index_and_offset(uint32 sid_index,
     int ret = length;
     uint32 file_offset;
 	mutex_lock(&param_ram_zone.mutex);
-	pr_info("%s[%d]  sid_index = %d offset = %d buf = %p length = %d\n",
+	pr_debug_once("%s[%d]  sid_index = %d offset = %d buf = %p length = %d\n",
 			__func__, __LINE__,sid_index,offset,buf,length);
 
     file_offset = PARAM_SID_LENGTH*sid_index+ offset;
@@ -84,7 +84,7 @@ int get_param_by_index_and_offset(uint32 sid_index,
 			(file_offset + length) <=  param_ram_zone.size)
 		memcpy(buf,(param_ram_zone.buffer +file_offset), length);
 	else{
-		pr_info("%s:invaild argument, sid_index=%d offset=%d buf=%p length=%d\n",
+		pr_debug_once("%s:invaild argument, sid_index=%d offset=%d buf=%p length=%d\n",
 				__func__, sid_index, offset, buf, length);
 		ret = -EINVAL;
 	}
@@ -100,7 +100,7 @@ int set_param_by_index_and_offset(uint32 sid_index,
     int ret;
     uint32 file_offset;
 	mutex_lock(&param_ram_zone.mutex);
-	pr_info("%s[%d]sid_index = %d offset = %d buf = %p length = %d\n",
+	pr_debug_once("%s[%d]sid_index = %d offset = %d buf = %p length = %d\n",
 			__func__, __LINE__,sid_index,offset,buf,length);
 
     file_offset = PARAM_SID_LENGTH*sid_index + offset;
@@ -109,7 +109,7 @@ int set_param_by_index_and_offset(uint32 sid_index,
 			(file_offset + length) <=  param_ram_zone.size)
 		memcpy((param_ram_zone.buffer+file_offset),buf,length);
 	else{
-		pr_info("%s:invaild argument,sid_index=%d offset=%d buf=%p length=%d\n",
+		pr_debug_once("%s:invaild argument,sid_index=%d offset=%d buf=%p length=%d\n",
 		      __func__,sid_index,offset,buf,length);
 		ret = -EINVAL;
 		goto out;
@@ -118,7 +118,7 @@ int set_param_by_index_and_offset(uint32 sid_index,
     ret = write_param_partition((param_ram_zone.buffer+file_offset),
                     length,file_offset);
 	if ( ret < 0){
-		pr_info("Error write param partition.(%d)\n",ret);
+		pr_debug_once("Error write param partition.(%d)\n",ret);
 	}
 out:
 	mutex_unlock(&param_ram_zone.mutex);
@@ -208,7 +208,7 @@ static ssize_t param_read(struct file *file, char __user *buff,
 
 		if (copy_to_user(buff + copied, temp_buffer, chunk_sz)) {
 			ret =  -EFAULT;
-			pr_info("copy_to_user failure\n");
+			pr_debug_once("copy_to_user failure\n");
 			goto out;
 		}
 
@@ -249,7 +249,7 @@ static ssize_t param_write(struct file *file, const char __user *buff,
 					left : WRITE_CHUNK_MAX_SIZE;
 		ret = copy_from_user(temp_buffer, buff + written, chunk_sz);
 		if (ret < 0) {
-			pr_info("copy_from_user failure %d\n", ret);
+			pr_debug_once("copy_from_user failure %d\n", ret);
 			goto out;
 		}
 
@@ -338,7 +338,7 @@ int add_restart_08_count(void)
 		&restart_08_count, sizeof(restart_08_count));
 
 	if (ret < 0)
-		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
+		pr_debug_once("%s[%d]  failed!\n", __func__, __LINE__);
 
 	return ret;
 }
@@ -354,7 +354,7 @@ static int param_get_restart_08_count(char *val, const struct kernel_param *kp)
 		&restart_08_count, sizeof(restart_08_count));
 
 	if (ret < 0)
-		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
+		pr_debug_once("%s[%d]  failed!\n", __func__, __LINE__);
 
 	cnt = snprintf(val, 4, "%d", restart_08_count);
 
@@ -376,7 +376,7 @@ int add_restart_other_count(void)
 		&restart_other_count, sizeof(restart_other_count));
 
 	if (ret < 0)
-		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
+		pr_debug_once("%s[%d]  failed!\n", __func__, __LINE__);
 
 	return ret;
 }
@@ -391,7 +391,7 @@ static int param_get_restart_other_count(char *val, const struct kernel_param *k
 		&restart_other_count, sizeof(restart_other_count));
 
 	if (ret < 0)
-		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
+		pr_debug_once("%s[%d]  failed!\n", __func__, __LINE__);
 
 	cnt = snprintf(val, 4, "%d", restart_other_count);
 
