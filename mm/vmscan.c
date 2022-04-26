@@ -42,6 +42,7 @@
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/overflow.h>
 #include <linux/memcontrol.h>
 #include <linux/delayacct.h>
 #include <linux/sysctl.h>
@@ -4450,7 +4451,6 @@ void lru_gen_set_state(bool enable, bool main, bool swap)
 
 	mem_hotplug_begin();
 	mutex_lock(&lru_gen_state_mutex);
-	cgroup_lock();
 
 	main = main && enable != lru_gen_enabled();
 	swap = swap && !(enable ? lru_gen_nr_swapfiles++ : --lru_gen_nr_swapfiles);
@@ -4495,7 +4495,6 @@ void lru_gen_set_state(bool enable, bool main, bool swap)
 		cond_resched();
 	} while ((memcg = mem_cgroup_iter(NULL, memcg, NULL)));
 unlock:
-	cgroup_unlock();
 	mutex_unlock(&lru_gen_state_mutex);
 	mem_hotplug_done();
 }
@@ -4511,7 +4510,6 @@ static int __meminit __maybe_unused lru_gen_online_mem(struct notifier_block *se
 		return NOTIFY_DONE;
 
 	mutex_lock(&lru_gen_state_mutex);
-	cgroup_lock();
 
 	memcg = mem_cgroup_iter(NULL, NULL, NULL);
 	do {
@@ -4525,7 +4523,6 @@ static int __meminit __maybe_unused lru_gen_online_mem(struct notifier_block *se
 		WRITE_ONCE(lrugen->enabled[1], lru_gen_enabled());
 	} while ((memcg = mem_cgroup_iter(NULL, memcg, NULL)));
 
-	cgroup_unlock();
 	mutex_unlock(&lru_gen_state_mutex);
 
 	return NOTIFY_DONE;
@@ -4713,7 +4710,7 @@ static void lru_gen_seq_show_full(struct seq_file *m, struct lruvec *lruvec,
 static int lru_gen_seq_show(struct seq_file *m, void *v)
 {
 	unsigned long seq;
-	bool full = !debugfs_real_fops(m->file)->write;
+	bool full = false;
 	struct lruvec *lruvec = v;
 	struct lrugen *lrugen = &lruvec->evictable;
 	int nid = lruvec_pgdat(lruvec)->node_id;
