@@ -55,8 +55,8 @@ export COMPILER=gcc
 
 # Requirements
 if [ "${ci}" != 1 ]; then
-    if ! hash dialog pv make curl wget unzip find 2>/dev/null; then
-        echo -e "\n\e[1;31m[✗] Install dialog, pv, make, curl, wget, unzip, and find! \e[0m"
+    if ! hash dialog make curl wget unzip find 2>/dev/null; then
+        echo -e "\n\e[1;31m[✗] Install dialog, make, curl, wget, unzip, and find! \e[0m"
         exit 1
     fi
 fi
@@ -171,26 +171,26 @@ tgs() {
 
 # A function to clean kernel source prior building.
 clean() {
-    echo -e "\n\e[1;93m[*] Cleaning source and out/ directory! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Cleaning source and out/ directory! \e[0m"
     make clean && make mrproper && rm -rf "${KDIR}"/out
-    echo -e "\n\e[1;32m[✓] Source cleaned and out/ removed! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Source cleaned and out/ removed! \e[0m"
 }
 
 # A function to regenerate defconfig.
 rgn() {
-    echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m"
     make "${MAKE[@]}" $CONFIG
     cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
-    echo -e "\n\e[1;32m[✓] Defconfig regenerated! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Defconfig regenerated! \e[0m"
 }
 
 # A function to open a menu based program to update current config.
 mcfg() {
     rgn
-    echo -e "\n\e[1;93m[*] Making Menuconfig! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Making Menuconfig! \e[0m"
     make "${MAKE[@]}" menuconfig
     cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
-    echo -e "\n\e[1;32m[✓] Saved Modifications! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Saved Modifications! \e[0m"
 }
 
 # A function to build the kernel.
@@ -211,16 +211,16 @@ img() {
 "
     fi
     rgn
-    echo -e "\n\e[1;93m[*] Building Kernel! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Building Kernel! \e[0m"
     BUILD_START=$(date +"%s")
-    time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img dtb.img | tee -a log.txt
+    time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img dtb.img 2>&1 | tee log.txt
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
     if [ -f "${KDIR}/out/arch/arm64/boot/Image" ]; then
         if [[ "${SILENT}" != "1" ]]; then
             tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
         fi
-        echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m" | pv -qL 30
+        echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
     else
         if [[ "${TGI}" != "0" ]]; then
             tgs "log.txt" "*Build failed*"
@@ -233,9 +233,9 @@ img() {
 # A function to build DTBs.
 dtb() {
     rgn
-    echo -e "\n\e[1;93m[*] Building DTBS! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
     time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img
-    echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 }
 
 # A function to build out-of-tree modules.
@@ -244,13 +244,13 @@ mod() {
         tg "*Building Modules!*"
     fi
     rgn
-    echo -e "\n\e[1;93m[*] Building Modules! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
     mkdir -p "${KDIR}"/out/modules
     make "${MAKE[@]}" modules_prepare
     make -j"$PROCS" "${MAKE[@]}" modules INSTALL_MOD_PATH="${KDIR}"/out/modules
     make "${MAKE[@]}" modules_install INSTALL_MOD_PATH="${KDIR}"/out/modules
     find "${KDIR}"/out/modules -type f -iname '*.ko' -exec cp {} "${KDIR}"/anykernel3-dragonheart/modules/system/lib/modules/ \;
-    echo -e "\n\e[1;32m[✓] Built Modules! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
 }
 
 # A function to build an AnyKernel3 zip.
@@ -258,13 +258,13 @@ mkzip() {
     if [[ "${TGI}" != "0" ]]; then
         tg "*Building zip!*"
     fi
-    echo -e "\n\e[1;93m[*] Building zip! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Building zip! \e[0m"
     mv "${KDIR}"/out/arch/arm64/boot/dtbo.img "${KDIR}"/anykernel3-dragonheart
     mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart
     mv "${KDIR}"/out/arch/arm64/boot/Image "${KDIR}"/anykernel3-dragonheart
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
     zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
-    echo -e "\n\e[1;32m[✓] Built zip! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
     if [[ "${TGI}" != "0" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
     fi
@@ -273,21 +273,21 @@ mkzip() {
 # A function to build specific objects.
 obj() {
     rgn
-    echo -e "\n\e[1;93m[*] Building ${1}! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Building ${1}! \e[0m"
     time make -j"$PROCS" "${MAKE[@]}" "$1"
-    echo -e "\n\e[1;32m[✓] Built ${1}! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Built ${1}! \e[0m"
 }
 
 # A function to uprev localversion in defconfig.
 upr() {
-    echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
     "${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/$CONFIG --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}"
     rgn
     if [ "${ci}" != 1 ]; then
         git add arch/arm64/configs/$CONFIG
         git commit -S -s -m "dragonheart_defconfig: Bump to \`${1}\`"
     fi
-    echo -e "\n\e[1;32m[✓] Bumped localversion to -DragonHeart-${1}! \e[0m" | pv -qL 30
+    echo -e "\n\e[1;32m[✓] Bumped localversion to -DragonHeart-${1}! \e[0m"
 }
 
 # A function to showcase the options provided for args-based usage.
@@ -344,7 +344,7 @@ ndialog() {
     1)
         clear
         img
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -356,7 +356,7 @@ ndialog() {
     2)
         clear
         dtb
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -368,7 +368,7 @@ ndialog() {
     3)
         clear
         mod
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -380,7 +380,7 @@ ndialog() {
     4)
         clear
         mcfg
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -392,7 +392,7 @@ ndialog() {
     5)
         clear
         rgn
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -407,7 +407,7 @@ ndialog() {
         clear
         upr "$ver"
         rm .t
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -418,7 +418,7 @@ ndialog() {
         ;;
     7)
         mkzip
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -436,7 +436,7 @@ ndialog() {
         clear
         obj "$ob"
         rm .f
-        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m" | pv -qL 30
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
         read -r a1
         if [ "$a1" == "0" ]; then
             exit 0
@@ -446,7 +446,7 @@ ndialog() {
         fi
         ;;
     9)
-        echo -e "\n\e[1m Exiting YAKB...\e[0m" | pv -qL 30
+        echo -e "\n\e[1m Exiting YAKB...\e[0m"
         sleep 3
         exit 0
         ;;
@@ -497,22 +497,6 @@ for arg in "$@"; do
             exit 1
         else
             upr "$vers"
-        fi
-        ;;
-    "--kver="*)
-        kvv="${arg#*=}"
-        if [[ -z "$kvv" ]]; then
-            echo "Use --kver=version"
-        else
-            export kver="$kvv"
-        fi
-        ;;
-    "--zipn"*)
-        zpn="${arg#*=}"
-        if [[ -z "$zpn" ]]; then
-            echo "Use --zipn=zipname"
-        else
-            export zipn="$zpn"
         fi
         ;;
     "help")
