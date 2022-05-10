@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1152,10 +1153,15 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 		 * event of sync link is skipped, so we also need to
 		 * skip this SOF event.
 		 */
-		if (req_id >= sync_req_id) {
-			CAM_DBG(CAM_CRM,
-				"Timing issue, the sof event of link %x is delayed",
-				link->link_hdl);
+		if (req_id > sync_req_id) {
+			CAM_INFO(CAM_CRM,
+				"Timing issue, the sof event delayed of link %x sof ts:0x%x sync link handle:0x%x sync sof:0x%x req:%lld sync reqid:%lld",
+				link->link_hdl,
+				link->sof_timestamp,
+				link->sync_link->link_hdl,
+				sync_link->sof_timestamp,
+				req_id,
+				sync_req_id);
 			return -EAGAIN;
 		}
 	}
@@ -1651,10 +1657,13 @@ static int __cam_req_mgr_create_subdevs(
  *
  */
 static void __cam_req_mgr_destroy_subdev(
-	struct cam_req_mgr_connected_device *l_device)
+	struct cam_req_mgr_connected_device **l_device)
 {
-	kfree(l_device);
-	l_device = NULL;
+	CAM_DBG(CAM_CRM, "*l_device %pK", *l_device);
+	if (*(l_device) != NULL) {
+		kfree(*(l_device));
+		*l_device = NULL;
+	}
 }
 
 /**
@@ -1919,6 +1928,7 @@ int cam_req_mgr_process_flush_req(void *priv, void *data)
 	struct cam_req_mgr_connected_device *device = NULL;
 	struct cam_req_mgr_flush_request     flush_req;
 	struct crm_task_payload             *task_data = NULL;
+	struct cam_req_mgr_req_tbl          *tbl = NULL;
 
 	if (!data || !priv) {
 		CAM_ERR(CAM_CRM, "input args NULL %pK %pK", data, priv);
@@ -1948,6 +1958,18 @@ int cam_req_mgr_process_flush_req(void *priv, void *data)
 			slot->sync_mode = CAM_REQ_MGR_SYNC_MODE_NO_SYNC;
 			slot->skip_idx = 1;
 			slot->status = CRM_SLOT_STATUS_NO_REQ;
+			tbl = link->req.l_tbl;
+
+			while (tbl != NULL) {
+				CAM_DBG(CAM_CRM, "pd: %d idx: %d state: %d",
+					tbl->pd, i, tbl->slot[i].state);
+				 tbl->slot[i].req_ready_map = 0;
+				 tbl->slot[i].dev_hdl = -1;
+				 tbl->slot[i].skip_next_frame = false;
+				 tbl->slot[i].state = CRM_REQ_STATE_EMPTY;
+				 tbl->slot[i].is_applied = false;
+				 tbl = tbl->next;
+			}
 		}
 		in_q->wr_idx = 0;
 		in_q->rd_idx = 0;
@@ -2907,7 +2929,7 @@ static int __cam_req_mgr_unlink(struct cam_req_mgr_core_link *link)
 	__cam_req_mgr_destroy_link_info(link);
 
 	/* Free memory holding data of linked devs */
-	__cam_req_mgr_destroy_subdev(link->l_dev);
+	__cam_req_mgr_destroy_subdev(&link->l_dev);
 
 	/* Destroy the link handle */
 	rc = cam_destroy_device_hdl(link->link_hdl);
@@ -3070,7 +3092,7 @@ int cam_req_mgr_link(struct cam_req_mgr_ver_info *link_info)
 	mutex_unlock(&g_crm_core_dev->crm_lock);
 	return rc;
 setup_failed:
-	__cam_req_mgr_destroy_subdev(link->l_dev);
+	__cam_req_mgr_destroy_subdev(&link->l_dev);
 create_subdev_failed:
 	cam_destroy_device_hdl(link->link_hdl);
 	link_info->u.link_info_v1.link_hdl = -1;
@@ -3179,7 +3201,7 @@ int cam_req_mgr_link_v2(struct cam_req_mgr_ver_info *link_info)
 	mutex_unlock(&g_crm_core_dev->crm_lock);
 	return rc;
 setup_failed:
-	__cam_req_mgr_destroy_subdev(link->l_dev);
+	__cam_req_mgr_destroy_subdev(&link->l_dev);
 create_subdev_failed:
 	cam_destroy_device_hdl(link->link_hdl);
 	link_info->u.link_info_v2.link_hdl = -1;
