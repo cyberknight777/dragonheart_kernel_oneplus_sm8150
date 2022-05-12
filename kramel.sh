@@ -259,8 +259,13 @@ mkzip() {
         tg "*Building zip!*"
     fi
     echo -e "\n\e[1;93m[*] Building zip! \e[0m"
+    mkdir -p "${KDIR}" "${KDIR}"/anykernel3-dragonheart/dtbs
     mv "${KDIR}"/out/arch/arm64/boot/dtbo.img "${KDIR}"/anykernel3-dragonheart
-    mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart
+    mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart/dtbs/
+    sed -i 's/ext4/erofs/g' "${KDIR}"/arch/arm64/boot/dts/qcom/sm8150.dtsi
+    sed -i 's/,barrier=1,discard//g' "${KDIR}"/arch/arm64/boot/dts/qcom/sm8150.dtsi
+    time make -j"$PROCS" "${MAKE[@]}" dtb.img
+    mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart/dtbs/dtb_erofs.img
     mv "${KDIR}"/out/arch/arm64/boot/Image "${KDIR}"/anykernel3-dragonheart
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
     zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
