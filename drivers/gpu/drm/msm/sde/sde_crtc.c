@@ -5989,7 +5989,9 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 			  struct plane_state *pstates, int cnt)
 {
+	struct dsi_display *display = get_main_display();
 	unsigned int fod_plane_idx, plane_idx;
+	bool force_fod_ui;
 	u8 alpha = 0;
 
 	for (plane_idx = 0; plane_idx < cnt; plane_idx++)
@@ -5998,7 +6000,9 @@ static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 
 	fod_plane_idx = plane_idx;
 
-	if (fod_plane_idx != cnt) {
+	force_fod_ui = dsi_panel_get_force_fod_ui(display->panel);
+
+	if (fod_plane_idx != cnt || force_fod_ui) {
 		struct dsi_display *display = get_main_display();
 		alpha = dsi_panel_get_fod_dim_alpha(display->panel);
 	}

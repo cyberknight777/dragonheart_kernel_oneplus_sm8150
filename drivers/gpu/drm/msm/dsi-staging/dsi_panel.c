@@ -1204,6 +1204,11 @@ void dsi_panel_set_fod_ui(struct dsi_panel *panel, bool status)
 	sysfs_notify(&panel->parent->kobj, NULL, "fod_ui");
 }
 
+bool dsi_panel_get_force_fod_ui(struct dsi_panel *panel)
+{
+	return panel->force_fod_ui;
+}
+
 static int dsi_panel_bl_register(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -4263,10 +4268,34 @@ static ssize_t sysfs_fod_ui_read(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%u\n", status);
 }
 
+static ssize_t sysfs_force_fod_ui_read(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", panel->force_fod_ui);
+}
+
+ssize_t sysfs_force_fod_ui_write(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+
+	kstrtobool(buf, &panel->force_fod_ui);
+
+	return count;
+}
+
 static DEVICE_ATTR(fod_ui, 0444, sysfs_fod_ui_read, NULL);
+static DEVICE_ATTR(force_fod_ui, 0644,
+		   sysfs_force_fod_ui_read,
+		   sysfs_force_fod_ui_write);
 
 static struct attribute *panel_attrs[] = {
 	&dev_attr_fod_ui.attr,
+	&dev_attr_force_fod_ui.attr,
 	NULL,
 };
 
