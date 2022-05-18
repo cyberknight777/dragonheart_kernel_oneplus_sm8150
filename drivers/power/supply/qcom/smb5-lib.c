@@ -8094,11 +8094,13 @@ static void set_usb_switch(struct smb_charger *chg, bool enable)
 	}
 
 	if (chg->pd_active) {
-		pr_info("%s:pd_active return\n", __func__);
 		if (chg->typec_mode == POWER_SUPPLY_TYPEC_SINK ||
 				chg->typec_mode == POWER_SUPPLY_TYPEC_SINK_DEBUG_ACCESSORY ||
-				chg->typec_mode == POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER)
+				chg->typec_mode == POWER_SUPPLY_TYPEC_SINK_AUDIO_ADAPTER ||
+				chg->typec_mode == POWER_SUPPLY_TYPEC_SINK_POWERED_CABLE) {
+			pr_info("%s:OP FIXUP: pd_active return\n", __func__);
 			return;
+		}
 	}
 
 	if (enable) {
