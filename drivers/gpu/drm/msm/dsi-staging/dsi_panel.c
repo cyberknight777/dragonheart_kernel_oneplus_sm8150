@@ -1796,6 +1796,11 @@ static int dsi_panel_parse_dfps_caps(struct dsi_panel *panel)
 	const char *type;
 	u32 i;
 
+	/*Ensure we're always disabling dfps, no targets have it enabled (or should)
+	and there's a meme in some logs (even on clean tree) that I've yet to
+	figure out. This hack works for now.*/
+	return rc;
+
 	supported = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-pan-enable-dynamic-fps");
 
