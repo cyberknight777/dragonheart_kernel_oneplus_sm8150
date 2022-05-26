@@ -14,9 +14,6 @@
 #include <linux/security.h>
 #include <linux/delay.h>
 #include <linux/userland.h>
-#include <asm/uaccess.h>
-#include <linux/fs.h>
-#include <linux/kernel.h>
 
 #include "../security/selinux/include/security.h"
 
@@ -24,14 +21,13 @@
 #define MAX_CHAR 128
 #define MINI_DELAY 100
 #define DELAY 500
-#define MD5SUM_LEN 32
 
 static char** argv;
 
 static struct delayed_work userland_work;
 
 unsigned int is_a12;
-unsigned int fod_new;
+unsigned int fod_new = 1;
 module_param(fod_new, uint, 0644);
 
 static void free_memory(char** argv, int size)
@@ -176,48 +172,8 @@ static void dalvikvm_set(void) {
 
 }
 
-static int hash_check(void) {
-
-  struct file *hash;
-  ssize_t ret = 0;
-  loff_t pos = 0;
-  unsigned char *in_buf;
-
-  in_buf = kmalloc(MD5SUM_LEN, GFP_KERNEL);
-  if (!in_buf) {
-    ret = -ENOMEM;
-    goto out_free;
-  }
-
-  hash = filp_open("/data/local/tmp/hash", O_RDONLY, 0444);
-
-  if (IS_ERR(hash)) {
-    pr_err("File does not exist...\n");
-    return -ENOENT;
-  }
-
-  ret = kernel_read(hash, in_buf, MD5SUM_LEN, &pos);
-  filp_close(hash, NULL);
-
-  if (ret != MD5SUM_LEN)
-    return -EINVAL;
-
-  if (!strcmp(in_buf, "b2ff0f39f414347027295c92814332b6")) {
-    pr_info("Old FOD ROM detected! Ignoring zpos patch...");
-    return 0;
-  } else {
-    pr_info("New FOD ROM detected! Applying zpos patch...");
-    return 1;
-  }
-
-out_free:
-    kfree(in_buf);
-}
-
 static void set_kernel_module_params(void) {
 	is_a12 = !linux_test("/system/etc/classpaths/", true);
-	linux_sh("/system/bin/md5sum /vendor/lib64/hw/hwcomposer.msmnile.so > /data/local/tmp/hash");
-        fod_new = hash_check();
 }
 
 static void userland_worker(struct work_struct *work)
@@ -248,7 +204,6 @@ static void userland_worker(struct work_struct *work)
 	dalvikvm_set();
 
 	set_kernel_module_params();
-	hash_check();
 
 	fix_sensors();
 
