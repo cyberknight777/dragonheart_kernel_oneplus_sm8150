@@ -69,19 +69,13 @@ fi
 
 if [[ "${COMPILER}" = gcc ]]; then
     if [ ! -d "${KDIR}/gcc64" ]; then
-        wget -O "${KDIR}"/64.zip https://github.com/mvaisakh/gcc-arm64/archive/1a4410a4cf49c78ab83197fdad1d2621760bdc73.zip
-        unzip "${KDIR}"/64.zip
-        mv "${KDIR}"/gcc-arm64-1a4410a4cf49c78ab83197fdad1d2621760bdc73 "${KDIR}"/gcc64
+        curl -s https://envs.sh/QQ1.xz | tar xJvf -
+        mv "${KDIR}"/gcc-arm64 "${KDIR}"/gcc64
     fi
 
     if [ ! -d "${KDIR}/gcc32" ]; then
-        wget -O "${KDIR}"/32.zip https://github.com/mvaisakh/gcc-arm/archive/c8b46a6ab60d998b5efa1d5fb6aa34af35a95bad.zip
-        unzip "${KDIR}"/32.zip
-        mv "${KDIR}"/gcc-arm-c8b46a6ab60d998b5efa1d5fb6aa34af35a95bad "${KDIR}"/gcc32
-    fi
-
-    if [ ! -f "${KDIR}/ld.lld" ]; then
-        wget https://gitlab.com/zlatanr/dora-clang-1/-/raw/master/bin/lld -O ld.lld && chmod +x ld.lld
+	curl -s https://envs.sh/QQU.xz | tar xJvf -
+	mv "${KDIR}"/gcc-arm "${KDIR}"/gcc32
     fi
 
     KBUILD_COMPILER_STRING=$("${KDIR}"/gcc64/bin/aarch64-elf-gcc --version | head -n 1)
@@ -92,7 +86,7 @@ if [[ "${COMPILER}" = gcc ]]; then
         O=out
         CROSS_COMPILE=aarch64-elf-
         CROSS_COMPILE_ARM32=arm-eabi-
-        LD="${KDIR}"/ld.lld
+        LD="${KDIR}"/gcc64/bin/aarch64-elf-${LINKER}
         AR=llvm-ar
         OBJDUMP=llvm-objdump
         STRIP=llvm-strip
@@ -210,7 +204,7 @@ img() {
 *Date*: \`$(date)\`
 *Zip Name*: \`${zipn}\`
 *Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*Linker*: \`$("${KDIR}"/ld.lld -v | head -n1 | sed 's/(compatible with [^)]*)//' |
+*Linker*: \`$("${KDIR}"/gcc64/bin/aarch64-elf-ld.lld -v | head -n1 | sed 's/(compatible with [^)]*)//' |
             head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')\`
 *Branch*: \`$(git rev-parse --abbrev-ref HEAD)\`
 *Last Commit*: [${COMMIT_HASH}](${REPO_URL}/commit/${COMMIT_HASH})
