@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/kref.h>
+#include <linux/random.h>
 
 /**
  * struct hwrng - Hardware Random Number Generator driver
