@@ -77,7 +77,7 @@ void blake2s_init_key(struct blake2s_state *state, const size_t outlen,
 	blake2s_init_param(state, 0x01010000 | keylen << 8 | outlen);
 	state->outlen = outlen;
 	memcpy(block, key, keylen);
-	blake2s_update(state, block, BLAKE2S_BLOCK_SIZE);
+	wg_blake2s_update(state, block, BLAKE2S_BLOCK_SIZE);
 	memzero_explicit(block, BLAKE2S_BLOCK_SIZE);
 }
 
@@ -167,7 +167,7 @@ static inline void blake2s_compress(struct blake2s_state *state,
 	}
 }
 
-void blake2s_update(struct blake2s_state *state, const u8 *in, size_t inlen)
+void wg_blake2s_update(struct blake2s_state *state, const u8 *in, size_t inlen)
 {
 	const size_t fill = BLAKE2S_BLOCK_SIZE - state->buflen;
 
@@ -191,7 +191,7 @@ void blake2s_update(struct blake2s_state *state, const u8 *in, size_t inlen)
 	state->buflen += inlen;
 }
 
-void blake2s_final(struct blake2s_state *state, u8 *out)
+void wg_blake2s_final(struct blake2s_state *state, u8 *out)
 {
 	WARN_ON(IS_ENABLED(DEBUG) && !out);
 	blake2s_set_lastblock(state);
@@ -203,7 +203,7 @@ void blake2s_final(struct blake2s_state *state, u8 *out)
 	memzero_explicit(state, sizeof(*state));
 }
 
-void blake2s_hmac(u8 *out, const u8 *in, const u8 *key, const size_t outlen,
+void wg_blake2s_hmac(u8 *out, const u8 *in, const u8 *key, const size_t outlen,
 		  const size_t inlen, const size_t keylen)
 {
 	struct blake2s_state state;
@@ -213,8 +213,8 @@ void blake2s_hmac(u8 *out, const u8 *in, const u8 *key, const size_t outlen,
 
 	if (keylen > BLAKE2S_BLOCK_SIZE) {
 		blake2s_init(&state, BLAKE2S_HASH_SIZE);
-		blake2s_update(&state, key, keylen);
-		blake2s_final(&state, x_key);
+		wg_blake2s_update(&state, key, keylen);
+		wg_blake2s_final(&state, x_key);
 	} else
 		memcpy(x_key, key, keylen);
 
@@ -222,17 +222,17 @@ void blake2s_hmac(u8 *out, const u8 *in, const u8 *key, const size_t outlen,
 		x_key[i] ^= 0x36;
 
 	blake2s_init(&state, BLAKE2S_HASH_SIZE);
-	blake2s_update(&state, x_key, BLAKE2S_BLOCK_SIZE);
-	blake2s_update(&state, in, inlen);
-	blake2s_final(&state, i_hash);
+	wg_blake2s_update(&state, x_key, BLAKE2S_BLOCK_SIZE);
+	wg_blake2s_update(&state, in, inlen);
+	wg_blake2s_final(&state, i_hash);
 
 	for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
 		x_key[i] ^= 0x5c ^ 0x36;
 
 	blake2s_init(&state, BLAKE2S_HASH_SIZE);
-	blake2s_update(&state, x_key, BLAKE2S_BLOCK_SIZE);
-	blake2s_update(&state, i_hash, BLAKE2S_HASH_SIZE);
-	blake2s_final(&state, i_hash);
+	wg_blake2s_update(&state, x_key, BLAKE2S_BLOCK_SIZE);
+	wg_blake2s_update(&state, i_hash, BLAKE2S_HASH_SIZE);
+	wg_blake2s_final(&state, i_hash);
 
 	memcpy(out, i_hash, outlen);
 	memzero_explicit(x_key, BLAKE2S_BLOCK_SIZE);

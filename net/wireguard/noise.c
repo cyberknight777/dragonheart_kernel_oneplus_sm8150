@@ -38,9 +38,9 @@ void __init wg_noise_init(void)
 	blake2s(handshake_init_chaining_key, handshake_name, NULL,
 		NOISE_HASH_LEN, sizeof(handshake_name), 0);
 	blake2s_init(&blake, NOISE_HASH_LEN);
-	blake2s_update(&blake, handshake_init_chaining_key, NOISE_HASH_LEN);
-	blake2s_update(&blake, identifier_name, sizeof(identifier_name));
-	blake2s_final(&blake, handshake_init_hash);
+	wg_blake2s_update(&blake, handshake_init_chaining_key, NOISE_HASH_LEN);
+	wg_blake2s_update(&blake, identifier_name, sizeof(identifier_name));
+	wg_blake2s_final(&blake, handshake_init_hash);
 }
 
 /* Must hold peer->handshake.static_identity->lock */
@@ -322,7 +322,7 @@ static void kdf(u8 *first_dst, u8 *second_dst, u8 *third_dst, const u8 *data,
 		 ((third_len || third_dst) && (!second_len || !second_dst))));
 
 	/* Extract entropy from data into secret */
-	blake2s_hmac(secret, data, chaining_key, BLAKE2S_HASH_SIZE, data_len,
+	wg_blake2s_hmac(secret, data, chaining_key, BLAKE2S_HASH_SIZE, data_len,
 		     NOISE_HASH_LEN);
 
 	if (!first_dst || !first_len)
@@ -330,7 +330,7 @@ static void kdf(u8 *first_dst, u8 *second_dst, u8 *third_dst, const u8 *data,
 
 	/* Expand first key: key = secret, data = 0x1 */
 	output[0] = 1;
-	blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE, 1,
+	wg_blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE, 1,
 		     BLAKE2S_HASH_SIZE);
 	memcpy(first_dst, output, first_len);
 
@@ -339,7 +339,7 @@ static void kdf(u8 *first_dst, u8 *second_dst, u8 *third_dst, const u8 *data,
 
 	/* Expand second key: key = secret, data = first-key || 0x2 */
 	output[BLAKE2S_HASH_SIZE] = 2;
-	blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE,
+	wg_blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE,
 		     BLAKE2S_HASH_SIZE + 1, BLAKE2S_HASH_SIZE);
 	memcpy(second_dst, output, second_len);
 
@@ -348,7 +348,7 @@ static void kdf(u8 *first_dst, u8 *second_dst, u8 *third_dst, const u8 *data,
 
 	/* Expand third key: key = secret, data = second-key || 0x3 */
 	output[BLAKE2S_HASH_SIZE] = 3;
-	blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE,
+	wg_blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE,
 		     BLAKE2S_HASH_SIZE + 1, BLAKE2S_HASH_SIZE);
 	memcpy(third_dst, output, third_len);
 
@@ -403,9 +403,9 @@ static void mix_hash(u8 hash[NOISE_HASH_LEN], const u8 *src, size_t src_len)
 	struct blake2s_state blake;
 
 	blake2s_init(&blake, NOISE_HASH_LEN);
-	blake2s_update(&blake, hash, NOISE_HASH_LEN);
-	blake2s_update(&blake, src, src_len);
-	blake2s_final(&blake, hash);
+	wg_blake2s_update(&blake, hash, NOISE_HASH_LEN);
+	wg_blake2s_update(&blake, src, src_len);
+	wg_blake2s_final(&blake, hash);
 }
 
 static void mix_psk(u8 chaining_key[NOISE_HASH_LEN], u8 hash[NOISE_HASH_LEN],
