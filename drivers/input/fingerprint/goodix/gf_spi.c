@@ -444,27 +444,31 @@ int gf_opticalfp_irq_handler(int event)
 	if (gf.spi == NULL) {
 		return 0;
 	}
-	if (event == 1) {
-	        switch (kp_active_mode()) {
-		case 1:
-		  cpu_input_boost_kick_max(500);
-		  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 500);
-		  break;
-		case 2:
-		  cpu_input_boost_kick_max(750);
-		  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 750);
-		  break;
-		default:
-		  cpu_input_boost_kick_max(1000);
-		  devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1000);
-		  break;
-		}
-		msg = GF_NET_EVENT_TP_TOUCHDOWN;
-		sendnlmsg(&msg);
-	} else if (event == 0) {
-		msg = GF_NET_EVENT_TP_TOUCHUP;
-		sendnlmsg(&msg);
+	switch(event) {
+	case 1:
+	  switch (kp_active_mode()) {
+	  case 1:
+	    cpu_input_boost_kick_max(500);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 500);
+	    break;
+	  case 2:
+	    cpu_input_boost_kick_max(750);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 750);
+	    break;
+	  default:
+	    cpu_input_boost_kick_max(1000);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1000);
+	    break;
+	  }
+	  msg = GF_NET_EVENT_TP_TOUCHDOWN;
+	  sendnlmsg(&msg);
+	  break;
+	case 0:
+	  msg = GF_NET_EVENT_TP_TOUCHUP;
+	  sendnlmsg(&msg);
+	  break;
 	}
+
 	__pm_wakeup_event(&fp_wakelock, 10*HZ);
 
 	return 0;
