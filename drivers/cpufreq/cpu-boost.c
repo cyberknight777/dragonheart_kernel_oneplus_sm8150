@@ -164,10 +164,14 @@ static void update_policy_online(void)
 	put_online_cpus();
 }
 
+extern int kp_active_mode(void);
 static void do_input_boost_rem(struct work_struct *work)
 {
 	unsigned int i, ret;
 	struct cpu_sync *i_sync_info;
+
+	if (kp_active_mode() == 1)
+	    return;
 
 	/* Reset the input_boost_min for all CPUs in the system */
 	pr_debug("Resetting input boost min for all CPUs\n");
