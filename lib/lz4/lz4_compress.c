@@ -750,18 +750,6 @@ static int LZ4_compress_destSize_extState(
 	}
 }
 
-
-static int LZ4_compress_destSize(
-	const char *src,
-	char *dst,
-	int *srcSizePtr,
-	int targetDstSize,
-	void *wrkmem)
-{
-	return LZ4_compress_destSize_extState(wrkmem, src, dst, srcSizePtr,
-		targetDstSize);
-}
-
 /*-******************************
  *	Streaming functions
  ********************************/
@@ -851,87 +839,6 @@ int LZ4_saveDict(LZ4_stream_t *LZ4_dict, char *safeBuffer, int dictSize)
 	return dictSize;
 }
 EXPORT_SYMBOL(LZ4_saveDict);
-
-static int LZ4_compress_fast_continue(LZ4_stream_t *LZ4_stream, const char *source,
-	char *dest, int inputSize, int maxOutputSize, int acceleration)
-{
-	LZ4_stream_t_internal *streamPtr = &LZ4_stream->internal_donotuse;
-	const BYTE * const dictEnd = streamPtr->dictionary
-		+ streamPtr->dictSize;
-
-	const BYTE *smallest = (const BYTE *) source;
-
-	if (streamPtr->initCheck) {
-		/* Uninitialized structure detected */
-		return 0;
-	}
-
-	if ((streamPtr->dictSize > 0) && (smallest > dictEnd))
-		smallest = dictEnd;
-
-	LZ4_renormDictT(streamPtr, smallest);
-
-	if (acceleration < 1)
-		acceleration = LZ4_ACCELERATION_DEFAULT;
-
-	/* Check overlapping input/dictionary space */
-	{
-		const BYTE *sourceEnd = (const BYTE *) source + inputSize;
-
-		if ((sourceEnd > streamPtr->dictionary)
-			&& (sourceEnd < dictEnd)) {
-			streamPtr->dictSize = (U32)(dictEnd - sourceEnd);
-			if (streamPtr->dictSize > 64 * KB)
-				streamPtr->dictSize = 64 * KB;
-			if (streamPtr->dictSize < 4)
-				streamPtr->dictSize = 0;
-			streamPtr->dictionary = dictEnd - streamPtr->dictSize;
-		}
-	}
-
-	/* prefix mode : source data follows dictionary */
-	if (dictEnd == (const BYTE *)source) {
-		int result;
-
-		if ((streamPtr->dictSize < 64 * KB) &&
-			(streamPtr->dictSize < streamPtr->currentOffset)) {
-			result = LZ4_compress_generic(
-				streamPtr, source, dest, inputSize,
-				maxOutputSize, limitedOutput, byU32,
-				withPrefix64k, dictSmall, acceleration);
-		} else {
-			result = LZ4_compress_generic(
-				streamPtr, source, dest, inputSize,
-				maxOutputSize, limitedOutput, byU32,
-				withPrefix64k, noDictIssue, acceleration);
-		}
-		streamPtr->dictSize += (U32)inputSize;
-		streamPtr->currentOffset += (U32)inputSize;
-		return result;
-	}
-
-	/* external dictionary mode */
-	{
-		int result;
-
-		if ((streamPtr->dictSize < 64 * KB) &&
-			(streamPtr->dictSize < streamPtr->currentOffset)) {
-			result = LZ4_compress_generic(
-				streamPtr, source, dest, inputSize,
-				maxOutputSize, limitedOutput, byU32,
-				usingExtDict, dictSmall, acceleration);
-		} else {
-			result = LZ4_compress_generic(
-				streamPtr, source, dest, inputSize,
-				maxOutputSize, limitedOutput, byU32,
-				usingExtDict, noDictIssue, acceleration);
-		}
-		streamPtr->dictionary = (const BYTE *)source;
-		streamPtr->dictSize = (U32)inputSize;
-		streamPtr->currentOffset += (U32)inputSize;
-		return result;
-	}
-}
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("LZ4 compressor");
