@@ -1107,7 +1107,7 @@ static bool cm_setup_timer(void)
 			wakeup_ms < CM_RTC_SMALL * MSEC_PER_SEC)
 			wakeup_ms = 2 * CM_RTC_SMALL * MSEC_PER_SEC;
 
-		pr_info("Charger Manager wakeup timer: %u ms\n", wakeup_ms);
+		pr_debug("Charger Manager wakeup timer: %u ms\n", wakeup_ms);
 
 		now = ktime_get_boottime();
 		add = ktime_set(wakeup_ms / MSEC_PER_SEC,
@@ -1137,12 +1137,12 @@ static void charger_extcon_work(struct work_struct *work)
 		ret = regulator_set_current_limit(cable->charger->consumer,
 					cable->min_uA, cable->max_uA);
 		if (ret < 0) {
-			pr_err("Cannot set current limit of %s (%s)\n",
+			pr_debug("Cannot set current limit of %s (%s)\n",
 			       cable->charger->regulator_name, cable->name);
 			return;
 		}
 
-		pr_info("Set current limit of %s : %duA ~ %duA\n",
+		pr_debug("Set current limit of %s : %duA ~ %duA\n",
 			cable->charger->regulator_name,
 			cable->min_uA, cable->max_uA);
 	}
@@ -1210,7 +1210,7 @@ static int charger_extcon_init(struct charger_manager *cm,
 	ret = extcon_register_interest(&cable->extcon_dev,
 			cable->extcon_name, cable->name, &cable->nb);
 	if (ret < 0) {
-		pr_info("Cannot register extcon_dev for %s(cable: %s)\n",
+		pr_debug("Cannot register extcon_dev for %s(cable: %s)\n",
 			cable->extcon_name, cable->name);
 	}
 

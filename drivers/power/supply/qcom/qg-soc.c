@@ -444,19 +444,19 @@ static void update_msoc(struct qpnp_qg *chip)
 	/* update the SOC register */
 	rc = qg_write_monotonic_soc(chip, chip->msoc);
 	if (rc < 0)
-		pr_err("Failed to update MSOC register rc=%d\n", rc);
+		pr_debug("Failed to update MSOC register rc=%d\n", rc);
 
 	/* update SDAM with the new MSOC */
 	sdam_soc = (chip->maint_soc > 0) ? chip->maint_soc : chip->msoc;
 	chip->sdam_data[SDAM_SOC] = sdam_soc;
 	rc = qg_sdam_write(SDAM_SOC, sdam_soc);
 	if (rc < 0)
-		pr_err("Failed to update SDAM with MSOC rc=%d\n", rc);
+		pr_debug("Failed to update SDAM with MSOC rc=%d\n", rc);
 
 	if (!chip->dt.cl_disable && chip->cl->active) {
 		rc = qg_get_battery_temp(chip, &batt_temp);
 		if (rc < 0) {
-			pr_err("Failed to read BATT_TEMP rc=%d\n", rc);
+			pr_debug("Failed to read BATT_TEMP rc=%d\n", rc);
 		} else if (chip->batt_soc >= 0) {
 			cap_learning_update(chip->cl, batt_temp, chip->batt_soc,
 					chip->charge_status, chip->charge_done,
@@ -546,7 +546,7 @@ int qg_scale_soc(struct qpnp_qg *chip, bool force_soc)
 		chip->msoc = chip->catch_up_soc;
 		rc = qg_write_monotonic_soc(chip, chip->msoc);
 		if (rc < 0)
-			pr_err("Failed to update MSOC register rc=%d\n", rc);
+			pr_debug("Failed to update MSOC register rc=%d\n", rc);
 
 		qg_dbg(chip, QG_DEBUG_SOC,
 			"SOC scale: Forced msoc=%d\n", chip->msoc);
@@ -587,7 +587,7 @@ int qg_soc_init(struct qpnp_qg *chip)
 		alarm_init(&chip->alarm_timer, ALARM_BOOTTIME,
 			qpnp_msoc_timer);
 	} else {
-		pr_err("Failed to get soc alarm-timer\n");
+		pr_debug("Failed to get soc alarm-timer\n");
 		return -EINVAL;
 	}
 	INIT_WORK(&chip->scale_soc_work, scale_soc_work);

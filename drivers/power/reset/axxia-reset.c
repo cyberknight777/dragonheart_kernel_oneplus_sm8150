@@ -65,7 +65,7 @@ static int axxia_reset_probe(struct platform_device *pdev)
 
 	syscon = syscon_regmap_lookup_by_phandle(dev->of_node, "syscon");
 	if (IS_ERR(syscon)) {
-		pr_err("%s: syscon lookup failed\n", dev->of_node->name);
+		pr_debug("%s: syscon lookup failed\n", dev->of_node->name);
 		return PTR_ERR(syscon);
 	}
 

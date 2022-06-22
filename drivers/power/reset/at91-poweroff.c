@@ -69,7 +69,7 @@ static void __init at91_wakeup_status(void)
 	else if (reg & AT91_SHDW_RTCWK)
 		reason = "RTC";
 
-	pr_info("AT91: Wake-Up source: %s\n", reason);
+	pr_debug("AT91: Wake-Up source: %s\n", reason);
 }
 
 static void at91_poweroff(void)

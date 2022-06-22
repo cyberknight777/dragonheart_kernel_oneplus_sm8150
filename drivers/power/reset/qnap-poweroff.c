@@ -59,7 +59,7 @@ static void qnap_power_off(void)
 {
 	const unsigned divisor = ((tclk + (8 * cfg->baud)) / (16 * cfg->baud));
 
-	pr_err("%s: triggering power-off...\n", __func__);
+	pr_debug("%s: triggering power-off...\n", __func__);
 
 	/* hijack UART1 and reset into sane state */
 	writel(0x83, UART1_REG(LCR));

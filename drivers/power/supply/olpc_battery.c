@@ -525,7 +525,7 @@ static ssize_t olpc_bat_eeprom_read(struct file *filp, struct kobject *kobj,
 		ec_byte = EEPROM_START + off + i;
 		ret = olpc_ec_cmd(EC_BAT_EEPROM, &ec_byte, 1, &buf[i], 1);
 		if (ret) {
-			pr_err("olpc-battery: "
+			pr_debug("olpc-battery: "
 			       "EC_BAT_EEPROM cmd @ 0x%x failed - %d!\n",
 			       ec_byte, ret);
 			return -EIO;

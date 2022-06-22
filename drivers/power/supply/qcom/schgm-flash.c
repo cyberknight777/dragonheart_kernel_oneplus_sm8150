@@ -49,7 +49,7 @@ irqreturn_t schgm_flash_ilim2_irq_handler(int irq, void *data)
 	rc = smblib_write(chg, SCHGM_FLASH_S2_LATCH_RESET_CMD_REG,
 				FLASH_S2_LATCH_RESET_BIT);
 	if (rc < 0)
-		pr_err("Couldn't reset S2_LATCH reset rc=%d\n", rc);
+		pr_debug("Couldn't reset S2_LATCH reset rc=%d\n", rc);
 
 	return IRQ_HANDLED;
 }
@@ -63,7 +63,7 @@ irqreturn_t schgm_flash_state_change_irq_handler(int irq, void *data)
 
 	rc = smblib_read(chg, SCHGM_FLASH_STATUS_3_REG, &reg);
 	if (rc < 0)
-		pr_err("Couldn't read flash status_3 rc=%d\n", rc);
+		pr_debug("Couldn't read flash status_3 rc=%d\n", rc);
 	else
 		pr_debug("Flash status changed state=[%x]\n",
 					(reg && FLASH_STATE_MASK));
@@ -116,7 +116,7 @@ int schgm_flash_get_vreg_ok(struct smb_charger *chg, int *val)
 
 	rc = smblib_read(chg, SCHGM_FLASH_STATUS_2_REG, &stat);
 	if (rc < 0) {
-		pr_err("Couldn't read FLASH STATUS_2 rc=%d\n", rc);
+		pr_debug("Couldn't read FLASH STATUS_2 rc=%d\n", rc);
 		return rc;
 	}
 	vreg_state = !!(stat & VREG_OK_BIT);
@@ -125,7 +125,7 @@ int schgm_flash_get_vreg_ok(struct smb_charger *chg, int *val)
 	if (!vreg_state) {
 		rc = smblib_read(chg, SCHGM_FLASH_STATUS_3_REG, &stat);
 		if (rc < 0) {
-			pr_err("Couldn't read FLASH_STATUS_3 rc=%d\n", rc);
+			pr_debug("Couldn't read FLASH_STATUS_3 rc=%d\n", rc);
 			return rc;
 		}
 		if ((stat & FLASH_STATE_MASK) == FLASH_ERROR_VAL) {
@@ -133,7 +133,7 @@ int schgm_flash_get_vreg_ok(struct smb_charger *chg, int *val)
 			rc = smblib_read(chg, SCHGM_FLASH_STATUS_5_REG,
 					&stat);
 			if (rc < 0) {
-				pr_err("Couldn't read FLASH_STATUS_5 rc=%d\n",
+				pr_debug("Couldn't read FLASH_STATUS_5 rc=%d\n",
 						rc);
 				return rc;
 			}
@@ -171,7 +171,7 @@ void schgm_flash_torch_priority(struct smb_charger *chg, enum torch_mode mode)
 	rc = smblib_masked_write(chg, SCHGM_TORCH_PRIORITY_CONTROL_REG,
 					TORCH_PRIORITY_CONTROL_BIT, reg);
 	if (rc < 0)
-		pr_err("Couldn't configure Torch priority control rc=%d\n",
+		pr_debug("Couldn't configure Torch priority control rc=%d\n",
 				rc);
 
 	pr_debug("Torch priority changed to: %d\n", mode);
@@ -188,7 +188,7 @@ int schgm_flash_init(struct smb_charger *chg)
 		rc = smblib_write(chg, SCHGM_SOC_BASED_FLASH_DERATE_TH_CFG_REG,
 					chg->flash_derating_soc);
 		if (rc < 0) {
-			pr_err("Couldn't configure SOC for flash derating rc=%d\n",
+			pr_debug("Couldn't configure SOC for flash derating rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -198,7 +198,7 @@ int schgm_flash_init(struct smb_charger *chg)
 		rc = smblib_write(chg, SCHGM_SOC_BASED_FLASH_DISABLE_TH_CFG_REG,
 					chg->flash_disable_soc);
 		if (rc < 0) {
-			pr_err("Couldn't configure SOC for flash disable rc=%d\n",
+			pr_debug("Couldn't configure SOC for flash disable rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -213,7 +213,7 @@ int schgm_flash_init(struct smb_charger *chg)
 					? FORCE_FLASH_BOOST_5V_BIT : 0;
 		rc = smblib_write(chg, SCHGM_FORCE_BOOST_CONTROL, reg);
 		if (rc < 0) {
-			pr_err("Couldn't write force boost control reg rc=%d\n",
+			pr_debug("Couldn't write force boost control reg rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -222,7 +222,7 @@ int schgm_flash_init(struct smb_charger *chg)
 					? TORCH_PRIORITY_CONTROL_BIT : 0;
 		rc = smblib_write(chg, SCHGM_TORCH_PRIORITY_CONTROL_REG, reg);
 		if (rc < 0) {
-			pr_err("Couldn't force 5V boost in torch mode rc=%d\n",
+			pr_debug("Couldn't force 5V boost in torch mode rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -233,7 +233,7 @@ int schgm_flash_init(struct smb_charger *chg)
 		/* Check if SOC based derating/disable is enabled */
 		rc = smblib_read(chg, SCHGM_FLASH_CONTROL_REG, &reg);
 		if (rc < 0) {
-			pr_err("Couldn't read flash control reg rc=%d\n", rc);
+			pr_debug("Couldn't read flash control reg rc=%d\n", rc);
 			return rc;
 		}
 		if (!(reg & SOC_LOW_FOR_FLASH_EN_BIT))

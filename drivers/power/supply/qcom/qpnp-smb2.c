@@ -214,7 +214,7 @@ static int smb2_parse_dt(struct smb2 *chip)
 	int rc, byte_len;
 
 	if (!node) {
-		pr_err("device tree node missing\n");
+		pr_debug("device tree node missing\n");
 		return -EINVAL;
 	}
 
@@ -307,7 +307,7 @@ static int smb2_parse_dt(struct smb2 *chip)
 
 	of_property_read_u32(node, "qcom,float-option", &chip->dt.float_option);
 	if (chip->dt.float_option < 0 || chip->dt.float_option > 4) {
-		pr_err("qcom,float-option is out of range [0, 4]\n");
+		pr_debug("qcom,float-option is out of range [0, 4]\n");
 		return -EINVAL;
 	}
 
@@ -318,7 +318,7 @@ static int smb2_parse_dt(struct smb2 *chip)
 				&chip->dt.chg_inhibit_thr_mv);
 	if ((chip->dt.chg_inhibit_thr_mv < 0 ||
 		chip->dt.chg_inhibit_thr_mv > 300)) {
-		pr_err("qcom,chg-inhibit-threshold-mv is incorrect\n");
+		pr_debug("qcom,chg-inhibit-threshold-mv is incorrect\n");
 		return -EINVAL;
 	}
 
@@ -511,7 +511,7 @@ static int smb2_usb_get_prop(struct power_supply *psy,
 					      MOISTURE_VOTER);
 		break;
 	default:
-		pr_err("get prop %d is not supported in usb\n", psp);
+		pr_debug("get prop %d is not supported in usb\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -584,7 +584,7 @@ static int smb2_usb_set_prop(struct power_supply *psy,
 		rc = smblib_set_prop_sdp_current_max(chg, val);
 		break;
 	default:
-		pr_err("set prop %d is not supported\n", psp);
+		pr_debug("set prop %d is not supported\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -626,7 +626,7 @@ static int smb2_init_usb_psy(struct smb2 *chip)
 						  &chg->usb_psy_desc,
 						  &usb_cfg);
 	if (IS_ERR(chg->usb_psy)) {
-		pr_err("Couldn't register USB power supply\n");
+		pr_debug("Couldn't register USB power supply\n");
 		return PTR_ERR(chg->usb_psy);
 	}
 
@@ -674,7 +674,7 @@ static int smb2_usb_port_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_input_current_settled(chg, val);
 		break;
 	default:
-		pr_err_ratelimited("Get prop %d is not supported in pc_port\n",
+		pr_debug_ratelimited("Get prop %d is not supported in pc_port\n",
 				psp);
 		return -EINVAL;
 	}
@@ -695,7 +695,7 @@ static int smb2_usb_port_set_prop(struct power_supply *psy,
 
 	switch (psp) {
 	default:
-		pr_err_ratelimited("Set prop %d is not supported in pc_port\n",
+		pr_debug_ratelimited("Set prop %d is not supported in pc_port\n",
 				psp);
 		rc = -EINVAL;
 		break;
@@ -724,7 +724,7 @@ static int smb2_init_usb_port_psy(struct smb2 *chip)
 						  &usb_port_psy_desc,
 						  &usb_port_cfg);
 	if (IS_ERR(chg->usb_port_psy)) {
-		pr_err("Couldn't register USB pc_port power supply\n");
+		pr_debug("Couldn't register USB pc_port power supply\n");
 		return PTR_ERR(chg->usb_port_psy);
 	}
 
@@ -818,7 +818,7 @@ static int smb2_usb_main_set_prop(struct power_supply *psy,
 		rc = smblib_toggle_stat(chg, val->intval);
 		break;
 	default:
-		pr_err("set prop %d is not supported\n", psp);
+		pr_debug("set prop %d is not supported\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -864,7 +864,7 @@ static int smb2_init_usb_main_psy(struct smb2 *chip)
 						  &usb_main_psy_desc,
 						  &usb_main_cfg);
 	if (IS_ERR(chg->usb_main_psy)) {
-		pr_err("Couldn't register USB main power supply\n");
+		pr_debug("Couldn't register USB main power supply\n");
 		return PTR_ERR(chg->usb_main_psy);
 	}
 
@@ -978,7 +978,7 @@ static int smb2_init_dc_psy(struct smb2 *chip)
 						  &dc_psy_desc,
 						  &dc_cfg);
 	if (IS_ERR(chg->dc_psy)) {
-		pr_err("Couldn't register USB power supply\n");
+		pr_debug("Couldn't register USB power supply\n");
 		return PTR_ERR(chg->dc_psy);
 	}
 
@@ -1063,7 +1063,7 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 		/* do not query RRADC if charger is not present */
 		rc = smblib_get_prop_usb_present(chg, &pval);
 		if (rc < 0)
-			pr_err("Couldn't get usb present rc=%d\n", rc);
+			pr_debug("Couldn't get usb present rc=%d\n", rc);
 
 		rc = -ENODATA;
 		if (pval.intval)
@@ -1148,7 +1148,7 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 		val->intval = chg->fcc_stepper_enable;
 		break;
 	default:
-		pr_err("batt power supply prop %d not supported\n", psp);
+		pr_debug("batt power supply prop %d not supported\n", psp);
 		return -EINVAL;
 	}
 
@@ -1300,7 +1300,7 @@ static int smb2_init_batt_psy(struct smb2 *chip)
 						   &batt_psy_desc,
 						   &batt_cfg);
 	if (IS_ERR(chg->batt_psy)) {
-		pr_err("Couldn't register battery power supply\n");
+		pr_debug("Couldn't register battery power supply\n");
 		return PTR_ERR(chg->batt_psy);
 	}
 
@@ -1343,7 +1343,7 @@ static int smb2_init_vbus_regulator(struct smb2 *chip)
 		rc = PTR_ERR(chg->vbus_vreg->rdev);
 		chg->vbus_vreg->rdev = NULL;
 		if (rc != -EPROBE_DEFER)
-			pr_err("Couldn't register VBUS regualtor rc=%d\n", rc);
+			pr_debug("Couldn't register VBUS regualtor rc=%d\n", rc);
 	}
 
 	return rc;
@@ -1388,7 +1388,7 @@ static int smb2_init_vconn_regulator(struct smb2 *chip)
 		rc = PTR_ERR(chg->vconn_vreg->rdev);
 		chg->vconn_vreg->rdev = NULL;
 		if (rc != -EPROBE_DEFER)
-			pr_err("Couldn't register VCONN regualtor rc=%d\n", rc);
+			pr_debug("Couldn't register VCONN regualtor rc=%d\n", rc);
 	}
 
 	return rc;
@@ -1410,42 +1410,42 @@ static int smb2_config_wipower_input_power(struct smb2 *chip, int uw)
 	ua = div_s64(nw, ZIN_ICL_PT_MAX_MV);
 	rc = smblib_set_charge_param(chg, &chg->param.dc_icl_pt_lv, ua);
 	if (rc < 0) {
-		pr_err("Couldn't configure dc_icl_pt_lv rc = %d\n", rc);
+		pr_debug("Couldn't configure dc_icl_pt_lv rc = %d\n", rc);
 		return rc;
 	}
 
 	ua = div_s64(nw, ZIN_ICL_PT_HV_MAX_MV);
 	rc = smblib_set_charge_param(chg, &chg->param.dc_icl_pt_hv, ua);
 	if (rc < 0) {
-		pr_err("Couldn't configure dc_icl_pt_hv rc = %d\n", rc);
+		pr_debug("Couldn't configure dc_icl_pt_hv rc = %d\n", rc);
 		return rc;
 	}
 
 	ua = div_s64(nw, ZIN_ICL_LV_MAX_MV);
 	rc = smblib_set_charge_param(chg, &chg->param.dc_icl_div2_lv, ua);
 	if (rc < 0) {
-		pr_err("Couldn't configure dc_icl_div2_lv rc = %d\n", rc);
+		pr_debug("Couldn't configure dc_icl_div2_lv rc = %d\n", rc);
 		return rc;
 	}
 
 	ua = div_s64(nw, ZIN_ICL_MID_LV_MAX_MV);
 	rc = smblib_set_charge_param(chg, &chg->param.dc_icl_div2_mid_lv, ua);
 	if (rc < 0) {
-		pr_err("Couldn't configure dc_icl_div2_mid_lv rc = %d\n", rc);
+		pr_debug("Couldn't configure dc_icl_div2_mid_lv rc = %d\n", rc);
 		return rc;
 	}
 
 	ua = div_s64(nw, ZIN_ICL_MID_HV_MAX_MV);
 	rc = smblib_set_charge_param(chg, &chg->param.dc_icl_div2_mid_hv, ua);
 	if (rc < 0) {
-		pr_err("Couldn't configure dc_icl_div2_mid_hv rc = %d\n", rc);
+		pr_debug("Couldn't configure dc_icl_div2_mid_hv rc = %d\n", rc);
 		return rc;
 	}
 
 	ua = div_s64(nw, ZIN_ICL_HV_MAX_MV);
 	rc = smblib_set_charge_param(chg, &chg->param.dc_icl_div2_hv, ua);
 	if (rc < 0) {
-		pr_err("Couldn't configure dc_icl_div2_hv rc = %d\n", rc);
+		pr_debug("Couldn't configure dc_icl_div2_hv rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1615,7 +1615,7 @@ static int smb2_init_hw(struct smb2 *chip)
 	rc = smblib_masked_write(chg, DC_ENG_SSUPPLY_CFG2_REG,
 				ENG_SSUPPLY_IVREF_OTG_SS_MASK, OTG_SS_SLOW);
 	if (rc < 0) {
-		pr_err("Couldn't set otg soft start rc=%d\n", rc);
+		pr_debug("Couldn't set otg soft start rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1624,7 +1624,7 @@ static int smb2_init_hw(struct smb2 *chip)
 				(chg->wa_flags & OTG_WA) ?
 				chg->param.otg_cl.min_u : chg->otg_cl_ua);
 	if (rc < 0) {
-		pr_err("Couldn't set otg current limit rc=%d\n", rc);
+		pr_debug("Couldn't set otg current limit rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1632,7 +1632,7 @@ static int smb2_init_hw(struct smb2 *chip)
 
 	rc = smblib_read(chg, APSD_RESULT_STATUS_REG, &stat);
 	if (rc < 0) {
-		pr_err("Couldn't read APSD_RESULT_STATUS rc=%d\n", rc);
+		pr_debug("Couldn't read APSD_RESULT_STATUS rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1640,7 +1640,7 @@ static int smb2_init_hw(struct smb2 *chip)
 
 	/* clear the ICL override if it is set */
 	if (smblib_icl_override(chg, false) < 0) {
-		pr_err("Couldn't disable ICL override rc=%d\n", rc);
+		pr_debug("Couldn't disable ICL override rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1748,7 +1748,7 @@ static int smb2_init_hw(struct smb2 *chip)
 			BARK_WDOG_TIMEOUT_MASK | BITE_WDOG_TIMEOUT_MASK,
 			val);
 	if (rc) {
-		pr_err("Couldn't configue WD config rc=%d\n", rc);
+		pr_debug("Couldn't configue WD config rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1760,7 +1760,7 @@ static int smb2_init_hw(struct smb2 *chip)
 			WDOG_TIMER_EN_ON_PLUGIN_BIT |
 			BARK_WDOG_INT_EN_BIT);
 	if (rc) {
-		pr_err("Couldn't configue WD config rc=%d\n", rc);
+		pr_debug("Couldn't configue WD config rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1964,7 +1964,7 @@ static int smb2_chg_config_init(struct smb2 *chip)
 	revid_dev_node = of_parse_phandle(chip->chg.dev->of_node,
 					  "qcom,pmic-revid", 0);
 	if (!revid_dev_node) {
-		pr_err("Missing qcom,pmic-revid property\n");
+		pr_debug("Missing qcom,pmic-revid property\n");
 		return -EINVAL;
 	}
 
@@ -2010,7 +2010,7 @@ static int smb2_chg_config_init(struct smb2 *chip)
 		chg->chg_freq.freq_above_otg_threshold = 800;
 		break;
 	default:
-		pr_err("PMIC subtype %d not supported\n",
+		pr_debug("PMIC subtype %d not supported\n",
 				pmic_rev_id->pmic_subtype);
 		return -EINVAL;
 	}
@@ -2237,13 +2237,13 @@ static int smb2_request_interrupt(struct smb2 *chip,
 
 	irq = of_irq_get_byname(node, irq_name);
 	if (irq < 0) {
-		pr_err("Couldn't get irq %s byname\n", irq_name);
+		pr_debug("Couldn't get irq %s byname\n", irq_name);
 		return irq;
 	}
 
 	irq_index = smb2_get_irq_index_byname(irq_name);
 	if (irq_index < 0) {
-		pr_err("%s is not a defined irq\n", irq_name);
+		pr_debug("%s is not a defined irq\n", irq_name);
 		return irq_index;
 	}
 
@@ -2263,7 +2263,7 @@ static int smb2_request_interrupt(struct smb2 *chip,
 					smb2_irqs[irq_index].handler,
 					IRQF_ONESHOT, irq_name, irq_data);
 	if (rc < 0) {
-		pr_err("Couldn't request irq %d\n", irq);
+		pr_debug("Couldn't request irq %d\n", irq);
 		return rc;
 	}
 
@@ -2361,7 +2361,7 @@ static void smb2_create_debugfs(struct smb2 *chip)
 
 	chip->dfs_root = debugfs_create_dir("charger", NULL);
 	if (IS_ERR_OR_NULL(chip->dfs_root)) {
-		pr_err("Couldn't create charger debugfs rc=%ld\n",
+		pr_debug("Couldn't create charger debugfs rc=%ld\n",
 			(long)chip->dfs_root);
 		return;
 	}
@@ -2369,19 +2369,19 @@ static void smb2_create_debugfs(struct smb2 *chip)
 	file = debugfs_create_file("force_batt_psy_update", 0600,
 			    chip->dfs_root, chip, &force_batt_psy_update_ops);
 	if (IS_ERR_OR_NULL(file))
-		pr_err("Couldn't create force_batt_psy_update file rc=%ld\n",
+		pr_debug("Couldn't create force_batt_psy_update file rc=%ld\n",
 			(long)file);
 
 	file = debugfs_create_file("force_usb_psy_update", 0600,
 			    chip->dfs_root, chip, &force_usb_psy_update_ops);
 	if (IS_ERR_OR_NULL(file))
-		pr_err("Couldn't create force_usb_psy_update file rc=%ld\n",
+		pr_debug("Couldn't create force_usb_psy_update file rc=%ld\n",
 			(long)file);
 
 	file = debugfs_create_file("force_dc_psy_update", 0600,
 			    chip->dfs_root, chip, &force_dc_psy_update_ops);
 	if (IS_ERR_OR_NULL(file))
-		pr_err("Couldn't create force_dc_psy_update file rc=%ld\n",
+		pr_debug("Couldn't create force_dc_psy_update file rc=%ld\n",
 			(long)file);
 }
 
@@ -2418,26 +2418,26 @@ static int smb2_probe(struct platform_device *pdev)
 
 	chg->regmap = dev_get_regmap(chg->dev->parent, NULL);
 	if (!chg->regmap) {
-		pr_err("parent regmap is missing\n");
+		pr_debug("parent regmap is missing\n");
 		return -EINVAL;
 	}
 
 	rc = smb2_chg_config_init(chip);
 	if (rc < 0) {
 		if (rc != -EPROBE_DEFER)
-			pr_err("Couldn't setup chg_config rc=%d\n", rc);
+			pr_debug("Couldn't setup chg_config rc=%d\n", rc);
 		return rc;
 	}
 
 	rc = smb2_parse_dt(chip);
 	if (rc < 0) {
-		pr_err("Couldn't parse device tree rc=%d\n", rc);
+		pr_debug("Couldn't parse device tree rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smblib_init(chg);
 	if (rc < 0) {
-		pr_err("Smblib_init failed rc=%d\n", rc);
+		pr_debug("Smblib_init failed rc=%d\n", rc);
 		goto cleanup;
 	}
 
@@ -2446,14 +2446,14 @@ static int smb2_probe(struct platform_device *pdev)
 
 	rc = smb2_init_vbus_regulator(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize vbus regulator rc=%d\n",
+		pr_debug("Couldn't initialize vbus regulator rc=%d\n",
 			rc);
 		goto cleanup;
 	}
 
 	rc = smb2_init_vconn_regulator(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize vconn regulator rc=%d\n",
+		pr_debug("Couldn't initialize vconn regulator rc=%d\n",
 				rc);
 		goto cleanup;
 	}
@@ -2476,56 +2476,56 @@ static int smb2_probe(struct platform_device *pdev)
 
 	rc = smb2_init_hw(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize hardware rc=%d\n", rc);
+		pr_debug("Couldn't initialize hardware rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_init_dc_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize dc psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize dc psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_init_usb_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize usb psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize usb psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_init_usb_main_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize usb main psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize usb main psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_init_usb_port_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize usb pc_port psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize usb pc_port psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_init_batt_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize batt psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize batt psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_determine_initial_status(chip);
 	if (rc < 0) {
-		pr_err("Couldn't determine initial status rc=%d\n",
+		pr_debug("Couldn't determine initial status rc=%d\n",
 			rc);
 		goto cleanup;
 	}
 
 	rc = smb2_request_interrupts(chip);
 	if (rc < 0) {
-		pr_err("Couldn't request interrupts rc=%d\n", rc);
+		pr_debug("Couldn't request interrupts rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb2_post_init(chip);
 	if (rc < 0) {
-		pr_err("Failed in post init rc=%d\n", rc);
+		pr_debug("Failed in post init rc=%d\n", rc);
 		goto cleanup;
 	}
 
@@ -2533,35 +2533,35 @@ static int smb2_probe(struct platform_device *pdev)
 
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get usb present rc=%d\n", rc);
+		pr_debug("Couldn't get usb present rc=%d\n", rc);
 		goto cleanup;
 	}
 	usb_present = val.intval;
 
 	rc = smblib_get_prop_batt_present(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get batt present rc=%d\n", rc);
+		pr_debug("Couldn't get batt present rc=%d\n", rc);
 		goto cleanup;
 	}
 	batt_present = val.intval;
 
 	rc = smblib_get_prop_batt_health(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get batt health rc=%d\n", rc);
+		pr_debug("Couldn't get batt health rc=%d\n", rc);
 		val.intval = POWER_SUPPLY_HEALTH_UNKNOWN;
 	}
 	batt_health = val.intval;
 
 	rc = smblib_get_prop_batt_charge_type(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get batt charge type rc=%d\n", rc);
+		pr_debug("Couldn't get batt charge type rc=%d\n", rc);
 		goto cleanup;
 	}
 	batt_charge_type = val.intval;
 
 	device_init_wakeup(chg->dev, true);
 
-	pr_info("QPNP SMB2 probed successfully usb:present=%d type=%d batt:present = %d health = %d charge = %d\n",
+	pr_debug("QPNP SMB2 probed successfully usb:present=%d type=%d batt:present = %d health = %d charge = %d\n",
 		usb_present, chg->real_charger_type,
 		batt_present, batt_health, batt_charge_type);
 	return rc;

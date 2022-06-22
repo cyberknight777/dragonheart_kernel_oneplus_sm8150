@@ -377,7 +377,7 @@ static int smb1355_set_charge_param(struct smb1355 *chip,
 	u8 val_raw;
 
 	if (val_u > param->max_u || val_u < param->min_u) {
-		pr_err("%s: %d is out of range [%d, %d]\n",
+		pr_debug("%s: %d is out of range [%d, %d]\n",
 			param->name, val_u, param->min_u, param->max_u);
 		return -EINVAL;
 	}
@@ -386,7 +386,7 @@ static int smb1355_set_charge_param(struct smb1355 *chip,
 
 	rc = smb1355_write(chip, param->reg, val_raw);
 	if (rc < 0) {
-		pr_err("%s: Couldn't write 0x%02x to 0x%04x rc=%d\n",
+		pr_debug("%s: Couldn't write 0x%02x to 0x%04x rc=%d\n",
 			param->name, val_raw, param->reg, rc);
 		return rc;
 	}
@@ -402,7 +402,7 @@ static int smb1355_get_charge_param(struct smb1355 *chip,
 
 	rc = smb1355_read(chip, param->reg, &val_raw);
 	if (rc < 0) {
-		pr_err("%s: Couldn't read from 0x%04x rc=%d\n",
+		pr_debug("%s: Couldn't read from 0x%04x rc=%d\n",
 			param->name, param->reg, rc);
 		return rc;
 	}
@@ -425,7 +425,7 @@ static void die_temp_work(struct work_struct *work)
 		rc = smb1355_masked_write(chip, SMB2CHG_BATIF_ENG_SMISC_DIETEMP,
 				TDIE_COMPARATOR_THRESHOLD, i);
 		if (rc < 0) {
-			pr_err("Couldn't set temp comp threshold rc=%d\n", rc);
+			pr_debug("Couldn't set temp comp threshold rc=%d\n", rc);
 			continue;
 		}
 
@@ -437,7 +437,7 @@ static void die_temp_work(struct work_struct *work)
 
 		rc = smb1355_read(chip, TEMP_COMP_STATUS_REG, &temp_stat);
 		if (rc < 0) {
-			pr_err("Couldn't read temp comp status rc=%d\n", rc);
+			pr_debug("Couldn't read temp comp status rc=%d\n", rc);
 			continue;
 		}
 
@@ -461,7 +461,7 @@ static int smb1355_get_prop_input_current_limited(struct smb1355 *chip,
 
 	rc = smb1355_read(chip, MISC_RT_STS_REG, &stat);
 	if (rc < 0)
-		pr_err("Couldn't read SMB1355_BATTERY_STATUS_3 rc=%d\n", rc);
+		pr_debug("Couldn't read SMB1355_BATTERY_STATUS_3 rc=%d\n", rc);
 
 	pval->intval = !!(stat & HARD_ILIMIT_RT_STS_BIT);
 
@@ -486,7 +486,7 @@ static irqreturn_t smb1355_handle_wdog_bark(int irq, void *data)
 	rc = smb1355_write(chip, BARK_BITE_WDOG_PET_REG,
 					BARK_BITE_WDOG_PET_BIT);
 	if (rc < 0)
-		pr_err("Couldn't pet the dog rc=%d\n", rc);
+		pr_debug("Couldn't pet the dog rc=%d\n", rc);
 
 	return IRQ_HANDLED;
 }
@@ -514,7 +514,7 @@ static int smb1355_parse_dt(struct smb1355 *chip)
 	int rc = 0;
 
 	if (!node) {
-		pr_err("device tree node missing\n");
+		pr_debug("device tree node missing\n");
 		return -EINVAL;
 	}
 
@@ -584,7 +584,7 @@ static int smb1355_get_prop_batt_charge_type(struct smb1355 *chip,
 
 	rc = smb1355_read(chip, BATTERY_STATUS_3_REG, &stat);
 	if (rc < 0) {
-		pr_err("Couldn't read SMB1355_BATTERY_STATUS_3 rc=%d\n", rc);
+		pr_debug("Couldn't read SMB1355_BATTERY_STATUS_3 rc=%d\n", rc);
 		return rc;
 	}
 
@@ -610,7 +610,7 @@ static int smb1355_get_prop_health(struct smb1355 *chip, int type)
 
 	rc = smb1355_read(chip, TEMP_COMP_STATUS_REG, &temp);
 	if (rc < 0) {
-		pr_err("Couldn't read comp stat reg rc = %d\n", rc);
+		pr_debug("Couldn't read comp stat reg rc = %d\n", rc);
 		return POWER_SUPPLY_HEALTH_UNKNOWN;
 	}
 
@@ -638,7 +638,7 @@ static int smb1355_get_prop_voltage_max(struct smb1355 *chip,
 	}
 	rc = smb1355_get_charge_param(chip, &chip->param.ov, &val->intval);
 	if (rc < 0)
-		pr_err("failed to read vbatt rc=%d\n", rc);
+		pr_debug("failed to read vbatt rc=%d\n", rc);
 	else
 		chip->vbatt_uv = val->intval;
 done:
@@ -658,7 +658,7 @@ static int smb1355_get_prop_constant_charge_current_max(struct smb1355 *chip,
 	}
 	rc = smb1355_get_charge_param(chip, &chip->param.fcc, &val->intval);
 	if (rc < 0)
-		pr_err("failed to read fcc rc=%d\n", rc);
+		pr_debug("failed to read fcc rc=%d\n", rc);
 	else
 		chip->fcc_ua = val->intval;
 done:
@@ -700,7 +700,7 @@ static int smb1355_get_prop_online(struct smb1355 *chip,
 	}
 	rc = smb1355_read(chip, BATTERY_STATUS_3_REG, &stat);
 	if (rc < 0) {
-		pr_err("failed to read BATTERY_STATUS_3_REG %d\n", rc);
+		pr_debug("failed to read BATTERY_STATUS_3_REG %d\n", rc);
 	} else {
 		val->intval = (bool)(stat & ENABLE_CHARGING_BIT);
 		chip->charging_enabled = val->intval;
@@ -723,7 +723,7 @@ static int smb1355_get_prop_pin_enabled(struct smb1355 *chip,
 	}
 	rc = smb1355_read(chip, BATTERY_STATUS_2_REG, &stat);
 	if (rc < 0) {
-		pr_err("failed to read BATTERY_STATUS_2_REG %d\n", rc);
+		pr_debug("failed to read BATTERY_STATUS_2_REG %d\n", rc);
 	} else {
 		val->intval = !(stat & DISABLE_CHARGING_BIT);
 		chip->pin_status = val->intval;
@@ -750,7 +750,7 @@ static int smb1355_get_prop_charge_type(struct smb1355 *chip,
 	}
 	rc = smb1355_get_prop_batt_charge_type(chip, val);
 	if (rc < 0)
-		pr_err("failed to read batt_charge_type %d\n", rc);
+		pr_debug("failed to read batt_charge_type %d\n", rc);
 	else
 		chip->charge_type = val->intval;
 done:
@@ -851,7 +851,7 @@ static int smb1355_parallel_get_prop(struct power_supply *psy,
 		val->intval = 0;
 		break;
 	default:
-		pr_err_ratelimited("parallel psy get prop %d not supported\n",
+		pr_debug_ratelimited("parallel psy get prop %d not supported\n",
 			prop);
 		return -EINVAL;
 	}
@@ -886,7 +886,7 @@ static int smb1355_set_parallel_charging(struct smb1355 *chip, bool disable)
 	rc = smb1355_masked_write(chip, WD_CFG_REG, WDOG_TIMER_EN_BIT,
 				 disable ? 0 : WDOG_TIMER_EN_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't %s watchdog rc=%d\n",
+		pr_debug("Couldn't %s watchdog rc=%d\n",
 		       disable ? "disable" : "enable", rc);
 		disable = true;
 	}
@@ -900,7 +900,7 @@ static int smb1355_set_parallel_charging(struct smb1355 *chip, bool disable)
 			CHG_EN_POLARITY_BIT | CHG_EN_SRC_BIT,
 			disable ? 0 : CHG_EN_SRC_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't configure charge enable source rc=%d\n", rc);
+		pr_debug("Couldn't configure charge enable source rc=%d\n", rc);
 		disable = true;
 	}
 
@@ -925,7 +925,7 @@ static int smb1355_set_parallel_charging(struct smb1355 *chip, bool disable)
 				BANDGAP_ENABLE_CMD_BIT,
 				disable ? 0 : BANDGAP_ENABLE_CMD_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't configure bandgap enable rc=%d\n", rc);
+		pr_debug("Couldn't configure bandgap enable rc=%d\n", rc);
 		return rc;
 	}
 
@@ -965,7 +965,7 @@ static int smb1355_clk_request(struct smb1355 *chip, bool enable)
 				CLOCK_REQUEST_CMD_BIT,
 				enable ? CLOCK_REQUEST_CMD_BIT : 0);
 	if (rc < 0)
-		pr_err("Couldn't %s clock rc=%d\n",
+		pr_debug("Couldn't %s clock rc=%d\n",
 			       enable ? "enable" : "disable", rc);
 
 	return rc;
@@ -1056,7 +1056,7 @@ static int smb1355_init_parallel_psy(struct smb1355 *chip)
 						   &parallel_psy_desc,
 						   &parallel_cfg);
 	if (IS_ERR(chip->parallel_psy)) {
-		pr_err("Couldn't register parallel power supply\n");
+		pr_debug("Couldn't register parallel power supply\n");
 		return PTR_ERR(chip->parallel_psy);
 	}
 
@@ -1078,7 +1078,7 @@ static int smb1355_detect_version(struct smb1355 *chip)
 
 	rc = smb1355_read(chip, REVID_MFG_ID_SPARE_REG, &val);
 	if (rc < 0) {
-		pr_err("Unable to read REVID rc=%d\n", rc);
+		pr_debug("Unable to read REVID rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1092,7 +1092,7 @@ static int smb1355_detect_version(struct smb1355 *chip)
 		chip->max_fcc = SMB1355_MAX_PARALLEL_FCC_UA;
 		break;
 	default:
-		pr_err("Invalid value of REVID val=%d", val);
+		pr_debug("Invalid value of REVID val=%d", val);
 		return -EINVAL;
 	}
 
@@ -1111,7 +1111,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, BATIF_ENG_SCMISC_SPARE1_REG,
 					 EXT_BIAS_PIN_BIT, 0);
 		if (rc < 0) {
-			pr_err("Couldn't enable ext bias pin path rc=%d\n",
+			pr_debug("Couldn't enable ext bias pin path rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1119,7 +1119,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, BATIF_CFG_SMISC_BATID_REG,
 					CFG_SMISC_RBIAS_EXT_CTRL_BIT, 0);
 		if (rc < 0) {
-			pr_err("Couldn't set  BATIF_CFG_SMISC_BATID rc=%d\n",
+			pr_debug("Couldn't set  BATIF_CFG_SMISC_BATID rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1127,7 +1127,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, MISC_CHGR_TRIM_OPTIONS_REG,
 					CMD_RBIAS_EN_BIT, 0);
 		if (rc < 0) {
-			pr_err("Couldn't set MISC_CHGR_TRIM_OPTIONS rc=%d\n",
+			pr_debug("Couldn't set MISC_CHGR_TRIM_OPTIONS rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1136,7 +1136,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, MISC_THERMREG_SRC_CFG_REG,
 			THERMREG_SKIN_CMP_SRC_EN_BIT, 0);
 		if (rc < 0) {
-			pr_err("Couldn't set Skin temp comparator src rc=%d\n",
+			pr_debug("Couldn't set Skin temp comparator src rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1148,7 +1148,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, BATIF_ENG_SCMISC_SPARE1_REG,
 					 EXT_BIAS_PIN_BIT, EXT_BIAS_PIN_BIT);
 		if (rc < 0) {
-			pr_err("Couldn't enable ext bias pin path rc=%d\n",
+			pr_debug("Couldn't enable ext bias pin path rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1157,7 +1157,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 					CFG_SMISC_RBIAS_EXT_CTRL_BIT,
 					CFG_SMISC_RBIAS_EXT_CTRL_BIT);
 		if (rc < 0) {
-			pr_err("Couldn't set  BATIF_CFG_SMISC_BATID rc=%d\n",
+			pr_debug("Couldn't set  BATIF_CFG_SMISC_BATID rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1166,7 +1166,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 					CMD_RBIAS_EN_BIT,
 					CMD_RBIAS_EN_BIT);
 		if (rc < 0) {
-			pr_err("Couldn't set MISC_CHGR_TRIM_OPTIONS rc=%d\n",
+			pr_debug("Couldn't set MISC_CHGR_TRIM_OPTIONS rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1176,7 +1176,7 @@ static int smb1355_tskin_sensor_config(struct smb1355 *chip)
 			THERMREG_SKIN_CMP_SRC_EN_BIT,
 			THERMREG_SKIN_CMP_SRC_EN_BIT);
 		if (rc < 0) {
-			pr_err("Couldn't set Skin temp comparator src rc=%d\n",
+			pr_debug("Couldn't set Skin temp comparator src rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1199,7 +1199,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, I2C_SS_DIG_PMIC_SID_REG,
 					PMIC_SID_MASK, PMIC_SID0_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't configure the I2C_SS_DIG_PMIC_SID_REG rc=%d\n",
+		pr_debug("Couldn't configure the I2C_SS_DIG_PMIC_SID_REG rc=%d\n",
 					rc);
 		return rc;
 	}
@@ -1210,7 +1210,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 			| BARK_WDOG_INT_EN_BIT,
 			BITE_WDOG_INT_EN_BIT | BARK_WDOG_INT_EN_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't configure the watchdog rc=%d\n", rc);
+		pr_debug("Couldn't configure the watchdog rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1219,7 +1219,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 				 BITE_WDOG_DISABLE_CHARGING_CFG_BIT,
 				 BITE_WDOG_DISABLE_CHARGING_CFG_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't configure the watchdog bite rc=%d\n", rc);
+		pr_debug("Couldn't configure the watchdog bite rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1230,20 +1230,20 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, CHGR_CHARGING_ENABLE_CMD_REG,
 				CHARGING_ENABLE_CMD_BIT, 0);
 	if (rc < 0) {
-		pr_err("Coudln't configure command bit, rc=%d\n", rc);
+		pr_debug("Coudln't configure command bit, rc=%d\n", rc);
 		return rc;
 	}
 
 	rc = smb1355_set_parallel_charging(chip, true);
 	if (rc < 0) {
-		pr_err("Couldn't disable parallel path rc=%d\n", rc);
+		pr_debug("Couldn't disable parallel path rc=%d\n", rc);
 		return rc;
 	}
 
 	/* initialize FCC to 0 */
 	rc = smb1355_set_charge_param(chip, &chip->param.fcc, 0);
 	if (rc < 0) {
-		pr_err("Couldn't set 0 FCC rc=%d\n", rc);
+		pr_debug("Couldn't set 0 FCC rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1252,7 +1252,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 			HICCUP_TIMEOUT_CFG_MASK | MAX_HICCUP_DUETO_BATDIS_MASK,
 			0);
 	if (rc < 0) {
-		pr_err("Couldn't set HICCUP interval rc=%d\n",
+		pr_debug("Couldn't set HICCUP interval rc=%d\n",
 			rc);
 		return rc;
 	}
@@ -1261,7 +1261,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, CFG_REG,
 				 VCHG_EN_CFG_BIT, VCHG_EN_CFG_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't enable parallel current sensing rc=%d\n",
+		pr_debug("Couldn't enable parallel current sensing rc=%d\n",
 			rc);
 		return rc;
 	}
@@ -1270,7 +1270,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, CHGR_PRE_TO_FAST_THRESHOLD_CFG_REG,
 				 PRE_TO_FAST_CHARGE_THRESHOLD_MASK, 0);
 	if (rc < 0) {
-		pr_err("Couldn't set PRE_TO_FAST_CHARGE_THRESHOLD rc=%d\n",
+		pr_debug("Couldn't set PRE_TO_FAST_CHARGE_THRESHOLD rc=%d\n",
 			rc);
 		return rc;
 	}
@@ -1288,7 +1288,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 				TDIE_COMPARATOR_THRESHOLD,
 				(range << DIE_LOW_RANGE_SHIFT) | val);
 		if (rc < 0) {
-			pr_err("Couldn't set temp comp threshold rc=%d\n", rc);
+			pr_debug("Couldn't set temp comp threshold rc=%d\n", rc);
 			return rc;
 		}
 	}
@@ -1305,7 +1305,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 		THERMREG_DIE_CMP_SRC_EN_BIT | BYP_THERM_CHG_CURR_ADJUST_BIT,
 		val);
 	if (rc < 0) {
-		pr_err("Couldn't set Skin temperature comparator src rc=%d\n",
+		pr_debug("Couldn't set Skin temperature comparator src rc=%d\n",
 			rc);
 		return rc;
 	}
@@ -1318,7 +1318,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, BATIF_ENG_SCMISC_SPARE1_REG,
 				DIE_TEMP_COMP_HYST_BIT, val);
 	if (rc < 0) {
-		pr_err("Couldn't disable hyst. for die rc=%d\n", rc);
+		pr_debug("Couldn't disable hyst. for die rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1326,7 +1326,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, ANA1_ENG_SREFGEN_CFG2_REG,
 		VALLEY_COMPARATOR_EN_BIT, VALLEY_COMPARATOR_EN_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't enable valley current comparator rc=%d\n", rc);
+		pr_debug("Couldn't enable valley current comparator rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1334,7 +1334,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 	rc = smb1355_masked_write(chip, MISC_CUST_SDCDC_ILIMIT_CFG_REG,
 		LS_VALLEY_THRESH_PCT_BIT, LS_VALLEY_THRESH_PCT_BIT);
 	if (rc < 0) {
-		pr_err("Couldn't set LS valley threshold to 85pc rc=%d\n", rc);
+		pr_debug("Couldn't set LS valley threshold to 85pc rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1343,14 +1343,14 @@ static int smb1355_init_hw(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, MISC_CUST_SDCDC_ILIMIT_CFG_REG,
 				PCL_LIMIT_MASK, PCL_LIMIT_MASK);
 		if (rc < 0) {
-			pr_err("Couldn't set PCL limit to 8.6A rc=%d\n", rc);
+			pr_debug("Couldn't set PCL limit to 8.6A rc=%d\n", rc);
 			return rc;
 		}
 	}
 
 	rc = smb1355_tskin_sensor_config(chip);
 	if (rc < 0) {
-		pr_err("Couldn't configure tskin regs rc=%d\n", rc);
+		pr_debug("Couldn't configure tskin regs rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1360,7 +1360,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, MISC_CUST_SDCDC_CLK_CFG_REG,
 				SWITCHER_CLK_FREQ_MASK, 0x03);
 		if (rc < 0) {
-			pr_err("Couldn't set MISC_CUST_SDCDC_CLK_CFG rc=%d\n",
+			pr_debug("Couldn't set MISC_CUST_SDCDC_CLK_CFG rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1373,7 +1373,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 				II_SOURCE_BIT | SCALE_SLOPE_COMP_MASK,
 				II_SOURCE_BIT);
 		if (rc < 0) {
-			pr_err("Couldn't set MISC_ENG_SDCDC_RESERVE3_REG rc=%d\n",
+			pr_debug("Couldn't set MISC_ENG_SDCDC_RESERVE3_REG rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1384,7 +1384,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 				PROLONG_ISENSE_MASK | SAMPLE_HOLD_DELAY_MASK,
 				((uint8_t)0x0C << SAMPLE_HOLD_DELAY_SHIFT));
 		if (rc < 0) {
-			pr_err("Couldn't set MISC_ENG_SDCDC_INPUT_CURRENT_CFG1_REG rc=%d\n",
+			pr_debug("Couldn't set MISC_ENG_SDCDC_INPUT_CURRENT_CFG1_REG rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1396,7 +1396,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 			       INPUT_CURRENT_LIMIT_SOURCE_BIT | 0xC);
 
 		if (rc < 0) {
-			pr_err("Couldn't set MISC_ENG_SDCDC_INPUT_CURRENT_CFG2_REG rc=%d\n",
+			pr_debug("Couldn't set MISC_ENG_SDCDC_INPUT_CURRENT_CFG2_REG rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1406,7 +1406,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 				ANA2_TR_SBQ_ICL_1X_REF_OFFSET_REG,
 				TR_SBQ_ICL_1X_REF_OFFSET, 0x00);
 		if (rc < 0) {
-			pr_err("Couldn't set ANA2_TR_SBQ_ICL_1X_REF_OFFSET_REG rc=%d\n",
+			pr_debug("Couldn't set ANA2_TR_SBQ_ICL_1X_REF_OFFSET_REG rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1415,7 +1415,7 @@ static int smb1355_init_hw(struct smb1355 *chip)
 		rc = smb1355_masked_write(chip, USB_TR_SCPATH_ICL_1X_GAIN_REG,
 				TR_SCPATH_ICL_1X_GAIN_MASK, 0x22);
 		if (rc < 0) {
-			pr_err("Couldn't set USB_TR_SCPATH_ICL_1X_GAIN_REG rc=%d\n",
+			pr_debug("Couldn't set USB_TR_SCPATH_ICL_1X_GAIN_REG rc=%d\n",
 				rc);
 			return rc;
 		}
@@ -1464,13 +1464,13 @@ static int smb1355_request_interrupt(struct smb1355 *chip,
 
 	irq = of_irq_get_byname(node, irq_name);
 	if (irq < 0) {
-		pr_err("Couldn't get irq %s byname\n", irq_name);
+		pr_debug("Couldn't get irq %s byname\n", irq_name);
 		return irq;
 	}
 
 	irq_index = smb1355_get_irq_index_byname(irq_name);
 	if (irq_index < 0) {
-		pr_err("%s is not a defined irq\n", irq_name);
+		pr_debug("%s is not a defined irq\n", irq_name);
 		return irq_index;
 	}
 
@@ -1481,7 +1481,7 @@ static int smb1355_request_interrupt(struct smb1355 *chip,
 				smb1355_irqs[irq_index].handler,
 				IRQF_ONESHOT, irq_name, chip);
 	if (rc < 0) {
-		pr_err("Couldn't request irq %d rc=%d\n", irq, rc);
+		pr_debug("Couldn't request irq %d rc=%d\n", irq, rc);
 		return rc;
 	}
 
@@ -1505,7 +1505,7 @@ static int smb1355_request_interrupts(struct smb1355 *chip)
 					prop, name) {
 			rc = smb1355_request_interrupt(chip, child, name);
 			if (rc < 0) {
-				pr_err("Couldn't request interrupt %s rc=%d\n",
+				pr_debug("Couldn't request interrupt %s rc=%d\n",
 					name, rc);
 				return rc;
 			}
@@ -1565,19 +1565,19 @@ static int smb1355_probe(struct platform_device *pdev)
 
 	chip->regmap = dev_get_regmap(chip->dev->parent, NULL);
 	if (!chip->regmap) {
-		pr_err("parent regmap is missing\n");
+		pr_debug("parent regmap is missing\n");
 		return -EINVAL;
 	}
 
 	id = of_match_device(of_match_ptr(match_table), chip->dev);
 	if (!id) {
-		pr_err("Couldn't find a matching device\n");
+		pr_debug("Couldn't find a matching device\n");
 		return -ENODEV;
 	}
 
 	rc = smb1355_detect_version(chip);
 	if (rc < 0) {
-		pr_err("Couldn't detect SMB1355/1354 chip type rc=%d\n", rc);
+		pr_debug("Couldn't detect SMB1355/1354 chip type rc=%d\n", rc);
 		goto cleanup;
 	}
 
@@ -1585,32 +1585,32 @@ static int smb1355_probe(struct platform_device *pdev)
 
 	rc = smb1355_parse_dt(chip);
 	if (rc < 0) {
-		pr_err("Couldn't parse device tree rc=%d\n", rc);
+		pr_debug("Couldn't parse device tree rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb1355_init_hw(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize hardware rc=%d\n", rc);
+		pr_debug("Couldn't initialize hardware rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb1355_init_parallel_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize parallel psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize parallel psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb1355_determine_initial_status(chip);
 	if (rc < 0) {
-		pr_err("Couldn't determine initial status rc=%d\n",
+		pr_debug("Couldn't determine initial status rc=%d\n",
 			rc);
 		goto cleanup;
 	}
 
 	rc = smb1355_request_interrupts(chip);
 	if (rc < 0) {
-		pr_err("Couldn't request interrupts rc=%d\n", rc);
+		pr_debug("Couldn't request interrupts rc=%d\n", rc);
 		goto cleanup;
 	}
 
@@ -1623,7 +1623,7 @@ static int smb1355_probe(struct platform_device *pdev)
 	/* keep IRQ's disabled until parallel is enabled */
 	vote(chip->irq_disable_votable, PARALLEL_ENABLE_VOTER, true, 0);
 
-	pr_info("%s probed successfully pl_mode=%s batfet_mode=%s\n",
+	pr_debug("%s probed successfully pl_mode=%s batfet_mode=%s\n",
 		chip->name,
 		IS_USBIN(chip->dt.pl_mode) ? "USBIN-USBIN" : "USBMID-USBMID",
 		(chip->dt.pl_batfet_mode == POWER_SUPPLY_PL_STACKED_BATFET)
@@ -1649,7 +1649,7 @@ static void smb1355_shutdown(struct platform_device *pdev)
 	/* disable parallel charging path */
 	rc = smb1355_set_parallel_charging(chip, true);
 	if (rc < 0)
-		pr_err("Couldn't disable parallel path rc=%d\n", rc);
+		pr_debug("Couldn't disable parallel path rc=%d\n", rc);
 
 	smb1355_clk_request(chip, false);
 }

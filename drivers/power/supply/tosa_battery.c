@@ -150,7 +150,7 @@ static void tosa_bat_external_power_changed(struct power_supply *psy)
 
 static irqreturn_t tosa_bat_gpio_isr(int irq, void *data)
 {
-	pr_info("tosa_bat_gpio irq\n");
+	pr_debug("tosa_bat_gpio irq\n");
 	schedule_work(&bat_work);
 	return IRQ_HANDLED;
 }

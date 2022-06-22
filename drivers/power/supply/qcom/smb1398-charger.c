@@ -1582,7 +1582,7 @@ static void smb1398_configure_ilim(struct smb1398_chip *chip, int mode)
 		rc = power_supply_get_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_PD_CURRENT_MAX, &pval);
 		if (rc < 0)
-			pr_err("Couldn't get PD CURRENT MAX rc=%d\n", rc);
+			pr_debug("Couldn't get PD CURRENT MAX rc=%d\n", rc);
 		else
 			vote(chip->div2_cp_ilim_votable, ICL_VOTER,
 					true, ILIM_FACTOR(pval.intval));
@@ -1594,7 +1594,7 @@ static void smb1398_configure_ilim(struct smb1398_chip *chip, int mode)
 		rc = power_supply_get_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_INPUT_CURRENT_SETTLED, &pval);
 		if (rc < 0)
-			pr_err("Couldn't get usb aicl rc=%d\n", rc);
+			pr_debug("Couldn't get usb aicl rc=%d\n", rc);
 		else
 			vote(chip->div2_cp_ilim_votable, ICL_VOTER,
 					true, pval.intval);
@@ -1938,7 +1938,7 @@ static int smb1398_div2_cp_hw_init(struct smb1398_chip *chip)
 	rc = smb1398_masked_write(chip, PERPH0_DIV2_REF_CFG,
 			CFG_IREV_REF_BIT, 0);
 	if (rc < 0) {
-		pr_err("Couldn't configure IREV threshold rc=%d\n", rc);
+		pr_debug("Couldn't configure IREV threshold rc=%d\n", rc);
 		return rc;
 		}
 
@@ -2038,7 +2038,7 @@ static int smb1398_div2_cp_master_probe(struct smb1398_chip *chip)
 	revid_dev_node = of_parse_phandle(chip->dev->of_node,
 					  "qcom,pmic-revid", 0);
 	if (!revid_dev_node) {
-		pr_err("Couldn't get revid node\n");
+		pr_debug("Couldn't get revid node\n");
 		return -EINVAL;
 	}
 

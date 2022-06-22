@@ -197,7 +197,7 @@ static int qnovo_batt_psy_update(struct qnovo *chip, bool disable)
 			POWER_SUPPLY_PROP_VOLTAGE_QNOVO,
 			&pval);
 		if (rc < 0) {
-			pr_err("Couldn't set prop qnovo_fv rc = %d\n", rc);
+			pr_debug("Couldn't set prop qnovo_fv rc = %d\n", rc);
 			return -EINVAL;
 		}
 	}
@@ -208,7 +208,7 @@ static int qnovo_batt_psy_update(struct qnovo *chip, bool disable)
 			POWER_SUPPLY_PROP_CURRENT_QNOVO,
 			&pval);
 		if (rc < 0) {
-			pr_err("Couldn't set prop qnovo_fcc rc = %d\n", rc);
+			pr_debug("Couldn't set prop qnovo_fcc rc = %d\n", rc);
 			return -EINVAL;
 		}
 	}
@@ -300,19 +300,19 @@ static int qnovo5_parse_dt(struct qnovo *chip)
 	int rc;
 
 	if (!node) {
-		pr_err("device tree node missing\n");
+		pr_debug("device tree node missing\n");
 		return -EINVAL;
 	}
 
 	rc = of_property_read_u32(node, "reg", &chip->base);
 	if (rc < 0) {
-		pr_err("Couldn't read base rc = %d\n", rc);
+		pr_debug("Couldn't read base rc = %d\n", rc);
 		return rc;
 	}
 
 	chip->pinctrl = devm_pinctrl_get(chip->dev);
 	if (IS_ERR(chip->pinctrl)) {
-		pr_err("Couldn't get pinctrl rc=%d\n", PTR_ERR(chip->pinctrl));
+		pr_debug("Couldn't get pinctrl rc=%d\n", PTR_ERR(chip->pinctrl));
 		chip->pinctrl = NULL;
 	}
 
@@ -321,7 +321,7 @@ static int qnovo5_parse_dt(struct qnovo *chip)
 						"q_state1");
 		if (IS_ERR(chip->pinctrl_state1)) {
 			rc = PTR_ERR(chip->pinctrl_state1);
-			pr_err("Couldn't get pinctrl state1 rc=%d\n", rc);
+			pr_debug("Couldn't get pinctrl state1 rc=%d\n", rc);
 			return rc;
 		}
 
@@ -329,7 +329,7 @@ static int qnovo5_parse_dt(struct qnovo *chip)
 						"q_state2");
 		if (IS_ERR(chip->pinctrl_state2)) {
 			rc = PTR_ERR(chip->pinctrl_state2);
-			pr_err("Couldn't get pinctrl state2 rc=%d\n", rc);
+			pr_debug("Couldn't get pinctrl state2 rc=%d\n", rc);
 			return rc;
 		}
 	}
@@ -788,7 +788,7 @@ static ssize_t reg_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval = buf[1] << 8 | buf[0];
@@ -816,7 +816,7 @@ static ssize_t reg_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	return count;
@@ -837,7 +837,7 @@ static ssize_t time_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval = buf[1] << 8 | buf[0];
@@ -866,7 +866,7 @@ static ssize_t time_store(struct class *c, struct class_attribute *attr,
 		return -EINVAL;
 
 	if (val < params[i].min_val || val > params[i].max_val) {
-		pr_err("Out of Range %d%s for %s\n", (int)val,
+		pr_debug("Out of Range %d%s for %s\n", (int)val,
 				params[i].units_str,
 				params[i].name);
 		return -ERANGE;
@@ -880,7 +880,7 @@ static ssize_t time_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -901,7 +901,7 @@ static ssize_t current_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -932,7 +932,7 @@ static ssize_t current_store(struct class *c, struct class_attribute *attr,
 		return -EINVAL;
 
 	if (val_uA < params[i].min_val || val_uA > params[i].max_val) {
-		pr_err("Out of Range %d%s for %s\n", (int)val_uA,
+		pr_debug("Out of Range %d%s for %s\n", (int)val_uA,
 				params[i].units_str,
 				params[i].name);
 		return -ERANGE;
@@ -947,7 +947,7 @@ static ssize_t current_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -968,7 +968,7 @@ static ssize_t voltage_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval_nV = buf[1] << 8 | buf[0];
@@ -998,7 +998,7 @@ static ssize_t voltage_store(struct class *c, struct class_attribute *attr,
 		return -EINVAL;
 
 	if (val_uV < params[i].min_val || val_uV > params[i].max_val) {
-		pr_err("Out of Range %d%s for %s\n", (int)val_uV,
+		pr_debug("Out of Range %d%s for %s\n", (int)val_uV,
 				params[i].units_str,
 				params[i].name);
 		return -ERANGE;
@@ -1013,7 +1013,7 @@ static ssize_t voltage_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo5_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -1038,7 +1038,7 @@ static ssize_t batt_prop_show(struct class *c, struct class_attribute *attr,
 
 	rc = power_supply_get_property(chip->batt_psy, prop, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't read battery prop %s rc = %d\n",
+		pr_debug("Couldn't read battery prop %s rc = %d\n",
 				params[i].name, rc);
 		return -EINVAL;
 	}
@@ -1154,12 +1154,12 @@ static void status_change_work(struct work_struct *work)
 			rc = pinctrl_select_state(chip->pinctrl,
 					chip->pinctrl_state1);
 			if (rc < 0)
-				pr_err("Couldn't select state 1 rc=%d\n", rc);
+				pr_debug("Couldn't select state 1 rc=%d\n", rc);
 
 			rc = pinctrl_select_state(chip->pinctrl,
 					chip->pinctrl_state2);
 			if (rc < 0)
-				pr_err("Couldn't select state 2 rc=%d\n", rc);
+				pr_debug("Couldn't select state 2 rc=%d\n", rc);
 		}
 	} else if (!chip->usb_present && usb_present) {
 		/* insertion */
@@ -1175,7 +1175,7 @@ static void status_change_work(struct work_struct *work)
 	rc = power_supply_get_property(chip->batt_psy, POWER_SUPPLY_PROP_HEALTH,
 					&pval);
 	if (rc < 0) {
-		pr_err("Error in getting battery health, rc=%d\n", rc);
+		pr_debug("Error in getting battery health, rc=%d\n", rc);
 		return;
 	}
 	battery_health = pval.intval;
@@ -1183,7 +1183,7 @@ static void status_change_work(struct work_struct *work)
 	rc = power_supply_get_property(chip->batt_psy, POWER_SUPPLY_PROP_STATUS,
 					&pval);
 	if (rc < 0) {
-		pr_err("Error in getting charging status, rc=%d\n", rc);
+		pr_debug("Error in getting charging status, rc=%d\n", rc);
 		return;
 	}
 	charge_status = pval.intval;
@@ -1251,7 +1251,7 @@ static int qnovo5_hw_init(struct qnovo *chip)
 		ERR_CHARGING_DISABLED | ERR_JEITA_HARD_CONDITION;
 	rc = qnovo5_write(chip, QNOVO_ERROR_MASK, &val, 1);
 	if (rc < 0) {
-		pr_err("Couldn't write QNOVO_ERROR_MASK rc = %d\n", rc);
+		pr_debug("Couldn't write QNOVO_ERROR_MASK rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1265,7 +1265,7 @@ static int qnovo5_register_notifier(struct qnovo *chip)
 	chip->nb.notifier_call = qnovo_notifier_call;
 	rc = power_supply_reg_notifier(&chip->nb);
 	if (rc < 0) {
-		pr_err("Couldn't register psy notifier rc = %d\n", rc);
+		pr_debug("Couldn't register psy notifier rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1289,7 +1289,7 @@ static int qnovo5_request_interrupts(struct qnovo *chip)
 					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 					"ptrain-done", chip);
 	if (rc < 0) {
-		pr_err("Couldn't request irq %d rc = %d\n",
+		pr_debug("Couldn't request irq %d rc = %d\n",
 					irq_ptrain_done, rc);
 		return rc;
 	}
@@ -1315,13 +1315,13 @@ static int qnovo5_probe(struct platform_device *pdev)
 
 	chip->regmap = dev_get_regmap(chip->dev->parent, NULL);
 	if (!chip->regmap) {
-		pr_err("parent regmap is missing\n");
+		pr_debug("parent regmap is missing\n");
 		return -EINVAL;
 	}
 
 	rc = qnovo5_parse_dt(chip);
 	if (rc < 0) {
-		pr_err("Couldn't parse device tree rc=%d\n", rc);
+		pr_debug("Couldn't parse device tree rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1375,25 +1375,25 @@ static int qnovo5_probe(struct platform_device *pdev)
 
 	rc = qnovo5_hw_init(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize hardware rc=%d\n", rc);
+		pr_debug("Couldn't initialize hardware rc=%d\n", rc);
 		goto destroy_awake_votable;
 	}
 
 	rc = qnovo5_register_notifier(chip);
 	if (rc < 0) {
-		pr_err("Couldn't register psy notifier rc = %d\n", rc);
+		pr_debug("Couldn't register psy notifier rc = %d\n", rc);
 		goto unreg_notifier;
 	}
 
 	rc = qnovo5_determine_initial_status(chip);
 	if (rc < 0) {
-		pr_err("Couldn't determine initial status rc=%d\n", rc);
+		pr_debug("Couldn't determine initial status rc=%d\n", rc);
 		goto unreg_notifier;
 	}
 
 	rc = qnovo5_request_interrupts(chip);
 	if (rc < 0) {
-		pr_err("Couldn't request interrupts rc=%d\n", rc);
+		pr_debug("Couldn't request interrupts rc=%d\n", rc);
 		goto unreg_notifier;
 	}
 	chip->qnovo_class.name = "qnovo",
@@ -1402,7 +1402,7 @@ static int qnovo5_probe(struct platform_device *pdev)
 
 	rc = class_register(&chip->qnovo_class);
 	if (rc < 0) {
-		pr_err("couldn't register qnovo sysfs class rc = %d\n", rc);
+		pr_debug("couldn't register qnovo sysfs class rc = %d\n", rc);
 		goto unreg_notifier;
 	}
 

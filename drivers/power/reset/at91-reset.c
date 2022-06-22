@@ -169,7 +169,7 @@ static void __init at91_reset_status(struct platform_device *pdev)
 		break;
 	}
 
-	pr_info("AT91: Starting after %s\n", reason);
+	pr_debug("AT91: Starting after %s\n", reason);
 }
 
 static const struct of_device_id at91_ramc_of_match[] = {

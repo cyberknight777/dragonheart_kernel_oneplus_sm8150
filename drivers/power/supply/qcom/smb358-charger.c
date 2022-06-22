@@ -710,7 +710,7 @@ static int __smb358_charging_disable(struct smb358_charger *chip, bool disable)
 	rc = smb358_masked_write(chip, CMD_A_REG, CMD_A_CHG_ENABLE_BIT,
 			disable ? 0 : CMD_A_CHG_ENABLE_BIT);
 	if (rc < 0)
-		pr_err("Couldn't set CHG_ENABLE_BIT disable = %d, rc = %d\n",
+		pr_debug("Couldn't set CHG_ENABLE_BIT disable = %d, rc = %d\n",
 				disable, rc);
 	return rc;
 }
@@ -736,7 +736,7 @@ static int smb358_charging_disable(struct smb358_charger *chip,
 
 	rc = __smb358_charging_disable(chip, !!disabled);
 	if (rc) {
-		pr_err("Failed to disable charging rc = %d\n", rc);
+		pr_debug("Failed to disable charging rc = %d\n", rc);
 		return rc;
 	}
 
@@ -760,7 +760,7 @@ static int smb358_hw_init(struct smb358_charger *chip)
 		chip->smb_pinctrl = pinctrl_get_select(chip->dev,
 						chip->pinctrl_state_name);
 		if (IS_ERR(chip->smb_pinctrl)) {
-			pr_err("Could not get/set %s pinctrl state rc = %ld\n",
+			pr_debug("Could not get/set %s pinctrl state rc = %ld\n",
 						chip->pinctrl_state_name,
 						PTR_ERR(chip->smb_pinctrl));
 			return PTR_ERR(chip->smb_pinctrl);
@@ -1049,7 +1049,7 @@ smb358_get_prop_battery_voltage_now(struct smb358_charger *chip)
 		rc = iio_read_channel_processed(chip->iio.vbat_sns,
 			&vbat_sns_result);
 		if (rc < 0) {
-			pr_err("Unable to read vbat, rc = %d\n", rc);
+			pr_debug("Unable to read vbat, rc = %d\n", rc);
 			return 0;
 		}
 	}
@@ -1070,7 +1070,7 @@ static int smb358_get_iio_channel(struct smb358_charger *chip,
 	if (IS_ERR(*chan)) {
 		rc = PTR_ERR(*chan);
 		if (rc != -EPROBE_DEFER)
-			pr_err("%s channel unavailable, %d\n",
+			pr_debug("%s channel unavailable, %d\n",
 							propname, rc);
 		*chan = NULL;
 	}
@@ -1986,7 +1986,7 @@ static int smb_parse_batt_id(struct smb358_charger *chip)
 		rc = iio_read_channel_processed(chip->iio.batt_id_therm,
 			&batt_id_result);
 		if (rc < 0) {
-			pr_err("Couldn't read batt id channel=%d, rc = %d\n",
+			pr_debug("Couldn't read batt id channel=%d, rc = %d\n",
 				VADC_LR_MUX2_BAT_ID, rc);
 			return -EINVAL;
 		}
@@ -2068,7 +2068,7 @@ static int smb_parse_dt(struct smb358_charger *chip)
 						&chip->vfloat_mv);
 	if (rc < 0) {
 		chip->vfloat_mv = -EINVAL;
-		pr_err("float-voltage-mv property missing, exit\n");
+		pr_debug("float-voltage-mv property missing, exit\n");
 		return -EINVAL;
 	}
 
@@ -2411,7 +2411,7 @@ static int smb358_charger_probe(struct i2c_client *client,
 	/* probe the device to check if its actually connected */
 	rc = smb358_read_reg(chip, CHG_OTH_CURRENT_CTRL_REG, &reg);
 	if (rc) {
-		pr_err("Failed to detect SMB358, device absent, rc = %d\n", rc);
+		pr_debug("Failed to detect SMB358, device absent, rc = %d\n", rc);
 		goto err_set_vtg_i2c;
 	}
 
@@ -2623,7 +2623,7 @@ static int smb358_suspend_noirq(struct device *dev)
 	struct smb358_charger *chip = i2c_get_clientdata(client);
 
 	if (chip->irq_waiting) {
-		pr_err_ratelimited("Aborting suspend, an interrupt was detected while suspending\n");
+		pr_debug_ratelimited("Aborting suspend, an interrupt was detected while suspending\n");
 		return -EBUSY;
 	}
 	return 0;
