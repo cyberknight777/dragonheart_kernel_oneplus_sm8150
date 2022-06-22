@@ -138,7 +138,7 @@ static u32 dp_catalog_aux_read_data(struct dp_catalog_aux *aux)
 	struct dp_io_data *io_data;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto end;
 	}
 
@@ -157,7 +157,7 @@ static int dp_catalog_aux_write_data(struct dp_catalog_aux *aux)
 	struct dp_io_data *io_data;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -177,7 +177,7 @@ static int dp_catalog_aux_write_trans(struct dp_catalog_aux *aux)
 	struct dp_io_data *io_data;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -198,7 +198,7 @@ static int dp_catalog_aux_clear_trans(struct dp_catalog_aux *aux, bool read)
 	struct dp_io_data *io_data;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -224,7 +224,7 @@ static void dp_catalog_aux_clear_hw_interrupts(struct dp_catalog_aux *aux)
 	u32 data = 0;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -248,7 +248,7 @@ static void dp_catalog_aux_reset(struct dp_catalog_aux *aux)
 	struct dp_io_data *io_data;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -273,7 +273,7 @@ static void dp_catalog_aux_enable(struct dp_catalog_aux *aux, bool enable)
 	struct dp_catalog_private *catalog;
 	struct dp_io_data *io_data;
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -303,7 +303,7 @@ static void dp_catalog_aux_update_cfg(struct dp_catalog_aux *aux,
 	struct dp_io_data *io_data;
 
 	if (!aux || !cfg || (type >= PHY_AUX_CFG_MAX)) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -330,7 +330,7 @@ static void dp_catalog_aux_setup(struct dp_catalog_aux *aux,
 	int i = 0;
 
 	if (!aux || !cfg) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -372,7 +372,7 @@ static void dp_catalog_aux_get_irq(struct dp_catalog_aux *aux, bool cmd_busy)
 	struct dp_io_data *io_data;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -394,7 +394,7 @@ static u32 dp_catalog_ctrl_read_hdcp_status(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -413,12 +413,12 @@ static void dp_catalog_panel_setup_infoframe_sdp(struct dp_catalog_panel *panel)
 	u8 buf[SZ_128], off = 0;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -540,12 +540,12 @@ static void dp_catalog_panel_setup_vsc_sdp(struct dp_catalog_panel *panel)
 	u8 buf[SZ_128];
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -661,12 +661,12 @@ static void dp_catalog_panel_config_hdr(struct dp_catalog_panel *panel, bool en)
 	u32 misc1_misc0_off = 0;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -741,7 +741,7 @@ static void dp_catalog_panel_update_transfer_unit(
 	struct dp_io_data *io_data;
 
 	if (!panel || panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -761,7 +761,7 @@ static void dp_catalog_ctrl_state_ctrl(struct dp_catalog_ctrl *ctrl, u32 state)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -780,7 +780,7 @@ static void dp_catalog_ctrl_config_ctrl(struct dp_catalog_ctrl *ctrl, u8 ln_cnt)
 	u32 cfg;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -808,12 +808,12 @@ static void dp_catalog_panel_config_ctrl(struct dp_catalog_panel *panel,
 	u32 strm_reg_off = 0, mainlink_ctrl;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -851,12 +851,12 @@ static void dp_catalog_panel_config_dto(struct dp_catalog_panel *panel,
 	u32 dsc_dto;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -871,7 +871,7 @@ static void dp_catalog_panel_config_dto(struct dp_catalog_panel *panel,
 		io_data = catalog->io.dp_p1;
 		break;
 	default:
-		pr_err("invalid stream id\n");
+		pr_debug("invalid stream id\n");
 		return;
 	}
 
@@ -892,7 +892,7 @@ static void dp_catalog_ctrl_lane_mapping(struct dp_catalog_ctrl *ctrl,
 	u32 lane_map_reg = 0;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -941,7 +941,7 @@ static void dp_catalog_ctrl_mainlink_ctrl(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -982,12 +982,12 @@ static void dp_catalog_panel_config_misc(struct dp_catalog_panel *panel)
 	u32 reg_offset = 0;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -1016,12 +1016,12 @@ static void dp_catalog_panel_config_msa(struct dp_catalog_panel *panel,
 	u32 mvid_reg_off = 0, nvid_reg_off = 0;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -1082,7 +1082,7 @@ static void dp_catalog_ctrl_set_pattern(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1104,7 +1104,7 @@ static void dp_catalog_ctrl_set_pattern(struct dp_catalog_ctrl *ctrl,
 	}
 
 	if (cnt == 0)
-		pr_err("set link_train=%d failed\n", pattern);
+		pr_debug("set link_train=%d failed\n", pattern);
 }
 
 static void dp_catalog_ctrl_usb_reset(struct dp_catalog_ctrl *ctrl, bool flip)
@@ -1113,7 +1113,7 @@ static void dp_catalog_ctrl_usb_reset(struct dp_catalog_ctrl *ctrl, bool flip)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1155,12 +1155,12 @@ static void dp_catalog_panel_tpg_cfg(struct dp_catalog_panel *panel,
 	struct dp_io_data *io_data;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -1223,12 +1223,12 @@ static void dp_catalog_panel_dsc_cfg(struct dp_catalog_panel *panel)
 	int i;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -1292,12 +1292,12 @@ static void dp_catalog_panel_pps_flush(struct dp_catalog_panel *panel)
 	u32 dp_flush, offset;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -1323,7 +1323,7 @@ static void dp_catalog_ctrl_reset(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1348,7 +1348,7 @@ static bool dp_catalog_ctrl_mainlink_ready(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto end;
 	}
 
@@ -1363,7 +1363,7 @@ static bool dp_catalog_ctrl_mainlink_ready(struct dp_catalog_ctrl *ctrl)
 
 		usleep_range(1000, 1010); /* 1ms wait before next reg read */
 	}
-	pr_err("mainlink not ready\n");
+	pr_debug("mainlink not ready\n");
 end:
 	return false;
 }
@@ -1375,7 +1375,7 @@ static void dp_catalog_ctrl_enable_irq(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1403,7 +1403,7 @@ static void dp_catalog_ctrl_get_interrupt(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1431,7 +1431,7 @@ static void dp_catalog_ctrl_phy_reset(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1453,7 +1453,7 @@ static void dp_catalog_ctrl_phy_lane_cfg(struct dp_catalog_ctrl *ctrl,
 	u8 orientation = BIT(!!flipped);
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1477,7 +1477,7 @@ static void dp_catalog_ctrl_update_vx_px(struct dp_catalog_ctrl *ctrl,
 	u32 version;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1529,7 +1529,7 @@ static void dp_catalog_ctrl_update_vx_px(struct dp_catalog_ctrl *ctrl,
 		pr_debug("hw: vx_value=0x%x px_value=0x%x\n",
 			value0, value1);
 	} else {
-		pr_err("invalid vx (0x%x=0x%x), px (0x%x=0x%x\n",
+		pr_debug("invalid vx (0x%x=0x%x), px (0x%x=0x%x\n",
 			v_level, value0, p_level, value1);
 	}
 }
@@ -1542,7 +1542,7 @@ static void dp_catalog_ctrl_send_phy_pattern(struct dp_catalog_ctrl *ctrl,
 	struct dp_io_data *io_data = NULL;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1618,7 +1618,7 @@ static u32 dp_catalog_ctrl_read_phy_pattern(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data = NULL;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return 0;
 	}
 
@@ -1637,7 +1637,7 @@ static void dp_catalog_ctrl_fec_config(struct dp_catalog_ctrl *ctrl,
 	u32 reg;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1673,7 +1673,7 @@ static int dp_catalog_reg_dump(struct dp_catalog *dp_catalog,
 	struct dp_parser *parser;
 
 	if (!dp_catalog) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -1684,7 +1684,7 @@ static int dp_catalog_reg_dump(struct dp_catalog *dp_catalog,
 	parser->get_io_buf(parser, name);
 	io_data = parser->get_io(parser, name);
 	if (!io_data) {
-		pr_err("IO %s not found\n", name);
+		pr_debug("IO %s not found\n", name);
 		ret = -EINVAL;
 		goto end;
 	}
@@ -1693,7 +1693,7 @@ static int dp_catalog_reg_dump(struct dp_catalog *dp_catalog,
 	len = io_data->io.len;
 
 	if (!buf || !len) {
-		pr_err("no buffer available\n");
+		pr_debug("no buffer available\n");
 		ret = -ENOMEM;
 		goto end;
 	}
@@ -1731,7 +1731,7 @@ static void dp_catalog_ctrl_mst_config(struct dp_catalog_ctrl *ctrl,
 	u32 reg;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1756,7 +1756,7 @@ static void dp_catalog_ctrl_trigger_act(struct dp_catalog_ctrl *ctrl)
 	struct dp_io_data *io_data = NULL;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1777,7 +1777,7 @@ static void dp_catalog_ctrl_read_act_complete_sts(struct dp_catalog_ctrl *ctrl,
 	u32 reg;
 
 	if (!ctrl || !sts) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1803,13 +1803,13 @@ static void dp_catalog_ctrl_channel_alloc(struct dp_catalog_ctrl *ctrl,
 	int const num_slots_per_reg = 32;
 
 	if (!ctrl || ch >= DP_STREAM_MAX) {
-		pr_err("invalid input. ch %d\n", ch);
+		pr_debug("invalid input. ch %d\n", ch);
 		return;
 	}
 
 	if (ch_start_slot > DP_MAX_TIME_SLOTS ||
 			(ch_start_slot + tot_slot_cnt > DP_MAX_TIME_SLOTS)) {
-		pr_err("invalid slots start %d, tot %d\n",
+		pr_debug("invalid slots start %d, tot %d\n",
 			ch_start_slot, tot_slot_cnt);
 		return;
 	}
@@ -1858,13 +1858,13 @@ static void dp_catalog_ctrl_channel_dealloc(struct dp_catalog_ctrl *ctrl,
 	u32 reg_off = 0;
 
 	if (!ctrl || ch >= DP_STREAM_MAX) {
-		pr_err("invalid input. ch %d\n", ch);
+		pr_debug("invalid input. ch %d\n", ch);
 		return;
 	}
 
 	if (ch_start_slot > DP_MAX_TIME_SLOTS ||
 			(ch_start_slot + tot_slot_cnt > DP_MAX_TIME_SLOTS)) {
-		pr_err("invalid slots start %d, tot %d\n",
+		pr_debug("invalid slots start %d, tot %d\n",
 			ch_start_slot, tot_slot_cnt);
 		return;
 	}
@@ -1912,7 +1912,7 @@ static void dp_catalog_ctrl_update_rg(struct dp_catalog_ctrl *ctrl, u32 ch,
 	u32 rg, reg_off = 0;
 
 	if (!ctrl || ch >= DP_STREAM_MAX) {
-		pr_err("invalid input. ch %d\n", ch);
+		pr_debug("invalid input. ch %d\n", ch);
 		return;
 	}
 
@@ -1980,12 +1980,12 @@ static int dp_catalog_panel_timing_cfg(struct dp_catalog_panel *panel)
 	u32 offset = 0, reg;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto end;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		goto end;
 	}
 
@@ -2027,7 +2027,7 @@ static void dp_catalog_hpd_config_hpd(struct dp_catalog_hpd *hpd, bool en)
 	struct dp_io_data *io_data;
 
 	if (!hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -2069,7 +2069,7 @@ static u32 dp_catalog_hpd_get_interrupt(struct dp_catalog_hpd *hpd)
 	struct dp_io_data *io_data;
 
 	if (!hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return isr;
 	}
 
@@ -2132,7 +2132,7 @@ static void dp_catalog_audio_config_sdp(struct dp_catalog_audio *audio)
 		return;
 
 	if (audio->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream id:%d\n", audio->stream_id);
+		pr_debug("invalid stream id:%d\n", audio->stream_id);
 		return;
 	}
 
@@ -2468,7 +2468,7 @@ static void dp_catalog_set_exe_mode(struct dp_catalog *dp_catalog, char *mode)
 	struct dp_catalog_private *catalog;
 
 	if (!dp_catalog) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -2591,7 +2591,7 @@ struct dp_catalog *dp_catalog_get(struct device *dev, struct dp_parser *parser)
 	};
 
 	if (!dev || !parser) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto error;
 	}

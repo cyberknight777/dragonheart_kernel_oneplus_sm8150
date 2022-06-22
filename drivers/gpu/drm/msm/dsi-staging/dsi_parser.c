@@ -219,7 +219,7 @@ static void dsi_parser_get_int_value(struct dsi_parser_prop *prop,
 		}
 
 		if (kstrtoint(tmp, base, &val)) {
-			pr_err("error converting %s at %d\n",
+			pr_debug("error converting %s at %d\n",
 				tmp, i);
 
 			continue;
@@ -573,7 +573,7 @@ int dsi_parser_read_u32(const struct device_node *np,
 
 	rc = kstrtoint(property, base, out_value);
 	if (rc) {
-		pr_err("prop=%s error(%d) converting %s, base=%d\n",
+		pr_debug("prop=%s error(%d) converting %s, base=%d\n",
 			propname, rc, property, base);
 		goto end;
 	}
@@ -618,7 +618,7 @@ int dsi_parser_read_u32_array(const struct device_node *np,
 
 		rc = kstrtoint(tmp, base, &val);
 		if (rc) {
-			pr_err("prop=%s error(%d) converting %s(%d), base=%d\n",
+			pr_debug("prop=%s error(%d) converting %s(%d), base=%d\n",
 				propname, rc, tmp, i, base);
 			continue;
 		}
@@ -699,7 +699,7 @@ struct dsi_parser_node *dsi_parser_get_node_by_name(
 	struct dsi_parser_node *matched_node = NULL;
 
 	if (!node) {
-		pr_err("node is null\n");
+		pr_debug("node is null\n");
 		goto end;
 	}
 
@@ -825,12 +825,12 @@ int dsi_parser_read_string_index(const struct device_node *np,
 	}
 
 	if (prop->type != DSI_PROP_TYPE_STR_ARRAY) {
-		pr_err("not a string array property\n");
+		pr_debug("not a string array property\n");
 		goto end;
 	}
 
 	if (index >= prop->len) {
-		pr_err("out of bond index %d\n", index);
+		pr_debug("out of bond index %d\n", index);
 		goto end;
 	}
 
@@ -858,7 +858,7 @@ void *dsi_parser_get_head_node(void *in,
 	char *buf;
 
 	if (!parser || !data || !size) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto err;
 	}
 
@@ -875,7 +875,7 @@ void *dsi_parser_get_head_node(void *in,
 
 	parser->head_node = dsi_parser_find_nodes(parser->dev, &buf);
 	if (!parser->head_node) {
-		pr_err("could not get head node\n");
+		pr_debug("could not get head node\n");
 		devm_kfree(parser->dev, parser->buf);
 		goto err;
 	}
@@ -899,7 +899,7 @@ static int dsi_parser_read_file(struct dsi_parser *parser,
 
 	rc = request_firmware(&parser->fw, parser->file_name, parser->dev);
 	if (rc || !parser->fw) {
-		pr_err("couldn't read firmware\n");
+		pr_debug("couldn't read firmware\n");
 		goto end;
 	}
 
@@ -974,12 +974,12 @@ static ssize_t dsi_parser_write_init(struct file *file,
 	buf[len] = '\0';
 
 	if (sscanf(buf, "%31s", parser->file_name) != 1) {
-		pr_err("failed to get val\n");
+		pr_debug("failed to get val\n");
 		goto end;
 	}
 
 	if (dsi_parser_read_file(parser, &data, &size)) {
-		pr_err("failed to read file\n");
+		pr_debug("failed to read file\n");
 		goto end;
 	}
 
@@ -992,7 +992,7 @@ static ssize_t dsi_parser_write_init(struct file *file,
 
 	parser->head_node = dsi_parser_get_head_node(parser, data, size);
 	if (!parser->head_node) {
-		pr_err("failed to parse data\n");
+		pr_debug("failed to parse data\n");
 		goto end;
 	}
 end:
@@ -1158,7 +1158,7 @@ int dsi_parser_dbg_init(void *parser, struct dentry *parent_dir)
 	struct dentry *dir, *file;
 
 	if (!parser || !parent_dir) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto end;
 	}
 
@@ -1166,7 +1166,7 @@ int dsi_parser_dbg_init(void *parser, struct dentry *parent_dir)
 	if (IS_ERR_OR_NULL(dir)) {
 		rc = PTR_ERR(dir);
 
-		pr_err("failed to create parser debugfs\n");
+		pr_debug("failed to create parser debugfs\n");
 		goto end;
 	}
 
@@ -1175,7 +1175,7 @@ int dsi_parser_dbg_init(void *parser, struct dentry *parent_dir)
 	if (IS_ERR_OR_NULL(file)) {
 		rc = PTR_ERR(file);
 
-		pr_err("failed to create init debugfs\n");
+		pr_debug("failed to create init debugfs\n");
 		goto dbg;
 	}
 
@@ -1184,7 +1184,7 @@ int dsi_parser_dbg_init(void *parser, struct dentry *parent_dir)
 	if (IS_ERR_OR_NULL(file)) {
 		rc = PTR_ERR(file);
 
-		pr_err("failed to create init debugfs\n");
+		pr_debug("failed to create init debugfs\n");
 		goto dbg;
 	}
 
@@ -1202,7 +1202,7 @@ void *dsi_parser_get(struct device *dev)
 	struct dsi_parser *parser = NULL;
 
 	if (!dev) {
-		pr_err("invalid data\n");
+		pr_debug("invalid data\n");
 		rc = -EINVAL;
 		goto end;
 	}
