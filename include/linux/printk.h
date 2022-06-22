@@ -336,7 +336,7 @@ extern asmlinkage void dump_stack(void) __cold;
 /* dynamic_pr_debug() uses pr_fmt() internally so we don't need it here */
 #define pr_debug(fmt, ...) \
 	dynamic_pr_debug(fmt, ##__VA_ARGS__)
-#elif defined(DEBUG)
+#elif defined(DEBUG_KERNEL)
 #define pr_debug(fmt, ...) \
 	printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
 #else
