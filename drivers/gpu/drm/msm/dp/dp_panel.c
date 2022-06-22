@@ -307,7 +307,7 @@ static void dp_panel_update_tu_timings(struct dp_tu_calc_input *in,
 	tot_num_dummy_bytes = (nlanes - eoc_bytes) * dsc_num_slices;
 
 	if (dsc_num_bytes == 0)
-		pr_info("incorrect no of bytes per slice=%d\n", dsc_num_bytes);
+		pr_debug("incorrect no of bytes per slice=%d\n", dsc_num_bytes);
 
 	dwidth_dsc_bytes = (tot_num_hor_bytes +
 				tot_num_eoc_symbols +
@@ -624,7 +624,7 @@ static void _dp_panel_calc_tu(struct dp_tu_calc_input *in,
 
 	if (tu.dsc_en && compare_result_1 && compare_result_2) {
 		HBLANK_MARGIN += 4;
-		pr_info("Info: increase HBLANK_MARGIN to %d\n", HBLANK_MARGIN);
+		pr_debug("Info: increase HBLANK_MARGIN to %d\n", HBLANK_MARGIN);
 	}
 
 tu_size_calc:
@@ -658,7 +658,7 @@ tu_size_calc:
 		tu.n_tus += 1;
 
 	tu.even_distribution_legacy = tu.n_tus % tu.nlanes == 0 ? 1 : 0;
-	pr_info("Info: n_sym = %d, num_of_tus = %d\n",
+	pr_debug("Info: n_sym = %d, num_of_tus = %d\n",
 		tu.valid_boundary_link, tu.n_tus);
 
 	temp1_fp = drm_fixp_from_fraction(tu.tu_size_desired, 1);
@@ -853,17 +853,17 @@ tu_size_calc:
 	tu_table->lower_boundary_count      = tu.lower_boundary_count;
 	tu_table->tu_size_minus1            = tu.tu_size_minus1;
 
-	pr_info("TU: valid_boundary_link: %d\n", tu_table->valid_boundary_link);
-	pr_info("TU: delay_start_link: %d\n", tu_table->delay_start_link);
-	pr_info("TU: boundary_moderation_en: %d\n",
+	pr_debug("TU: valid_boundary_link: %d\n", tu_table->valid_boundary_link);
+	pr_debug("TU: delay_start_link: %d\n", tu_table->delay_start_link);
+	pr_debug("TU: boundary_moderation_en: %d\n",
 			tu_table->boundary_moderation_en);
-	pr_info("TU: valid_lower_boundary_link: %d\n",
+	pr_debug("TU: valid_lower_boundary_link: %d\n",
 			tu_table->valid_lower_boundary_link);
-	pr_info("TU: upper_boundary_count: %d\n",
+	pr_debug("TU: upper_boundary_count: %d\n",
 			tu_table->upper_boundary_count);
-	pr_info("TU: lower_boundary_count: %d\n",
+	pr_debug("TU: lower_boundary_count: %d\n",
 			tu_table->lower_boundary_count);
-	pr_info("TU: tu_size_minus1: %d\n", tu_table->tu_size_minus1);
+	pr_debug("TU: tu_size_minus1: %d\n", tu_table->tu_size_minus1);
 }
 
 static void dp_panel_calc_tu_parameters(struct dp_panel *dp_panel,
@@ -921,7 +921,7 @@ static void dp_panel_config_tr_unit(struct dp_panel *dp_panel)
 	struct dp_vc_tu_mapping_table tu_calc_table;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1581,7 +1581,7 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 	u32 dfp_count = 0, offset = DP_DPCD_REV;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -1604,7 +1604,7 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 
 	rlen = drm_dp_dpcd_read(drm_aux, DP_TRAINING_AUX_RD_INTERVAL, &temp, 1);
 	if (rlen != 1) {
-		pr_err("error reading DP_TRAINING_AUX_RD_INTERVAL\n");
+		pr_debug("error reading DP_TRAINING_AUX_RD_INTERVAL\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -1618,7 +1618,7 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 	rlen = drm_dp_dpcd_read(drm_aux, offset,
 		dp_panel->dpcd, (DP_RECEIVER_CAP_SIZE + 1));
 	if (rlen < (DP_RECEIVER_CAP_SIZE + 1)) {
-		pr_err("dpcd read failed, rlen=%d\n", rlen);
+		pr_debug("dpcd read failed, rlen=%d\n", rlen);
 		if (rlen == -ETIMEDOUT)
 			rc = rlen;
 		else
@@ -1676,7 +1676,7 @@ skip_dpcd_read:
 			DP_DOWNSTREAM_PORT_0, dp_panel->ds_ports,
 			DP_MAX_DOWNSTREAM_PORTS);
 		if (rlen < DP_MAX_DOWNSTREAM_PORTS) {
-			pr_err("ds port status failed, rlen=%d\n", rlen);
+			pr_debug("ds port status failed, rlen=%d\n", rlen);
 			rc = -EINVAL;
 			goto end;
 		}
@@ -1697,7 +1697,7 @@ static int dp_panel_set_default_link_params(struct dp_panel *dp_panel)
 	const int default_num_lanes = 1;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 	link_info = &dp_panel->link_info;
@@ -1714,11 +1714,11 @@ static int dp_panel_validate_edid(struct edid *edid, size_t edid_size)
 		return false;
 
 	if (EDID_LENGTH * (edid->extensions + 1) > edid_size) {
-		pr_err("edid size does not match allocated.\n");
+		pr_debug("edid size does not match allocated.\n");
 		return false;
 	}
 	if (!drm_edid_is_valid(edid)) {
-		pr_err("invalid edid.\n");
+		pr_debug("invalid edid.\n");
 		return false;
 	}
 	return true;
@@ -1730,7 +1730,7 @@ static int dp_panel_set_edid(struct dp_panel *dp_panel, u8 *edid,
 	struct dp_panel_private *panel;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -1754,7 +1754,7 @@ static int dp_panel_set_dpcd(struct dp_panel *dp_panel, u8 *dpcd)
 	u8 *dp_dpcd;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -1782,7 +1782,7 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 	struct edid *edid;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -1796,7 +1796,7 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 	sde_get_edid(connector, &panel->aux->drm_aux->ddc,
 		(void **)&dp_panel->edid_ctrl);
 	if (!dp_panel->edid_ctrl->edid) {
-		pr_err("EDID read failed\n");
+		pr_debug("EDID read failed\n");
 		ret = -EINVAL;
 		goto end;
 	}
@@ -1846,7 +1846,7 @@ static void dp_panel_read_sink_dsc_caps(struct dp_panel *dp_panel)
 	int dpcd_rev;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -1873,7 +1873,7 @@ static void dp_panel_read_sink_dsc_caps(struct dp_panel *dp_panel)
 		rlen = drm_dp_dpcd_read(panel->aux->drm_aux, fec_cap,
 			&dp_panel->fec_dpcd, 1);
 		if (rlen < 1) {
-			pr_err("fec dpcd read failed, rlen=%d\n", rlen);
+			pr_debug("fec dpcd read failed, rlen=%d\n", rlen);
 			return;
 		}
 
@@ -1889,7 +1889,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 	struct dp_panel_private *panel;
 
 	if (!dp_panel || !connector) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -1903,10 +1903,10 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 		((drm_dp_link_rate_to_bw_code(dp_panel->link_info.rate)) >
 		dp_panel->max_bw_code)) {
 		if ((rc == -ETIMEDOUT) || (rc == -ENODEV)) {
-			pr_err("DPCD read failed, return early\n");
+			pr_debug("DPCD read failed, return early\n");
 			goto end;
 		}
-		pr_err("panel dpcd read failed/incorrect, set default params\n");
+		pr_debug("panel dpcd read failed/incorrect, set default params\n");
 		dp_panel_set_default_link_params(dp_panel);
 	}
 
@@ -1919,7 +1919,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 		if (rlen == count_len) {
 			count = DP_GET_SINK_COUNT(count);
 			if (!count) {
-				pr_err("no downstream ports connected\n");
+				pr_debug("no downstream ports connected\n");
 				panel->link->sink_count.count = 0;
 				rc = -ENOTCONN;
 				goto end;
@@ -1933,7 +1933,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 
 	rc = dp_panel_read_edid(dp_panel, connector);
 	if (rc) {
-		pr_err("panel edid read failed, set failsafe mode\n");
+		pr_debug("panel edid read failed, set failsafe mode\n");
 		return rc;
 	}
 
@@ -1975,7 +1975,7 @@ static u32 dp_panel_get_mode_bpp(struct dp_panel *dp_panel,
 	u32 bpp = mode_edid_bpp;
 
 	if (!dp_panel || !mode_edid_bpp || !mode_pclk_khz) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return 0;
 	}
 
@@ -1998,7 +1998,7 @@ static void dp_panel_set_test_mode(struct dp_panel_private *panel,
 	struct dp_link_test_video *test_info = NULL;
 
 	if (!panel) {
-		pr_err("invalid params\n");
+		pr_debug("invalid params\n");
 		return;
 	}
 
@@ -2042,7 +2042,7 @@ static int dp_panel_get_modes(struct dp_panel *dp_panel,
 	struct dp_panel_private *panel;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -2066,7 +2066,7 @@ static void dp_panel_handle_sink_request(struct dp_panel *dp_panel)
 	struct dp_panel_private *panel;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -2088,12 +2088,12 @@ static void dp_panel_tpg_config(struct dp_panel *dp_panel, bool enable)
 	struct dp_panel_info *pinfo;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (dp_panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream id:%d\n", dp_panel->stream_id);
+		pr_debug("invalid stream id:%d\n", dp_panel->stream_id);
 		return;
 	}
 
@@ -2146,7 +2146,7 @@ static int dp_panel_config_timing(struct dp_panel *dp_panel)
 	struct dp_panel_info *pinfo;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -2305,7 +2305,7 @@ static int dp_panel_edid_register(struct dp_panel_private *panel)
 
 	panel->dp_panel.edid_ctrl = sde_edid_init();
 	if (!panel->dp_panel.edid_ctrl) {
-		pr_err("sde edid init for DP failed\n");
+		pr_debug("sde edid init for DP failed\n");
 		rc = -ENOMEM;
 	}
 
@@ -2322,7 +2322,7 @@ static int dp_panel_set_stream_info(struct dp_panel *dp_panel,
 			u32 ch_tot_slots, u32 pbn, int vcpi)
 {
 	if (!dp_panel || stream_id > DP_STREAM_MAX) {
-		pr_err("invalid input. stream_id: %d\n", stream_id);
+		pr_debug("invalid input. stream_id: %d\n", stream_id);
 		return -EINVAL;
 	}
 
@@ -2342,7 +2342,7 @@ static int dp_panel_init_panel_info(struct dp_panel *dp_panel)
 	struct dp_panel_info *pinfo;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -2373,7 +2373,7 @@ static int dp_panel_deinit_panel_info(struct dp_panel *dp_panel, u32 flags)
 	struct sde_connector_state *c_state;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -2415,7 +2415,7 @@ static u32 dp_panel_get_min_req_link_rate(struct dp_panel *dp_panel)
 	struct dp_panel_info *pinfo;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto end;
 	}
 
@@ -2439,7 +2439,7 @@ static bool dp_panel_hdr_supported(struct dp_panel *dp_panel)
 	struct dp_panel_private *panel;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return false;
 	}
 
@@ -2457,7 +2457,7 @@ static int dp_panel_setup_hdr(struct dp_panel *dp_panel,
 	struct dp_catalog_hdr_data *hdr;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -2524,13 +2524,13 @@ static int dp_panel_spd_config(struct dp_panel *dp_panel)
 	struct dp_panel_private *panel;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
 
 	if (dp_panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream id:%d\n", dp_panel->stream_id);
+		pr_debug("invalid stream id:%d\n", dp_panel->stream_id);
 		return -EINVAL;
 	}
 
@@ -2632,8 +2632,8 @@ static void dp_panel_resolution_info(struct dp_panel_private *panel)
 	 * print resolution info as this is a result
 	 * of user initiated action of cable connection
 	 */
-	pr_info("DP RESOLUTION: active(back|front|width|low)\n");
-	pr_info("%d(%d|%d|%d|%d)x%d(%d|%d|%d|%d)@%dfps %dbpp %dKhz %dLR %dLn\n",
+	pr_debug("DP RESOLUTION: active(back|front|width|low)\n");
+	pr_debug("%d(%d|%d|%d|%d)x%d(%d|%d|%d|%d)@%dfps %dbpp %dKhz %dLR %dLn\n",
 		pinfo->h_active, pinfo->h_back_porch, pinfo->h_front_porch,
 		pinfo->h_sync_width, pinfo->h_active_low,
 		pinfo->v_active, pinfo->v_back_porch, pinfo->v_front_porch,
@@ -2648,12 +2648,12 @@ static int dp_panel_hw_cfg(struct dp_panel *dp_panel, bool enable)
 	struct dp_panel_private *panel;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
 	if (dp_panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id: %d\n", dp_panel->stream_id);
+		pr_debug("invalid stream_id: %d\n", dp_panel->stream_id);
 		return -EINVAL;
 	}
 
@@ -2681,7 +2681,7 @@ static int dp_panel_read_sink_sts(struct dp_panel *dp_panel, u8 *sts, u32 size)
 	struct dp_panel_private *panel;
 
 	if (!dp_panel || !sts || !size) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		return rc;
 	}
@@ -2691,7 +2691,7 @@ static int dp_panel_read_sink_sts(struct dp_panel *dp_panel, u8 *sts, u32 size)
 	rlen = drm_dp_dpcd_read(panel->aux->drm_aux, DP_SINK_COUNT_ESI,
 		sts, size);
 	if (rlen != size) {
-		pr_err("dpcd sink sts fail rlen:%d size:%d\n", rlen, size);
+		pr_debug("dpcd sink sts fail rlen:%d size:%d\n", rlen, size);
 		rc = -EINVAL;
 		return rc;
 	}
@@ -2720,7 +2720,7 @@ static bool dp_panel_read_mst_cap(struct dp_panel *dp_panel)
 	bool mst_cap = false;
 
 	if (!dp_panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		goto end;
 	}
 
@@ -2729,7 +2729,7 @@ static bool dp_panel_read_mst_cap(struct dp_panel *dp_panel)
 	rlen = drm_dp_dpcd_read(panel->aux->drm_aux, DP_MSTM_CAP,
 		&dpcd, 1);
 	if (rlen < 1) {
-		pr_err("dpcd mstm_cap read failed, rlen=%d\n", rlen);
+		pr_debug("dpcd mstm_cap read failed, rlen=%d\n", rlen);
 		goto end;
 	}
 
@@ -2826,7 +2826,7 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 
 	if (!in->dev || !in->catalog || !in->aux ||
 			!in->link || !in->connector) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto error;
 	}

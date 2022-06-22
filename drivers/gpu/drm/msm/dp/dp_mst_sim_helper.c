@@ -295,14 +295,14 @@ static bool msm_dp_get_one_sb_msg(struct drm_dp_sideband_msg_rx *msg,
 		ret = drm_dp_sideband_msg_build(msg,
 			aux_msg->buffer, aux_msg->size, true);
 		if (!ret) {
-			pr_err("sideband hdr build failed\n");
+			pr_debug("sideband hdr build failed\n");
 			return false;
 		}
 	} else {
 		ret = drm_dp_sideband_msg_build(msg,
 			aux_msg->buffer, aux_msg->size, false);
 		if (!ret) {
-			pr_err("sideband msg build failed\n");
+			pr_debug("sideband msg build failed\n");
 			return false;
 		}
 	}
@@ -437,7 +437,7 @@ static int msm_dp_sideband_build_remote_i2c_read_rep(
 	if (i2c_read.num_transactions == 1) {
 		if (i2c_read.transactions[0].i2c_dev_id != DDC_ADDR ||
 		    i2c_read.transactions[0].num_bytes != 1) {
-			pr_err("unsupported i2c address\n");
+			pr_debug("unsupported i2c address\n");
 			goto err;
 		}
 
@@ -447,21 +447,21 @@ static int msm_dp_sideband_build_remote_i2c_read_rep(
 		    i2c_read.transactions[0].num_bytes != 1 ||
 		    i2c_read.transactions[1].i2c_dev_id != DDC_ADDR ||
 		    i2c_read.transactions[1].num_bytes != 1) {
-			pr_err("unsupported i2c address\n");
+			pr_debug("unsupported i2c address\n");
 			goto err;
 		}
 
 		start = i2c_read.transactions[0].bytes[0] * EDID_LENGTH * 2 +
 			i2c_read.transactions[1].bytes[0];
 	} else {
-		pr_err("unsupported i2c transaction\n");
+		pr_debug("unsupported i2c transaction\n");
 		goto err;
 	}
 
 	len = i2c_read.num_bytes_read;
 
 	if (start + len > port->edid_size) {
-		pr_err("edid data exceeds maximum\n");
+		pr_debug("edid data exceeds maximum\n");
 		goto err;
 	}
 
@@ -497,7 +497,7 @@ static int msm_dp_sideband_build_enum_path_resources_rep(
 	port_num = buf[1] >> 4;
 
 	if (port_num >= ctx->port_num) {
-		pr_err("invalid port num\n");
+		pr_debug("invalid port num\n");
 		goto err;
 	}
 
@@ -562,7 +562,7 @@ static int msm_dp_sideband_build_allocate_payload_rep(
 	}
 
 	if (allocate_payload.port_number >= ctx->port_num) {
-		pr_err("invalid port num\n");
+		pr_debug("invalid port num\n");
 		goto err;
 	}
 
@@ -600,7 +600,7 @@ static int msm_dp_sideband_build_power_updown_phy_rep(
 	port_num = buf[1] >> 4;
 
 	if (port_num >= ctx->port_num) {
-		pr_err("invalid port num\n");
+		pr_debug("invalid port num\n");
 		goto err;
 	}
 
@@ -940,7 +940,7 @@ int msm_dp_mst_sim_create(const struct msm_dp_mst_sim_cfg *cfg,
 
 	ctx->wq = create_singlethread_workqueue("dp_mst_sim");
 	if (IS_ERR_OR_NULL(ctx->wq)) {
-		pr_err("Error creating wq\n");
+		pr_debug("Error creating wq\n");
 		kfree(ctx);
 		return -EPERM;
 	}

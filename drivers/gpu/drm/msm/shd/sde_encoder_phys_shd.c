@@ -341,7 +341,7 @@ static int _sde_encoder_phys_shd_wait_for_vblank(
 	u32 event_helper = 0;
 
 	if (!phys_enc) {
-		pr_err("invalid encoder\n");
+		pr_debug("invalid encoder\n");
 		return -EINVAL;
 	}
 

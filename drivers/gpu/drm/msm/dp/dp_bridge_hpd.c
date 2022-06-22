@@ -38,7 +38,7 @@ static int dp_bridge_hpd_connect(struct dp_bridge_hpd_private *bridge_hpd,
 	int rc = 0;
 
 	if (!bridge_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto error;
 	}
@@ -50,7 +50,7 @@ static int dp_bridge_hpd_connect(struct dp_bridge_hpd_private *bridge_hpd,
 	if (!bridge_hpd->cb ||
 		!bridge_hpd->cb->configure ||
 		!bridge_hpd->cb->disconnect) {
-		pr_err("invalid cb\n");
+		pr_debug("invalid cb\n");
 		rc = -EINVAL;
 		goto error;
 	}
@@ -69,7 +69,7 @@ static int dp_bridge_hpd_attention(struct dp_bridge_hpd_private *bridge_hpd)
 	int rc = 0;
 
 	if (!bridge_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto error;
 	}
@@ -105,7 +105,7 @@ static int dp_bridge_hpd_simulate_connect(struct dp_hpd *dp_hpd, bool hpd)
 	struct dp_bridge_hpd_private *bridge_hpd;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto error;
 	}
@@ -123,7 +123,7 @@ static int dp_bridge_hpd_simulate_attention(struct dp_hpd *dp_hpd, int vdo)
 	struct dp_bridge_hpd_private *bridge_hpd;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto error;
 	}
@@ -170,7 +170,7 @@ struct dp_hpd *dp_bridge_hpd_get(struct device *dev,
 	struct dp_bridge_hpd_private *bridge_hpd;
 
 	if (!dev || !cb) {
-		pr_err("invalid device\n");
+		pr_debug("invalid device\n");
 		rc = -EINVAL;
 		goto error;
 	}

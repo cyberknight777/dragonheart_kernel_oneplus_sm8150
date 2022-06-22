@@ -46,7 +46,7 @@ static void dp_lphw_hpd_attention(struct work_struct *work)
 				struct dp_lphw_hpd_private, attention);
 
 	if (!lphw_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -62,7 +62,7 @@ static void dp_lphw_hpd_connect(struct work_struct *work)
 				struct dp_lphw_hpd_private, connect);
 
 	if (!lphw_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -80,7 +80,7 @@ static void dp_lphw_hpd_disconnect(struct work_struct *work)
 				struct dp_lphw_hpd_private, disconnect);
 
 	if (!lphw_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -124,7 +124,7 @@ static void dp_lphw_hpd_host_init(struct dp_hpd *dp_hpd,
 	struct dp_lphw_hpd_private *lphw_hpd;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -146,7 +146,7 @@ static void dp_lphw_hpd_host_deinit(struct dp_hpd *dp_hpd,
 	struct dp_lphw_hpd_private *lphw_hpd;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -165,7 +165,7 @@ static void dp_lphw_hpd_isr(struct dp_hpd *dp_hpd)
 	int rc = 0;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -188,7 +188,7 @@ static void dp_lphw_hpd_isr(struct dp_hpd *dp_hpd)
 			if (!rc)
 				pr_debug("disconnect not queued\n");
 		} else {
-			pr_err("already disconnected\n");
+			pr_debug("already disconnected\n");
 		}
 
 	} else if (isr & DP_IRQ_HPD_INT_STATUS) { /* attention interrupt */
@@ -206,7 +206,7 @@ static int dp_lphw_hpd_simulate_connect(struct dp_hpd *dp_hpd, bool hpd)
 	struct dp_lphw_hpd_private *lphw_hpd;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -218,7 +218,7 @@ static int dp_lphw_hpd_simulate_connect(struct dp_hpd *dp_hpd, bool hpd)
 
 	if (!lphw_hpd->cb || !lphw_hpd->cb->configure ||
 			!lphw_hpd->cb->disconnect) {
-		pr_err("invalid callback\n");
+		pr_debug("invalid callback\n");
 		return -EINVAL;
 	}
 
@@ -235,7 +235,7 @@ static int dp_lphw_hpd_simulate_attention(struct dp_hpd *dp_hpd, int vdo)
 	struct dp_lphw_hpd_private *lphw_hpd;
 
 	if (!dp_hpd) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -266,7 +266,7 @@ int dp_lphw_hpd_register(struct dp_hpd *dp_hpd)
 		IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 		"dp-gpio-intp", lphw_hpd);
 	if (rc) {
-		pr_err("Failed to request INTP threaded IRQ: %d\n", rc);
+		pr_debug("Failed to request INTP threaded IRQ: %d\n", rc);
 		return rc;
 	}
 	enable_irq_wake(lphw_hpd->irq);
@@ -290,7 +290,7 @@ static void dp_lphw_hpd_deinit(struct dp_lphw_hpd_private *lphw_hpd)
 			if (msm_dss_enable_vreg(
 				&parser->mp[DP_PHY_PM].vreg_config[i], 1,
 				false))
-				pr_err("hpd-pwr vreg not disabled\n");
+				pr_debug("hpd-pwr vreg not disabled\n");
 
 			break;
 		}
@@ -311,7 +311,7 @@ static void dp_lphw_hpd_init(struct dp_lphw_hpd_private *lphw_hpd)
 			if (msm_dss_enable_vreg(
 				&parser->mp[DP_PHY_PM].vreg_config[i], 1,
 				true))
-				pr_err("hpd-pwr vreg not enabled\n");
+				pr_debug("hpd-pwr vreg not enabled\n");
 
 			break;
 		}
@@ -327,7 +327,7 @@ static void dp_lphw_hpd_init(struct dp_lphw_hpd_private *lphw_hpd)
 			rc = pinctrl_select_state(pinctrl.pin,
 					pinctrl.state_hpd_active);
 			if (rc)
-				pr_err("failed to set hpd_active state\n");
+				pr_debug("failed to set hpd_active state\n");
 		}
 	}
 }
@@ -336,7 +336,7 @@ static int dp_lphw_hpd_create_workqueue(struct dp_lphw_hpd_private *lphw_hpd)
 {
 	lphw_hpd->connect_wq = create_singlethread_workqueue("dp_lphw_work");
 	if (IS_ERR_OR_NULL(lphw_hpd->connect_wq)) {
-		pr_err("Error creating connect_wq\n");
+		pr_debug("Error creating connect_wq\n");
 		return -EPERM;
 	}
 
@@ -355,7 +355,7 @@ struct dp_hpd *dp_lphw_hpd_get(struct device *dev, struct dp_parser *parser,
 	struct dp_lphw_hpd_private *lphw_hpd;
 
 	if (!dev || !parser || !cb) {
-		pr_err("invalid device\n");
+		pr_debug("invalid device\n");
 		rc = -EINVAL;
 		goto error;
 	}
@@ -369,7 +369,7 @@ struct dp_hpd *dp_lphw_hpd_get(struct device *dev, struct dp_parser *parser,
 	lphw_hpd->gpio_cfg.gpio = of_get_named_gpio(dev->of_node,
 		hpd_gpio_name, 0);
 	if (!gpio_is_valid(lphw_hpd->gpio_cfg.gpio)) {
-		pr_err("%s gpio not specified\n", hpd_gpio_name);
+		pr_debug("%s gpio not specified\n", hpd_gpio_name);
 		rc = -EINVAL;
 		goto gpio_error;
 	}
@@ -381,7 +381,7 @@ struct dp_hpd *dp_lphw_hpd_get(struct device *dev, struct dp_parser *parser,
 	rc = gpio_request(lphw_hpd->gpio_cfg.gpio,
 		lphw_hpd->gpio_cfg.gpio_name);
 	if (rc) {
-		pr_err("%s: failed to request gpio\n", hpd_gpio_name);
+		pr_debug("%s: failed to request gpio\n", hpd_gpio_name);
 		goto gpio_error;
 	}
 	gpio_direction_input(lphw_hpd->gpio_cfg.gpio);
@@ -392,7 +392,7 @@ struct dp_hpd *dp_lphw_hpd_get(struct device *dev, struct dp_parser *parser,
 
 	rc = dp_lphw_hpd_create_workqueue(lphw_hpd);
 	if (rc) {
-		pr_err("Failed to create a dp_hpd workqueue\n");
+		pr_debug("Failed to create a dp_hpd workqueue\n");
 		goto gpio_error;
 	}
 

@@ -123,7 +123,7 @@ static struct sde_hw_merge_3d *_sde_pp_merge_3d_init(enum sde_merge_3d idx,
 
 	cfg = _merge_3d_offset(idx, m, addr, &c->hw);
 	if (IS_ERR_OR_NULL(cfg)) {
-		pr_err("invalid merge_3d cfg%d\n", idx);
+		pr_debug("invalid merge_3d cfg%d\n", idx);
 		kfree(c);
 		return ERR_PTR(-EINVAL);
 	}

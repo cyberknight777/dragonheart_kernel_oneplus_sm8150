@@ -23,7 +23,7 @@ static int dsi_phy_cmn_validate_and_set(struct timing_entry *t,
 {
 	if (t->rec & 0xffffff00) {
 		/* Output value can only be 8 bits */
-		pr_err("Incorrect %s rec value - %d\n", t_name, t->rec);
+		pr_debug("Incorrect %s rec value - %d\n", t_name, t->rec);
 		return -EINVAL;
 	}
 	t->reg_value = t->rec;
@@ -570,68 +570,68 @@ static int dsi_phy_cmn_calc_timing_params(struct dsi_phy_hw *phy,
 	rc = calc_clk_prepare(phy, clk_params, desc, &actual_frac,
 			      &actual_intermediate);
 	if (rc) {
-		pr_err("clk_prepare calculations failed, rc=%d\n", rc);
+		pr_debug("clk_prepare calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_clk_zero(phy, clk_params, desc,
 		actual_frac, actual_intermediate);
 	if (rc) {
-		pr_err("clk_zero calculations failed, rc=%d\n", rc);
+		pr_debug("clk_zero calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_clk_trail(phy, clk_params, desc, &teot_clk_lane);
 	if (rc) {
-		pr_err("clk_trail calculations failed, rc=%d\n", rc);
+		pr_debug("clk_trail calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_hs_prepare(phy, clk_params, desc, &temp_multiple);
 	if (rc) {
-		pr_err("hs_prepare calculations failed, rc=%d\n", rc);
+		pr_debug("hs_prepare calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_hs_zero(phy, clk_params, desc, temp_multiple);
 	if (rc) {
-		pr_err("hs_zero calculations failed, rc=%d\n", rc);
+		pr_debug("hs_zero calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_hs_trail(phy, clk_params, desc, teot_clk_lane);
 	if (rc) {
-		pr_err("hs_trail calculations failed, rc=%d\n", rc);
+		pr_debug("hs_trail calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_hs_rqst(phy, clk_params, desc);
 	if (rc) {
-		pr_err("hs_rqst calculations failed, rc=%d\n", rc);
+		pr_debug("hs_rqst calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_hs_exit(phy, clk_params, desc);
 	if (rc) {
-		pr_err("hs_exit calculations failed, rc=%d\n", rc);
+		pr_debug("hs_exit calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_hs_rqst_clk(phy, clk_params, desc);
 	if (rc) {
-		pr_err("hs_rqst_clk calculations failed, rc=%d\n", rc);
+		pr_debug("hs_rqst_clk calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_clk_post(phy, clk_params, desc);
 	if (rc) {
-		pr_err("clk_post calculations failed, rc=%d\n", rc);
+		pr_debug("clk_post calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_clk_pre(phy, clk_params, desc);
 	if (rc) {
-		pr_err("clk_pre calculations failed, rc=%d\n", rc);
+		pr_debug("clk_pre calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 error:
@@ -816,31 +816,31 @@ static int dsi_phy_cmn_calc_cphy_timing_params(struct dsi_phy_hw *phy,
 
 	rc = calc_cphy_clk_prepare(phy, clk_params, desc);
 	if (rc) {
-		pr_err("clk_prepare calculations failed, rc=%d\n", rc);
+		pr_debug("clk_prepare calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_cphy_clk_pre(phy, clk_params, desc);
 	if (rc) {
-		pr_err("clk_pre calculations failed, rc=%d\n", rc);
+		pr_debug("clk_pre calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_cphy_clk_post(phy, clk_params, desc);
 	if (rc) {
-		pr_err("clk_zero calculations failed, rc=%d\n", rc);
+		pr_debug("clk_zero calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_cphy_hs_rqst(phy, clk_params, desc);
 	if (rc) {
-		pr_err("hs_rqst calculations failed, rc=%d\n", rc);
+		pr_debug("hs_rqst calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
 	rc = calc_cphy_hs_exit(phy, clk_params, desc);
 	if (rc) {
-		pr_err("hs_exit calculations failed, rc=%d\n", rc);
+		pr_debug("hs_exit calculations failed, rc=%d\n", rc);
 		goto error;
 	}
 
@@ -950,7 +950,7 @@ int dsi_phy_hw_calculate_timing_params(struct dsi_phy_hw *phy,
 	else
 		rc = dsi_phy_cmn_calc_timing_params(phy, &clk_params, &desc);
 	if (rc) {
-		pr_err("Timing calc failed, rc=%d\n", rc);
+		pr_debug("Timing calc failed, rc=%d\n", rc);
 		goto error;
 	}
 
@@ -972,7 +972,7 @@ int dsi_phy_timing_calc_init(struct dsi_phy_hw *phy,
 
 	if (version == DSI_PHY_VERSION_UNKNOWN ||
 	    version >= DSI_PHY_VERSION_MAX || !phy) {
-		pr_err("Unsupported version: %d\n", version);
+		pr_debug("Unsupported version: %d\n", version);
 		return -ENOTSUPP;
 	}
 

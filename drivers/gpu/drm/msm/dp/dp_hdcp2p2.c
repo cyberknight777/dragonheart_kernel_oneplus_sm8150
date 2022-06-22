@@ -79,17 +79,17 @@ struct dp_hdcp2p2_interrupts {
 static inline int dp_hdcp2p2_valid_handle(struct dp_hdcp2p2_ctrl *ctrl)
 {
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
 	if (!ctrl->lib_ctx) {
-		pr_err("HDCP library needs to be acquired\n");
+		pr_debug("HDCP library needs to be acquired\n");
 		return -EINVAL;
 	}
 
 	if (!ctrl->lib) {
-		pr_err("invalid lib ops data\n");
+		pr_debug("invalid lib ops data\n");
 		return -EINVAL;
 	}
 	return 0;
@@ -182,13 +182,13 @@ static int dp_hdcp2p2_wakeup(struct hdcp_transport_wakeup_data *data)
 	u32 const default_timeout_us = 500;
 
 	if (!data) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
 	ctrl = data->context;
 	if (!ctrl) {
-		pr_err("invalid ctrl\n");
+		pr_debug("invalid ctrl\n");
 		return -EINVAL;
 	}
 
@@ -202,7 +202,7 @@ static int dp_hdcp2p2_wakeup(struct hdcp_transport_wakeup_data *data)
 		ctrl->timeout = default_timeout_us;
 
 	if (!dp_hdcp2p2_is_valid_state(ctrl)) {
-		pr_err("invalid state\n");
+		pr_debug("invalid state\n");
 		goto exit;
 	}
 
@@ -241,7 +241,7 @@ static int dp_hdcp2p2_wakeup(struct hdcp_transport_wakeup_data *data)
 		kthread_queue_work(&ctrl->worker, &ctrl->auth);
 		break;
 	default:
-		pr_err("invalid wakeup command %d\n", ctrl->wakeup_cmd);
+		pr_debug("invalid wakeup command %d\n", ctrl->wakeup_cmd);
 	}
 exit:
 	mutex_unlock(&ctrl->wakeup_mutex);
@@ -258,7 +258,7 @@ static inline void dp_hdcp2p2_wakeup_lib(struct dp_hdcp2p2_ctrl *ctrl,
 		data && (data->cmd != HDCP_2X_CMD_INVALID)) {
 		rc = ctrl->lib->wakeup(data);
 		if (rc)
-			pr_err("error sending %s to lib\n",
+			pr_debug("error sending %s to lib\n",
 				sde_hdcp_2x_cmd_to_str(data->cmd));
 	}
 }
@@ -266,7 +266,7 @@ static inline void dp_hdcp2p2_wakeup_lib(struct dp_hdcp2p2_ctrl *ctrl,
 static void dp_hdcp2p2_reset(struct dp_hdcp2p2_ctrl *ctrl)
 {
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -309,7 +309,7 @@ static int dp_hdcp2p2_on(void *input)
 	cdata.context = ctrl->lib_ctx;
 	rc = ctrl->lib->wakeup(&cdata);
 	if (rc)
-		pr_err("Unable to start the HDCP 2.2 library. Error - %d", rc);
+		pr_debug("Unable to start the HDCP 2.2 library. Error - %d", rc);
 
 	return rc;
 }
@@ -363,7 +363,7 @@ static int dp_hdcp2p2_reauthenticate(void *input)
 	struct dp_hdcp2p2_ctrl *ctrl = (struct dp_hdcp2p2_ctrl *)input;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
@@ -380,12 +380,12 @@ static void dp_hdcp2p2_min_level_change(void *client_ctx,
 		HDCP_2X_CMD_MIN_ENC_LEVEL};
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (!dp_hdcp2p2_is_valid_state(ctrl)) {
-		pr_err("invalid state\n");
+		pr_debug("invalid state\n");
 		return;
 	}
 
@@ -402,13 +402,13 @@ static int dp_hdcp2p2_aux_read_message(struct dp_hdcp2p2_ctrl *ctrl)
 
 	if (atomic_read(&ctrl->auth_state) == HDCP_STATE_INACTIVE ||
 		atomic_read(&ctrl->auth_state) == HDCP_STATE_AUTH_FAIL) {
-		pr_err("invalid hdcp state\n");
+		pr_debug("invalid hdcp state\n");
 		rc = -EINVAL;
 		goto exit;
 	}
 
 	if (!buf) {
-		pr_err("invalid request buffer\n");
+		pr_debug("invalid request buffer\n");
 		rc = -EINVAL;
 		goto exit;
 	}
@@ -421,7 +421,7 @@ static int dp_hdcp2p2_aux_read_message(struct dp_hdcp2p2_ctrl *ctrl)
 		bytes_read = drm_dp_dpcd_read(ctrl->init_data.drm_aux,
 				offset, buf, read_size);
 		if (bytes_read != read_size) {
-			pr_err("fail: offset(0x%x), size(0x%x), rc(0x%x)\n",
+			pr_debug("fail: offset(0x%x), size(0x%x), rc(0x%x)\n",
 					offset, read_size, bytes_read);
 			rc = -EINVAL;
 			break;
@@ -448,7 +448,7 @@ static int dp_hdcp2p2_aux_write_message(struct dp_hdcp2p2_ctrl *ctrl,
 		bytes_written = drm_dp_dpcd_write(ctrl->init_data.drm_aux,
 				offset, buf, write_size);
 		if (bytes_written != write_size) {
-			pr_err("fail: offset(0x%x), size(0x%x), rc(0x%x)\n",
+			pr_debug("fail: offset(0x%x), size(0x%x), rc(0x%x)\n",
 					offset, write_size, bytes_written);
 			rc = -EINVAL;
 			break;
@@ -504,7 +504,7 @@ static void dp_hdcp2p2_send_msg_work(struct kthread_work *work)
 	struct sde_hdcp_2x_wakeup_data cdata = {HDCP_2X_CMD_INVALID};
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto exit;
 	}
@@ -512,7 +512,7 @@ static void dp_hdcp2p2_send_msg_work(struct kthread_work *work)
 	cdata.context = ctrl->lib_ctx;
 
 	if (atomic_read(&ctrl->auth_state) == HDCP_STATE_INACTIVE) {
-		pr_err("hdcp is off\n");
+		pr_debug("hdcp is off\n");
 		goto exit;
 	}
 
@@ -522,7 +522,7 @@ static void dp_hdcp2p2_send_msg_work(struct kthread_work *work)
 			ctrl->response.length, ctrl->msg_part->offset,
 			ctrl->timeout);
 	if (rc) {
-		pr_err("Error sending msg to sink %d\n", rc);
+		pr_debug("Error sending msg to sink %d\n", rc);
 		mutex_unlock(&ctrl->msg_lock);
 		goto exit;
 	}
@@ -549,7 +549,7 @@ static int dp_hdcp2p2_get_msg_from_sink(struct dp_hdcp2p2_ctrl *ctrl)
 
 	rc = dp_hdcp2p2_aux_read_message(ctrl);
 	if (rc) {
-		pr_err("error reading message %d\n", rc);
+		pr_debug("error reading message %d\n", rc);
 		goto exit;
 	}
 
@@ -577,7 +577,7 @@ static void dp_hdcp2p2_recv_msg_work(struct kthread_work *work)
 	cdata.context = ctrl->lib_ctx;
 
 	if (atomic_read(&ctrl->auth_state) == HDCP_STATE_INACTIVE) {
-		pr_err("hdcp is off\n");
+		pr_debug("hdcp is off\n");
 		return;
 	}
 
@@ -592,13 +592,13 @@ static void dp_hdcp2p2_link_work(struct kthread_work *work)
 	struct sde_hdcp_2x_wakeup_data cdata = {HDCP_2X_CMD_INVALID};
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (atomic_read(&ctrl->auth_state) == HDCP_STATE_AUTH_FAIL ||
 		atomic_read(&ctrl->auth_state) == HDCP_STATE_INACTIVE) {
-		pr_err("invalid hdcp state\n");
+		pr_debug("invalid hdcp state\n");
 		return;
 	}
 
@@ -606,10 +606,10 @@ static void dp_hdcp2p2_link_work(struct kthread_work *work)
 
 	if (ctrl->sink_rx_status & ctrl->abort_mask) {
 		if (ctrl->sink_rx_status & BIT(3))
-			pr_err("reauth_req set by sink\n");
+			pr_debug("reauth_req set by sink\n");
 
 		if (ctrl->sink_rx_status & BIT(4))
-			pr_err("link failure reported by sink\n");
+			pr_debug("link failure reported by sink\n");
 
 		ctrl->sink_rx_status = 0;
 		ctrl->rx_status = 0;
@@ -669,7 +669,7 @@ static int dp_hdcp2p2_read_rx_status(struct dp_hdcp2p2_ctrl *ctrl,
 	bytes_read = drm_dp_dpcd_read(ctrl->init_data.drm_aux,
 			cp_irq_dpcd_offset, &buf, bytes_to_read);
 	if (bytes_read != bytes_to_read) {
-		pr_err("cp irq read failed\n");
+		pr_debug("cp irq read failed\n");
 		rc = bytes_read;
 		goto error;
 	}
@@ -682,7 +682,7 @@ static int dp_hdcp2p2_read_rx_status(struct dp_hdcp2p2_ctrl *ctrl,
 		bytes_read = drm_dp_dpcd_read(ctrl->init_data.drm_aux,
 				rxstatus_dpcd_offset, &buf, bytes_to_read);
 		if (bytes_read != bytes_to_read) {
-			pr_err("rxstatus read failed\n");
+			pr_debug("rxstatus read failed\n");
 			rc = bytes_read;
 			goto error;
 		}
@@ -705,14 +705,14 @@ static int dp_hdcp2p2_cp_irq(void *input)
 
 	if (atomic_read(&ctrl->auth_state) == HDCP_STATE_AUTH_FAIL ||
 		atomic_read(&ctrl->auth_state) == HDCP_STATE_INACTIVE) {
-		pr_err("invalid hdcp state\n");
+		pr_debug("invalid hdcp state\n");
 		return -EINVAL;
 	}
 
 	ctrl->sink_rx_status = 0;
 	rc = dp_hdcp2p2_read_rx_status(ctrl, &ctrl->sink_rx_status);
 	if (rc) {
-		pr_err("failed to read rx status\n");
+		pr_debug("failed to read rx status\n");
 		return rc;
 	}
 
@@ -737,7 +737,7 @@ static int dp_hdcp2p2_isr(void *input)
 	u32 hdcp_int_val = 0;
 
 	if (!ctrl || !ctrl->init_data.dp_ahb) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		rc = -EINVAL;
 		goto end;
 	}
@@ -780,7 +780,7 @@ static bool dp_hdcp2p2_supported(void *input)
 	bytes_read = drm_dp_dpcd_read(ctrl->init_data.drm_aux,
 			rxcaps_dpcd_offset, &buf, DP_HDCP_RXCAPS_LENGTH);
 	if (bytes_read != DP_HDCP_RXCAPS_LENGTH) {
-		pr_err("RxCaps read failed\n");
+		pr_debug("RxCaps read failed\n");
 		goto error;
 	}
 
@@ -797,17 +797,17 @@ static int dp_hdcp2p2_change_streams(struct dp_hdcp2p2_ctrl *ctrl,
 		struct sde_hdcp_2x_wakeup_data *cdata)
 {
 	if (!ctrl || cdata->num_streams == 0 || !cdata->streams) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
 	if (!ctrl->lib_ctx) {
-		pr_err("HDCP library needs to be acquired\n");
+		pr_debug("HDCP library needs to be acquired\n");
 		return -EINVAL;
 	}
 
 	if (!ctrl->lib) {
-		pr_err("invalid lib ops data\n");
+		pr_debug("invalid lib ops data\n");
 		return -EINVAL;
 	}
 
@@ -844,7 +844,7 @@ void sde_dp_hdcp2p2_deinit(void *input)
 	struct sde_hdcp_2x_wakeup_data cdata = {HDCP_2X_CMD_INVALID};
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -907,7 +907,7 @@ void *sde_dp_hdcp2p2_init(struct sde_hdcp_init_data *init_data)
 
 	if (!init_data || !init_data->cb_data ||
 			!init_data->notify_status || !init_data->drm_aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -937,7 +937,7 @@ void *sde_dp_hdcp2p2_init(struct sde_hdcp_init_data *init_data)
 
 	rc = sde_hdcp_2x_register(&register_data);
 	if (rc) {
-		pr_err("Unable to register with HDCP 2.2 library\n");
+		pr_debug("Unable to register with HDCP 2.2 library\n");
 		goto error;
 	}
 
@@ -956,7 +956,7 @@ void *sde_dp_hdcp2p2_init(struct sde_hdcp_init_data *init_data)
 		&ctrl->worker, "dp_hdcp2p2");
 
 	if (IS_ERR(ctrl->thread)) {
-		pr_err("unable to start DP hdcp2p2 thread\n");
+		pr_debug("unable to start DP hdcp2p2 thread\n");
 		rc = PTR_ERR(ctrl->thread);
 		ctrl->thread = NULL;
 		goto error;

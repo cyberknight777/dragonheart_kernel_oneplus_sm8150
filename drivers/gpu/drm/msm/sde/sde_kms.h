@@ -63,7 +63,7 @@
 #define SDE_DEBUG_DRIVER(fmt, ...)                                         \
 	no_printk(fmt, ##__VA_ARGS__)
 
-#define SDE_ERROR(fmt, ...) pr_err("[sde error]" fmt, ##__VA_ARGS__)
+#define SDE_ERROR(fmt, ...) pr_debug("[sde error]" fmt, ##__VA_ARGS__)
 
 #define POPULATE_RECT(rect, a, b, c, d, Q16_flag) \
 	do {						\

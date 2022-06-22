@@ -255,7 +255,7 @@ static int sde_hdcp_2x_get_next_message(struct sde_hdcp_2x_ctrl *hdcp,
 		hdcp->resend_stream_manage = false;
 		return REP_STREAM_READY;
 	default:
-		pr_err("Uknown message ID (%d)", hdcp->last_msg);
+		pr_debug("Uknown message ID (%d)", hdcp->last_msg);
 		return -EINVAL;
 	}
 }
@@ -312,7 +312,7 @@ static void sde_hdcp_2x_wakeup_client(struct sde_hdcp_2x_ctrl *hdcp,
 
 	rc = hdcp->client_ops->wakeup(data);
 	if (rc)
-		pr_err("error sending %s to client\n",
+		pr_debug("error sending %s to client\n",
 				hdcp_transport_cmd_to_str(data->cmd));
 
 	sde_hdcp_2x_wait_for_response(hdcp);
@@ -350,12 +350,12 @@ static void sde_hdcp_2x_force_encryption(void *data, bool enable)
 	struct sde_hdcp_2x_ctrl *hdcp = data;
 
 	if (!hdcp) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	hdcp->force_encryption = enable;
-	pr_info("force_encryption=%d\n", hdcp->force_encryption);
+	pr_debug("force_encryption=%d\n", hdcp->force_encryption);
 }
 
 static int sde_hdcp_2x_check_valid_state(struct sde_hdcp_2x_ctrl *hdcp)
@@ -367,7 +367,7 @@ static int sde_hdcp_2x_check_valid_state(struct sde_hdcp_2x_ctrl *hdcp)
 		kthread_flush_work(&hdcp->wk_enable);
 
 	if (hdcp->wakeup_cmd != HDCP_2X_CMD_ENABLE && !hdcp->hdcp2_ctx) {
-		pr_err("HDCP enable must be called\n");
+		pr_debug("HDCP enable must be called\n");
 		return -EINVAL;
 	} else if (atomic_read(&hdcp->hdcp_off)) {
 		pr_debug("hdcp2.2 session tearing down\n");
@@ -496,7 +496,7 @@ static void sde_hdcp_2x_stream(struct sde_hdcp_2x_ctrl *hdcp)
 		goto exit;
 
 	if (!hdcp->app_data.response.data || !hdcp->app_data.request.data) {
-		pr_err("invalid response/request buffers\n");
+		pr_debug("invalid response/request buffers\n");
 		rc = -EINVAL;
 		goto exit;
 	}
@@ -543,7 +543,7 @@ static void sde_hdcp_2x_set_hw_key(struct sde_hdcp_2x_ctrl *hdcp)
 	rc = hdcp2_app_comm(hdcp->hdcp2_ctx, HDCP2_CMD_SET_HW_KEY,
 			&hdcp->app_data);
 	if (rc) {
-		pr_err("failed to set h/w key: %d\n", rc);
+		pr_debug("failed to set h/w key: %d\n", rc);
 		return;
 	}
 
@@ -722,7 +722,7 @@ static void sde_hdcp_2x_msg_recvd(struct sde_hdcp_2x_ctrl *hdcp)
 	msg = hdcp->app_data.request.data;
 
 	if (request_length == 0) {
-		pr_err("invalid message length\n");
+		pr_debug("invalid message length\n");
 		goto exit;
 	}
 
@@ -741,7 +741,7 @@ static void sde_hdcp_2x_msg_recvd(struct sde_hdcp_2x_ctrl *hdcp)
 	rc = hdcp2_app_comm(hdcp->hdcp2_ctx, HDCP2_CMD_PROCESS_MSG,
 			&hdcp->app_data);
 	if (rc) {
-		pr_err("failed to process sink's response to %s (%d)\n",
+		pr_debug("failed to process sink's response to %s (%d)\n",
 				sde_hdcp_2x_message_name(msg[0]), rc);
 		rc = -EINVAL;
 		goto exit;
@@ -829,7 +829,7 @@ static void sde_hdcp_2x_wait_for_response_work(struct kthread_work *work)
 			struct sde_hdcp_2x_ctrl, wk_wait);
 
 	if (!hdcp) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -842,7 +842,7 @@ static void sde_hdcp_2x_wait_for_response_work(struct kthread_work *work)
 	timeout = wait_for_completion_timeout(&hdcp->response_completion,
 			hdcp->wait_timeout_ms);
 	if (!timeout) {
-		pr_err("completion expired, last message = %s\n",
+		pr_debug("completion expired, last message = %s\n",
 				sde_hdcp_2x_message_name(hdcp->last_msg));
 
 		if (!atomic_read(&hdcp->hdcp_off))
@@ -901,7 +901,7 @@ static void sde_hdcp_2x_manage_stream_work(struct kthread_work *work)
 					stream_entry->virtual_channel,
 					stream_entry->stream_id,
 					&stream_entry->stream_handle))
-				pr_err("Unable to open stream %d, virtual channel %d\n",
+				pr_debug("Unable to open stream %d, virtual channel %d\n",
 					stream_entry->stream_id,
 					stream_entry->virtual_channel);
 			else
@@ -1011,7 +1011,7 @@ static int sde_hdcp_2x_wakeup(struct sde_hdcp_2x_wakeup_data *data)
 
 	rc = sde_hdcp_2x_check_valid_state(hdcp);
 	if (rc) {
-		pr_err("invalid state for command=%s\n",
+		pr_debug("invalid state for command=%s\n",
 				sde_hdcp_2x_cmd_to_str(hdcp->wakeup_cmd));
 		goto exit;
 	}
@@ -1092,7 +1092,7 @@ static int sde_hdcp_2x_wakeup(struct sde_hdcp_2x_wakeup_data *data)
 			HDCP_2X_EXECUTE(manage_stream);
 		break;
 	default:
-		pr_err("invalid wakeup command %d\n", hdcp->wakeup_cmd);
+		pr_debug("invalid wakeup command %d\n", hdcp->wakeup_cmd);
 	}
 exit:
 	mutex_unlock(&hdcp->wakeup_mutex);
@@ -1115,7 +1115,7 @@ static void sde_hdcp_2x_enable_work(struct kthread_work *work)
 
 	hdcp->hdcp2_ctx = hdcp2_init(hdcp->device_type);
 	if (!hdcp->hdcp2_ctx)
-		pr_err("Unable to acquire HDCP library handle\n");
+		pr_debug("Unable to acquire HDCP library handle\n");
 }
 
 static void sde_hdcp_2x_disable_work(struct kthread_work *work)
@@ -1137,22 +1137,22 @@ int sde_hdcp_2x_register(struct sde_hdcp_2x_register_data *data)
 	struct sde_hdcp_2x_ctrl *hdcp = NULL;
 
 	if (!data) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 
 	if (!data->ops) {
-		pr_err("invalid input: txmtr context\n");
+		pr_debug("invalid input: txmtr context\n");
 		return -EINVAL;
 	}
 
 	if (!data->client_ops) {
-		pr_err("invalid input: client_ops\n");
+		pr_debug("invalid input: client_ops\n");
 		return -EINVAL;
 	}
 
 	if (!data->hdcp_data) {
-		pr_err("invalid input: hdcp_data\n");
+		pr_debug("invalid input: hdcp_data\n");
 		return -EINVAL;
 	}
 
@@ -1199,7 +1199,7 @@ int sde_hdcp_2x_register(struct sde_hdcp_2x_register_data *data)
 			     &hdcp->worker, "hdcp_tz_lib");
 
 	if (IS_ERR(hdcp->thread)) {
-		pr_err("unable to start lib thread\n");
+		pr_debug("unable to start lib thread\n");
 		rc = PTR_ERR(hdcp->thread);
 		hdcp->thread = NULL;
 		goto error;

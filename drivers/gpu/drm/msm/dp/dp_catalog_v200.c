@@ -74,7 +74,7 @@ static void dp_catalog_aux_clear_hw_interrupts_v200(struct dp_catalog_aux *aux)
 	u32 data = 0;
 
 	if (!aux) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -103,7 +103,7 @@ static void dp_catalog_aux_setup_v200(struct dp_catalog_aux *aux,
 	int i = 0, sw_reset = 0;
 
 	if (!aux || !cfg) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -161,12 +161,12 @@ static void dp_catalog_panel_config_msa_v200(struct dp_catalog_panel *panel,
 	u32 mvid_reg_off = 0, nvid_reg_off = 0;
 
 	if (!panel) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
 	if (panel->stream_id >= DP_STREAM_MAX) {
-		pr_err("invalid stream_id:%d\n", panel->stream_id);
+		pr_debug("invalid stream_id:%d\n", panel->stream_id);
 		return;
 	}
 
@@ -225,7 +225,7 @@ static void dp_catalog_ctrl_update_vx_px_v200(struct dp_catalog_ctrl *ctrl,
 
 	if (!ctrl || !((v_level < MAX_VOLTAGE_LEVELS)
 		&& (p_level < MAX_PRE_EMP_LEVELS))) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -264,7 +264,7 @@ static void dp_catalog_ctrl_update_vx_px_v200(struct dp_catalog_ctrl *ctrl,
 		pr_debug("hw: vx_value=0x%x px_value=0x%x\n",
 			value0, value1);
 	} else {
-		pr_err("invalid vx (0x%x=0x%x), px (0x%x=0x%x\n",
+		pr_debug("invalid vx (0x%x=0x%x), px (0x%x=0x%x\n",
 			v_level, value0, p_level, value1);
 	}
 }
@@ -279,7 +279,7 @@ static void dp_catalog_ctrl_lane_mapping_v200(struct dp_catalog_ctrl *ctrl,
 	u32 lane_map_reg = 0;
 
 	if (!ctrl) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return;
 	}
 
@@ -354,7 +354,7 @@ int dp_catalog_get_v200(struct device *dev, struct dp_catalog *catalog,
 	struct dp_catalog_private_v200 *catalog_priv;
 
 	if (!dev || !catalog) {
-		pr_err("invalid input\n");
+		pr_debug("invalid input\n");
 		return -EINVAL;
 	}
 

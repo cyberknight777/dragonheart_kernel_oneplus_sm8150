@@ -165,28 +165,28 @@ static int dp_sim_parse(struct dp_sim_device *sim_dev)
 		rc = of_property_read_u32(node, "qcom,mode-h-active",
 						&mode->hdisplay);
 		if (rc) {
-			pr_err("failed to read h-active, rc=%d\n", rc);
+			pr_debug("failed to read h-active, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-h-front-porch",
 						&h_front_porch);
 		if (rc) {
-			pr_err("failed to read h-front-porch, rc=%d\n", rc);
+			pr_debug("failed to read h-front-porch, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-h-pulse-width",
 						&h_pulse_width);
 		if (rc) {
-			pr_err("failed to read h-pulse-width, rc=%d\n", rc);
+			pr_debug("failed to read h-pulse-width, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-h-back-porch",
 						&h_back_porch);
 		if (rc) {
-			pr_err("failed to read h-back-porch, rc=%d\n", rc);
+			pr_debug("failed to read h-back-porch, rc=%d\n", rc);
 			goto fail;
 		}
 
@@ -196,28 +196,28 @@ static int dp_sim_parse(struct dp_sim_device *sim_dev)
 		rc = of_property_read_u32(node, "qcom,mode-v-active",
 						&mode->vdisplay);
 		if (rc) {
-			pr_err("failed to read v-active, rc=%d\n", rc);
+			pr_debug("failed to read v-active, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-v-front-porch",
 						&v_front_porch);
 		if (rc) {
-			pr_err("failed to read v-front-porch, rc=%d\n", rc);
+			pr_debug("failed to read v-front-porch, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-v-pulse-width",
 						&v_pulse_width);
 		if (rc) {
-			pr_err("failed to read v-pulse-width, rc=%d\n", rc);
+			pr_debug("failed to read v-pulse-width, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-v-back-porch",
 						&v_back_porch);
 		if (rc) {
-			pr_err("failed to read v-back-porch, rc=%d\n", rc);
+			pr_debug("failed to read v-back-porch, rc=%d\n", rc);
 			goto fail;
 		}
 
@@ -227,14 +227,14 @@ static int dp_sim_parse(struct dp_sim_device *sim_dev)
 		rc = of_property_read_u32(node, "qcom,mode-refresh-rate",
 						&mode->vrefresh);
 		if (rc) {
-			pr_err("failed to read refresh-rate, rc=%d\n", rc);
+			pr_debug("failed to read refresh-rate, rc=%d\n", rc);
 			goto fail;
 		}
 
 		rc = of_property_read_u32(node, "qcom,mode-clock-in-khz",
 						&mode->clock);
 		if (rc) {
-			pr_err("failed to read clock, rc=%d\n", rc);
+			pr_debug("failed to read clock, rc=%d\n", rc);
 			goto fail;
 		}
 

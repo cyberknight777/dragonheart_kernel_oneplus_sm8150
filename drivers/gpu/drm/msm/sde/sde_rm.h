@@ -293,7 +293,7 @@ static inline bool sde_rm_topology_is_dual_ctl(struct sde_rm *rm,
 {
 	if ((!rm) || (topology <= SDE_RM_TOPOLOGY_NONE) ||
 			(topology >= SDE_RM_TOPOLOGY_MAX)) {
-		pr_err("invalid arguments: rm:%d topology:%d\n",
+		pr_debug("invalid arguments: rm:%d topology:%d\n",
 				rm == NULL, topology);
 
 		return false;

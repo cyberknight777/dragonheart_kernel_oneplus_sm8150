@@ -430,7 +430,7 @@ void dsi_phy_hw_v3_0_enable(struct dsi_phy_hw *phy,
 	rc = readl_poll_timeout_atomic(phy->base + DSIPHY_CMN_PHY_STATUS,
 		status, (status & BIT(0)), delay_us, timeout_us);
 	if (rc) {
-		pr_err("Ref gen not ready. Aborting\n");
+		pr_debug("Ref gen not ready. Aborting\n");
 		return;
 	}
 	if (cfg->phy_type == DSI_PHY_TYPE_CPHY)
@@ -491,7 +491,7 @@ int dsi_phy_hw_v3_0_wait_for_lane_idle(
 				((val & stop_state_mask) == stop_state_mask),
 				sleep_us, timeout_us);
 	if (rc) {
-		pr_err("%s: lanes not in stop state, LANE_STATUS=0x%08x\n",
+		pr_debug("%s: lanes not in stop state, LANE_STATUS=0x%08x\n",
 			__func__, val);
 		return rc;
 	}
@@ -617,7 +617,7 @@ int dsi_phy_hw_timing_val_v3_0(struct dsi_phy_per_lane_cfgs *timing_cfg,
 	int i = 0;
 
 	if (size != DSI_PHY_TIMING_V3_SIZE) {
-		pr_err("Unexpected timing array size %d\n", size);
+		pr_debug("Unexpected timing array size %d\n", size);
 		return -EINVAL;
 	}
 
@@ -776,7 +776,7 @@ int dsi_phy_hw_v3_0_cache_phy_timings(struct dsi_phy_per_lane_cfgs *timings,
 		return -EINVAL;
 
 	if (size != DSI_PHY_TIMING_V3_SIZE) {
-		pr_err("size mis-match\n");
+		pr_debug("size mis-match\n");
 		return -EINVAL;
 	}
 

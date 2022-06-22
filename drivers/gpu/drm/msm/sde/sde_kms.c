@@ -1164,7 +1164,7 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 
 		rc = c_conn->ops.post_kickoff(connector, &params);
 		if (rc) {
-			pr_err("Connector Post kickoff failed rc=%d\n",
+			pr_debug("Connector Post kickoff failed rc=%d\n",
 					 rc);
 		}
 	}
@@ -3309,10 +3309,10 @@ static int _sde_kms_get_splash_data(struct sde_splash_data *data)
 
 	data->num_splash_displays = num_displays;
 
-	pr_info("splash mem num_regions:%d\n", num_regions);
+	pr_debug("splash mem num_regions:%d\n", num_regions);
 	if (num_displays > num_regions) {
 		share_splash_mem = true;
-		pr_info(":%d displays share same splash buf\n", num_displays);
+		pr_debug(":%d displays share same splash buf\n", num_displays);
 	}
 
 	for (i = 0; i < num_displays; i++) {
@@ -3342,7 +3342,7 @@ static int _sde_kms_get_splash_data(struct sde_splash_data *data)
 			data->splash_display[i].splash = &data->splash_mem[0];
 		}
 
-		pr_info("splash mem for disp:%d add:%lx size:%x\n", (i + 1),
+		pr_debug("splash mem for disp:%d add:%lx size:%x\n", (i + 1),
 				splash_display->splash->splash_buf_base,
 				splash_display->splash->splash_buf_size);
 	}
@@ -3490,7 +3490,7 @@ static int sde_kms_hw_init(struct msm_kms *kms)
 
 	_sde_kms_core_hw_rev_init(sde_kms);
 
-	pr_info("sde hardware revision:0x%x\n", sde_kms->core_rev);
+	pr_debug("sde hardware revision:0x%x\n", sde_kms->core_rev);
 
 	sde_kms->catalog = sde_hw_catalog_init(dev, sde_kms->core_rev);
 	if (IS_ERR_OR_NULL(sde_kms->catalog)) {
