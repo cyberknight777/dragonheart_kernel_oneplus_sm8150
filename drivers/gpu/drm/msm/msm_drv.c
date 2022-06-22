@@ -233,7 +233,7 @@ u32 msm_readl(const void __iomem *addr)
 	u32 val = readl(addr);
 
 	if (reglog)
-		pr_err("IO:R %pK %08x\n", addr, val);
+		pr_debug("IO:R %pK %08x\n", addr, val);
 	return val;
 }
 
@@ -537,13 +537,13 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 
 	ret = sde_power_resource_init(pdev, &priv->phandle);
 	if (ret) {
-		pr_err("sde power resource init failed\n");
+		pr_debug("sde power resource init failed\n");
 		goto power_init_fail;
 	}
 
 	priv->pclient = sde_power_client_create(&priv->phandle, "sde");
 	if (IS_ERR_OR_NULL(priv->pclient)) {
-		pr_err("sde power client create failed\n");
+		pr_debug("sde power client create failed\n");
 		ret = -EINVAL;
 		goto power_client_fail;
 	}
@@ -765,7 +765,7 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 	if (kms && kms->funcs && kms->funcs->postinit) {
 		ret = kms->funcs->postinit(kms);
 		if (ret) {
-			pr_err("kms post init failed: %d\n", ret);
+			pr_debug("kms post init failed: %d\n", ret);
 			goto fail;
 		}
 	}
@@ -1021,7 +1021,7 @@ fail:
 		drm_modeset_backoff(&ctx);
 		goto retry;
 	} else if (rc) {
-		pr_err("last close failed: %d\n", rc);
+		pr_debug("last close failed: %d\n", rc);
 	}
 	drm_modeset_drop_locks(&ctx);
 	drm_modeset_acquire_fini(&ctx);
@@ -1654,7 +1654,7 @@ static int msm_ioctl_power_ctrl(struct drm_device *dev, void *data,
 		if (!ctx->enable_refcnt)
 			vote_req = true;
 	} else {
-		pr_err("ignoring, unbalanced disable\n");
+		pr_debug("ignoring, unbalanced disable\n");
 	}
 
 	if (vote_req) {

@@ -212,13 +212,13 @@ static const struct msm_dsi_cfg_handler *dsi_get_config(
 
 	gdsc_reg = regulator_get(dev, "gdsc");
 	if (IS_ERR(gdsc_reg)) {
-		pr_err("%s: cannot get gdsc\n", __func__);
+		pr_debug("%s: cannot get gdsc\n", __func__);
 		goto exit;
 	}
 
 	ahb_clk = clk_get(dev, "iface_clk");
 	if (IS_ERR(ahb_clk)) {
-		pr_err("%s: cannot get interface clock\n", __func__);
+		pr_debug("%s: cannot get interface clock\n", __func__);
 		goto put_gdsc;
 	}
 
@@ -226,19 +226,19 @@ static const struct msm_dsi_cfg_handler *dsi_get_config(
 
 	ret = regulator_enable(gdsc_reg);
 	if (ret) {
-		pr_err("%s: unable to enable gdsc\n", __func__);
+		pr_debug("%s: unable to enable gdsc\n", __func__);
 		goto put_clk;
 	}
 
 	ret = clk_prepare_enable(ahb_clk);
 	if (ret) {
-		pr_err("%s: unable to enable ahb_clk\n", __func__);
+		pr_debug("%s: unable to enable ahb_clk\n", __func__);
 		goto disable_gdsc;
 	}
 
 	ret = dsi_get_version(msm_host->ctrl_base, &major, &minor);
 	if (ret) {
-		pr_err("%s: Invalid version\n", __func__);
+		pr_debug("%s: Invalid version\n", __func__);
 		goto disable_clks;
 	}
 
@@ -293,7 +293,7 @@ static int dsi_host_regulator_enable(struct msm_dsi_host *msm_host)
 			ret = regulator_set_load(s[i].consumer,
 						 regs[i].enable_load);
 			if (ret < 0) {
-				pr_err("regulator %d set op mode failed, %d\n",
+				pr_debug("regulator %d set op mode failed, %d\n",
 					i, ret);
 				goto fail;
 			}
@@ -302,7 +302,7 @@ static int dsi_host_regulator_enable(struct msm_dsi_host *msm_host)
 
 	ret = regulator_bulk_enable(num, s);
 	if (ret < 0) {
-		pr_err("regulator enable failed, %d\n", ret);
+		pr_debug("regulator enable failed, %d\n", ret);
 		goto fail;
 	}
 
@@ -326,7 +326,7 @@ static int dsi_regulator_init(struct msm_dsi_host *msm_host)
 
 	ret = devm_regulator_bulk_get(&msm_host->pdev->dev, num, s);
 	if (ret < 0) {
-		pr_err("%s: failed to init regulator, ret=%d\n",
+		pr_debug("%s: failed to init regulator, ret=%d\n",
 						__func__, ret);
 		return ret;
 	}
@@ -347,7 +347,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 						cfg->bus_clk_names[i]);
 		if (IS_ERR(msm_host->bus_clks[i])) {
 			ret = PTR_ERR(msm_host->bus_clks[i]);
-			pr_err("%s: Unable to get %s, ret = %d\n",
+			pr_debug("%s: Unable to get %s, ret = %d\n",
 				__func__, cfg->bus_clk_names[i], ret);
 			goto exit;
 		}
@@ -357,7 +357,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 	msm_host->byte_clk = devm_clk_get(dev, "byte_clk");
 	if (IS_ERR(msm_host->byte_clk)) {
 		ret = PTR_ERR(msm_host->byte_clk);
-		pr_err("%s: can't find dsi_byte_clk. ret=%d\n",
+		pr_debug("%s: can't find dsi_byte_clk. ret=%d\n",
 			__func__, ret);
 		msm_host->byte_clk = NULL;
 		goto exit;
@@ -366,7 +366,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 	msm_host->pixel_clk = devm_clk_get(dev, "pixel_clk");
 	if (IS_ERR(msm_host->pixel_clk)) {
 		ret = PTR_ERR(msm_host->pixel_clk);
-		pr_err("%s: can't find dsi_pixel_clk. ret=%d\n",
+		pr_debug("%s: can't find dsi_pixel_clk. ret=%d\n",
 			__func__, ret);
 		msm_host->pixel_clk = NULL;
 		goto exit;
@@ -375,7 +375,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 	msm_host->esc_clk = devm_clk_get(dev, "core_clk");
 	if (IS_ERR(msm_host->esc_clk)) {
 		ret = PTR_ERR(msm_host->esc_clk);
-		pr_err("%s: can't find dsi_esc_clk. ret=%d\n",
+		pr_debug("%s: can't find dsi_esc_clk. ret=%d\n",
 			__func__, ret);
 		msm_host->esc_clk = NULL;
 		goto exit;
@@ -384,14 +384,14 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 	msm_host->byte_clk_src = clk_get_parent(msm_host->byte_clk);
 	if (!msm_host->byte_clk_src) {
 		ret = -ENODEV;
-		pr_err("%s: can't find byte_clk_src. ret=%d\n", __func__, ret);
+		pr_debug("%s: can't find byte_clk_src. ret=%d\n", __func__, ret);
 		goto exit;
 	}
 
 	msm_host->pixel_clk_src = clk_get_parent(msm_host->pixel_clk);
 	if (!msm_host->pixel_clk_src) {
 		ret = -ENODEV;
-		pr_err("%s: can't find pixel_clk_src. ret=%d\n", __func__, ret);
+		pr_debug("%s: can't find pixel_clk_src. ret=%d\n", __func__, ret);
 		goto exit;
 	}
 
@@ -399,7 +399,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 		msm_host->src_clk = devm_clk_get(dev, "src_clk");
 		if (IS_ERR(msm_host->src_clk)) {
 			ret = PTR_ERR(msm_host->src_clk);
-			pr_err("%s: can't find dsi_src_clk. ret=%d\n",
+			pr_debug("%s: can't find dsi_src_clk. ret=%d\n",
 				__func__, ret);
 			msm_host->src_clk = NULL;
 			goto exit;
@@ -408,7 +408,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 		msm_host->esc_clk_src = clk_get_parent(msm_host->esc_clk);
 		if (!msm_host->esc_clk_src) {
 			ret = -ENODEV;
-			pr_err("%s: can't get esc_clk_src. ret=%d\n",
+			pr_debug("%s: can't get esc_clk_src. ret=%d\n",
 				__func__, ret);
 			goto exit;
 		}
@@ -416,7 +416,7 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 		msm_host->dsi_clk_src = clk_get_parent(msm_host->src_clk);
 		if (!msm_host->dsi_clk_src) {
 			ret = -ENODEV;
-			pr_err("%s: can't get dsi_clk_src. ret=%d\n",
+			pr_debug("%s: can't get dsi_clk_src. ret=%d\n",
 				__func__, ret);
 		}
 	}
@@ -434,7 +434,7 @@ static int dsi_bus_clk_enable(struct msm_dsi_host *msm_host)
 	for (i = 0; i < cfg->num_bus_clks; i++) {
 		ret = clk_prepare_enable(msm_host->bus_clks[i]);
 		if (ret) {
-			pr_err("%s: failed to enable bus clock %d ret %d\n",
+			pr_debug("%s: failed to enable bus clock %d ret %d\n",
 				__func__, i, ret);
 			goto err;
 		}
@@ -496,31 +496,31 @@ static int dsi_link_clk_enable_6g(struct msm_dsi_host *msm_host)
 
 	ret = clk_set_rate(msm_host->byte_clk, msm_host->byte_clk_rate);
 	if (ret) {
-		pr_err("%s: Failed to set rate byte clk, %d\n", __func__, ret);
+		pr_debug("%s: Failed to set rate byte clk, %d\n", __func__, ret);
 		goto error;
 	}
 
 	ret = clk_set_rate(msm_host->pixel_clk, msm_host->mode->clock * 1000);
 	if (ret) {
-		pr_err("%s: Failed to set rate pixel clk, %d\n", __func__, ret);
+		pr_debug("%s: Failed to set rate pixel clk, %d\n", __func__, ret);
 		goto error;
 	}
 
 	ret = clk_prepare_enable(msm_host->esc_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi esc clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi esc clk\n", __func__);
 		goto error;
 	}
 
 	ret = clk_prepare_enable(msm_host->byte_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi byte clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi byte clk\n", __func__);
 		goto byte_clk_err;
 	}
 
 	ret = clk_prepare_enable(msm_host->pixel_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi pixel clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi pixel clk\n", __func__);
 		goto pixel_clk_err;
 	}
 
@@ -544,49 +544,49 @@ static int dsi_link_clk_enable_v2(struct msm_dsi_host *msm_host)
 
 	ret = clk_set_rate(msm_host->byte_clk, msm_host->byte_clk_rate);
 	if (ret) {
-		pr_err("%s: Failed to set rate byte clk, %d\n", __func__, ret);
+		pr_debug("%s: Failed to set rate byte clk, %d\n", __func__, ret);
 		goto error;
 	}
 
 	ret = clk_set_rate(msm_host->esc_clk, msm_host->esc_clk_rate);
 	if (ret) {
-		pr_err("%s: Failed to set rate esc clk, %d\n", __func__, ret);
+		pr_debug("%s: Failed to set rate esc clk, %d\n", __func__, ret);
 		goto error;
 	}
 
 	ret = clk_set_rate(msm_host->src_clk, msm_host->src_clk_rate);
 	if (ret) {
-		pr_err("%s: Failed to set rate src clk, %d\n", __func__, ret);
+		pr_debug("%s: Failed to set rate src clk, %d\n", __func__, ret);
 		goto error;
 	}
 
 	ret = clk_set_rate(msm_host->pixel_clk, msm_host->mode->clock * 1000);
 	if (ret) {
-		pr_err("%s: Failed to set rate pixel clk, %d\n", __func__, ret);
+		pr_debug("%s: Failed to set rate pixel clk, %d\n", __func__, ret);
 		goto error;
 	}
 
 	ret = clk_prepare_enable(msm_host->byte_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi byte clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi byte clk\n", __func__);
 		goto error;
 	}
 
 	ret = clk_prepare_enable(msm_host->esc_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi esc clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi esc clk\n", __func__);
 		goto esc_clk_err;
 	}
 
 	ret = clk_prepare_enable(msm_host->src_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi src clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi src clk\n", __func__);
 		goto src_clk_err;
 	}
 
 	ret = clk_prepare_enable(msm_host->pixel_clk);
 	if (ret) {
-		pr_err("%s: Failed to enable dsi pixel clk\n", __func__);
+		pr_debug("%s: Failed to enable dsi pixel clk\n", __func__);
 		goto pixel_clk_err;
 	}
 
@@ -637,7 +637,7 @@ static int dsi_calc_clk_rate(struct msm_dsi_host *msm_host)
 	u32 pclk_rate;
 
 	if (!mode) {
-		pr_err("%s: mode not set\n", __func__);
+		pr_debug("%s: mode not set\n", __func__);
 		return -EINVAL;
 	}
 
@@ -645,7 +645,7 @@ static int dsi_calc_clk_rate(struct msm_dsi_host *msm_host)
 	if (lanes > 0) {
 		msm_host->byte_clk_rate = (pclk_rate * bpp) / (8 * lanes);
 	} else {
-		pr_err("%s: forcing mdss_dsi lanes to 1\n", __func__);
+		pr_debug("%s: forcing mdss_dsi lanes to 1\n", __func__);
 		msm_host->byte_clk_rate = (pclk_rate * bpp) / 8;
 	}
 
@@ -988,7 +988,7 @@ static int dsi_tx_buf_alloc(struct msm_dsi_host *msm_host, int size)
 		msm_host->tx_gem_obj = msm_gem_new(dev, size, MSM_BO_UNCACHED);
 		if (IS_ERR(msm_host->tx_gem_obj)) {
 			ret = PTR_ERR(msm_host->tx_gem_obj);
-			pr_err("%s: failed to allocate gem, %d\n",
+			pr_debug("%s: failed to allocate gem, %d\n",
 				__func__, ret);
 			msm_host->tx_gem_obj = NULL;
 			return ret;
@@ -997,12 +997,12 @@ static int dsi_tx_buf_alloc(struct msm_dsi_host *msm_host, int size)
 		ret = msm_gem_get_iova(msm_host->tx_gem_obj,
 				priv->kms->aspace, &iova);
 		if (ret) {
-			pr_err("%s: failed to get iova, %d\n", __func__, ret);
+			pr_debug("%s: failed to get iova, %d\n", __func__, ret);
 			return ret;
 		}
 
 		if (iova & 0x07) {
-			pr_err("%s: buf NOT 8 bytes aligned\n", __func__);
+			pr_debug("%s: buf NOT 8 bytes aligned\n", __func__);
 			return -EINVAL;
 		}
 
@@ -1012,7 +1012,7 @@ static int dsi_tx_buf_alloc(struct msm_dsi_host *msm_host, int size)
 					&msm_host->tx_buf_paddr, GFP_KERNEL);
 		if (!msm_host->tx_buf) {
 			ret = -ENOMEM;
-			pr_err("%s: failed to allocate tx buf, %d\n",
+			pr_debug("%s: failed to allocate tx buf, %d\n",
 				__func__, ret);
 			return ret;
 		}
@@ -1054,13 +1054,13 @@ static int dsi_cmd_dma_add(struct msm_dsi_host *msm_host,
 
 	ret = mipi_dsi_create_packet(&packet, msg);
 	if (ret) {
-		pr_err("%s: create packet failed, %d\n", __func__, ret);
+		pr_debug("%s: create packet failed, %d\n", __func__, ret);
 		return ret;
 	}
 	len = (packet.size + 3) & (~0x3);
 
 	if (len > msm_host->tx_size) {
-		pr_err("%s: packet size is too big\n", __func__);
+		pr_debug("%s: packet size is too big\n", __func__);
 		return -EINVAL;
 	}
 
@@ -1068,7 +1068,7 @@ static int dsi_cmd_dma_add(struct msm_dsi_host *msm_host,
 		data = msm_gem_get_vaddr(msm_host->tx_gem_obj);
 		if (IS_ERR(data)) {
 			ret = PTR_ERR(data);
-			pr_err("%s: get vaddr failed, %d\n", __func__, ret);
+			pr_debug("%s: get vaddr failed, %d\n", __func__, ret);
 			return ret;
 		}
 	} else {
@@ -1109,7 +1109,7 @@ static int dsi_short_read1_resp(u8 *buf, const struct mipi_dsi_msg *msg)
 		*data = buf[1]; /* strip out dcs type */
 		return 1;
 	} else {
-		pr_err("%s: read data does not match with rx_buf len %zu\n",
+		pr_debug("%s: read data does not match with rx_buf len %zu\n",
 			__func__, msg->rx_len);
 		return -EINVAL;
 	}
@@ -1126,7 +1126,7 @@ static int dsi_short_read2_resp(u8 *buf, const struct mipi_dsi_msg *msg)
 		data[1] = buf[2];
 		return 2;
 	} else {
-		pr_err("%s: read data does not match with rx_buf len %zu\n",
+		pr_debug("%s: read data does not match with rx_buf len %zu\n",
 			__func__, msg->rx_len);
 		return -EINVAL;
 	}
@@ -1154,7 +1154,7 @@ static int dsi_cmd_dma_tx(struct msm_dsi_host *msm_host, int len)
 		ret = msm_gem_get_iova(msm_host->tx_gem_obj,
 				priv->kms->aspace, &dma_base);
 		if (ret) {
-			pr_err("%s: failed to get iova: %d\n", __func__, ret);
+			pr_debug("%s: failed to get iova: %d\n", __func__, ret);
 			return ret;
 		}
 	} else {
@@ -1240,7 +1240,7 @@ static int dsi_cmds2buf_tx(struct msm_dsi_host *msm_host,
 
 	len = dsi_cmd_dma_add(msm_host, msg);
 	if (!len) {
-		pr_err("%s: failed to add cmd type = 0x%x\n",
+		pr_debug("%s: failed to add cmd type = 0x%x\n",
 			__func__,  msg->type);
 		return -EINVAL;
 	}
@@ -1255,14 +1255,14 @@ static int dsi_cmds2buf_tx(struct msm_dsi_host *msm_host,
 	 * command can be fit into one BLLP.
 	 */
 	if ((msm_host->mode_flags & MIPI_DSI_MODE_VIDEO) && (len > bllp_len)) {
-		pr_err("%s: cmd cannot fit into BLLP period, len=%d\n",
+		pr_debug("%s: cmd cannot fit into BLLP period, len=%d\n",
 			__func__, len);
 		return -EINVAL;
 	}
 
 	ret = dsi_cmd_dma_tx(msm_host, len);
 	if (ret < len) {
-		pr_err("%s: cmd dma tx failed, type=0x%x, data0=0x%x, len=%d\n",
+		pr_debug("%s: cmd dma tx failed, type=0x%x, data0=0x%x, len=%d\n",
 			__func__, msg->type, (*(u8 *)(msg->tx_buf)), len);
 		return -ECOMM;
 	}
@@ -1310,7 +1310,7 @@ static void dsi_err_worker(struct work_struct *work)
 		container_of(work, struct msm_dsi_host, err_work);
 	u32 status = msm_host->err_work_state;
 
-	pr_err_ratelimited("%s: status=%x\n", __func__, status);
+	pr_debug_ratelimited("%s: status=%x\n", __func__, status);
 	if (status & DSI_ERR_STATE_MDP_FIFO_UNDERFLOW)
 		dsi_sw_reset_restore(msm_host);
 
@@ -1694,7 +1694,7 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi)
 
 	msm_host = devm_kzalloc(&pdev->dev, sizeof(*msm_host), GFP_KERNEL);
 	if (!msm_host) {
-		pr_err("%s: FAILED: cannot alloc dsi host\n",
+		pr_debug("%s: FAILED: cannot alloc dsi host\n",
 		       __func__);
 		ret = -ENOMEM;
 		goto fail;
@@ -1705,13 +1705,13 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi)
 
 	ret = dsi_host_parse_dt(msm_host);
 	if (ret) {
-		pr_err("%s: failed to parse dt\n", __func__);
+		pr_debug("%s: failed to parse dt\n", __func__);
 		goto fail;
 	}
 
 	msm_host->ctrl_base = msm_ioremap(pdev, "dsi_ctrl", "DSI CTRL");
 	if (IS_ERR(msm_host->ctrl_base)) {
-		pr_err("%s: unable to map Dsi ctrl base\n", __func__);
+		pr_debug("%s: unable to map Dsi ctrl base\n", __func__);
 		ret = PTR_ERR(msm_host->ctrl_base);
 		goto fail;
 	}
@@ -1721,14 +1721,14 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi)
 	msm_host->cfg_hnd = dsi_get_config(msm_host);
 	if (!msm_host->cfg_hnd) {
 		ret = -EINVAL;
-		pr_err("%s: get config failed\n", __func__);
+		pr_debug("%s: get config failed\n", __func__);
 		goto fail;
 	}
 
 	msm_host->id = dsi_host_get_id(msm_host);
 	if (msm_host->id < 0) {
 		ret = msm_host->id;
-		pr_err("%s: unable to identify DSI host index\n", __func__);
+		pr_debug("%s: unable to identify DSI host index\n", __func__);
 		goto fail;
 	}
 
@@ -1737,20 +1737,20 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi)
 
 	ret = dsi_regulator_init(msm_host);
 	if (ret) {
-		pr_err("%s: regulator init failed\n", __func__);
+		pr_debug("%s: regulator init failed\n", __func__);
 		goto fail;
 	}
 
 	ret = dsi_clk_init(msm_host);
 	if (ret) {
-		pr_err("%s: unable to initialize dsi clks\n", __func__);
+		pr_debug("%s: unable to initialize dsi clks\n", __func__);
 		goto fail;
 	}
 
 	msm_host->rx_buf = devm_kzalloc(&pdev->dev, SZ_4K, GFP_KERNEL);
 	if (!msm_host->rx_buf) {
 		ret = -ENOMEM;
-		pr_err("%s: alloc rx temp buf failed\n", __func__);
+		pr_debug("%s: alloc rx temp buf failed\n", __func__);
 		goto fail;
 	}
 
@@ -1818,7 +1818,7 @@ int msm_dsi_host_modeset_init(struct mipi_dsi_host *host,
 	msm_host->dev = dev;
 	ret = dsi_tx_buf_alloc(msm_host, SZ_4K);
 	if (ret) {
-		pr_err("%s: alloc tx gem obj failed, %d\n", __func__, ret);
+		pr_debug("%s: alloc tx gem obj failed, %d\n", __func__, ret);
 		return ret;
 	}
 
@@ -1969,7 +1969,7 @@ int msm_dsi_host_cmd_rx(struct mipi_dsi_host *host,
 
 		ret = dsi_cmds2buf_tx(msm_host, &max_pkt_size_msg);
 		if (ret < 2) {
-			pr_err("%s: Set max pkt size failed, %d\n",
+			pr_debug("%s: Set max pkt size failed, %d\n",
 				__func__, ret);
 			return -EINVAL;
 		}
@@ -1986,7 +1986,7 @@ int msm_dsi_host_cmd_rx(struct mipi_dsi_host *host,
 
 		ret = dsi_cmds2buf_tx(msm_host, msg);
 		if (ret < msg->tx_len) {
-			pr_err("%s: Read cmd Tx failed, %d\n", __func__, ret);
+			pr_debug("%s: Read cmd Tx failed, %d\n", __func__, ret);
 			return ret;
 		}
 
@@ -2040,7 +2040,7 @@ int msm_dsi_host_cmd_rx(struct mipi_dsi_host *host,
 	cmd = buf[0];
 	switch (cmd) {
 	case MIPI_DSI_RX_ACKNOWLEDGE_AND_ERROR_REPORT:
-		pr_err("%s: rx ACK_ERR_PACLAGE\n", __func__);
+		pr_debug("%s: rx ACK_ERR_PACLAGE\n", __func__);
 		ret = 0;
 		break;
 	case MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_1BYTE:
@@ -2087,21 +2087,21 @@ int msm_dsi_host_set_src_pll(struct mipi_dsi_host *host,
 	ret = msm_dsi_pll_get_clk_provider(src_pll,
 				&byte_clk_provider, &pixel_clk_provider);
 	if (ret) {
-		pr_info("%s: can't get provider from pll, don't set parent\n",
+		pr_debug("%s: can't get provider from pll, don't set parent\n",
 			__func__);
 		return 0;
 	}
 
 	ret = clk_set_parent(msm_host->byte_clk_src, byte_clk_provider);
 	if (ret) {
-		pr_err("%s: can't set parent to byte_clk_src. ret=%d\n",
+		pr_debug("%s: can't set parent to byte_clk_src. ret=%d\n",
 			__func__, ret);
 		goto exit;
 	}
 
 	ret = clk_set_parent(msm_host->pixel_clk_src, pixel_clk_provider);
 	if (ret) {
-		pr_err("%s: can't set parent to pixel_clk_src. ret=%d\n",
+		pr_debug("%s: can't set parent to pixel_clk_src. ret=%d\n",
 			__func__, ret);
 		goto exit;
 	}
@@ -2109,14 +2109,14 @@ int msm_dsi_host_set_src_pll(struct mipi_dsi_host *host,
 	if (cfg_hnd->major == MSM_DSI_VER_MAJOR_V2) {
 		ret = clk_set_parent(msm_host->dsi_clk_src, pixel_clk_provider);
 		if (ret) {
-			pr_err("%s: can't set parent to dsi_clk_src. ret=%d\n",
+			pr_debug("%s: can't set parent to dsi_clk_src. ret=%d\n",
 				__func__, ret);
 			goto exit;
 		}
 
 		ret = clk_set_parent(msm_host->esc_clk_src, byte_clk_provider);
 		if (ret) {
-			pr_err("%s: can't set parent to esc_clk_src. ret=%d\n",
+			pr_debug("%s: can't set parent to esc_clk_src. ret=%d\n",
 				__func__, ret);
 			goto exit;
 		}
@@ -2147,7 +2147,7 @@ void msm_dsi_host_get_phy_clk_req(struct mipi_dsi_host *host,
 
 	ret = dsi_calc_clk_rate(msm_host);
 	if (ret) {
-		pr_err("%s: unable to calc clk rate, %d\n", __func__, ret);
+		pr_debug("%s: unable to calc clk rate, %d\n", __func__, ret);
 		return;
 	}
 
@@ -2221,7 +2221,7 @@ int msm_dsi_host_power_on(struct mipi_dsi_host *host,
 
 	ret = dsi_host_regulator_enable(msm_host);
 	if (ret) {
-		pr_err("%s:Failed to enable vregs.ret=%d\n",
+		pr_debug("%s:Failed to enable vregs.ret=%d\n",
 			__func__, ret);
 		goto unlock_ret;
 	}
@@ -2229,14 +2229,14 @@ int msm_dsi_host_power_on(struct mipi_dsi_host *host,
 	pm_runtime_get_sync(&msm_host->pdev->dev);
 	ret = dsi_link_clk_enable(msm_host);
 	if (ret) {
-		pr_err("%s: failed to enable link clocks. ret=%d\n",
+		pr_debug("%s: failed to enable link clocks. ret=%d\n",
 		       __func__, ret);
 		goto fail_disable_reg;
 	}
 
 	ret = pinctrl_pm_select_default_state(&msm_host->pdev->dev);
 	if (ret) {
-		pr_err("%s: failed to set pinctrl default state, %d\n",
+		pr_debug("%s: failed to set pinctrl default state, %d\n",
 			__func__, ret);
 		goto fail_disable_clk;
 	}
@@ -2308,7 +2308,7 @@ int msm_dsi_host_set_display_mode(struct mipi_dsi_host *host,
 
 	msm_host->mode = drm_mode_duplicate(msm_host->dev, mode);
 	if (!msm_host->mode) {
-		pr_err("%s: cannot duplicate mode\n", __func__);
+		pr_debug("%s: cannot duplicate mode\n", __func__);
 		return -ENOMEM;
 	}
 

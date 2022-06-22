@@ -28,7 +28,7 @@ static void dp_hpd_host_init(struct dp_hpd *dp_hpd,
 		struct dp_catalog_hpd *catalog)
 {
 	if (!catalog) {
-		pr_err("invalid input");
+		pr_debug("invalid input");
 		return;
 	}
 	catalog->config_hpd(catalog, true);
@@ -38,7 +38,7 @@ static void dp_hpd_host_deinit(struct dp_hpd *dp_hpd,
 		struct dp_catalog_hpd *catalog)
 {
 	if (!catalog) {
-		pr_err("invalid input");
+		pr_debug("invalid input");
 		return;
 	}
 	catalog->config_hpd(catalog, false);
@@ -58,28 +58,28 @@ struct dp_hpd *dp_hpd_get(struct device *dev, struct dp_parser *parser,
 	if (aux_bridge && (aux_bridge->flag & MSM_DP_AUX_BRIDGE_HPD)) {
 		dp_hpd = dp_bridge_hpd_get(dev, cb, aux_bridge);
 		if (IS_ERR(dp_hpd)) {
-			pr_err("failed to get bridge hpd\n");
+			pr_debug("failed to get bridge hpd\n");
 			goto out;
 		}
 		dp_hpd->type = DP_HPD_BRIDGE;
 	} else if (parser->no_aux_switch && parser->lphw_hpd) {
 		dp_hpd = dp_lphw_hpd_get(dev, parser, catalog, cb);
 		if (IS_ERR(dp_hpd)) {
-			pr_err("failed to get lphw hpd\n");
+			pr_debug("failed to get lphw hpd\n");
 			return dp_hpd;
 		}
 		dp_hpd->type = DP_HPD_LPHW;
 	} else if (parser->no_aux_switch) {
 		dp_hpd = dp_gpio_hpd_get(dev, cb);
 		if (IS_ERR(dp_hpd)) {
-			pr_err("failed to get gpio hpd\n");
+			pr_debug("failed to get gpio hpd\n");
 			goto out;
 		}
 		dp_hpd->type = DP_HPD_GPIO;
 	} else {
 		dp_hpd = dp_usbpd_init(dev, pd, cb);
 		if (IS_ERR(dp_hpd)) {
-			pr_err("failed to get usbpd\n");
+			pr_debug("failed to get usbpd\n");
 			goto out;
 		}
 		dp_hpd->type = DP_HPD_USBPD;
@@ -115,7 +115,7 @@ void dp_hpd_put(struct dp_hpd *dp_hpd)
 		dp_bridge_hpd_put(dp_hpd);
 		break;
 	default:
-		pr_err("unknown hpd type %d\n", dp_hpd->type);
+		pr_debug("unknown hpd type %d\n", dp_hpd->type);
 		break;
 	}
 }

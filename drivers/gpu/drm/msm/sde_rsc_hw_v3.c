@@ -339,7 +339,7 @@ static int sde_rsc_mode2_entry_v3(struct sde_rsc_priv *rsc)
 	if (rsc->sw_fs_enabled) {
 		rc = regulator_set_mode(rsc->fs, REGULATOR_MODE_FAST);
 		if (rc) {
-			pr_err("vdd reg fast mode set failed rc:%d\n", rc);
+			pr_debug("vdd reg fast mode set failed rc:%d\n", rc);
 			return rc;
 		}
 	}
@@ -361,7 +361,7 @@ static int sde_rsc_mode2_entry_v3(struct sde_rsc_priv *rsc)
 
 		reg = dss_reg_r(&rsc->drv_io,
 				SDE_RSCC_SEQ_PROGRAM_COUNTER, rsc->debug_mode);
-		pr_err("mdss gdsc power down failed, instruction:0x%x, rc:%d\n",
+		pr_debug("mdss gdsc power down failed, instruction:0x%x, rc:%d\n",
 				reg, rc);
 		SDE_EVT32(rc, reg, SDE_EVTLOG_ERROR);
 
@@ -402,7 +402,7 @@ static int sde_rsc_state_update_v3(struct sde_rsc_priv *rsc,
 	if (rsc->power_collapse) {
 		rc = sde_rsc_mode2_exit(rsc, state);
 		if (rc)
-			pr_err("power collapse: mode2 exit failed\n");
+			pr_debug("power collapse: mode2 exit failed\n");
 		else
 			rsc->power_collapse = false;
 	}
@@ -486,13 +486,13 @@ static int sde_rsc_state_update_v3(struct sde_rsc_priv *rsc,
 	case SDE_RSC_IDLE_STATE:
 		rc = sde_rsc_mode2_entry_v3(rsc);
 		if (rc)
-			pr_err("power collapse - mode 2 entry failed\n");
+			pr_debug("power collapse - mode 2 entry failed\n");
 		else
 			rsc->power_collapse = true;
 		break;
 
 	default:
-		pr_err("state:%d handling is not supported\n", state);
+		pr_debug("state:%d handling is not supported\n", state);
 		break;
 	}
 
@@ -505,37 +505,37 @@ static int rsc_hw_init_v3(struct sde_rsc_priv *rsc)
 
 	rc = _rsc_hw_qtimer_init(rsc);
 	if (rc) {
-		pr_err("rsc hw qtimer init failed\n");
+		pr_debug("rsc hw qtimer init failed\n");
 		goto end;
 	}
 
 	rc = _rsc_hw_wrapper_init(rsc);
 	if (rc) {
-		pr_err("rsc hw wrapper init failed\n");
+		pr_debug("rsc hw wrapper init failed\n");
 		goto end;
 	}
 
 	rc = _rsc_hw_seq_memory_init_v3(rsc);
 	if (rc) {
-		pr_err("rsc sequencer memory init failed\n");
+		pr_debug("rsc sequencer memory init failed\n");
 		goto end;
 	}
 
 	rc = _rsc_hw_solver_init(rsc);
 	if (rc) {
-		pr_err("rsc solver init failed\n");
+		pr_debug("rsc solver init failed\n");
 		goto end;
 	}
 
 	rc = _rsc_hw_pdc_init(rsc);
 	if (rc) {
-		pr_err("rsc hw pdc init failed\n");
+		pr_debug("rsc hw pdc init failed\n");
 		goto end;
 	}
 
 	wmb(); /* make sure that hw is initialized */
 
-	pr_info("sde rsc init successfully done\n");
+	pr_debug("sde rsc init successfully done\n");
 end:
 	return rc;
 }
