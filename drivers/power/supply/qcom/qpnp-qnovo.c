@@ -323,7 +323,7 @@ static int qnovo_batt_psy_update(struct qnovo *chip, bool disable)
 			POWER_SUPPLY_PROP_VOLTAGE_QNOVO,
 			&pval);
 		if (rc < 0) {
-			pr_err("Couldn't set prop qnovo_fv rc = %d\n", rc);
+			pr_debug("Couldn't set prop qnovo_fv rc = %d\n", rc);
 			return -EINVAL;
 		}
 	}
@@ -334,7 +334,7 @@ static int qnovo_batt_psy_update(struct qnovo *chip, bool disable)
 			POWER_SUPPLY_PROP_CURRENT_QNOVO,
 			&pval);
 		if (rc < 0) {
-			pr_err("Couldn't set prop qnovo_fcc rc = %d\n", rc);
+			pr_debug("Couldn't set prop qnovo_fcc rc = %d\n", rc);
 			return -EINVAL;
 		}
 	}
@@ -357,7 +357,7 @@ static int qnovo_disable_cb(struct votable *votable, void *data, int disable,
 			POWER_SUPPLY_PROP_CHARGE_QNOVO_ENABLE,
 			&pval);
 	if (rc < 0) {
-		pr_err("Couldn't set prop qnovo_enable rc = %d\n", rc);
+		pr_debug("Couldn't set prop qnovo_enable rc = %d\n", rc);
 		return -EINVAL;
 	}
 
@@ -447,13 +447,13 @@ static int qnovo_parse_dt(struct qnovo *chip)
 	int rc;
 
 	if (!node) {
-		pr_err("device tree node missing\n");
+		pr_debug("device tree node missing\n");
 		return -EINVAL;
 	}
 
 	rc = of_property_read_u32(node, "reg", &chip->base);
 	if (rc < 0) {
-		pr_err("Couldn't read base rc = %d\n", rc);
+		pr_debug("Couldn't read base rc = %d\n", rc);
 		return rc;
 	}
 
@@ -462,7 +462,7 @@ static int qnovo_parse_dt(struct qnovo *chip)
 
 	chip->dt.revid_dev_node = of_parse_phandle(node, "qcom,pmic-revid", 0);
 	if (!chip->dt.revid_dev_node) {
-		pr_err("Missing qcom,pmic-revid property - driver failed\n");
+		pr_debug("Missing qcom,pmic-revid property - driver failed\n");
 		return -EINVAL;
 	}
 	chip->dt.enable_for_dc = of_property_read_bool(node,
@@ -890,7 +890,7 @@ static ssize_t reg_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval = buf[1] << 8 | buf[0];
@@ -915,7 +915,7 @@ static ssize_t reg_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	return count;
@@ -933,7 +933,7 @@ static ssize_t time_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval = buf[1] << 8 | buf[0];
@@ -959,7 +959,7 @@ static ssize_t time_store(struct class *c, struct class_attribute *attr,
 		return -EINVAL;
 
 	if (val < params[i].min_val || val > params[i].max_val) {
-		pr_err("Out of Range %d%s for %s\n", (int)val,
+		pr_debug("Out of Range %d%s for %s\n", (int)val,
 				params[i].units_str,
 				params[i].name);
 		return -ERANGE;
@@ -973,7 +973,7 @@ static ssize_t time_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -993,7 +993,7 @@ static ssize_t current_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -1032,7 +1032,7 @@ static ssize_t voltage_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval_nV = buf[1] << 8 | buf[0];
@@ -1064,7 +1064,7 @@ static ssize_t voltage_store(struct class *c, struct class_attribute *attr,
 		return -EINVAL;
 
 	if (val_uV < params[i].min_val || val_uV > params[i].max_val) {
-		pr_err("Out of Range %d%s for %s\n", (int)val_uV,
+		pr_debug("Out of Range %d%s for %s\n", (int)val_uV,
 				params[i].units_str,
 				params[i].name);
 		return -ERANGE;
@@ -1084,7 +1084,7 @@ static ssize_t voltage_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -1103,7 +1103,7 @@ static ssize_t coulomb_show(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_read(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't read %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't read %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 	regval_uC = buf[1] << 8 | buf[0];
@@ -1135,7 +1135,7 @@ static ssize_t coulomb_store(struct class *c, struct class_attribute *attr,
 		return -EINVAL;
 
 	if (val_uC < params[i].min_val || val_uC > params[i].max_val) {
-		pr_err("Out of Range %d%s for %s\n", (int)val_uC,
+		pr_debug("Out of Range %d%s for %s\n", (int)val_uC,
 				params[i].units_str,
 				params[i].name);
 		return -ERANGE;
@@ -1157,7 +1157,7 @@ static ssize_t coulomb_store(struct class *c, struct class_attribute *attr,
 
 	rc = qnovo_write(chip, params[i].start_addr, buf, params[i].num_regs);
 	if (rc < 0) {
-		pr_err("Couldn't write %s rc = %d\n", params[i].name, rc);
+		pr_debug("Couldn't write %s rc = %d\n", params[i].name, rc);
 		return -EINVAL;
 	}
 
@@ -1178,7 +1178,7 @@ static ssize_t batt_prop_show(struct class *c, struct class_attribute *attr,
 
 	rc = power_supply_get_property(chip->batt_psy, prop, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't read battery prop %s rc = %d\n",
+		pr_debug("Couldn't read battery prop %s rc = %d\n",
 				params[i].name, rc);
 		return -EINVAL;
 	}
@@ -1266,7 +1266,7 @@ static int qnovo_update_status(struct qnovo *chip)
 
 	rc = qnovo_read(chip, QNOVO_ERROR_STS2, &val, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read error sts rc = %d\n", rc);
+		pr_debug("Couldn't read error sts rc = %d\n", rc);
 		hw_ok_to_qnovo = false;
 	} else {
 		/*
@@ -1495,13 +1495,13 @@ static int qnovo_hw_init(struct qnovo *chip)
 	val = 0;
 	rc = qnovo_write(chip, QNOVO_STRM_CTRL, &val, 1);
 	if (rc < 0) {
-		pr_err("Couldn't write iadc bitstream control rc = %d\n", rc);
+		pr_debug("Couldn't write iadc bitstream control rc = %d\n", rc);
 		return rc;
 	}
 
 	rc = qnovo_read(chip, QNOVO_IADC_OFFSET_0, &iadc_offset_external, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read iadc exernal offset rc = %d\n", rc);
+		pr_debug("Couldn't read iadc exernal offset rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1509,13 +1509,13 @@ static int qnovo_hw_init(struct qnovo *chip)
 	val = -1 * iadc_offset_external;
 	rc = qnovo_write(chip, QNOVO_TR_IADC_OFFSET_0, &val, 1);
 	if (rc < 0) {
-		pr_err("Couldn't write iadc offset rc = %d\n", rc);
+		pr_debug("Couldn't write iadc offset rc = %d\n", rc);
 		return rc;
 	}
 
 	rc = qnovo_read(chip, QNOVO_IADC_OFFSET_1, &iadc_offset_internal, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read iadc internal offset rc = %d\n", rc);
+		pr_debug("Couldn't read iadc internal offset rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1523,31 +1523,31 @@ static int qnovo_hw_init(struct qnovo *chip)
 	val = -1 * iadc_offset_internal;
 	rc = qnovo_write(chip, QNOVO_TR_IADC_OFFSET_1, &val, 1);
 	if (rc < 0) {
-		pr_err("Couldn't write iadc offset rc = %d\n", rc);
+		pr_debug("Couldn't write iadc offset rc = %d\n", rc);
 		return rc;
 	}
 
 	rc = qnovo_read(chip, QNOVO_IADC_GAIN_0, &iadc_gain_external, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read iadc external gain rc = %d\n", rc);
+		pr_debug("Couldn't read iadc external gain rc = %d\n", rc);
 		return rc;
 	}
 
 	rc = qnovo_read(chip, QNOVO_IADC_GAIN_1, &iadc_gain_internal, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read iadc internal gain rc = %d\n", rc);
+		pr_debug("Couldn't read iadc internal gain rc = %d\n", rc);
 		return rc;
 	}
 
 	rc = qnovo_read(chip, QNOVO_VADC_OFFSET, &vadc_offset, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read vadc offset rc = %d\n", rc);
+		pr_debug("Couldn't read vadc offset rc = %d\n", rc);
 		return rc;
 	}
 
 	rc = qnovo_read(chip, QNOVO_VADC_GAIN, &vadc_gain, 1);
 	if (rc < 0) {
-		pr_err("Couldn't read vadc external gain rc = %d\n", rc);
+		pr_debug("Couldn't read vadc external gain rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1571,7 +1571,7 @@ static int qnovo_hw_init(struct qnovo *chip)
 		ERR_CHARGING_DISABLED | ERR_JEITA_HARD_CONDITION;
 	rc = qnovo_write(chip, QNOVO_DISABLE_CHARGING, &val, 1);
 	if (rc < 0) {
-		pr_err("Couldn't write QNOVO_DISABLE_CHARGING rc = %d\n", rc);
+		pr_debug("Couldn't write QNOVO_DISABLE_CHARGING rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1585,7 +1585,7 @@ static int qnovo_register_notifier(struct qnovo *chip)
 	chip->nb.notifier_call = qnovo_notifier_call;
 	rc = power_supply_reg_notifier(&chip->nb);
 	if (rc < 0) {
-		pr_err("Couldn't register psy notifier rc = %d\n", rc);
+		pr_debug("Couldn't register psy notifier rc = %d\n", rc);
 		return rc;
 	}
 
@@ -1608,7 +1608,7 @@ static int qnovo_request_interrupts(struct qnovo *chip)
 					handle_ptrain_done,
 					IRQF_ONESHOT, "ptrain-done", chip);
 	if (rc < 0) {
-		pr_err("Couldn't request irq %d rc = %d\n",
+		pr_debug("Couldn't request irq %d rc = %d\n",
 					irq_ptrain_done, rc);
 		return rc;
 	}
@@ -1634,13 +1634,13 @@ static int qnovo_probe(struct platform_device *pdev)
 
 	chip->regmap = dev_get_regmap(chip->dev->parent, NULL);
 	if (!chip->regmap) {
-		pr_err("parent regmap is missing\n");
+		pr_debug("parent regmap is missing\n");
 		return -EINVAL;
 	}
 
 	rc = qnovo_parse_dt(chip);
 	if (rc < 0) {
-		pr_err("Couldn't parse device tree rc=%d\n", rc);
+		pr_debug("Couldn't parse device tree rc=%d\n", rc);
 		return rc;
 	}
 
@@ -1691,25 +1691,25 @@ static int qnovo_probe(struct platform_device *pdev)
 
 	rc = qnovo_hw_init(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize hardware rc=%d\n", rc);
+		pr_debug("Couldn't initialize hardware rc=%d\n", rc);
 		goto destroy_awake_votable;
 	}
 
 	rc = qnovo_register_notifier(chip);
 	if (rc < 0) {
-		pr_err("Couldn't register psy notifier rc = %d\n", rc);
+		pr_debug("Couldn't register psy notifier rc = %d\n", rc);
 		goto unreg_notifier;
 	}
 
 	rc = qnovo_determine_initial_status(chip);
 	if (rc < 0) {
-		pr_err("Couldn't determine initial status rc=%d\n", rc);
+		pr_debug("Couldn't determine initial status rc=%d\n", rc);
 		goto unreg_notifier;
 	}
 
 	rc = qnovo_request_interrupts(chip);
 	if (rc < 0) {
-		pr_err("Couldn't request interrupts rc=%d\n", rc);
+		pr_debug("Couldn't request interrupts rc=%d\n", rc);
 		goto unreg_notifier;
 	}
 	chip->qnovo_class.name = "qnovo",
@@ -1718,7 +1718,7 @@ static int qnovo_probe(struct platform_device *pdev)
 
 	rc = class_register(&chip->qnovo_class);
 	if (rc < 0) {
-		pr_err("couldn't register qnovo sysfs class rc = %d\n", rc);
+		pr_debug("couldn't register qnovo sysfs class rc = %d\n", rc);
 		goto unreg_notifier;
 	}
 

@@ -137,7 +137,7 @@ static int read_channel(struct gab *adc_bat, enum power_supply_property psp,
 	ret = iio_read_channel_processed(adc_bat->channel[chan_index],
 			result);
 	if (ret < 0)
-		pr_err("read channel error\n");
+		pr_debug("read channel error\n");
 	return ret;
 }
 

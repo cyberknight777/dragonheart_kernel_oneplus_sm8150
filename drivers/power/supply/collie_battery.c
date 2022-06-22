@@ -146,7 +146,7 @@ static void collie_bat_external_power_changed(struct power_supply *psy)
 
 static irqreturn_t collie_bat_gpio_isr(int irq, void *data)
 {
-	pr_info("collie_bat_gpio irq\n");
+	pr_debug("collie_bat_gpio irq\n");
 	schedule_work(&bat_work);
 	return IRQ_HANDLED;
 }

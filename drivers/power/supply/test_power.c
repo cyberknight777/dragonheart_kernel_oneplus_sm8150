@@ -118,7 +118,7 @@ static int test_power_get_battery_property(struct power_supply *psy,
 		val->intval = battery_voltage;
 		break;
 	default:
-		pr_info("%s: some properties deliberately report errors.\n",
+		pr_debug("%s: some properties deliberately report errors.\n",
 			__func__);
 		return -EINVAL;
 	}
@@ -206,7 +206,7 @@ static int __init test_power_init(void)
 						&test_power_desc[i],
 						&test_power_configs[i]);
 		if (IS_ERR(test_power_supplies[i])) {
-			pr_err("%s: failed to register %s\n", __func__,
+			pr_debug("%s: failed to register %s\n", __func__,
 				test_power_desc[i].name);
 			ret = PTR_ERR(test_power_supplies[i]);
 			goto failed;
@@ -232,7 +232,7 @@ static void __exit test_power_exit(void)
 	battery_status = POWER_SUPPLY_STATUS_DISCHARGING;
 	for (i = 0; i < ARRAY_SIZE(test_power_supplies); i++)
 		power_supply_changed(test_power_supplies[i]);
-	pr_info("%s: 'changed' event sent, sleeping for 10 seconds...\n",
+	pr_debug("%s: 'changed' event sent, sleeping for 10 seconds...\n",
 		__func__);
 	ssleep(10);
 
