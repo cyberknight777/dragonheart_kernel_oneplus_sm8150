@@ -15468,7 +15468,7 @@ static ssize_t wlan_hdd_state_ctrl_param_write(struct file *filp,
 	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 
 	if (copy_from_user(buf, user_buf, 3)) {
-		pr_err("Failed to read buffer\n");
+		pr_debug("Failed to read buffer\n");
 		return -EINVAL;
 	}
 
@@ -15482,13 +15482,13 @@ static ssize_t wlan_hdd_state_ctrl_param_write(struct file *filp,
 		pr_debug("Wifi Turning On from UI\n");
 
 	if (strncmp(buf, wlan_on_str, strlen(wlan_on_str)) != 0) {
-		pr_err("Invalid value received from framework");
+		pr_debug("Invalid value received from framework");
 		goto exit;
 	}
 
 	if (!hdd_loaded) {
 		if (hdd_driver_load()) {
-			pr_err("%s: Failed to init hdd module\n", __func__);
+			pr_debug("%s: Failed to init hdd module\n", __func__);
 			goto exit;
 		}
 	}
@@ -15497,7 +15497,7 @@ static ssize_t wlan_hdd_state_ctrl_param_write(struct file *filp,
 		rc = wait_for_completion_timeout(&wlan_start_comp,
 				msecs_to_jiffies(HDD_WLAN_START_WAIT_TIME));
 		if (!rc) {
-			pr_err("Timed-out!!");
+			pr_debug("Timed-out!!");
 			ret = -EINVAL;
 			return ret;
 		}
@@ -15555,20 +15555,20 @@ static int  wlan_hdd_state_ctrl_param_create(void)
 
 	ret = alloc_chrdev_region(&device, 0, dev_num, "qcwlanstate");
 	if (ret) {
-		pr_err("Failed to register qcwlanstate");
+		pr_debug("Failed to register qcwlanstate");
 		goto dev_alloc_err;
 	}
 	wlan_hdd_state_major = MAJOR(device);
 
 	class = class_create(THIS_MODULE, WLAN_MODULE_NAME);
 	if (IS_ERR(class)) {
-		pr_err("wlan_hdd_state class_create error");
+		pr_debug("wlan_hdd_state class_create error");
 		goto class_err;
 	}
 
 	dev = device_create(class, NULL, device, NULL, WLAN_MODULE_NAME);
 	if (IS_ERR(dev)) {
-		pr_err("wlan_hdd_statedevice_create error");
+		pr_debug("wlan_hdd_statedevice_create error");
 		goto err_class_destroy;
 	}
 
@@ -15578,7 +15578,7 @@ static int  wlan_hdd_state_ctrl_param_create(void)
 
 	ret = cdev_add(&wlan_hdd_state_cdev, device, dev_num);
 	if (ret) {
-		pr_err("Failed to add cdev error");
+		pr_debug("Failed to add cdev error");
 		goto cdev_add_err;
 	}
 
@@ -15866,13 +15866,13 @@ static QDF_STATUS hdd_qdf_print_init(void)
 
 	status = qdf_print_setup();
 	if (QDF_IS_STATUS_ERROR(status)) {
-		pr_err("Failed qdf_print_setup; status:%u\n", status);
+		pr_debug("Failed qdf_print_setup; status:%u\n", status);
 		return status;
 	}
 
 	qdf_print_idx = qdf_print_ctrl_register(cinfo, NULL, NULL, "MCL_WLAN");
 	if (qdf_print_idx < 0) {
-		pr_err("Failed to register for qdf_print_ctrl\n");
+		pr_debug("Failed to register for qdf_print_ctrl\n");
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -15982,7 +15982,7 @@ static bool is_monitor_mode_supported(void)
 #else
 static bool is_monitor_mode_supported(void)
 {
-	pr_err("Monitor mode not supported!");
+	pr_debug("Monitor mode not supported!");
 	return false;
 }
 #endif
@@ -15995,7 +15995,7 @@ static bool is_epping_mode_supported(void)
 #else
 static bool is_epping_mode_supported(void)
 {
-	pr_err("Epping mode not supported!");
+	pr_debug("Epping mode not supported!");
 	return false;
 }
 #endif
@@ -16008,7 +16008,7 @@ static bool is_ftm_mode_supported(void)
 #else
 static bool is_ftm_mode_supported(void)
 {
-	pr_err("FTM mode not supported!");
+	pr_debug("FTM mode not supported!");
 	return false;
 }
 #endif
@@ -16310,7 +16310,7 @@ static int hdd_driver_load(void)
 	QDF_STATUS status;
 	int errno;
 
-	pr_err("%s: Loading driver v%s\n", WLAN_MODULE_NAME,
+	pr_debug("%s: Loading driver v%s\n", WLAN_MODULE_NAME,
 	       g_wlan_driver_version);
 
 	status = hdd_qdf_init();
@@ -16631,7 +16631,7 @@ static int hdd_module_init(void)
 
 	ret = wlan_hdd_state_ctrl_param_create();
 	if (ret)
-		pr_err("wlan_hdd_state_create:%x\n", ret);
+		pr_debug("wlan_hdd_state_create:%x\n", ret);
 
 	return ret;
 }
@@ -16662,7 +16662,7 @@ static int con_mode_handler_ftm(const char *kmessage,
 	ret = param_set_int(kmessage, kp);
 
 	if (con_mode_ftm != QDF_GLOBAL_FTM_MODE) {
-		pr_err("Only FTM mode supported!");
+		pr_debug("Only FTM mode supported!");
 		return -ENOTSUPP;
 	}
 
@@ -16681,7 +16681,7 @@ static int con_mode_handler_epping(const char *kmessage,
 	ret = param_set_int(kmessage, kp);
 
 	if (con_mode_epping != QDF_GLOBAL_EPPING_MODE) {
-		pr_err("Only EPPING mode supported!");
+		pr_debug("Only EPPING mode supported!");
 		return -ENOTSUPP;
 	}
 
