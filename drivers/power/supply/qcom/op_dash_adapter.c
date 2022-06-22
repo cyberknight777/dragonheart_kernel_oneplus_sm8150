@@ -28,7 +28,7 @@ void print_oem(void)
 	int i;
 
 	for (i = 0; i < LOG_COUNT - 1; i++)
-		pr_info("rx=%d, tx=%d\n", rx_time[i], tx_time[i]);
+		pr_debug("rx=%d, tx=%d\n", rx_time[i], tx_time[i]);
 }
 
 static int dash_uart_gpio_get_value(unsigned long pin)
@@ -270,7 +270,7 @@ static int dash_uart_write_some_addr(
 		dash_uart_irq_fiq_enable(true);
 		write_addr += 16;
 		if (rx_val != UART_ACK || chip->rx_timeout) {
-			pr_err("%s err,write_addr:0x%x,chip->rx_timeout:%d,rx_val=%d\n",
+			pr_debug("%s err,write_addr:0x%x,chip->rx_timeout:%d,rx_val=%d\n",
 				__func__, write_addr,
 				chip->rx_timeout, rx_val);
 			return -EINVAL;
@@ -357,16 +357,16 @@ static bool dash_uart_read_addr_line_and_check(
 read_addr_line_err:
 	dash_uart_irq_fiq_enable(true);
 	if (addr_check_err) {
-		pr_err("%s addr:0x%x,buf[0]:0x%x,buf[1]:0x%x\n",
+		pr_debug("%s addr:0x%x,buf[0]:0x%x,buf[1]:0x%x\n",
 			__func__, addr, fw_check_buf[0], fw_check_buf[1]);
 	}
 	if (!check_result) {
-		pr_err("%s fw_check err,addr:0x%x,check_buf[%d]:0x%x != fw_data[%d]:0x%x\n",
+		pr_debug("%s fw_check err,addr:0x%x,check_buf[%d]:0x%x != fw_data[%d]:0x%x\n",
 			__func__, addr, i + 2, fw_check_buf[i + 2],
 			(fw_line * 34 + 2 + i),
 			adapter_stm8s_firmware_data[fw_line * 34 + 2 + i]);
 		for (i = 0; i < 16; i++)
-			pr_err("fw_check_buf[%d]=0x%x\n",
+			pr_debug("fw_check_buf[%d]=0x%x\n",
 			i+2, fw_check_buf[i + 2]);
 	}
 	return check_result;
@@ -381,7 +381,7 @@ static int dash_uart_read_front_addr_and_check(struct op_adapter_chip *chip)
 		result = dash_uart_read_addr_line_and_check(chip, read_addr);
 		read_addr = read_addr + 16;
 		if ((!result) || chip->rx_timeout) {
-			pr_err("%s result:%d,chip->rx_timeout:%d\n",
+			pr_debug("%s result:%d,chip->rx_timeout:%d\n",
 				__func__, result, chip->rx_timeout);
 			return -EINVAL;
 		}
@@ -399,7 +399,7 @@ dash_adapter_update_handle(
 	unsigned char rx_last_line[18] = {0x0};
 	int rc = 0;
 
-	pr_err("%s v1 begin\n", __func__);
+	pr_debug("%s v1 begin\n", __func__);
 	chip->uart_tx_gpio = tx_pin;
 	chip->uart_rx_gpio = rx_pin;
 	chip->adapter_update_ing = true;
@@ -428,7 +428,7 @@ dash_adapter_update_handle(
 	rx_val = dash_uart_rx_byte(chip, Erase_Addr_Line_Cmd);
 	dash_uart_irq_fiq_enable(true);
 	if (rx_val != UART_ACK || chip->rx_timeout) {
-		pr_err("%s Tx_Erase_Addr_Line err,chip->rx_timeout:%d, rx_val:0x%x\n",
+		pr_debug("%s Tx_Erase_Addr_Line err,chip->rx_timeout:%d, rx_val:0x%x\n",
 			__func__, chip->rx_timeout, rx_val);
 		goto update_err;
 	}
@@ -463,7 +463,7 @@ dash_adapter_update_handle(
 	if ((rx_last_line[FW_EXIST_LOW] == 0x55 &&
 			rx_last_line[FW_EXIST_HIGH] == 0x34)
 			|| chip->rx_timeout) {
-		pr_err("%s Tx_Read_Addr_Line err,chip->rx_timeout:%d\n",
+		pr_debug("%s Tx_Read_Addr_Line err,chip->rx_timeout:%d\n",
 			__func__, chip->rx_timeout);
 		goto update_err;
 	}
@@ -480,7 +480,7 @@ dash_adapter_update_handle(
 	rx_val = dash_uart_rx_byte(chip, Erase_All_Cmd);
 	dash_uart_irq_fiq_enable(true);
 	if (rx_val != UART_ACK || chip->rx_timeout) {
-		pr_err("%s Tx_Erase_All err,chip->rx_timeout:%d\n",
+		pr_debug("%s Tx_Erase_All err,chip->rx_timeout:%d\n",
 			__func__, chip->rx_timeout);
 		goto update_err;
 	}
@@ -489,14 +489,14 @@ dash_adapter_update_handle(
 	rc = dash_uart_write_some_addr(chip, &adapter_stm8s_firmware_data[0],
 		(sizeof(adapter_stm8s_firmware_data) - 34));
 	if (rc) {
-		pr_err("%s Tx_Write_Addr_Line err\n", __func__);
+		pr_debug("%s Tx_Write_Addr_Line err\n", __func__);
 		goto update_err;
 	}
 
 	/* Step5: Tx_Read_All */
 	rc = dash_uart_read_front_addr_and_check(chip);
 	if (rc) {
-		pr_err("%s Tx_Read_All err\n", __func__);
+		pr_debug("%s Tx_Read_All err\n", __func__);
 		goto update_err;
 	}
 
@@ -506,7 +506,7 @@ dash_adapter_update_handle(
 			sizeof(adapter_stm8s_firmware_data) - 34],
 			34);
 	if (rc) {
-		pr_err("%s write the last line err\n", __func__);
+		pr_debug("%s write the last line err\n", __func__);
 		goto update_err;
 	}
 
@@ -522,20 +522,20 @@ dash_adapter_update_handle(
 	rx_val = dash_uart_rx_byte(chip, Boot_Over_Cmd);
 	dash_uart_irq_fiq_enable(true);
 	if (rx_val != UART_ACK || chip->rx_timeout) {
-		pr_err("%s Tx_Boot_Over err,chip->rx_timeout:%d\n",
+		pr_debug("%s Tx_Boot_Over err,chip->rx_timeout:%d\n",
 			__func__, chip->rx_timeout);
 		goto update_err;
 	}
 	chip->rx_timeout = false;
 	chip->adapter_update_ing = false;
-	pr_err("%s success\n", __func__);
+	pr_debug("%s success\n", __func__);
 	return true;
 
 update_err:
 	chip->rx_timeout = false;
 	chip->adapter_update_ing = false;
 	print_oem();
-	pr_err("%s err\n", __func__);
+	pr_debug("%s err\n", __func__);
 	return false;
 }
 
@@ -586,7 +586,7 @@ static int __init dash_adapter_init(void)
 	op_adapter_init(chip);
 	the_chip = chip;
 
-	pr_info("%s success\n", __func__);
+	pr_debug("%s success\n", __func__);
 	return 0;
 }
 

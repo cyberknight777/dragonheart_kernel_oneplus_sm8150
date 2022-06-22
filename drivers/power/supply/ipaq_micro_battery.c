@@ -63,7 +63,7 @@ static void micro_battery_work(struct work_struct *work)
 	/* First send battery message */
 	ipaq_micro_tx_msg_sync(mb->micro, &msg_battery);
 	if (msg_battery.rx_len < 4)
-		pr_info("ERROR");
+		pr_debug("ERROR");
 
 	/*
 	 * Returned message format:

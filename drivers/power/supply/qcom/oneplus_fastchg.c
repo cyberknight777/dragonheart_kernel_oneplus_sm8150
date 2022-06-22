@@ -113,7 +113,7 @@ static void init_warp_chg_exist_node(void)
 {
 	if (!proc_create("warp_chg_exit", 0644, NULL,
 			 &warp_chg_exist_operations)){
-		pr_info("Failed to register n76e node\n");
+		pr_debug("Failed to register n76e node\n");
 	}
 }
 
@@ -139,7 +139,7 @@ static void init_dash_3800mAh_4p45_exist_node(void)
 {
 	if (!proc_create("dash_3800_4p45_exit", 0644, NULL,
 			 &dash_3800mAh_4p45_exist_operations)){
-		pr_info("Failed to register dash_3800mAh_4p45 node\n");
+		pr_debug("Failed to register dash_3800mAh_4p45 node\n");
 	}
 }
 
@@ -165,7 +165,7 @@ static void init_dash_4085mAh_4p45_exist_node(void)
 {
 	if (!proc_create("dash_4085_4p45_exit", 0644, NULL,
 			 &dash_4085mAh_4p45_exist_operations)){
-		pr_info("Failed to register dash_4085mAh_4p45 node\n");
+		pr_debug("Failed to register dash_4085mAh_4p45 node\n");
 	}
 }
 
@@ -191,7 +191,7 @@ static void init_dash_4085mAh_4p45_lcd_exist_node(void)
 {
 	if (!proc_create("dash_4085_4p45_lcd_exit", 0644, NULL,
 			 &dash_4085mAh_4p45_lcd_exist_operations)){
-		pr_info("Failed to register dash_4085mAh_4p45_lcd node\n");
+		pr_debug("Failed to register dash_4085mAh_4p45_lcd node\n");
 	}
 }
 
@@ -217,7 +217,7 @@ static void init_n76e_exist_node(void)
 {
 	if (!proc_create("n76e_exit", 0644, NULL,
 			 &n76e_exist_operations)){
-		pr_info("Failed to register n76e node\n");
+		pr_debug("Failed to register n76e node\n");
 	}
 }
 #define PAGESIZE 512
@@ -248,19 +248,19 @@ static ssize_t enhance_exist_write(struct file *file,
 		return count;
 
 	if (copy_from_user(buf, buffer, count)) {
-		pr_err("%s: write proc dash error.\n", __func__);
+		pr_debug("%s: write proc dash error.\n", __func__);
 		return count;
 	}
 
 	if (-1 == sscanf(buf, "%d", &ret)) {
-		pr_err("%s sscanf error\n", __func__);
+		pr_debug("%s sscanf error\n", __func__);
 		return count;
 	}
 	if (!di)
 		return count;
 	if ((ret == 0) || (ret == 1))
 		di->dash_enhance = ret;
-	pr_info("%s:the dash enhance is = %d\n",
+	pr_debug("%s:the dash enhance is = %d\n",
 			__func__, di->dash_enhance);
 	return count;
 }
@@ -274,7 +274,7 @@ static void init_enhance_dash_exist_node(void)
 {
 	if (!proc_create("enhance_dash", 0644, NULL,
 			 &enhance_exist_operations))
-		pr_err("Failed to register enhance dash node\n");
+		pr_debug("Failed to register enhance dash node\n");
 }
 
 static int is_usb_pluged(void)
@@ -286,19 +286,19 @@ static int is_usb_pluged(void)
 	if (!psy) {
 		psy = power_supply_get_by_name("usb");
 		if (!psy) {
-			pr_err("fastchg failed to get ps usb\n");
+			pr_debug("fastchg failed to get ps usb\n");
 			return -EINVAL;
 		}
 	}
 
 	rc = power_supply_get_property(psy, POWER_SUPPLY_PROP_PRESENT, &ret);
 	if (rc) {
-		pr_err("fastchg failed to get  POWER_SUPPLY_PROP_PRESENT\n");
+		pr_debug("fastchg failed to get  POWER_SUPPLY_PROP_PRESENT\n");
 		return -EINVAL;
 	}
 
 	if (ret.intval < 0) {
-		pr_err("fastchg get POWER_SUPPLY_PROP_PRESENT EINVAL \n");
+		pr_debug("fastchg get POWER_SUPPLY_PROP_PRESENT EINVAL \n");
 		return -EINVAL;
 	}
 
@@ -348,7 +348,7 @@ void usb_sw_gpio_set(int value)
 	pr_debug("set usb_sw_gpio=%d\n", value);
 	if (!gpio_is_valid(fastchg_di->usb_sw_1_gpio)
 		&& !gpio_is_valid(fastchg_di->usb_sw_2_gpio)) {
-		pr_err("gpio is invalid\n");
+		pr_debug("gpio is invalid\n");
 		return;
 	}
 
@@ -361,7 +361,7 @@ void usb_sw_gpio_set(int value)
 	}
 	fastchg_di->fast_chg_allow = value;
 	/* david@bsp add log */
-	pr_info("get usb_sw_gpio=%d&%d\n"
+	pr_debug("get usb_sw_gpio=%d&%d\n"
 		, gpio_get_value(fastchg_di->usb_sw_1_gpio)
 		, gpio_get_value(fastchg_di->usb_sw_2_gpio));
 }
@@ -376,7 +376,7 @@ static int set_property_on_smbcharger(
 	if (!psy) {
 		psy = power_supply_get_by_name("battery");
 		if (!psy) {
-			pr_err("failed to get ps battery\n");
+			pr_debug("failed to get ps battery\n");
 			return -EINVAL;
 		}
 	}
@@ -418,7 +418,7 @@ static bool n76e_fw_check(struct fastchg_device_info *chip)
 		rc = oneplus_dash_i2c_write(chip->client,
 				0x01, 2, &addr_buf[0]);
 		if (rc < 0) {
-			pr_err("i2c_write 0x01 error\n");
+			pr_debug("i2c_write 0x01 error\n");
 			return FW_CHECK_FAIL;
 		}
 
@@ -429,12 +429,12 @@ static bool n76e_fw_check(struct fastchg_device_info *chip)
 
 		for (j = 0; j < 16; j++) {
 			if (data_buf[j] != dashchg_firmware_data[fw_line * 18 + 2 + j]) {
-				pr_err("fail, data_buf[%d]:0x%x != n76e_firmware_data[%d]:0x%x\n",
+				pr_debug("fail, data_buf[%d]:0x%x != n76e_firmware_data[%d]:0x%x\n",
 						j, data_buf[j], (fw_line * 18 + 2 + j),
 						dashchg_firmware_data[fw_line * 18 + 2 + j]);
 				for (i = 0; i < 16; i++)
-					pr_info("data_buf[%d]:0x%x\n", i, data_buf[i]);
-				pr_info("fail line=%d\n", fw_line);
+					pr_debug("data_buf[%d]:0x%x\n", i, data_buf[i]);
+				pr_debug("fail line=%d\n", fw_line);
 				return FW_CHECK_FAIL;
 			}
 		}
@@ -454,7 +454,7 @@ static bool dashchg_fw_check(void)
 	addr_buf[1] = fastchg_di->addr_high;
 	rc = oneplus_dash_i2c_write(mcu_client, 0x01, 2, &addr_buf[0]);
 	if (rc < 0) {
-		pr_err("%s i2c_write 0x01 error\n", __func__);
+		pr_debug("%s i2c_write 0x01 error\n", __func__);
 		goto i2c_err;
 	}
 
@@ -471,28 +471,28 @@ static bool dashchg_fw_check(void)
 			for (j = 0; j < 32; j++) {
 			if (data_buf[j] != dashchg_firmware_data
 					[fw_line * 34 + 2 + j]) {
-				pr_info("%s fail,data_buf[%d]:0x%x!=dashchg_firmware_data[%d]:0x%x\n",
+				pr_debug("%s fail,data_buf[%d]:0x%x!=dashchg_firmware_data[%d]:0x%x\n",
 				__func__, j, data_buf[j],
 				(fw_line * 34 + 2 + j),
 				dashchg_firmware_data[fw_line * 34 + 2 + j]);
-				pr_info("%s addr = 0x%x", __func__, addr);
+				pr_debug("%s addr = 0x%x", __func__, addr);
 				for (j = 0; j <= 31; j++)
-					pr_info("%x\n", data_buf[j]);
+					pr_debug("%x\n", data_buf[j]);
 				return FW_CHECK_FAIL;
 				}
 			}
 			fw_line++;
 		} else {
-	/*pr_err("%s addr dismatch,addr:0x%x,stm_data:0x%x\n",__func__,*/
+	/*pr_debug("%s addr dismatch,addr:0x%x,stm_data:0x%x\n",__func__,*/
 	/*addr,(dashchg_firmware_data[fw_line * 34 + 1] << 8) | */
 	/*dashchg_firmware_data[fw_line * 34]);*/
 		}
 		/* compare recv_buf with dashchg_firmware_data[] end */
 	}
-	pr_info("result=success\n");
+	pr_debug("result=success\n");
 	return FW_CHECK_SUCCESS;
 i2c_err:
-	pr_err("result=fail\n");
+	pr_debug("result=fail\n");
 	return FW_CHECK_FAIL;
 }
 
@@ -516,7 +516,7 @@ static int dashchg_fw_write(
 
 		rc = oneplus_dash_i2c_write(mcu_client, 0x01, 2, &addr_buf[0]);
 		if (rc < 0) {
-			pr_err("i2c_write 0x01 error\n");
+			pr_debug("i2c_write 0x01 error\n");
 			return -EFAULT;
 		}
 
@@ -551,7 +551,7 @@ static void reset_mcu_and_request_irq(struct fastchg_device_info *di)
 {
 	int ret;
 
-	pr_info("\n");
+	pr_debug("\n");
 	gpio_direction_output(di->ap_clk, 1);
 	usleep_range(10000, 10001);
 	gpio_direction_output(di->mcu_en_gpio, 1);
@@ -565,7 +565,7 @@ static void reset_mcu_and_request_irq(struct fastchg_device_info *di)
 	ret = request_irq(di->irq, irq_rx_handler,
 			IRQF_TRIGGER_RISING, "mcu_data", di);
 	if (ret < 0)
-		pr_err("request ap rx irq failed.\n");
+		pr_debug("request ap rx irq failed.\n");
 	else
 		di->irq_enabled = true;
 	irq_set_status_flags(di->irq, IRQ_DISABLE_UNLAZY);
@@ -597,10 +597,10 @@ static void dashchg_fw_update(struct work_struct *work)
 		reset_mcu_and_request_irq(di);
 		__pm_relax(&di->fastchg_update_fireware_lock);
 		set_property_on_smbcharger(POWER_SUPPLY_PROP_SWITCH_DASH, true);
-		pr_info("FW check success\n"); /* david@bsp add log */
+		pr_debug("FW check success\n"); /* david@bsp add log */
 		return;
 	}
-	pr_info("start erasing data.......\n");
+	pr_debug("start erasing data.......\n");
 
 update_fw:
 	/* erase address 0x200-0x7FF */
@@ -608,7 +608,7 @@ update_fw:
 		/* first:set address */
 		rc = oneplus_dash_i2c_write(mcu_client, 0x01, 2, &addr_buf[0]);
 		if (rc < 0) {
-			pr_err("dashchg_update_fw, i2c_write 0x01 error\n");
+			pr_debug("dashchg_update_fw, i2c_write 0x01 error\n");
 			goto update_fw_err;
 		}
 
@@ -640,7 +640,7 @@ update_fw:
 			goto update_fw_err;
 		mcu_en_gpio_set(0);
 		msleep(1000);
-		pr_err("fw check fail, download fw again\n");
+		pr_debug("fw check fail, download fw again\n");
 		goto update_fw;
 	}
 	/* fw check end */
@@ -654,7 +654,7 @@ update_fw:
 	reset_mcu_and_request_irq(di);
 	__pm_relax(&di->fastchg_update_fireware_lock);
 	set_property_on_smbcharger(POWER_SUPPLY_PROP_SWITCH_DASH, true);
-	pr_info("result=success\n");
+	pr_debug("result=success\n");
 	return;
 
 update_fw_err:
@@ -662,7 +662,7 @@ update_fw_err:
 	reset_mcu_and_request_irq(di);
 	__pm_relax(&di->fastchg_update_fireware_lock);
 	set_property_on_smbcharger(POWER_SUPPLY_PROP_SWITCH_DASH, true);
-	pr_err("result=fail\n");
+	pr_debug("result=fail\n");
 }
 
 
@@ -672,7 +672,7 @@ void bq27541_information_register(
 {
 	if (bq27541_data) {
 		bq27541_data = fast_chg;
-		pr_err("multiple battery gauge called\n");
+		pr_debug("multiple battery gauge called\n");
 	} else {
 		bq27541_data = fast_chg;
 	}
@@ -817,7 +817,7 @@ void notify_dash_unplug_register(struct notify_dash_event *event)
 {
 	if (notify_event) {
 		notify_event = event;
-		pr_err("multiple battery gauge called\n");
+		pr_debug("multiple battery gauge called\n");
 	} else {
 		notify_event = event;
 	}
@@ -953,7 +953,7 @@ static void request_mcu_irq(struct fastchg_device_info *di)
 		retval = request_irq(di->irq, irq_rx_handler,
 				IRQF_TRIGGER_RISING, "mcu_data", di);
 		if (retval < 0)
-			pr_err("request ap rx irq failed.\n");
+			pr_debug("request ap rx irq failed.\n");
 		else
 			di->irq_enabled = true;
 		irq_set_status_flags(di->irq, IRQ_DISABLE_UNLAZY);
@@ -995,7 +995,7 @@ void di_watchdog(unsigned long data)
 {
 	struct fastchg_device_info *di = (struct fastchg_device_info *)data;
 
-	pr_err("di_watchdog can't receive mcu data\n");
+	pr_debug("di_watchdog can't receive mcu data\n");
 	bq27541_data->set_allow_reading(true);
 	di->fast_chg_started = false;
 	di->fast_switch_to_normal = false;
@@ -1007,7 +1007,7 @@ void di_watchdog(unsigned long data)
 	/* switch off fast chg */
 	switch_mode_to_normal();
 	schedule_work(&di->charger_present_status_work);
-	pr_err("switch off fastchg\n");
+	pr_debug("switch off fastchg\n");
 
 	__pm_relax(&di->fastchg_wake_lock);
 }
@@ -1084,11 +1084,11 @@ static ssize_t dash_dev_read(struct file *filp, char __user *buf,
 		if (ret)
 			goto fail;
 		if (di->irq_enabled)
-			pr_err("dash false wakeup,ret=%d\n", ret);
+			pr_debug("dash false wakeup,ret=%d\n", ret);
 		data = dash_read(di);
 		mutex_unlock(&di->read_mutex);
 		if (copy_to_user(buf, &data, 1)) {
-			pr_err("failed to copy to user space\n");
+			pr_debug("failed to copy to user space\n");
 			return -EFAULT;
 		}
 		break;
@@ -1110,10 +1110,10 @@ static void adapter_update_work_func(struct work_struct *work)
 	int i = 0;
 
 	if (!g_adapter_chip) {
-		pr_info("%s g_adapter_chip NULL\n", __func__);
+		pr_debug("%s g_adapter_chip NULL\n", __func__);
 		return;
 	}
-	pr_info("%s begin\n", __func__);
+	pr_debug("%s begin\n", __func__);
 	opchg_set_data_active(chip);
 	/*pm_qos_update_request(&big_cpu_update_freq, MAX_CPUFREQ);*/
 	op_bus_vote(false);
@@ -1149,7 +1149,7 @@ static void adapter_update_work_func(struct work_struct *work)
 	oneplus_notify_dash_charger_present(false);
 	reset_mcu_and_request_irq(chip);
 
-	pr_info("%s end update_result:%d\n",
+	pr_debug("%s end update_result:%d\n",
 		__func__, update_result);
 	__pm_relax(&chip->fastchg_wake_lock);
 	op_bus_vote(true);
@@ -1158,7 +1158,7 @@ static void adapter_update_work_func(struct work_struct *work)
 
 static void dash_adapter_update(struct fastchg_device_info *chip)
 {
-	pr_err("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	/*schedule_delayed_work_on(5,*/
 	/*&chip->adapter_update_work,*/
 	/*round_jiffies_relative(*/
@@ -1231,7 +1231,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				di->fast_normal_to_warm = false;
 				di->fast_chg_ing = false;
 				di->dash_enhance = 0;
-				pr_err("fastchg stop unexpectly, switch off fastchg\n");
+				pr_debug("fastchg stop unexpectly, switch off fastchg\n");
 				switch_mode_to_normal();
 				update_fast_switch_off_status();
 				del_timer(&di->watchdog);
@@ -1287,13 +1287,13 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				if (di->batt_psy)
 					power_supply_changed(di->batt_psy);
 			} else {
-				pr_err("usb is not online.");
+				pr_debug("usb is not online.");
 			}
 			break;
 		case DASH_NOTIFY_BAD_CONNECTED:
 		case DASH_NOTIFY_NORMAL_TEMP_FULL:
 			if (arg == DASH_NOTIFY_NORMAL_TEMP_FULL + 1) {
-				pr_err("fastchg full, switch off fastchg, set usb_sw_gpio 0\n");
+				pr_debug("fastchg full, switch off fastchg, set usb_sw_gpio 0\n");
 				di->fast_switch_to_normal = true;
 				switch_mode_to_normal();
 				del_timer(&di->watchdog);
@@ -1312,7 +1312,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 			break;
 		case DASH_NOTIFY_TEMP_OVER:
 			if (arg == DASH_NOTIFY_TEMP_OVER + 1) {
-				pr_err("fastchg temp over\n");
+				pr_debug("fastchg temp over\n");
 				switch_mode_to_normal();
 				del_timer(&di->watchdog);
 			} else if (arg == DASH_NOTIFY_TEMP_OVER + 2) {
@@ -1345,7 +1345,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 			break;
 		case DASH_NOTIFY_UNDEFINED_CMD:
 			if (di->fast_chg_started) {
-				pr_err("UNDEFINED_CMD, switch off fastchg\n");
+				pr_debug("UNDEFINED_CMD, switch off fastchg\n");
 				switch_mode_to_normal();
 				msleep(500); /* avoid i2c conflict */
 				/* data err */
@@ -1369,7 +1369,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				di->fast_normal_to_warm = false;
 				di->fast_chg_ing = false;
 				di->fast_chg_error = true;
-				pr_err("DASH_NOTIFY_INVALID_DATA_CMD, switch off fastchg\n");
+				pr_debug("DASH_NOTIFY_INVALID_DATA_CMD, switch off fastchg\n");
 				switch_mode_to_normal();
 				del_timer(&di->watchdog);
 			__pm_relax(&di->fastchg_wake_lock);
@@ -1385,7 +1385,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				update_fast_chg_started();
 			break;
 		default:
-			pr_err("bad ioctl %u\n", cmd);
+			pr_debug("bad ioctl %u\n", cmd);
 	}
 	return 0;
 }
@@ -1401,13 +1401,13 @@ static ssize_t dash_dev_write(struct file *filp, const char __user *buf,
 		return 0;
 	di->dashchg_fw_ver_count = count;
 	if (copy_from_user(dashchg_firmware_data, buf, count)) {
-		pr_err("failed to copy from user space\n");
+		pr_debug("failed to copy from user space\n");
 		kfree(dashchg_firmware_data);
 		return -EFAULT;
 	}
 	schedule_delayed_work(&di->update_fireware_version_work,
 			msecs_to_jiffies(SHOW_FW_VERSION_DELAY_MS));
-	pr_info("fw_ver_count=%d\n", di->dashchg_fw_ver_count);
+	pr_debug("fw_ver_count=%d\n", di->dashchg_fw_ver_count);
 	return count;
 }
 
@@ -1427,7 +1427,7 @@ static int dash_parse_dt(struct fastchg_device_info *di)
 	struct device_node *dev_node = di->client->dev.of_node;
 
 	if (!dev_node) {
-		pr_err("device tree info. missing\n");
+		pr_debug("device tree info. missing\n");
 		return -EINVAL;
 	}
 
@@ -1474,7 +1474,7 @@ static int request_dash_gpios(struct fastchg_device_info *di)
 		&& gpio_is_valid(di->usb_sw_2_gpio)) {
 		ret = gpio_request(di->usb_sw_1_gpio, "usb_sw_1_gpio");
 		if (ret) {
-			pr_err("gpio_request failed for %d ret=%d\n",
+			pr_debug("gpio_request failed for %d ret=%d\n",
 			di->usb_sw_1_gpio, ret);
 			return -EINVAL;
 		}
@@ -1482,7 +1482,7 @@ static int request_dash_gpios(struct fastchg_device_info *di)
 
 		ret = gpio_request(di->usb_sw_2_gpio, "usb_sw_2_gpio");
 		if (ret) {
-			pr_err("gpio_request failed for %d ret=%d\n",
+			pr_debug("gpio_request failed for %d ret=%d\n",
 			di->usb_sw_2_gpio, ret);
 			return -EINVAL;
 		}
@@ -1494,14 +1494,14 @@ static int request_dash_gpios(struct fastchg_device_info *di)
 	if (gpio_is_valid(di->ap_clk)) {
 		ret = gpio_request(di->ap_clk, "ap_clk");
 		if (ret)
-			pr_err("gpio_request failed for %d ret=%d\n",
+			pr_debug("gpio_request failed for %d ret=%d\n",
 			di->ap_clk, ret);
 	}
 
 	if (gpio_is_valid(di->mcu_en_gpio)) {
 		ret = gpio_request(di->mcu_en_gpio, "mcu_en_gpio");
 		if (ret)
-			pr_err("gpio_request failed for %d ret=%d\n",
+			pr_debug("gpio_request failed for %d ret=%d\n",
 			di->mcu_en_gpio, ret);
 		else
 			gpio_direction_output(di->mcu_en_gpio, 0);
@@ -1510,7 +1510,7 @@ static int request_dash_gpios(struct fastchg_device_info *di)
 	if (gpio_is_valid(di->ap_data)) {
 		ret = gpio_request(di->ap_data, "mcu_data");
 		if (ret)
-			pr_err("gpio_request failed for %d ret=%d\n",
+			pr_debug("gpio_request failed for %d ret=%d\n",
 			di->ap_data, ret);
 
 	}
@@ -1571,11 +1571,11 @@ static int dash_pinctrl_init(struct fastchg_device_info *di)
 
 	if (pinctrl_select_state(di->pinctrl,
 				di->pinctrl_state_active) < 0)
-		pr_err("pinctrl set active fail\n");
+		pr_debug("pinctrl set active fail\n");
 
 	if (pinctrl_select_state(di->pinctrl,
 				di->pinctrl_mcu_data_state_active) < 0)
-		pr_err("pinctrl set pinctrl_mcu_data_state_active fail\n");
+		pr_debug("pinctrl set pinctrl_mcu_data_state_active fail\n");
 
 	return 0;
 
@@ -1585,9 +1585,9 @@ static void check_n76e_support(struct fastchg_device_info *di)
 {
 	if (di->n76e_present) {
 		init_n76e_exist_node();
-		pr_info("n76e 4p45 exist\n");
+		pr_debug("n76e 4p45 exist\n");
 	} else {
-		pr_info("n76e 4p45 not exist\n");
+		pr_debug("n76e 4p45 not exist\n");
 	}
 
 }
@@ -1596,9 +1596,9 @@ static void check_enhance_support(struct fastchg_device_info *di)
 {
 	if (di->is_mcl_verion) {
 		init_warp_chg_exist_node();
-		pr_info("warp dash exist\n");
+		pr_debug("warp dash exist\n");
 	} else {
-		pr_info("warp dash not exist\n");
+		pr_debug("warp dash not exist\n");
 	}
 
 }
@@ -1607,15 +1607,15 @@ static void check_4p45_support(struct fastchg_device_info *di)
 {
 	if (di->is_3800mAh_4p45_support) {
 		init_dash_3800mAh_4p45_exist_node();
-		pr_info("3800mAh_4p45 dash exist\n");
+		pr_debug("3800mAh_4p45 dash exist\n");
 	} else if (di->is_4085mAh_4p45_support) {
 		init_dash_4085mAh_4p45_exist_node();
-		pr_info("4085mAh_4p45 dash exist\n");
+		pr_debug("4085mAh_4p45 dash exist\n");
 	} else if (di->is_4085mAh_4p45_lcd_support && !di->is_4085mAh_4p45_support) {
 		init_dash_4085mAh_4p45_lcd_exist_node();
-		pr_info("4085mAh_4p45_lcd dash exist\n");
+		pr_debug("4085mAh_4p45_lcd dash exist\n");
 	} else {
-		pr_info("ST 4p45 dash not exist\n");
+		pr_debug("ST 4p45 dash not exist\n");
 	}
 
 }
@@ -1625,9 +1625,9 @@ static int dash_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	struct fastchg_device_info *di;
 	int ret;
 
-	pr_info("dash_probe\n");
+	pr_debug("dash_probe\n");
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_err("i2c_func error\n");
+		pr_debug("i2c_func error\n");
 		goto err_check_functionality_failed;
 	}
 
@@ -1679,7 +1679,7 @@ static int dash_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	di->dash_device.fops = &dash_dev_fops;
 	ret = misc_register(&di->dash_device);
 	if (ret) {
-		pr_err("%s : misc_register failed\n", __FILE__);
+		pr_debug("%s : misc_register failed\n", __FILE__);
 		goto err_misc_register_failed;
 	}
 
@@ -1689,7 +1689,7 @@ static int dash_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	check_4p45_support(di);
 	init_enhance_dash_exist_node();
 	fastcharge_information_register(&fastcharge_information);
-	pr_info("dash_probe success\n");
+	pr_debug("dash_probe success\n");
 
 	return 0;
 
@@ -1697,7 +1697,7 @@ err_misc_register_failed:
 err_read_dt:
 	kfree(di);
 err_check_functionality_failed:
-	pr_err("dash_probe fail\n");
+	pr_debug("dash_probe fail\n");
 	return 0;
 }
 

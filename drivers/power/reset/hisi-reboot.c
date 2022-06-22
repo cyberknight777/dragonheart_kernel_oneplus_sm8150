@@ -52,7 +52,7 @@ static int hisi_reboot_probe(struct platform_device *pdev)
 	}
 
 	if (of_property_read_u32(np, "reboot-offset", &reboot_offset) < 0) {
-		pr_err("failed to find reboot-offset property\n");
+		pr_debug("failed to find reboot-offset property\n");
 		iounmap(base);
 		return -EINVAL;
 	}

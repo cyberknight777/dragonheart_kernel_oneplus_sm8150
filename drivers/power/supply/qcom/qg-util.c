@@ -40,7 +40,7 @@ int qg_read(struct qpnp_qg *chip, u32 addr, u8 *val, int len)
 
 	rc = regmap_bulk_read(chip->regmap, addr, val, len);
 	if (rc < 0) {
-		pr_err("Failed regmap_read for address %04x rc=%d\n", addr, rc);
+		pr_debug("Failed regmap_read for address %04x rc=%d\n", addr, rc);
 		return rc;
 	}
 
@@ -48,16 +48,16 @@ int qg_read(struct qpnp_qg *chip, u32 addr, u8 *val, int len)
 		/* write to the sticky register to clear it */
 		rc = regmap_write(chip->regmap, addr, dummy);
 		if (rc < 0) {
-			pr_err("Failed regmap_write for %04x rc=%d\n",
+			pr_debug("Failed regmap_write for %04x rc=%d\n",
 						addr, rc);
 			return rc;
 		}
 	}
 
 	if (*chip->debug_mask & QG_DEBUG_BUS_READ) {
-		pr_info("length %d addr=%04x\n", len, addr);
+		pr_debug("length %d addr=%04x\n", len, addr);
 		for (i = 0; i < len; i++)
-			pr_info("val[%d]: %02x\n", i, val[i]);
+			pr_debug("val[%d]: %02x\n", i, val[i]);
 	}
 
 	return 0;
@@ -75,15 +75,15 @@ int qg_write(struct qpnp_qg *chip, u32 addr, u8 *val, int len)
 		rc = regmap_write(chip->regmap, addr, *val);
 
 	if (rc < 0) {
-		pr_err("Failed regmap_write for address %04x rc=%d\n",
+		pr_debug("Failed regmap_write for address %04x rc=%d\n",
 				addr, rc);
 		goto out;
 	}
 
 	if (*chip->debug_mask & QG_DEBUG_BUS_WRITE) {
-		pr_info("length %d addr=%04x\n", len, addr);
+		pr_debug("length %d addr=%04x\n", len, addr);
 		for (i = 0; i < len; i++)
-			pr_info("val[%d]: %02x\n", i, val[i]);
+			pr_debug("val[%d]: %02x\n", i, val[i]);
 	}
 out:
 	mutex_unlock(&chip->bus_lock);
@@ -98,13 +98,13 @@ int qg_masked_write(struct qpnp_qg *chip, int addr, u32 mask, u32 val)
 
 	rc = regmap_update_bits(chip->regmap, addr, mask, val);
 	if (rc < 0) {
-		pr_err("Failed regmap_update_bits for address %04x rc=%d\n",
+		pr_debug("Failed regmap_update_bits for address %04x rc=%d\n",
 				addr, rc);
 		goto out;
 	}
 
 	if (*chip->debug_mask & QG_DEBUG_BUS_WRITE)
-		pr_info("addr=%04x mask: %02x val: %02x\n", addr, mask, val);
+		pr_debug("addr=%04x mask: %02x val: %02x\n", addr, mask, val);
 
 out:
 	mutex_unlock(&chip->bus_lock);
@@ -118,7 +118,7 @@ int qg_read_raw_data(struct qpnp_qg *chip, int addr, u32 *data)
 
 	rc = qg_read(chip, chip->qg_base + addr, &reg[0], 2);
 	if (rc < 0) {
-		pr_err("Failed to read QG addr %d rc=%d\n", addr, rc);
+		pr_debug("Failed to read QG addr %d rc=%d\n", addr, rc);
 		return rc;
 	}
 
@@ -144,7 +144,7 @@ int get_fifo_length(struct qpnp_qg *chip, u32 *fifo_length, bool rt)
 	addr = rt ? QG_STATUS3_REG : QG_S2_NORMAL_MEAS_CTL2_REG;
 	rc = qg_read(chip, chip->qg_base + addr, &reg, 1);
 	if (rc < 0) {
-		pr_err("Failed to read FIFO length rc=%d\n", rc);
+		pr_debug("Failed to read FIFO length rc=%d\n", rc);
 		return rc;
 	}
 
@@ -166,7 +166,7 @@ int get_sample_count(struct qpnp_qg *chip, u32 *sample_count)
 	rc = qg_read(chip, chip->qg_base + QG_S2_NORMAL_MEAS_CTL2_REG,
 					&reg, 1);
 	if (rc < 0) {
-		pr_err("Failed to read FIFO sample count rc=%d\n", rc);
+		pr_debug("Failed to read FIFO sample count rc=%d\n", rc);
 		return rc;
 	}
 
@@ -185,7 +185,7 @@ int get_sample_interval(struct qpnp_qg *chip, u32 *sample_interval)
 	rc = qg_read(chip, chip->qg_base + QG_S2_NORMAL_MEAS_CTL3_REG,
 					&reg, 1);
 	if (rc < 0) {
-		pr_err("Failed to read FIFO sample interval rc=%d\n", rc);
+		pr_debug("Failed to read FIFO sample interval rc=%d\n", rc);
 		return rc;
 	}
 
@@ -207,21 +207,21 @@ int get_rtc_time(unsigned long *rtc_time)
 
 	rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
 	if (rtc == NULL) {
-		pr_err("Failed to open rtc device (%s)\n",
+		pr_debug("Failed to open rtc device (%s)\n",
 				CONFIG_RTC_HCTOSYS_DEVICE);
 		return -EINVAL;
 	}
 
 	rc = rtc_read_time(rtc, &tm);
 	if (rc) {
-		pr_err("Failed to read rtc time (%s) : %d\n",
+		pr_debug("Failed to read rtc time (%s) : %d\n",
 				CONFIG_RTC_HCTOSYS_DEVICE, rc);
 		goto close_time;
 	}
 
 	rc = rtc_valid_tm(&tm);
 	if (rc) {
-		pr_err("Invalid RTC time (%s): %d\n",
+		pr_debug("Invalid RTC time (%s): %d\n",
 				CONFIG_RTC_HCTOSYS_DEVICE, rc);
 		goto close_time;
 	}
@@ -347,7 +347,7 @@ int qg_write_monotonic_soc(struct qpnp_qg *chip, int msoc)
 	rc = qg_write(chip, chip->qg_base + QG_SOC_MONOTONIC_REG,
 				&reg, 1);
 	if (rc < 0)
-		pr_err("Failed to update QG_SOC_MONOTINIC reg rc=%d\n", rc);
+		pr_debug("Failed to update QG_SOC_MONOTINIC reg rc=%d\n", rc);
 
 	return rc;
 }
@@ -363,7 +363,7 @@ int qg_get_battery_temp(struct qpnp_qg *chip, int *temp)
 
 	rc = iio_read_channel_processed(chip->batt_therm_chan, temp);
 	if (rc < 0) {
-		pr_err("Failed reading BAT_TEMP over ADC rc=%d\n", rc);
+		pr_debug("Failed reading BAT_TEMP over ADC rc=%d\n", rc);
 		return rc;
 	}
 	pr_debug("batt_temp = %d\n", *temp);
@@ -385,14 +385,14 @@ int qg_get_battery_current(struct qpnp_qg *chip, int *ibat_ua)
 				BURST_AVG_HOLD_FOR_READ_BIT,
 				BURST_AVG_HOLD_FOR_READ_BIT);
 	if (rc < 0) {
-		pr_err("Failed to hold burst-avg data rc=%d\n", rc);
+		pr_debug("Failed to hold burst-avg data rc=%d\n", rc);
 		goto release;
 	}
 
 	rc = qg_read(chip, chip->qg_base + QG_LAST_BURST_AVG_I_DATA0_REG,
 				(u8 *)&last_ibat, 2);
 	if (rc < 0) {
-		pr_err("Failed to read LAST_BURST_AVG_I reg, rc=%d\n", rc);
+		pr_debug("Failed to read LAST_BURST_AVG_I reg, rc=%d\n", rc);
 		goto release;
 	}
 
@@ -419,7 +419,7 @@ int qg_get_battery_voltage(struct qpnp_qg *chip, int *vbat_uv)
 	rc = qg_read(chip, chip->qg_base + QG_LAST_ADC_V_DATA0_REG,
 				(u8 *)&last_vbat, 2);
 	if (rc < 0) {
-		pr_err("Failed to read LAST_ADV_V reg, rc=%d\n", rc);
+		pr_debug("Failed to read LAST_ADV_V reg, rc=%d\n", rc);
 		return rc;
 	}
 
@@ -436,7 +436,7 @@ int qg_get_vbat_avg(struct qpnp_qg *chip, int *vbat_uv)
 	rc = qg_read(chip, chip->qg_base + QG_S2_NORMAL_AVG_V_DATA0_REG,
 				(u8 *)&last_vbat, 2);
 	if (rc < 0) {
-		pr_err("Failed to read S2_NORMAL_AVG_V reg, rc=%d\n", rc);
+		pr_debug("Failed to read S2_NORMAL_AVG_V reg, rc=%d\n", rc);
 		return rc;
 	}
 
@@ -453,7 +453,7 @@ int qg_get_ibat_avg(struct qpnp_qg *chip, int *ibat_ua)
 	rc = qg_read(chip, chip->qg_base + QG_S2_NORMAL_AVG_I_DATA0_REG,
 				(u8 *)&last_ibat, 2);
 	if (rc < 0) {
-		pr_err("Failed to read S2_NORMAL_AVG_I reg, rc=%d\n", rc);
+		pr_debug("Failed to read S2_NORMAL_AVG_I reg, rc=%d\n", rc);
 		return rc;
 	}
 

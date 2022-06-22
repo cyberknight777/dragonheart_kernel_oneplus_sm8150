@@ -26,13 +26,13 @@
 #include "storm-watch.h"
 
 #define smblib_err(chg, fmt, ...)		\
-	pr_err("%s: %s: " fmt, chg->name,	\
+	pr_debug("%s: %s: " fmt, chg->name,	\
 		__func__, ##__VA_ARGS__)	\
 
 #define smblib_dbg(chg, reason, fmt, ...)			\
 	do {							\
 		if (*chg->debug_mask & (reason))		\
-			pr_info("%s: %s: " fmt, chg->name,	\
+			pr_debug("%s: %s: " fmt, chg->name,	\
 				__func__, ##__VA_ARGS__);	\
 		else						\
 			pr_debug("%s: %s: " fmt, chg->name,	\
@@ -325,7 +325,7 @@ int smblib_set_chg_freq(struct smb_chg_param *param,
 			break;
 	}
 	if (i == ARRAY_SIZE(chg_freq_list)) {
-		pr_err("Invalid frequency %d Hz\n", val_u / 2);
+		pr_debug("Invalid frequency %d Hz\n", val_u / 2);
 		return -EINVAL;
 	}
 
@@ -782,7 +782,7 @@ void smblib_suspend_on_debug_battery(struct smb_charger *chg)
 	vote(chg->usb_icl_votable, DEBUG_BOARD_VOTER, val.intval, 0);
 	vote(chg->dc_suspend_votable, DEBUG_BOARD_VOTER, val.intval, 0);
 	if (val.intval)
-		pr_info("Input suspended: Fake battery\n");
+		pr_debug("Input suspended: Fake battery\n");
 }
 
 int smblib_rerun_apsd_if_required(struct smb_charger *chg)
@@ -818,7 +818,7 @@ static int smblib_get_hw_pulse_cnt(struct smb_charger *chg, int *count)
 	case PMI8998_SUBTYPE:
 		rc = smblib_read(chg, QC_PULSE_COUNT_STATUS_REG, val);
 		if (rc) {
-			pr_err("failed to read QC_PULSE_COUNT_STATUS_REG rc=%d\n",
+			pr_debug("failed to read QC_PULSE_COUNT_STATUS_REG rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -828,7 +828,7 @@ static int smblib_get_hw_pulse_cnt(struct smb_charger *chg, int *count)
 		rc = smblib_multibyte_read(chg,
 				QC_PULSE_COUNT_STATUS_1_REG, val, 2);
 		if (rc) {
-			pr_err("failed to read QC_PULSE_COUNT_STATUS_1_REG rc=%d\n",
+			pr_debug("failed to read QC_PULSE_COUNT_STATUS_1_REG rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -1415,7 +1415,7 @@ static int smblib_hvdcp_hw_inov_dis_vote_callback(struct votable *votable,
 		 */
 		rc = smblib_get_hw_pulse_cnt(chg, &chg->pulse_cnt);
 		if (rc < 0) {
-			pr_err("failed to read QC_PULSE_COUNT_STATUS_REG rc=%d\n",
+			pr_debug("failed to read QC_PULSE_COUNT_STATUS_REG rc=%d\n",
 					rc);
 			return rc;
 		}
@@ -3683,7 +3683,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 		/* vbus rising when APSD was disabled and PD_ACTIVE = 0 */
 		if (get_effective_result(chg->apsd_disable_votable) &&
 				!chg->pd_active)
-			pr_err("APSD disabled on vbus rising without PD\n");
+			pr_debug("APSD disabled on vbus rising without PD\n");
 	} else {
 		if (chg->wa_flags & BOOST_BACK_WA) {
 			data = chg->irq_info[SWITCH_POWER_OK_IRQ].irq_data;

@@ -490,7 +490,7 @@ static int max17042_write_verify_reg(struct regmap *map, u8 reg, u32 value)
 	} while (retries && read_value != value);
 
 	if (ret < 0)
-		pr_err("%s: err %d\n", __func__, ret);
+		pr_debug("%s: err %d\n", __func__, ret);
 
 	return ret;
 }

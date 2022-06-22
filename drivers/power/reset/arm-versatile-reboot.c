@@ -157,7 +157,7 @@ static int __init versatile_reboot_probe(void)
 	if (err)
 		return err;
 
-	pr_info("versatile reboot driver registered\n");
+	pr_debug("versatile reboot driver registered\n");
 	return 0;
 }
 device_initcall(versatile_reboot_probe);

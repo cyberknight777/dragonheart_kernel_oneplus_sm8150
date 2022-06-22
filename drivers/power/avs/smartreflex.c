@@ -83,7 +83,7 @@ static struct omap_sr *_sr_lookup(struct voltagedomain *voltdm)
 	struct omap_sr *sr_info;
 
 	if (!voltdm) {
-		pr_err("%s: Null voltage domain passed!\n", __func__);
+		pr_debug("%s: Null voltage domain passed!\n", __func__);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -915,7 +915,7 @@ static int __init omap_sr_probe(struct platform_device *pdev)
 		sr_dbg_dir = debugfs_create_dir("smartreflex", NULL);
 		if (IS_ERR_OR_NULL(sr_dbg_dir)) {
 			ret = PTR_ERR(sr_dbg_dir);
-			pr_err("%s:sr debugfs dir creation failed(%d)\n",
+			pr_debug("%s:sr debugfs dir creation failed(%d)\n",
 			       __func__, ret);
 			goto err_list_del;
 		}
@@ -1049,7 +1049,7 @@ static int __init sr_init(void)
 
 	ret = platform_driver_probe(&smartreflex_driver, omap_sr_probe);
 	if (ret) {
-		pr_err("%s: platform driver register failed for SR\n",
+		pr_debug("%s: platform driver register failed for SR\n",
 		       __func__);
 		return ret;
 	}

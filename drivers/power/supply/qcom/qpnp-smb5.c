@@ -263,7 +263,7 @@ do {									\
 	if ((retval == -EINVAL) && optional)				\
 		retval = 0;						\
 	else if (retval)						\
-		pr_err("Error reading " #dt_property	\
+		pr_debug("Error reading " #dt_property	\
 				" property rc = %d\n", rc);		\
 } while (0)
 
@@ -329,7 +329,7 @@ static int smb5_chg_config_init(struct smb5 *chip)
 
 	revid_dev_node = of_parse_phandle(node, "qcom,pmic-revid", 0);
 	if (!revid_dev_node) {
-		pr_err("Missing qcom,pmic-revid property\n");
+		pr_debug("Missing qcom,pmic-revid property\n");
 		return -EINVAL;
 	}
 
@@ -378,7 +378,7 @@ static int smb5_chg_config_init(struct smb5 *chip)
 						: PMI632_MAX_ICL_UA;
 		break;
 	default:
-		pr_err("PMIC subtype %d not supported\n",
+		pr_debug("PMIC subtype %d not supported\n",
 				pmic_rev_id->pmic_subtype);
 		rc = -EINVAL;
 		goto out;
@@ -461,7 +461,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	enum of_gpio_flags flags;
 
 	if (!node) {
-		pr_err("device tree node missing\n");
+		pr_debug("device tree node missing\n");
 		return -EINVAL;
 	}
 
@@ -491,7 +491,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 		chg->FFC_WARM_CUTOFF, retval, 1);
 	OF_PROP_READ(node, "ffc-full-vbat-mv",
 		chg->FFC_VBAT_FULL, retval, 1);
-	pr_info("T1:%d, T2:%d, T3:%d, fcc1:%d, fcc1:%d, cut1:%d, cut2:%d,full:%d\n",
+	pr_debug("T1:%d, T2:%d, T3:%d, fcc1:%d, fcc1:%d, cut1:%d, cut2:%d,full:%d\n",
 		chg->FFC_TEMP_T1, chg->FFC_TEMP_T2, chg->FFC_TEMP_T3,
 		chg->FFC_NOR_FCC, chg->FFC_WARM_FCC, chg->FFC_NORMAL_CUTOFF,
 		chg->FFC_WARM_CUTOFF, chg->FFC_VBAT_FULL);
@@ -581,12 +581,12 @@ static int smb5_parse_dt(struct smb5 *chip)
 					&chg->sw_iterm_ma);
 	if (rc < 0)
 		chg->sw_iterm_ma = 150;
-	pr_info("sw_iterm_ma=%d,check_batt_full_by_sw=%d",
+	pr_debug("sw_iterm_ma=%d,check_batt_full_by_sw=%d",
 				chg->sw_iterm_ma, chg->check_batt_full_by_sw);
 	rc = of_property_read_u32(node,
 					"op,little_cold_term_current",
 					&chg->little_cold_iterm_ma);
-	pr_info("little_cold_iterm_ma=%d", chg->little_cold_iterm_ma);
+	pr_debug("little_cold_iterm_ma=%d", chg->little_cold_iterm_ma);
 	chg->OTG_ICL_CTRL = of_property_read_bool(node,
 						"op,otg-icl-ctrl-enable");
 	OF_PROP_READ(node, "otg-low-battery-thr",
@@ -601,7 +601,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 			chg->OTG_NORMAL_BAT_ICL, retval, 1);
 	if (retval < 0)
 		chg->OTG_NORMAL_BAT_ICL = -EINVAL;
-	pr_info("OTG_ICL:enable:%d,CapThr:%d,LowThr:%d,NorThr:%d\n",
+	pr_debug("OTG_ICL:enable:%d,CapThr:%d,LowThr:%d,NorThr:%d\n",
 		chg->OTG_ICL_CTRL,
 		chg->OTG_LOW_BAT,
 		chg->OTG_LOW_BAT_ICL,
@@ -626,35 +626,35 @@ static int smb5_parse_dt(struct smb5 *chip)
 	chg->chg_enabled = !(of_property_read_bool(node,
 						"qcom,charging-disabled"));
 
-	pr_info("T0=%d, T1=%d, T2=%d, T3=%d, T4=%d, T5=%d, T6=%d\n",
+	pr_debug("T0=%d, T1=%d, T2=%d, T3=%d, T4=%d, T5=%d, T6=%d\n",
 		chg->BATT_TEMP_T0, chg->BATT_TEMP_T1, chg->BATT_TEMP_T2,
 		chg->BATT_TEMP_T3, chg->BATT_TEMP_T4, chg->BATT_TEMP_T5,
 		chg->BATT_TEMP_T6);
-	pr_info("BATT_TEMP_LITTLE_COLD=%d, %d, %d\n",
+	pr_debug("BATT_TEMP_LITTLE_COLD=%d, %d, %d\n",
 		chg->ibatmax[BATT_TEMP_LITTLE_COLD],
 		chg->vbatmax[BATT_TEMP_LITTLE_COLD],
 		chg->vbatdet[BATT_TEMP_LITTLE_COLD]);
-	pr_info("BATT_TEMP_COOL=%d, %d, %d\n",
+	pr_debug("BATT_TEMP_COOL=%d, %d, %d\n",
 		chg->ibatmax[BATT_TEMP_COOL],
 		chg->vbatmax[BATT_TEMP_COOL],
 		chg->vbatdet[BATT_TEMP_COOL]);
-	pr_info("BATT_TEMP_LITTLE_COOL=%d, %d, %d\n",
+	pr_debug("BATT_TEMP_LITTLE_COOL=%d, %d, %d\n",
 		chg->ibatmax[BATT_TEMP_LITTLE_COOL],
 		chg->vbatmax[BATT_TEMP_LITTLE_COOL],
 		chg->vbatdet[BATT_TEMP_LITTLE_COOL]);
-	pr_info("BATT_TEMP_PRE_NORMAL=%d, %d, %d\n",
+	pr_debug("BATT_TEMP_PRE_NORMAL=%d, %d, %d\n",
 		chg->ibatmax[BATT_TEMP_PRE_NORMAL],
 		chg->vbatmax[BATT_TEMP_PRE_NORMAL],
 		chg->vbatdet[BATT_TEMP_PRE_NORMAL]);
-	pr_info("BATT_TEMP_NORMAL=%d, %d, %d\n",
+	pr_debug("BATT_TEMP_NORMAL=%d, %d, %d\n",
 		chg->ibatmax[BATT_TEMP_NORMAL],
 		chg->vbatmax[BATT_TEMP_NORMAL],
 		chg->vbatdet[BATT_TEMP_NORMAL]);
-	pr_info("BATT_TEMP_WARM=%d, %d, %d\n",
+	pr_debug("BATT_TEMP_WARM=%d, %d, %d\n",
 		chg->ibatmax[BATT_TEMP_WARM],
 		chg->vbatmax[BATT_TEMP_WARM],
 		chg->vbatdet[BATT_TEMP_WARM]);
-	pr_info("cutoff_volt_with_charger=%d, disable-pd=%d\n",
+	pr_debug("cutoff_volt_with_charger=%d, disable-pd=%d\n",
 		smbchg_cutoff_volt_with_charger, *chg->pd_disabled);
 
 	OF_PROP_READ(node, "op,fv-offset-voltage-mv",
@@ -662,7 +662,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->fv_offset_voltage_mv <= 0)
 		chg->fv_offset_voltage_mv =
 			FV_OFFSET_VOLTAGE;
-	pr_info("fv_offset_voltage_mv=%d\n",
+	pr_debug("fv_offset_voltage_mv=%d\n",
 		chg->fv_offset_voltage_mv);
 
 	OF_PROP_READ(node, "op,normal-check-interval-period",
@@ -670,7 +670,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->normal_check_interval_period <= 0)
 		chg->normal_check_interval_period =
 			NORMAL_CHECK_INTERVAL_PERIOD;
-	pr_info("normal_check_interval_period=%d\n",
+	pr_debug("normal_check_interval_period=%d\n",
 		chg->normal_check_interval_period);
 
 	OF_PROP_READ(node, "op,fast-check-interval-period",
@@ -678,7 +678,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->fast_check_interval_period <= 0)
 		chg->fast_check_interval_period =
 			FAST_CHECK_INTERVAL_PERIOD;
-	pr_info("fast_check_interval_period=%d\n",
+	pr_debug("fast_check_interval_period=%d\n",
 		chg->fast_check_interval_period);
 
 	OF_PROP_READ(node, "op,fast-check-threshold-temp",
@@ -686,7 +686,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->fast_check_threshold_temp <= 0)
 		chg->fast_check_threshold_temp =
 			FAST_CHECK_THRESHOLD_TEMP;
-	pr_info("fast_check_threshold_temp=%d\n",
+	pr_debug("fast_check_threshold_temp=%d\n",
 		chg->fast_check_threshold_temp);
 
 	OF_PROP_READ(node, "op,high-temp-short-check-timeout",
@@ -694,7 +694,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->high_temp_short_check_timeout <= 0)
 		chg->high_temp_short_check_timeout =
 			HIGH_TEMP_SHORT_CHECK_TIMEOUT;
-	pr_info("high_temp_short_check_timeout=%d\n",
+	pr_debug("high_temp_short_check_timeout=%d\n",
 		chg->high_temp_short_check_timeout);
 
 	OF_PROP_READ(node, "op,first-protect-connecter-temp",
@@ -702,7 +702,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->first_protect_connecter_temp <= 0)
 		chg->first_protect_connecter_temp =
 			FIRST_PROTECT_CONNECTER_TEMP;
-	pr_info("first_protect_connecter_temp=%d\n",
+	pr_debug("first_protect_connecter_temp=%d\n",
 		chg->first_protect_connecter_temp);
 
 	OF_PROP_READ(node, "op,second-protect-connecter-temp",
@@ -710,7 +710,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->second_protect_connecter_temp <= 0)
 		chg->second_protect_connecter_temp =
 			SECOND_PROTECT_CONNECTER_TEMP;
-	pr_info("second_protect_connecter_temp=%d\n",
+	pr_debug("second_protect_connecter_temp=%d\n",
 		chg->second_protect_connecter_temp);
 
 	OF_PROP_READ(node, "op,second-protect-interval-temp",
@@ -718,7 +718,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->second_protect_interval_temp <= 0)
 		chg->second_protect_interval_temp =
 			SECOND_PROTECT_INTERVAL_TEMP;
-	pr_info("second_protect_interval_temp=%d\n",
+	pr_debug("second_protect_interval_temp=%d\n",
 		chg->second_protect_interval_temp);
 
 	OF_PROP_READ(node, "op,third-protect-rise-rate",
@@ -726,7 +726,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->third_protect_rise_rate <= 0)
 		chg->third_protect_rise_rate =
 			THIRD_PROTECT_RISE_RATE;
-	pr_info("third_protect_rise_rate=%d\n",
+	pr_debug("third_protect_rise_rate=%d\n",
 		chg->third_protect_rise_rate);
 
 	OF_PROP_READ(node, "op,third-protect-loop-temp",
@@ -734,7 +734,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->third_protect_loop_temp <= 0)
 		chg->third_protect_loop_temp =
 			THIRD_PROTECT_LOOP_TEMP;
-	pr_info("third_protect_loop_temp=%d\n",
+	pr_debug("third_protect_loop_temp=%d\n",
 		chg->third_protect_loop_temp);
 
 	OF_PROP_READ(node, "op,third-protect-interval-temp",
@@ -742,7 +742,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->third_protect_interval_temp <= 0)
 		chg->third_protect_interval_temp =
 			THIRD_PROTECT_INTERVAL_TEMP;
-	pr_info("third_protect_interval_temp=%d\n",
+	pr_debug("third_protect_interval_temp=%d\n",
 		chg->third_protect_interval_temp);
 
 	OF_PROP_READ(node, "op,third-protect-base-temp",
@@ -750,7 +750,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->third_protect_base_temp <= 0)
 		chg->third_protect_base_temp =
 			THIRD_PROTECT_BASE_TEMP;
-	pr_info("third_protect_base_temp=%d\n",
+	pr_debug("third_protect_base_temp=%d\n",
 		chg->third_protect_base_temp);
 
 	OF_PROP_READ(node, "op,skin-thermal-high-threshold",
@@ -758,7 +758,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->skin_thermal_high_threshold <= 0)
 		chg->skin_thermal_high_threshold =
 			SKIN_THERMAL_HIGH;
-	pr_info("skin_thermal_high_threshold=%d\n",
+	pr_debug("skin_thermal_high_threshold=%d\n",
 		chg->skin_thermal_high_threshold);
 
 	OF_PROP_READ(node, "op,skin-thermal-normal-threshold",
@@ -766,12 +766,12 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->skin_thermal_normal_threshold <= 0)
 		chg->skin_thermal_normal_threshold =
 			SKIN_THERMAL_NORMAL;
-	pr_info("skin_thermal_normal_threshold=%d\n",
+	pr_debug("skin_thermal_normal_threshold=%d\n",
 		chg->skin_thermal_normal_threshold);
 
 	chg->enable_dash_current_adjust = of_property_read_bool(node,
 					"op,enable-dash-current-dynamic-adjust");
-	pr_info("enable_dash_current_adjust=%d\n",
+	pr_debug("enable_dash_current_adjust=%d\n",
 		chg->enable_dash_current_adjust);
 
 	OF_PROP_READ(node, "op,full-count-sw-numb",
@@ -779,7 +779,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	if (chg->full_count_sw_num <= 0)
 		chg->full_count_sw_num =
 			FULL_COUNT_SW_NUM;
-	pr_info("full_count_sw_num=%d\n",
+	pr_debug("full_count_sw_num=%d\n",
 		chg->full_count_sw_num);
 	/* disable step_chg */
 	chg->step_chg_enabled = false;
@@ -874,7 +874,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	rc = of_property_read_u32(node, "qcom,float-option",
 						&chip->dt.float_option);
 	if (!rc && (chip->dt.float_option < 0 || chip->dt.float_option > 4)) {
-		pr_err("qcom,float-option is out of range [0, 4]\n");
+		pr_debug("qcom,float-option is out of range [0, 4]\n");
 		return -EINVAL;
 	}
 
@@ -889,7 +889,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 				&chip->dt.chg_inhibit_thr_mv);
 	if (!rc && (chip->dt.chg_inhibit_thr_mv < 0 ||
 				chip->dt.chg_inhibit_thr_mv > 300)) {
-		pr_err("qcom,chg-inhibit-threshold-mv is incorrect\n");
+		pr_debug("qcom,chg-inhibit-threshold-mv is incorrect\n");
 		return -EINVAL;
 	}
 
@@ -898,7 +898,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 				&chip->dt.auto_recharge_soc);
 	if (!rc && (chip->dt.auto_recharge_soc < 0 ||
 			chip->dt.auto_recharge_soc > 100)) {
-		pr_err("qcom,auto-recharge-soc is incorrect\n");
+		pr_debug("qcom,auto-recharge-soc is incorrect\n");
 		return -EINVAL;
 	}
 	chg->auto_recharge_soc = chip->dt.auto_recharge_soc;
@@ -907,7 +907,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 	rc = of_property_read_u32(node, "qcom,auto-recharge-vbat-mv",
 				&chip->dt.auto_recharge_vbat_mv);
 	if (!rc && (chip->dt.auto_recharge_vbat_mv < 0)) {
-		pr_err("qcom,auto-recharge-vbat-mv is incorrect\n");
+		pr_debug("qcom,auto-recharge-vbat-mv is incorrect\n");
 		return -EINVAL;
 	}
 
@@ -1089,7 +1089,7 @@ static int smb5_set_prop_comp_clamp_level(struct smb_charger *chg,
 
 	level = val->intval;
 	if (level >= MAX_CLAMP_LEVEL) {
-		pr_err("Invalid comp clamp level=%d\n", val->intval);
+		pr_debug("Invalid comp clamp level=%d\n", val->intval);
 		return -EINVAL;
 	}
 
@@ -1355,7 +1355,7 @@ static int smb5_usb_get_prop(struct power_supply *psy,
 		val->intval = chg->disconnect_pd;
 		break;
 	default:
-		pr_err("get prop %d is not supported in usb\n", psp);
+		pr_debug("get prop %d is not supported in usb\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -1453,7 +1453,7 @@ static int smb5_usb_set_prop(struct power_supply *psy,
 		smblib_rerun_apsd(chg);
 		break;
 	default:
-		pr_err("set prop %d is not supported\n", psp);
+		pr_debug("set prop %d is not supported\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -1501,7 +1501,7 @@ static int smb5_init_usb_psy(struct smb5 *chip)
 						  &usb_psy_desc,
 						  &usb_cfg);
 	if (IS_ERR(chg->usb_psy)) {
-		pr_err("Couldn't register USB power supply\n");
+		pr_debug("Couldn't register USB power supply\n");
 		return PTR_ERR(chg->usb_psy);
 	}
 
@@ -1552,7 +1552,7 @@ static int smb5_usb_port_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_input_current_settled(chg, val);
 		break;
 	default:
-		pr_err_ratelimited("Get prop %d is not supported in pc_port\n",
+		pr_debug_ratelimited("Get prop %d is not supported in pc_port\n",
 				psp);
 		return -EINVAL;
 	}
@@ -1573,7 +1573,7 @@ static int smb5_usb_port_set_prop(struct power_supply *psy,
 
 	switch (psp) {
 	default:
-		pr_err_ratelimited("Set prop %d is not supported in pc_port\n",
+		pr_debug_ratelimited("Set prop %d is not supported in pc_port\n",
 				psp);
 		rc = -EINVAL;
 		break;
@@ -1602,7 +1602,7 @@ static int smb5_init_usb_port_psy(struct smb5 *chip)
 						  &usb_port_psy_desc,
 						  &usb_port_cfg);
 	if (IS_ERR(chg->usb_port_psy)) {
-		pr_err("Couldn't register USB pc_port power supply\n");
+		pr_debug("Couldn't register USB pc_port power supply\n");
 		return PTR_ERR(chg->usb_port_psy);
 	}
 
@@ -1744,14 +1744,14 @@ static int smb5_usb_main_set_prop(struct power_supply *psy,
 
 			rc = smblib_get_prop_usb_present(chg, &pval);
 			if (rc < 0)
-				pr_err("Failed to get USB preset status rc=%d\n",
+				pr_debug("Failed to get USB preset status rc=%d\n",
 						rc);
 			if (pval.intval) {
 				rc = smblib_force_vbus_voltage(chg,
 					chg->flash_active ? FORCE_5V_BIT
 								: IDLE_BIT);
 				if (rc < 0)
-					pr_err("Failed to force 5V\n");
+					pr_debug("Failed to force 5V\n");
 				else
 					chg->pulse_cnt = 0;
 			} else {
@@ -1799,7 +1799,7 @@ static int smb5_usb_main_set_prop(struct power_supply *psy,
 		rc = smblib_set_prop_thermal_overheat(chg, val->intval);
 		break;
 	default:
-		pr_err("set prop %d is not supported\n", psp);
+		pr_debug("set prop %d is not supported\n", psp);
 		rc = -EINVAL;
 		break;
 	}
@@ -1850,7 +1850,7 @@ static int smb5_init_usb_main_psy(struct smb5 *chip)
 						  &usb_main_psy_desc,
 						  &usb_main_cfg);
 	if (IS_ERR(chg->usb_main_psy)) {
-		pr_err("Couldn't register USB main power supply\n");
+		pr_debug("Couldn't register USB main power supply\n");
 		return PTR_ERR(chg->usb_main_psy);
 	}
 
@@ -1982,7 +1982,7 @@ static int smb5_init_dc_psy(struct smb5 *chip)
 						  &dc_psy_desc,
 						  &dc_cfg);
 	if (IS_ERR(chg->dc_psy)) {
-		pr_err("Couldn't register USB power supply\n");
+		pr_debug("Couldn't register USB power supply\n");
 		return PTR_ERR(chg->dc_psy);
 	}
 
@@ -2224,7 +2224,7 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		val->intval = chg->fcc_stepper_enable;
 		break;
 	default:
-		pr_err("batt power supply prop %d not supported\n", psp);
+		pr_debug("batt power supply prop %d not supported\n", psp);
 		return -EINVAL;
 	}
 
@@ -2264,7 +2264,7 @@ static int smb5_batt_set_prop(struct power_supply *psy,
 		rc = 0;
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_MAX:
-		pr_info("set iusb %d mA\n", val->intval);
+		pr_debug("set iusb %d mA\n", val->intval);
 		if (__debug_mask == PR_OP_DEBUG
 			|| val->intval == 2000000 || val->intval == 1700000
 			|| val->intval == 1500000 || val->intval == 1000000)
@@ -2278,7 +2278,7 @@ static int smb5_batt_set_prop(struct power_supply *psy,
 			op_set_fast_chg_allow(chg, false);
 		}
 		chg->chg_disabled = (bool)val->intval;
-		pr_info("user set disable chg %d\n", val->intval);
+		pr_debug("user set disable chg %d\n", val->intval);
 		break;
 	case POWER_SUPPLY_PROP_CONNECT_DISABLE:
 		op_disconnect_vbus(chg, (bool)val->intval);
@@ -2311,20 +2311,20 @@ static int smb5_batt_set_prop(struct power_supply *psy,
 		chg->chg_disabled = !(bool)val->intval;
 		if (chg->chg_enabled) {
 			if (!chg->chg_wake_lock_on  && chg->vbus_present) {
-				pr_info("acquire chg_wake_lock zsj\n");
+				pr_debug("acquire chg_wake_lock zsj\n");
 				__pm_stay_awake(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = true;
 			} else {
-				pr_err("chg_wake_lock is already stay awake,vbus_present:%d\n",
+				pr_debug("chg_wake_lock is already stay awake,vbus_present:%d\n",
 							chg->vbus_present);
 			}
 		} else {
 			if (chg->chg_wake_lock_on) {
-				pr_info("release chg_wake_lock zsj\n");
+				pr_debug("release chg_wake_lock zsj\n");
 				__pm_relax(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = false;
 			} else {
-				pr_err("chg_wake_lock is already relax. zsj\n");
+				pr_debug("chg_wake_lock is already relax. zsj\n");
 			}
 			if (chg->usb_enum_status == false)
 				op_release_usb_lock();
@@ -2465,7 +2465,7 @@ static int smb5_init_batt_psy(struct smb5 *chip)
 					   &batt_psy_desc,
 					   &batt_cfg);
 	if (IS_ERR(chg->batt_psy)) {
-		pr_err("Couldn't register battery power supply\n");
+		pr_debug("Couldn't register battery power supply\n");
 		return PTR_ERR(chg->batt_psy);
 	}
 
@@ -2495,7 +2495,7 @@ static int smb5_dr_get_property(struct dual_role_phy_instance *dual_role,
 
 	rc = smblib_get_prop_usb_present(chg, &pval);
 	if (rc < 0) {
-		pr_err("Couldn't get usb present status, rc=%d\n", rc);
+		pr_debug("Couldn't get usb present status, rc=%d\n", rc);
 		return rc;
 	}
 
@@ -2541,7 +2541,7 @@ static int smb5_dr_get_property(struct dual_role_phy_instance *dual_role,
 		*val = dr;
 		break;
 	default:
-		pr_err("dual role class get property %d not supported\n", prop);
+		pr_debug("dual role class get property %d not supported\n", prop);
 		return -EINVAL;
 	}
 
@@ -2577,7 +2577,7 @@ static int smb5_dr_set_property(struct dual_role_phy_instance *dual_role,
 						DUAL_ROLE_PROP_MODE_UFP);
 				if (rc < 0) {
 					chg->pr_swap_in_progress = false;
-					pr_err("Failed to force UFP mode, rc=%d\n",
+					pr_debug("Failed to force UFP mode, rc=%d\n",
 						rc);
 				}
 			}
@@ -2592,13 +2592,13 @@ static int smb5_dr_set_property(struct dual_role_phy_instance *dual_role,
 						DUAL_ROLE_PROP_MODE_DFP);
 				if (rc < 0) {
 					chg->pr_swap_in_progress = false;
-					pr_err("Failed to force DFP mode, rc=%d\n",
+					pr_debug("Failed to force DFP mode, rc=%d\n",
 						rc);
 				}
 			}
 			break;
 		default:
-			pr_err("Invalid role (not DFP/UFP): %d\n", *val);
+			pr_debug("Invalid role (not DFP/UFP): %d\n", *val);
 			rc = -EINVAL;
 		}
 
@@ -2614,7 +2614,7 @@ static int smb5_dr_set_property(struct dual_role_phy_instance *dual_role,
 		}
 		break;
 	default:
-		pr_err("dual role class set property %d not supported\n", prop);
+		pr_debug("dual role class set property %d not supported\n", prop);
 		rc = -EINVAL;
 	}
 
@@ -2666,7 +2666,7 @@ static int smb5_init_dual_role_class(struct smb5 *chip)
 	mutex_init(&chg->dr_lock);
 	chg->dual_role = devm_dual_role_instance_register(chg->dev, &dr_desc);
 	if (IS_ERR(chg->dual_role)) {
-		pr_err("Couldn't register dual role class\n");
+		pr_debug("Couldn't register dual role class\n");
 		rc = PTR_ERR(chg->dual_role);
 	} else {
 		chg->dual_role->drv_data = chg;
@@ -2711,7 +2711,7 @@ static int smb5_init_vbus_regulator(struct smb5 *chip)
 		rc = PTR_ERR(chg->vbus_vreg->rdev);
 		chg->vbus_vreg->rdev = NULL;
 		if (rc != -EPROBE_DEFER)
-			pr_err("Couldn't register VBUS regulator rc=%d\n", rc);
+			pr_debug("Couldn't register VBUS regulator rc=%d\n", rc);
 	}
 
 	return rc;
@@ -2756,7 +2756,7 @@ static int smb5_init_vconn_regulator(struct smb5 *chip)
 		rc = PTR_ERR(chg->vconn_vreg->rdev);
 		chg->vconn_vreg->rdev = NULL;
 		if (rc != -EPROBE_DEFER)
-			pr_err("Couldn't register VCONN regulator rc=%d\n", rc);
+			pr_debug("Couldn't register VCONN regulator rc=%d\n", rc);
 	}
 
 	return rc;
@@ -3146,7 +3146,7 @@ static int smb5_init_hw(struct smb5 *chip)
 
 	smblib_get_charge_param(chg, &chg->param.usb_icl,
 				&chg->default_icl_ua);
-	pr_info("vbat_max=%d, ibat_max=%d, iusb_max=%d\n",
+	pr_debug("vbat_max=%d, ibat_max=%d, iusb_max=%d\n",
 		chg->batt_profile_fv_uv,
 		chg->batt_profile_fcc_ua, chip->dt.usb_icl_ua);
 
@@ -3269,7 +3269,7 @@ static int smb5_init_hw(struct smb5 *chip)
 	/* Use ICL results from HW */
 	rc = smblib_icl_override(chg, HW_AUTO_MODE);
 	if (rc < 0) {
-		pr_err("Couldn't disable ICL override rc=%d\n", rc);
+		pr_debug("Couldn't disable ICL override rc=%d\n", rc);
 		return rc;
 	}
 
@@ -3284,7 +3284,7 @@ static int smb5_init_hw(struct smb5 *chip)
 	/* set OTG current limit */
 	rc = smblib_set_charge_param(chg, &chg->param.otg_cl, chg->otg_cl_ua);
 	if (rc < 0) {
-		pr_err("Couldn't set otg current limit rc=%d\n", rc);
+		pr_debug("Couldn't set otg current limit rc=%d\n", rc);
 		return rc;
 	}
 
@@ -3373,7 +3373,7 @@ static int smb5_init_hw(struct smb5 *chip)
 			BITE_WDOG_TIMEOUT_MASK,
 			val);
 	if (rc < 0) {
-		pr_err("Couldn't configue WD config rc=%d\n", rc);
+		pr_debug("Couldn't configue WD config rc=%d\n", rc);
 		return rc;
 	}
 
@@ -3384,14 +3384,14 @@ static int smb5_init_hw(struct smb5 *chip)
 			WDOG_TIMER_EN_ON_PLUGIN_BIT |
 			BARK_WDOG_INT_EN_BIT, val);
 	if (rc < 0) {
-		pr_err("Couldn't configue WD config rc=%d\n", rc);
+		pr_debug("Couldn't configue WD config rc=%d\n", rc);
 		return rc;
 	}
 
 	/* set termination current threshold values */
 	rc = smb5_configure_iterm_thresholds(chip);
 	if (rc < 0) {
-		pr_err("Couldn't configure ITERM thresholds rc=%d\n",
+		pr_debug("Couldn't configure ITERM thresholds rc=%d\n",
 				rc);
 		return rc;
 	}
@@ -3605,7 +3605,7 @@ static int smb5_determine_initial_status(struct smb5 *chip)
 
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get usb present rc=%d\n", rc);
+		pr_debug("Couldn't get usb present rc=%d\n", rc);
 		return rc;
 	}
 	chg->early_usb_attach = val.intval;
@@ -3912,13 +3912,13 @@ static int smb5_request_interrupt(struct smb5 *chip,
 
 	irq = of_irq_get_byname(node, irq_name);
 	if (irq < 0) {
-		pr_err("Couldn't get irq %s byname\n", irq_name);
+		pr_debug("Couldn't get irq %s byname\n", irq_name);
 		return irq;
 	}
 
 	irq_index = smb5_get_irq_index_byname(irq_name);
 	if (irq_index < 0) {
-		pr_err("%s is not a defined irq\n", irq_name);
+		pr_debug("%s is not a defined irq\n", irq_name);
 		return irq_index;
 	}
 
@@ -3939,7 +3939,7 @@ static int smb5_request_interrupt(struct smb5 *chip,
 					smb5_irqs[irq_index].handler,
 					IRQF_ONESHOT, irq_name, irq_data);
 	if (rc < 0) {
-		pr_err("Couldn't request irq %d\n", irq);
+		pr_debug("Couldn't request irq %d\n", irq);
 		return rc;
 	}
 
@@ -4038,7 +4038,7 @@ static void smb5_create_debugfs(struct smb5 *chip)
 
 	chip->dfs_root = debugfs_create_dir("charger", NULL);
 	if (IS_ERR_OR_NULL(chip->dfs_root)) {
-		pr_err("Couldn't create charger debugfs rc=%ld\n",
+		pr_debug("Couldn't create charger debugfs rc=%ld\n",
 			(long)chip->dfs_root);
 		return;
 	}
@@ -4046,19 +4046,19 @@ static void smb5_create_debugfs(struct smb5 *chip)
 	file = debugfs_create_file("force_batt_psy_update", 0600,
 			    chip->dfs_root, chip, &force_batt_psy_update_ops);
 	if (IS_ERR_OR_NULL(file))
-		pr_err("Couldn't create force_batt_psy_update file rc=%ld\n",
+		pr_debug("Couldn't create force_batt_psy_update file rc=%ld\n",
 			(long)file);
 
 	file = debugfs_create_file("force_usb_psy_update", 0600,
 			    chip->dfs_root, chip, &force_usb_psy_update_ops);
 	if (IS_ERR_OR_NULL(file))
-		pr_err("Couldn't create force_usb_psy_update file rc=%ld\n",
+		pr_debug("Couldn't create force_usb_psy_update file rc=%ld\n",
 			(long)file);
 
 	file = debugfs_create_file("force_dc_psy_update", 0600,
 			    chip->dfs_root, chip, &force_dc_psy_update_ops);
 	if (IS_ERR_OR_NULL(file))
-		pr_err("Couldn't create force_dc_psy_update file rc=%ld\n",
+		pr_debug("Couldn't create force_dc_psy_update file rc=%ld\n",
 			(long)file);
 }
 
@@ -4076,7 +4076,7 @@ static ssize_t write_ship_mode(struct file *file, const char __user *buf,
 
 	if (count) {
 		g_chip->ship_mode = true;
-		pr_err(" * * * XCB * * * write_ship_mode\n");
+		pr_debug(" * * * XCB * * * write_ship_mode\n");
 	}
 	return count;
 }
@@ -4116,13 +4116,13 @@ static int op_ship_mode_gpio_request(struct smb_charger *chip)
 	if (gpio_is_valid(chip->shipmode_en)) {
 		rc = gpio_request(chip->shipmode_en, "stm6620_ctrl");
 		if (rc) {
-			pr_err("gpio_request failed for %d rc=%d\n",
+			pr_debug("gpio_request failed for %d rc=%d\n",
 				chip->shipmode_en, rc);
 			return -EINVAL;
 		}
 		gpio_direction_output(chip->shipmode_en, 0);
 
-		pr_info("ship_mode_gpio_request default mode success!\n");
+		pr_debug("ship_mode_gpio_request default mode success!\n");
 	}
 
 	return 0;
@@ -4138,7 +4138,7 @@ void requset_vbus_ctrl_gpio(struct smb_charger *chg)
 		return;
 	ret = gpio_request(chg->vbus_ctrl, "VbusCtrl");
 	if (ret)
-		pr_err("request failed,gpio:%d ret=%d\n", chg->vbus_ctrl, ret);
+		pr_debug("request failed,gpio:%d ret=%d\n", chg->vbus_ctrl, ret);
 }
 
 static int op_config_usb_temperature_adc(struct smb_charger *chip)
@@ -4184,7 +4184,7 @@ static void request_plug_irq(struct smb_charger *chip)
 		return;
 	ret = gpio_request(chip->plug_irq, "op_usb_plug");
 	if (ret) {
-		pr_err("request failed,gpio:%d ret=%d\n", chip->plug_irq, ret);
+		pr_debug("request failed,gpio:%d ret=%d\n", chip->plug_irq, ret);
 		return;
 	}
 	gpio_direction_input(chip->plug_irq);
@@ -4193,14 +4193,14 @@ static void request_plug_irq(struct smb_charger *chip)
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 			"op_usb_plug", chip);
 	if (ret < 0) {
-		pr_err("request usb_plug irq failed.\n");
+		pr_debug("request usb_plug irq failed.\n");
 		return;
 	}
 	enable_irq_wake(gpio_to_irq(chip->plug_irq));
-	pr_info("request usb_plug irq success\n");
+	pr_debug("request usb_plug irq success\n");
 	/*connect with usb cable when reboot, give a vote 1*/
 	if (!gpio_get_value(chip->plug_irq)) {
-		pr_info("%s:reboot time hw detect gpio low, vote 1\n",
+		pr_debug("%s:reboot time hw detect gpio low, vote 1\n",
 			__func__);
 		vote(chip->otg_toggle_votable, HW_DETECT_VOTER, 1, 0);
 		chip->hw_detect = 1;
@@ -4214,7 +4214,7 @@ static void check_factory_mode_disable_charge(struct smb_charger *chip)
 
 	if (boot_mode == MSM_BOOT_MODE__RF || boot_mode == MSM_BOOT_MODE__WLAN
 			|| boot_mode == MSM_BOOT_MODE__FACTORY) {
-		pr_info("RF/WLAN, suspending...\n");
+		pr_debug("RF/WLAN, suspending...\n");
 		rc = vote(chip->usb_icl_votable, USER_VOTER,
 				true, 0);
 		rc = vote(chip->dc_suspend_votable, USER_VOTER,
@@ -4230,33 +4230,33 @@ static int smb5_show_charger_status(struct smb5 *chip)
 
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get usb present rc=%d\n", rc);
+		pr_debug("Couldn't get usb present rc=%d\n", rc);
 		return rc;
 	}
 	usb_present = val.intval;
 
 	rc = smblib_get_prop_batt_present(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get batt present rc=%d\n", rc);
+		pr_debug("Couldn't get batt present rc=%d\n", rc);
 		return rc;
 	}
 	batt_present = val.intval;
 
 	rc = smblib_get_prop_batt_health(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get batt health rc=%d\n", rc);
+		pr_debug("Couldn't get batt health rc=%d\n", rc);
 		val.intval = POWER_SUPPLY_HEALTH_UNKNOWN;
 	}
 	batt_health = val.intval;
 
 	rc = smblib_get_prop_batt_charge_type(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get batt charge type rc=%d\n", rc);
+		pr_debug("Couldn't get batt charge type rc=%d\n", rc);
 		return rc;
 	}
 	batt_charge_type = val.intval;
 
-	pr_info("SMB5 status - usb:present=%d type=%d batt:present = %d health = %d charge = %d\n",
+	pr_debug("SMB5 status - usb:present=%d type=%d batt:present = %d health = %d charge = %d\n",
 		usb_present, chg->real_charger_type,
 		batt_present, batt_health, batt_charge_type);
 	return rc;
@@ -4295,20 +4295,20 @@ static int smb5_probe(struct platform_device *pdev)
 
 	chg->regmap = dev_get_regmap(chg->dev->parent, NULL);
 	if (!chg->regmap) {
-		pr_err("parent regmap is missing\n");
+		pr_debug("parent regmap is missing\n");
 		return -EINVAL;
 	}
 
 	rc = smb5_chg_config_init(chip);
 	if (rc < 0) {
 		if (rc != -EPROBE_DEFER)
-			pr_err("Couldn't setup chg_config rc=%d\n", rc);
+			pr_debug("Couldn't setup chg_config rc=%d\n", rc);
 		return rc;
 	}
 
 	rc = smb5_parse_dt(chip);
 	if (rc < 0) {
-		pr_err("Couldn't parse device tree rc=%d\n", rc);
+		pr_debug("Couldn't parse device tree rc=%d\n", rc);
 		return rc;
 	}
 
@@ -4320,7 +4320,7 @@ static int smb5_probe(struct platform_device *pdev)
 
 	rc = smblib_init(chg);
 	if (rc < 0) {
-		pr_err("Smblib_init failed rc=%d\n", rc);
+		pr_debug("Smblib_init failed rc=%d\n", rc);
 		return rc;
 	}
 
@@ -4329,7 +4329,7 @@ static int smb5_probe(struct platform_device *pdev)
 	op_charge_info_init(chg);
 	pdata = msm_bus_cl_get_pdata(pdev);
 	if (!pdata)
-		pr_err("GPIO** failed get_pdata client_id\n");
+		pr_debug("GPIO** failed get_pdata client_id\n");
 	else
 		chg->bus_client = msm_bus_scale_register_client(pdata);
 
@@ -4366,7 +4366,7 @@ static int smb5_probe(struct platform_device *pdev)
 
 	rc = smb5_init_hw(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize hardware rc=%d\n", rc);
+		pr_debug("Couldn't initialize hardware rc=%d\n", rc);
 		goto cleanup;
 	}
 
@@ -4381,14 +4381,14 @@ static int smb5_probe(struct platform_device *pdev)
 	if (!chg->pd_not_supported) {
 		rc = smb5_init_vbus_regulator(chip);
 		if (rc < 0) {
-			pr_err("Couldn't initialize vbus regulator rc=%d\n",
+			pr_debug("Couldn't initialize vbus regulator rc=%d\n",
 				rc);
 			goto cleanup;
 		}
 
 		rc = smb5_init_vconn_regulator(chip);
 		if (rc < 0) {
-			pr_err("Couldn't initialize vconn regulator rc=%d\n",
+			pr_debug("Couldn't initialize vconn regulator rc=%d\n",
 				rc);
 			goto cleanup;
 		}
@@ -4399,7 +4399,7 @@ static int smb5_probe(struct platform_device *pdev)
 	case PM6150_SUBTYPE:
 		rc = smb5_init_dc_psy(chip);
 		if (rc < 0) {
-			pr_err("Couldn't initialize dc psy rc=%d\n", rc);
+			pr_debug("Couldn't initialize dc psy rc=%d\n", rc);
 			goto cleanup;
 		}
 		break;
@@ -4409,52 +4409,52 @@ static int smb5_probe(struct platform_device *pdev)
 
 	rc = smb5_init_usb_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize usb psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize usb psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb5_init_usb_main_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize usb main psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize usb main psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb5_init_usb_port_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize usb pc_port psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize usb pc_port psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb5_init_batt_psy(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize batt psy rc=%d\n", rc);
+		pr_debug("Couldn't initialize batt psy rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	/* Register android dual-role class */
 	rc = smb5_init_dual_role_class(chip);
 	if (rc < 0) {
-		pr_err("Couldn't initialize dual role class, rc=%d\n",
+		pr_debug("Couldn't initialize dual role class, rc=%d\n",
 			rc);
 		goto cleanup;
 	}
 
 	rc = smb5_determine_initial_status(chip);
 	if (rc < 0) {
-		pr_err("Couldn't determine initial status rc=%d\n",
+		pr_debug("Couldn't determine initial status rc=%d\n",
 			rc);
 		goto cleanup;
 	}
 
 	rc = smb5_request_interrupts(chip);
 	if (rc < 0) {
-		pr_err("Couldn't request interrupts rc=%d\n", rc);
+		pr_debug("Couldn't request interrupts rc=%d\n", rc);
 		goto cleanup;
 	}
 
 	rc = smb5_post_init(chip);
 	if (rc < 0) {
-		pr_err("Failed in post init rc=%d\n", rc);
+		pr_debug("Failed in post init rc=%d\n", rc);
 		goto free_irq;
 	}
 
@@ -4462,17 +4462,17 @@ static int smb5_probe(struct platform_device *pdev)
 
 	rc = smb5_show_charger_status(chip);
 	if (rc < 0) {
-		pr_err("Failed in getting charger status rc=%d\n", rc);
+		pr_debug("Failed in getting charger status rc=%d\n", rc);
 		goto free_irq;
 	}
 
 #ifdef CONFIG_PROC_FS
 	if (!proc_create("ship_mode", 0644, NULL, &proc_ship_mode_operations))
-		pr_err("Failed to register proc interface\n");
+		pr_debug("Failed to register proc interface\n");
 #endif
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
-		pr_err("Couldn't get usb present rc=%d\n", rc);
+		pr_debug("Couldn't get usb present rc=%d\n", rc);
 		goto cleanup;
 	}
 	usb_present = val.intval;
@@ -4494,7 +4494,7 @@ static int smb5_probe(struct platform_device *pdev)
 	check_factory_mode_disable_charge(chg);
 
 	chg->probe_done = true;
-	pr_info("QPNP SMB5 probed successfully\n");
+	pr_debug("QPNP SMB5 probed successfully\n");
 
 	return rc;
 
@@ -4539,10 +4539,10 @@ static void smb5_shutdown(struct platform_device *pdev)
 	struct smb5 *chip = platform_get_drvdata(pdev);
 	struct smb_charger *chg = &chip->chg;
 #ifdef CONFIG_PROC_FS
-	pr_info("smbchg_shutdown\n");
+	pr_debug("smbchg_shutdown\n");
 
 	if (chg->ship_mode) {
-		pr_info("smbchg_shutdown enter ship_mode\n");
+		pr_debug("smbchg_shutdown enter ship_mode\n");
 		if (gpio_is_valid(chg->shipmode_en)) {
 			vote(chg->usb_icl_votable,
 					DEFAULT_VOTER, true, 0);
@@ -4553,7 +4553,7 @@ static void smb5_shutdown(struct platform_device *pdev)
 		}
 		clean_backup_soc_ex();
 		msleep(1000);
-		pr_err("after 1s\n");
+		pr_debug("after 1s\n");
 		while (1)
 			;
 	}

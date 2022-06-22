@@ -86,17 +86,17 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 	int rc = 0, soc, ocv_uv, fcc_mah, var, slope;
 
 	if (!battery->profile_node) {
-		pr_err("Battery data not set!\n");
+		pr_debug("Battery data not set!\n");
 		return -EINVAL;
 	}
 
 	if (!bp_user) {
-		pr_err("Invalid battery-params user pointer\n");
+		pr_debug("Invalid battery-params user pointer\n");
 		return -EINVAL;
 	}
 
 	if (copy_from_user(&bp, bp_user, sizeof(bp))) {
-		pr_err("Failed in copy_from_user\n");
+		pr_debug("Failed in copy_from_user\n");
 		return -EFAULT;
 	}
 
@@ -104,7 +104,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 	case BPIOCXSOC:
 		if (bp.table_index != TABLE_SOC_OCV1 &&
 				bp.table_index != TABLE_SOC_OCV2) {
-			pr_err("Invalid table index %d for SOC-OCV lookup\n",
+			pr_debug("Invalid table index %d for SOC-OCV lookup\n",
 					bp.table_index);
 			rc = -EINVAL;
 		} else {
@@ -115,7 +115,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 			soc = CAP(QG_MIN_SOC, QG_MAX_SOC, soc);
 			rc = put_user(soc, &bp_user->soc);
 			if (rc < 0) {
-				pr_err("BPIOCXSOC: Failed rc=%d\n", rc);
+				pr_debug("BPIOCXSOC: Failed rc=%d\n", rc);
 				goto ret_err;
 			}
 			pr_debug("BPIOCXSOC: lut=%s ocv=%d batt_temp=%d soc=%d\n",
@@ -126,7 +126,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 	case BPIOCXOCV:
 		if (bp.table_index != TABLE_SOC_OCV1 &&
 				bp.table_index != TABLE_SOC_OCV2) {
-			pr_err("Invalid table index %d for SOC-OCV lookup\n",
+			pr_debug("Invalid table index %d for SOC-OCV lookup\n",
 					bp.table_index);
 			rc = -EINVAL;
 		} else {
@@ -137,7 +137,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 			ocv_uv = CAP(QG_MIN_OCV_UV, QG_MAX_OCV_UV, ocv_uv);
 			rc = put_user(ocv_uv, &bp_user->ocv_uv);
 			if (rc < 0) {
-				pr_err("BPIOCXOCV: Failed rc=%d\n", rc);
+				pr_debug("BPIOCXOCV: Failed rc=%d\n", rc);
 				goto ret_err;
 			}
 			pr_debug("BPIOCXOCV: lut=%s ocv=%d batt_temp=%d soc=%d\n",
@@ -148,7 +148,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 	case BPIOCXFCC:
 		if (bp.table_index != TABLE_FCC1 &&
 				bp.table_index != TABLE_FCC2) {
-			pr_err("Invalid table index %d for FCC lookup\n",
+			pr_debug("Invalid table index %d for FCC lookup\n",
 					bp.table_index);
 			rc = -EINVAL;
 		} else {
@@ -158,7 +158,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 			fcc_mah = CAP(QG_MIN_FCC_MAH, QG_MAX_FCC_MAH, fcc_mah);
 			rc = put_user(fcc_mah, &bp_user->fcc_mah);
 			if (rc) {
-				pr_err("BPIOCXFCC: Failed rc=%d\n", rc);
+				pr_debug("BPIOCXFCC: Failed rc=%d\n", rc);
 				goto ret_err;
 			}
 			pr_debug("BPIOCXFCC: lut=%s batt_temp=%d fcc_mah=%d\n",
@@ -168,7 +168,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case BPIOCXVAR:
 		if (bp.table_index < TABLE_Z1 || bp.table_index >= TABLE_MAX) {
-			pr_err("Invalid table index %d for VAR lookup\n",
+			pr_debug("Invalid table index %d for VAR lookup\n",
 					bp.table_index);
 			rc = -EINVAL;
 		} else {
@@ -178,7 +178,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 			var = CAP(QG_MIN_VAR, QG_MAX_VAR, var);
 			rc = put_user(var, &bp_user->var);
 			if (rc < 0) {
-				pr_err("BPIOCXVAR: Failed rc=%d\n", rc);
+				pr_debug("BPIOCXVAR: Failed rc=%d\n", rc);
 				goto ret_err;
 			}
 			pr_debug("BPIOCXVAR: lut=%s var=%d batt_temp=%d soc=%d\n",
@@ -189,7 +189,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 	case BPIOCXSLOPE:
 		if (bp.table_index != TABLE_SOC_OCV1 &&
 				bp.table_index != TABLE_SOC_OCV2) {
-			pr_err("Invalid table index %d for Slope lookup\n",
+			pr_debug("Invalid table index %d for Slope lookup\n",
 					bp.table_index);
 			rc = -EINVAL;
 		} else {
@@ -199,7 +199,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 			slope = CAP(QG_MIN_SLOPE, QG_MAX_SLOPE, slope);
 			rc = put_user(slope, &bp_user->slope);
 			if (rc) {
-				pr_err("BPIOCXSLOPE: Failed rc=%d\n", rc);
+				pr_debug("BPIOCXSLOPE: Failed rc=%d\n", rc);
 				goto ret_err;
 			}
 			pr_debug("BPIOCXSLOPE: lut=%s soc=%d batt_temp=%d slope=%d\n",
@@ -208,7 +208,7 @@ static long qg_battery_data_ioctl(struct file *file, unsigned int cmd,
 		}
 		break;
 	default:
-		pr_err("IOCTL %d not supported\n", cmd);
+		pr_debug("IOCTL %d not supported\n", cmd);
 		rc = -EINVAL;
 	}
 ret_err:
@@ -241,10 +241,10 @@ static int get_length(struct device_node *node,
 			*length = 1;
 			return 0;
 		}
-		pr_err("Failed to find %s property\n", prop_name);
+		pr_debug("Failed to find %s property\n", prop_name);
 		return -ENODATA;
 	} else if (!prop->value) {
-		pr_err("Failed to find value for %s property\n", prop_name);
+		pr_debug("Failed to find value for %s property\n", prop_name);
 		return -ENODATA;
 	}
 
@@ -264,34 +264,34 @@ static int qg_parse_battery_profile(struct qg_battery_data *battery)
 		node = of_find_node_by_name(battery->profile_node,
 						table[i].table_name);
 		if (!node) {
-			pr_err("%s table not found\n", table[i].table_name);
+			pr_debug("%s table not found\n", table[i].table_name);
 			rc = -ENODEV;
 			goto cleanup;
 		}
 
 		rc = get_length(node, &cols, "qcom,lut-col-legend", false);
 		if (rc < 0) {
-			pr_err("Failed to get col-length for %s table rc=%d\n",
+			pr_debug("Failed to get col-length for %s table rc=%d\n",
 				table[i].table_name, rc);
 			goto cleanup;
 		}
 
 		rc = get_length(node, &rows, "qcom,lut-row-legend", true);
 		if (rc < 0) {
-			pr_err("Failed to get row-length for %s table rc=%d\n",
+			pr_debug("Failed to get row-length for %s table rc=%d\n",
 				table[i].table_name, rc);
 			goto cleanup;
 		}
 
 		rc = get_length(node, &lut_length, "qcom,lut-data", false);
 		if (rc < 0) {
-			pr_err("Failed to get lut-length for %s table rc=%d\n",
+			pr_debug("Failed to get lut-length for %s table rc=%d\n",
 				table[i].table_name, rc);
 			goto cleanup;
 		}
 
 		if (lut_length != cols * rows) {
-			pr_err("Invalid lut-length for %s table\n",
+			pr_debug("Invalid lut-length for %s table\n",
 					table[i].table_name);
 			rc = -EINVAL;
 			goto cleanup;
@@ -348,7 +348,7 @@ static int qg_parse_battery_profile(struct qg_battery_data *battery)
 		rc = of_property_read_u32_array(node, "qcom,lut-col-legend",
 					battery->profile[i].col_entries, cols);
 		if (rc < 0) {
-			pr_err("Failed to read cols values for table %s rc=%d\n",
+			pr_debug("Failed to read cols values for table %s rc=%d\n",
 					table[i].table_name, rc);
 			goto cleanup;
 		}
@@ -358,7 +358,7 @@ static int qg_parse_battery_profile(struct qg_battery_data *battery)
 					"qcom,lut-row-legend",
 					battery->profile[i].row_entries, rows);
 			if (rc < 0) {
-				pr_err("Failed to read row values for table %s rc=%d\n",
+				pr_debug("Failed to read row values for table %s rc=%d\n",
 						table[i].table_name, rc);
 				goto cleanup;
 			}
@@ -366,7 +366,7 @@ static int qg_parse_battery_profile(struct qg_battery_data *battery)
 
 		prop = of_find_property(node, "qcom,lut-data", NULL);
 		if (!prop) {
-			pr_err("Failed to find lut-data\n");
+			pr_debug("Failed to find lut-data\n");
 			rc = -EINVAL;
 			goto cleanup;
 		}
@@ -453,7 +453,7 @@ int qg_batterydata_init(struct device_node *profile_node)
 		rc = alloc_chrdev_region(&battery->dev_no, 0, 1,
 							"qg_battery");
 		if (rc < 0) {
-			pr_err("Failed to allocate chrdev rc=%d\n", rc);
+			pr_debug("Failed to allocate chrdev rc=%d\n", rc);
 			goto free_battery;
 		}
 
@@ -461,14 +461,14 @@ int qg_batterydata_init(struct device_node *profile_node)
 		rc = cdev_add(&battery->battery_cdev,
 						battery->dev_no, 1);
 		if (rc) {
-			pr_err("Failed to add battery_cdev rc=%d\n", rc);
+			pr_debug("Failed to add battery_cdev rc=%d\n", rc);
 			goto unregister_chrdev;
 		}
 
 		battery->battery_class = class_create(THIS_MODULE,
 							"qg_battery");
 		if (IS_ERR_OR_NULL(battery->battery_class)) {
-			pr_err("Failed to create qg-battery class\n");
+			pr_debug("Failed to create qg-battery class\n");
 			rc = -ENODEV;
 			goto delete_cdev;
 		}
@@ -478,7 +478,7 @@ int qg_batterydata_init(struct device_node *profile_node)
 						NULL, battery->dev_no,
 						NULL, "qg_battery");
 		if (IS_ERR_OR_NULL(battery->battery_device)) {
-			pr_err("Failed to create battery_device device\n");
+			pr_debug("Failed to create battery_device device\n");
 			rc = -ENODEV;
 			goto destroy_class;
 		}
@@ -489,11 +489,11 @@ int qg_batterydata_init(struct device_node *profile_node)
 	/* parse the battery profile */
 	rc = qg_parse_battery_profile(battery);
 	if (rc < 0) {
-		pr_err("Failed to parse battery profile rc=%d\n", rc);
+		pr_debug("Failed to parse battery profile rc=%d\n", rc);
 		goto destroy_device;
 	}
 
-	pr_info("QG Battery-profile loaded\n");
+	pr_debug("QG Battery-profile loaded\n");
 
 	return 0;
 

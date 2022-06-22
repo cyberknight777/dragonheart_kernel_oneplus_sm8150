@@ -34,7 +34,7 @@ static void as3722_pm_power_off(void)
 	int ret;
 
 	if (!as3722_pm_poweroff) {
-		pr_err("AS3722 poweroff is not initialised\n");
+		pr_debug("AS3722 poweroff is not initialised\n");
 		return;
 	}
 
