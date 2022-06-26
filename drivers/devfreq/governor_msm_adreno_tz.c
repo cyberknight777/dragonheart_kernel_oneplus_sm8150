@@ -404,6 +404,7 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 			break;
 		case 1:
 			highref_multi = 100;
+			highref_input_dur = 2000;
 			break;
 		}
 
