@@ -2723,6 +2723,9 @@ void wakeup_kcompactd(pg_data_t *pgdat, int order, int classzone_idx)
 	wake_up_interruptible(&pgdat->kcompactd_wait);
 }
 
+static unsigned int proactively_compacted;
+module_param(proactively_compacted, uint, 0644);
+
 /*
  * The background compaction daemon, started as a kernel thread
  * from the init process.
@@ -2790,6 +2793,8 @@ static int kcompactd(void *p)
 			if (unlikely(score >= prev_score))
 				timeout =
 				   default_timeout << COMPACT_MAX_DEFER_SHIFT;
+			else
+				proactively_compacted++;
 		}
 		if (unlikely(pgdat->proactive_compact_trigger))
 			pgdat->proactive_compact_trigger = false;
