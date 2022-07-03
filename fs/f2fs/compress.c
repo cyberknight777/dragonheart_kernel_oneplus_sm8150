@@ -337,7 +337,7 @@ static const struct f2fs_compress_ops f2fs_lz4_ops = {
 #endif
 
 #ifdef CONFIG_F2FS_FS_ZSTD
-#define F2FS_ZSTD_DEFAULT_CLEVEL	1
+#define F2FS_ZSTD_DEFAULT_CLEVEL	2
 
 static int zstd_init_compress_ctx(struct compress_ctx *cc)
 {
