@@ -167,15 +167,23 @@ static void update_online_cpu_policy(void)
 extern int kp_active_mode(void);
 static void __cpu_input_boost_kick(struct boost_drv *b)
 {
+
+       unsigned int multi = 1;
+
        if (!test_bit(SCREEN_ON, &b->state) || kp_active_mode() == 1)
 		return;
 
 	if (!input_boost_duration)
 		return;
 
+        if (kp_active_mode() == 2)
+                multi = 1.5;
+        else if (kp_active_mode() == 3)
+                multi = 2;
+
 	set_bit(INPUT_BOOST, &b->state);
 	if (!mod_delayed_work(system_unbound_wq, &b->input_unboost,
-			      msecs_to_jiffies(input_boost_duration)))
+			      msecs_to_jiffies(input_boost_duration * multi)))
 		wake_up(&b->boost_waitq);
 }
 
