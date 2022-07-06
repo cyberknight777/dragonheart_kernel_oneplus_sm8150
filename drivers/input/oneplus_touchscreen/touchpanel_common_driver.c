@@ -13,6 +13,7 @@
 #include <linux/time.h>
 #include <linux/pm_wakeup.h>
 #include <asm/uaccess.h>
+#include <linux/compaction.h>
 
 #ifndef TPD_USE_EINT
 #include <linux/hrtimer.h>
@@ -4934,6 +4935,8 @@ static void speedup_resume(struct work_struct *work)
     complete(&ts->pm_complete);
 }
 
+bool tp_screen_on __read_mostly = false;
+
 static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
     int *blank;
@@ -4969,6 +4972,9 @@ static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long 
 					}
 					tp_suspend(ts->dev);
                 }
+		WRITE_ONCE(tp_screen_on, false);
+		wmb();
+		trigger_proactive_compaction(false);
             } else if (event == MSM_DRM_EVENT_BLANK) {   //event
 
                 if (ts->tp_suspend_order == TP_LCD_SUSPEND) {
@@ -5001,6 +5007,8 @@ static int msm_drm_notifier_callback(struct notifier_block *self, unsigned long 
                     enable_irq(ts->irq);
                 }
             }
+	    WRITE_ONCE(tp_screen_on, false);
+	    wmb();
           }else if (*blank == MSM_DRM_DYNAMICFPS_60) {  //60-90HZ LCD refresh switch
 			if (event == MSM_DRM_EARLY_EVENT_BLANK) {
 				mutex_lock(&ts->mutex);
