@@ -8006,6 +8006,11 @@ static void set_usb_switch(struct smb_charger *chg, bool enable)
 			schedule_delayed_work(&chg->rechk_sw_dsh_work,
 					msecs_to_jiffies(retrger_time));
 	} else {
+		if (!chg->usb_psy_desc.type == POWER_SUPPLY_TYPE_DASH) {
+			pr_err("OP FIXUP: power early return\n");
+			return;
+		}
+
 		pr_debug("switch off fastchg\n");
 		chg->switch_on_fastchg = false;
 		update_disconnect_pd_status(false);
