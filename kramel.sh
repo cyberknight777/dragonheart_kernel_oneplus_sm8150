@@ -43,7 +43,7 @@ export TGI=1
 
 # Personal builds. Set 1 to enable. | Set 0 to disable.
 if [ "${PERSONAL}" = 1 ]; then
-    export CHATID=607425846
+    export CHATID=-1001564538644
 else
     export CHATID=-1001361882613
 fi
