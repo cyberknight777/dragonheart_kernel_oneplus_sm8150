@@ -405,15 +405,12 @@ static void __qmi_rmnet_update_mq(struct net_device *dev,
 				bearer->mq_idx = itm->mq_idx;
 		}
 
-		/* Always enable flow for the newly associated bearer */
-		if (!bearer->grant_size) {
-			bearer->grant_size = DEFAULT_GRANT;
-			bearer->grant_thresh =
-				qmi_rmnet_grant_per(DEFAULT_GRANT);
-		}
-		qmi_rmnet_flow_control(dev, itm->mq_idx, 1);
+		qmi_rmnet_flow_control(dev, itm->mq_idx,
+				       bearer->grant_size > 0 ? 1 : 0);
+
 		if (dfc_mode == DFC_MODE_SA)
-			qmi_rmnet_flow_control(dev, bearer->ack_mq_idx, 1);
+			qmi_rmnet_flow_control(dev, bearer->ack_mq_idx,
+					bearer->grant_size > 0 ? 1 : 0);
 	}
 }
 
@@ -1282,7 +1279,8 @@ void qmi_rmnet_work_init(void *port)
 	if (rmnet_ps_wq)
 		return;
 
-	rmnet_ps_wq = create_freezable_workqueue("rmnet_powersave_work");
+	rmnet_ps_wq = alloc_workqueue("rmnet_powersave_work",
+				      WQ_CPU_INTENSIVE, 1);
 
 	if (!rmnet_ps_wq)
 		return;
