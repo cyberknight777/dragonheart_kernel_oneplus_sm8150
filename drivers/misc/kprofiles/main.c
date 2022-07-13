@@ -127,12 +127,12 @@ static inline int kp_notifier_callback(struct notifier_block *self,
 
 	blank = evdata->data;
 	switch (*blank) {
-	case MSM_DRM_BLANK_POWERDOWN_CUST:
+	case MSM_DRM_BLANK_POWERDOWN:
 		if (!screen_on)
 			break;
 		screen_on = false;
 		break;
-	case MSM_DRM_BLANK_UNBLANK_CUST:
+	case MSM_DRM_BLANK_UNBLANK:
 		if (screen_on)
 			break;
 		screen_on = true;
