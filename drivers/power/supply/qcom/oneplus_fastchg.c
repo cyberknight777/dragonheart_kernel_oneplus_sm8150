@@ -1206,7 +1206,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 		case DASH_NOTIFY_FAST_PRESENT:
 			oneplus_notify_dash_charger_present(true);
 			if (arg == DASH_NOTIFY_FAST_PRESENT + 1) {
-				__pm_stay_awake(&di->fastchg_wake_lock);
+				__pm_wakeup_event(&di->fastchg_wake_lock, 1000);
 				bq27541_data->set_allow_reading(false);
 				di->fast_chg_allow = false;
 				di->fast_normal_to_warm = false;
@@ -1339,7 +1339,7 @@ static long  dash_dev_ioctl(struct file *filp, unsigned int cmd,
 				di->fast_chg_started = false;
 				oneplus_notify_dash_charger_present(true);
 				dash_write(di, ALLOW_DATA);
-				__pm_stay_awake(&di->fastchg_wake_lock);
+				__pm_wakeup_event(&di->fastchg_wake_lock, 1000);
 				dash_adapter_update(di);
 			}
 			break;
