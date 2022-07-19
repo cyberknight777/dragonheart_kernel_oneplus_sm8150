@@ -740,7 +740,7 @@ static const struct file_operations proximity_event_num_fops = {
     .owner = THIS_MODULE,
 };
 
-int __init elliptic_driver_init(void)
+int elliptic_driver_init(void)
 {
 	int err;
 	int i;
