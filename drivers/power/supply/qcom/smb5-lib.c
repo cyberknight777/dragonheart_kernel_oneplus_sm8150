@@ -7982,8 +7982,7 @@ static void set_usb_switch(struct smb_charger *chg, bool enable)
 	if (enable) {
 		pr_debug("switch on fastchg\n");
 		chg->switch_on_fastchg = true;
-		if (chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_HIGH ||
-				chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_MEDIUM)
+		if (!(chg->usb_psy_desc.type == POWER_SUPPLY_TYPE_DASH))
 			chg->disconnect_pd = true;
 		if (chg->boot_usb_present && chg->re_trigr_dash_done) {
 			vote(chg->usb_icl_votable, AICL_RERUN_VOTER,
