@@ -606,6 +606,14 @@ config AUDIO_SENSOR
 	tristate "support sensor notify audio to control ultrasound"
 	default y
 
+config OP_PASSTHROUGH_HACK
+	bool "Enable support for passthrough charging hack"
+	depends on ONEPLUS_FASTCHG
+	default n
+	help
+	  This allows users to toggle support for passthrough charging
+	  which breaks other functionality.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

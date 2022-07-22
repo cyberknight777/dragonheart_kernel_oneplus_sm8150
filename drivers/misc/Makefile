@@ -94,3 +94,4 @@ obj-$(CONFIG_OKL4_GUEST)        += okl4-panic.o
 obj-$(CONFIG_OKL4_LINK_SHBUF)    += okl4-link-shbuf.o
 obj-$(CONFIG_BOOTLOADER_LOG)	+= bootloader_log.o
 obj-$(CONFIG_AUDIO_SENSOR) += audio_sensor.o
+obj-$(CONFIG_OP_PASSTHROUGH_HACK) += passthroughhack.o
