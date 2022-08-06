@@ -205,6 +205,7 @@ img() {
         tg "
 *Build Number*: \`${kver}\`
 *Builder*: \`${BUILDER}\`
+*Core count*: \`$(nproc --all)\`
 *Device*: \`${DEVICE} [${CODENAME}]\`
 *Kernel Version*: \`$(make kernelversion 2>/dev/null)\`
 *Date*: \`$(date)\`
