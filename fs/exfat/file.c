@@ -314,7 +314,7 @@ int exfat_setattr(struct dentry *dentry, struct iattr *attr)
 	if (attr->ia_valid & ATTR_SIZE)
 		inode->i_mtime = inode->i_ctime = current_time(inode);
 
-	setattr_copy(&init_user_ns, inode, attr);
+	setattr_copy(inode, attr);
 	exfat_truncate_atime(&inode->i_atime);
 
 	if (attr->ia_valid & ATTR_SIZE) {
