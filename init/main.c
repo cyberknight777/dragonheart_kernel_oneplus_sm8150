@@ -103,6 +103,16 @@ static int kernel_init(void *);
 extern void init_IRQ(void);
 extern void radix_tree_init(void);
 
+bool is_inline = false;
+EXPORT_SYMBOL(is_inline);
+
+static int __init read_is_inline(char *s)
+{
+    strtobool(s, &is_inline);
+    return 1;
+}
+__setup("init.is_inline=", read_is_inline);
+
 /*
  * Debug helper: via this flag we know that we are in 'early bootup code'
  * where only the boot processor is running with IRQ disabled.  This means
