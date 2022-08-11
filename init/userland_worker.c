@@ -222,6 +222,7 @@ static int __init userland_worker_entry(void)
 
 	if (is_inline) {
                 nt_info("Inline ROM detected! Killing UserLand Worker...\n");
+                is_a12 = 1;
                 return 0;
         }
 
