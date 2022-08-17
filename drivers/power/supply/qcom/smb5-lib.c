@@ -5577,7 +5577,7 @@ void smblib_usb_plugin_hard_reset_locked(struct smb_charger *chg)
 		if (chg->vbus_present) {
 			if (!chg->chg_wake_lock_on) {
 				pr_debug("acquire chg_wake_lock\n");
-				__pm_wakeup_event(&chg->chg_wake_lock, 1000);
+				__pm_stay_awake(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = true;
 			} else {
 				pr_debug("chg_wake_lock is already stay awake.");
@@ -5661,7 +5661,7 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 		if (chg->vbus_present) {
 			if (!chg->chg_wake_lock_on) {
 				pr_debug("acquire chg_wake_lock\n");
-				__pm_wakeup_event(&chg->chg_wake_lock, 1000);
+				__pm_stay_awake(&chg->chg_wake_lock);
 				chg->chg_wake_lock_on = true;
 			} else {
 				pr_debug("chg_wake_lock is already stay awake.");
