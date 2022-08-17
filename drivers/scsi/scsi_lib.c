@@ -253,9 +253,8 @@ int scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
 	int ret = DRIVER_ERROR << 24;
 
 	req = blk_get_request(sdev->request_queue,
-			      (data_direction == DMA_TO_DEVICE ?
-			       REQ_OP_SCSI_OUT : REQ_OP_SCSI_IN) | REQ_PREEMPT,
-			      __GFP_RECLAIM);
+			data_direction == DMA_TO_DEVICE ?
+			REQ_OP_SCSI_OUT : REQ_OP_SCSI_IN, __GFP_RECLAIM);
 	if (IS_ERR(req))
 		return ret;
 	rq = scsi_req(req);
@@ -273,7 +272,7 @@ int scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
 		req->timeout = sdev->timeout_override;
 
 	req->cmd_flags |= flags;
-	req->rq_flags |= rq_flags | RQF_QUIET;
+	req->rq_flags |= rq_flags | RQF_QUIET | RQF_PREEMPT;
 
 	/*
 	 * head injection *required* here otherwise quiesce won't work
@@ -1345,7 +1344,7 @@ scsi_prep_state_check(struct scsi_device *sdev, struct request *req)
 			/*
 			 * If the devices is blocked we defer normal commands.
 			 */
-			if (!(req->cmd_flags & REQ_PREEMPT))
+			if (!(req->rq_flags & RQF_PREEMPT))
 				ret = BLKPREP_DEFER;
 			break;
 		default:
@@ -1354,7 +1353,7 @@ scsi_prep_state_check(struct scsi_device *sdev, struct request *req)
 			 * special commands.  In particular any user initiated
 			 * command is not allowed.
 			 */
-			if (!(req->cmd_flags & REQ_PREEMPT))
+			if (!(req->rq_flags & RQF_PREEMPT))
 				ret = BLKPREP_KILL;
 			break;
 		}
