@@ -137,7 +137,7 @@ void blk_mq_in_flight_rw(struct request_queue *q, struct hd_struct *part,
 	blk_mq_queue_tag_busy_iter(q, blk_mq_check_inflight_rw, &mi);
 }
 
-bool blk_freeze_queue_start(struct request_queue *q)
+void blk_freeze_queue_start(struct request_queue *q)
 {
 	int freeze_depth;
 
@@ -146,9 +146,7 @@ bool blk_freeze_queue_start(struct request_queue *q)
 		percpu_ref_kill(&q->q_usage_counter);
 		if (q->mq_ops)
 			blk_mq_run_hw_queues(q, false);
-		return true;
 	}
-	return false;
 }
 EXPORT_SYMBOL_GPL(blk_freeze_queue_start);
 
@@ -171,7 +169,7 @@ EXPORT_SYMBOL_GPL(blk_mq_freeze_queue_wait_timeout);
  * Guarantee no request is in use, so we can change any data structure of
  * the queue afterward.
  */
-bool blk_freeze_queue(struct request_queue *q)
+void blk_freeze_queue(struct request_queue *q)
 {
 	/*
 	 * In the !blk_mq case we are only calling this to kill the
@@ -180,20 +178,19 @@ bool blk_freeze_queue(struct request_queue *q)
 	 * no blk_unfreeze_queue(), and blk_freeze_queue() is not
 	 * exported to drivers as the only user for unfreeze is blk_mq.
 	 */
-	bool ret = blk_freeze_queue_start(q);
+	blk_freeze_queue_start(q);
 	if (!q->mq_ops)
 		blk_drain_queue(q);
 	blk_mq_freeze_queue_wait(q);
-	return ret;
 }
 
-bool blk_mq_freeze_queue(struct request_queue *q)
+void blk_mq_freeze_queue(struct request_queue *q)
 {
 	/*
 	 * ...just an alias to keep freeze and unfreeze actions balanced
 	 * in the blk_mq_* namespace
 	 */
-	return blk_freeze_queue(q);
+	blk_freeze_queue(q);
 }
 EXPORT_SYMBOL_GPL(blk_mq_freeze_queue);
 
