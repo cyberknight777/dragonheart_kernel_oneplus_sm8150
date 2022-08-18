@@ -312,7 +312,7 @@ mkzip() {
 }
 " > DragonHeart-r.json
 	    git add DragonHeart-r.json changelog_r.md || exit 1
-	    git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
+	    git commit -s --reset-author -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
             gh release create "${version}" -t "DragonHeart for $CODENAME [BLEEDING EDGE] - $version"
             gh release upload "${version}" ../"${zipn}.zip"
 	else
@@ -334,7 +334,7 @@ mkzip() {
 }
 " > DragonHeart-rc.json
 	    git add DragonHeart-rc.json changelog.md || exit 1
-	    git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
+	    git commit -s --reset-author -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
             gh release create "${version}" -t "DragonHeart for $CODENAME [RELEASE] - $version"
             gh release upload "${version}" ../"${zipn}.zip"
 	fi
