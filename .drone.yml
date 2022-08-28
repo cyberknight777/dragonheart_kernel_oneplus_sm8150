@@ -8,16 +8,10 @@ steps:
     image: panchajanya1999/archlinux:latest
     commands: 
       - "export token=$TOKEN"
-      - "export password=$PASSWORD"
-      - gh auth login --with-token <<< "$PASSWORD"
-      - git config --global user.email "cyberknight755@gmail.com"
-      - git config --global user.name "Cyber Knight"
       - "ci=1 bash kramel.sh img mkzip"
     environment: 
       TOKEN: 
         from_secret: token
-      PASSWORD:
-        from_secret: password
 
 trigger:
   event:

@@ -25,10 +25,6 @@ export LINKER="ld.lld"
 # Device name.
 export DEVICE="OnePlus 7 Series"
 
-# Date of build.
-DATE=$(date +"%Y-%m-%d")
-export DATE
-
 # Device codename.
 export CODENAME="op7"
 
@@ -42,20 +38,15 @@ export REPO_URL="https://github.com/cyberknight777/dragonheart_kernel_oneplus_sm
 COMMIT_HASH=$(git rev-parse --short HEAD)
 export COMMIT_HASH
 
-# Build status. Set 1 for release builds. | Set 0 for bleeding edge builds.
-export RELEASE=$rel
-if [ "${RELEASE}" = 1 ]; then
-    export STATUS="Release"
-    export CHATID=-1001361882613
-    export re="rc"
-else
-    export STATUS="Bleeding-Edge"
-    export CHATID=-1001564538644
-    export re="r"
-fi
-
 # Telegram Information. Set 1 to enable. | Set 0 to disable.
 export TGI=1
+
+# Personal builds. Set 1 to enable. | Set 0 to disable.
+if [ "${PERSONAL}" = 1 ]; then
+    export CHATID=607425846
+else
+    export CHATID=-1001361882613
+fi
 
 # Necessary variables to be exported.
 export ci
@@ -213,7 +204,6 @@ img() {
     if [[ "${TGI}" != "0" ]]; then
         tg "
 *Build Number*: \`${kver}\`
-*Status*: \`${STATUS}\`
 *Builder*: \`${BUILDER}\`
 *Core count*: \`$(nproc --all)\`
 *Device*: \`${DEVICE} [${CODENAME}]\`
@@ -287,66 +277,8 @@ mkzip() {
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
     zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
     echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
-    if [[ "${CI}" != "0" ]]; then
-	git clone https://github.com/cyberknight777/op7_json.git
-	cd op7_json || exit 1
-	echo "https://cyberknight777:$PASSWORD@github.com" > .pwd
-	git config credential.helper "store --file .pwd"
-	sha1=$(sha1sum ../"${zipn}".zip | cut -d ' ' -f1)
-	if [[ "${RELEASE}" != "1" ]]; then
-	    rm changelog_r.md
-	    wget "${link}/raw" -O changelog_r.md
-	    echo "
-{
-  \"kernel\": {
-  \"name\": \"DragonHeart\",
-  \"version\": \"$version\",
-  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/$version/$zipn.zip\",
-  \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/op7_json/master/changelog_r.md\",
-  \"date\": \"$DATE\",
-  \"sha1\": \"$sha1\"
-  },
-  \"support\": {
-    \"link\": \"https://t.me/knightschat\"
-  }
-}
-" > DragonHeart-r.json
-	    git add DragonHeart-r.json changelog_r.md || exit 1
-	    git commit -s --reset-author -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
-            gh release create "${version}" -t "DragonHeart for $CODENAME [BLEEDING EDGE] - $version"
-            gh release upload "${version}" ../"${zipn}.zip"
-	else
-	    rm changelog.md
-	    wget "${link}"/raw -O changelog.md
-	    echo "
-{
-  \"kernel\": {
-  \"name\": \"DragonHeart\",
-  \"version\": \"$version\",
-  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/$version/$zipn.zip\",
-  \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/op7_json/master/changelog.md\",
-  \"date\": \"$DATE\",
-  \"sha1\": \"$sha1\"
-  },
-  \"support\": {
-    \"link\": \"https://t.me/knightschat\"
-  }
-}
-" > DragonHeart-rc.json
-	    git add DragonHeart-rc.json changelog.md || exit 1
-	    git commit -s --reset-author -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
-            gh release create "${version}" -t "DragonHeart for $CODENAME [RELEASE] - $version"
-            gh release upload "${version}" ../"${zipn}.zip"
-	fi
-	git push
-	cd ../ || exit 1
-    fi
     if [[ "${TGI}" != "0" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
-	tg "
-*OTA*: https://raw.githubusercontent.com/cyberknight777/op7\_json/master/DragonHeart-${re}.json
-*Changelog*: https://github.com/cyberknight777/op7\_json/blob/master/changelog\_${re}.md
-"
     fi
 }
 
