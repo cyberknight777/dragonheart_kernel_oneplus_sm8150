@@ -405,3 +405,85 @@ void v4l2_get_timestamp(struct timeval *tv)
 	tv->tv_usec = ts.tv_nsec / NSEC_PER_USEC;
 }
 EXPORT_SYMBOL_GPL(v4l2_get_timestamp);
+
+/* Simplify a fraction using a simple continued fraction decomposition. The
+ * idea here is to convert fractions such as 333333/10000000 to 1/30 using
+ * 32 bit arithmetic only. The algorithm is not perfect and relies upon two
+ * arbitrary parameters to remove non-significative terms from the simple
+ * continued fraction decomposition. Using 8 and 333 for n_terms and threshold
+ * respectively seems to give nice results.
+ */
+void v4l2_simplify_fraction(uint32_t *numerator, uint32_t *denominator,
+		unsigned int n_terms, unsigned int threshold)
+{
+	uint32_t *an;
+	uint32_t x, y, r;
+	unsigned int i, n;
+
+	an = kmalloc(n_terms * sizeof *an, GFP_KERNEL);
+	if (an == NULL)
+		return;
+
+	/* Convert the fraction to a simple continued fraction. See
+	 * http://mathforum.org/dr.math/faq/faq.fractions.html
+	 * Stop if the current term is bigger than or equal to the given
+	 * threshold.
+	 */
+	x = *numerator;
+	y = *denominator;
+
+	for (n = 0; n < n_terms && y != 0; ++n) {
+		an[n] = x / y;
+		if (an[n] >= threshold) {
+			if (n < 2)
+				n++;
+			break;
+		}
+
+		r = x - an[n] * y;
+		x = y;
+		y = r;
+	}
+
+	/* Expand the simple continued fraction back to an integer fraction. */
+	x = 0;
+	y = 1;
+
+	for (i = n; i > 0; --i) {
+		r = y;
+		y = an[i-1] * y + x;
+		x = r;
+	}
+
+	*numerator = y;
+	*denominator = x;
+	kfree(an);
+}
+EXPORT_SYMBOL_GPL(v4l2_simplify_fraction);
+
+/* Convert a fraction to a frame interval in 100ns multiples. The idea here is
+ * to compute numerator / denominator * 10000000 using 32 bit fixed point
+ * arithmetic only.
+ */
+uint32_t v4l2_fraction_to_interval(uint32_t numerator, uint32_t denominator)
+{
+	uint32_t multiplier;
+
+	/* Saturate the result if the operation would overflow. */
+	if (denominator == 0 ||
+	    numerator/denominator >= ((uint32_t)-1)/10000000)
+		return (uint32_t)-1;
+
+	/* Divide both the denominator and the multiplier by two until
+	 * numerator * multiplier doesn't overflow. If anyone knows a better
+	 * algorithm please let me know.
+	 */
+	multiplier = 10000000;
+	while (numerator > ((uint32_t)-1)/multiplier) {
+		multiplier /= 2;
+		denominator /= 2;
+	}
+
+	return denominator ? numerator * multiplier / denominator : 0;
+}
+EXPORT_SYMBOL_GPL(v4l2_fraction_to_interval);

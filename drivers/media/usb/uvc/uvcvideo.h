@@ -755,10 +755,6 @@ extern int uvc_xu_ctrl_query(struct uvc_video_chain *chain,
 		struct uvc_xu_control_query *xqry);
 
 /* Utility functions */
-extern void uvc_simplify_fraction(uint32_t *numerator, uint32_t *denominator,
-		unsigned int n_terms, unsigned int threshold);
-extern uint32_t uvc_fraction_to_interval(uint32_t numerator,
-		uint32_t denominator);
 extern struct usb_host_endpoint *uvc_find_endpoint(
 		struct usb_host_interface *alts, __u8 epaddr);
 
