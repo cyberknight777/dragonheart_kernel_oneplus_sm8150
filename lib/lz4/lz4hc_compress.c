@@ -293,7 +293,7 @@ static FORCE_INLINE int LZ4HC_encodeSequence(
 		*token = (BYTE)(length<<ML_BITS);
 
 	/* Copy Literals */
-	LZ4_wildCopy8(*op, *anchor, (*op) + length);
+	LZ4_wildCopy(*op, *anchor, (*op) + length);
 	*op += length;
 
 	/* Encode Offset */
@@ -616,8 +616,13 @@ EXPORT_SYMBOL(LZ4_compress_HC);
 /**************************************
  *	Streaming Functions
  **************************************/
+void LZ4_resetStreamHC(LZ4_streamHC_t *LZ4_streamHCPtr, int compressionLevel)
+{
+	LZ4_streamHCPtr->internal_donotuse.base = NULL;
+	LZ4_streamHCPtr->internal_donotuse.compressionLevel = (unsigned int)compressionLevel;
+}
 
-static int LZ4_loadDictHC(LZ4_streamHC_t *LZ4_streamHCPtr,
+int LZ4_loadDictHC(LZ4_streamHC_t *LZ4_streamHCPtr,
 	const char *dictionary,
 	int dictSize)
 {
@@ -633,6 +638,7 @@ static int LZ4_loadDictHC(LZ4_streamHC_t *LZ4_streamHCPtr,
 	ctxPtr->end = (const BYTE *)dictionary + dictSize;
 	return dictSize;
 }
+EXPORT_SYMBOL(LZ4_loadDictHC);
 
 /* compression */
 
@@ -707,6 +713,57 @@ static int LZ4_compressHC_continue_generic(
 	return LZ4HC_compress_generic(ctxPtr, source, dest,
 		inputSize, maxOutputSize, ctxPtr->compressionLevel, limit);
 }
+
+int LZ4_compress_HC_continue(
+	LZ4_streamHC_t *LZ4_streamHCPtr,
+	const char *source,
+	char *dest,
+	int inputSize,
+	int maxOutputSize)
+{
+	if (maxOutputSize < LZ4_compressBound(inputSize))
+		return LZ4_compressHC_continue_generic(LZ4_streamHCPtr,
+			source, dest, inputSize, maxOutputSize, limitedOutput);
+	else
+		return LZ4_compressHC_continue_generic(LZ4_streamHCPtr,
+			source, dest, inputSize, maxOutputSize, noLimit);
+}
+EXPORT_SYMBOL(LZ4_compress_HC_continue);
+
+/* dictionary saving */
+
+int LZ4_saveDictHC(
+	LZ4_streamHC_t *LZ4_streamHCPtr,
+	char *safeBuffer,
+	int dictSize)
+{
+	LZ4HC_CCtx_internal *const streamPtr = &LZ4_streamHCPtr->internal_donotuse;
+	int const prefixSize = (int)(streamPtr->end
+		- (streamPtr->base + streamPtr->dictLimit));
+
+	if (dictSize > 64 * KB)
+		dictSize = 64 * KB;
+	if (dictSize < 4)
+		dictSize = 0;
+	if (dictSize > prefixSize)
+		dictSize = prefixSize;
+
+	memmove(safeBuffer, streamPtr->end - dictSize, dictSize);
+
+	{
+		U32 const endIndex = (U32)(streamPtr->end - streamPtr->base);
+
+		streamPtr->end = (const BYTE *)safeBuffer + dictSize;
+		streamPtr->base = streamPtr->end - endIndex;
+		streamPtr->dictLimit = endIndex - dictSize;
+		streamPtr->lowLimit = endIndex - dictSize;
+
+		if (streamPtr->nextToUpdate < streamPtr->dictLimit)
+			streamPtr->nextToUpdate = streamPtr->dictLimit;
+	}
+	return dictSize;
+}
+EXPORT_SYMBOL(LZ4_saveDictHC);
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("LZ4 HC compressor");
