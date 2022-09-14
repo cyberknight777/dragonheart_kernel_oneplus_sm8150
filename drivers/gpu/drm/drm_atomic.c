@@ -2257,10 +2257,10 @@ static int __drm_mode_atomic_ioctl(struct drm_device *dev, void *data,
 	   * and boost CPU & DDR for 25ms if balanced profile is enabled
 	   */
 	  if (kp_active_mode() == 3 || kp_active_mode() == 0) {
-	    cpu_input_boost_kick_max(50);
+	    cpu_input_boost_kick_max(50, true);
 	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50);
 	  } else if (kp_active_mode() == 2) {
-	    cpu_input_boost_kick_max(25);
+	    cpu_input_boost_kick_max(25, true);
 	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
 	  }
 	}
