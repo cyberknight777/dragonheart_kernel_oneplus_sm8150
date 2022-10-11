@@ -633,6 +633,7 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 			}
 			else {
 				//sde_encoder_poll_line_counts(drm_enc);
+				__dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_LOADING_EFFECT_ON, true);
 				__dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_HBM_ON_5, true);
 				pr_err("Send DSI_CMD_SET_HBM_ON_5 cmds\n");
 			}
@@ -647,6 +648,7 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 			if (dsi_display->panel->aod_status == 1 && !finger_type) {
 				if(oneplus_dim_status == 5){
 					__dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_HBM_OFF, true);
+					__dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_LOADING_EFFECT_OFF, true);
 					pr_err("Send DSI_CMD_SET_HBM_OFF cmds\n");
 					aod_fod_flag = true;
 					dsi_display->panel->aod_status = 0;
@@ -684,6 +686,7 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 				HBM_flag = false;
 				//sde_encoder_poll_line_counts(drm_enc);
 				__dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_HBM_OFF, true);
+				__dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_LOADING_EFFECT_OFF, true);
 				pr_err("Send DSI_CMD_SET_HBM_OFF cmds\n");
 			}
 			SDE_ATRACE_END("set_hbm_off");

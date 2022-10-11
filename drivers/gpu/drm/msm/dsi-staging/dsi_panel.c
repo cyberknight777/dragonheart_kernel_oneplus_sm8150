@@ -980,6 +980,7 @@ static void set_hbm_mode(struct work_struct *work)
     switch (level) {
     case 0:
       if (!HBM_flag) {
+	__dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF, true);
 	__dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF, true);
 	pr_err(
 		 "When HBM OFF -->hbm_backight = %d panel->bl_config.bl_level =%d\n",
@@ -988,6 +989,7 @@ static void set_hbm_mode(struct work_struct *work)
         }
     break;
     case 1:
+        __dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON, true);
         __dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5, true);
     break;
     }
@@ -5405,6 +5407,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 			} else {
 				HBM_flag = false;
 				rc = __dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF, true);
+				__dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF, true);
 				pr_debug("Send DSI_CMD_SET_HBM_OFF cmds.\n");
 				pr_debug("hbm_backight = %d, panel->bl_config.bl_level = %d\n",panel->hbm_backlight, panel->bl_config.bl_level);
 				rc = dsi_panel_update_backlight(panel,panel->hbm_backlight);
@@ -5467,6 +5470,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 			}
 			else {
 				HBM_flag = true;
+				__dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON, true);
 				__dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5, true);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
 			}
