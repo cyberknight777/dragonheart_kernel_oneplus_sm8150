@@ -980,7 +980,7 @@ static void set_hbm_mode(struct work_struct *work)
     switch (level) {
     case 0:
       if (!HBM_flag) {
-	dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
+	__dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF, true);
 	pr_err(
 		 "When HBM OFF -->hbm_backight = %d panel->bl_config.bl_level =%d\n",
 		 panel->hbm_backlight, panel->bl_config.bl_level);
@@ -5402,13 +5402,12 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 			if (!count) {
 				pr_err("This panel does not support HBM mode off.\n");
 				goto error;
-			}
-			else {
+			} else {
 				HBM_flag = false;
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
+				rc = __dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF, true);
 				pr_debug("Send DSI_CMD_SET_HBM_OFF cmds.\n");
 				pr_debug("hbm_backight = %d, panel->bl_config.bl_level = %d\n",panel->hbm_backlight, panel->bl_config.bl_level);
-				rc= dsi_panel_update_backlight(panel,panel->hbm_backlight);
+				rc = dsi_panel_update_backlight(panel,panel->hbm_backlight);
 			}
 			break;
 
