@@ -741,7 +741,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 				enum dsi_cmd_set_type type)
 {
-	int rc = 0, i = 0;
+	int rc = 0, i = 0, wait_multi = 1000;
 	bool wait = true;
 	ssize_t len;
 	struct dsi_cmd_desc *cmds;
@@ -779,12 +779,17 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 			goto error;
 		}
 
+		//Custom FOD logic below:
 		if (type == DSI_CMD_LOADING_EFFECT_ON || type == DSI_CMD_LOADING_EFFECT_OFF)
 			wait = false;
 
+		if ((panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M) &&
+			((type == DSI_CMD_SET_HBM_ON_5) || (type == DSI_CMD_SET_HBM_OFF)))
+			wait_multi = 725;
+
 		if (cmds->post_wait_ms && wait)
-			usleep_range(cmds->post_wait_ms*1000,
-					((cmds->post_wait_ms*1000)+10));
+			usleep_range(cmds->post_wait_ms*wait_multi,
+					((cmds->post_wait_ms*wait_multi)+10));
 		cmds++;
 	}
 error:
