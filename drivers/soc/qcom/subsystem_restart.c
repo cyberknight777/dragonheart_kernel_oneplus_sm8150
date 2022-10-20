@@ -1634,7 +1634,7 @@ int subsystem_restart_dev(struct subsys_device *dev)
 	case RESET_SOC:
 		pr_err("[OEM_MDM] RESET_SOC [%s]\n", name);
 		if (get_ssr_reason_state() && is_oem_esoc_ssr() == 0 &&
-				!(strcmp(name, "esoc0")) && oem_get_download_mode()) {
+				!(strcmp(name, "esoc0"))) {
 			pr_err("[OEM_MDM] SDX5x %s force SSR to get dump\n",
 					name);
 			oem_set_esoc_ssr(1);
