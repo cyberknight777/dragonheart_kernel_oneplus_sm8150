@@ -992,7 +992,7 @@ static ssize_t proc_restart_level_all_write(struct file *p_file,
 		subsys = find_subsys_device("esoc0");
 		if (!subsys)
 			return -ENODEV;
-		subsys->restart_level = RESET_SUBSYS_COUPLED;
+		subsys->restart_level = RESET_SOC;
 
 
 	} else if (!strncasecmp(&temp[0], "1", 1)) {
@@ -1481,12 +1481,6 @@ static void device_restart_work_hdlr(struct work_struct *work)
 	 * sync() and fclose() on attempting the dump.
 	 */
 	msleep(100);
-	if (true == modem_5G_panic) {
-		panic("5G DUMP : The expected panic to get 5G dump. ");
-	} else {
-		panic("subsys-restart: Resetting the SoC - %s crashed.",
-							dev->desc->name);
-	}
 }
 
 #define KMSG_BUFSIZE 512
@@ -1630,8 +1624,7 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		break;
 	case RESET_SOC:
 		pr_err("[OEM_MDM] RESET_SOC [%s]\n", name);
-		if (get_ssr_reason_state() && is_oem_esoc_ssr() == 0 &&
-				!(strcmp(name, "esoc0"))) {
+		if (!(strcmp(name, "esoc0"))) {
 			pr_err("[OEM_MDM] SDX5x %s force SSR to get dump\n",
 					name);
 			oem_set_esoc_ssr(1);
