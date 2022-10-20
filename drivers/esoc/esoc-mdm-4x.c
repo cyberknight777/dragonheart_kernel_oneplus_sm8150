@@ -1081,11 +1081,9 @@ static int sdx50m_setup_hw(struct mdm_ctrl *mdm,
 	if (ret)
 		dev_info(mdm->dev, "esoc link info missing\n");
 
-	mdm->skip_restart_for_mdm_crash = of_property_read_bool(node,
-				"qcom,esoc-skip-restart-for-mdm-crash");
+	mdm->skip_restart_for_mdm_crash = true;
 
-	esoc_ssr_reason_feature_enable = of_property_read_bool(node,
-				"oem,esoc_ssr_reason_feature_enable");
+	esoc_ssr_reason_feature_enable = false;
 
 
 	esoc->clink_ops = clink_ops;
