@@ -424,12 +424,15 @@ int opticalfp_irq_handler(struct fp_underscreen_info* tp_info)
 		return 0;
 	}
 	fp_tpinfo = *tp_info;
-	if (fp_tpinfo.touch_state == 1) {
-		fp_tpinfo.touch_state = GF_NET_EVENT_TP_TOUCHDOWN;
-		sendnlmsg_tp(&fp_tpinfo,sizeof(fp_tpinfo));
-	} else if (fp_tpinfo.touch_state == 0) {
-		fp_tpinfo.touch_state = GF_NET_EVENT_TP_TOUCHUP;
-		sendnlmsg_tp(&fp_tpinfo,sizeof(fp_tpinfo));
+	switch(fp_tpinfo.touch_state) {
+	case 1:
+	  fp_tpinfo.touch_state = GF_NET_EVENT_TP_TOUCHDOWN;
+	  sendnlmsg_tp(&fp_tpinfo,sizeof(fp_tpinfo));
+	  break;
+	case 0:
+	  fp_tpinfo.touch_state = GF_NET_EVENT_TP_TOUCHUP;
+	  sendnlmsg_tp(&fp_tpinfo,sizeof(fp_tpinfo));
+	  break;
 	}
 	return 0;
 }
