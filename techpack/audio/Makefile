@@ -65,5 +65,4 @@ obj-y += dsp/
 obj-y += ipc/
 obj-y += asoc/
 
-subdir-ccflags-y := -Os
 subdir-ccflags-y += -g0
