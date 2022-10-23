@@ -1520,6 +1520,7 @@ CONFIG_QSEECOM=y
 # CONFIG_QPNP_MISC is not set
 # CONFIG_BOOTLOADER_LOG is not set
 CONFIG_AUDIO_SENSOR=y
+CONFIG_OP_PASSTHROUGH_HACK=y
 # CONFIG_C2PORT is not set
 
 #
@@ -5402,12 +5403,6 @@ CONFIG_AW8697_HAPTIC=y
 #
 # LED Triggers
 #
-
-#
-# Qualcomm RmNet extensions
-#
-CONFIG_RMNET_PERF=y
-CONFIG_RMNET_SHS=y
 
 #
 # Firmware Drivers
