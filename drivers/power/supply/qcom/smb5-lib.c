@@ -11531,19 +11531,6 @@ int smblib_init(struct smb_charger *chg)
 	wakeup_source_init(&chg->chg_wake_lock, "chg_wake_lock");
 	g_chg = chg;
 	regsister_notify_usb_enumeration_status(&usb_enumeration);
-#if defined(CONFIG_FB)
-	chg->fb_notif.notifier_call = fb_notifier_callback;
-
-	rc = fb_register_client(&chg->fb_notif);
-
-	if (rc)
-		pr_debug("Unable to register fb_notifier: %d\n", rc);
-#elif defined(CONFIG_MSM_RDM_NOTIFY)
-		chg->msm_drm_notifier.notifier_call = msm_drm_notifier_callback;
-		rc = msm_drm_register_client(&chg->msm_drm_notifier);
-		if (rc)
-			pr_debug("Smb unable to register notifier: %d\n", rc);
-#endif /*CONFIG_FB*/
 
 	INIT_DELAYED_WORK(&chg->clear_hdc_work, clear_hdc_work);
 	INIT_DELAYED_WORK(&chg->icl_change_work, smblib_icl_change_work);
