@@ -20,9 +20,7 @@
 #include <linux/ftrace.h>
 #include <linux/mm.h>
 #include <linux/msm_adreno_devfreq.h>
-#include <linux/cpu_input_boost.h>
 #include <asm/cacheflush.h>
-#include <drm/drm_refresh_rate.h>
 #include <soc/qcom/scm.h>
 #include "governor.h"
 
@@ -33,7 +31,7 @@ static DEFINE_SPINLOCK(suspend_lock);
  * FLOOR is 5msec to capture up to 3 re-draws
  * per frame for 60fps content.
  */
-#define FLOOR		        5000
+#define FLOOR		        3350
 /*
  * MIN_BUSY is 1 msec for the sample to be sent
  */
@@ -44,7 +42,7 @@ static DEFINE_SPINLOCK(suspend_lock);
  * CEILING is 50msec, larger than any standard
  * frame length, but less than the idle timer.
  */
-#define CEILING			50000
+#define CEILING			33500
 #define TZ_RESET_ID		0x3
 #define TZ_UPDATE_ID		0x4
 #define TZ_INIT_ID		0x6
@@ -337,7 +335,6 @@ static inline int devfreq_get_freq_level(struct devfreq *devfreq,
 	return -EINVAL;
 }
 
-extern int kp_active_mode(void);
 static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 {
 	int result = 0;
@@ -389,31 +386,10 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 			priv->bin.busy_time > CEILING) {
 		val = -1 * level;
 	} else {
-		unsigned int refresh_rate = dsi_panel_get_refresh_rate();
-		unsigned int highref_multi = CONFIG_DEVFREQ_ADRENO_HIGHREFRESH_MULTI;
-		unsigned int highref_input_dur = 2500;
-		unsigned int lowref_multi = 100;
-
-		switch (kp_active_mode()) {
-		case 3:
-			highref_multi = CONFIG_DEVFREQ_ADRENO_HIGHREFRESH_MULTI * 1.2;
-			highref_input_dur = 5000;
-			break;
-		case 2:
-			highref_input_dur = 3500;
-			break;
-		case 1:
-			highref_multi = 100;
-			highref_input_dur = 2000;
-			break;
-		}
 
 		scm_data[0] = level;
 		scm_data[1] = priv->bin.total_time;
-		if (refresh_rate > 60 && time_before(jiffies, last_input_time + msecs_to_jiffies(highref_input_dur)))
-			scm_data[2] = priv->bin.busy_time * highref_multi / 100;
-		else
-			scm_data[2] = priv->bin.busy_time * lowref_multi / 100;
+                scm_data[2] = priv->bin.busy_time;
 		scm_data[3] = context_count;
 		__secure_tz_update_entry3(scm_data, sizeof(scm_data),
 					&val, sizeof(val), priv);
