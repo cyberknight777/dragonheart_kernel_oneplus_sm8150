@@ -269,6 +269,8 @@ struct dualsense_output_report {
 #define DS4_INPUT_REPORT_USB			0x01
 #define DS4_INPUT_REPORT_USB_SIZE		64
 
+#define DS4_FEATURE_REPORT_FIRMWARE_INFO	0xa3
+#define DS4_FEATURE_REPORT_FIRMWARE_INFO_SIZE	49
 #define DS4_FEATURE_REPORT_PAIRING_INFO		0x12
 #define DS4_FEATURE_REPORT_PAIRING_INFO_SIZE	16
 
@@ -1366,6 +1368,30 @@ err:
 	return ERR_PTR(ret);
 }
 
+static int dualshock4_get_firmware_info(struct dualshock4 *ds4)
+{
+	uint8_t *buf;
+	int ret;
+
+	buf = kzalloc(DS4_FEATURE_REPORT_FIRMWARE_INFO_SIZE, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	ret = ps_get_report(ds4->base.hdev, DS4_FEATURE_REPORT_FIRMWARE_INFO, buf,
+			DS4_FEATURE_REPORT_FIRMWARE_INFO_SIZE);
+	if (ret) {
+		hid_err(ds4->base.hdev, "Failed to retrieve DualShock4 firmware info: %d\n", ret);
+		goto err_free;
+	}
+
+	ds4->base.hw_version = get_unaligned_le16(&buf[35]);
+	ds4->base.fw_version = get_unaligned_le16(&buf[41]);
+
+err_free:
+	kfree(buf);
+	return ret;
+}
+
 static int dualshock4_get_mac_address(struct dualshock4 *ds4)
 {
 	uint8_t *buf;
@@ -1472,6 +1498,12 @@ static struct ps_device *dualshock4_create(struct hid_device *hdev)
 	}
 	snprintf(hdev->uniq, sizeof(hdev->uniq), "%pMR", ds4->base.mac_address);
 
+	ret = dualshock4_get_firmware_info(ds4);
+	if (ret) {
+		hid_err(hdev, "Failed to get firmware info from DualShock4\n");
+		return ERR_PTR(ret);
+	}
+
 	ret = ps_devices_list_add(ps_dev);
 	if (ret)
 		return ERR_PTR(ret);
@@ -1488,6 +1520,12 @@ static struct ps_device *dualshock4_create(struct hid_device *hdev)
 		goto err;
 	}
 
+	/*
+	 * Reporting hardware and firmware is important as there are frequent updates, which
+	 * can change behavior.
+	 */
+	hid_info(hdev, "Registered DualShock4 controller hw_version=0x%08x fw_version=0x%08x\n",
+			ds4->base.hw_version, ds4->base.fw_version);
 	return &ds4->base;
 
 err:
