@@ -5,8 +5,9 @@ kind: pipeline
 name: DragonHeart-Pipeline
 steps: 
   - name: Kernel Pipeline
-    image: panchajanya1999/archlinux:latest
+    image: ghcr.io/projectvelvet/docker:latest
     commands: 
+      - dnf install --assumeyes gh
       - "export token=$TOKEN"
       - "export password=$PASSWORD"
       - gh auth login --with-token <<< "$PASSWORD"
