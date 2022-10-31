@@ -24,6 +24,7 @@
 #include "sde_ad4.h"
 #include "sde_hw_interrupts.h"
 #include "sde_core_irq.h"
+#include "sde_plane.h"
 #include "dsi_panel.h"
 
 struct sde_cp_node {
@@ -645,6 +646,9 @@ static void sde_cp_crtc_setfeature(struct sde_cp_node *prop_node,
 	sde_cp_get_hw_payload(prop_node, &hw_cfg, &feature_enabled);
 	hw_cfg.num_of_mixers = sde_crtc->num_mixers;
 	hw_cfg.last_feature = 0;
+
+	if (prop_node->feature == SDE_CP_CRTC_DSPP_PCC)
+		return;
 
 	for (i = 0; i < num_mixers && !ret; i++) {
 		hw_lm = sde_crtc->mixers[i].hw_lm;
@@ -2108,4 +2112,25 @@ int sde_cp_hist_interrupt(struct drm_crtc *crtc_drm, bool en,
 
 exit:
 	return ret;
+}
+
+const struct drm_msm_pcc *sde_cp_crtc_get_pcc_cfg(struct drm_crtc *drm_crtc)
+{
+	struct drm_property_blob *blob = NULL;
+	struct sde_cp_node *prop_node = NULL;
+	struct sde_crtc *crtc;
+
+	crtc = to_sde_crtc(drm_crtc);
+
+	mutex_lock(&crtc->crtc_cp_lock);
+	list_for_each_entry(prop_node, &crtc->feature_list, feature_list) {
+		if (prop_node->feature == SDE_CP_CRTC_DSPP_PCC) {
+			blob = prop_node->blob_ptr;
+			break;
+		}
+	}
+
+	mutex_unlock(&crtc->crtc_cp_lock);
+
+	return blob ? blob->data : NULL;
 }

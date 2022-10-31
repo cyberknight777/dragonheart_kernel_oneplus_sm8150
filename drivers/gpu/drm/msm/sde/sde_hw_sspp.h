@@ -322,7 +322,8 @@ struct sde_hw_sspp_ops {
 	void (*setup_format)(struct sde_hw_pipe *ctx,
 			const struct sde_format *fmt,
 			bool blend_enabled, u32 flags,
-			enum sde_sspp_multirect_index index);
+			enum sde_sspp_multirect_index index,
+			bool force_csc);
 
 	/**
 	 * setup_rects - setup pipe ROI rectangles
