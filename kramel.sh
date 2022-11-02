@@ -44,7 +44,7 @@ export COMMIT_HASH
 
 # Build status. Set 1 for release builds. | Set 0 for bleeding edge builds.
 export RELEASE=$rel
-if [ "${RELEASE}" = 1 ]; then
+if [ "${RELEASE}" == 1 ]; then
     export STATUS="Release"
     export CHATID=-1001361882613
     export re="rc"
@@ -69,14 +69,14 @@ export PROCS
 export COMPILER=gcc
 
 # Requirements
-if [ "${ci}" != 1 ]; then
+if [ "${ci}" == 0 ]; then
     if ! hash dialog make curl wget unzip find 2>/dev/null; then
         echo -e "\n\e[1;31m[✗] Install dialog, make, curl, wget, unzip, and find! \e[0m"
         exit 1
     fi
 fi
 
-if [[ "${COMPILER}" = gcc ]]; then
+if [[ "${COMPILER}" == gcc ]]; then
     if [ ! -d "${KDIR}/gcc64" ]; then
         curl -sL https://github.com/cyberknight777/gcc-arm64/archive/refs/heads/master.tar.gz | tar -xzf -
         mv "${KDIR}"/gcc-arm64-master "${KDIR}"/gcc64
@@ -108,7 +108,7 @@ if [[ "${COMPILER}" = gcc ]]; then
         CC=aarch64-elf-gcc
     )
 
-elif [[ "${COMPILER}" = clang ]]; then
+elif [[ "${COMPILER}" == clang ]]; then
     if [ ! -d "${KDIR}/proton-clang" ]; then
         wget https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.zip
         unzip "${KDIR}"/master.zip
@@ -210,7 +210,7 @@ mcfg() {
 
 # A function to build the kernel.
 img() {
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ "${TGI}" == "1" ]]; then
         tg "
 *Build Number*: \`${kver}\`
 *Status*: \`${STATUS}\`
@@ -234,12 +234,12 @@ img() {
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
     if [ -f "${KDIR}/out/arch/arm64/boot/Image" ]; then
-        if [[ "${SILENT}" != "1" ]]; then
+        if [[ "${TGI}" == "1" ]]; then
             tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
         fi
         echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
     else
-        if [[ "${TGI}" != "0" ]]; then
+        if [[ "${TGI}" == "1" ]]; then
             tgs "log.txt" "*Build failed*"
         fi
         echo -e "\n\e[1;31m[✗] Build Failed! \e[0m"
@@ -257,7 +257,7 @@ dtb() {
 
 # A function to build out-of-tree modules.
 mod() {
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ "${TGI}" == "1" ]]; then
         tg "*Building Modules!*"
     fi
     rgn
@@ -272,7 +272,7 @@ mod() {
 
 # A function to build an AnyKernel3 zip.
 mkzip() {
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ "${TGI}" == "1" ]]; then
         tg "*Building zip!*"
     fi
     echo -e "\n\e[1;93m[*] Building zip! \e[0m"
@@ -287,7 +287,7 @@ mkzip() {
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
     zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
     echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
-    if [[ "${ci}" != "0" ]]; then
+    if [[ "${ci}" == "1" ]]; then
 	git clone https://github.com/cyberknight777/op7_json.git
 	cd op7_json || exit 1
 	echo "https://cyberknight777:$PASSWORD@github.com" > .pwd
@@ -312,7 +312,9 @@ mkzip() {
 }
 " > DragonHeart-r.json
 	    git add DragonHeart-r.json changelog_r.md || exit 1
-	    git commit -s --reset-author -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
+	    git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
+            git commit --amend --reset-author --no-edit
+            git push
             gh release create "${version}" -t "DragonHeart for $CODENAME [BLEEDING EDGE] - $version"
             gh release upload "${version}" ../"${zipn}.zip"
 	else
@@ -334,14 +336,15 @@ mkzip() {
 }
 " > DragonHeart-rc.json
 	    git add DragonHeart-rc.json changelog.md || exit 1
-	    git commit -s --reset-author -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
+	    git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
+            git commit --amend --reset-author --no-edit
+            git push
             gh release create "${version}" -t "DragonHeart for $CODENAME [RELEASE] - $version"
             gh release upload "${version}" ../"${zipn}.zip"
 	fi
-	git push
 	cd ../ || exit 1
     fi
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ "${TGI}" == "1" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
 	tg "
 *Build*: https://github.com/cyberknight777/op7_json/releases/download/$version/$zipn.zip
@@ -364,7 +367,7 @@ upr() {
     echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
     "${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/$CONFIG --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}"
     rgn
-    if [ "${ci}" != 1 ]; then
+    if [ "${ci}" == "0" ]; then
         git add arch/arm64/configs/$CONFIG
         git commit -S -s -m "dragonheart_defconfig: Bump to \`${1}\`"
     fi
