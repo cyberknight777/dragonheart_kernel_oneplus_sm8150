@@ -108,7 +108,7 @@ module_param_call(download_mode, dload_set, param_get_int,
 
 int oem_get_download_mode(void)
 {
-	return download_mode && (dload_type & SCM_DLOAD_FULLDUMP);
+	return 0;
 }
 
 static int panic_prep_restart(struct notifier_block *this,
