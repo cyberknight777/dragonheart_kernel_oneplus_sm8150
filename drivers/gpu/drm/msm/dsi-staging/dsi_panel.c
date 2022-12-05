@@ -983,8 +983,10 @@ static void set_hbm_mode(struct work_struct *work)
         }
     break;
     case 1:
+      if (HBM_flag) {
         dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
         dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
+      }
     break;
     }
     mutex_unlock(&panel->panel_lock);

@@ -650,8 +650,8 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 					dsi_display->panel->aod_status = 0;
 					oneplus_dim_status = 0;
 					aod_layer_hide = 1;
-				}
-				else {
+				} else {
+					dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_LOADING_EFFECT_OFF);
 					if (oneplus_onscreenfp_status == 4) {
 						if (dsi_display->panel->aod_mode == 5 || dsi_display->panel->aod_mode == 4) {
 							rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_AOD_ON_5);
