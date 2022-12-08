@@ -61,7 +61,7 @@
 			 0x144 /* GSI_RING_BASE_ADDR_H */
 			 0x1a4>; /* GSI_IF_STS */
 		qcom,dwc-usb3-msm-tx-fifo-size = <27696>;
-		qcom,pm-qos-latency = <44>;
+		qcom,pm-qos-latency = <67>;
 
 		qcom,msm-bus,name = "usb0";
 		qcom,msm-bus,num-cases = <4>;
@@ -387,7 +387,7 @@
 			 0x1a4>; /* GSI_IF_STS */
 		qcom,dwc-usb3-msm-tx-fifo-size = <27696>;
 		qcom,charging-disabled;
-		qcom,pm-qos-latency = <44>;
+		qcom,pm-qos-latency = <67>;
 
 		qcom,msm-bus,name = "usb1";
 		qcom,msm-bus,num-cases = <3>;
