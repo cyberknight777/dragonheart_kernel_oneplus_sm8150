@@ -5986,6 +5986,34 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 	return 0;
 }
 
+static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
+			  struct plane_state *pstates, int cnt)
+{
+	unsigned int fod_plane_idx, plane_idx;
+	u8 alpha = 0;
+
+	for (plane_idx = 0; plane_idx < cnt; plane_idx++)
+		if (sde_plane_is_fod_layer(pstates[plane_idx].drm_pstate))
+			break;
+
+	fod_plane_idx = plane_idx;
+
+	if (fod_plane_idx != cnt) {
+		struct dsi_display *display = get_main_display();
+		alpha = dsi_panel_get_fod_dim_alpha(display->panel);
+	}
+
+	cstate->fod_dim_alpha = alpha;
+
+	for (plane_idx = 0; plane_idx < cnt; plane_idx++) {
+		if (plane_idx == fod_plane_idx)
+			continue;
+
+		sde_plane_set_fod_dim_alpha(pstates[plane_idx].sde_pstate,
+					    alpha);
+	}
+}
+
 static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 		struct drm_crtc_state *state)
 {
@@ -6191,6 +6219,9 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 	rc = sde_crtc_onscreenfinger_atomic_check(cstate, pstates, cnt);
 	if (rc)
 		goto end;
+
+	sde_crtc_fod_atomic_check(cstate, pstates, cnt);
+
 	/* assign mixer stages based on sorted zpos property */
 	if (cnt > 0)
 		sort(pstates, cnt, sizeof(pstates[0]), pstate_cmp, NULL);
@@ -6294,6 +6325,13 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 end:
 	_sde_crtc_rp_free_unused(&cstate->rp);
 	return rc;
+}
+
+bool sde_crtc_is_fod_enabled(struct drm_crtc_state *state)
+{
+	struct sde_crtc_state *cstate = to_sde_crtc_state(state);
+
+	return cstate->fod_dim_alpha != 0;
 }
 
 /**
