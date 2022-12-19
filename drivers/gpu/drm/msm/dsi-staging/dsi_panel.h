@@ -457,5 +457,6 @@ int dsi_panel_update_dsi_seed_command(struct dsi_cmd_desc *cmds,
 int dsi_panel_send_dsi_seed_command(struct dsi_panel *panel);
 int dsi_panel_set_customer_srgb_mode(struct dsi_panel *panel, int level);
 int dsi_panel_set_customer_p3_mode(struct dsi_panel *panel, int level);
+u8 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel);
 
 #endif /* _DSI_PANEL_H_ */

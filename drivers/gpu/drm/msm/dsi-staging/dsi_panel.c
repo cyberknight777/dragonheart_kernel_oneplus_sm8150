@@ -1060,6 +1060,17 @@ error:
 	return rc;
 }
 
+u8 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
+{
+	u8 alpha;
+
+	mutex_lock(&panel->panel_lock);
+	alpha = panel->fod_dim_alpha;
+	mutex_unlock(&panel->panel_lock);
+
+	return alpha;
+}
+
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
