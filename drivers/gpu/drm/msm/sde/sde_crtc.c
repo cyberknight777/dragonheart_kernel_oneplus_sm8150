@@ -5789,7 +5789,6 @@ bool finger_type = false;
 extern int aod_layer_hide;
 extern int op_dimlayer_bl_enable;
 extern int op_dp_enable;
-extern int sde_plane_check_fingerprint_layer(const struct drm_plane_state *drm_state);
 static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 		struct plane_state *pstates, int cnt)
 {
@@ -5848,7 +5847,7 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 	}
 
 	for (i = 0; i < cnt; i++) {
-		mode = sde_plane_check_fingerprint_layer(pstates[i].drm_pstate);
+		mode = sde_plane_is_fod_layer(pstates[i].drm_pstate);
 		if (mode == 1)
 			fp_index = i;
 		if (mode == 2) {
