@@ -2132,5 +2132,5 @@ const struct drm_msm_pcc *sde_cp_crtc_get_pcc_cfg(struct drm_crtc *drm_crtc)
 
 	mutex_unlock(&crtc->crtc_cp_lock);
 
-	return blob ? blob->data : NULL;
+	return blob ? (struct drm_msm_pcc*)blob->data : NULL;
 }
