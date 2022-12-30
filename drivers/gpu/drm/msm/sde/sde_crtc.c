@@ -3590,10 +3590,8 @@ int oneplus_aod_dc = 0;
 	dsi_connector = dsi_display->drm_conn;
 	mode_config = &drm_dev->mode_config;
 	sscanf(buf, "%du", &dim_status);
-	if ((oneplus_panel_status == 0) && is_a12) {
+	if ((oneplus_panel_status == 0) && is_a12)
 		dim_status = 0;
-		HBM_flag = 0;
-	}
 
 	if (dsi_display->panel->aod_status == 0 && (dim_status == 2)) {
 		pr_debug("fp set it in normal status\n");
