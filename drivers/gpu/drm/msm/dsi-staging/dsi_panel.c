@@ -742,7 +742,6 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 				enum dsi_cmd_set_type type)
 {
 	int rc = 0, i = 0;
-	bool wait = true;
 	ssize_t len;
 	struct dsi_cmd_desc *cmds;
 	u32 count;
@@ -779,10 +778,7 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 			goto error;
 		}
 
-		if (type == DSI_CMD_LOADING_EFFECT_ON || type == DSI_CMD_LOADING_EFFECT_OFF)
-			wait = false;
-
-		if (cmds->post_wait_ms && wait)
+		if (cmds->post_wait_ms)
 			usleep_range(cmds->post_wait_ms*1000,
 					((cmds->post_wait_ms*1000)+10));
 		cmds++;
