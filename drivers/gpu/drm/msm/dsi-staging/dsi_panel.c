@@ -781,7 +781,7 @@ int __dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 
 		if (fod_usage) {
 			if (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)
-				wait_multi = 725;
+				wait_multi = 700;
 			else if (panel->hw_type == DSI_PANEL_SAMSUNG_S6E3FC2X01)
 				wait_multi = 500;
 		}
