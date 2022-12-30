@@ -3191,7 +3191,6 @@ static void _sde_crtc_set_dim_layer_v1(struct drm_crtc *crtc,
 	if (!usr_ptr) {
 		/* usr_ptr is null when setting the default property value */
 		_sde_crtc_clear_dim_layers_v1(&cstate->base);
-		sde_hw_dim_go_inactive();
 		SDE_DEBUG("dim_layer data removed\n");
 		return;
 	}
