@@ -742,10 +742,11 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	return rc;
 }
 
-int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
-				enum dsi_cmd_set_type type)
+int __dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+				enum dsi_cmd_set_type type,
+				bool fod_usage)
 {
-	int rc = 0, i = 0;
+	int rc = 0, i = 0, wait_multi = 1000;
 	ssize_t len;
 	struct dsi_cmd_desc *cmds;
 	u32 count;
@@ -782,14 +783,28 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 			goto error;
 		}
 
+		if (fod_usage) {
+			if (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)
+				wait_multi = 725;
+			else if (panel->hw_type == DSI_PANEL_SAMSUNG_S6E3FC2X01)
+				wait_multi = 500;
+		}
+
 		if (cmds->post_wait_ms)
-			usleep_range(cmds->post_wait_ms*1000,
-					((cmds->post_wait_ms*1000)+10));
+			usleep_range(cmds->post_wait_ms*wait_multi,
+					((cmds->post_wait_ms*wait_multi)+10));
 		cmds++;
 	}
 error:
 	return rc;
 }
+
+int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+				enum dsi_cmd_set_type type)
+{
+	return __dsi_panel_tx_cmd_set(panel, type, false);
+}
+
 
 static int dsi_panel_pinctrl_deinit(struct dsi_panel *panel)
 {
@@ -969,8 +984,8 @@ static void set_hbm_mode(struct work_struct *work)
     switch (level) {
     case 0:
       if (!HBM_flag) {
-	dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
-	dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
+	__dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF, true);
+	__dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF, true);
 	pr_debug(
 		 "When HBM OFF -->hbm_backight = %d panel->bl_config.bl_level =%d\n",
 		 panel->hbm_backlight, panel->bl_config.bl_level);
@@ -978,8 +993,8 @@ static void set_hbm_mode(struct work_struct *work)
         }
     break;
     case 1:
-      dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
-      dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
+      __dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON, true);
+      __dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5, true);
     break;
     }
     mutex_unlock(&panel->panel_lock);
@@ -5631,8 +5646,8 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				goto error;
 			} else {
 				HBM_flag = false;
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
-				dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
+				rc = __dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF, true);
+				__dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF, true);
 				pr_debug("Send DSI_CMD_SET_HBM_OFF cmds.\n");
 				pr_debug("hbm_backight = %d, panel->bl_config.bl_level = %d\n",panel->hbm_backlight, panel->bl_config.bl_level);
 				rc = dsi_panel_update_backlight(panel,panel->hbm_backlight);
@@ -5695,8 +5710,8 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 			}
 			else {
 				HBM_flag = true;
-				dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON);
-				dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
+				__dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_ON, true);
+				__dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5, true);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
 			}
 			break;
