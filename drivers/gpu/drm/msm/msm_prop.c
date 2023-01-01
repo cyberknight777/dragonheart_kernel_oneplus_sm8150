@@ -379,16 +379,18 @@ int msm_property_atomic_set(struct msm_property_info *info,
 	if ((property_idx == -EINVAL) || !property_state->values) {
 		DRM_ERROR("invalid argument(s)\n");
 	} else {
+		bool is_blob = (property->flags & DRM_MODE_PROP_BLOB) &&
+			       (property_idx < info->blob_count);
+		struct drm_property_blob *prev_blob;
+
 		/* extra handling for incoming properties */
 		mutex_lock(&info->property_lock);
-		if ((property->flags & DRM_MODE_PROP_BLOB) &&
-			(property_idx < info->blob_count)) {
+		if (is_blob) {
+			prev_blob = property_state->values[property_idx].blob;
 
 			/* need to clear previous ref */
-			if (property_state->values[property_idx].blob)
-				drm_property_blob_put(
-					property_state->values[
-						property_idx].blob);
+			if (prev_blob)
+				drm_property_blob_put(prev_blob);
 
 			/* DRM lookup also takes a reference */
 			blob = drm_property_lookup_blob(info->dev,
@@ -409,6 +411,9 @@ int msm_property_atomic_set(struct msm_property_info *info,
 			}
 		}
 
+		if (is_blob && !prev_blob && !blob)
+			goto skip_mark_dirty;
+
 		/* update value and flag as dirty */
 		if (property_state->values[property_idx].value != val ||
 				info->property_data[property_idx].force_dirty) {
@@ -418,6 +423,8 @@ int msm_property_atomic_set(struct msm_property_info *info,
 
 			DBG("%s - %lld", property->name, val);
 		}
+
+skip_mark_dirty:
 		mutex_unlock(&info->property_lock);
 		rc = 0;
 	}
