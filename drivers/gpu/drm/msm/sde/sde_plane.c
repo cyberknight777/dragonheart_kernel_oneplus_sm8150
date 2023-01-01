@@ -4848,6 +4848,12 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 			PLANE_PROP_FB_TRANSLATION_MODE);
 }
 
+#define cmp_and_set(old, new) \
+	if ((old) != (new)) { \
+		(old) = (new); \
+		changed = true; \
+	}
+
 static inline void _sde_plane_set_csc_v1(struct sde_plane *psde,
 		void __user *usr_ptr)
 {
@@ -5012,6 +5018,7 @@ static void _sde_plane_set_excl_rect_v1(struct sde_plane *psde,
 		struct sde_plane_state *pstate, void __user *usr_ptr)
 {
 	struct drm_clip_rect excl_rect_v1;
+	bool changed = false;
 
 	if (!psde || !pstate) {
 		SDE_ERROR("invalid argument(s)\n");
@@ -5030,10 +5037,13 @@ static void _sde_plane_set_excl_rect_v1(struct sde_plane *psde,
 	}
 
 	/* populate from user space */
-	pstate->excl_rect.x = excl_rect_v1.x1;
-	pstate->excl_rect.y = excl_rect_v1.y1;
-	pstate->excl_rect.w = excl_rect_v1.x2 - excl_rect_v1.x1;
-	pstate->excl_rect.h = excl_rect_v1.y2 - excl_rect_v1.y1;
+	cmp_and_set(pstate->excl_rect.x, excl_rect_v1.x1);
+	cmp_and_set(pstate->excl_rect.y, excl_rect_v1.y1);
+	cmp_and_set(pstate->excl_rect.w, excl_rect_v1.x2 - excl_rect_v1.x1);
+	cmp_and_set(pstate->excl_rect.h, excl_rect_v1.y2 - excl_rect_v1.y1);
+
+	if (!changed)
+		return;
 
 	SDE_DEBUG_PLANE(psde, "excl_rect: {%d,%d,%d,%d}\n",
 			pstate->excl_rect.x, pstate->excl_rect.y,
