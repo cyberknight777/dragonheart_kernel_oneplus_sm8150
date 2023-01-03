@@ -43,6 +43,29 @@
 		qcom,mdss-dsi-bl-max-level = <1023>;
 		qcom,mdss-brightness-default-val = <200>;
 		qcom,mdss-brightness-max-level = <1023>;
+		qcom,fod-dim-lut = <
+                /* brightness, alpha */
+				0 250
+        			1 240
+        			2 236
+        			3 234
+        			4 232
+        			6 230
+        			10 225
+        			20 215
+        			30 208
+        			45 197
+        			70 184
+        			100 175
+        			150 160
+        			227 142
+        			300 128
+        			400 115
+        			500 100
+        			600 82
+        			800 66
+			        1023 30
+		>;
 		qcom,mdss-pan-physical-width-dimension = <71>;
 		qcom,mdss-pan-physical-height-dimension = <154>;
 		qcom,mdss-dsi-init-delay-us = <1000>;
