@@ -2170,11 +2170,6 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 		for (i = 0; i < cstate->num_dim_layers; i++)
 			_sde_crtc_setup_dim_layer_cfg(crtc, sde_crtc,
 					mixer, &cstate->dim_layer[i]);
-	if (cstate->fingerprint_dim_layer)
-		{
-		_sde_crtc_setup_dim_layer_cfg(crtc, sde_crtc,
-					mixer, cstate->fingerprint_dim_layer);
-		}
 	}
 
 	_sde_crtc_program_lm_output_roi(crtc);

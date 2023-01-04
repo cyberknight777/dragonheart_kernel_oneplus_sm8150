@@ -210,8 +210,6 @@ static void sde_hw_lm_setup_dim_layer(struct sde_hw_mixer *ctx,
 		return;
 	}
 
-	ctx->dim.enabled = true;
-	ctx->dim.stage[dim_layer->stage] = true;
 	alpha = dim_layer->color_fill.color_3 & 0xFF;
 	val = ((dim_layer->color_fill.color_1 << 2) & 0xFFF) << 16 |
 			((dim_layer->color_fill.color_0 << 2) & 0xFFF);
