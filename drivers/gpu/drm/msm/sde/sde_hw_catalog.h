@@ -1350,9 +1350,11 @@ void sde_hw_catalog_deinit(struct sde_mdss_cfg *sde_cfg);
  */
 static inline bool sde_hw_sspp_multirect_enabled(const struct sde_sspp_cfg *cfg)
 {
-	return test_bit(SDE_SSPP_SMART_DMA_V1, &cfg->features) ||
+	return (test_bit(SDE_SSPP_SMART_DMA_V1, &cfg->features) ||
 			 test_bit(SDE_SSPP_SMART_DMA_V2, &cfg->features) ||
-			 test_bit(SDE_SSPP_SMART_DMA_V2p5, &cfg->features);
+			 test_bit(SDE_SSPP_SMART_DMA_V2p5, &cfg->features))
+		&& !(test_bit(SDE_SSPP_CSC_10BIT, &cfg->features) ||
+		     test_bit(SDE_SSPP_CSC, &cfg->features));
 }
 
 static inline bool sde_hw_intf_te_supported(const struct sde_mdss_cfg *sde_cfg)
