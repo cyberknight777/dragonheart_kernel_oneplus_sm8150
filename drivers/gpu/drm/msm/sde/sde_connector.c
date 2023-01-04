@@ -804,10 +804,8 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 	if (status == dsi_panel_get_fod_ui(panel))
 		return;
 
-	if (status)
-		level = 5;
-
-	dsi_panel_set_hbm_mode(panel, level);
+	_sde_connector_update_hbm(c_conn);
+	//dsi_panel_set_hbm_mode(panel, level);
 
 	dsi_panel_set_fod_ui(panel, status);
 }
@@ -832,11 +830,6 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	}
 
 	rc = _sde_connector_update_dirty_properties(connector);
-	rc = _sde_connector_update_hbm(c_conn);
-	if (rc) {
-		SDE_EVT32(connector->base.id, SDE_EVTLOG_ERROR);
-		goto end;
-	}
 
 	if (!c_conn->ops.pre_kickoff)
 		return 0;
