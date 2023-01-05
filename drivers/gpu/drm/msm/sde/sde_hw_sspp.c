@@ -303,8 +303,7 @@ static void sde_hw_sspp_set_src_split_order(struct sde_hw_pipe *ctx,
 static void sde_hw_sspp_setup_format(struct sde_hw_pipe *ctx,
 		const struct sde_format *fmt,
 		bool const_alpha_en, u32 flags,
-		enum sde_sspp_multirect_index rect_mode,
-		bool force_csc)
+		enum sde_sspp_multirect_index rect_mode)
 {
 	struct sde_hw_blk_reg_map *c;
 	u32 chroma_samp, unpack, src_format;
@@ -312,7 +311,6 @@ static void sde_hw_sspp_setup_format(struct sde_hw_pipe *ctx,
 	u32 alpha_en_mask = 0;
 	u32 op_mode_off, unpack_pat_off, format_off;
 	u32 idx;
-	bool csc_en = force_csc || SDE_FORMAT_IS_YUV(fmt);
 
 	if (_sspp_subblk_offset(ctx, SDE_SSPP_SRC, &idx) || !fmt)
 		return;
@@ -397,12 +395,6 @@ static void sde_hw_sspp_setup_format(struct sde_hw_pipe *ctx,
 
 	if (SDE_FORMAT_IS_DX(fmt))
 		src_format |= BIT(14);
-
-	/* update scaler opmode, if appropriate */
-	if (test_bit(SDE_SSPP_CSC, &ctx->cap->features))
-		_sspp_setup_opmode(ctx, csc_en, SDE_FORMAT_IS_YUV(fmt));
-	else if (test_bit(SDE_SSPP_CSC_10BIT, &ctx->cap->features))
-		_sspp_setup_csc10_opmode(ctx, csc_en, SDE_FORMAT_IS_YUV(fmt));
 
 	SDE_REG_WRITE(c, format_off + idx, src_format);
 	SDE_REG_WRITE(c, unpack_pat_off + idx, unpack);
@@ -777,20 +769,23 @@ u32 sde_hw_sspp_get_source_addr(struct sde_hw_pipe *ctx, bool is_virtual)
 }
 
 static void sde_hw_sspp_setup_csc(struct sde_hw_pipe *ctx,
-		struct sde_csc_cfg *data)
+				  const struct sde_format *fmt,
+				  struct sde_csc_cfg *data)
 {
+	bool yuv_en = SDE_FORMAT_IS_YUV(fmt);
+	bool csc_en = !!data;
 	u32 idx;
-	bool csc10 = false;
 
-	if (_sspp_subblk_offset(ctx, SDE_SSPP_CSC, &idx) || !data)
+	if (_sspp_subblk_offset(ctx, SDE_SSPP_CSC, &idx))
 		return;
 
 	if (test_bit(SDE_SSPP_CSC_10BIT, &ctx->cap->features)) {
-		idx += CSC_10BIT_OFFSET;
-		csc10 = true;
+		sde_hw_csc_setup(&ctx->hw, idx + CSC_10BIT_OFFSET, data, true);
+		_sspp_setup_csc10_opmode(ctx, csc_en, yuv_en);
+	} else {
+		sde_hw_csc_setup(&ctx->hw, idx, data, false);
+		_sspp_setup_opmode(ctx, csc_en, yuv_en);
 	}
-
-	sde_hw_csc_setup(&ctx->hw, idx, data, csc10);
 }
 
 static void sde_hw_sspp_setup_sharpening(struct sde_hw_pipe *ctx,
