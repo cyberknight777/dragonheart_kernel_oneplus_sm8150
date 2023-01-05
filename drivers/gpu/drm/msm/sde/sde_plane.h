@@ -98,7 +98,7 @@ struct sde_plane_rot_state {
 #define SDE_PLANE_DIRTY_DMA_IGC 0x80
 #define SDE_PLANE_DIRTY_DMA_GC 0x100
 #define SDE_PLANE_DIRTY_CSC     0x400
-
+#define SDE_PLANE_DIRTY_SRC_SPLIT_ORDER 0x800
 #define SDE_PLANE_DIRTY_CP (SDE_PLANE_DIRTY_VIG_GAMUT |\
 		SDE_PLANE_DIRTY_VIG_IGC | SDE_PLANE_DIRTY_DMA_IGC |\
 		SDE_PLANE_DIRTY_DMA_GC)
@@ -393,15 +393,6 @@ u32 sde_plane_get_ubwc_error(struct drm_plane *plane);
  * @plane: Pointer to DRM plane object
  */
 void sde_plane_clear_ubwc_error(struct drm_plane *plane);
-
-/*
- * sde_plane_setup_src_split_order - enable/disable pipe's src_split_order
- * @plane: Pointer to DRM plane object
- * @rect_mode: multirect mode
- * @enable: enable/disable flag
- */
-void sde_plane_setup_src_split_order(struct drm_plane *plane,
-		enum sde_sspp_multirect_index rect_mode, bool enable);
 
 int sde_plane_is_fod_layer(const struct drm_plane_state *drm_state);
 
