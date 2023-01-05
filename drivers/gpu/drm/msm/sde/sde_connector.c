@@ -518,7 +518,6 @@ extern bool sde_crtc_get_fingerprint_mode(struct drm_crtc_state *crtc_state);
 extern bool sde_crtc_get_fingerprint_pressed(struct drm_crtc_state *crtc_state);
 extern int dsi_display_set_hbm_mode(struct drm_connector *connector, int level);
 int aod_layer_hide = 0;
-extern bool HBM_flag ;
 extern int oneplus_dim_status;
 extern int oneplus_onscreenfp_status;
 extern bool aod_fod_flag;
@@ -554,28 +553,10 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 	int rc = 0;
 	int fingerprint_mode;
 
-	if (!c_conn) {
-		SDE_ERROR("Invalid params sde_connector null\n");
-		return -EINVAL;
-	}
-
-	if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI)
-		return 0;
-
 	c_state = to_sde_connector_state(connector->state);
 
 	dsi_display = c_conn->display;
-	if (!dsi_display || !dsi_display->panel) {
-		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
-			dsi_display,
-			((dsi_display) ? dsi_display->panel : NULL));
-		return -EINVAL;
-	}
 
-	if (!c_conn->encoder || !c_conn->encoder->crtc ||
-	    !c_conn->encoder->crtc->state) {
-		return 0;
-	}
 	if (!finger_type) {
 		if (dsi_display->panel->aod_status == 1) {
 			if (real_aod_mode && !aod_complete) {
@@ -610,7 +591,6 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 		dsi_display->panel->is_hbm_enabled = fingerprint_mode;
 		if (fingerprint_mode) {
 			SDE_ATRACE_BEGIN("set_hbm_on");
-			HBM_flag=true;
 			mutex_lock(&dsi_display->panel->panel_lock);
 			if (dsi_display->panel->aod_status==1 && !finger_type) {
 				if (dsi_display->panel->aod_mode == 2) {
@@ -640,7 +620,6 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 		}
 		else {
 			SDE_ATRACE_BEGIN("set_hbm_off");
-			HBM_flag = false;
 			//_sde_connector_update_bl_scale(c_conn);
 			mutex_lock(&dsi_display->panel->panel_lock);
 			if (dsi_display->panel->aod_status == 1 && !finger_type) {
@@ -680,7 +659,6 @@ static int _sde_connector_update_hbm(struct sde_connector *c_conn)
 				}
 			}
 			else {
-				HBM_flag = false;
 				//sde_encoder_poll_line_counts(drm_enc);
 				rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_HBM_OFF);
 				pr_err("Send DSI_CMD_SET_HBM_OFF cmds\n");

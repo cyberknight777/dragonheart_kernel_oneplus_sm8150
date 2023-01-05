@@ -3266,7 +3266,6 @@ bool sde_crtc_get_fingerprint_pressed(struct drm_crtc_state *crtc_state)
 
 /*******************************************************************/
 
-extern int oneplus_force_screenfp;
 extern int oneplus_panel_alpha;
 static int alpha_generated = 0, alpha_generated_dc = 0;
 
@@ -5897,7 +5896,7 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 		}
     }
 	SDE_DEBUG("fp_index=%d,fppressed_index=%d,aod_index=%d\n", fp_index, fppressed_index, aod_index);
-	if (oneplus_dimlayer_hbm_enable || oneplus_force_screenfp || dim_backlight == 1) {
+	if (oneplus_dimlayer_hbm_enable || dim_backlight == 1) {
 		if (fp_index >= 0 && fppressed_index >= 0) {
 			if (pstates[fp_index].stage >= pstates[fppressed_index].stage) {
 				SDE_ERROR("Bug!!@@@@: fp layer top of fppressed layer\n");
