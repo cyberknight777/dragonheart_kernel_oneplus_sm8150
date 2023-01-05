@@ -146,8 +146,6 @@ int dsi_display_panel_mismatch_check(struct drm_connector *connector);
 int dsi_display_panel_mismatch(struct drm_connector *connector);
 int dsi_display_set_aod_disable(struct drm_connector *connector, int disable);
 int dsi_display_get_aod_disable(struct drm_connector *connector);
-int dsi_display_set_fp_hbm_mode(struct drm_connector *connector, int level);
-int dsi_display_get_fp_hbm_mode(struct drm_connector *connector);
 int dsi_display_update_dsi_on_command(struct drm_connector *connector, const char *buf, size_t count);
 int dsi_display_get_dsi_on_command(struct drm_connector *connector, char *buf);
 int dsi_display_update_dsi_panel_command(struct drm_connector *connector, const char *buf, size_t count);
