@@ -269,15 +269,9 @@ bool sde_plane_is_sec_ui_allowed(struct drm_plane *plane)
 	return !(psde->features & BIT(SDE_SSPP_BLOCK_SEC_UI));
 }
 
-void sde_plane_setup_src_split_order(struct drm_plane *plane,
+static void sde_plane_setup_src_split_order(struct sde_plane *psde,
 		enum sde_sspp_multirect_index rect_mode, bool enable)
 {
-	struct sde_plane *psde;
-
-	if (!plane)
-		return;
-
-	psde = to_sde_plane(plane);
 	if (psde->pipe_hw->ops.set_src_split_order)
 		psde->pipe_hw->ops.set_src_split_order(psde->pipe_hw,
 					rect_mode, enable);
@@ -4257,6 +4251,10 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 	/* re-program the output rects always if partial update roi changed */
 	if (sde_crtc_is_crtc_roi_dirty(crtc->state))
 		pstate->dirty |= SDE_PLANE_DIRTY_RECTS;
+
+	if (pstate->dirty & SDE_PLANE_DIRTY_SRC_SPLIT_ORDER)
+		sde_plane_setup_src_split_order(psde, pstate->multirect_index,
+						pstate->pipe_order_flags);
 
 	if (pstate->dirty & SDE_PLANE_DIRTY_RECTS)
 		memset(&(psde->pipe_cfg), 0, sizeof(struct sde_hw_pipe_cfg));
