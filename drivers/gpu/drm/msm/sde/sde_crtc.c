@@ -5857,7 +5857,6 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 			aod_index = -1;
 			SDE_ATRACE_END("aod_layer_qbt_hid");
 		}
-        return 0;
 	}
 
 	if (
