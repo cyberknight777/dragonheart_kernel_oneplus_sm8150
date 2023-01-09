@@ -656,8 +656,11 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		finger_type = true;
 	}
 
-	dsi_panel_set_hbm_mode(panel, level);
+	if (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M && status)
+		sde_encoder_wait_for_event(c_conn->encoder,
+				MSM_ENC_VBLANK);
 
+	dsi_panel_set_hbm_mode(panel, level);
 	dsi_panel_set_fod_ui(panel, status);
 }
 
