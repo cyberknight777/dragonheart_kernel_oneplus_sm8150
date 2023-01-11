@@ -46,8 +46,6 @@
 #include <linux/timer.h>
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
-#include <linux/cpu_input_boost.h>
-#include <linux/devfreq_boost.h>
 #include <net/netlink.h>
 #include <net/sock.h>
 #include "gf_spi.h"
@@ -450,7 +448,6 @@ int opticalfp_irq_handler(struct fp_underscreen_info* tp_info)
 }
 EXPORT_SYMBOL(opticalfp_irq_handler);
 
-extern int kp_active_mode(void);
 int gf_opticalfp_irq_handler(int event)
 {
 	char msg = 0;
@@ -460,20 +457,6 @@ int gf_opticalfp_irq_handler(int event)
 	}
 	switch(event) {
 	case 1:
-	  switch (kp_active_mode()) {
-	  case 1:
-	    cpu_input_boost_kick_max(500);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 500);
-	    break;
-	  case 2:
-	    cpu_input_boost_kick_max(750);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 750);
-	    break;
-	  default:
-	    cpu_input_boost_kick_max(1000);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1000);
-	    break;
-	  }
 	  gf_dev->udfps_pressed = 1;
 	  msg = GF_NET_EVENT_TP_TOUCHDOWN;
 	  sendnlmsg(&msg);
