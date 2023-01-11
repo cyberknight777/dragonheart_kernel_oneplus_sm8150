@@ -2240,10 +2240,10 @@ long _do_fork(unsigned long clone_flags,
 	   */
 	  if (kp_active_mode() == 3 || kp_active_mode() == 0) {
 	    cpu_input_boost_kick_max(50, false);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50, false);
 	  } else if (kp_active_mode() == 2) {
 	    cpu_input_boost_kick_max(25, false);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25, false);
 	  }
 	}
 

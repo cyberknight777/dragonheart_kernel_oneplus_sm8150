@@ -77,12 +77,14 @@ void devfreq_boost_kick(enum df_device device)
 }
 
 static void __devfreq_boost_kick_max(struct boost_dev *b,
-				     unsigned int duration_ms)
+				     unsigned int duration_ms,
+				     bool always)
 {
 	unsigned long boost_jiffies = msecs_to_jiffies(duration_ms);
 	unsigned long curr_expires, new_expires;
 
-	if (!READ_ONCE(b->df) || !test_bit(SCREEN_ON, &b->state) || kp_active_mode() == 1)
+	if (!READ_ONCE(b->df) || !test_bit(SCREEN_ON, &b->state) || 
+		(kp_active_mode() == 1 && !always))
 		return;
 
 	do {
@@ -101,11 +103,11 @@ static void __devfreq_boost_kick_max(struct boost_dev *b,
 		wake_up(&b->boost_waitq);
 }
 
-void devfreq_boost_kick_max(enum df_device device, unsigned int duration_ms)
+void devfreq_boost_kick_max(enum df_device device, unsigned int duration_ms, bool always)
 {
 	struct df_boost_drv *d = &df_boost_drv_g;
 
-	__devfreq_boost_kick_max(d->devices + device, duration_ms);
+	__devfreq_boost_kick_max(d->devices + device, duration_ms, always);
 }
 
 void devfreq_register_boost_device(enum df_device device, struct devfreq *df)
@@ -201,7 +203,8 @@ static int msm_drm_notifier_cb(struct notifier_block *nb, unsigned long action,
 		if (*blank == MSM_DRM_BLANK_UNBLANK_CUST) {
 			set_bit(SCREEN_ON, &b->state);
 			__devfreq_boost_kick_max(b,
-				CONFIG_DEVFREQ_WAKE_BOOST_DURATION_MS);
+				CONFIG_DEVFREQ_WAKE_BOOST_DURATION_MS,
+				false);
 		} else if (*blank == MSM_DRM_BLANK_POWERDOWN_CUST) {
 			clear_bit(SCREEN_ON, &b->state);
 			wake_up(&b->boost_waitq);

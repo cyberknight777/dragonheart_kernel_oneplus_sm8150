@@ -657,7 +657,7 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		oneplus_dim_status = 5;
 		finger_type = true;
 	        cpu_input_boost_kick_max(750, true);
-                devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 750);
+                devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 750, true);
 	}
 
 	dsi_panel_set_hbm_mode(panel, level);

@@ -2258,10 +2258,10 @@ static int __drm_mode_atomic_ioctl(struct drm_device *dev, void *data,
 	   */
 	  if (kp_active_mode() == 3 || kp_active_mode() == 0) {
 	    cpu_input_boost_kick_max(50, true);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 50, true);
 	  } else if (kp_active_mode() == 2) {
 	    cpu_input_boost_kick_max(25, true);
-	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
+	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25, true);
 	  }
 	}
 
