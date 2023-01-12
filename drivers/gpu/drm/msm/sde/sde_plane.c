@@ -151,6 +151,7 @@ struct sde_plane {
 	bool debugfs_default_scale;
 
 	u8 fod_dim_alpha;
+	u8 dc_dim_alpha;
 };
 
 #define to_sde_plane(x) container_of(x, struct sde_plane, base)
@@ -1468,7 +1469,8 @@ static inline s32 pcc_to_signed(u32 v)
 static inline void _sde_plane_mul_csc_pcc(struct sde_plane *psde,
 					  const struct sde_csc_cfg *csc_cfg)
 {
-	unsigned int fod_dim_scale = FOD_DIM_ALPHA_MAX - psde->fod_dim_alpha;
+	unsigned int fod_dim_scale = FOD_DIM_ALPHA_MAX - psde->fod_dim_alpha -
+		psde->dc_dim_alpha;
 	unsigned int i, j, u;
 
 	memcpy(&psde->csc_pcc_cfg, csc_cfg, sizeof(psde->csc_pcc_cfg));
@@ -1494,6 +1496,7 @@ static inline void _sde_plane_mul_csc_pcc(struct sde_plane *psde,
 		}
 	}
 }
+
 
 static inline void _sde_plane_setup_csc_pcc(struct sde_plane *psde)
 {
@@ -4032,6 +4035,17 @@ static inline void _set_plane_set_fod_dim_alpha(struct sde_plane *psde,
 	pstate->dirty |= SDE_PLANE_DIRTY_RECTS;
 }
 
+static inline void _set_plane_set_dc_dim_alpha(struct sde_plane *psde,
+						struct sde_plane_state *pstate)
+{
+	if (psde->dc_dim_alpha == pstate->dc_dim_alpha)
+		return;
+
+	psde->dc_dim_alpha = pstate->dc_dim_alpha;
+
+	pstate->dirty |= SDE_PLANE_DIRTY_RECTS;
+}
+
 static inline void _sde_plane_set_csc_pcc(struct sde_plane *psde,
 					  struct sde_plane_state *pstate,
 					  struct drm_crtc *crtc)
@@ -4151,6 +4165,7 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 		case PLANE_PROP_SRC_CONFIG:
 		case PLANE_PROP_ZPOS:
 		case PLANE_PROP_CUSTOM:
+		case PLANE_PROP_DCDIM:
 		case PLANE_PROP_EXCL_RECT_V1:
 			pstate->dirty |= SDE_PLANE_DIRTY_RECTS;
 			break;
@@ -4215,6 +4230,7 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 	_sde_plane_sspp_atomic_check_mode_changed(psde, state,
 								old_state);
 
+	_set_plane_set_dc_dim_alpha(psde, pstate);
 	_set_plane_set_fod_dim_alpha(psde, pstate);
 	_sde_plane_set_csc_pcc(psde, pstate, crtc);
 
@@ -4496,6 +4512,18 @@ static void _sde_plane_atomic_disable(struct drm_plane *plane,
 				SDE_SSPP_RECT_SOLO, SDE_SSPP_MULTIRECT_NONE);
 }
 
+int sde_plane_is_dc_dim_layer(const struct drm_plane_state *drm_state)
+{
+	struct sde_plane_state *pstate;
+
+	if (!drm_state)
+		return 0;
+
+	pstate = to_sde_plane_state(drm_state);
+
+	return sde_plane_get_property(pstate, PLANE_PROP_DCDIM);
+}
+
 int sde_plane_is_fod_layer(const struct drm_plane_state *drm_state)
 {
 	struct sde_plane_state *pstate;
@@ -4511,6 +4539,11 @@ int sde_plane_is_fod_layer(const struct drm_plane_state *drm_state)
 void sde_plane_set_fod_dim_alpha(struct sde_plane_state *pstate, u8 alpha)
 {
 	pstate->fod_dim_alpha = alpha;
+}
+
+void sde_plane_set_dc_dim_alpha(struct sde_plane_state *pstate, u8 alpha)
+{
+	pstate->dc_dim_alpha = alpha;
 }
 
 static void sde_plane_atomic_update(struct drm_plane *plane,
@@ -4641,6 +4674,9 @@ static void _sde_plane_install_properties(struct drm_plane *plane,
 			0x0, 0, INT_MAX, 0, PLANE_PROP_CUSTOM);
 	msm_property_install_range(&psde->property_info, "alpha",
 		0x0, 0, 255, 255, PLANE_PROP_ALPHA);
+
+	msm_property_install_range(&psde->property_info, "dcdim",
+		0x0, 0, 255, 255, PLANE_PROP_DCDIM);
 
 	/* linux default file descriptor range on each process */
 	msm_property_install_range(&psde->property_info, "input_fence",

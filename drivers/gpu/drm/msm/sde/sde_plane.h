@@ -173,6 +173,7 @@ struct sde_plane_state {
 	struct sde_hw_pipe_line_insertion_cfg line_insertion_cfg;
 
 	u8 fod_dim_alpha;
+	u8 dc_dim_alpha;
 };
 
 /**
@@ -404,4 +405,7 @@ int sde_plane_is_fod_layer(const struct drm_plane_state *drm_state);
 
 void sde_plane_set_fod_dim_alpha(struct sde_plane_state *pstatem, u8 alpha);
 
+int sde_plane_is_dc_dim_layer(const struct drm_plane_state *drm_state);
+
+void sde_plane_set_dc_dim_alpha(struct sde_plane_state *pstatem, u8 alpha);
 #endif /* _SDE_PLANE_H_ */

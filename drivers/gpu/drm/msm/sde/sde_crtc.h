@@ -444,6 +444,7 @@ struct sde_crtc_state {
 	struct sde_crtc_respool rp;
 
 	u8 fod_dim_alpha;
+	u8 dc_dim_alpha;
 };
 
 enum sde_crtc_irq_state {
