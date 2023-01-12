@@ -84,6 +84,27 @@
                                 800 66
                                 1023 30
                 >;
+		qcom,dc-dim-lut = <
+                /* brightness, alpha */
+                                0 255
+                                1 224
+                                2 213
+                                3 211
+                                4 208
+                                5 206
+                                6 203
+                                8 200
+                                10 196
+                                15 186
+                                20 176
+                                30 160
+                                45 139
+                                70 114
+                                100 90
+                                150 56
+                                227 14
+                                260 0
+		>;
 		/* HDR Setting */
 		qcom,mdss-dsi-panel-hdr-enabled;
 		qcom,mdss-dsi-panel-hdr-color-primaries = <15635 16450 34000 16000 13250 34500 7500 3000>;
