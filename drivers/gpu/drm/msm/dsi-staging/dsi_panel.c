@@ -901,13 +901,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 		return 0;
 	}
 
-	if (op_dimlayer_bl_enabled != op_dimlayer_bl_enable_real) {
-		op_dimlayer_bl_enable_real = op_dimlayer_bl_enabled;
-		if (op_dimlayer_bl_enable_real && bl_lvl != 0)
-			bl_lvl = op_dimlayer_bl_alpha;
-		pr_err("dc light %d %d\n", op_dimlayer_bl_enable_real, bl_lvl);
-	}
-	if (op_dimlayer_bl_enable_real && bl_lvl != 0)
+	if (panel->dc_dim && bl_lvl != 0)
 		bl_lvl = op_dimlayer_bl_alpha;
 
 	if (panel->bl_config.bl_high2bit) {
@@ -1064,7 +1058,18 @@ u8 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
 	u8 alpha;
 
 	mutex_lock(&panel->panel_lock);
-	alpha = panel->fod_dim_alpha;
+	alpha = panel->fod_dim_alpha - panel->dc_dim_alpha;
+	mutex_unlock(&panel->panel_lock);
+
+	return alpha;
+}
+
+u8 dsi_panel_get_dc_dim_alpha(struct dsi_panel *panel)
+{
+	u8 alpha;
+
+	mutex_lock(&panel->panel_lock);
+	alpha = panel->dc_dim_alpha;
 	mutex_unlock(&panel->panel_lock);
 
 	return alpha;
@@ -1098,6 +1103,30 @@ static u32 dsi_panel_calc_fod_dim_alpha(struct dsi_panel *panel, u32 bl_level)
 			   panel->fod_dim_lut[i].brightness,
 			   panel->fod_dim_lut[i - 1].alpha,
 			   panel->fod_dim_lut[i].alpha);
+}
+
+static u32 dsi_panel_calc_dc_dim_alpha(struct dsi_panel *panel, u32 bl_level)
+{
+	int i;
+
+	if (!panel->dc_dim_lut || !panel->dc_dim)
+		return 0;
+
+	for (i = 0; i < panel->dc_dim_lut_len; i++)
+		if (panel->dc_dim_lut[i].brightness >= bl_level)
+			break;
+
+	if (i == 0)
+		return panel->dc_dim_lut[i].alpha;
+
+	if (i == panel->dc_dim_lut_len)
+		return panel->dc_dim_lut[i - 1].alpha;
+
+	return interpolate(bl_level,
+			   panel->dc_dim_lut[i - 1].brightness,
+			   panel->dc_dim_lut[i].brightness,
+			   panel->dc_dim_lut[i - 1].alpha,
+			   panel->dc_dim_lut[i].alpha);
 }
 
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
@@ -1137,6 +1166,8 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 
 	if (!panel->force_fod_dim_alpha)
 		panel->fod_dim_alpha = dsi_panel_calc_fod_dim_alpha(panel, bl_lvl);
+
+	panel->dc_dim_alpha = dsi_panel_calc_dc_dim_alpha(panel, bl_lvl);
 
 	return rc;
 }
@@ -1208,6 +1239,11 @@ void dsi_panel_set_fod_ui(struct dsi_panel *panel, bool status)
 bool dsi_panel_get_force_fod_ui(struct dsi_panel *panel)
 {
 	return panel->force_fod_ui;
+}
+
+bool dsi_panel_get_dc_dim(struct dsi_panel *panel)
+{
+	return panel->dc_dim;
 }
 
 static int dsi_panel_bl_register(struct dsi_panel *panel)
@@ -2978,6 +3014,60 @@ count_fail:
 	return rc;
 }
 
+static int dsi_panel_parse_dc_dim_lut(struct dsi_panel *panel,
+		struct dsi_parser_utils *utils)
+{
+	const char *prop_name = "qcom,dc-dim-lut";
+	unsigned int i;
+	u32 *array;
+	int count;
+	int rc;
+
+	count = utils->count_u32_elems(utils->data, prop_name);
+	if (count <= 0 || count % BRIGHTNESS_ALPHA_PAIR_LEN) {
+		pr_err("[%s] invalid number of elements %d\n",
+			panel->name, count);
+		rc = -EINVAL;
+		goto count_fail;
+	}
+
+	array = kcalloc(count, sizeof(u32), GFP_KERNEL);
+	if (!array) {
+		rc = -ENOMEM;
+		goto alloc_array_fail;
+	}
+
+	rc = utils->read_u32_array(utils->data, prop_name, array, count);
+	if (rc) {
+		pr_err("[%s] failed to read array, rc=%d\n", panel->name, rc);
+		goto read_fail;
+	}
+
+	count /= BRIGHTNESS_ALPHA_PAIR_LEN;
+	panel->dc_dim_lut = kcalloc(count, sizeof(*panel->dc_dim_lut),
+				     GFP_KERNEL);
+	if (!panel->dc_dim_lut) {
+		rc = -ENOMEM;
+		goto alloc_lut_fail;
+	}
+
+	panel->dc_dim_lut_len = count;
+
+	for (i = 0; i < count; i++) {
+		struct brightness_alpha_pair *pair = &panel->dc_dim_lut[i];
+		pair->brightness = array[i * BRIGHTNESS_ALPHA_PAIR_LEN + 0];
+		pair->alpha = array[i * BRIGHTNESS_ALPHA_PAIR_LEN + 1];
+	}
+
+alloc_lut_fail:
+read_fail:
+	kfree(array);
+alloc_array_fail:
+count_fail:
+
+	return rc;
+}
+
 static int dsi_panel_parse_bl_pwm_config(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -3096,6 +3186,10 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 	rc = dsi_panel_parse_fod_dim_lut(panel, utils);
 	if (rc)
 		pr_err("[%s] failed to parse fod dim lut\n", panel->name);
+
+	rc = dsi_panel_parse_dc_dim_lut(panel, utils);
+	if (rc)
+		pr_err("[%s] failed to parse dc dim lut\n", panel->name);
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -4289,6 +4383,26 @@ ssize_t sysfs_force_fod_ui_write(struct device *dev,
 	return count;
 }
 
+static ssize_t sysfs_dc_dim_read(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", panel->dc_dim);
+}
+
+ssize_t sysfs_dc_dim_write(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct dsi_panel *panel = display->panel;
+
+	kstrtobool(buf, &panel->dc_dim);
+
+	return count;
+}
+
 static ssize_t sysfs_fod_dim_alpha_read(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -4329,10 +4443,15 @@ static DEVICE_ATTR(fod_dim_alpha, 0644,
 		   sysfs_fod_dim_alpha_read,
 		   sysfs_fod_dim_alpha_write);
 
+static DEVICE_ATTR(dc_dim, 0644,
+		   sysfs_dc_dim_read,
+		   sysfs_dc_dim_write);
+
 static struct attribute *panel_attrs[] = {
 	&dev_attr_fod_ui.attr,
 	&dev_attr_fod_dim_alpha.attr,
 	&dev_attr_force_fod_ui.attr,
+	&dev_attr_dc_dim.attr,
 	NULL,
 };
 

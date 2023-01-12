@@ -693,6 +693,9 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 
 	SDE_EVT32_VERBOSE(connector->base.id);
 
+	if(sde_connector_panel(c_conn)->dc_dim)
+		_sde_connector_update_bl_scale(c_conn);
+
 	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI)
 		sde_connector_pre_update_fod_hbm(c_conn);
 
