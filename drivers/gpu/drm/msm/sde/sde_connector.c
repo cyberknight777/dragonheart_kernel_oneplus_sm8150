@@ -670,6 +670,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	struct sde_connector_state *c_state;
 	struct msm_display_kickoff_params params;
 	int rc;
+	bool dc_dim, was_dcdim;
 
 	if (!connector) {
 		SDE_ERROR("invalid argument\n");
@@ -693,11 +694,18 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 
 	SDE_EVT32_VERBOSE(connector->base.id);
 
-	if(sde_connector_panel(c_conn)->dc_dim)
-		_sde_connector_update_bl_scale(c_conn);
-
 	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI)
 		sde_connector_pre_update_fod_hbm(c_conn);
+
+	dc_dim = sde_connector_panel(c_conn)->dc_dim;
+	was_dcdim = sde_connector_panel(c_conn)->was_dc_dim;
+	if (!was_dcdim && dc_dim) {
+		_sde_connector_update_bl_scale(c_conn);
+		sde_connector_panel(c_conn)->was_dc_dim = true;
+	} else if (was_dcdim && !dc_dim) {
+		_sde_connector_update_bl_scale(c_conn);
+		sde_connector_panel(c_conn)->was_dc_dim = false;
+	}
 
 	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
 
