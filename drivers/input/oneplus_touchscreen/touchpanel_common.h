@@ -509,6 +509,7 @@ struct touchpanel_data {
     void                  *chip_data;                   /*Chip Related data*/
     void                  *private_data;                /*Reserved Private data*/
     char                  *earsense_delta;
+    int double_tap_pressed;
 };
 
 struct touchpanel_operations {
