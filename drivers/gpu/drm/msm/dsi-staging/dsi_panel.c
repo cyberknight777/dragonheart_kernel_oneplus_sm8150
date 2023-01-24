@@ -847,7 +847,6 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	bl->raw_bd = bd;
 	return 0;
 }
-bool HBM_flag =false;
 
 int dsi_panel_gamma_read_address_setting(struct dsi_panel *panel, u16 read_number)
 {
@@ -905,8 +904,6 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 		bl_lvl = op_dimlayer_bl_alpha;
 
 	if (panel->bl_config.bl_high2bit) {
-		if (HBM_flag == true)
-			return 0;
 
 		if (cur_backlight == bl_lvl && (mode_fps != cur_fps ||
 				 cur_h != panel->cur_mode->timing.h_active) && !hbm_finger_print) {
@@ -5625,7 +5622,6 @@ int dsi_panel_disable(struct dsi_panel *panel)
 		oneplus_dimlayer_hbm_enable = false;
 		oneplus_dim_status = 0;
 		pr_err("Kill dim when panel goes off");
-		HBM_flag = false;
 	if(panel->aod_mode==2){
 			panel->aod_status=1;
 			}
@@ -5749,7 +5745,6 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				goto error;
 			}
 			else {
-				HBM_flag = false;
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
 				pr_debug("Send DSI_CMD_SET_HBM_OFF cmds.\n");
 				pr_debug("hbm_backight = %d, panel->bl_config.bl_level = %d\n",panel->hbm_backlight, panel->bl_config.bl_level);
@@ -5812,7 +5807,6 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				goto error;
 			}
 			else {
-				HBM_flag = true;
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
 			}
