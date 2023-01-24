@@ -69,7 +69,6 @@ int pointx[2] = {0, 0};
 int pointy[2] = {0, 0};
 #define ABS(a,b) ((a - b > 0) ? a - b : b - a)
 
-static uint8_t DouTap_enable = 1;	        // double tap
 static uint8_t UpVee_enable  = 1;	        // V
 static uint8_t DownVee_enable = 1;		    // ^
 static uint8_t LeftVee_enable = 1; 			// >
@@ -358,22 +357,18 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
     memset(&gesture_info_temp, 0, sizeof(struct gesture_info));
     ts->ts_ops->get_gesture_info(ts->chip_data, &gesture_info_temp);
     tp_geture_info_transform(&gesture_info_temp, &ts->resolution_info);
-	if (DouTap_enable) {
-		if(gesture_info_temp.gesture_type == SingleTap) {
-			if (sec_double_tap(&gesture_info_temp) == 1)
-			{
-				gesture_info_temp.gesture_type  = DouTap;
-				ts->double_tap_pressed = 1;
-			} else {
-			        ts->double_tap_pressed = 0;
-			}
-		}
+    if(gesture_info_temp.gesture_type == SingleTap) {
+	if (sec_double_tap(&gesture_info_temp) == 1)
+	{
+		ts->double_tap_pressed = 1;
 	} else {
 		ts->double_tap_pressed = 0;
 	}
+    } else {
+		ts->double_tap_pressed = 0;
+    }
     sysfs_notify(&ts->client->dev.kobj, NULL, "double_tap_pressed");
-    TPD_INFO("detect %s gesture\n", gesture_info_temp.gesture_type == DouTap ? "double tap" :
-            gesture_info_temp.gesture_type == UpVee ? "up vee" :
+    TPD_INFO("detect %s gesture\n", gesture_info_temp.gesture_type == UpVee ? "up vee" :
             gesture_info_temp.gesture_type == DownVee ? "down vee" :
             gesture_info_temp.gesture_type == LeftVee ? "(>)" :
             gesture_info_temp.gesture_type == RightVee ? "(<)" :
@@ -389,10 +384,6 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
             gesture_info_temp.gesture_type == Wgestrue ? "(W)" : "unknown");
 
 	switch (gesture_info_temp.gesture_type) {
-		case DouTap:
-			enabled = DouTap_enable;
-			key = KEY_DOUBLE_TAP;
-			break;
 		case UpVee:
 			enabled = UpVee_enable;
 			key = KEY_GESTURE_UP_ARROW;
@@ -2226,7 +2217,6 @@ static DEVICE_ATTR(tp_fw_update, 0644, sec_update_fw_show, sec_update_fw_store);
 	};
 
 GESTURE_ATTR(single_tap, SingleTap_enable);
-GESTURE_ATTR(double_tap, DouTap_enable);
 GESTURE_ATTR(up_arrow, UpVee_enable);
 GESTURE_ATTR(down_arrow, DownVee_enable);
 GESTURE_ATTR(left_arrow, LeftVee_enable);
@@ -2311,7 +2301,6 @@ static int init_touchpanel_proc(struct touchpanel_data *ts)
     //proc files-step2-4:/proc/touchpanel/double_tap_enable (black gesture related interface)
     if (ts->black_gesture_support) {
         CREATE_GESTURE_NODE(single_tap);
-		CREATE_GESTURE_NODE(double_tap);
 		CREATE_GESTURE_NODE(up_arrow);
 		CREATE_GESTURE_NODE(down_arrow);
 		CREATE_GESTURE_NODE(left_arrow);
