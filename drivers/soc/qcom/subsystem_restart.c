@@ -1461,8 +1461,6 @@ static void __subsystem_restart_dev(struct subsys_device *dev)
 			track->p_state = SUBSYS_CRASHED;
 			__pm_stay_awake(&dev->ssr_wlock);
 			queue_work(ssr_wq, &dev->work);
-		} else {
-			panic("Subsystem %s crashed during SSR!", name);
 		}
 	} else
 		WARN(dev->track.state == SUBSYS_OFFLINE,
