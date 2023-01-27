@@ -441,7 +441,7 @@
 				15 00 00 00 00 00 02 B5 93				/* 0x93 : ELVSS DIM OFF */
 				29 00 00 00 00 00 03 F0 A5 A5
 				/* HBM Mode Setting */
-				29 00 00 00 00 00 03 F0 5A 5A			/* Level2 key Access */
+				29 00 00 08 00 00 03 F0 5A 5A			/* Level2 key Access */
 				15 00 00 00 00 00 02 C7 27				/* HMB setting */
 				15 00 00 00 00 00 02 B0 34
 				15 00 00 00 00 00 02 B1 4B
