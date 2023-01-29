@@ -357,16 +357,7 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
     memset(&gesture_info_temp, 0, sizeof(struct gesture_info));
     ts->ts_ops->get_gesture_info(ts->chip_data, &gesture_info_temp);
     tp_geture_info_transform(&gesture_info_temp, &ts->resolution_info);
-    if(gesture_info_temp.gesture_type == SingleTap) {
-	if (sec_double_tap(&gesture_info_temp) == 1)
-	{
-		ts->double_tap_pressed = 1;
-	} else {
-		ts->double_tap_pressed = 0;
-	}
-    } else {
-		ts->double_tap_pressed = 0;
-    }
+    ts->double_tap_pressed = (sec_double_tap(&gesture_info_temp) == 1) ? 1 : 0;
     sysfs_notify(&ts->client->dev.kobj, NULL, "double_tap_pressed");
     TPD_INFO("detect %s gesture\n", gesture_info_temp.gesture_type == UpVee ? "up vee" :
             gesture_info_temp.gesture_type == DownVee ? "down vee" :
