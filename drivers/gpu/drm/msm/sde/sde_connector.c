@@ -638,6 +638,7 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 	return display ? display->panel : NULL;
 }
 
+extern bool HBM_flag;
 static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
 	struct dsi_panel *panel;
@@ -668,6 +669,12 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 				MSM_ENC_VBLANK);
 
 	dsi_panel_set_hbm_mode(panel, level);
+
+	if (status)
+		HBM_flag = true;
+	else
+		HBM_flag = false;
+
 	dsi_panel_set_fod_ui(panel, status);
 }
 
