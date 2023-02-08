@@ -6218,13 +6218,14 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 			sde_plane_clear_multirect(pipe_staged[i]);
 		}
 	}
-	sde_crtc_dc_dim_atomic_check(cstate, pstates, cnt);
 
 	rc = sde_crtc_onscreenfinger_atomic_check(cstate, pstates, cnt);
 	if (rc)
 		goto end;
 
 	sde_crtc_fod_atomic_check(cstate, pstates, cnt);
+
+	sde_crtc_dc_dim_atomic_check(cstate, pstates, cnt);
 
 	/* assign mixer stages based on sorted zpos property */
 	if (cnt > 0)
@@ -6325,6 +6326,8 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 				crtc->base.id, rc);
 		goto end;
 	}
+
+	sde_crtc_dc_dim_atomic_check(cstate, pstates, cnt);
 
 end:
 	_sde_crtc_rp_free_unused(&cstate->rp);
