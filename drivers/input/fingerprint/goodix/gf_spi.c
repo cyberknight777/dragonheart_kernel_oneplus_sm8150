@@ -428,7 +428,7 @@ static const struct attribute_group gf_attribute_group = {
 };
 
 static struct fp_underscreen_info fp_tpinfo ={0};
-int opticalfp_irq_handler(struct fp_underscreen_info* tp_info)
+int __always_inline opticalfp_irq_handler(struct fp_underscreen_info* tp_info)
 {
 	if (gf.spi == NULL) {
 		return 0;
@@ -448,7 +448,7 @@ int opticalfp_irq_handler(struct fp_underscreen_info* tp_info)
 }
 EXPORT_SYMBOL(opticalfp_irq_handler);
 
-int gf_opticalfp_irq_handler(int event)
+int __always_inline gf_opticalfp_irq_handler(int event)
 {
 	char msg = 0;
 	struct gf_dev *gf_dev = &gf;
@@ -472,7 +472,7 @@ int gf_opticalfp_irq_handler(int event)
 }
 EXPORT_SYMBOL(gf_opticalfp_irq_handler);
 
-static int goodix_fb_state_chg_callback(
+static int __always_inline goodix_fb_state_chg_callback(
 	struct notifier_block *nb, unsigned long val, void *data)
 {
 	struct gf_dev *gf_dev;
