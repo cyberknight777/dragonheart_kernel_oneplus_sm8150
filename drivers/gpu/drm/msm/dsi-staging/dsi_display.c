@@ -2617,10 +2617,12 @@ static int dsi_display_phy_idle_off(struct dsi_display *display)
 		if (!phy)
 			continue;
 
+/*
 		if (!phy->allow_phy_power_off) {
 			pr_debug("phy doesn't support this feature\n");
 			return 0;
 		}
+*/
 	}
 
 	m_ctrl = &display->ctrl[display->cmd_master_idx];
