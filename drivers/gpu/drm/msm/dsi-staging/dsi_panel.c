@@ -3775,7 +3775,8 @@ static int dsi_panel_parse_partial_update_caps(struct dsi_display_mode *mode,
 
 	memset(roi_caps, 0, sizeof(*roi_caps));
 
-	data = "single_roi";
+	data = utils->get_property(utils->data,
+		"qcom,partial-update-enabled", NULL);
 	if (data) {
 		if (!strcmp(data, "dual_roi"))
 			roi_caps->num_roi = 2;
