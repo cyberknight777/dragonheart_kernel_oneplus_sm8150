@@ -754,6 +754,7 @@
 			qcom,display-topology = <1 0 1>;
 			qcom,default-topology-index = <0>;
 			qcom,panel-roi-alignment = <720 40 720 40 720 40>;
+			qcom,partial-update-enabled = "single_roi";
 		};
 	};
 };
@@ -825,6 +826,7 @@
 						<2 2 1>;
 			qcom,default-topology-index = <1>;
 			qcom,panel-roi-alignment = <720 40 720 40 720 40>;
+			qcom,partial-update-enabled = "single_roi";
 		};
 
 		timing@1{
@@ -834,6 +836,7 @@
 						<2 2 1>;
 			qcom,default-topology-index = <1>;
 			qcom,panel-roi-alignment = <540 40 540 40 540 40>;
+			qcom,partial-update-enabled = "single_roi";
 		};
 
 		timing@2{
@@ -843,6 +846,7 @@
 						<2 2 1>;
 			qcom,default-topology-index = <1>;
 			qcom,panel-roi-alignment = <360 40 360 40 360 40>;
+			qcom,partial-update-enabled = "single_roi";
 		};
 	};
 };
