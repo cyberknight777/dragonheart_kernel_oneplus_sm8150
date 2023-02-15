@@ -652,9 +652,6 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		return;
 
 	if (status) {
-		if (panel->aod_status)
-			dsi_panel_set_nolp(panel);
-
 		level = 5;
 		oneplus_dim_status = 5;
 		finger_type = true;
