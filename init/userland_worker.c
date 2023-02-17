@@ -27,7 +27,6 @@ static char** argv;
 
 static struct delayed_work userland_work;
 
-unsigned int is_a12;
 unsigned int fod_new = 1;
 module_param(fod_new, uint, 0644);
 extern bool is_inline;
@@ -115,16 +114,6 @@ static inline int linux_sh(const char* command)
 	return ret;
 }
 
-static inline int linux_test(const char* path, bool dir)
-{
-	strcpy(argv[0], "/system/bin/test");
-	strcpy(argv[1], (dir ? "-d" : "-f"));
-	strcpy(argv[2], path);
-	argv[3] = NULL;
-
-	return use_userspace(argv);
-}
-
 static void vbswap_help(void)
 {
 	int retries = 0;
@@ -174,10 +163,6 @@ static void dalvikvm_set(void) {
 
 }
 
-static void set_kernel_module_params(void) {
-	is_a12 = !linux_test("/system/etc/classpaths/", true);
-}
-
 static void userland_worker(struct work_struct *work)
 {
 	bool is_enforcing;
@@ -205,8 +190,6 @@ static void userland_worker(struct work_struct *work)
 	msleep(MINI_DELAY);
 	dalvikvm_set();
 
-	set_kernel_module_params();
-
 	fix_sensors();
 
 	if (is_enforcing) {
@@ -222,7 +205,6 @@ static int __init userland_worker_entry(void)
 
 	if (is_inline) {
                 nt_info("Inline ROM detected! Killing UserLand Worker...\n");
-                is_a12 = 1;
                 return 0;
         }
 
