@@ -1642,6 +1642,21 @@ static bool dsi_display_get_cont_splash_status(struct dsi_display *display)
 }
 extern int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level);
 
+u32 dsi_panel_get_aod_bl(struct dsi_display *display) {
+	u32 aod_bl;
+	//cached value is better than reading display->panel->bl_config.bl_level
+	u32 cur_bl = dsi_panel_backlight_get();
+
+	if (cur_bl > 100) {
+		aod_bl = 30;
+	} else if (cur_bl > 40) {
+		aod_bl = 9;
+	} else {
+		aod_bl = 3;
+	}
+	return aod_bl;
+}
+
 int dsi_display_set_power(struct drm_connector *connector,
 		int power_mode, void *disp)
 {
@@ -1676,6 +1691,7 @@ int dsi_display_set_power(struct drm_connector *connector,
 	case SDE_MODE_DPMS_LP2:
 		pr_debug("SDE_MODE_DPMS_LP2\n");
 		rc = dsi_panel_set_lp2(display->panel);
+		dsi_panel_set_backlight(display->panel, dsi_panel_get_aod_bl(display));
 		blank = MSM_DRM_BLANK_POWERDOWN_CUST;
 		notifier_data.data = &blank;
 		notifier_data.id = connector_state_crtc_index;
