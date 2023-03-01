@@ -1075,12 +1075,6 @@ u8 dsi_panel_get_dc_dim_alpha(struct dsi_panel *panel)
 	return alpha;
 }
 
-static u32 interpolate(uint32_t x, uint32_t xa, uint32_t xb,
-		       uint32_t ya, uint32_t yb)
-{
-	return ya - (ya - yb) * (x - xa) / (xb - xa);
-}
-
 static u32 dsi_panel_calc_fod_dim_alpha(struct dsi_panel *panel, u32 bl_level)
 {
 	int i;

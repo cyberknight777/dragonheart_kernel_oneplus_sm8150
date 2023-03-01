@@ -476,4 +476,11 @@ void dsi_panel_set_fod_ui(struct dsi_panel *panel, bool status);
 bool dsi_panel_get_force_fod_ui(struct dsi_panel *panel);
 bool dsi_panel_get_dc_dim(struct dsi_panel *panel);
 
+__maybe_unused static u32 interpolate(uint32_t x, uint32_t xa, uint32_t xb,
+                       uint32_t ya, uint32_t yb)
+{
+	return ya - (ya - yb) * (x - xa) / (xb - xa);
+}
+
+
 #endif /* _DSI_PANEL_H_ */

@@ -1638,12 +1638,6 @@ static bool dsi_display_get_cont_splash_status(struct dsi_display *display)
 }
 extern int dsi_panel_set_aod_mode(struct dsi_panel *panel, int level);
 
-static u32 interpolate(uint32_t x, uint32_t xa, uint32_t xb,
-		uint32_t ya, uint32_t yb)
-{
-	return ya - (ya - yb) * (x - xa) / (xb - xa);
-}
-
 struct blbl {
         u32 bl;
         u32 aod_bl;
