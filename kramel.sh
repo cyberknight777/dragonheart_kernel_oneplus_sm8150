@@ -347,7 +347,7 @@ mkzip() {
     if [[ "${TGI}" == "1" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
 	tg "
-*Build*: https://github.com/cyberknight777/op7_json/releases/download/$version/$zipn.zip
+*Build*: https://github.com/cyberknight777/op7\_json/releases/download/$version/$zipn.zip
 *Changelog*: https://github.com/cyberknight777/op7\_json/blob/master/changelog\_${re}.md
 *OTA*: https://raw.githubusercontent.com/cyberknight777/op7\_json/master/DragonHeart-${re}.json
 "
