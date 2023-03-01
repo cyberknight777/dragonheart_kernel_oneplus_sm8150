@@ -3088,31 +3088,6 @@ void sde_crtc_complete_commit(struct drm_crtc *crtc,
 	SDE_EVT32_VERBOSE(DRMID(crtc));
 
 	sde_core_perf_crtc_update(crtc, 0, false);
-	{
-		struct sde_crtc_state *old_cstate;
-		struct sde_crtc_state *cstate;
-		struct msm_drm_notifier notifier_data;
-		int blank;
-
-		if (!old_state) {
-			SDE_ERROR("failed to find old cstate");
-			return;
-		}
-		old_cstate = to_sde_crtc_state(old_state);
-		cstate = to_sde_crtc_state(crtc->state);
-
-		if (old_cstate->fingerprint_pressed != cstate->fingerprint_pressed) {
-			blank = cstate->fingerprint_pressed;
-			notifier_data.data = &blank;
-			notifier_data.id = MSM_DRM_PRIMARY_DISPLAY;
-			pr_debug("fingerprint status: %s",
-			       blank ? "pressed" : "up");
-			SDE_ATRACE_BEGIN("press_event_notify");
-			msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT,
-					&notifier_data);
-			SDE_ATRACE_END("press_event_notify");
-		}
-	}
 }
 
 /**
