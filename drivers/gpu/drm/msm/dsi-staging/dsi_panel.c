@@ -902,7 +902,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	}
 
 	if (panel->dc_dim && bl_lvl != 0)
-		bl_lvl = op_dimlayer_bl_alpha;
+		bl_lvl = 1023;
 
 	if (panel->bl_config.bl_high2bit) {
 		if (HBM_flag == true)
