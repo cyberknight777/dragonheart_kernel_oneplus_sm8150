@@ -669,11 +669,6 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 
 	dsi_panel_set_hbm_mode(panel, level);
 
-	if (status)
-		HBM_flag = true;
-	else
-		HBM_flag = false;
-
 	dsi_panel_set_fod_ui(panel, status);
 }
 
