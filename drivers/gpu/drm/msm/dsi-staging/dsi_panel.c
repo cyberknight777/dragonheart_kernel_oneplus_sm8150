@@ -5787,6 +5787,11 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				HBM_flag = true;
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
+				if (rc) {
+					pr_debug("Failed HBM_ON_5, try again.\n");
+					usleep_range(12000, 13000);
+					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
+				}
 			}
 			break;
 
