@@ -894,7 +894,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	saved_backlight = bl_lvl;
 
-	if (panel->dc_dim && bl_lvl != 0)
+	if (panel->dc_dim)
 		bl_lvl = 1023;
 
 	if (panel->bl_config.bl_high2bit) {
@@ -5725,7 +5725,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
 				pr_debug("Send DSI_CMD_SET_HBM_OFF cmds.\n");
 				pr_debug("hbm_backight = %d, panel->bl_config.bl_level = %d\n",panel->hbm_backlight, panel->bl_config.bl_level);
-				rc= dsi_panel_update_backlight(panel,panel->hbm_backlight);
+				rc= dsi_panel_update_backlight(panel, panel->hbm_backlight);
 			}
 			break;
 
@@ -5784,6 +5784,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				goto error;
 			}
 			else {
+				dsi_panel_update_backlight(panel, panel->hbm_backlight);
 				HBM_flag = true;
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
