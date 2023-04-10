@@ -660,6 +660,7 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		level = 5;
 		oneplus_dim_status = 5;
 		finger_type = true;
+		dsi_panel_set_nolp(panel);
 	}
 
 	if (status && (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M ||
