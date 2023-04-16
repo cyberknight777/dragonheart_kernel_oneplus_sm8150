@@ -636,7 +636,6 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 	return display ? display->panel : NULL;
 }
 
-extern bool HBM_flag;
 static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
 	struct dsi_panel *panel;
@@ -653,8 +652,6 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 
 	if (status) {
 		level = 5;
-		oneplus_dim_status = 5;
-		finger_type = true;
 		dsi_panel_set_nolp(panel);
 		if (panel->cur_mode->timing.refresh_rate < 90
 			|| panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)
