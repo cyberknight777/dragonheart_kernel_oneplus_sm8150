@@ -665,6 +665,8 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 				MSM_ENC_VBLANK);
 
 	dsi_panel_set_fod_ui(panel, status);
+	if (!status)
+		_sde_connector_update_bl_scale(c_conn);
 }
 
 int sde_connector_pre_kickoff(struct drm_connector *connector)

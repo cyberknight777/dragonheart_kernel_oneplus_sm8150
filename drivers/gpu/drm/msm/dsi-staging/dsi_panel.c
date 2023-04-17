@@ -892,17 +892,37 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	dsi = &panel->mipi_device;
 	mode = panel->cur_mode;
 
+
+	if (panel->is_hbm_enabled)
+		return 0;
+
 	saved_backlight = bl_lvl;
 
 	if (panel->dc_dim)
 		bl_lvl = 1023;
 
 	if (panel->bl_config.bl_high2bit) {
+		if (HBM_flag == true)
+			return 0;
+
 		if (cur_backlight == bl_lvl && (mode_fps != cur_fps ||
 				 cur_h != panel->cur_mode->timing.h_active)) {
 			cur_fps = mode_fps;
 			cur_h = panel->cur_mode->timing.h_active;
 			return 0;
+		}
+
+		if (hbm_brightness_flag == 1) {
+			count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_BRIGHTNESS_OFF].count;
+			if (!count) {
+				pr_debug("This panel does not support HBM brightness off mode.\n");
+				goto error;
+			}
+			else {
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_BRIGHTNESS_OFF);
+				pr_debug("Send DSI_CMD_SET_HBM_BRIGHTNESS_OFF cmds.\n");
+				hbm_brightness_flag = 0;
+			}
 		}
 
 		rc = mipi_dsi_dcs_set_display_brightness_samsung(dsi, bl_lvl);
@@ -951,8 +971,6 @@ int dsi_panel_op_set_hbm_mode(struct dsi_panel *panel, int level)
 			printk(KERN_DEBUG
 			       "When HBM OFF -->hbm_backight = %d panel->bl_config.bl_level =%d\n",
 			       panel->hbm_backlight, panel->bl_config.bl_level);
-			rc = dsi_panel_update_backlight(panel,
-							panel->hbm_backlight);
 		}
 		break;
 
@@ -5725,7 +5743,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
 				pr_debug("Send DSI_CMD_SET_HBM_OFF cmds.\n");
 				pr_debug("hbm_backight = %d, panel->bl_config.bl_level = %d\n",panel->hbm_backlight, panel->bl_config.bl_level);
-				rc= dsi_panel_update_backlight(panel, panel->hbm_backlight);
+				rc = dsi_panel_update_backlight(panel, saved_backlight);
 			}
 			break;
 
@@ -5788,11 +5806,6 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				HBM_flag = true;
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
-				if (rc) {
-					pr_debug("Failed HBM_ON_5, try again.\n");
-					usleep_range(12000, 13000);
-					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
-				}
 			}
 			break;
 
@@ -5824,6 +5837,9 @@ int dsi_panel_set_hbm_brightness(struct dsi_panel *panel, int level)
 
 	dsi = &panel->mipi_device;
 	mode = panel->cur_mode;
+
+	if (panel->is_hbm_enabled)
+		return 0;
 
 	mutex_lock(&panel->panel_lock);
 	if (hbm_brightness_flag == 0) {
