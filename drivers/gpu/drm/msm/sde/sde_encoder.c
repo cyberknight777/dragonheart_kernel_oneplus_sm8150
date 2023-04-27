@@ -2025,12 +2025,7 @@ static int _sde_encoder_update_rsc_client(
 	    (rsc_config->prefill_lines != prefill_lines) ||
 	    (rsc_config->jitter_numer != mode_info.jitter_numer) ||
 	    (rsc_config->jitter_denom != mode_info.jitter_denom)) {
-		if (dsi_panel_hw_type == DSI_PANEL_SAMSUNG_S6E3HC2 || dsi_panel_hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
-			rsc_config->fps = 90;
-		}
-		else {
-			rsc_config->fps = mode_info.frame_rate;
-		}
+		rsc_config->fps = mode_info.frame_rate;
 		rsc_config->vtotal = mode_info.vtotal;
 		rsc_config->prefill_lines = prefill_lines;
 		rsc_config->jitter_numer = mode_info.jitter_numer;
