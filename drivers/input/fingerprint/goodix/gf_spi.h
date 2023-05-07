@@ -156,8 +156,8 @@ struct gf_dev {
 	struct pinctrl_state   *gpio_state_enable;
 	struct pinctrl_state   *gpio_state_disable;
 	signed enable_gpio;
-	int screen_state;
-	int udfps_pressed;
+	u8 screen_state;
+	u8 udfps_pressed;
 };
 static inline int gf_pinctrl_init(struct gf_dev* gf_dev);
 static inline int gf_parse_dts(struct gf_dev* gf_dev);
