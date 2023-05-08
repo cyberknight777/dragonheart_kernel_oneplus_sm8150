@@ -40,9 +40,9 @@
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
 		qcom,mdss-dsi-te-dcs-command = <1>;
 		qcom,mdss-dsi-bl-min-level = <1>;
-		qcom,mdss-dsi-bl-max-level = <1023>;
+		qcom,mdss-dsi-bl-max-level = <2047>;
 		qcom,mdss-brightness-default-val = <200>;
-		qcom,mdss-brightness-max-level = <1023>;
+		qcom,mdss-brightness-max-level = <2047>;
 		qcom,fod-dim-lut = <
                 /* brightness, alpha */
 			0 250
@@ -2650,7 +2650,7 @@
 	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 	qcom,mdss-dsi-bl-min-level = <1>;
-	qcom,mdss-dsi-bl-max-level = <1023>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
 	qcom,platform-te-gpio = <&tlmm 8 0>;
 	qcom,platform-reset-gpio = <&tlmm 6 0>;
 	qcom,platform-reset-gpio-tmo = <&tlmm 78 0>;

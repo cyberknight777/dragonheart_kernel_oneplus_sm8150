@@ -40,7 +40,7 @@
 			qcom,mdss-dsi-wr-mem-continue = <0x3c>;
 			qcom,mdss-dsi-te-dcs-command = <1>;
 			qcom,mdss-dsi-bl-min-level = <6>;
-			qcom,mdss-dsi-bl-max-level = <1023>;
+			qcom,mdss-dsi-bl-max-level = <2047>;
 			qcom,fod-dim-lut = <
                 	/* brightness, alpha */
 				0 235
@@ -76,7 +76,7 @@
                                 1023 0
                 >;
 			qcom,mdss-brightness-default-val = <160>;
-			qcom,mdss-brightness-max-level = <1023>;
+			qcom,mdss-brightness-max-level = <2047>;
 			qcom,mdss-pan-physical-width-dimension = <68>;
 			qcom,mdss-pan-physical-height-dimension = <145>;
 			qcom,mdss-dsi-init-delay-us = <1000>;
@@ -1093,7 +1093,7 @@
 	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 	qcom,mdss-dsi-bl-min-level = <1>;
-	qcom,mdss-dsi-bl-max-level = <1023>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
 	qcom,platform-te-gpio = <&tlmm 8 0>;
 	qcom,platform-reset-gpio = <&tlmm 6 0>;
 	qcom,platform-poc-gpio = <&tlmm 130 0>;

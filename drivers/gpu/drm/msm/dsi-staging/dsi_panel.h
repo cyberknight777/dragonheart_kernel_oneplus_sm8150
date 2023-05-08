@@ -31,7 +31,7 @@
 #include "msm_drv.h"
 
 #define MAX_BL_LEVEL 4096
-#define MAX_BL_SCALE_LEVEL 1024
+#define MAX_BL_SCALE_LEVEL 2048
 #define MAX_AD_BL_SCALE_LEVEL 65535
 #define DSI_CMD_PPS_SIZE 135
 
