@@ -5763,55 +5763,7 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 			}
 			break;
 
-		case 1:
-			count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_ON_1].count;
-			if (!count) {
-				pr_err("This panel does not support HBM mode 1.\n");
-				goto error;
-			}
-			else {
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_1);
-				pr_debug("Send DSI_CMD_SET_HBM_ON_1 cmds.\n");
-			}
-			break;
-
-		case 2:
-			count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_ON_2].count;
-			if (!count) {
-				pr_err("This panel does not support HBM mode 2.\n");
-				goto error;
-			}
-			else {
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_2);
-				pr_debug("Send DSI_CMD_SET_HBM_ON_2 cmds.\n");
-			}
-			break;
-
-		case 3:
-			count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_ON_3].count;
-			if (!count) {
-				pr_err("This panel does not support HBM mode 3.\n");
-				goto error;
-			}
-			else {
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_3);
-				pr_debug("Send DSI_CMD_SET_HBM_ON_3 cmds.\n");
-			}
-			break;
-
-		case 4:
-			count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_ON_4].count;
-			if (!count) {
-				pr_err("This panel does not support HBM mode 4.\n");
-				goto error;
-			}
-			else {
-				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_4);
-				pr_debug("Send DSI_CMD_SET_HBM_ON_4 cmds.\n");
-			}
-			break;
-
-		case 5:
+		default:
 			count = mode->priv_info->cmd_sets[DSI_CMD_SET_HBM_ON_5].count;
 			if (!count) {
 				pr_err("This panel does not support HBM mode 5.\n");
@@ -5823,9 +5775,6 @@ int dsi_panel_set_hbm_mode(struct dsi_panel *panel, int level)
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON_5);
 				pr_debug("Send DSI_CMD_SET_HBM_ON_5 cmds.\n");
 			}
-			break;
-
-		default:
 			break;
 		}
 
