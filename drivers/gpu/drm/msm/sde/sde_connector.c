@@ -642,6 +642,7 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 	return display ? display->panel : NULL;
 }
 
+bool was_hbm;
 static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
 	struct dsi_panel *panel;
@@ -661,22 +662,30 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 	if (status) {
 		blank = 1;
 		level = 5;
+		if (panel->bl_config.bl_level > 1023)
+			was_hbm = true;
+		else
+			was_hbm = false;
+
 		dsi_panel_set_nolp(panel);
-		if (panel->cur_mode->timing.refresh_rate < 90
+		if ((panel->cur_mode->timing.refresh_rate < 90
 			|| panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)
+			&& !was_hbm)
 			sde_encoder_wait_for_event(c_conn->encoder,
 					MSM_ENC_VBLANK);
 	} else {
 		blank = 0;
 	}
-	dsi_panel_set_hbm_mode(panel, level);
+	if (!was_hbm) {
+		dsi_panel_set_hbm_mode(panel, level);
 
-	if (!status && panel->cur_mode->timing.refresh_rate < 90)
-		sde_encoder_wait_for_event(c_conn->encoder,
-				MSM_ENC_VBLANK);
+		if (!status && panel->cur_mode->timing.refresh_rate < 90)
+			sde_encoder_wait_for_event(c_conn->encoder,
+					MSM_ENC_VBLANK);
+	}
 
 	dsi_panel_set_fod_ui(panel, status);
-	if (!status)
+	if (!status && !was_hbm)
 		_sde_connector_update_bl_scale(c_conn);
 
 	notifier_data.data = &blank;
