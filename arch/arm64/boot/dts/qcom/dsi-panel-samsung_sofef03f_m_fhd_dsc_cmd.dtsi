@@ -68,6 +68,8 @@
 				800 56
 				900 44
 				1023 31
+				1024 1
+				2048 1
                 	>;
 			qcom,dc-dim-lut = <
                         /* brightness, alpha */
