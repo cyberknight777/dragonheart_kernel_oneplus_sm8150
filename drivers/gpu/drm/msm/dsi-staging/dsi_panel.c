@@ -892,6 +892,9 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	dsi = &panel->mipi_device;
 	mode = panel->cur_mode;
 
+	if (panel->is_hbm_enabled || HBM_flag == true)
+		return 0;
+
 	saved_backlight = bl_lvl;
 
 	if (panel->dc_dim)

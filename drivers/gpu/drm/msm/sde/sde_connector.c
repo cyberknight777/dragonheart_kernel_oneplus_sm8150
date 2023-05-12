@@ -90,13 +90,13 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	bl_lvl = mult_frac(brightness, display->panel->bl_config.bl_max_level,
 			display->panel->bl_config.brightness_max_level);
 
-	//Hack to workaround this range having artifacts or being lower brightness
-	//than 1023
-	if (bl_lvl > 1023 && bl_lvl < 1600)
-		bl_lvl = 1600;
-
 	if (!bl_lvl && brightness)
 		bl_lvl = 1;
+
+	//Hack because 1024-2047 has different issues on different devices
+	//Only 7T is capable of using this range, however we manual set HBM
+	if (bl_lvl > 1023)
+		bl_lvl = 2047;
 
 	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_lvl;
