@@ -642,7 +642,7 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 	return display ? display->panel : NULL;
 }
 
-bool was_hbm;
+bool was_hbm = false;
 extern bool HBM_flag;
 static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
@@ -683,6 +683,8 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		if (!status && panel->cur_mode->timing.refresh_rate < 90)
 			sde_encoder_wait_for_event(c_conn->encoder,
 					MSM_ENC_VBLANK);
+	} else if (was_hbm && !status) {
+		was_hbm = false;
 	}
 
 	dsi_panel_set_fod_ui(panel, status);
