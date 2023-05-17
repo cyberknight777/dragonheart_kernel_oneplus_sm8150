@@ -66,8 +66,14 @@ static void scm_disable_sdi(void);
  * There is no API from TZ to re-enable the registers.
  * So the SDI cannot be re-enabled when it already by-passed.
  */
+static int in_panic;
 static int download_mode = 1;
 static bool force_warm_reboot;
+
+int oem_get_download_mode(void)
+{
+	return 0;
+}
 
 #ifdef CONFIG_QCOM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
@@ -76,7 +82,6 @@ static bool force_warm_reboot;
 #define KASLR_OFFSET_PROP "qcom,msm-imem-kaslr_offset"
 #endif
 
-static int in_panic;
 static struct kobject dload_kobj;
 static int dload_type = SCM_DLOAD_FULLDUMP;
 static void *dload_mode_addr;
@@ -105,11 +110,6 @@ struct reset_attribute {
 
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
-
-int oem_get_download_mode(void)
-{
-	return download_mode && (dload_type & SCM_DLOAD_FULLDUMP);
-}
 
 static int panic_prep_restart(struct notifier_block *this,
 			      unsigned long event, void *ptr)
