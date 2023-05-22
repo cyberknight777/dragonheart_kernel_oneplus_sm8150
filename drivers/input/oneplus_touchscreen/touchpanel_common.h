@@ -485,8 +485,10 @@ struct touchpanel_data {
     struct work_struct     async_work;
     struct workqueue_struct *async_workqueue;
     struct work_struct     fw_update_work;             /*using for fw update*/
-	struct delayed_work 	work_read_info;				/*using for print more rawdata when probe*/
-	struct wakeup_source	source;
+    struct delayed_work 	work_read_info;				/*using for print more rawdata when probe*/
+    struct wakeup_source	source;
+    struct wakeup_source single_tap_pm;
+    struct delayed_work report_single_tap_work;
 
 
     struct esd_information  esd_info;

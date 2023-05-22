@@ -343,7 +343,23 @@ int sec_double_tap(struct gesture_info *gesture)
 
 }
 
-static void tp_gesture_handle(struct touchpanel_data *ts)
+static void tp_report_key(struct touchpanel_data *ts, unsigned int key)
+{
+	input_report_key(ts->input_dev, key, 1);
+	input_sync(ts->input_dev);
+	input_report_key(ts->input_dev, key, 0);
+	input_sync(ts->input_dev);
+}
+
+static void tp_gesture_report_single_tap(struct work_struct *work)
+{
+	struct touchpanel_data *ts = container_of(work, struct touchpanel_data, report_single_tap_work.work);
+
+	tp_report_key(ts, KEY_GESTURE_SINGLE_TAP);
+	__pm_relax(&ts->single_tap_pm);
+}
+
+static inline void tp_gesture_handle(struct touchpanel_data *ts)
 {
     struct gesture_info gesture_info_temp;
     bool enabled = false;
@@ -434,12 +450,17 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 	}
 
     if (enabled) {
-		memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
-		input_report_key(ts->input_dev, key, 1);
-		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, key, 0);
-		input_sync(ts->input_dev);
-	}
+        memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
+        if (key == KEY_GESTURE_SINGLE_TAP) {
+	    smp_mb();
+	    schedule_delayed_work(&ts->report_single_tap_work, msecs_to_jiffies(250));
+	    __pm_stay_awake(&ts->single_tap_pm);
+        } else {
+	    cancel_delayed_work(&ts->report_single_tap_work);
+	    __pm_relax(&ts->single_tap_pm);
+	    tp_report_key(ts, key);
+        }
+    }
 }
 
 static inline ssize_t double_tap_pressed_get(struct device *device,
@@ -4644,6 +4665,10 @@ int register_common_touch_device(struct touchpanel_data *pdata)
     } else {
         ts->irq = ts->client->irq;
     }
+
+    INIT_DELAYED_WORK(&ts->report_single_tap_work, tp_gesture_report_single_tap);
+    wakeup_source_add(&ts->single_tap_pm);
+
     tp_register_times++;
     g_tp = ts;
     complete(&ts->pm_complete);
