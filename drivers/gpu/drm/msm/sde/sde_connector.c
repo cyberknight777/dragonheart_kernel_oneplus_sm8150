@@ -94,9 +94,14 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 		bl_lvl = 1;
 
 	//Hack because 1024-2047 has different issues on different devices
-	//Only 7T is capable of using this range, however we manual set HBM
-	if (bl_lvl > 1023)
-		bl_lvl = 2047;
+	//Only 7T is capable of partially using this range.
+	if (display->panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M) {
+		if (bl_lvl > 1023 && bl_lvl < 1600)
+			bl_lvl = 1600;
+	} else {
+		if (bl_lvl > 1023)
+			bl_lvl = 2047;
+	}
 
 	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_lvl;

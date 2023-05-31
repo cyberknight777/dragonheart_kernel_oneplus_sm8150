@@ -372,9 +372,9 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	if (rc)
 		pr_err("unable to set backlight\n");
 
-	if (bl_lvl == 2047 && panel->bl_config.bl_level <= 1023)
+	if (bl_lvl > 1023 && panel->bl_config.bl_level <= 1023)
 		rc = dsi_panel_set_hbm_mode(panel, 5);
-	else if (bl_lvl <= 1023 && panel->bl_config.bl_level == 2047)
+	else if (bl_lvl <= 1023 && panel->bl_config.bl_level > 1023)
 		rc = dsi_panel_set_hbm_mode(panel, 0);
 
 	panel->bl_config.bl_level = bl_lvl;
