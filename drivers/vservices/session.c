@@ -1905,7 +1905,7 @@ int vs_session_handle_message(struct vs_session_device *session,
 		struct vs_mbuf *mbuf, vs_service_id_t service_id)
 {
 	struct vs_service_device *service;
-	struct vs_transport *transport;
+	struct vs_transport __maybe_unused *transport;
 	unsigned long flags;
 
 	transport = session->transport;
