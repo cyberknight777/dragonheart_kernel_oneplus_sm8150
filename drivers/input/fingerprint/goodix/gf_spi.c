@@ -109,7 +109,7 @@ static inline void sendnlmsg_tp(struct fp_underscreen_info *msg, int length)
 	NETLINK_CB(skb_1).portid = 0;
 	NETLINK_CB(skb_1).dst_group = 0;
 	memcpy(NLMSG_DATA(nlh), msg, length);//core
-	ret = netlink_unicast(gf_nl_sk, skb_1, pid, MSG_DONTWAIT);
+	ret = netlink_unicast(gf_nl_sk, skb_1, pid, MSG_DONTWAIT + MSG_NOSIGNAL);
 }
 
 static inline void nl_data_ready(struct sk_buff *__skb)
