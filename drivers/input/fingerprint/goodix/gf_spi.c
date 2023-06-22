@@ -458,15 +458,15 @@ int __always_inline gf_opticalfp_irq_handler(int event)
 	__pm_wakeup_event(&fp_wakelock, 10*HZ);
 	if (event == 1) {
 	        gf_dev->udfps_pressed = 1;
+		sysfs_notify(&gf_dev->spi->dev.kobj, NULL, dev_attr_udfps_pressed.attr.name);
 		msg = GF_NET_EVENT_TP_TOUCHDOWN;
 		sendnlmsg(&msg);
 	} else if (event == 0) {
 	        gf_dev->udfps_pressed = 0;
+		sysfs_notify(&gf_dev->spi->dev.kobj, NULL, dev_attr_udfps_pressed.attr.name);
 		msg = GF_NET_EVENT_TP_TOUCHUP;
 		sendnlmsg(&msg);
 	}
-
-        sysfs_notify(&gf_dev->spi->dev.kobj, NULL, dev_attr_udfps_pressed.attr.name);
 
 	return 0;
 }
