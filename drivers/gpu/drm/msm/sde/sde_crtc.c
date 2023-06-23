@@ -5737,6 +5737,9 @@ static void sde_crtc_dc_dim_atomic_check(struct sde_crtc_state *cstate,
 
 	cstate->dc_dim_alpha = alpha;
 
+	if (dsi_panel_get_fod_ui(display->panel))
+		alpha = 0;
+
 	for (plane_idx = 0; plane_idx < cnt; plane_idx++) {
 		if (plane_idx == dc_dim_plane_idx)
 			continue;
