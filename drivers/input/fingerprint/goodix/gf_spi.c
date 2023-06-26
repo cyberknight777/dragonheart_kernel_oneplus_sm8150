@@ -129,8 +129,7 @@ static inline void nl_data_ready(struct sk_buff *__skb)
 
 static inline int netlink_init(void)
 {
-	struct netlink_kernel_cfg netlink_cfg;
-	memset(&netlink_cfg, 0, sizeof(struct netlink_kernel_cfg));
+	struct netlink_kernel_cfg netlink_cfg = {0, };
 	netlink_cfg.groups = 0;
 	netlink_cfg.flags = 0;
 	netlink_cfg.input = nl_data_ready;
