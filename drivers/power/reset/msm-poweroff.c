@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -48,6 +48,7 @@
 #define SCM_WDOG_DEBUG_BOOT_PART	0x9
 #define SCM_DLOAD_FULLDUMP		0X10
 #define SCM_EDLOAD_MODE			0X01
+#define SCM_EDLOAD_PCI_MODE		0X04
 #define SCM_DLOAD_CMD			0x10
 #define SCM_DLOAD_MINIDUMP		0X20
 #define SCM_DLOAD_BOTHDUMPS	(SCM_DLOAD_MINIDUMP | SCM_DLOAD_FULLDUMP)
@@ -58,8 +59,11 @@ static bool scm_pmic_arbiter_disable_supported;
 static bool scm_deassert_ps_hold_supported;
 /* Download mode master kill-switch */
 static void __iomem *msm_ps_hold;
+static void __iomem *boot_config;
 static phys_addr_t tcsr_boot_misc_detect;
 static void scm_disable_sdi(void);
+static bool early_pcie_init_enable;
+static unsigned int boot_config_shift;
 
 /*
  * Runtime could be only changed value once.
@@ -68,7 +72,6 @@ static void scm_disable_sdi(void);
  */
 static int in_panic;
 static int download_mode = 1;
-static bool force_warm_reboot;
 
 int oem_get_download_mode(void)
 {
@@ -178,11 +181,6 @@ int get_download_mode(void)
 }
 EXPORT_SYMBOL(get_download_mode);
 
-static bool get_dload_mode(void)
-{
-	return dload_mode_enabled;
-}
-
 void oem_force_minidump_mode(void)
 {
 	if (dload_type == SCM_DLOAD_FULLDUMP) {
@@ -215,7 +213,11 @@ static void enable_emergency_dload_mode(void)
 		mb();
 	}
 
-	ret = scm_set_dload_mode(SCM_EDLOAD_MODE, 0);
+	if (early_pcie_init_enable)
+		ret = scm_set_dload_mode(SCM_EDLOAD_PCI_MODE, 0);
+	else
+		ret = scm_set_dload_mode(SCM_EDLOAD_MODE, 0);
+
 	if (ret)
 		pr_debug("Failed to set secure EDLOAD mode: %d\n", ret);
 }
@@ -258,11 +260,6 @@ static void set_dload_mode(int on)
 static void enable_emergency_dload_mode(void)
 {
 	pr_debug("dload mode is not enabled on target\n");
-}
-
-static bool get_dload_mode(void)
-{
-	return false;
 }
 #endif
 
@@ -318,35 +315,17 @@ static void halt_spmi_pmic_arbiter(void)
 
 static void msm_restart_prepare(const char *cmd)
 {
-	bool need_warm_reset = false;
 #ifdef CONFIG_QCOM_DLOAD_MODE
 	/* Write download mode flags if we're panic'ing
 	 * Write download mode flags if restart_mode says so
 	 * Kill download mode if master-kill switch is set
 	 */
 	if (!is_kdump_kernel())
-		set_dload_mode(download_mode &&
-			(in_panic || restart_mode == RESTART_DLOAD));
+		set_dload_mode(false);
 #endif
 
-	if (qpnp_pon_check_hard_reset_stored()) {
-		/* Set warm reset as true when device is in dload mode */
-		if (get_dload_mode() ||
-			((cmd != NULL && cmd[0] != '\0') &&
-			!strcmp(cmd, "edl")))
-			need_warm_reset = true;
-	} else {
-		need_warm_reset = (get_dload_mode() ||
-				(cmd != NULL && cmd[0] != '\0'));
-	}
-
-	if (force_warm_reboot)
-	        pr_debug("Forcing a warm reset of the system\n");
-
-	need_warm_reset = true;
-
 	/* Hard reset the PMIC unless memory contents must be maintained. */
-	if (force_warm_reboot || need_warm_reset)
+	if (in_panic)
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 	else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
@@ -644,6 +623,7 @@ static int msm_restart_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct resource *mem;
 	struct device_node *np;
+	uint32_t read_val;
 	int ret = 0;
 
 #ifdef CONFIG_QCOM_DLOAD_MODE
@@ -744,6 +724,35 @@ skip_sysfs_create:
 	if (mem)
 		tcsr_boot_misc_detect = mem->start;
 
+	early_pcie_init_enable = 0;
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, "boot-config");
+	if (mem) {
+		boot_config = devm_ioremap_resource(dev, mem);
+		if (IS_ERR(boot_config)) {
+			pr_err("unable to ioremap boot config offset\n");
+			return PTR_ERR(boot_config);
+		}
+
+		read_val = __raw_readl(boot_config);
+
+		boot_config_shift = 3;
+		np = of_find_compatible_node(NULL, NULL,
+				"qcom,pshold");
+		if (!np) {
+			pr_err("unable to find DT pshold\n");
+		} else {
+			ret = of_property_read_u32(np, "qcom,boot-config-shift",
+					&boot_config_shift);
+			if (ret)
+				pr_err("Unable to read boot_config_shift\n");
+		}
+
+		/* boot_config_shift provides the bit of BOOT_CONFIG register
+		 * which is used as PCIe_EARLY_INIT_EN.
+		 */
+		early_pcie_init_enable = (read_val >> boot_config_shift) & 1;
+	}
+
 	pm_power_off = do_msm_poweroff;
 	arm_pm_restart = do_msm_restart;
 
@@ -756,9 +765,6 @@ skip_sysfs_create:
 		set_dload_mode(download_mode);
 	if (!download_mode)
 		scm_disable_sdi();
-
-	force_warm_reboot = of_property_read_bool(dev->of_node,
-						"qcom,force-warm-reboot");
 
 	return 0;
 
