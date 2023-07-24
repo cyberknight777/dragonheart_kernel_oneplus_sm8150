@@ -70,13 +70,8 @@ static unsigned int boot_config_shift;
  * There is no API from TZ to re-enable the registers.
  * So the SDI cannot be re-enabled when it already by-passed.
  */
-static int in_panic;
 static int download_mode = 1;
-
-int oem_get_download_mode(void)
-{
-	return 0;
-}
+static bool force_warm_reboot;
 
 #ifdef CONFIG_QCOM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
@@ -85,6 +80,7 @@ int oem_get_download_mode(void)
 #define KASLR_OFFSET_PROP "qcom,msm-imem-kaslr_offset"
 #endif
 
+static int in_panic;
 static struct kobject dload_kobj;
 static int dload_type = SCM_DLOAD_FULLDUMP;
 static void *dload_mode_addr;
@@ -113,6 +109,11 @@ struct reset_attribute {
 
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
+
+int oem_get_download_mode(void)
+{
+	return download_mode && (dload_type & SCM_DLOAD_FULLDUMP);
+}
 
 static int panic_prep_restart(struct notifier_block *this,
 			      unsigned long event, void *ptr)
@@ -180,6 +181,11 @@ int get_download_mode(void)
 	return download_mode && (dload_type & SCM_DLOAD_FULLDUMP);
 }
 EXPORT_SYMBOL(get_download_mode);
+
+static bool get_dload_mode(void)
+{
+	return dload_mode_enabled;
+}
 
 void oem_force_minidump_mode(void)
 {
@@ -261,6 +267,11 @@ static void enable_emergency_dload_mode(void)
 {
 	pr_debug("dload mode is not enabled on target\n");
 }
+
+static bool get_dload_mode(void)
+{
+	return false;
+}
 #endif
 
 static void scm_disable_sdi(void)
@@ -315,17 +326,33 @@ static void halt_spmi_pmic_arbiter(void)
 
 static void msm_restart_prepare(const char *cmd)
 {
+	bool need_warm_reset = false;
 #ifdef CONFIG_QCOM_DLOAD_MODE
 	/* Write download mode flags if we're panic'ing
 	 * Write download mode flags if restart_mode says so
 	 * Kill download mode if master-kill switch is set
 	 */
 	if (!is_kdump_kernel())
-		set_dload_mode(false);
+		set_dload_mode(download_mode &&
+			(in_panic || restart_mode == RESTART_DLOAD));
 #endif
 
+	if (qpnp_pon_check_hard_reset_stored()) {
+		/* Set warm reset as true when device is in dload mode */
+		if (get_dload_mode() ||
+			((cmd != NULL && cmd[0] != '\0') &&
+			!strcmp(cmd, "edl")))
+			need_warm_reset = true;
+	} else {
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
+	}
+
+	if (force_warm_reboot)
+		pr_info("Forcing a warm reset of the system\n");
+
 	/* Hard reset the PMIC unless memory contents must be maintained. */
-	if (in_panic)
+	if (force_warm_reboot || need_warm_reset)
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 	else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
@@ -765,6 +792,9 @@ skip_sysfs_create:
 		set_dload_mode(download_mode);
 	if (!download_mode)
 		scm_disable_sdi();
+
+	force_warm_reboot = of_property_read_bool(dev->of_node,
+						"qcom,force-warm-reboot");
 
 	return 0;
 
