@@ -1035,8 +1035,10 @@ u8 dsi_panel_get_fod_dim_alpha(struct dsi_panel *panel)
 {
 	u8 alpha;
 
+	mutex_lock(&panel->panel_lock);
 	u8 fodalpha = panel->fod_dim_alpha;
 	u8 dcalpha = panel->dc_dim_alpha;
+	mutex_unlock(&panel->panel_lock);
 
 	if (dcalpha)
 		alpha = dcalpha;
@@ -1050,7 +1052,9 @@ u8 dsi_panel_get_dc_dim_alpha(struct dsi_panel *panel)
 {
 	u8 alpha;
 
+	mutex_lock(&panel->panel_lock);
 	alpha = panel->dc_dim_alpha;
+	mutex_unlock(&panel->panel_lock);
 
 	return alpha;
 }
