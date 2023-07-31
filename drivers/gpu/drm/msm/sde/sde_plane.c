@@ -1462,9 +1462,13 @@ static inline s32 pcc_to_signed(u32 v)
 static inline void _sde_plane_mul_csc_pcc(struct sde_plane *psde,
 					  const struct sde_csc_cfg *csc_cfg)
 {
-	unsigned int fod_dim_scale = FOD_DIM_ALPHA_MAX - psde->fod_dim_alpha -
-		psde->dc_dim_alpha;
+	unsigned int fod_dim_scale;
 	unsigned int i, j, u;
+
+	if (psde->dc_dim_alpha)
+		fod_dim_scale = FOD_DIM_ALPHA_MAX - psde->dc_dim_alpha;
+	else
+		fod_dim_scale = FOD_DIM_ALPHA_MAX - psde->fod_dim_alpha;
 
 	memcpy(&psde->csc_pcc_cfg, csc_cfg, sizeof(psde->csc_pcc_cfg));
 
