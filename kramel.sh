@@ -73,13 +73,11 @@ fi
 
 if [[ "${COMPILER}" == gcc ]]; then
     if [ ! -d "${KDIR}/gcc64" ]; then
-        curl -sL https://github.com/cyberknight777/gcc-arm64/archive/refs/heads/master.tar.gz | tar -xzf -
-        mv "${KDIR}"/gcc-arm64-master "${KDIR}"/gcc64
+        git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 gcc64
     fi
 
     if [ ! -d "${KDIR}/gcc32" ]; then
-        curl -sL https://github.com/cyberknight777/gcc-arm/archive/refs/heads/master.tar.gz | tar -xzf -
-        mv "${KDIR}"/gcc-arm-master "${KDIR}"/gcc32
+        git clone https://github.com/cyberknight777/gcc-arm --depth=1 gcc32
     fi
 
     KBUILD_COMPILER_STRING=$("${KDIR}"/gcc64/bin/aarch64-elf-gcc --version | head -n 1)
@@ -99,7 +97,8 @@ if [[ "${COMPILER}" == gcc ]]; then
     )
 
 elif [[ "${COMPILER}" == clang ]]; then
-    if [ ! -d "${KDIR}/neutron-clang" ]; then
+    if [ ! -f "${KDIR}/neutron-clang/bin/clang" ]; then
+        rm -rf "${KDIR}"/neutron-clang
         mkdir "${KDIR}"/neutron-clang
         cd "${KDIR}"/neutron-clang || exit 1
         bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S
