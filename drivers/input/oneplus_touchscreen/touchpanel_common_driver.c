@@ -449,18 +449,18 @@ static inline void tp_gesture_handle(struct touchpanel_data *ts)
 			break;
 	}
 
-    if (enabled) {
-        memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
-        if (key == KEY_GESTURE_SINGLE_TAP) {
+	if (enabled) {
+	  memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
+	  if (key == KEY_GESTURE_SINGLE_TAP) {
 	    smp_mb();
 	    schedule_delayed_work(&ts->report_single_tap_work, msecs_to_jiffies(250));
 	    __pm_stay_awake(&ts->single_tap_pm);
-        } else {
+	  } else {
 	    cancel_delayed_work(&ts->report_single_tap_work);
 	    __pm_relax(&ts->single_tap_pm);
 	    tp_report_key(ts, key);
-        }
-    }
+	  }
+	}
 }
 
 static inline ssize_t double_tap_pressed_get(struct device *device,
