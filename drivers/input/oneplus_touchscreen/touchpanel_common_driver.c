@@ -357,8 +357,6 @@ static void tp_gesture_report_single_tap(struct work_struct *work)
 
 	sysfs_notify(&ts->client->dev.kobj, NULL, "single_tap_pressed");
 	__pm_relax(&ts->single_tap_pm);
-	msleep(300);
-	ts->single_tap_pressed = 0;
 }
 
 static inline void tp_gesture_handle(struct touchpanel_data *ts)
@@ -454,12 +452,10 @@ static inline void tp_gesture_handle(struct touchpanel_data *ts)
 	if (enabled) {
 	  memcpy(&ts->gesture, &gesture_info_temp, sizeof(struct gesture_info));
 	  if (key == KEY_GESTURE_SINGLE_TAP) {
-	    ts->single_tap_pressed = 1;
 	    smp_mb();
 	    schedule_delayed_work(&ts->report_single_tap_work, msecs_to_jiffies(250));
 	    __pm_stay_awake(&ts->single_tap_pm);
 	  } else {
-	    ts->single_tap_pressed = 0;
 	    cancel_delayed_work(&ts->report_single_tap_work);
 	    __pm_relax(&ts->single_tap_pm);
 	    tp_report_key(ts, key);
@@ -482,7 +478,7 @@ static inline ssize_t single_tap_pressed_get(struct device *device,
 				char *buffer)
 {
 	struct touchpanel_data *ts = dev_get_drvdata(device);
-	return scnprintf(buffer, PAGE_SIZE, "%i\n", ts->single_tap_pressed);
+	return scnprintf(buffer, PAGE_SIZE, "%d\n", ts->gesture.gesture_type == SingleTap);
 }
 
 static DEVICE_ATTR(single_tap_pressed, S_IRUGO, single_tap_pressed_get, NULL);

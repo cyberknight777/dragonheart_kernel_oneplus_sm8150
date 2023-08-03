@@ -512,7 +512,6 @@ struct touchpanel_data {
     void                  *private_data;                /*Reserved Private data*/
     char                  *earsense_delta;
     u8 double_tap_pressed;
-    u8 single_tap_pressed;
 };
 
 struct touchpanel_operations {
