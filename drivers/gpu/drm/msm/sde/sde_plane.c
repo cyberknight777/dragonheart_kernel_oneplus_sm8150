@@ -4182,6 +4182,7 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 			break;
 		case PLANE_PROP_CSC_V1:
 		case PLANE_PROP_CSC_DMA_V1:
+		case PLANE_PROP_DCDIM:
 		case PLANE_PROP_CUSTOM:
 			pstate->dirty |= SDE_PLANE_DIRTY_CSC;
 		case PLANE_PROP_INVERSE_PMA:
@@ -4194,7 +4195,6 @@ static int sde_plane_sspp_atomic_update(struct drm_plane *plane,
 			break;
 		case PLANE_PROP_INFO:
 		case PLANE_PROP_ALPHA:
-		case PLANE_PROP_DCDIM:
 		case PLANE_PROP_INPUT_FENCE:
 		case PLANE_PROP_BLEND_OP:
 			/* no special action required */
