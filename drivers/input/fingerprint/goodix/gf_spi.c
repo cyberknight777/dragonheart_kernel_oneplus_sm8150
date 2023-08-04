@@ -429,16 +429,22 @@ static const struct attribute_group gf_attribute_group = {
 static struct fp_underscreen_info fp_tpinfo ={0};
 int __always_inline opticalfp_irq_handler(struct fp_underscreen_info* tp_info)
 {
+
+	struct gf_dev *gf_dev = &gf;
 	if (gf.spi == NULL) {
 		return 0;
 	}
 	fp_tpinfo = *tp_info;
 	switch(fp_tpinfo.touch_state) {
 	case 1:
+	  gf_dev->udfps_pressed = 1;
+	  sysfs_notify(&gf_dev->spi->dev.kobj, NULL, dev_attr_udfps_pressed.attr.name);
 	  fp_tpinfo.touch_state = GF_NET_EVENT_TP_TOUCHDOWN;
 	  sendnlmsg_tp(&fp_tpinfo,sizeof(fp_tpinfo));
 	  break;
 	case 0:
+	  gf_dev->udfps_pressed = 0;
+	  sysfs_notify(&gf_dev->spi->dev.kobj, NULL, dev_attr_udfps_pressed.attr.name);
 	  fp_tpinfo.touch_state = GF_NET_EVENT_TP_TOUCHUP;
 	  sendnlmsg_tp(&fp_tpinfo,sizeof(fp_tpinfo));
 	  break;
