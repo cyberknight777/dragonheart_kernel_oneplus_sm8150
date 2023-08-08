@@ -653,7 +653,7 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
 	struct dsi_panel *panel;
 	struct msm_drm_notifier notifier_data;
-	int blank, rr;
+	int blank, rr, earlynotif;
 	int level = 0;
 	bool status;
 
@@ -666,6 +666,14 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		return;
 
 	rr = panel->cur_mode->timing.refresh_rate;
+
+	//per-panel and refresh early notification logic
+	if (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)
+		earlynotif = 1;
+	else if (rr < 90)
+		earlynotif = 0;
+	else if (rr > 60)
+		earlynotif = 2;
 
 	if (status) {
 		blank = 1;
@@ -684,6 +692,12 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		blank = 0;
 	}
 
+	if (earlynotif == 2) {
+		notifier_data.data = &blank;
+		notifier_data.id = connector_state_crtc_index;
+		msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
+	}
+
 	if (!was_hbm) {
 		dsi_panel_set_hbm_mode(panel, level);
 
@@ -694,7 +708,7 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 		was_hbm = false;
 	}
 
-	if (rr > 60) {
+	if (earlynotif == 1) {
 		notifier_data.data = &blank;
 		notifier_data.id = connector_state_crtc_index;
 		msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
@@ -704,7 +718,7 @@ static void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 	if (!status && !was_hbm)
 		_sde_connector_update_bl_scale(c_conn);
 
-	if (rr < 90) {
+	if (!earlynotif) {
 		notifier_data.data = &blank;
 		notifier_data.id = connector_state_crtc_index;
 		msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
