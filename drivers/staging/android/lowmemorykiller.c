@@ -110,7 +110,6 @@ static unsigned long lowmem_count(struct shrinker *s,
 bool lmk_kill_possible(void);
 static atomic_t shift_adj = ATOMIC_INIT(0);
 static short adj_max_shift = 353;
-module_param_named(adj_max_shift, adj_max_shift, short, 0644);
 
 enum {
 	ADAPTIVE_LMK_DISABLED = 0,
