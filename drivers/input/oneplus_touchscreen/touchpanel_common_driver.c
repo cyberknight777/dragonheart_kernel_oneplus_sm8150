@@ -886,13 +886,20 @@ static void tp_work_func(struct touchpanel_data *ts)
         TPD_INFO("not support ts_ops->trigger_reason callback\n");
         return;
     }
+
+    cur_event =
+        ts->ts_ops->trigger_reason(ts->chip_data, ts->gesture_enable,
+	             ts->is_suspended);
+
+    if (cur_event == 0x00)
+        return;
+
     /*
      *  trigger_reason:this callback determine which trigger reason should be
      *  The value returned has some policy!
      *  1.IRQ_EXCEPTION /IRQ_GESTURE /IRQ_IGNORE /IRQ_FW_CONFIG --->should be only reported  individually
      *  2.IRQ_TOUCH && IRQ_BTN_KEY --->should depends on real situation && set correspond bit on trigger_reason
      */
-    cur_event = ts->ts_ops->trigger_reason(ts->chip_data, ts->gesture_enable, ts->is_suspended);
     if (CHK_BIT(cur_event, IRQ_TOUCH) || CHK_BIT(cur_event, IRQ_BTN_KEY) || CHK_BIT(cur_event, IRQ_DATA_LOGGER) || CHK_BIT(cur_event, IRQ_FACE_STATE)) {
         if (CHK_BIT(cur_event, IRQ_BTN_KEY)) {
             tp_btnkey_handle(ts);
