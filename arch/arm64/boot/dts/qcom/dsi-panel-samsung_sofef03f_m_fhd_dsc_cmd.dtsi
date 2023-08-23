@@ -255,44 +255,8 @@
 						05 01 00 00 64 00 02 10 00
 						];
 					qcom,mdss-dsi-panel-hbm-brightness-on-command = [
-						/* HBM Mode Setting */
-						39 00 00 00 00 00 03 F0 5A 5A
-						39 00 00 00 00 00 02 B0 BB
-						39 00 00 00 00 00 02 BA 77
-						39 00 00 00 00 00 02 B0 01
-						39 00 00 00 00 00 03 B7 57 FF
-						39 00 00 00 00 00 02 B0 0A
-						39 00 00 00 00 00 11 B7 00
-						01 02 03 24 45 46 47 68 09
-						6A 8B 8C 40 A1 02
-						39 00 00 00 00 00 02 B0 3C
-						39 00 00 00 00 00 1B B7 41
-						65 4A 67 E7 FF 80 08 55 8A
-						A9 54 9F EA A8 B5 2B FC CA
-						6D 50 DF AE A4 F4 E0
-						39 01 00 00 11 00 03 F0 A5 A5
-						/* HBM Mode ON */
-						39 01 00 00 00 00 02 53 E0
 						];
 					qcom,mdss-dsi-panel-hbm-brightness-off-command = [
-						/* HBM Mode OFF */
-						39 00 00 00 00 00 02 53 20
-						39 01 00 00 11 00 03 51 03 FF
-						39 00 00 00 00 00 03 F0 5A 5A
-						39 00 00 00 00 00 02 B0 BB
-						39 00 00 00 00 00 02 BA F7
-						39 00 00 00 00 00 02 B0 01
-						39 00 00 00 00 00 03 B7 52 A8
-						39 00 00 00 00 00 02 B0 0A
-						39 00 00 00 00 00 11 B7 00
-						00 00 00 21 41 41 41 62 02
-						62 82 83 43 A3 03
-						39 00 00 00 00 00 02 B0 3C
-						39 00 00 00 00 00 1B B7 2E
-						23 2F 37 C3 C9 41 64 63 4B
-						04 FD 54 A5 97 5E 46 31 67
-						E6 CB 71 87 65 7B 20
-						39 01 00 00 00 00 03 F0 A5 A5
 						];
 					qcom,mdss-dsi-panel-hbm-on-command-1 = [
 						];
@@ -303,28 +267,12 @@
 					qcom,mdss-dsi-panel-hbm-on-command-4 = [
 						];
 					qcom,mdss-dsi-panel-hbm-on-command-5 = [
-						/* ELVSS Dim Setting */
-						39 01 00 00 00 00 03 F0 5A 5A
-						39 01 00 00 00 00 02 B0 05
-						39 01 00 00 00 00 02 B7 13				/* 0x13 : ELVSS DIM OFF */
-						39 01 00 00 00 00 03 F0 A5 A5
-						/* Dimming Delay control */
-						39 01 00 00 00 00 03 F0 5A 5A
-						39 01 00 00 00 00 02 B0 01
-						39 01 00 00 00 00 02 B7 5B				/* 0x5B : DLY OFF */
-						39 01 00 00 11 00 03 F0 A5 A5
 						/* HBM Mode ON */
 						39 01 00 00 00 00 02 53 E0				/* 0xE0 Normal transition */
 						39 01 00 00 11 00 03 51 01 84			/* 670nit */
-						/* Dimming Delay control */
-						39 01 00 00 00 00 03 F0 5A 5A
-						39 01 00 00 00 00 02 B0 01
-						39 01 00 00 00 00 02 B7 53				/* 0x53 : DLY ON */
-						39 01 00 00 07 00 03 F0 A5 A5
 					];
 					qcom,mdss-dsi-panel-hbm-off-command = [
 						/* HBM Mode OFF */
-						39 01 00 00 00 00 03 F0 5A 5A
 						39 01 00 00 00 00 02 53 20				/* 0x20 Normal transition */
 						39 01 00 00 00 00 03 F0 A5 A5
 					];
@@ -740,44 +688,8 @@
 						05 01 00 00 64 00 02 10 00
 						];
 					qcom,mdss-dsi-panel-hbm-brightness-on-command = [
-						/* HBM Mode Setting */
-						39 00 00 00 00 00 03 F0 5A 5A
-						39 00 00 00 00 00 02 B0 BB
-						39 00 00 00 00 00 02 BA 77
-						39 00 00 00 00 00 02 B0 01
-						39 00 00 00 00 00 03 B7 57 FF
-						39 00 00 00 00 00 02 B0 0A
-						39 00 00 00 00 00 11 B7 00
-						01 02 03 24 45 46 47 68 09
-						6A 8B 8C 40 A1 02
-						39 00 00 00 00 00 02 B0 3C
-						39 00 00 00 00 00 1B B7 41
-						65 4A 67 E7 FF 80 08 55 8A
-						A9 54 9F EA A8 B5 2B FC CA
-						6D 50 DF AE A4 F4 E0
-						39 01 00 00 0C 00 03 F0 A5 A5
-						/* HBM Mode ON */
-						39 01 00 00 00 00 02 53 E0
 						];
 					qcom,mdss-dsi-panel-hbm-brightness-off-command = [
-						/* HBM Mode OFF */
-						39 00 00 00 00 00 02 53 20
-						39 01 00 00 0C 00 03 51 03 FF
-						39 00 00 00 00 00 03 F0 5A 5A
-						39 00 00 00 00 00 02 B0 BB
-						39 00 00 00 00 00 02 BA F7
-						39 00 00 00 00 00 02 B0 01
-						39 00 00 00 00 00 03 B7 52 A8
-						39 00 00 00 00 00 02 B0 0A
-						39 00 00 00 00 00 11 B7 00
-						00 00 00 21 41 41 41 62 02
-						62 82 83 43 A3 03
-						39 00 00 00 00 00 02 B0 3C
-						39 00 00 00 00 00 1B B7 2E
-						23 2F 37 C3 C9 41 64 63 4B
-						04 FD 54 A5 97 5E 46 31 67
-						E6 CB 71 87 65 7B 20
-						39 01 00 00 00 00 03 F0 A5 A5
 						];
 					qcom,mdss-dsi-panel-hbm-on-command-1 = [
 						];
@@ -788,28 +700,12 @@
 					qcom,mdss-dsi-panel-hbm-on-command-4 = [
 						];
 					qcom,mdss-dsi-panel-hbm-on-command-5 = [
-						/* ELVSS Dim Setting */
-						39 01 00 00 00 00 03 F0 5A 5A
-						39 01 00 00 00 00 02 B0 05
-						39 01 00 00 00 00 02 B7 13				/* 0x13 : ELVSS DIM OFF */
-						39 01 00 00 03 00 03 F0 A5 A5
-						/* Dimming Delay control */
-						39 01 00 00 00 00 03 F0 5A 5A
-						39 01 00 00 00 00 02 B0 01
-						39 01 00 00 00 00 02 B7 5B				/* 0x5B : DLY OFF */
-						39 01 00 00 0C 00 03 F0 A5 A5
 						/* HBM Mode ON */
 						39 01 00 00 00 00 02 53 E0				/* 0xE0 Normal transition */
 						39 01 00 00 0C 00 03 51 01 84			/* 670nit */
-						/* Dimming Delay control */
-						39 01 00 00 00 00 03 F0 5A 5A
-						39 01 00 00 00 00 02 B0 01
-						39 01 00 00 00 00 02 B7 53				/* 0x53 : DLY ON */
-						39 01 00 00 09 00 03 F0 A5 A5
 					];
 					qcom,mdss-dsi-panel-hbm-off-command = [
 						/* HBM Mode OFF */
-						39 01 00 00 00 00 03 F0 5A 5A
 						39 01 00 00 00 00 02 53 20				/* 0x20 Normal transition */
 						39 01 00 00 00 00 03 F0 A5 A5
 					];
