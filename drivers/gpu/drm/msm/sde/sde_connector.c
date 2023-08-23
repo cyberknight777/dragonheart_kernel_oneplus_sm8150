@@ -679,7 +679,6 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		else
 			was_hbm = false;
 
-		dsi_panel_set_nolp(panel);
 		if (rr < 90 && !was_hbm)
 			sde_encoder_wait_for_event(c_conn->encoder,
 					MSM_ENC_VBLANK);
