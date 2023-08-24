@@ -5115,7 +5115,7 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		pr_debug("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
 
-	if (cur_bl > 30)
+	if (cur_bl > 90)
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_5);
 	else
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_1);
