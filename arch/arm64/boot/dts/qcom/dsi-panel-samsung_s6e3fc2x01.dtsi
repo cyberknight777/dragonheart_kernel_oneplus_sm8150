@@ -197,10 +197,31 @@
 				qcom,mdss-dsi-h-sync-pulse = <0>;
 		   /**************************************************************/
 				qcom,mdss-dsi-panel-hbm-brightness-on-command = [
+					/*HBM ON */
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 53 E0
+					39 01 00 00 00 00 03 F0 A5 A5
 				];
 				qcom,mdss-dsi-panel-hbm-brightness-off-command = [
+					/* DLY ON */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B7 00 01 5B
+					39 00 00 00 00 00 03 F0 A5 A5
+
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 02 53 20
+					39 01 00 00 00 00 03 F0 A5 A5
 				];
 				qcom,mdss-dsi-panel-hbm-on-command-5 = [
+						/*ELVSS OFF*/
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 B0 08
+					15 00 00 00 00 00 02 B7 12
+					39 01 00 00 10 00 03 F0 A5 A5
+						/*DLY OFF*/
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B7 00 01 5B
+					39 00 00 00 00 00 03 F0 A5 A5
 						/*HBM ON */
 					15 00 00 00 00 00 02 53 E0
 					39 01 00 00 0E 00 03 51 03 FF
@@ -208,6 +229,10 @@
 					39 00 00 00 00 00 03 F0 5A 5A
 					39 00 00 00 00 00 03 BD 00 00
 					39 00 00 00 00 00 03 F0 A5 A5
+						/*DLY OFF*/
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B7 00 01 53
+					39 01 00 00 00 00 03 F0 A5 A5
 				];
 				qcom,mdss-dsi-panel-hbm-off-command = [
 					/*HBM 670nit off*/
@@ -218,8 +243,23 @@
 					15 01 00 00 00 00 02 53 20
 				];
 				qcom,mdss-dsi-panel-hbm-max-brightness-command-on = [
+					39 01 00 00 00 00 03 F0 5A 5A
+					15 01 00 00 00 00 02 B0 07
+					15 01 00 00 00 00 02 B7 7F
+					15 01 00 00 00 00 02 B0 08
+					15 01 00 00 80 00 02 B7 92
+					39 01 00 00 40 00 02 53 E8
+					39 01 00 00 80 00 03 F0 A5 A5
+					39 01 00 00 00 00 03 51 03 FF
 				];
 				qcom,mdss-dsi-panel-hbm-max-brightness-command-off = [
+					39 01 00 00 00 00 03 F0 5A 5A
+					15 01 00 00 00 00 02 B0 07
+					15 01 00 00 40 00 02 B7 7F
+					15 01 00 00 00 00 02 B0 08
+					15 01 00 00 40 00 02 B7 92
+					39 01 00 00 00 00 03 F0 A5 A5
+					39 01 00 00 10 00 02 53 28
 				];
 				qcom,mdss-dsi-panel-hbm-brightness-on-command-state = "dsi_hs_mode";
 				qcom,mdss-dsi-panel-hbm-brightness-off-command-state = "dsi_hs_mode";
