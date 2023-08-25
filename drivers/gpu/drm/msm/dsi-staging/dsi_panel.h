@@ -324,6 +324,7 @@ struct dsi_panel {
 	bool force_fod_dim_alpha;
 	bool dc_dim;
 	bool was_dc_dim;
+	bool aod_state;
 };
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)

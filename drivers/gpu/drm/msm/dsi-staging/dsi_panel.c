@@ -5056,6 +5056,7 @@ error:
 int dsi_panel_set_lp1(struct dsi_panel *panel)
 {
 	int rc = 0;
+	u32 cur_bl = dsi_panel_backlight_get();
 
 	if (!panel) {
 		pr_debug("invalid params\n");
@@ -5082,6 +5083,19 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 	if (rc)
 		pr_debug("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
+
+	if (!panel->aod_state) {
+		if (cur_bl > 90)
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_5);
+		else
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_1);
+
+		if (rc)
+			pr_debug("[%s] failed to send DSI_CMD_SET_AOD_ON_5 cmd, rc=%d\n",
+			       panel->name, rc);
+		else
+			panel->aod_state = true;
+	}
 
 	panel->need_power_on_backlight = true;
 
@@ -5115,14 +5129,18 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		pr_debug("[%s] failed to send DSI_CMD_SET_LP2 cmd, rc=%d\n",
 		       panel->name, rc);
 
-	if (cur_bl > 90)
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_5);
-	else
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_1);
+	if (!panel->aod_state) {
+		if (cur_bl > 90)
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_5);
+		else
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_ON_1);
 
-	if (rc)
-		pr_debug("[%s] failed to send DSI_CMD_SET_AOD_ON_5 cmd, rc=%d\n",
-		       panel->name, rc);
+		if (rc)
+			pr_debug("[%s] failed to send DSI_CMD_SET_AOD_ON_5 cmd, rc=%d\n",
+			       panel->name, rc);
+		else
+			panel->aod_state = true;
+	}
 
 	panel->need_power_on_backlight = true;
 exit:
@@ -5156,10 +5174,14 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		pr_debug("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
 		       panel->name, rc);
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_OFF);
-	if (rc)
-		pr_debug("[%s] failed to send DSI_CMD_SET_AOD_OFF cmd, rc=%d\n",
-		       panel->name, rc);
+	if (panel->aod_state) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_AOD_OFF);
+		if (rc)
+			pr_debug("[%s] failed to send DSI_CMD_SET_AOD_OFF cmd, rc=%d\n",
+			       panel->name, rc);
+		else
+			panel->aod_state = false;
+	}
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
