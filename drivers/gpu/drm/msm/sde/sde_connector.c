@@ -695,7 +695,7 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 	if (!was_hbm) {
 		dsi_panel_set_hbm_mode(panel, level);
 
-		if (!status && rr < 90)
+		if (status && (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M))
 			sde_encoder_wait_for_event(c_conn->encoder,
 					MSM_ENC_VBLANK);
 	} else if (was_hbm && !status) {
