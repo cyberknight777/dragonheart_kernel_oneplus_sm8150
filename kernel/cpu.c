@@ -1352,6 +1352,8 @@ void enable_nonboot_cpus(void)
 
 	arch_enable_nonboot_cpus_end();
 
+	balance_irqs();
+
 	cpumask_clear(frozen_cpus);
 out:
 	cpu_maps_update_done();
