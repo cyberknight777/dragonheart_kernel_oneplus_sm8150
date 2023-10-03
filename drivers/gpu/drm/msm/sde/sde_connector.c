@@ -651,25 +651,15 @@ bool was_hbm = false;
 extern bool HBM_flag;
 static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
-	struct dsi_panel *panel;
 	struct msm_drm_notifier notifier_data;
-	int blank, rr;
+	int blank;
+	struct dsi_panel *panel = sde_connector_panel(c_conn);
+	int rr = panel->cur_mode->timing.refresh_rate;
 	int level = 0;
-	bool status;
-	bool earlynotif = false;
+	bool status = sde_connector_is_fod_enabled(c_conn);
 
-	panel = sde_connector_panel(c_conn);
-	if (!panel)
+	if (status == dsi_panel_get_fod_ui(panel) || !panel)
 		return;
-
-	status = sde_connector_is_fod_enabled(c_conn);
-	if (status == dsi_panel_get_fod_ui(panel))
-		return;
-
-	rr = panel->cur_mode->timing.refresh_rate;
-
-	if (rr > 60)
-		earlynotif = true;
 
 	if (status) {
 		blank = 1;
@@ -686,7 +676,7 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		blank = 0;
 	}
 
-	if (earlynotif) {
+	if (rr > 60) {
 		notifier_data.data = &blank;
 		notifier_data.id = connector_state_crtc_index;
 		msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
@@ -706,7 +696,7 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 	if (!status && !was_hbm)
 		_sde_connector_update_bl_scale(c_conn);
 
-	if (!earlynotif) {
+	if (rr < 90) {
 		notifier_data.data = &blank;
 		notifier_data.id = connector_state_crtc_index;
 		msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
