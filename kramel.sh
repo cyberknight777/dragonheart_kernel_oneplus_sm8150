@@ -111,7 +111,6 @@ elif [[ ${COMPILER} == clang ]]; then
 	MAKE+=(
 		O=out
 		LLVM=1
-		LLVM_IAS=1
 	)
 fi
 
