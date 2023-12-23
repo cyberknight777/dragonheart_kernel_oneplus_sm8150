@@ -5732,7 +5732,7 @@ static void sde_crtc_dc_dim_atomic_check(struct sde_crtc_state *cstate,
 
 	dc_dim = dsi_panel_get_dc_dim(display->panel);
 
-	if (dc_dim_plane_idx != cnt || dc_dim)
+	if ((dc_dim_plane_idx != cnt || dc_dim) && !display->panel->p3_mode)
 		alpha = dsi_panel_get_dc_dim_alpha(display->panel);
 
 	cstate->dc_dim_alpha = alpha;

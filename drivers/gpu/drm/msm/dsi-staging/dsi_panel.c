@@ -5902,12 +5902,12 @@ int dsi_panel_set_dci_p3_mode(struct dsi_panel *panel, int level)
 	mutex_lock(&panel->panel_lock);
     if (level) {
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_DCI_P3_ON].count;
-
+	panel->p3_mode = true;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DCI_P3_ON);
             pr_debug("DCI-P3 Mode On.\n");
     } else {
-
+	panel->p3_mode = false;
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DCI_P3_OFF);
             pr_debug("DCI-P3 Mode Off.\n");
     }
@@ -5956,11 +5956,12 @@ int dsi_panel_set_native_display_p3_mode(struct dsi_panel *panel, int level)
 
     if (level) {
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_P3_ON].count;
-
+	panel->p3_mode = true;
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_ON);
             pr_debug("Native Display p3 Mode On.\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_SET_NATIVE_DISPLAY_P3_OFF].count;
+	panel->p3_mode = false;
 
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NATIVE_DISPLAY_P3_OFF);
             pr_debug("Native Display p3 Mode Off.\n");
@@ -6097,12 +6098,12 @@ int dsi_panel_set_customer_p3_mode(struct dsi_panel *panel, int level)
 
     if (level) {
         count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_CUSTOMER_P3_ON].count;
-
+	panel->p3_mode = true;
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_ON);
             pr_debug("turn on customer P3\n");
     } else {
         count = mode->priv_info->cmd_sets[DSI_CMD_LOADING_CUSTOMER_P3_OFF].count;
-
+	panel->p3_mode = false;
             rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_CUSTOMER_P3_OFF);
             pr_debug("turn off customer P3\n");
     }
