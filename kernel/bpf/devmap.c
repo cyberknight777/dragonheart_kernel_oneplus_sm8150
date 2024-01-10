@@ -317,6 +317,30 @@ static int dev_map_delete_elem(struct bpf_map *map, void *key)
 	return 0;
 }
 
+static struct bpf_dtab_netdev *__dev_map_alloc_node(struct net *net,
+						    struct bpf_dtab *dtab,
+						    u32 ifindex,
+						    unsigned int idx)
+{
+	gfp_t gfp = GFP_ATOMIC | __GFP_NOWARN;
+	struct bpf_dtab_netdev *dev;
+
+	dev = kmalloc_node(sizeof(*dev), gfp, dtab->map.numa_node);
+	if (!dev)
+		return ERR_PTR(-ENOMEM);
+
+	dev->dev = dev_get_by_index(net, ifindex);
+	if (!dev->dev) {
+		kfree(dev);
+		return ERR_PTR(-EINVAL);
+	}
+
+	dev->bit = idx;
+	dev->dtab = dtab;
+
+	return dev;
+}
+
 static int dev_map_update_elem(struct bpf_map *map, void *key, void *value,
 				u64 map_flags)
 {
@@ -336,19 +360,9 @@ static int dev_map_update_elem(struct bpf_map *map, void *key, void *value,
 	if (!ifindex) {
 		dev = NULL;
 	} else {
-		dev = kmalloc_node(sizeof(*dev), GFP_ATOMIC | __GFP_NOWARN,
-				   map->numa_node);
-		if (!dev)
-			return -ENOMEM;
-
-		dev->dev = dev_get_by_index(net, ifindex);
-		if (!dev->dev) {
-			kfree(dev);
-			return -EINVAL;
-		}
-
-		dev->bit = i;
-		dev->dtab = dtab;
+		dev = __dev_map_alloc_node(net, dtab, ifindex, i);
+		if (IS_ERR(dev))
+			return PTR_ERR(dev);
 	}
 
 	/* Use call_rcu() here to ensure rcu critical sections have completed
