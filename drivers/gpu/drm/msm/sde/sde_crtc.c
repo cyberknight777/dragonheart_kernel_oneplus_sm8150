@@ -1966,10 +1966,7 @@ static void _sde_crtc_set_src_split_order(struct drm_crtc *crtc,
 {
 	struct plane_state *prv_pstate, *cur_pstate, *nxt_pstate;
 	struct sde_kms *sde_kms;
-	struct sde_rect left_rect, right_rect;
 	uint32_t prev_flags, cur_flags = 0;
-	int32_t left_pid, right_pid;
-	int32_t stage;
 	int i;
 
 	sde_kms = _sde_crtc_get_kms(crtc);
@@ -3407,38 +3404,6 @@ int oneplus_aod_dc = 0;
 	drm_modeset_unlock_all(drm_dev);
 	SDE_ATRACE_END("oneplus_display_notify_dim");
 	return count;
-}
-/***************************************************************************/
-static int sde_crtc_config_fingerprint_dim_layer(struct drm_crtc_state *crtc_state, int stage)
-{
-	struct sde_crtc_state *cstate;
-	struct sde_kms *kms;
-    struct dsi_display *display = get_main_display();
-
-	if (display == NULL || display->panel == NULL) {
-		SDE_ERROR("display  panel is null\n");
-		return 0;
-    }
-
-	kms = _sde_crtc_get_kms(crtc_state->crtc);
-	if (!kms || !kms->catalog) {
-		SDE_ERROR("invalid kms\n");
-		return -EINVAL;
-	}
-	SDE_ATRACE_BEGIN("set_dim_layer");
-
-	cstate = to_sde_crtc_state(crtc_state);
-
-	if (cstate->num_dim_layers == SDE_MAX_DIM_LAYERS - 1) {
-		pr_debug("failed to get available dim layer for custom\n");
-		return -EINVAL;
-	}
-
-	if ((stage + SDE_STAGE_0) >= kms->catalog->mixer[0].sblk->maxblendstages) {
-		return -EINVAL;
-	}
-
-	return 0;
 }
 
 /**
