@@ -5546,7 +5546,7 @@ static void sde_crtc_dc_dim_atomic_check(struct sde_crtc_state *cstate,
 	}
 }
 
-static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
+static inline void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 			  struct plane_state *pstates, int cnt)
 {
 	struct dsi_display *display = get_main_display();
@@ -5578,7 +5578,7 @@ static void sde_crtc_fod_atomic_check(struct sde_crtc_state *cstate,
 	}
 }
 
-static int sde_crtc_atomic_check(struct drm_crtc *crtc,
+static inline int sde_crtc_atomic_check(struct drm_crtc *crtc,
 		struct drm_crtc_state *state)
 {
 	struct drm_device *dev;
