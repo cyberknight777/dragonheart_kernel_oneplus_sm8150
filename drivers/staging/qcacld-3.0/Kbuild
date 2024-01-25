@@ -2302,6 +2302,7 @@ OBJS += $(TXRX3.0_OBJS)
 endif
 
 ccflags-y += $(INCS)
+ldflags-y += -Wl --lto-O0
 
 cppflags-y +=	-DANI_OS_TYPE_ANDROID=6 \
 		-D__linux__
