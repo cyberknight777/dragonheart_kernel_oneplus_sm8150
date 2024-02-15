@@ -12,6 +12,7 @@
 
 #include <linux/iopoll.h>
 
+#include "dsi_display.h"
 #include "sde_hw_mdss.h"
 #include "sde_hwio.h"
 #include "sde_hw_catalog.h"
@@ -167,6 +168,7 @@ static int sde_hw_pp_setup_te_config(struct sde_hw_pingpong *pp,
 		struct sde_hw_tear_check *te)
 {
 	struct sde_hw_blk_reg_map *c;
+	struct dsi_display *display;
 	int cfg;
 
 	if (!pp || !te)
@@ -177,7 +179,14 @@ static int sde_hw_pp_setup_te_config(struct sde_hw_pingpong *pp,
 	if (te->hw_vsync_mode)
 		cfg |= BIT(20);
 
-	cfg |= te->vsync_count;
+	display = get_main_display();
+	if (display) {
+		if (display->panel->aod_state) {
+			cfg |= te->vsync_count * 60 * 100 / 3000;
+		} else {
+			cfg |= te->vsync_count;
+		}
+	}
 
 	SDE_REG_WRITE(c, PP_SYNC_CONFIG_VSYNC, cfg);
 	SDE_REG_WRITE(c, PP_SYNC_CONFIG_HEIGHT, te->sync_cfg_height);
