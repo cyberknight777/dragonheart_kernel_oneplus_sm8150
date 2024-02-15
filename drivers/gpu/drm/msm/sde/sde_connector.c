@@ -651,7 +651,7 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		else
 			was_hbm = false;
 
-		if (rr < 90 && !was_hbm)
+		if ((rr < 90 && !was_hbm) || panel->aod_state)
 			sde_encoder_wait_for_event(c_conn->encoder,
 					MSM_ENC_VBLANK);
 	} else {
