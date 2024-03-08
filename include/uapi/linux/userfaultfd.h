@@ -229,6 +229,7 @@ struct uffdio_copy {
 	 * according to the uffdio_register.ioctls.
 	 */
 #define UFFDIO_COPY_MODE_WP			((__u64)1<<1)
+#define UFFDIO_COPY_MODE_MMAP_TRYLOCK	      	((__u64)1<<63)
 	__u64 mode;
 
 	/*
@@ -241,6 +242,7 @@ struct uffdio_copy {
 struct uffdio_zeropage {
 	struct uffdio_range range;
 #define UFFDIO_ZEROPAGE_MODE_DONTWAKE		((__u64)1<<0)
+#define UFFDIO_ZEROPAGE_MODE_MMAP_TRYLOCK     	((__u64)1<<63)
 	__u64 mode;
 
 	/*
