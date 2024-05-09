@@ -5703,6 +5703,9 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	if (panel->aod_state)
 		panel->aod_state = 0;
 
+	if (panel->fod_ui)
+		dsi_panel_set_fod_ui(panel, false);
+
 		/*
 		 * Need to set IBB/AB regulator mode to STANDBY,
 		 * if panel is going off from AOD mode.
