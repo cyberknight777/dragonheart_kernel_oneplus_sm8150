@@ -5121,6 +5121,9 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		pr_debug("[%s] failed to send DSI_CMD_SET_LP1 cmd, rc=%d\n",
 		       panel->name, rc);
 
+	if (panel->fod_ui)
+		dsi_panel_set_fod_ui(panel, false);
+
 	if (!panel->aod_state) {
 		if (panel->hw_type == DSI_PANEL_SAMSUNG_S6E3HC2) {
 			panel->aod_state = dsi_panel_get_aod_bl(cur_bl);
@@ -5157,6 +5160,9 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
 		goto exit;
+
+	if (panel->fod_ui)
+		dsi_panel_set_fod_ui(panel, false);
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LP2);
 	if (rc)
