@@ -629,14 +629,15 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 	return display ? display->panel : NULL;
 }
 
-bool was_hbm = false;
+#define WAS_HBM_FLAG (1 << 0)
+unsigned int was_hbm = 0;
 extern bool HBM_flag;
 extern void gf_opticalfp_ready(int);
 static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
 	int blank;
 	struct dsi_panel *panel = sde_connector_panel(c_conn);
-	int status_flags = sde_connector_is_fod_enabled(c_conn);
+	unsigned int status_flags = sde_connector_is_fod_enabled(c_conn);
 
 	if (!panel || status_flags == dsi_panel_get_fod_ui(panel))
 		return;
@@ -651,17 +652,17 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		if ((panel->cur_mode->timing.refresh_rate < 90 && !(status_flags & (1 << 3))) || panel->aod_state)
 			status_flags |= (1 << 2);
 
-		was_hbm = !!(status_flags & ((panel->bl_config.bl_level > 1023) << 4 | (HBM_flag) << 3));
+		was_hbm |= !!(status_flags & ((panel->bl_config.bl_level > 1023) << 4 | (HBM_flag) << 3));
 
 		if (status_flags & (1 << 2))
 			sde_encoder_wait_for_event(c_conn->encoder,
 					MSM_ENC_VBLANK);
 	}
 
-	if (!was_hbm) {
+	if (!(was_hbm & WAS_HBM_FLAG)) {
 		dsi_panel_set_hbm_mode(panel, status_flags ? 5 : 0);
-	} else if (was_hbm && !status_flags) {
-		was_hbm = false;
+	} else if ((was_hbm & WAS_HBM_FLAG) && !status_flags) {
+		was_hbm &= ~WAS_HBM_FLAG;
 	}
 	gf_opticalfp_ready(blank);
 
