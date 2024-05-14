@@ -22,7 +22,6 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/errno.h>
-#include <linux/msm_drm_notify.h>
 #include <linux/fs.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
@@ -477,63 +476,10 @@ int __always_inline gf_opticalfp_irq_handler(int event)
 }
 EXPORT_SYMBOL(gf_opticalfp_irq_handler);
 
-static int __always_inline goodix_fb_state_chg_callback(
-	struct notifier_block *nb, unsigned long val, void *data)
+void __always_inline gf_opticalfp_ready(int ready)
 {
 	struct gf_dev *gf_dev;
-	struct msm_drm_notifier *evdata = data;
-	unsigned int blank;
-	char msg = 0;
-
-	if (val != MSM_DRM_EARLY_EVENT_BLANK &&
-		val != MSM_DRM_ONSCREENFINGERPRINT_EVENT)
-		return 0;
-
-	if (evdata->id != MSM_DRM_PRIMARY_DISPLAY)
-	    return 0;
-
-	blank = *(int *)(evdata->data);
-
-	if (val == MSM_DRM_ONSCREENFINGERPRINT_EVENT) {
-		switch (blank) {
-		case 0:
-			msg = GF_NET_EVENT_UI_DISAPPEAR;
-			sendnlmsg(&msg);
-			break;
-		case 1:
-			msg = GF_NET_EVENT_UI_READY;
-			sendnlmsg(&msg);
-			break;
-		default:
-			break;
-		}
-		return 0;
-	}
-
-	gf_dev = container_of(nb, struct gf_dev, msm_drm_notif);
-	if (evdata && evdata->data && val ==
-		MSM_DRM_EARLY_EVENT_BLANK && gf_dev) {
-		blank = *(int *)(evdata->data);
-		switch (blank) {
-		case MSM_DRM_BLANK_POWERDOWN:
-			if (gf_dev->device_available == 1) {
-				gf_dev->fb_black = 1;
-				msg = GF_NET_EVENT_FB_BLACK;
-				sendnlmsg(&msg);
-			}
-			break;
-		case MSM_DRM_BLANK_UNBLANK:
-			if (gf_dev->device_available == 1) {
-				gf_dev->fb_black = 0;
-				msg = GF_NET_EVENT_FB_UNBLACK;
-				sendnlmsg(&msg);
-			}
-			break;
-		default:
-			break;
-		}
-	}
-	return NOTIFY_OK;
+	sendnlmsg((char[]){(ready == 1) ? 6 : 7});
 }
 
 static struct class *gf_class;
@@ -616,8 +562,6 @@ static int gf_probe(struct platform_device *pdev)
 		}
 	}
 
-	gf_dev->msm_drm_notif.notifier_call = goodix_fb_state_chg_callback;
-	status = msm_drm_register_client(&gf_dev->msm_drm_notif);
 	platform_set_drvdata(pdev, gf_dev);
 	status = sysfs_create_group(&gf_dev->spi->dev.kobj,
 			&gf_attribute_group);
@@ -651,7 +595,6 @@ static inline int gf_remove(struct platform_device *pdev)
 	struct gf_dev *gf_dev = &gf;
 
 	wakeup_source_trash(&fp_wakelock);
-	if (msm_drm_unregister_client(&gf_dev->msm_drm_notif))
 	if (gf_dev->input)
 		input_unregister_device(gf_dev->input);
 	input_free_device(gf_dev->input);

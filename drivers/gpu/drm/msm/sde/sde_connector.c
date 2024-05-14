@@ -631,10 +631,10 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 
 bool was_hbm = false;
 extern bool HBM_flag;
+extern void gf_opticalfp_ready(int);
 static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn)
 {
 	int blank;
-	struct msm_drm_notifier notifier_data;
 	struct dsi_panel *panel = sde_connector_panel(c_conn);
 	int status_flags = sde_connector_is_fod_enabled(c_conn);
 
@@ -660,20 +660,19 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 
 	if (!was_hbm) {
 		dsi_panel_set_hbm_mode(panel, status_flags ? 5 : 0);
-		if (status_flags && (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M))
-			sde_encoder_wait_for_event(c_conn->encoder,
-					MSM_ENC_VBLANK);
 	} else if (was_hbm && !status_flags) {
 		was_hbm = false;
 	}
+	gf_opticalfp_ready(blank);
+
+	if (status_flags && (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M))
+		sde_encoder_wait_for_event(c_conn->encoder,
+				MSM_ENC_VBLANK);
+
 	dsi_panel_set_fod_ui(panel, status_flags);
 
 	if (!status_flags && !was_hbm)
 		_sde_connector_update_bl_scale(c_conn);
-
-	notifier_data.data = &blank;
-	notifier_data.id = connector_state_crtc_index;
-	msm_drm_notifier_call_chain(MSM_DRM_ONSCREENFINGERPRINT_EVENT, &notifier_data);
 }
 
 int sde_connector_pre_kickoff(struct drm_connector *connector)
