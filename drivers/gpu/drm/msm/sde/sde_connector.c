@@ -676,12 +676,11 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		_sde_connector_update_bl_scale(c_conn);
 }
 
-int sde_connector_pre_kickoff(struct drm_connector *connector)
+inline int sde_connector_pre_kickoff(struct drm_connector *connector)
 {
 	struct sde_connector *c_conn;
 	struct sde_connector_state *c_state;
 	struct msm_display_kickoff_params params;
-	int rc;
 	bool dc_dim, was_dcdim;
 
 	if (!connector) {
@@ -696,7 +695,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 		return -EINVAL;
 	}
 
-	rc = _sde_connector_update_dirty_properties(connector);
+	_sde_connector_update_dirty_properties(connector);
 
 	if (!c_conn->ops.pre_kickoff)
 		return 0;
@@ -704,10 +703,9 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	params.rois = &c_state->rois;
 	params.hdr_meta = &c_state->hdr_meta;
 
-	SDE_EVT32_VERBOSE(connector->base.id);
+	sde_connector_pre_update_fod_hbm(c_conn);
 
-	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI)
-		sde_connector_pre_update_fod_hbm(c_conn);
+	c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
 
 	dc_dim = sde_connector_panel(c_conn)->dc_dim;
 	was_dcdim = sde_connector_panel(c_conn)->was_dc_dim;
@@ -718,14 +716,10 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 		_sde_connector_update_bl_scale(c_conn);
 		sde_connector_panel(c_conn)->was_dc_dim = false;
 	}
-
-	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
-
-end:
-	return rc;
+	return 0;
 }
 
-int sde_connector_prepare_commit(struct drm_connector *connector)
+inline int sde_connector_prepare_commit(struct drm_connector *connector)
 {
 	struct sde_connector *c_conn;
 	struct sde_connector_state *c_state;

@@ -783,14 +783,14 @@ int sde_connector_register_custom_event(struct sde_kms *kms,
  * @connector: Pointer to drm connector object
  * Returns: Zero on success
  */
-int sde_connector_pre_kickoff(struct drm_connector *connector);
+inline int sde_connector_pre_kickoff(struct drm_connector *connector);
 
 /**
  * sde_connector_prepare_commit - trigger commit time feature programming
  * @connector: Pointer to drm connector object
  * Returns: Zero on success
  */
-int sde_connector_prepare_commit(struct drm_connector *connector);
+inline int sde_connector_prepare_commit(struct drm_connector *connector);
 
 /**
  * sde_connector_needs_offset - adjust the output fence offset based on
