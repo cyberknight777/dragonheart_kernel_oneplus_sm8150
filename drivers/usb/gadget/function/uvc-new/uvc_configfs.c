@@ -49,7 +49,7 @@ static int uvcg_config_compare_u32(const void *l, const void *r)
 struct uvcg_config_group_type {
 	struct config_item_type type;
 	const char *name;
-	const struct uvcg_config_group_type **children;
+	struct uvcg_config_group_type **children;
 	int (*create_children)(struct config_group *group);
 };
 
@@ -65,12 +65,12 @@ static struct configfs_item_operations uvcg_config_item_ops = {
 };
 
 static int uvcg_config_create_group(struct config_group *parent,
-				    const struct uvcg_config_group_type *type);
+				    struct uvcg_config_group_type *type);
 
 static int uvcg_config_create_children(struct config_group *group,
-				const struct uvcg_config_group_type *type)
+				struct uvcg_config_group_type *type)
 {
-	const struct uvcg_config_group_type **child;
+	struct uvcg_config_group_type **child;
 	int ret;
 
 	if (type->create_children)
@@ -86,7 +86,7 @@ static int uvcg_config_create_children(struct config_group *group,
 }
 
 static int uvcg_config_create_group(struct config_group *parent,
-				    const struct uvcg_config_group_type *type)
+				    struct uvcg_config_group_type *type)
 {
 	struct config_group *group;
 
@@ -191,7 +191,7 @@ static struct configfs_attribute *uvcg_control_header_attrs[] = {
 	NULL,
 };
 
-static const struct config_item_type uvcg_control_header_type = {
+static struct config_item_type uvcg_control_header_type = {
 	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_attrs	= uvcg_control_header_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -221,7 +221,7 @@ static struct configfs_group_operations uvcg_control_header_grp_ops = {
 	.make_item		= uvcg_control_header_make,
 };
 
-static const struct uvcg_config_group_type uvcg_control_header_grp_type = {
+static struct uvcg_config_group_type uvcg_control_header_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_group_ops	= &uvcg_control_header_grp_ops,
@@ -308,7 +308,7 @@ static struct configfs_attribute *uvcg_default_processing_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvcg_default_processing_type = {
+static struct uvcg_config_group_type uvcg_default_processing_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_attrs	= uvcg_default_processing_attrs,
@@ -321,13 +321,13 @@ static const struct uvcg_config_group_type uvcg_default_processing_type = {
  * control/processing
  */
 
-static const struct uvcg_config_group_type uvcg_processing_grp_type = {
+static struct uvcg_config_group_type uvcg_processing_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "processing",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_default_processing_type,
 		NULL,
 	},
@@ -422,7 +422,7 @@ static struct configfs_attribute *uvcg_default_camera_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvcg_default_camera_type = {
+static struct uvcg_config_group_type uvcg_default_camera_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_attrs	= uvcg_default_camera_attrs,
@@ -435,13 +435,13 @@ static const struct uvcg_config_group_type uvcg_default_camera_type = {
  * control/terminal/camera
  */
 
-static const struct uvcg_config_group_type uvcg_camera_grp_type = {
+static struct uvcg_config_group_type uvcg_camera_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "camera",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_default_camera_type,
 		NULL,
 	},
@@ -554,7 +554,7 @@ static struct configfs_attribute *uvcg_default_output_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvcg_default_output_type = {
+static struct uvcg_config_group_type uvcg_default_output_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_attrs	= uvcg_default_output_attrs,
@@ -567,13 +567,13 @@ static const struct uvcg_config_group_type uvcg_default_output_type = {
  * control/terminal/output
  */
 
-static const struct uvcg_config_group_type uvcg_output_grp_type = {
+static struct uvcg_config_group_type uvcg_output_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "output",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_default_output_type,
 		NULL,
 	},
@@ -583,13 +583,13 @@ static const struct uvcg_config_group_type uvcg_output_grp_type = {
  * control/terminal
  */
 
-static const struct uvcg_config_group_type uvcg_terminal_grp_type = {
+static struct uvcg_config_group_type uvcg_terminal_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "terminal",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_camera_grp_type,
 		&uvcg_output_grp_type,
 		NULL,
@@ -663,7 +663,7 @@ out:
 	return ret;
 }
 
-static void uvcg_control_class_drop_link(struct config_item *src,
+static int uvcg_control_class_drop_link(struct config_item *src,
 					struct config_item *target)
 {
 	struct config_item *control, *header;
@@ -696,6 +696,7 @@ unlock:
 out:
 	config_item_put(header);
 	mutex_unlock(su_mutex);
+	return 0;
 }
 
 static struct configfs_item_operations uvcg_control_class_item_ops = {
@@ -704,7 +705,7 @@ static struct configfs_item_operations uvcg_control_class_item_ops = {
 	.drop_link	= uvcg_control_class_drop_link,
 };
 
-static const struct config_item_type uvcg_control_class_type = {
+static struct config_item_type uvcg_control_class_type = {
 	.ct_item_ops	= &uvcg_control_class_item_ops,
 	.ct_owner	= THIS_MODULE,
 };
@@ -735,7 +736,7 @@ static int uvcg_control_class_create_children(struct config_group *parent)
 	return 0;
 }
 
-static const struct uvcg_config_group_type uvcg_control_class_grp_type = {
+static struct uvcg_config_group_type uvcg_control_class_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
@@ -778,14 +779,14 @@ static struct configfs_attribute *uvcg_default_control_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvcg_control_grp_type = {
+static struct uvcg_config_group_type uvcg_control_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_attrs	= uvcg_default_control_attrs,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "control",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_control_header_grp_type,
 		&uvcg_processing_grp_type,
 		&uvcg_terminal_grp_type,
@@ -935,7 +936,7 @@ out:
 	return ret;
 }
 
-static void uvcg_streaming_header_drop_link(struct config_item *src,
+static int uvcg_streaming_header_drop_link(struct config_item *src,
 					   struct config_item *target)
 {
 	struct mutex *su_mutex = &src->ci_group->cg_subsys->su_mutex;
@@ -970,6 +971,7 @@ static void uvcg_streaming_header_drop_link(struct config_item *src,
 out:
 	mutex_unlock(&opts->lock);
 	mutex_unlock(su_mutex);
+	return 0;
 }
 
 static struct configfs_item_operations uvcg_streaming_header_item_ops = {
@@ -1020,7 +1022,7 @@ static struct configfs_attribute *uvcg_streaming_header_attrs[] = {
 	NULL,
 };
 
-static const struct config_item_type uvcg_streaming_header_type = {
+static struct config_item_type uvcg_streaming_header_type = {
 	.ct_item_ops	= &uvcg_streaming_header_item_ops,
 	.ct_attrs	= uvcg_streaming_header_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -1050,7 +1052,7 @@ static struct configfs_group_operations uvcg_streaming_header_grp_ops = {
 	.make_item		= uvcg_streaming_header_make,
 };
 
-static const struct uvcg_config_group_type uvcg_streaming_header_grp_type = {
+static struct uvcg_config_group_type uvcg_streaming_header_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_group_ops	= &uvcg_streaming_header_grp_ops,
@@ -1311,7 +1313,7 @@ static struct configfs_attribute *uvcg_frame_attrs[] = {
 	NULL,
 };
 
-static const struct config_item_type uvcg_frame_type = {
+static struct config_item_type uvcg_frame_type = {
 	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_attrs	= uvcg_frame_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -1608,7 +1610,7 @@ static struct configfs_attribute *uvcg_uncompressed_attrs[] = {
 	NULL,
 };
 
-static const struct config_item_type uvcg_uncompressed_type = {
+static struct config_item_type uvcg_uncompressed_type = {
 	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_group_ops	= &uvcg_uncompressed_group_ops,
 	.ct_attrs	= uvcg_uncompressed_attrs,
@@ -1651,7 +1653,7 @@ static struct configfs_group_operations uvcg_uncompressed_grp_ops = {
 	.make_group		= uvcg_uncompressed_make,
 };
 
-static const struct uvcg_config_group_type uvcg_uncompressed_grp_type = {
+static struct uvcg_config_group_type uvcg_uncompressed_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_group_ops	= &uvcg_uncompressed_grp_ops,
@@ -1795,7 +1797,7 @@ static struct configfs_attribute *uvcg_mjpeg_attrs[] = {
 	NULL,
 };
 
-static const struct config_item_type uvcg_mjpeg_type = {
+static struct config_item_type uvcg_mjpeg_type = {
 	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_group_ops	= &uvcg_mjpeg_group_ops,
 	.ct_attrs	= uvcg_mjpeg_attrs,
@@ -1832,7 +1834,7 @@ static struct configfs_group_operations uvcg_mjpeg_grp_ops = {
 	.make_group		= uvcg_mjpeg_make,
 };
 
-static const struct uvcg_config_group_type uvcg_mjpeg_grp_type = {
+static struct uvcg_config_group_type uvcg_mjpeg_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_group_ops	= &uvcg_mjpeg_grp_ops,
@@ -1886,7 +1888,7 @@ static struct configfs_attribute *uvcg_default_color_matching_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvcg_default_color_matching_type = {
+static struct uvcg_config_group_type uvcg_default_color_matching_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_attrs	= uvcg_default_color_matching_attrs,
@@ -1899,13 +1901,13 @@ static const struct uvcg_config_group_type uvcg_default_color_matching_type = {
  * streaming/color_matching
  */
 
-static const struct uvcg_config_group_type uvcg_color_matching_grp_type = {
+static struct uvcg_config_group_type uvcg_color_matching_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "color_matching",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_default_color_matching_type,
 		NULL,
 	},
@@ -2211,7 +2213,7 @@ out:
 	return ret;
 }
 
-static void uvcg_streaming_class_drop_link(struct config_item *src,
+static int uvcg_streaming_class_drop_link(struct config_item *src,
 					  struct config_item *target)
 {
 	struct config_item *streaming, *header;
@@ -2249,6 +2251,7 @@ unlock:
 out:
 	config_item_put(header);
 	mutex_unlock(su_mutex);
+	return 0;
 }
 
 static struct configfs_item_operations uvcg_streaming_class_item_ops = {
@@ -2257,7 +2260,7 @@ static struct configfs_item_operations uvcg_streaming_class_item_ops = {
 	.drop_link	= uvcg_streaming_class_drop_link,
 };
 
-static const struct config_item_type uvcg_streaming_class_type = {
+static struct config_item_type uvcg_streaming_class_type = {
 	.ct_item_ops	= &uvcg_streaming_class_item_ops,
 	.ct_owner	= THIS_MODULE,
 };
@@ -2288,7 +2291,7 @@ static int uvcg_streaming_class_create_children(struct config_group *parent)
 	return 0;
 }
 
-static const struct uvcg_config_group_type uvcg_streaming_class_grp_type = {
+static struct uvcg_config_group_type uvcg_streaming_class_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_owner	= THIS_MODULE,
@@ -2331,14 +2334,14 @@ static struct configfs_attribute *uvcg_default_streaming_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvcg_streaming_grp_type = {
+static struct uvcg_config_group_type uvcg_streaming_grp_type = {
 	.type = {
 		.ct_item_ops	= &uvcg_config_item_ops,
 		.ct_attrs	= uvcg_default_streaming_attrs,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "streaming",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_streaming_header_grp_type,
 		&uvcg_uncompressed_grp_type,
 		&uvcg_mjpeg_grp_type,
@@ -2465,14 +2468,14 @@ static struct configfs_attribute *uvc_attrs[] = {
 	NULL,
 };
 
-static const struct uvcg_config_group_type uvc_func_type = {
+static struct uvcg_config_group_type uvc_func_type = {
 	.type = {
 		.ct_item_ops	= &uvc_func_item_ops,
 		.ct_attrs	= uvc_attrs,
 		.ct_owner	= THIS_MODULE,
 	},
 	.name = "",
-	.children = (const struct uvcg_config_group_type*[]) {
+	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_control_grp_type,
 		&uvcg_streaming_grp_type,
 		NULL,
