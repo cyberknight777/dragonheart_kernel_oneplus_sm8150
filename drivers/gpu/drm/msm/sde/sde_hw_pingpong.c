@@ -181,8 +181,8 @@ static int sde_hw_pp_setup_te_config(struct sde_hw_pingpong *pp,
 
 	display = get_main_display();
 	if (display) {
-		if (display->panel->aod_state) {
-			cfg |= te->vsync_count * 60 * 100 / 3000;
+		if (display->panel->aod_state > 1) {
+			cfg |= te->vsync_count / 10;
 		} else {
 			cfg |= te->vsync_count;
 		}
