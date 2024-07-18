@@ -659,6 +659,8 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		new_status_flags |= (HBM_flag) << STATUS_FLAG_HBM;
 		new_status_flags |= ((panel->cur_mode->timing.refresh_rate < RR_THRESHOLD) && !(new_status_flags & STATUS_FLAG_HBM)) || panel->aod_state ? STATUS_FLAG_AOD : 0;
 		was_hbm |= new_status_flags & (STATUS_FLAG_HBM | (panel->bl_config.bl_level > BL_THRESHOLD) << STATUS_FLAG_BL_LEVEL);
+		if (new_status_flags & (1 << 2))
+			sde_encoder_wait_for_event(c_conn->encoder, MSM_ENC_VBLANK);
 	}
 
 	if (!(was_hbm & WAS_HBM_FLAG)) {
@@ -667,7 +669,7 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		was_hbm &= ~WAS_HBM_FLAG;
 	}
 
-	if ((panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M) || (status_flags && panel->cur_mode->timing.refresh_rate < 90)) {
+	if (status_flags && (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)) {
 		sde_encoder_wait_for_event(c_conn->encoder, MSM_ENC_VBLANK);
 	}
 
