@@ -588,6 +588,7 @@ gen_headers_out_arm = [
     "linux/unistd.h",
     "linux/unix_diag.h",
     "linux/usbdevice_fs.h",
+    "linux/usb/g_uvc-new.h",
     "linux/usbip.h",
     "linux/userfaultfd.h",
     "linux/userio.h",
