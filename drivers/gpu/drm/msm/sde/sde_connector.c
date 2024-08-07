@@ -637,7 +637,7 @@ struct dsi_panel *sde_connector_panel(struct sde_connector *c_conn)
 #define RR_THRESHOLD 90
 #define FOD_UI 5
 
-unsigned int was_hbm = 0;
+bool was_hbm;
 extern bool HBM_flag;
 extern void gf_opticalfp_ready(int);
 
@@ -658,15 +658,19 @@ static inline void sde_connector_pre_update_fod_hbm(struct sde_connector *c_conn
 		new_status_flags |= (panel->bl_config.bl_level > BL_THRESHOLD) << STATUS_FLAG_BL_LEVEL;
 		new_status_flags |= (HBM_flag) << STATUS_FLAG_HBM;
 		new_status_flags |= ((panel->cur_mode->timing.refresh_rate < RR_THRESHOLD) && !(new_status_flags & STATUS_FLAG_HBM)) || panel->aod_state ? STATUS_FLAG_AOD : 0;
-		was_hbm |= new_status_flags & (STATUS_FLAG_HBM | (panel->bl_config.bl_level > BL_THRESHOLD) << STATUS_FLAG_BL_LEVEL);
+		if (panel->bl_config.bl_level > BL_THRESHOLD || HBM_flag == true) 
+			was_hbm = true;
+		else
+			was_hbm = false;
+
 		if (new_status_flags & (1 << 2))
 			sde_encoder_wait_for_event(c_conn->encoder, MSM_ENC_VBLANK);
 	}
 
-	if (!(was_hbm & WAS_HBM_FLAG)) {
+	if (!was_hbm) {
 		dsi_panel_set_hbm_mode(panel, new_status_flags ? FOD_UI : 0);
-	} else if ((was_hbm & WAS_HBM_FLAG) && !status_flags) {
-		was_hbm &= ~WAS_HBM_FLAG;
+	} else if (was_hbm && !status_flags) {
+		was_hbm = false;
 	}
 
 	if (status_flags && (panel->hw_type == DSI_PANEL_SAMSUNG_SOFEF03F_M)) {
