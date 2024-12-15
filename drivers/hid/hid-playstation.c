@@ -23,6 +23,9 @@ static LIST_HEAD(ps_devices_list);
 
 static DEFINE_IDA(ps_player_id_allocator);
 
+#define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)
+#define __static_assert(expr, msg, ...) _Static_assert(expr, msg)
+
 #define HID_PLAYSTATION_VERSION_PATCH 0x8000
 
 enum PS_TYPE {
